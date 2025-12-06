@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Note2Tabs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f6f8fc;
+      --panel: #ffffff;
+      --text: #0b0d12;
+      --muted: #4a5568;
+      --line: #e3e9f3;
+      --blue: #2d6bff;
+      --blue-dark: #1f4dc7;
+      --glow: rgba(45, 107, 255, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Space Grotesk', 'Inter', system-ui, -apple-system, sans-serif;
+      background: radial-gradient(800px circle at 20% 20%, #eef3ff, transparent 40%),
+                  radial-gradient(900px circle at 80% 0%, #edf5ff, transparent 38%),
+                  var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+    }
+    .shell {
+      width: min(1100px, 94vw);
+      padding: 44px 0 72px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand img {
+      height: 38px;
+      width: auto;
+    }
+    .wordmark {
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      font-size: 22px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .tagline {
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.06);
+    }
+    .stack {
+      display: grid;
+      gap: 18px;
+    }
+    .upload-area {
+      border: 1.5px dashed var(--line);
+      border-radius: 16px;
+      background: #fdfefe;
+      padding: 24px;
+      transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+    }
+    .upload-area.dragover {
+      border-color: var(--blue);
+      background: #f2f6ff;
+      transform: translateY(-1px);
+    }
+    .upload-head {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #eef3ff;
+      color: var(--blue-dark);
+      font-weight: 600;
+      font-size: 12px;
+      letter-spacing: 0.01em;
+    }
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+    label {
+      font-weight: 600;
+      font-size: 14px;
+      color: #111827;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      font-size: 15px;
+      background: #ffffff;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    input[type="text"]:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 6px 30px var(--glow);
+    }
+    .actions-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      transition: transform 0.1s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease;
+    }
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+      padding: 14px 16px;
+      box-shadow: 0 14px 40px rgba(45, 107, 255, 0.25);
+    }
+    .btn-primary:hover { background: var(--blue-dark); }
+    .btn-primary:active { transform: translateY(0); box-shadow: 0 8px 26px rgba(45, 107, 255, 0.22); }
+    .btn-ghost {
+      padding: 10px 14px;
+      border: 1px dashed var(--line);
+      background: #fff;
+      color: #111827;
+    }
+    .btn-ghost:hover { border-color: var(--blue); color: var(--blue); }
+    .hint { color: var(--muted); font-size: 14px; text-align: center; }
+    .error { margin-top: 8px; color: #c72b2b; font-size: 14px; text-align: center; }
+    .hidden { display: none !important; }
+    .loading {
+      display: grid;
+      place-items: center;
+      gap: 10px;
+      padding-top: 12px;
+      text-align: center;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #dbe5ff;
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .split {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 18px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 20px;
+      align-items: baseline;
+    }
+    .title { font-weight: 700; letter-spacing: -0.01em; font-size: 22px; }
+    .artist { color: var(--muted); font-weight: 500; }
+    .stats { color: var(--muted); font-size: 14px; }
+    audio { width: 100%; }
+    .tab-box {
+      flex: 1;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: linear-gradient(#f7f9ff 0 0) padding-box,
+                  repeating-linear-gradient(180deg, #eef3ff, #eef3ff 32px, #ffffff 32px, #ffffff 64px);
+      overflow: auto;
+      max-height: 360px;
+      position: relative;
+    }
+    .tab-text {
+      margin: 0;
+      font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 14px;
+      white-space: pre;
+      color: #0f172a;
+      line-height: 1.6;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .btn-secondary {
+      flex: 1;
+      min-width: 150px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 12px;
+      color: #0f172a;
+    }
+    .btn-secondary:hover { border-color: var(--blue); color: var(--blue); }
+    .nav-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      text-decoration: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .nav-back:hover { color: #0f172a; }
+    @media (max-width: 960px) {
+      .shell { padding: 28px 0 48px; }
+      .split { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      body { justify-content: flex-start; }
+      .shell { width: 100%; padding: 20px 16px 40px; }
+      header { flex-direction: column; align-items: flex-start; }
+      .btn-primary, .btn-secondary { width: 100%; }
+      .tab-box { max-height: 280px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <img src="image1.png" alt="Note2Tabs logo">
+        <div class="wordmark">Note2Tabs</div>
+      </div>
+      <div class="tagline">Turn any song into clean, playable guitar tabs.</div>
+    </header>
+
+    <section id="uploadView" class="panel">
+      <div class="stack">
+        <div class="upload-head">
+          <div>
+            <h2 style="margin:0;font-size:20px;letter-spacing:-0.01em;">Upload or link your track</h2>
+            <p style="margin:4px 0 0;color:var(--muted);font-size:14px;">Choose a file or drop a YouTube link. One input at a time.</p>
+          </div>
+          <span class="pill">Fast conversion</span>
+        </div>
+
+        <div id="uploadBox" class="upload-area">
+          <div class="field">
+            <label for="fileInput">Audio file</label>
+            <div class="actions-row">
+              <button type="button" class="btn btn-ghost" id="fileButton">Choose audio file</button>
+              <span id="fileName" aria-live="polite" style="color:var(--muted);font-size:14px;"></span>
+            </div>
+            <div style="color:var(--muted);font-size:13px;">Or drag and drop a file into this area.</div>
+            <input id="fileInput" type="file" accept="audio/*" hidden>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="urlInput">YouTube link</label>
+          <input id="urlInput" type="text" placeholder="https://www.youtube.com/..." autocomplete="off">
+        </div>
+
+        <div class="actions-row" style="justify-content:space-between;align-items:center;">
+          <div>
+            <button id="convertBtn" class="btn btn-primary">Convert to Tabs</button>
+          </div>
+          <div class="hint">Inputs stay local. Conversion takes seconds.</div>
+        </div>
+        <div id="errorMsg" class="error hidden">Add an audio file or a YouTube link to continue.</div>
+        <div id="loadingState" class="loading hidden">
+          <div class="spinner" aria-hidden="true"></div>
+          <p id="loadingText" style="color:var(--muted);margin:0;">Analyzing audio…</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="resultsView" class="panel hidden">
+      <div class="results">
+        <button id="backFromResults" class="nav-back" type="button">← Back</button>
+        <div class="meta">
+          <div>
+            <div class="title" id="songTitle">Untitled Demo</div>
+            <div class="artist" id="songArtist">Artist info not detected</div>
+          </div>
+          <div class="pill" id="confidence">98% confident</div>
+          <div class="stats" id="stats">3:12 duration · Stereo · 44.1 kHz</div>
+        </div>
+        <div class="split">
+          <div class="card">
+            <h3 style="margin: 0; font-size: 15px; color: var(--muted);">Preview</h3>
+            <audio id="audioPlayer" controls preload="metadata">
+              <source src="" type="audio/mpeg">
+              Your browser does not support the audio element.
+            </audio>
+            <p class="stats" id="fileLabel">No file selected yet.</p>
+          </div>
+          <div class="card">
+            <h3 style="margin: 0; font-size: 15px; color: var(--muted);">Tab</h3>
+            <div class="tab-box">
+              <pre class="tab-text" id="tabText"></pre>
+            </div>
+            <div class="actions">
+              <button class="secondary-btn">Download Tab (PDF)</button>
+              <button class="secondary-btn">Download Stems</button>
+              <button class="secondary-btn">Share</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const uploadView = document.getElementById('uploadView');
+    const resultsView = document.getElementById('resultsView');
+    const uploadBox = document.getElementById('uploadBox');
+    const fileInput = document.getElementById('fileInput');
+    const fileButton = document.getElementById('fileButton');
+    const urlInput = document.getElementById('urlInput');
+    const fileNameLabel = document.getElementById('fileName');
+    const convertBtn = document.getElementById('convertBtn');
+    const backFromResults = document.getElementById('backFromResults');
+    const loadingState = document.getElementById('loadingState');
+    const errorMsg = document.getElementById('errorMsg');
+    const songTitle = document.getElementById('songTitle');
+    const songArtist = document.getElementById('songArtist');
+    const confidence = document.getElementById('confidence');
+    const stats = document.getElementById('stats');
+    const tabText = document.getElementById('tabText');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const fileLabel = document.getElementById('fileLabel');
+
+    const defaultTab = [
+      'E |----------------------------|',
+      'B |----------------------------|',
+      'G |------4-----4-----4-----4---|',
+      'D |----4-----4-----4-----4-----|',
+      'A |--2-----2-----2-----2-------|',
+      'E |0---------------------------|',
+      '',
+      '      Verse groove · swing lightly'
+    ].join('\\n');
+
+    const showError = (message) => {
+      errorMsg.textContent = message;
+      errorMsg.classList.remove('hidden');
+    };
+
+    const clearError = () => {
+      errorMsg.classList.add('hidden');
+    };
+
+    const setLoading = (isLoading) => {
+      loadingState.classList.toggle('hidden', !isLoading);
+      convertBtn.disabled = isLoading;
+    };
+
+    const fakeProcessing = () => {
+      setLoading(true);
+      setTimeout(() => {
+        setLoading(false);
+      uploadView.classList.add('hidden');
+      resultsView.classList.remove('hidden');
+      }, 1400);
+    };
+
+    const updateLabels = (source) => {
+      const name = source || 'Untitled Demo';
+      songTitle.textContent = name.replace(/\\.[^/.]+$/, '');
+      songArtist.textContent = urlInput.value ? 'Source: YouTube link' : 'Local upload';
+      confidence.textContent = '99% confident';
+      stats.textContent = 'Ready to play · Auto-tempo mapped';
+      tabText.textContent = defaultTab;
+      fileLabel.textContent = source ? 'Loaded: ' + source : 'Preview available after upload';
+    };
+
+    fileButton.addEventListener('click', () => fileInput.click());
+
+    uploadBox.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadBox.classList.add('dragover');
+    });
+    uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
+    uploadBox.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadBox.classList.remove('dragover');
+      if (e.dataTransfer.files.length) {
+        const file = e.dataTransfer.files[0];
+        fileInput.files = e.dataTransfer.files;
+        fileNameLabel.textContent = file.name;
+        audioPlayer.src = URL.createObjectURL(file);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      fileNameLabel.textContent = file.name;
+      clearError();
+      audioPlayer.src = URL.createObjectURL(file);
+    });
+
+    convertBtn.addEventListener('click', () => {
+      const hasFile = fileInput.files?.length > 0;
+      const url = urlInput.value.trim();
+      if (hasFile && url) {
+        showError('Please choose either an audio file OR a YouTube link, not both.');
+        return;
+      }
+      if (!hasFile && !url) {
+        showError('Add an audio file or a YouTube link to continue.');
+        return;
+      }
+      clearError();
+      const source = hasFile ? fileInput.files[0].name : 'YouTube import';
+      updateLabels(source);
+      fakeProcessing();
+    });
+
+    backFromResults.addEventListener('click', () => {
+      resultsView.classList.add('hidden');
+      uploadView.classList.remove('hidden');
+    });
+
+    // When entering a URL, keep upload box from grabbing focus/click
+    urlInput.addEventListener('click', (e) => e.stopPropagation());
+    urlInput.addEventListener('focus', () => uploadBox.classList.remove('dragover'));
+  </script>
+</body>
+</html>

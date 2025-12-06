@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model User {
+  id              String    @id @default(cuid())
+  name            String?
+  email           String    @unique
+  emailVerified   DateTime?
+  image           String?
+  passwordHash    String?
+  role            String    @default("FREE")
+  tokensRemaining Int       @default(120)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  accounts        Account[]
+  sessions        Session[]
+  tabs            TabJob[]
+}
+
+model TabJob {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  sourceType  String
+  sourceLabel String?
+  durationSec Int?
+  resultJson  String
+  createdAt   DateTime @default(now())
+}
+
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  userId      String?
+  sessionId   String?
+  fingerprint String?
+  event       String
+  path        String?
+  referer     String?
+  ipHash      String?
+  browser     String?
+  os          String?
+  deviceType  String?
+  payload     String?
+  createdAt   DateTime @default(now())
+}
+
+model UserConsent {
+  id            String   @id @default(cuid())
+  userId        String?  @unique
+  sessionId     String?
+  fingerprintId String?
+  granted       Boolean
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
