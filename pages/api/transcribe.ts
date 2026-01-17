@@ -4,8 +4,9 @@ import { IncomingForm, type File as FormidableFile } from "formidable";
 import { promises as fs } from "fs";
 import { authOptions } from "./auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
+import { createBackendToken } from "../../lib/backendToken";
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 
 type Mode = "FILE" | "YOUTUBE";
 
@@ -50,13 +51,14 @@ async function parseMultipart(req: NextApiRequest): Promise<{
   });
 }
 
-async function fetchJson<T>(res: Response): Promise<T> {
-  const text = await res.text();
-  try {
-    return JSON.parse(text) as T;
-  } catch (error) {
-    throw new Error(text || "Invalid JSON from backend.");
-  }
+async function decrementTokensIfNeeded(user: { id: string; role?: string | null; tokensRemaining: number }, minutes: number) {
+  if (user.role !== "FREE") return user.tokensRemaining;
+  const updatedTokens = Math.max(0, user.tokensRemaining - minutes);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { tokensRemaining: updatedTokens },
+  });
+  return updatedTokens;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -137,8 +139,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .json({ error: "You have used all your free minutes. Upgrade to premium to continue." });
     }
 
-    let tabs: string[][] = [];
-    let sourceLabel = "";
+    const backendToken = createBackendToken({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    });
 
     if (mode === "YOUTUBE" && youtubePayload) {
       const fdYt = new FormData();
@@ -147,26 +152,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       fdYt.append("duration", String(youtubePayload.duration || 0));
       fdYt.append("separate_guitar", youtubePayload.separateGuitar ? "true" : "false");
 
-      const ytRes = await fetch(`${API_BASE}/yt_processor`, { method: "POST", body: fdYt });
-      if (!ytRes.ok) {
-        const bodyText = await ytRes.text();
-        return res.status(ytRes.status).json({ error: `yt_processor error: ${bodyText}` });
-      }
-
-      const wavBlob = await ytRes.blob();
-      const fdProcess = new FormData();
-      fdProcess.append("file", wavBlob, "yt_segment.wav");
-      const processRes = await fetch(`${API_BASE}/process_audio/`, {
+      const jobRes = await fetch(`${API_BASE}/v1/jobs/transcribe`, {
         method: "POST",
-        body: fdProcess,
+        headers: {
+          Authorization: `Bearer ${backendToken}`,
+        },
+        body: fdYt,
       });
-      if (!processRes.ok) {
-        const bodyText = await processRes.text();
-        return res.status(processRes.status).json({ error: `process_audio error: ${bodyText}` });
+      const jobData = await jobRes.json().catch(() => ({}));
+      if (!jobRes.ok) {
+        return res.status(jobRes.status).json({ error: jobData?.error?.message || "Job creation failed." });
       }
-      const data = await fetchJson<{ result: string[][] }>(processRes);
-      tabs = data.result;
-      sourceLabel = youtubePayload.youtubeUrl;
+      const jobId = jobData.jobId as string | undefined;
+      if (!jobId) {
+        return res.status(500).json({ error: "Missing jobId from backend." });
+      }
+      const updatedTokens = await decrementTokensIfNeeded(user, requiredMinutes);
+      return res.status(200).json({ jobId, tokensRemaining: updatedTokens });
     }
 
     if (mode === "FILE") {
@@ -182,46 +184,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }),
         uploadedFile.originalFilename || "upload"
       );
-      const processRes = await fetch(`${API_BASE}/process_audio/`, {
+      const jobRes = await fetch(`${API_BASE}/v1/jobs/transcribe`, {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${backendToken}`,
+        },
         body: fd,
       });
-      if (!processRes.ok) {
-        const bodyText = await processRes.text();
-        return res.status(processRes.status).json({ error: `process_audio error: ${bodyText}` });
+      const jobData = await jobRes.json().catch(() => ({}));
+      if (!jobRes.ok) {
+        return res.status(jobRes.status).json({ error: jobData?.error?.message || "Job creation failed." });
       }
-      const data = await fetchJson<{ result: string[][] }>(processRes);
-      tabs = data.result;
-      sourceLabel = uploadedFile.originalFilename || "upload";
+      const jobId = jobData.jobId as string | undefined;
+      if (!jobId) {
+        return res.status(500).json({ error: "Missing jobId from backend." });
+      }
       if (uploadedFile.filepath) {
         void fs.unlink(uploadedFile.filepath).catch(() => {});
       }
+      const updatedTokens = await decrementTokensIfNeeded(user, requiredMinutes);
+      return res.status(200).json({ jobId, tokensRemaining: updatedTokens });
     }
-
-    if (!tabs?.length) {
-      return res.status(500).json({ error: "Transcription returned no data." });
-    }
-
-    let updatedTokens = user.tokensRemaining;
-    if (user.role === "FREE") {
-      updatedTokens = Math.max(0, user.tokensRemaining - requiredMinutes);
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { tokensRemaining: updatedTokens },
-      });
-    }
-
-    const job = await prisma.tabJob.create({
-      data: {
-        userId: user.id,
-        sourceType: mode,
-        sourceLabel,
-        durationSec: durationSec || null,
-        resultJson: JSON.stringify(tabs),
-      },
-    });
-
-    return res.status(200).json({ tabs, tokensRemaining: updatedTokens, jobId: job.id });
+    return res.status(500).json({ error: "Job creation failed." });
   } catch (error) {
     console.error("transcribe error", error);
     return res.status(500).json({ error: "Transcription failed." });

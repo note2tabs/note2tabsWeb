@@ -8,7 +8,7 @@ import logo from "../image1.png";
 import { sendEvent } from "../lib/analytics";
 import Header from "../components/Header";
 
-type TabsResponse = { tabs: string[][]; tokensRemaining?: number; jobId?: string };
+type TranscribeResponse = { jobId?: string; tokensRemaining?: number; error?: string };
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
 
@@ -19,7 +19,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tabsResult, setTabsResult] = useState<string[][] | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [ytStartTime, setYtStartTime] = useState(0);
   const [ytDuration, setYtDuration] = useState(30);
@@ -53,7 +52,6 @@ export default function HomePage() {
     const file = e.target.files?.[0] || null;
     setSelectedFile(file);
     setError(null);
-    setTabsResult(null);
   };
 
   const handleConvert = async () => {
@@ -76,7 +74,6 @@ export default function HomePage() {
     }
 
     setError(null);
-    setTabsResult(null);
     setStatus(mode === "FILE" ? "Transcribing audio…" : "Downloading from YouTube…");
     setLoading(true);
     sendEvent("transcribe_start", { mode, ytUrl: youtubeUrl || undefined });
@@ -103,18 +100,19 @@ export default function HomePage() {
         });
       }
 
-      const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
+      const data = (await response.json().catch(() => ({}))) as { error?: string } & TranscribeResponse;
       if (!response.ok) {
         setError(data?.error || "Transcription failed. Please try again.");
+        setStatus(null);
         sendEvent("transcribe_error", { mode, error: data?.error || "unknown" });
         return;
       }
-      if (!data.tabs || !Array.isArray(data.tabs)) {
-        setError("No tabs returned from server.");
-        sendEvent("transcribe_error", { mode, error: "no tabs" });
+      if (data.jobId) {
+        window.location.href = `/job/${data.jobId}`;
         return;
       }
-      setTabsResult(data.tabs);
+      setError("No job id returned from server.");
+      setStatus(null);
       if (typeof data.tokensRemaining === "number") {
         setTokensRemaining(data.tokensRemaining);
       }
@@ -123,6 +121,7 @@ export default function HomePage() {
     } catch (err: any) {
       console.error(err);
       setError(err?.message || "Something went wrong. Please try again.");
+      setStatus(null);
       sendEvent("transcribe_error", { mode, error: err?.message || "unknown" });
     } finally {
       setLoading(false);
@@ -202,7 +201,6 @@ export default function HomePage() {
                     setMode("FILE");
                     setYoutubeUrl("");
                     setError(null);
-                    setTabsResult(null);
                   }}
                   className={`px-4 py-2 rounded-lg transition ${
                     mode === "FILE" ? "bg-blue-500 text-white" : "text-slate-300"
@@ -216,7 +214,6 @@ export default function HomePage() {
                     setMode("YOUTUBE");
                     setSelectedFile(null);
                     setError(null);
-                    setTabsResult(null);
                   }}
                   className={`px-4 py-2 rounded-lg transition ${
                     mode === "YOUTUBE" ? "bg-blue-500 text-white" : "text-slate-300"
@@ -237,7 +234,6 @@ export default function HomePage() {
                       if (file) {
                         setSelectedFile(file);
                         setError(null);
-                        setTabsResult(null);
                       }
                     }}
                     className="block rounded-xl border border-dashed border-slate-700 bg-slate-900/60 px-4 py-6 text-center hover:border-blue-500 transition cursor-pointer"
@@ -378,43 +374,6 @@ export default function HomePage() {
                 </div>
               )}
 
-              {tabsResult && (
-                <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/80 p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-100">Generated Tabs</p>
-                      <p className="text-xs text-slate-400">
-                        {selectedFile ? `Source: ${selectedFile.name}` : youtubeUrl || "YouTube source"}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const joined = tabsResult.map((s) => s.join("\n")).join("\n\n---\n\n");
-                        navigator.clipboard.writeText(joined).catch((err) =>
-                          console.error("Copy failed", err)
-                        );
-                      }}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors duration-150 ease-out text-slate-100"
-                    >
-                      Copy tabs
-                    </button>
-                  </div>
-                  <div className="space-y-3 max-h-[420px] overflow-y-auto">
-                    {tabsResult.map((segment, idx) => (
-                      <pre
-                        key={idx}
-                        className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 font-mono text-sm text-slate-100 whitespace-pre overflow-x-auto transition-colors duration-150 ease-out"
-                      >
-{segment.join("\n")}
-                      </pre>
-                    ))}
-                  </div>
-                  <Link href="/account" className="text-xs text-blue-400 hover:text-blue-300">
-                    Open in account →
-                  </Link>
-                </div>
-              )}
             </section>
 
             <aside className="space-y-5">

@@ -57,6 +57,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!event || typeof event !== "string") {
       return res.status(400).json({ error: "Invalid event" });
     }
+    const trimmedEvent = event.trim();
+    if (trimmedEvent.length > 100) {
+      return res.status(400).json({ error: "Event name too long" });
+    }
 
     const sessionId = cookies.analytics_session;
     const session = await getServerSession(req, res, authOptions);
@@ -79,19 +83,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const ipHash = hashIp(ip);
     const ua = parseUA(req.headers["user-agent"]);
 
+    const payloadString = payload ? JSON.stringify(payload).slice(0, 4000) : undefined;
+
     await prisma.analyticsEvent.create({
       data: {
         userId,
         sessionId,
         fingerprint,
-        event,
+        event: trimmedEvent,
         path: typeof path === "string" ? path : undefined,
         referer: typeof referer === "string" ? referer : undefined,
         ipHash,
         browser: ua.browser,
         os: ua.os,
         deviceType: ua.deviceType,
-        payload: payload ? JSON.stringify(payload) : undefined,
+        payload: payloadString,
       },
     });
 

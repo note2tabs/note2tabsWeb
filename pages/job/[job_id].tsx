@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
 import Script from "next/script";
 import { useRouter } from "next/router";
+import { GetServerSideProps } from "next";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../api/auth/[...nextauth]";
 import JobStatusLayout, { JobResponse } from "../../components/JobStatusLayout";
 import Header from "../../components/Header";
 import { saveJobToHistory } from "../../lib/history";
+import { apiFetch } from "../../lib/apiClient";
 
-const BASE_URL = "http://127.0.0.1:8000";
 const POLL_INTERVAL = 3000;
-const PRIMIS_CHANNEL_ID = "YOUR_PRIMIS_CHANNEL_ID";
-const ADS_AVAILABLE = PRIMIS_CHANNEL_ID && PRIMIS_CHANNEL_ID !== "YOUR_PRIMIS_CHANNEL_ID";
+const PRIMIS_CHANNEL_ID = process.env.NEXT_PUBLIC_PRIMIS_CHANNEL_ID || "";
+const ADS_AVAILABLE = Boolean(PRIMIS_CHANNEL_ID);
 
 export default function JobPage() {
   const router = useRouter();
@@ -21,13 +24,16 @@ export default function JobPage() {
   const [adContainerKey, setAdContainerKey] = useState(0);
   const [loadAdScript, setLoadAdScript] = useState(false);
   const [savedHistory, setSavedHistory] = useState(false);
+  const [savedTabId, setSavedTabId] = useState<string | null>(null);
   const [shareUrls, setShareUrls] = useState<{ twitter: string; reddit: string } | null>(null);
+  const adStorageKey = typeof job_id === "string" ? `note2tabs_ad_watched_${job_id}` : "";
 
   const fetchJob = async (id: string) => {
     try {
-      const response = await fetch(`${BASE_URL}/api/v1/jobs/${id}`);
-      if (!response.ok) throw new Error("Failed to fetch");
-      const data: JobResponse = await response.json();
+      const data = await apiFetch<JobResponse>(`/api/backend/v1/jobs/${id}`, {
+        method: "GET",
+        retries: 1,
+      });
       setJob(data);
       if (data.status === "done" || data.status === "error") {
         if (intervalRef.current) {
@@ -38,9 +44,9 @@ export default function JobPage() {
     } catch (err) {
       console.error(err);
       setJob((prev) => ({
-        job_id: id,
+        jobId: id,
         status: "error",
-        error_message: "Could not fetch job status."
+        error: { message: "Could not fetch job status." },
       }));
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -66,14 +72,41 @@ export default function JobPage() {
       if (!savedHistory && job_id && typeof job_id === "string") {
         saveJobToHistory({
           jobId: job_id,
-          songTitle: job.song_title,
-          artist: job.artist,
-          createdAt: new Date().toISOString()
+          songTitle: job.result?.sourceLabel || undefined,
+          createdAt: new Date().toISOString(),
         });
         setSavedHistory(true);
       }
     }
-  }, [job?.status, hasWatchedAd, savedHistory, job_id, job?.song_title, job?.artist]);
+  }, [job?.status, hasWatchedAd, savedHistory, job_id, job?.result?.sourceLabel]);
+
+  useEffect(() => {
+    if (job?.status !== "done" || savedTabId) return;
+    const tabStrings = job.result?.tabStrings;
+    if (!tabStrings || tabStrings.length === 0) return;
+    const save = async () => {
+      try {
+        const payload = {
+          sourceLabel: job.result?.sourceLabel,
+          sourceType: "JOB",
+          durationSec: job.result?.durationSec,
+          resultJson: JSON.stringify(tabStrings),
+        };
+        const response = await fetch("/api/tabs/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data?.jobId) {
+          setSavedTabId(data.jobId);
+        }
+      } catch (err) {
+        // silently ignore save failures
+      }
+    };
+    void save();
+  }, [job?.status, savedTabId, job?.result?.tabStrings, job?.result?.sourceLabel, job?.result?.durationSec]);
 
   // Reset ad gate when job changes
   useEffect(() => {
@@ -102,18 +135,20 @@ export default function JobPage() {
     if (job?.status === "done" && !savedHistory && job_id && typeof job_id === "string") {
       saveJobToHistory({
         jobId: job_id,
-        songTitle: job.song_title,
-        artist: job.artist,
+        songTitle: job.result?.sourceLabel || undefined,
         createdAt: new Date().toISOString()
       });
       setSavedHistory(true);
     }
-  }, [job?.status, savedHistory, job_id, job?.song_title, job?.artist]);
+  }, [job?.status, savedHistory, job_id, job?.result?.sourceLabel]);
 
   useEffect(() => {
     if (!loadAdScript) return;
     const handleEnd = () => {
       setHasWatchedAd(true);
+      if (adStorageKey && typeof window !== "undefined") {
+        window.localStorage.setItem(adStorageKey, "true");
+      }
     };
     const handleRetry = () => {
       setAdContainerKey((k) => k + 1);
@@ -130,12 +165,14 @@ export default function JobPage() {
   }, [loadAdScript, adStorageKey]);
 
   const handleDownloadTabs = () => {
-    const content = job?.tab_text || "";
+    const content = job?.result?.tabStrings
+      ? job.result.tabStrings.map((segment) => segment.join("\n")).join("\n\n")
+      : "";
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${job?.song_title || "note2tabs"}.txt`;
+    link.download = `${job?.result?.sourceLabel || "note2tabs"}.txt`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -143,6 +180,9 @@ export default function JobPage() {
   const handleRestart = () => router.push("/");
   const handleSkipAd = () => {
     setHasWatchedAd(true);
+    if (adStorageKey && typeof window !== "undefined") {
+      window.localStorage.setItem(adStorageKey, "true");
+    }
   };
   const handleVideoComplete = () => {
     handleSkipAd();
@@ -150,8 +190,8 @@ export default function JobPage() {
 
   const showAdGate = job?.status === "done" && !hasWatchedAd;
   const title =
-    job?.status === "done" && job?.song_title
-      ? `${job.song_title} – Note2Tabs`
+    job?.status === "done" && job?.result?.sourceLabel
+      ? `${job.result.sourceLabel} – Note2Tabs`
       : job?.status === "done"
       ? "Tabs Ready – Note2Tabs"
       : "Processing – Note2Tabs";
@@ -194,9 +234,32 @@ export default function JobPage() {
             enablePrimis={ADS_AVAILABLE}
             onVideoComplete={handleVideoComplete}
             shareUrls={hasWatchedAd ? shareUrls : null}
+            audioPreviewUrl={job?.status === "done" ? `/api/backend/v1/jobs/${job?.jobId}/download` : null}
+            editorIds={job?.result?.editorIds || []}
           />
+          {savedTabId && (
+            <div className="mt-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+              Saved to your library.{" "}
+              <a href={`/tabs/${savedTabId}`} className="underline underline-offset-2">
+                View tab
+              </a>
+            </div>
+          )}
         </div>
       </main>
     </>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  const session = await getServerSession(ctx.req, ctx.res, authOptions);
+  if (!session?.user?.id) {
+    return {
+      redirect: {
+        destination: "/auth/login",
+        permanent: false,
+      },
+    };
+  }
+  return { props: {} };
+};

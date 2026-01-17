@@ -1,22 +1,20 @@
 import TabViewer from "./TabViewer";
-import StemsList from "./StemsList";
 
-export type JobStatus = "pending" | "processing" | "done" | "error";
-
-export type Stem = {
-  name: string;
-  url: string;
-};
+export type JobStatus = "queued" | "processing" | "done" | "error";
 
 export type JobResponse = {
-  job_id: string;
+  jobId: string;
   status: JobStatus;
-  song_title?: string | null;
-  artist?: string | null;
-  tab_text?: string | null;
-  audio_preview_url?: string | null;
-  stems?: Stem[] | null;
-  error_message?: string | null;
+  result?: {
+    tabStrings?: string[][];
+    editorIds?: string[];
+    sourceLabel?: string | null;
+    durationSec?: number | null;
+  } | null;
+  error?: {
+    code?: string | null;
+    message?: string | null;
+  } | null;
 };
 
 type JobStatusLayoutProps = {
@@ -32,6 +30,8 @@ type JobStatusLayoutProps = {
   enablePrimis?: boolean;
   onVideoComplete: () => void;
   shareUrls?: { twitter: string; reddit: string } | null;
+  audioPreviewUrl?: string | null;
+  editorIds?: string[];
 };
 
 export default function JobStatusLayout({
@@ -47,8 +47,10 @@ export default function JobStatusLayout({
   enablePrimis = false,
   onVideoComplete,
   shareUrls,
+  audioPreviewUrl,
+  editorIds = [],
 }: JobStatusLayoutProps) {
-  if (!job || job.status === "pending" || job.status === "processing") {
+  if (!job || job.status === "queued" || job.status === "processing") {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex items-center gap-3">
@@ -68,7 +70,7 @@ export default function JobStatusLayout({
     return (
       <div className="rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
         <p className="text-base font-semibold text-red-700">Something went wrong.</p>
-        <p className="mt-2 text-sm text-red-600">{job.error_message || "Please try again."}</p>
+        <p className="mt-2 text-sm text-red-600">{job.error?.message || "Please try again."}</p>
         <button
           type="button"
           onClick={onRestart}
@@ -80,8 +82,8 @@ export default function JobStatusLayout({
     );
   }
 
-  const hasAudio = Boolean(job.audio_preview_url);
-  const stems = job.stems || [];
+  const hasAudio = Boolean(audioPreviewUrl);
+  const tabs = job.result?.tabStrings || [];
 
   if (showAdGate && !hasWatchedAd) {
     return (
@@ -128,10 +130,9 @@ export default function JobStatusLayout({
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
           <p className="text-lg font-semibold text-gray-900">
-            {job.song_title || "Untitled"}{" "}
-            {job.artist ? <span className="text-gray-600">– {job.artist}</span> : null}
+            {job.result?.sourceLabel || "Untitled"}
           </p>
           <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
             Ready
@@ -144,22 +145,33 @@ export default function JobStatusLayout({
           <div>
             <h3 className="text-sm font-semibold text-gray-700">Preview</h3>
             {hasAudio ? (
-              <audio
-                controls
-                src={job.audio_preview_url || undefined}
-                className="mt-3 w-full"
-              >
+              <audio controls src={audioPreviewUrl || undefined} className="mt-3 w-full">
                 Your browser does not support the audio element.
               </audio>
             ) : (
               <p className="mt-3 text-sm text-gray-600">No audio preview available.</p>
             )}
           </div>
-          <StemsList stems={stems.filter(Boolean) as Stem[]} />
+          {editorIds.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-gray-700">Editors</p>
+              <div className="flex flex-wrap gap-2">
+                {editorIds.map((id) => (
+                  <a
+                    key={id}
+                    href={`/editor/${id}`}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-800 hover:border-blue-500 hover:text-blue-600"
+                  >
+                    Open editor {id.slice(0, 6)}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <TabViewer tabText={job.tab_text || ""} songTitle={job.song_title || undefined} />
+          <TabViewer segments={tabs} />
         </div>
       </div>
 
