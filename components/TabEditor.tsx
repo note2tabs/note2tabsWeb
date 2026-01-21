@@ -14,11 +14,11 @@ export default function TabEditor({ segments, onChange }: TabEditorProps) {
     <div className="space-y-4">
       {segments.map((segment, idx) => (
         <div key={idx} className="space-y-2">
-          <p className="text-xs text-slate-400">Segment {idx + 1}</p>
+          <p className="text-xs text-slate-600">Segment {idx + 1}</p>
           <textarea
             value={segment.join("\n")}
             onChange={(e) => handleChange(idx, e.target.value)}
-            className="w-full min-h-[140px] rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 font-mono text-sm md:text-base text-slate-100 whitespace-pre focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full min-h-[140px] rounded-xl border border-slate-200 bg-white px-4 py-3 font-mono text-sm md:text-base text-slate-900 whitespace-pre focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       ))}

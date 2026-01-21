@@ -141,7 +141,7 @@ export default function UploadForm({ onSubmit, loading = false, serverError }: U
         >
           Convert to Tabs
         </button>
-        {loading && <p className="text-center text-sm text-gray-600">Creating job…</p>}
+        {loading && <p className="text-center text-sm text-gray-600">Creating job...</p>}
       </div>
     </form>
   );

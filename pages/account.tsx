@@ -5,12 +5,15 @@ import { authOptions } from "./api/auth/[...nextauth]";
 import { prisma } from "../lib/prisma";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
+import { buildCreditsSummary, getCreditWindow } from "../lib/credits";
+import { APP_HOME_URL } from "../lib/urls";
 
 type TabJob = {
   id: string;
   sourceType: string;
   sourceLabel: string | null;
   createdAt: string;
+  gteEditorId?: string | null;
 };
 
 type Props = {
@@ -22,13 +25,24 @@ type Props = {
   };
   tabs: TabJob[];
   stripeReady: boolean;
+  credits: {
+    used: number;
+    limit: number;
+    remaining: number;
+    resetAt: string;
+    unlimited: boolean;
+  };
 };
 
-export default function AccountPage({ user, tabs, stripeReady }: Props) {
+export default function AccountPage({ user, tabs, stripeReady, credits }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const isAdminOrMod = user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const isAdmin = user.role === "ADMIN";
+  const resetLabel = new Date(credits.resetAt).toLocaleDateString();
+  const creditsUsedLabel = credits.unlimited
+    ? `${credits.used} used`
+    : `${credits.used} / ${credits.limit}`;
 
   const handleDelete = async () => {
     setBusy(true);
@@ -40,7 +54,7 @@ export default function AccountPage({ user, tabs, stripeReady }: Props) {
       setError(data?.error || "Could not delete account.");
       return;
     }
-    await signOut({ callbackUrl: "/" });
+    await signOut({ callbackUrl: APP_HOME_URL });
   };
 
   const handleUpgrade = async () => {
@@ -61,111 +75,130 @@ export default function AccountPage({ user, tabs, stripeReady }: Props) {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 px-4 py-10">
-      <div className="mx-auto w-full max-w-4xl space-y-6">
-        <div className="flex items-center justify-between">
+    <main className="page">
+      <div className="container stack">
+        <div className="page-header">
           <div>
-            <h1 className="text-2xl font-semibold">Account</h1>
-            <p className="text-sm text-slate-400">Manage your Note2Tabs account.</p>
+            <h1 className="page-title">Account</h1>
+            <p className="page-subtitle">Manage your Note2Tab account.</p>
           </div>
-          <Link href="/" className="text-sm text-blue-400 hover:text-blue-300">
-            ← Back to app
+          <Link href="/" className="button-ghost button-small">
+            Back to app
           </Link>
         </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 space-y-4">
-          <div className="flex items-center justify-between">
+        <section className="card stack">
+          <div className="stack">
             <div>
-              <p className="text-lg font-semibold">{user.email}</p>
-              <p className="text-sm text-slate-400">
+              <p className="page-title" style={{ fontSize: "1.4rem" }}>
+                {user.email}
+              </p>
+              <p className="muted text-small">
                 {["PREMIUM", "ADMIN", "MODERATOR", "MOD"].includes(user.role)
-                  ? `Plan: ${user.role} · Unlimited minutes`
-                  : `Plan: Free · Tokens remaining: ${user.tokensRemaining}`}
+                  ? `Plan: ${user.role} - Unlimited`
+                  : "Plan: Free"}
               </p>
-              <p className="text-xs text-slate-500">
-                Account type: {user.role}
-              </p>
+              <p className="muted text-small">Account type: {user.role}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => signOut({ callbackUrl: "/" })}
-              className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-700"
-            >
-              Log out
-            </button>
+            <div className="button-row">
+              <button
+                type="button"
+                onClick={() => signOut({ callbackUrl: APP_HOME_URL })}
+                className="button-secondary button-small"
+              >
+                Log out
+              </button>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="account-credits">
+            <div className="stat-card">
+              <span className="stat-label">This month</span>
+              <span className="stat-value">{creditsUsedLabel}</span>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">Reset</span>
+              <span className="stat-value">{resetLabel}</span>
+            </div>
+            {!credits.unlimited && (
+              <div className="stat-card">
+                <span className="stat-label">Remaining</span>
+                <span className="stat-value">{credits.remaining}</span>
+              </div>
+            )}
+          </div>
+          <div className="button-row">
             <button
               type="button"
               onClick={handleUpgrade}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
+              className="button-primary"
               disabled={busy}
             >
               {stripeReady ? "Upgrade to Premium" : "Premium (coming soon)"}
             </button>
+            <Link href="/gte" className="button-secondary">
+              Open GTE editor
+            </Link>
             {isAdminOrMod && (
-              <Link
-                href="/mod/dashboard"
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
-              >
+              <Link href="/mod/dashboard" className="button-secondary">
                 Open dashboard
               </Link>
             )}
             {isAdmin && (
-              <Link
-                href="/admin/analytics"
-                className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-400"
-              >
+              <Link href="/admin/analytics" className="button-secondary">
                 Admin analytics
               </Link>
             )}
-            <Link
-              href="/reset-password"
-              className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-700"
-            >
+            <Link href="/reset-password" className="button-secondary">
               Change password
             </Link>
             <button
               type="button"
               onClick={handleDelete}
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500"
+              className="button-danger"
               disabled={busy}
             >
               Delete account
             </button>
           </div>
-          {error && (
-            <div className="rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-              {error}
+          {!credits.unlimited && credits.remaining === 0 && (
+            <div className="notice">
+              Monthly credits used. Upgrade to Premium or wait until {resetLabel}.
             </div>
           )}
-        </div>
+          {error && <div className="error">{error}</div>}
+        </section>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Tab history</h2>
-            <Link href="/account" className="text-xs text-slate-400">
-              {tabs.length} jobs
-            </Link>
+        <section className="card stack">
+          <div className="page-header">
+            <h2 className="section-title" style={{ margin: 0 }}>
+              Tab history
+            </h2>
+            <span className="muted text-small">{tabs.length} jobs</span>
           </div>
-          {tabs.length === 0 && (
-            <p className="text-sm text-slate-400">No transcriptions yet.</p>
-          )}
-          <div className="space-y-2">
+          {tabs.length === 0 && <p className="muted text-small">No transcriptions yet.</p>}
+          <div className="stack">
             {tabs.map((job) => (
-              <Link
-                key={job.id}
-                href={`/tabs/${job.id}`}
-                className="block rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 hover:border-blue-500"
-              >
-                <p className="text-sm font-semibold text-slate-100">{job.sourceLabel || "Unknown source"}</p>
-                <p className="text-xs text-slate-500">
-                  {job.sourceType} · {new Date(job.createdAt).toLocaleString()}
-                </p>
-              </Link>
+              <div key={job.id} className="card-outline">
+                <div className="page-header" style={{ gap: "12px" }}>
+                  <Link href={`/tabs/${job.id}`} className="stack" style={{ gap: "4px" }}>
+                    <p style={{ margin: 0, fontWeight: 600 }}>
+                      {job.sourceLabel || "Unknown source"}
+                    </p>
+                    <p className="muted text-small" style={{ margin: 0 }}>
+                      {job.sourceType} - {new Date(job.createdAt).toLocaleString()}
+                    </p>
+                  </Link>
+                  <Link
+                    href={job.gteEditorId ? `/gte/${job.gteEditorId}` : `/tabs/${job.id}/edit`}
+                    className="button-secondary button-small"
+                  >
+                    {job.gteEditorId ? "Open GTE" : "Edit in GTE"}
+                  </Link>
+                </div>
+              </div>
             ))}
           </div>
-        </div>
+        </section>
       </div>
     </main>
   );
@@ -190,11 +223,29 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const tabs = await prisma.tabJob.findMany({
     where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },
-    select: { id: true, sourceType: true, sourceLabel: true, createdAt: true },
+    select: { id: true, sourceType: true, sourceLabel: true, createdAt: true, gteEditorId: true },
   });
 
   const stripeReady = Boolean(
     process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_PREMIUM_MONTHLY
+  );
+  const creditWindow = getCreditWindow();
+  const monthlyJobs = await prisma.tabJob.findMany({
+    where: {
+      userId: session.user.id,
+      createdAt: {
+        gte: creditWindow.start,
+        lt: creditWindow.resetAt,
+      },
+    },
+    select: { durationSec: true },
+  });
+  const role = user?.role || "FREE";
+  const isPremium = role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
+  const credits = buildCreditsSummary(
+    monthlyJobs.map((job) => job.durationSec),
+    creditWindow.resetAt,
+    isPremium
   );
 
   return {
@@ -210,6 +261,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         createdAt: job.createdAt.toISOString(),
       })),
       stripeReady,
+      credits,
     },
   };
 };

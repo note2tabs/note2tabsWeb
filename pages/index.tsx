@@ -1,37 +1,50 @@
-import type React from "react";
 import Head from "next/head";
 import Link from "next/link";
-import Image from "next/image";
-import { useEffect, useMemo, useState, useRef } from "react";
+import type { ChangeEvent, FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
-import logo from "../image1.png";
 import { sendEvent } from "../lib/analytics";
-import Header from "../components/Header";
+import { copyText } from "../lib/clipboard";
+import type { CreditsSummary } from "../lib/credits";
 
-type TabsResponse = { tabs: string[][]; tokensRemaining?: number; jobId?: string };
+type TabsResponse = {
+  tabs: string[][];
+  tokensRemaining?: number;
+  credits?: CreditsSummary;
+  jobId?: string;
+  gteEditorId?: string;
+};
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
 
 export default function HomePage() {
   const { data: session } = useSession();
+  const [mode, setMode] = useState<"FILE" | "YOUTUBE">("FILE");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [mode, setMode] = useState<"FILE" | "YOUTUBE" | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [tabsResult, setTabsResult] = useState<string[][] | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [ytStartTime, setYtStartTime] = useState(0);
   const [ytDuration, setYtDuration] = useState(30);
   const [fileDuration, setFileDuration] = useState(60);
   const [ytSeparateGuitar, setYtSeparateGuitar] = useState(false);
-  const [tokensRemaining, setTokensRemaining] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [tabsResult, setTabsResult] = useState<string[][] | null>(null);
+  const [credits, setCredits] = useState<CreditsSummary | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const stripeReady = Boolean(process.env.NEXT_PUBLIC_STRIPE_PRICE_PREMIUM_MONTHLY);
+  const dragCounter = useRef(0);
 
   useEffect(() => {
-    if (session?.user?.tokensRemaining !== undefined) {
-      setTokensRemaining(session.user.tokensRemaining ?? null);
+    if (session?.user?.monthlyCreditsUsed !== undefined) {
+      setCredits({
+        used: session.user.monthlyCreditsUsed ?? 0,
+        limit: session.user.monthlyCreditsLimit ?? 0,
+        remaining: session.user.monthlyCreditsRemaining ?? 0,
+        resetAt: session.user.monthlyCreditsResetAt || new Date().toISOString(),
+        unlimited: Boolean(session.user.monthlyCreditsUnlimited),
+      });
     }
   }, [session]);
 
@@ -39,7 +52,22 @@ export default function HomePage() {
     sendEvent("page_view", { path: "/" });
   }, []);
 
-  const minutesRequested = useMemo(() => {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const elements = document.querySelectorAll("[data-reveal]");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) entry.target.classList.add("visible");
+        });
+      },
+      { threshold: 0.2 }
+    );
+    elements.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
+  const creditsRequested = useMemo(() => {
     if (mode === "FILE") return Math.max(1, Math.ceil(fileDuration / 60));
     return Math.max(1, Math.ceil(ytDuration / 60));
   }, [mode, fileDuration, ytDuration]);
@@ -49,11 +77,49 @@ export default function HomePage() {
     return youtubeUrl.trim().startsWith("http");
   }, [youtubeUrl]);
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
+  const canSubmit = useMemo(() => {
+    if (mode === "FILE") return Boolean(selectedFile) && !loading;
+    return youtubeValid && !loading;
+  }, [mode, selectedFile, youtubeValid, loading]);
+
+  const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
     setSelectedFile(file);
+    setMode("FILE");
     setError(null);
     setTabsResult(null);
+  };
+
+  const onDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    dragCounter.current += 1;
+    setDragActive(true);
+  };
+
+  const onDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    dragCounter.current -= 1;
+    if (dragCounter.current <= 0) {
+      setDragActive(false);
+    }
+  };
+
+  const onDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    dragCounter.current = 0;
+    setDragActive(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setMode("FILE");
+      setError(null);
+      setTabsResult(null);
+    }
+  };
+
+  const onDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
   };
 
   const handleConvert = async () => {
@@ -62,14 +128,12 @@ export default function HomePage() {
       signIn(undefined, { callbackUrl: "/" });
       return;
     }
-    if (!mode) {
-      setError("Choose File or YouTube to continue.");
-      return;
-    }
+
     if (mode === "FILE" && !selectedFile) {
       setError("Please select an audio file to transcribe.");
       return;
     }
+
     if (mode === "YOUTUBE" && !youtubeValid) {
       setError("Please paste a valid YouTube link (starting with http).");
       return;
@@ -77,7 +141,7 @@ export default function HomePage() {
 
     setError(null);
     setTabsResult(null);
-    setStatus(mode === "FILE" ? "Transcribing audio…" : "Downloading from YouTube…");
+    setStatus(mode === "FILE" ? "Transcribing audio..." : "Downloading from YouTube...");
     setLoading(true);
     sendEvent("transcribe_start", { mode, ytUrl: youtubeUrl || undefined });
 
@@ -105,6 +169,9 @@ export default function HomePage() {
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
       if (!response.ok) {
+        if (data.credits) {
+          setCredits(data.credits);
+        }
         setError(data?.error || "Transcription failed. Please try again.");
         sendEvent("transcribe_error", { mode, error: data?.error || "unknown" });
         return;
@@ -115,13 +182,12 @@ export default function HomePage() {
         return;
       }
       setTabsResult(data.tabs);
-      if (typeof data.tokensRemaining === "number") {
-        setTokensRemaining(data.tokensRemaining);
+      if (data.credits) {
+        setCredits(data.credits);
       }
       setStatus(null);
       sendEvent("transcribe_success", { mode, jobId: data.jobId });
     } catch (err: any) {
-      console.error(err);
       setError(err?.message || "Something went wrong. Please try again.");
       sendEvent("transcribe_error", { mode, error: err?.message || "unknown" });
     } finally {
@@ -129,391 +195,378 @@ export default function HomePage() {
     }
   };
 
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    void handleConvert();
+  };
+  const creditsUsageLabel = credits
+    ? credits.unlimited
+      ? "Unlimited"
+      : `${credits.used}/${credits.limit}`
+    : session
+    ? "-"
+    : "Sign in";
+  const creditsResetLabel = credits ? new Date(credits.resetAt).toLocaleDateString() : "";
+  const showCreditsEmpty = credits && !credits.unlimited && credits.remaining === 0;
+
   return (
     <>
       <Head>
-        <title>Note2Tabs – Turn any song into clean guitar tabs</title>
-        <meta
-          name="description"
-          content="Upload audio or paste a YouTube link and get AI-generated guitar tabs directly in your browser."
-        />
+        <title>Note2Tab - Convert Music to Guitar Tabs</title>
+        <meta name="description" content="Upload a song and get guitar tabs instantly." />
       </Head>
-      <Header />
-      <main className="bg-slate-950 text-slate-100 px-4 py-10">
-        <div className="mx-auto w-full max-w-5xl space-y-12">
-          <header className="space-y-4 text-center">
-            <h1 className="text-3xl md:text-4xl font-semibold tracking-tight bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
-              Turn any song into clean guitar tabs.
-            </h1>
-            <p className="text-slate-400 max-w-2xl mx-auto">
-              Upload audio or paste a YouTube link. Powered by your local FastAPI engine. Tabs are saved to
-              your account for easy access.
-            </p>
-            <ul className="flex justify-center gap-3 text-xs text-slate-400 flex-wrap">
-              <li className="px-3 py-1 rounded-full border border-slate-800 bg-slate-900/60">
-                Fast, local processing
-              </li>
-              <li className="px-3 py-1 rounded-full border border-slate-800 bg-slate-900/60">
-                Works with files or YouTube
-              </li>
-              <li className="px-3 py-1 rounded-full border border-slate-800 bg-slate-900/60">
-                Tabs saved to your history
-              </li>
-            </ul>
-            <div className="flex justify-center gap-3">
-              <a
-                href="#transcribe"
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
-              >
-                Start transcribing
-              </a>
-              {!session && (
-                <button
-                  type="button"
-                  onClick={() => signIn(undefined, { callbackUrl: "/" })}
-                  className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-800"
-                >
-                  Sign in to get 120 free minutes
-                </button>
-              )}
-            </div>
-          </header>
 
-          <div className="grid gap-8 lg:grid-cols-[2fr,1fr] items-start" id="transcribe">
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 md:p-8 shadow-xl shadow-black/30 space-y-5">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
+      <main className="page">
+        <section className="hero" id="hero">
+          <div className="hero-glow hero-glow--one" aria-hidden="true" />
+          <div className="hero-glow hero-glow--two" aria-hidden="true" />
+          <div className="container hero-stack hero-stack--centered">
+            <div className="hero-heading" data-reveal>
+              <h1 className="hero-title">Turn music into tabs</h1>
+            </div>
+            <form className="prompt-shell" data-reveal onSubmit={handleSubmit}>
+              <div className="prompt-top">
                 <div>
-                  <h2 className="text-xl font-semibold">Transcribe</h2>
-                  <p className="text-sm text-slate-400">Pick your source, then transcribe.</p>
+                  <span className="prompt-title">Transcriber</span>
                 </div>
-              <div className="text-xs text-slate-400">
-                  {session?.user?.role
-                    ? isPremiumRole(session.user.role)
-                      ? `Plan: ${session.user.role} – unlimited minutes.`
-                      : `Free minutes remaining: ${tokensRemaining ?? session?.user?.tokensRemaining ?? 0}`
-                    : "Sign up to get 120 free minutes of transcription."}
+                <div className="prompt-balance">
+                  <span>This month</span>
+                  <strong>{creditsUsageLabel}</strong>
+                  {credits && <span className="prompt-reset">Resets {creditsResetLabel}</span>}
                 </div>
               </div>
 
-              <div className="inline-flex rounded-xl border border-slate-700 bg-slate-900/60 p-1 text-sm font-semibold text-slate-200">
+              <div className="mode-switch" role="tablist" aria-label="Input mode">
                 <button
                   type="button"
-                  onClick={() => {
-                    setMode("FILE");
-                    setYoutubeUrl("");
-                    setError(null);
-                    setTabsResult(null);
-                  }}
-                  className={`px-4 py-2 rounded-lg transition ${
-                    mode === "FILE" ? "bg-blue-500 text-white" : "text-slate-300"
-                  }`}
+                  className={mode === "FILE" ? "active" : ""}
+                  onClick={() => setMode("FILE")}
                 >
-                  File upload
+                  Audio file
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setMode("YOUTUBE");
-                    setSelectedFile(null);
-                    setError(null);
-                    setTabsResult(null);
-                  }}
-                  className={`px-4 py-2 rounded-lg transition ${
-                    mode === "YOUTUBE" ? "bg-blue-500 text-white" : "text-slate-300"
-                  }`}
+                  className={mode === "YOUTUBE" ? "active" : ""}
+                  onClick={() => setMode("YOUTUBE")}
                 >
                   YouTube link
                 </button>
               </div>
 
-              {mode === "FILE" && (
-                <div className="space-y-3">
+              <div className="prompt-field">
+                {mode === "FILE" ? (
                   <div
+                    className={`dropzone ${dragActive ? "active" : ""}`}
                     onClick={() => fileInputRef.current?.click()}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const file = e.dataTransfer.files?.[0];
-                      if (file) {
-                        setSelectedFile(file);
-                        setError(null);
-                        setTabsResult(null);
-                      }
-                    }}
-                    className="block rounded-xl border border-dashed border-slate-700 bg-slate-900/60 px-4 py-6 text-center hover:border-blue-500 transition cursor-pointer"
+                    onDrop={onDrop}
+                    onDragOver={onDragOver}
+                    onDragEnter={onDragEnter}
+                    onDragLeave={onDragLeave}
                   >
-                    <p className="text-sm font-semibold text-slate-100">
-                      Drop an audio file here or click to browse
-                    </p>
-                    <p className="text-xs text-slate-400">MP3/WAV · max 100 MB</p>
+                    <div className="dropzone-text">
+                      <strong>{selectedFile ? "Audio attached" : "Drag audio here"}</strong>
+                      <span>
+                        {selectedFile ? selectedFile.name : "Click to browse or drop a file."}
+                      </span>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="audio/*"
+                      hidden
+                      onChange={onFileChange}
+                    />
                   </div>
-                  <input
-                    type="file"
-                    accept="audio/*"
-                    onChange={onFileChange}
-                    ref={fileInputRef}
-                    className="hidden"
-                  />
-                  {selectedFile && (
-                    <div className="text-xs text-slate-400">
-                      Selected: {selectedFile.name}
-                    </div>
-                  )}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-slate-400">Estimated duration (sec)</label>
-                      <input
-                        type="number"
-                        min="10"
-                        value={fileDuration}
-                        onChange={(e) => setFileDuration(Number(e.target.value) || 60)}
-                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div className="text-xs text-slate-500 flex items-end">
-                      Used to estimate token consumption for free accounts.
-                    </div>
-                  </div>
-                </div>
-              )}
+                ) : (
+                  <label className="url-field">
+                    <span>YouTube URL</span>
+                    <input
+                      type="url"
+                      value={youtubeUrl}
+                      onChange={(event) => setYoutubeUrl(event.target.value)}
+                      placeholder="https://youtube.com/..."
+                    />
+                  </label>
+                )}
 
-              {mode === "YOUTUBE" && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-200">YouTube link</p>
-                      <p className="text-xs text-slate-400">Paste a URL instead of uploading a file.</p>
-                    </div>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    value={youtubeUrl}
-                    onChange={(e) => setYoutubeUrl(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="text-xs text-slate-400">Start time (seconds)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={ytStartTime}
-                        onChange={(e) => setYtStartTime(Number(e.target.value) || 0)}
-                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400">Duration (seconds)</label>
-                      <input
-                        type="number"
-                        min="1"
-                        step="0.1"
-                        value={ytDuration}
-                        onChange={(e) => setYtDuration(Number(e.target.value) || 1)}
-                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div className="flex items-end">
-                      <label className="flex items-center gap-2 text-sm text-slate-200">
+                <div className="prompt-footer">
+                  <span className="prompt-hint">
+                    {mode === "FILE"
+                      ? "Set audio length in Advanced options if needed."
+                      : "Set timing in Advanced options if needed."}
+                  </span>
+                  <button
+                    type="button"
+                    className="advanced-toggle"
+                    onClick={() => setShowAdvanced((prev) => !prev)}
+                  >
+                    {showAdvanced ? "Hide advanced" : "Advanced options"}
+                  </button>
+                </div>
+              </div>
+
+              {showAdvanced && (
+                <div className="advanced-grid">
+                  {mode === "YOUTUBE" && (
+                    <>
+                      <label>
+                        Start time (sec)
+                        <input
+                          type="number"
+                          min={0}
+                          value={ytStartTime}
+                          onChange={(event) => setYtStartTime(Number(event.target.value))}
+                        />
+                      </label>
+                      <label>
+                        Duration (sec)
+                        <input
+                          type="number"
+                          min={10}
+                          value={ytDuration}
+                          onChange={(event) => setYtDuration(Number(event.target.value))}
+                        />
+                      </label>
+                      <label className="checkbox">
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500"
                           checked={ytSeparateGuitar}
-                          onChange={(e) => setYtSeparateGuitar(e.target.checked)}
+                          onChange={(event) => setYtSeparateGuitar(event.target.checked)}
                         />
-                        Separate guitar
+                        Separate guitar stems
                       </label>
-                    </div>
-                  </div>
+                    </>
+                  )}
+                  {mode === "FILE" && (
+                    <>
+                      <label>
+                        Approx length (sec)
+                        <input
+                          type="number"
+                          min={10}
+                          value={fileDuration}
+                          onChange={(event) => setFileDuration(Number(event.target.value))}
+                        />
+                      </label>
+                      <div className="advanced-note">Accepted formats: MP3, WAV, M4A.</div>
+                    </>
+                  )}
                 </div>
               )}
 
-              {error && (
-                <div className="rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                  {error}
+              <div className="prompt-actions">
+                <button type="submit" className="button-primary" disabled={!canSubmit}>
+                  {loading ? "Generating..." : "Generate tabs"}
+                </button>
+              </div>
+
+              {status && <div className="status">{status}</div>}
+              {error && <div className="error">{error}</div>}
+              {showCreditsEmpty && (
+                <div className="notice">
+                  Monthly credits used. Upgrade to Premium or wait until {creditsResetLabel}.
                 </div>
               )}
-              {!session && (
-                <p className="text-xs text-amber-200">
-                  You’ll be asked to sign in or create a free account before transcribing.
-                </p>
-              )}
-              {mode === "YOUTUBE" && youtubeUrl && !youtubeValid && (
-                <p className="text-xs text-amber-300">Please enter a valid YouTube URL starting with http.</p>
-              )}
-              {status && (
-                <div className="text-sm text-blue-200">{status}</div>
-              )}
-
-              <button
-                type="button"
-                onClick={handleConvert}
-                disabled={
-                  loading ||
-                  !mode ||
-                  (mode === "FILE" && !selectedFile) ||
-                  (mode === "YOUTUBE" && !youtubeValid)
-                }
-                aria-disabled={
-                  loading ||
-                  !mode ||
-                  (mode === "FILE" && !selectedFile) ||
-                  (mode === "YOUTUBE" && !youtubeValid)
-                }
-                className="w-full rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white shadow-blue-500/30 transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading ? "Converting…" : "Convert to Tabs"}
-              </button>
-              <p className="text-xs text-slate-500">
+              <p className="footnote">
                 {isPremiumRole(session?.user?.role)
-                  ? "Premium/Admin – unlimited minutes per job."
-                  : `This will consume approximately ${minutesRequested} minute${minutesRequested > 1 ? "s" : ""} of your free balance.`}
+                  ? "Unlimited monthly transcriptions."
+                  : `This job uses about ${creditsRequested} credit${
+                      creditsRequested > 1 ? "s" : ""
+                    } of your monthly balance.`}
               </p>
+            </form>
 
-              {loading && (
-                <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/80 p-3 text-sm text-blue-200">
-                  {mode === "YOUTUBE" ? "Downloading from YouTube…" : "Transcribing audio…"}
-                </div>
-              )}
-
-              {tabsResult && (
-                <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/80 p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-100">Generated Tabs</p>
-                      <p className="text-xs text-slate-400">
-                        {selectedFile ? `Source: ${selectedFile.name}` : youtubeUrl || "YouTube source"}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const joined = tabsResult.map((s) => s.join("\n")).join("\n\n---\n\n");
-                        navigator.clipboard.writeText(joined).catch((err) =>
-                          console.error("Copy failed", err)
-                        );
-                      }}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors duration-150 ease-out text-slate-100"
-                    >
-                      Copy tabs
-                    </button>
-                  </div>
-                  <div className="space-y-3 max-h-[420px] overflow-y-auto">
-                    {tabsResult.map((segment, idx) => (
-                      <pre
-                        key={idx}
-                        className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 font-mono text-sm text-slate-100 whitespace-pre overflow-x-auto transition-colors duration-150 ease-out"
-                      >
-{segment.join("\n")}
-                      </pre>
-                    ))}
-                  </div>
-                  <Link href="/account" className="text-xs text-blue-400 hover:text-blue-300">
-                    Open in account →
-                  </Link>
-                </div>
-              )}
-            </section>
-
-            <aside className="space-y-5">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 space-y-3">
-                <h3 className="text-lg font-semibold">How it works</h3>
-                <ol className="space-y-2 text-sm text-slate-300 list-decimal list-inside">
-                  <li>Upload audio or paste a YouTube link.</li>
-                  <li>We proxy to your local FastAPI engine for separation + transcription.</li>
-                  <li>Tabs stream back and save to your account history.</li>
-                </ol>
-              </div>
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 space-y-3">
-                <h3 className="text-lg font-semibold">Pricing</h3>
-                <div className="grid gap-3">
-                  <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold text-white">Free</p>
-                      <p className="text-sm text-slate-300">€0 / month</p>
-                    </div>
-                    <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
-                      <li>120 free minutes of AI transcription</li>
-                      <li>Basic support</li>
-                    </ul>
-                    <button
-                      type="button"
-                      onClick={() => (session ? document.getElementById("transcribe")?.scrollIntoView({ behavior: "smooth" }) : signIn(undefined, { callbackUrl: "/" }))}
-                      className="mt-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500"
-                    >
-                      {session ? "Start for free" : "Sign up to start"}
-                    </button>
-                  </div>
-                  <div className="rounded-lg border border-blue-600/40 bg-blue-600/10 p-4 space-y-2 shadow-inner">
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold text-white">Premium</p>
-                      <p className="text-sm text-slate-100">Coming soon</p>
-                    </div>
-                    <ul className="text-sm text-slate-200 space-y-1 list-disc list-inside">
-                      <li>Unlimited minutes</li>
-                      <li>Priority jobs</li>
-                    </ul>
-                    <button
-                      type="button"
-                      disabled={!stripeReady}
-                      onClick={async () => {
-                        if (!stripeReady) {
-                          setError("Stripe not configured yet.");
-                          return;
-                        }
-                        try {
-                          const res = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
-                          const data = await res.json();
-                          if (res.ok && data?.url) {
-                            window.location.href = data.url;
-                          } else {
-                            setError(data?.error || "Stripe not configured yet.");
-                          }
-                        } catch (err: any) {
-                          setError(err?.message || "Stripe not configured yet.");
-                        }
-                      }}
-                      className="mt-2 rounded-lg border border-blue-400 px-3 py-2 text-xs font-semibold text-blue-100 hover:bg-blue-500/10 disabled:opacity-60"
-                    >
-                      Upgrade (coming soon)
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 space-y-3">
-                <h3 className="text-lg font-semibold">Stay legal</h3>
-                <p className="text-sm text-slate-300">
-                  Only upload content you have rights to. Audio is processed locally via your FastAPI server.
-                </p>
-                <div className="flex gap-3 text-xs text-blue-400">
-                  <Link href="/terms" className="hover:text-blue-300">
-                    Terms
-                  </Link>
-                  <Link href="/privacy" className="hover:text-blue-300">
-                    Privacy
-                  </Link>
-                </div>
-              </div>
-            </aside>
           </div>
+        </section>
 
-          <footer className="border-t border-slate-800 pt-6 text-xs text-slate-500 flex items-center justify-between flex-wrap gap-3">
-            <span>© {new Date().getFullYear()} Note2Tabs</span>
-            <div className="flex items-center gap-3">
-              <Link href="/terms" className="hover:text-slate-200">
-                Terms
-              </Link>
-              <Link href="/privacy" className="hover:text-slate-200">
-                Privacy
-              </Link>
-              <Link href="/contact" className="hover:text-slate-200">
-                Contact
-              </Link>
+        {tabsResult && (
+          <section className="results" id="results">
+            <div className="container results-shell">
+              <div className="results-header">
+                <div>
+                  <h2>Your tabs are ready</h2>
+                  <p>Copy the output or open the editor from your account.</p>
+                </div>
+                <div className="results-actions">
+                  <button
+                    type="button"
+                    className="button-primary"
+                    onClick={() =>
+                      void copyText(tabsResult.map((segment) => segment.join("\n")).join("\n\n---\n\n"))
+                    }
+                  >
+                    Copy tabs
+                  </button>
+                  <Link href="/account" className="button-secondary">
+                    Open account
+                  </Link>
+                </div>
+              </div>
+              <div className="results-grid">
+                {tabsResult.map((segment, idx) => (
+                  <pre key={idx} className="tab-block">
+{segment.join("\n")}
+                  </pre>
+                ))}
+              </div>
             </div>
-          </footer>
-        </div>
+          </section>
+        )}
+
+        <section className="pricing" id="pricing">
+          <div className="container">
+            <div className="pricing-card" data-reveal>
+              <div className="pricing-header">
+                <span className="pill">Premium</span>
+                <div className="pricing-price">
+                  <span className="pricing-amount">$5.99</span>
+                  <span className="pricing-interval">/ month</span>
+                </div>
+              </div>
+              <ul className="pricing-list">
+                <li>Unlimited monthly transcriptions</li>
+                <li>No ads</li>
+                <li>More features coming soon</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section className="benefits" id="features">
+          <div className="container">
+            <h2 className="section-title" data-reveal>
+              Practice-friendly by default
+            </h2>
+            <p className="section-subtitle" data-reveal>
+              Clean output and a focused editor, ready when you scroll.
+            </p>
+            <div className="benefits-grid">
+              <div className="benefit-card" data-reveal>
+                <div className="icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M12 8v8m-4-4h8"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+                  </svg>
+                </div>
+                <h4>Fast start</h4>
+                <p>Drop a song, get tabs in moments.</p>
+              </div>
+              <div className="benefit-card" data-reveal>
+                <div className="icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M5 12h14"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M9 8h6"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M9 16h6"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+                <h4>Readable output</h4>
+                <p>Tabs stay clean and easy to scan.</p>
+              </div>
+              <div className="benefit-card" data-reveal>
+                <div className="icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M4 12a8 8 0 0116 0v5H4v-5z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    />
+                    <path
+                      d="M8 17v2h8v-2"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+                <h4>Saved sessions</h4>
+                <p>Everything stays in your account library.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="steps" id="how">
+          <div className="container">
+            <h2 className="section-title" data-reveal>
+              How it works
+            </h2>
+            <div className="steps-grid">
+              <div className="step-card" data-reveal>
+                <div className="icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M12 16V4m0 0l-4 4m4-4l4 4"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+                <h3>1. Add audio</h3>
+                <p>Drop a file or paste a link.</p>
+              </div>
+              <div className="step-card" data-reveal>
+                <div className="icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M9 18V6l12-2v12"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <circle cx="6" cy="18" r="3" stroke="currentColor" strokeWidth="2" />
+                    <circle cx="18" cy="16" r="3" stroke="currentColor" strokeWidth="2" />
+                  </svg>
+                </div>
+                <h3>2. Generate tabs</h3>
+                <p>We map timing and strings automatically.</p>
+              </div>
+              <div className="step-card" data-reveal>
+                <div className="icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M6 3l12 6-12 6v6"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+                <h3>3. Refine in GTE</h3>
+                <p>Edit, fix, and save for later.</p>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
     </>
   );

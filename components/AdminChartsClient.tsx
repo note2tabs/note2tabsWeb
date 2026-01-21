@@ -18,21 +18,23 @@ type FunnelStep = { label: string; value: number; pct?: number };
 type BreakdownEntry = { name: string; value: number };
 type ErrorEntry = { message: string; count: number };
 
-const COLORS = ["#60a5fa", "#a78bfa", "#f472b6", "#38bdf8", "#34d399", "#facc15"];
+const COLORS = ["#2a6df4", "#1fbf9f", "#f97316", "#22c55e", "#ec4899", "#a855f7"];
+const tooltipStyle = { background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 12 };
+const axisColor = "#94a3b8";
 
 export function TimeSeriesChart({ data }: { data: DailyPoint[] }) {
   return (
     <div className="h-64">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data}>
-          <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
-          <YAxis stroke="#94a3b8" fontSize={12} />
-          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #1e293b" }} />
+          <XAxis dataKey="date" stroke={axisColor} fontSize={12} />
+          <YAxis stroke={axisColor} fontSize={12} />
+          <Tooltip contentStyle={tooltipStyle} />
           <Legend />
-          <Line type="monotone" dataKey="visitors" stroke="#60a5fa" strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="signups" stroke="#a78bfa" strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="activeUsers" stroke="#34d399" strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="transcriptions" stroke="#f472b6" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="visitors" stroke="#2a6df4" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="signups" stroke="#7c3aed" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="activeUsers" stroke="#14b8a6" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="transcriptions" stroke="#f97316" strokeWidth={2} dot={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -45,10 +47,10 @@ export function FunnelBars({ steps }: { steps: FunnelStep[] }) {
     <div className="h-48">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} layout="vertical">
-          <XAxis type="number" stroke="#94a3b8" fontSize={12} />
-          <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={12} />
-          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #1e293b" }} />
-          <Bar dataKey="value" fill="#60a5fa" />
+          <XAxis type="number" stroke={axisColor} fontSize={12} />
+          <YAxis dataKey="name" type="category" stroke={axisColor} fontSize={12} />
+          <Tooltip contentStyle={tooltipStyle} />
+          <Bar dataKey="value" fill="#2a6df4" />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -65,7 +67,7 @@ export function DonutChart({ data }: { data: BreakdownEntry[] }) {
               <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #1e293b" }} />
+          <Tooltip contentStyle={tooltipStyle} />
         </PieChart>
       </ResponsiveContainer>
     </div>
@@ -77,10 +79,18 @@ export function ErrorBarChart({ data }: { data: ErrorEntry[] }) {
     <div className="h-56">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data}>
-          <XAxis dataKey="message" stroke="#94a3b8" fontSize={12} tick={{ fontSize: 10 }} interval={0} angle={-20} textAnchor="end" />
-          <YAxis stroke="#94a3b8" fontSize={12} />
-          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #1e293b" }} />
-          <Bar dataKey="count" fill="#f472b6" />
+          <XAxis
+            dataKey="message"
+            stroke={axisColor}
+            fontSize={12}
+            tick={{ fontSize: 10 }}
+            interval={0}
+            angle={-20}
+            textAnchor="end"
+          />
+          <YAxis stroke={axisColor} fontSize={12} />
+          <Tooltip contentStyle={tooltipStyle} />
+          <Bar dataKey="count" fill="#f97316" />
         </BarChart>
       </ResponsiveContainer>
     </div>

@@ -36,76 +36,76 @@ type Props = {
 
 export default function ModDashboard({ analytics, consents, stats }: Props) {
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 px-4 py-10">
-      <div className="mx-auto w-full max-w-6xl space-y-6">
-        <div className="flex items-center justify-between">
+    <main className="page">
+      <div className="container stack">
+        <div className="page-header">
           <div>
-            <h1 className="text-2xl font-semibold">Moderator Dashboard</h1>
-            <p className="text-sm text-slate-400">View analytics and consent snapshots.</p>
+            <h1 className="page-title">Moderator Dashboard</h1>
+            <p className="page-subtitle">View analytics and consent snapshots.</p>
           </div>
-          <Link href="/" className="text-sm text-blue-400 hover:text-blue-300">
-            ← Back to app
+          <Link href="/" className="button-ghost button-small">
+            Back to app
           </Link>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-4">
-            <p className="text-xs text-slate-400">Total events</p>
-            <p className="text-2xl font-semibold">{stats.totalEvents}</p>
+        <div className="stack" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+          <div className="card">
+            <p className="muted text-small">Total events</p>
+            <p style={{ fontSize: "1.6rem", margin: 0 }}>{stats.totalEvents}</p>
           </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-4">
-            <p className="text-xs text-slate-400">Total consents</p>
-            <p className="text-2xl font-semibold">{stats.totalConsents}</p>
+          <div className="card">
+            <p className="muted text-small">Total consents</p>
+            <p style={{ fontSize: "1.6rem", margin: 0 }}>{stats.totalConsents}</p>
           </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-4">
-            <p className="text-xs text-slate-400">Event types</p>
-            <div className="text-sm text-slate-200 space-y-1">
+          <div className="card">
+            <p className="muted text-small">Event types</p>
+            <div className="stack" style={{ gap: "6px" }}>
               {Object.entries(stats.eventsByType).map(([k, v]) => (
-                <div key={k} className="flex justify-between">
+                <div key={k} className="page-header" style={{ gap: "12px" }}>
                   <span>{k}</span>
-                  <span className="text-slate-400">{v}</span>
+                  <span className="muted text-small">{v}</span>
                 </div>
               ))}
               {Object.keys(stats.eventsByType).length === 0 && (
-                <p className="text-xs text-slate-500">No events</p>
+                <p className="muted text-small">No events</p>
               )}
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Recent analytics events</h2>
-            <p className="text-xs text-slate-400">{analytics.length} shown</p>
+        <section className="card stack">
+          <div className="page-header">
+            <h2 className="section-title" style={{ margin: 0 }}>
+              Recent analytics events
+            </h2>
+            <p className="muted text-small">{analytics.length} shown</p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-xs text-slate-200">
+          <div className="card-outline" style={{ overflowX: "auto" }}>
+            <table className="table">
               <thead>
-                <tr className="text-left text-slate-400">
-                  <th className="px-2 py-1">Event</th>
-                  <th className="px-2 py-1">Path</th>
-                  <th className="px-2 py-1">Browser</th>
-                  <th className="px-2 py-1">OS</th>
-                  <th className="px-2 py-1">Device</th>
-                  <th className="px-2 py-1">When</th>
+                <tr>
+                  <th>Event</th>
+                  <th>Path</th>
+                  <th>Browser</th>
+                  <th>OS</th>
+                  <th>Device</th>
+                  <th>When</th>
                 </tr>
               </thead>
               <tbody>
                 {analytics.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-800">
-                    <td className="px-2 py-1">{row.event}</td>
-                    <td className="px-2 py-1">{row.path || "-"}</td>
-                    <td className="px-2 py-1">{row.browser || "-"}</td>
-                    <td className="px-2 py-1">{row.os || "-"}</td>
-                    <td className="px-2 py-1">{row.deviceType || "-"}</td>
-                    <td className="px-2 py-1 text-slate-400">
-                      {new Date(row.createdAt).toLocaleString()}
-                    </td>
+                  <tr key={row.id}>
+                    <td>{row.event}</td>
+                    <td>{row.path || "-"}</td>
+                    <td>{row.browser || "-"}</td>
+                    <td>{row.os || "-"}</td>
+                    <td>{row.deviceType || "-"}</td>
+                    <td className="muted text-small">{new Date(row.createdAt).toLocaleString()}</td>
                   </tr>
                 ))}
                 {analytics.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-2 py-3 text-center text-slate-500">
+                    <td colSpan={6} className="muted text-small" style={{ textAlign: "center" }}>
                       No analytics events yet.
                     </td>
                   </tr>
@@ -113,39 +113,39 @@ export default function ModDashboard({ analytics, consents, stats }: Props) {
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Recent consents</h2>
-            <p className="text-xs text-slate-400">{consents.length} shown</p>
+        <section className="card stack">
+          <div className="page-header">
+            <h2 className="section-title" style={{ margin: 0 }}>
+              Recent consents
+            </h2>
+            <p className="muted text-small">{consents.length} shown</p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-xs text-slate-200">
+          <div className="card-outline" style={{ overflowX: "auto" }}>
+            <table className="table">
               <thead>
-                <tr className="text-left text-slate-400">
-                  <th className="px-2 py-1">Granted</th>
-                  <th className="px-2 py-1">User</th>
-                  <th className="px-2 py-1">Session</th>
-                  <th className="px-2 py-1">Fingerprint</th>
-                  <th className="px-2 py-1">When</th>
+                <tr>
+                  <th>Granted</th>
+                  <th>User</th>
+                  <th>Session</th>
+                  <th>Fingerprint</th>
+                  <th>When</th>
                 </tr>
               </thead>
               <tbody>
                 {consents.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-800">
-                    <td className="px-2 py-1">{row.granted ? "Yes" : "No"}</td>
-                    <td className="px-2 py-1">{row.userId || "-"}</td>
-                    <td className="px-2 py-1">{row.sessionId || "-"}</td>
-                    <td className="px-2 py-1">{row.fingerprintId || "-"}</td>
-                    <td className="px-2 py-1 text-slate-400">
-                      {new Date(row.createdAt).toLocaleString()}
-                    </td>
+                  <tr key={row.id}>
+                    <td>{row.granted ? "Yes" : "No"}</td>
+                    <td>{row.userId || "-"}</td>
+                    <td>{row.sessionId || "-"}</td>
+                    <td>{row.fingerprintId || "-"}</td>
+                    <td className="muted text-small">{new Date(row.createdAt).toLocaleString()}</td>
                   </tr>
                 ))}
                 {consents.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-2 py-3 text-center text-slate-500">
+                    <td colSpan={5} className="muted text-small" style={{ textAlign: "center" }}>
                       No consent records yet.
                     </td>
                   </tr>
@@ -153,7 +153,7 @@ export default function ModDashboard({ analytics, consents, stats }: Props) {
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
       </div>
     </main>
   );
@@ -199,15 +199,21 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     },
   });
 
-  const eventsByType = analytics.reduce<Record<string, number>>((acc, row) => {
-    acc[row.event] = (acc[row.event] || 0) + 1;
-    return acc;
-  }, {});
+  const eventsByType: Record<string, number> = {};
+  for (const row of analytics) {
+    eventsByType[row.event] = (eventsByType[row.event] || 0) + 1;
+  }
 
   return {
     props: {
-      analytics: analytics.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })),
-      consents: consents.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() })),
+      analytics: analytics.map((row) => ({
+        ...row,
+        createdAt: row.createdAt.toISOString(),
+      })),
+      consents: consents.map((row) => ({
+        ...row,
+        createdAt: row.createdAt.toISOString(),
+      })),
       stats: {
         totalEvents: analytics.length,
         totalConsents: consents.length,

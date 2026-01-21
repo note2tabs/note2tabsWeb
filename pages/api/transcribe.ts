@@ -4,6 +4,13 @@ import { IncomingForm, type File as FormidableFile } from "formidable";
 import { promises as fs } from "fs";
 import { authOptions } from "./auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
+import { tabSegmentsToStamps } from "../../lib/tabTextToStamps";
+import {
+  buildCreditsSummary,
+  durationToCredits,
+  getCreditWindow,
+  FREE_MONTHLY_CREDITS,
+} from "../../lib/credits";
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -44,7 +51,8 @@ async function parseMultipart(req: NextApiRequest): Promise<{
     const form = new IncomingForm({ multiples: false, keepExtensions: true });
     form.parse(req, (err, fields, files) => {
       if (err) return reject(err);
-      const file = Array.isArray(files.file) ? files.file[0] : (files.file as FormidableFile);
+      const fileEntry = files.file;
+      const file = Array.isArray(fileEntry) ? fileEntry[0] : fileEntry;
       resolve({ fields, file });
     });
   });
@@ -83,6 +91,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!user) {
       return res.status(401).json({ error: "User not found" });
     }
+    const isPremium =
+      user.role === "PREMIUM" || user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
+    const creditWindow = getCreditWindow();
+    const monthlyJobs = await prisma.tabJob.findMany({
+      where: {
+        userId: session.user.id,
+        createdAt: {
+          gte: creditWindow.start,
+          lt: creditWindow.resetAt,
+        },
+      },
+      select: { durationSec: true },
+    });
+    const creditsBefore = buildCreditsSummary(
+      monthlyJobs.map((job) => job.durationSec),
+      creditWindow.resetAt,
+      isPremium
+    );
 
     const contentType = req.headers["content-type"] || "";
     let mode: Mode | null = null;
@@ -129,12 +155,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       mode === "YOUTUBE"
         ? Math.max(1, Math.ceil(youtubePayload?.duration || 0))
         : Math.max(1, Math.ceil(filePayload?.duration || 60));
-    const requiredMinutes = Math.max(1, Math.ceil(durationSec / 60));
+    const requiredCredits = durationToCredits(durationSec);
 
-    if (user.role === "FREE" && user.tokensRemaining < requiredMinutes) {
+    if (user.role === "FREE" && creditsBefore.remaining < requiredCredits) {
+      const resetLabel = creditsBefore.resetAt.slice(0, 10);
       return res
         .status(403)
-        .json({ error: "You have used all your free minutes. Upgrade to premium to continue." });
+        .json({
+          error: `Monthly credits used. Upgrade to Premium or wait until ${resetLabel} for a reset.`,
+          credits: creditsBefore,
+        });
     }
 
     let tabs: string[][] = [];
@@ -203,8 +233,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     let updatedTokens = user.tokensRemaining;
+    let creditsAfter = creditsBefore;
     if (user.role === "FREE") {
-      updatedTokens = Math.max(0, user.tokensRemaining - requiredMinutes);
+      const updatedUsed = creditsBefore.used + requiredCredits;
+      const updatedRemaining = Math.max(0, FREE_MONTHLY_CREDITS - updatedUsed);
+      updatedTokens = updatedRemaining;
+      creditsAfter = {
+        ...creditsBefore,
+        used: updatedUsed,
+        remaining: updatedRemaining,
+      };
       await prisma.user.update({
         where: { id: user.id },
         data: { tokensRemaining: updatedTokens },
@@ -221,7 +259,55 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
 
-    return res.status(200).json({ tabs, tokensRemaining: updatedTokens, jobId: job.id });
+    let gteEditorId: string | null = null;
+    try {
+      const { stamps, totalFrames } = tabSegmentsToStamps(tabs);
+      const createRes = await fetch(`${API_BASE}/gte/editors`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": user.id,
+        },
+        body: JSON.stringify({}),
+      });
+      if (createRes.ok) {
+        const created = (await createRes.json()) as { editorId?: string };
+        if (created?.editorId) {
+          let importOk = true;
+          if (stamps.length > 0) {
+            const importRes = await fetch(`${API_BASE}/gte/editors/${created.editorId}/import`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-User-Id": user.id,
+              },
+              body: JSON.stringify({ stamps, totalFrames }),
+            });
+            importOk = importRes.ok;
+          }
+          if (importOk) {
+            gteEditorId = created.editorId;
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("GTE sync failed", error);
+    }
+
+    if (gteEditorId) {
+      await prisma.tabJob.update({
+        where: { id: job.id },
+        data: { gteEditorId },
+      });
+    }
+
+    return res.status(200).json({
+      tabs,
+      tokensRemaining: updatedTokens,
+      credits: creditsAfter,
+      jobId: job.id,
+      gteEditorId,
+    });
   } catch (error) {
     console.error("transcribe error", error);
     return res.status(500).json({ error: "Transcription failed." });

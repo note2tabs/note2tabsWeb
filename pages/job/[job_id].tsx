@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
 import Script from "next/script";
 import { useRouter } from "next/router";
 import JobStatusLayout, { JobResponse } from "../../components/JobStatusLayout";
-import Header from "../../components/Header";
 import { saveJobToHistory } from "../../lib/history";
+import { APP_HOME_URL } from "../../lib/urls";
 
 const BASE_URL = "http://127.0.0.1:8000";
 const POLL_INTERVAL = 3000;
@@ -15,7 +15,7 @@ export default function JobPage() {
   const router = useRouter();
   const { job_id } = router.query;
   const [job, setJob] = useState<JobResponse | null>(null);
-  const intervalRef = useRef<NodeJS.Timer | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [hasWatchedAd, setHasWatchedAd] = useState(false);
   const [showFallbackVideo, setShowFallbackVideo] = useState(true);
   const [adContainerKey, setAdContainerKey] = useState(0);
@@ -40,7 +40,7 @@ export default function JobPage() {
       setJob((prev) => ({
         job_id: id,
         status: "error",
-        error_message: "Could not fetch job status."
+        error_message: "Could not fetch job status.",
       }));
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -68,14 +68,13 @@ export default function JobPage() {
           jobId: job_id,
           songTitle: job.song_title,
           artist: job.artist,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
         });
         setSavedHistory(true);
       }
     }
   }, [job?.status, hasWatchedAd, savedHistory, job_id, job?.song_title, job?.artist]);
 
-  // Reset ad gate when job changes
   useEffect(() => {
     setHasWatchedAd(false);
     setShowFallbackVideo(true);
@@ -83,28 +82,24 @@ export default function JobPage() {
     setAdContainerKey(0);
   }, [job_id]);
 
-  // Compute share URLs once job is done
   useEffect(() => {
     if (job?.status !== "done" || !job_id) return;
     const base =
-      typeof window !== "undefined"
-        ? window.location.href
-        : `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/job/${job_id}`;
-    const text = encodeURIComponent(`Check out these tabs I generated with Note2Tabs!`);
+      typeof window !== "undefined" ? window.location.href : `${APP_HOME_URL}job/${job_id}`;
+    const text = encodeURIComponent("Check out these tabs I generated with Note2Tabs!");
     setShareUrls({
       twitter: `https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent(base)}`,
-      reddit: `https://reddit.com/submit?url=${encodeURIComponent(base)}&title=${text}`
+      reddit: `https://reddit.com/submit?url=${encodeURIComponent(base)}&title=${text}`,
     });
   }, [job?.status, job_id]);
 
-  // Fallback to ensure history is captured even if other effects miss
   useEffect(() => {
     if (job?.status === "done" && !savedHistory && job_id && typeof job_id === "string") {
       saveJobToHistory({
         jobId: job_id,
         songTitle: job.song_title,
         artist: job.artist,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       });
       setSavedHistory(true);
     }
@@ -127,7 +122,7 @@ export default function JobPage() {
       document.removeEventListener("PrimisOnAdSkipped", handleRetry);
       document.removeEventListener("PrimisOnAdError", handleRetry);
     };
-  }, [loadAdScript, adStorageKey]);
+  }, [loadAdScript]);
 
   const handleDownloadTabs = () => {
     const content = job?.tab_text || "";
@@ -151,10 +146,10 @@ export default function JobPage() {
   const showAdGate = job?.status === "done" && !hasWatchedAd;
   const title =
     job?.status === "done" && job?.song_title
-      ? `${job.song_title} – Note2Tabs`
+      ? `${job.song_title} - Note2Tabs`
       : job?.status === "done"
-      ? "Tabs Ready – Note2Tabs"
-      : "Processing – Note2Tabs";
+      ? "Tabs Ready - Note2Tabs"
+      : "Processing - Note2Tabs";
 
   return (
     <>
@@ -168,18 +163,16 @@ export default function JobPage() {
           strategy="afterInteractive"
         />
       )}
-      <Header />
-      <main className="min-h-screen bg-white">
-        <div className="mx-auto max-w-5xl px-4 py-12">
-          <div className="mb-6 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => router.push("/")}
-              className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-            >
-              ← Back
+      <main className="page page-tight">
+        <div className="container stack">
+          <div className="page-header">
+            <div>
+              <h1 className="page-title">Job status</h1>
+              <p className="page-subtitle">Job ID: {job_id}</p>
+            </div>
+            <button type="button" onClick={() => router.push("/")} className="button-ghost button-small">
+              Back
             </button>
-            <p className="text-sm text-gray-600">Job ID: {job_id}</p>
           </div>
           <JobStatusLayout
             job={job}

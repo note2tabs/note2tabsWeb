@@ -65,6 +65,7 @@ model TabJob {
   sourceLabel String?
   durationSec Int?
   resultJson  String
+  gteEditorId String?
   createdAt   DateTime @default(now())
 }
 

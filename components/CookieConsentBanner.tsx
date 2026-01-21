@@ -16,13 +16,31 @@ function setCookie(name: string, value: string, days = 365) {
   document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
 }
 
+function generateSessionId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    try {
+      return crypto.randomUUID();
+    } catch (error) {
+      // fallback below
+    }
+  }
+  if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+  return `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
+}
+
 function ensureSessionId() {
   if (typeof crypto === "undefined" || typeof window === "undefined") return;
   const existing = getCookie(SESSION_COOKIE);
   if (existing) return existing;
-  const uuid = self.crypto.randomUUID();
-  setCookie(SESSION_COOKIE, uuid);
-  return uuid;
+  const sessionId = generateSessionId();
+  setCookie(SESSION_COOKIE, sessionId);
+  return sessionId;
 }
 
 export default function CookieConsentBanner() {
@@ -37,8 +55,9 @@ export default function CookieConsentBanner() {
   const handleAccept = async () => {
     setProcessing(true);
     setCookie(CONSENT_COOKIE, "granted");
-    const sessionId = ensureSessionId();
+    let sessionId: string | undefined;
     try {
+      sessionId = ensureSessionId();
       const { fingerprintId } = await generateFingerprint();
       await fetch("/api/consent/grant", {
         method: "POST",
@@ -61,26 +80,17 @@ export default function CookieConsentBanner() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-4 left-0 right-0 z-50 px-4">
-      <div className="mx-auto max-w-4xl rounded-2xl border border-slate-800 bg-slate-900/95 p-4 shadow-xl shadow-black/40">
-        <p className="text-sm text-slate-200">
-          We use cookies and device details to improve Note2Tabs and prevent abuse. You can accept or reject
-          analytics. See our <a className="text-blue-400 hover:text-blue-300" href="/privacy">Privacy Policy</a>.
+    <div className="cookie-banner">
+      <div className="card cookie-card">
+        <p>
+          We use cookies and device details to improve Note2Tab and prevent abuse. You can accept or reject
+          analytics. See our <a className="button-link" href="/privacy">Privacy Policy</a>.
         </p>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={handleAccept}
-            disabled={processing}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
-          >
-            {processing ? "Enabling…" : "Accept"}
+        <div className="cookie-actions">
+          <button type="button" onClick={handleAccept} disabled={processing} className="button-primary">
+            {processing ? "Enabling..." : "Accept"}
           </button>
-          <button
-            type="button"
-            onClick={handleReject}
-            className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-800"
-          >
+          <button type="button" onClick={handleReject} className="button-secondary">
             Reject
           </button>
         </div>

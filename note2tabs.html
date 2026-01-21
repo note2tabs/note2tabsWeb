@@ -304,21 +304,21 @@
         <div id="errorMsg" class="error hidden">Add an audio file or a YouTube link to continue.</div>
         <div id="loadingState" class="loading hidden">
           <div class="spinner" aria-hidden="true"></div>
-          <p id="loadingText" style="color:var(--muted);margin:0;">Analyzing audio…</p>
+          <p id="loadingText" style="color:var(--muted);margin:0;">Analyzing audio...</p>
         </div>
       </div>
     </section>
 
     <section id="resultsView" class="panel hidden">
       <div class="results">
-        <button id="backFromResults" class="nav-back" type="button">← Back</button>
+        <button id="backFromResults" class="nav-back" type="button"><- Back</button>
         <div class="meta">
           <div>
             <div class="title" id="songTitle">Untitled Demo</div>
             <div class="artist" id="songArtist">Artist info not detected</div>
           </div>
           <div class="pill" id="confidence">98% confident</div>
-          <div class="stats" id="stats">3:12 duration · Stereo · 44.1 kHz</div>
+          <div class="stats" id="stats">3:12 duration - Stereo - 44.1 kHz</div>
         </div>
         <div class="split">
           <div class="card">
@@ -373,7 +373,7 @@
       'A |--2-----2-----2-----2-------|',
       'E |0---------------------------|',
       '',
-      '      Verse groove · swing lightly'
+      '      Verse groove - swing lightly'
     ].join('\\n');
 
     const showError = (message) => {
@@ -404,7 +404,7 @@
       songTitle.textContent = name.replace(/\\.[^/.]+$/, '');
       songArtist.textContent = urlInput.value ? 'Source: YouTube link' : 'Local upload';
       confidence.textContent = '99% confident';
-      stats.textContent = 'Ready to play · Auto-tempo mapped';
+      stats.textContent = 'Ready to play - Auto-tempo mapped';
       tabText.textContent = defaultTab;
       fileLabel.textContent = source ? 'Loaded: ' + source : 'Preview available after upload';
     };

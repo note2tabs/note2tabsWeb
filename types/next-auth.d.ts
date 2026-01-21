@@ -6,6 +6,11 @@ declare module "next-auth" {
       id: string;
       role?: string;
       tokensRemaining?: number;
+      monthlyCreditsUsed?: number;
+      monthlyCreditsLimit?: number;
+      monthlyCreditsRemaining?: number;
+      monthlyCreditsResetAt?: string;
+      monthlyCreditsUnlimited?: boolean;
     };
   }
 

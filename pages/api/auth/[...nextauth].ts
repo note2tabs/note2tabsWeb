@@ -4,8 +4,9 @@ import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
+import { buildCreditsSummary, getCreditWindow } from "../../../lib/credits";
 
-const providers = [
+const providers: NextAuthOptions["providers"] = [
   CredentialsProvider({
     name: "Credentials",
     credentials: {
@@ -79,6 +80,35 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = (token.role as string) || "FREE";
         session.user.tokensRemaining = (token.tokensRemaining as number) ?? 0;
+      }
+      const creditUserId = session.user.id;
+      if (creditUserId) {
+        const creditWindow = getCreditWindow();
+        const monthlyJobs = await prisma.tabJob.findMany({
+          where: {
+            userId: creditUserId,
+            createdAt: {
+              gte: creditWindow.start,
+              lt: creditWindow.resetAt,
+            },
+          },
+          select: { durationSec: true },
+        });
+        const isPremium =
+          session.user.role === "PREMIUM" ||
+          session.user.role === "ADMIN" ||
+          session.user.role === "MODERATOR" ||
+          session.user.role === "MOD";
+        const credits = buildCreditsSummary(
+          monthlyJobs.map((job) => job.durationSec),
+          creditWindow.resetAt,
+          isPremium
+        );
+        session.user.monthlyCreditsUsed = credits.used;
+        session.user.monthlyCreditsLimit = credits.limit;
+        session.user.monthlyCreditsRemaining = credits.remaining;
+        session.user.monthlyCreditsResetAt = credits.resetAt;
+        session.user.monthlyCreditsUnlimited = credits.unlimited;
       }
       return session;
     },

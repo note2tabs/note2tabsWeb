@@ -6,7 +6,7 @@ export default function Document() {
       <Head>
         <link rel="icon" href="/image1.png" />
       </Head>
-      <body className="bg-slate-950 text-slate-100">
+      <body>
         <Main />
         <NextScript />
       </body>

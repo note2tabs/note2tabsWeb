@@ -104,16 +104,16 @@ export default function AnalyticsDashboard({
   return (
     <>
       <Head>
-        <title>Analytics Dashboard – Note2Tabs</title>
+        <title>Analytics Dashboard - Note2Tabs</title>
       </Head>
-      <main className="min-h-screen bg-slate-950 text-slate-100 px-4 py-10">
-        <div className="mx-auto w-full max-w-6xl space-y-8">
+      <main className="page">
+        <div className="container stack">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-semibold">Analytics Dashboard</h1>
-              <p className="text-sm text-slate-400">Usage, conversion, and reliability metrics for Note2Tabs</p>
+              <p className="text-sm text-slate-600">Usage, conversion, and reliability metrics for Note2Tabs</p>
               <p className="text-xs text-slate-500">
-                Range: {from} → {to}
+                Range: {from} {"->"} {to}
               </p>
             </div>
             <div className="flex items-center gap-2 text-xs">
@@ -121,7 +121,7 @@ export default function AnalyticsDashboard({
                 <Link
                   key={key}
                   href={`/admin/analytics?range=${key}`}
-                  className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-1.5 font-semibold text-slate-200 hover:border-blue-500"
+                  className="button-secondary button-small"
                 >
                   Last {days}d
                 </Link>
@@ -141,12 +141,12 @@ export default function AnalyticsDashboard({
             />
           </section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-3">
+          <section className="card stack">
             <SectionHeader title="All users & activity (last 100 accounts)" />
             <div className="overflow-x-auto">
-              <table className="min-w-full text-xs text-slate-200">
+              <table className="table">
                 <thead>
-                  <tr className="text-left text-slate-400">
+                  <tr className="text-left text-slate-600">
                     <th className="px-2 py-1">Email</th>
                     <th className="px-2 py-1">Role</th>
                     <th className="px-2 py-1">Signups</th>
@@ -157,13 +157,13 @@ export default function AnalyticsDashboard({
                 </thead>
                 <tbody>
                   {usersActivity.map((u) => (
-                    <tr key={u.id} className="border-t border-slate-800">
+                    <tr key={u.id} className="border-t border-slate-200">
                       <td className="px-2 py-1">{u.email}</td>
                       <td className="px-2 py-1">{u.role}</td>
                       <td className="px-2 py-1">{u.signupEvents}</td>
                       <td className="px-2 py-1">{u.rangeTranscriptions}</td>
                       <td className="px-2 py-1">{u.totalTranscriptions}</td>
-                      <td className="px-2 py-1 text-slate-400">
+                      <td className="px-2 py-1 text-slate-600">
                         {u.lastActive ? new Date(u.lastActive).toLocaleString() : "-"}
                       </td>
                     </tr>
@@ -180,12 +180,12 @@ export default function AnalyticsDashboard({
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-3">
+          <section className="card stack">
             <SectionHeader title="All users & activity (last 100 accounts)" />
             <div className="overflow-x-auto">
-              <table className="min-w-full text-xs text-slate-200">
+              <table className="table">
                 <thead>
-                  <tr className="text-left text-slate-400">
+                  <tr className="text-left text-slate-600">
                     <th className="px-2 py-1">Email</th>
                     <th className="px-2 py-1">Role</th>
                     <th className="px-2 py-1">Signups</th>
@@ -195,12 +195,12 @@ export default function AnalyticsDashboard({
                 </thead>
                 <tbody>
                   {usersActivity.map((u) => (
-                    <tr key={u.id} className="border-t border-slate-800">
+                    <tr key={u.id} className="border-t border-slate-200">
                       <td className="px-2 py-1">{u.email}</td>
                       <td className="px-2 py-1">{u.role}</td>
                       <td className="px-2 py-1">{u.signupEvents}</td>
                       <td className="px-2 py-1">{u.totalTranscriptions}</td>
-                      <td className="px-2 py-1 text-slate-400">
+                      <td className="px-2 py-1 text-slate-600">
                         {u.lastActive ? new Date(u.lastActive).toLocaleString() : "-"}
                       </td>
                     </tr>
@@ -217,28 +217,28 @@ export default function AnalyticsDashboard({
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-4">
+          <section className="card stack">
             <SectionHeader title="Usage over time" />
             <TimeSeriesChart data={daily} />
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-4">
+            <div className="card stack">
               <SectionHeader title="Conversion funnel" />
               <FunnelBars steps={funnelSteps} />
               <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-xs text-slate-300">
                 {funnelSteps.map((s) => (
-                  <div key={s.label} className="rounded-lg border border-slate-800 bg-slate-950/60 p-2">
+                  <div key={s.label} className="rounded-lg border border-slate-200 bg-white/60 p-2">
                     <p className="font-semibold">{s.label}</p>
-                    <p className="text-slate-100">{s.value}</p>
+                    <p className="text-slate-900">{s.value}</p>
                     {s.pct !== undefined && <p className="text-slate-500">{s.pct}%</p>}
                   </div>
                 ))}
               </div>
             </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-4">
+            <div className="card stack">
               <SectionHeader title="Drop-off analysis" />
-              <div className="space-y-2 text-sm text-slate-200">
+              <div className="space-y-2 text-sm text-slate-800">
                 <BarItem label="Left after homepage only" value={dropoff.dropoffAfterHomepage} />
                 <BarItem label="Abandoned signup" value={dropoff.dropoffAfterSignupOpen} />
                 <BarItem label="Started but never completed transcription" value={dropoff.dropoffAfterTranscriptionStart} />
@@ -247,15 +247,15 @@ export default function AnalyticsDashboard({
           </section>
 
           <section className="grid gap-4 lg:grid-cols-3">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-4">
+            <div className="card stack">
               <SectionHeader title="Device types" />
               <DonutChart data={deviceData} />
             </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-4">
+            <div className="card stack">
               <SectionHeader title="Browsers" />
               <DonutChart data={browserData} />
             </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-4">
+            <div className="card stack">
               <SectionHeader title="Error hotspots" />
               <p className="text-sm text-slate-300">Total failed: {errors.totalFailed}</p>
               <ErrorBarChart data={errors.byType} />
@@ -263,12 +263,12 @@ export default function AnalyticsDashboard({
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-3">
+            <div className="card stack">
               <SectionHeader title="Top users by transcriptions" />
               <div className="overflow-x-auto">
-                <table className="min-w-full text-xs text-slate-200">
+                <table className="table">
                   <thead>
-                    <tr className="text-left text-slate-400">
+                    <tr className="text-left text-slate-600">
                       <th className="px-2 py-1">Email</th>
                       <th className="px-2 py-1">Role</th>
                       <th className="px-2 py-1">Total</th>
@@ -277,11 +277,11 @@ export default function AnalyticsDashboard({
                   </thead>
                   <tbody>
                     {topUsers.map((u) => (
-                      <tr key={u.userId || u.email} className="border-t border-slate-800">
+                      <tr key={u.userId || u.email} className="border-t border-slate-200">
                         <td className="px-2 py-1">{u.email}</td>
                         <td className="px-2 py-1">{u.role}</td>
                         <td className="px-2 py-1">{u.totalTranscriptions}</td>
-                        <td className="px-2 py-1 text-slate-400">
+                        <td className="px-2 py-1 text-slate-600">
                           {u.lastActive ? new Date(u.lastActive).toLocaleString() : "-"}
                         </td>
                       </tr>
@@ -298,12 +298,12 @@ export default function AnalyticsDashboard({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-3">
+            <div className="card stack">
               <SectionHeader title="Recent events" />
               <div className="overflow-x-auto">
-                <table className="min-w-full text-xs text-slate-200">
+                <table className="table">
                   <thead>
-                    <tr className="text-left text-slate-400">
+                    <tr className="text-left text-slate-600">
                       <th className="px-2 py-1">Time</th>
                       <th className="px-2 py-1">Event</th>
                       <th className="px-2 py-1">User</th>
@@ -312,8 +312,8 @@ export default function AnalyticsDashboard({
                   </thead>
                   <tbody>
                     {recentEvents.map((e) => (
-                      <tr key={e.id} className="border-t border-slate-800">
-                        <td className="px-2 py-1 text-slate-400">
+                      <tr key={e.id} className="border-t border-slate-200">
+                        <td className="px-2 py-1 text-slate-600">
                           {new Date(e.createdAt).toLocaleString()}
                         </td>
                         <td className="px-2 py-1">{e.event}</td>
@@ -341,22 +341,22 @@ export default function AnalyticsDashboard({
 
 function Card({ title, value }: { title: string; value: string | number }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-4">
-      <p className="text-xs text-slate-400">{title}</p>
-      <p className="text-2xl font-semibold text-white">{value}</p>
+    <div className="card">
+      <p className="muted text-small">{title}</p>
+      <p style={{ fontSize: "1.6rem", fontWeight: 600, margin: 0 }}>{value}</p>
     </div>
   );
 }
 
 function SectionHeader({ title }: { title: string }) {
-  return <h2 className="text-lg font-semibold">{title}</h2>;
+  return <h2 className="section-title" style={{ margin: 0 }}>{title}</h2>;
 }
 
 function BarItem({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 flex items-center justify-between">
+    <div className="card-outline" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
       <span>{label}</span>
-      <span className="text-slate-100 font-semibold">{value}</span>
+      <span style={{ fontWeight: 600 }}>{value}</span>
     </div>
   );
 }

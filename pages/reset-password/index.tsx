@@ -26,41 +26,33 @@ export default function RequestResetPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 p-6 space-y-4 shadow-xl">
-        <h1 className="text-xl font-semibold text-center">Reset your password</h1>
-        <p className="text-sm text-slate-400 text-center">
-          Enter your email and we will log a reset link for you (local-only).
-        </p>
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="space-y-2">
-            <label className="text-sm text-slate-300">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+    <main className="page page-tight">
+      <div className="container">
+        <div className="card auth-card stack">
+          <div className="stack" style={{ gap: "6px", textAlign: "center" }}>
+            <h1 className="page-title">Reset your password</h1>
+            <p className="page-subtitle">
+              Enter your email and we will log a reset link for you (local-only).
+            </p>
           </div>
-          {error && (
-            <div className="rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-              {error}
+          <form className="stack" onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label className="label">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="form-input"
+              />
             </div>
-          )}
-          {message && (
-            <div className="rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-              {message}
-            </div>
-          )}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
-          >
-            {loading ? "Sending…" : "Send reset link"}
-          </button>
-        </form>
+            {error && <div className="error">{error}</div>}
+            {message && <div className="status">{message}</div>}
+            <button type="submit" disabled={loading} className="button-primary">
+              {loading ? "Sending..." : "Send reset link"}
+            </button>
+          </form>
+        </div>
       </div>
     </main>
   );

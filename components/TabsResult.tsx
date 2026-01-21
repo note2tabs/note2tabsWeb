@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { copyText } from "../lib/clipboard";
 
 type TabsResultProps = {
   segments: string[][];
@@ -16,8 +17,8 @@ export default function TabsResult({ segments, sourceLabel, audioUrl }: TabsResu
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(joinedText);
-      setCopied(true);
+      const ok = await copyText(joinedText);
+      if (ok) setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (err) {
       console.error("Failed to copy tabs", err);
@@ -25,36 +26,34 @@ export default function TabsResult({ segments, sourceLabel, audioUrl }: TabsResu
   };
 
   return (
-    <div className="grid gap-4 md:grid-cols-[320px,1fr]">
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-lg shadow-black/40">
-        <h3 className="text-sm font-semibold text-slate-100">Details</h3>
-        <p className="mt-2 text-sm text-slate-400">
-          Source: {sourceLabel || "Unknown source"}
-        </p>
+    <div className="stack" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+      <div className="card stack">
+        <h3 className="label">Details</h3>
+        <p className="muted text-small">Source: {sourceLabel || "Unknown source"}</p>
         {audioUrl ? (
-          <div className="mt-3 space-y-2">
-            <p className="text-xs text-slate-400">Preview</p>
-            <audio controls src={audioUrl} className="w-full rounded-lg border border-slate-800" />
+          <div className="stack" style={{ gap: "8px" }}>
+            <p className="label">Preview</p>
+            <audio controls src={audioUrl} className="card-outline" />
           </div>
         ) : null}
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 md:p-6 shadow-lg shadow-black/40">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-base font-semibold text-slate-100">Generated Tabs</h3>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-slate-700"
-          >
+      <div className="card stack">
+        <div className="page-header">
+          <h3 className="section-title" style={{ margin: 0 }}>
+            Generated Tabs
+          </h3>
+          <button type="button" onClick={handleCopy} className="button-secondary button-small">
             {copied ? "Copied" : "Copy tabs"}
           </button>
         </div>
-        <div className="mt-4 space-y-4">
+        <div className="stack">
           {segments.map((segment, idx) => (
-            <div key={idx} className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
-              <p className="text-xs font-semibold text-slate-400 mb-2">Segment {idx + 1}</p>
-              <pre className="max-h-[320px] overflow-auto whitespace-pre font-mono text-sm leading-relaxed text-slate-100">
+            <div key={idx} className="card-outline">
+              <p className="muted text-small" style={{ marginBottom: "8px" }}>
+                Segment {idx + 1}
+              </p>
+              <pre className="tab-block">
 {segment.join("\n")}
               </pre>
             </div>

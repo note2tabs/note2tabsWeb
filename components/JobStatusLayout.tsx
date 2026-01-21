@@ -50,15 +50,12 @@ export default function JobStatusLayout({
 }: JobStatusLayoutProps) {
   if (!job || job.status === "pending" || job.status === "processing") {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center gap-3">
-          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
-          <div>
-            <p className="text-sm font-semibold text-gray-800">Analyzing audio…</p>
-            <p className="text-xs text-gray-600">
-              Separating guitar stems and generating tabs. This usually takes less than a minute.
-            </p>
-          </div>
+      <div className="card">
+        <div className="stack" style={{ gap: "10px" }}>
+          <span className="badge">Analyzing audio</span>
+          <p className="muted text-small">
+            Separating guitar stems and generating tabs. This usually takes less than a minute.
+          </p>
         </div>
       </div>
     );
@@ -66,16 +63,16 @@ export default function JobStatusLayout({
 
   if (job.status === "error") {
     return (
-      <div className="rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
-        <p className="text-base font-semibold text-red-700">Something went wrong.</p>
-        <p className="mt-2 text-sm text-red-600">{job.error_message || "Please try again."}</p>
-        <button
-          type="button"
-          onClick={onRestart}
-          className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-        >
-          Back to home
-        </button>
+      <div className="card">
+        <p style={{ fontWeight: 600, margin: 0 }}>Something went wrong.</p>
+        <p className="muted text-small" style={{ margin: "8px 0 0" }}>
+          {job.error_message || "Please try again."}
+        </p>
+        <div className="button-row" style={{ marginTop: "16px" }}>
+          <button type="button" onClick={onRestart} className="button-primary button-small">
+            Back to home
+          </button>
+        </div>
       </div>
     );
   }
@@ -85,15 +82,17 @@ export default function JobStatusLayout({
 
   if (showAdGate && !hasWatchedAd) {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900">Watch this short video to unlock your guitar tabs</h2>
-        <p className="text-sm text-gray-600">The tab will unlock automatically when the video ends.</p>
-        <div className="w-full max-w-xl mx-auto space-y-3">
+      <div className="card stack">
+        <div className="stack" style={{ gap: "6px" }}>
+          <h2 style={{ margin: 0 }}>Watch a short video to unlock your tabs</h2>
+          <p className="muted text-small">The tab will unlock automatically when the video ends.</p>
+        </div>
+        <div className="stack" style={{ maxWidth: "560px" }}>
           <video
             key={adContainerKey}
             src="/video.mp4"
             controls
-            className="w-full rounded-lg border border-gray-200 bg-gray-50"
+            className="card-outline"
             onEnded={onVideoComplete}
             onError={onSkipAd}
           />
@@ -101,90 +100,69 @@ export default function JobStatusLayout({
             <div
               key={`${adContainerKey}-primis`}
               id="primis-ad-container"
-              className="w-full max-w-xl mx-auto rounded-lg border border-gray-200 bg-gray-50 p-2"
+              className="card-outline"
             />
           )}
         </div>
-        {enablePrimis && (
-          <button
-            type="button"
-            onClick={onRetryAd}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:border-blue-500 hover:text-blue-600"
-          >
-            Retry ad
+        <div className="button-row">
+          {enablePrimis && (
+            <button type="button" onClick={onRetryAd} className="button-secondary button-small">
+              Retry ad
+            </button>
+          )}
+          <button type="button" onClick={onSkipAd} className="button-secondary button-small">
+            Skip ad (unlock now)
           </button>
-        )}
-        <button
-          type="button"
-          onClick={onSkipAd}
-          className="rounded-lg border border-amber-400 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50"
-        >
-          Skip ad (unlock now)
-        </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="text-lg font-semibold text-gray-900">
-            {job.song_title || "Untitled"}{" "}
-            {job.artist ? <span className="text-gray-600">– {job.artist}</span> : null}
+    <div className="stack">
+      <div className="card">
+        <div className="page-header" style={{ gap: "12px" }}>
+          <p style={{ fontWeight: 600, margin: 0 }}>
+            {job.song_title || "Untitled"} {job.artist ? <span className="muted">- {job.artist}</span> : null}
           </p>
-          <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-            Ready
-          </span>
+          <span className="badge">Ready</span>
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="stack" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+        <div className="card stack">
           <div>
-            <h3 className="text-sm font-semibold text-gray-700">Preview</h3>
+            <h3 className="label">Preview</h3>
             {hasAudio ? (
-              <audio
-                controls
-                src={job.audio_preview_url || undefined}
-                className="mt-3 w-full"
-              >
+              <audio controls src={job.audio_preview_url || undefined} className="card-outline">
                 Your browser does not support the audio element.
               </audio>
             ) : (
-              <p className="mt-3 text-sm text-gray-600">No audio preview available.</p>
+              <p className="muted text-small">No audio preview available.</p>
             )}
           </div>
           <StemsList stems={stems.filter(Boolean) as Stem[]} />
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="card">
           <TabViewer tabText={job.tab_text || ""} songTitle={job.song_title || undefined} />
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <button
-          type="button"
-          onClick={onDownloadTabs}
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 transition hover:border-blue-500 hover:text-blue-600"
-        >
+      <div className="button-row">
+        <button type="button" onClick={onDownloadTabs} className="button-secondary button-small">
           Download Tab (TXT)
         </button>
-        <button
-          type="button"
-          onClick={onRestart}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-        >
+        <button type="button" onClick={onRestart} className="button-primary button-small">
           Start a new transcription
         </button>
         {shareUrls && (
-          <div className="flex flex-wrap gap-2">
+          <div className="button-row">
             <a
               href={shareUrls.twitter}
               target="_blank"
               rel="noreferrer"
-              className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-800 hover:border-blue-500 hover:text-blue-600"
+              className="button-secondary button-small"
             >
               Share on X
             </a>
@@ -192,7 +170,7 @@ export default function JobStatusLayout({
               href={shareUrls.reddit}
               target="_blank"
               rel="noreferrer"
-              className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-800 hover:border-blue-500 hover:text-blue-600"
+              className="button-secondary button-small"
             >
               Share on Reddit
             </a>

@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { copyText } from "../lib/clipboard";
+
 type TabViewerProps = {
   tabText?: string;
   songTitle?: string;
@@ -5,16 +8,19 @@ type TabViewerProps = {
 };
 
 export default function TabViewer({ tabText, songTitle, segments }: TabViewerProps) {
+  const [copied, setCopied] = useState(false);
   const text =
     tabText ??
-    (segments && segments.length
-      ? segments.map((s) => s.join("\n")).join("\n\n")
-      : "");
+    (segments && segments.length ? segments.map((s) => s.join("\n")).join("\n\n") : "");
 
   if (!text) return null;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text).catch(() => {});
+  const handleCopy = async () => {
+    const ok = await copyText(text);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    }
   };
 
   const handleDownload = () => {
@@ -28,24 +34,16 @@ export default function TabViewer({ tabText, songTitle, segments }: TabViewerPro
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500"
-        >
-          Copy tabs
+    <div className="stack">
+      <div className="button-row">
+        <button type="button" onClick={handleCopy} className="button-primary button-small">
+          {copied ? "Copied" : "Copy tabs"}
         </button>
-        <button
-          type="button"
-          onClick={handleDownload}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-800 hover:border-blue-500 hover:text-blue-600"
-        >
+        <button type="button" onClick={handleDownload} className="button-secondary button-small">
           Download TXT
         </button>
       </div>
-      <pre className="bg-white text-slate-900 border rounded p-4 font-mono text-sm overflow-auto max-h-[60vh] whitespace-pre">
+      <pre className="tab-block">
 {text}
       </pre>
     </div>
