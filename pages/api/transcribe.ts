@@ -9,7 +9,7 @@ import {
   buildCreditsSummary,
   durationToCredits,
   getCreditWindow,
-  FREE_MONTHLY_CREDITS,
+  DEFAULT_DURATION_SEC,
 } from "../../lib/credits";
 
 const API_BASE = "http://127.0.0.1:8000";
@@ -94,21 +94,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const isPremium =
       user.role === "PREMIUM" || user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
     const creditWindow = getCreditWindow();
-    const monthlyJobs = await prisma.tabJob.findMany({
-      where: {
-        userId: session.user.id,
-        createdAt: {
-          gte: creditWindow.start,
-          lt: creditWindow.resetAt,
-        },
-      },
+    const creditJobs = await prisma.tabJob.findMany({
+      where: isPremium
+        ? { userId: session.user.id }
+        : {
+            userId: session.user.id,
+            createdAt: {
+              gte: creditWindow.start,
+              lt: creditWindow.resetAt,
+            },
+          },
       select: { durationSec: true },
     });
-    const creditsBefore = buildCreditsSummary(
-      monthlyJobs.map((job) => job.durationSec),
-      creditWindow.resetAt,
-      isPremium
-    );
+    const refreshedCredits = buildCreditsSummary({
+      durations: creditJobs.map((job) => job.durationSec),
+      resetAt: creditWindow.resetAt,
+      isPremium,
+      userCreatedAt: user.createdAt,
+    });
 
     const contentType = req.headers["content-type"] || "";
     let mode: Mode | null = null;
@@ -154,16 +157,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const durationSec =
       mode === "YOUTUBE"
         ? Math.max(1, Math.ceil(youtubePayload?.duration || 0))
-        : Math.max(1, Math.ceil(filePayload?.duration || 60));
+        : Math.max(1, Math.ceil(filePayload?.duration || DEFAULT_DURATION_SEC));
     const requiredCredits = durationToCredits(durationSec);
 
-    if (user.role === "FREE" && creditsBefore.remaining < requiredCredits) {
-      const resetLabel = creditsBefore.resetAt.slice(0, 10);
+    if (refreshedCredits.remaining < requiredCredits) {
+      const resetLabel = refreshedCredits.resetAt.slice(0, 10);
+      const errorMessage = isPremium
+        ? `Credits used. More credits arrive on ${resetLabel}.`
+        : `Monthly credits used. Upgrade to Premium or wait until ${resetLabel} for a reset.`;
       return res
         .status(403)
         .json({
-          error: `Monthly credits used. Upgrade to Premium or wait until ${resetLabel} for a reset.`,
-          credits: creditsBefore,
+          error: errorMessage,
+          credits: refreshedCredits,
         });
     }
 
@@ -233,16 +239,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     let updatedTokens = user.tokensRemaining;
-    let creditsAfter = creditsBefore;
+    const updatedUsed = refreshedCredits.used + requiredCredits;
+    const updatedRemaining = Math.max(0, refreshedCredits.limit - updatedUsed);
+    const creditsAfter = {
+      ...refreshedCredits,
+      used: updatedUsed,
+      remaining: updatedRemaining,
+    };
     if (user.role === "FREE") {
-      const updatedUsed = creditsBefore.used + requiredCredits;
-      const updatedRemaining = Math.max(0, FREE_MONTHLY_CREDITS - updatedUsed);
       updatedTokens = updatedRemaining;
-      creditsAfter = {
-        ...creditsBefore,
-        used: updatedUsed,
-        remaining: updatedRemaining,
-      };
       await prisma.user.update({
         where: { id: user.id },
         data: { tokensRemaining: updatedTokens },

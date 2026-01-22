@@ -11,18 +11,27 @@ type Props = {
 const STRING_LABELS = ["e", "B", "G", "D", "A", "E"];
 const ROW_HEIGHT = 36;
 
+type OptionalNumber = number | null;
+type OptionalTabCoord = [OptionalNumber, OptionalNumber];
+
+const parseOptionalNumber = (value: string): OptionalNumber => {
+  if (value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
 type DraftNote = {
   stringIndex: number;
   startTime: number;
-  length: number;
-  fret: number;
+  length: OptionalNumber;
+  fret: OptionalNumber;
 };
 
 type SegmentEdit = {
   start: number;
   end: number;
-  stringIndex: number;
-  fret: number;
+  stringIndex: OptionalNumber;
+  fret: OptionalNumber;
 };
 
 type DragState = {
@@ -37,6 +46,18 @@ type DragState = {
 type DragPreview = {
   startTime: number;
   stringIndex?: number;
+};
+
+type NoteFormState = {
+  stringIndex: OptionalNumber;
+  fret: OptionalNumber;
+  startTime: OptionalNumber;
+  length: OptionalNumber;
+};
+
+type ChordFormState = {
+  startTime: OptionalNumber;
+  length: OptionalNumber;
 };
 
 type SelectionState = {
@@ -60,12 +81,12 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   } | null>(null);
   const [chordAlternatives, setChordAlternatives] = useState<TabCoord[][]>([]);
   const [segmentEdits, setSegmentEdits] = useState<SegmentEdit[]>([]);
-  const [insertTime, setInsertTime] = useState(0);
-  const [insertString, setInsertString] = useState(2);
-  const [insertFret, setInsertFret] = useState(0);
-  const [shiftBoundaryIndex, setShiftBoundaryIndex] = useState(0);
-  const [shiftBoundaryTime, setShiftBoundaryTime] = useState(0);
-  const [deleteBoundaryIndex, setDeleteBoundaryIndex] = useState(0);
+  const [insertTime, setInsertTime] = useState<OptionalNumber>(null);
+  const [insertString, setInsertString] = useState<OptionalNumber>(null);
+  const [insertFret, setInsertFret] = useState<OptionalNumber>(null);
+  const [shiftBoundaryIndex, setShiftBoundaryIndex] = useState<OptionalNumber>(null);
+  const [shiftBoundaryTime, setShiftBoundaryTime] = useState<OptionalNumber>(null);
+  const [deleteBoundaryIndex, setDeleteBoundaryIndex] = useState<OptionalNumber>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
@@ -506,11 +527,16 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
   const handleAddNote = () => {
     if (!draftNote) return;
+    const { fret, length } = draftNote;
+    if (fret === null || length === null) {
+      setError("Enter a fret and length before adding the note.");
+      return;
+    }
     void runMutation(() =>
       gteApi.addNote(editorId, {
-        tab: [draftNote.stringIndex, draftNote.fret],
+        tab: [draftNote.stringIndex, fret],
         startTime: draftNote.startTime,
-        length: draftNote.length,
+        length,
       })
     );
     setDraftNote(null);
@@ -549,10 +575,15 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
   const handleUpdateNote = async () => {
     if (!selectedNote) return;
-    const stringValue = Number(noteForm.stringIndex);
-    const fretValue = Number(noteForm.fret);
-    const startValue = Number(noteForm.startTime);
-    const lengthValue = Number(noteForm.length);
+    const { stringIndex, fret, startTime, length } = noteForm;
+    if (stringIndex === null || fret === null || startTime === null || length === null) {
+      setError("Fill in all note fields before updating.");
+      return;
+    }
+    const stringValue = stringIndex;
+    const fretValue = fret;
+    const startValue = startTime;
+    const lengthValue = length;
     setBusy(true);
     setError(null);
     try {
@@ -590,8 +621,13 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
   const handleChordUpdate = async () => {
     if (!selectedChord) return;
-    const startValue = Number(chordForm.startTime);
-    const lengthValue = Number(chordForm.length);
+    const { startTime, length } = chordForm;
+    if (startTime === null || length === null) {
+      setError("Fill in start time and length before updating the chord.");
+      return;
+    }
+    const startValue = startTime;
+    const lengthValue = length;
     setBusy(true);
     setError(null);
     try {
@@ -623,24 +659,40 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   };
 
   const handleApplySegments = () => {
+    if (segmentEdits.some((seg) => seg.stringIndex === null || seg.fret === null)) {
+      setError("Fill in string and fret for all segments before saving.");
+      return;
+    }
     const payload: CutWithCoord[] = segmentEdits.map((seg) => [
       [seg.start, seg.end],
-      [seg.stringIndex, seg.fret],
+      [seg.stringIndex as number, seg.fret as number],
     ]);
     void runMutation(() => gteApi.applyManualCuts(editorId, payload));
   };
 
   const handleInsertBoundary = () => {
+    if (insertTime === null || insertString === null || insertFret === null) {
+      setError("Enter time, string, and fret before inserting.");
+      return;
+    }
     void runMutation(() =>
-      gteApi.insertCutAt(editorId, insertTime, [Number(insertString), Number(insertFret)])
+      gteApi.insertCutAt(editorId, insertTime, [insertString, insertFret])
     );
   };
 
   const handleShiftBoundary = () => {
+    if (shiftBoundaryIndex === null || shiftBoundaryTime === null) {
+      setError("Enter an index and time before shifting.");
+      return;
+    }
     void runMutation(() => gteApi.shiftCutBoundary(editorId, shiftBoundaryIndex, shiftBoundaryTime));
   };
 
   const handleDeleteBoundary = () => {
+    if (deleteBoundaryIndex === null) {
+      setError("Enter a boundary index to delete.");
+      return;
+    }
     void runMutation(() => gteApi.deleteCutBoundary(editorId, deleteBoundaryIndex));
   };
 
@@ -657,9 +709,14 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     void runMutation(() => gteApi.assignNoteTab(editorId, selectedNote.id, tab));
   };
 
-  const handleApplyChordTabs = (tabs: TabCoord[]) => {
+  const handleApplyChordTabs = (tabs: OptionalTabCoord[]) => {
     if (!selectedChord) return;
-    void runMutation(() => gteApi.setChordTabs(editorId, selectedChord.id, tabs));
+    if (tabs.some((tab) => tab[0] === null || tab[1] === null)) {
+      setError("Fill in all chord tabs before applying.");
+      return;
+    }
+    const normalized = tabs.map((tab) => [tab[0] as number, tab[1] as number]) as TabCoord[];
+    void runMutation(() => gteApi.setChordTabs(editorId, selectedChord.id, normalized));
   };
 
   const handleShiftChordOctave = (direction: number) => {
@@ -811,18 +868,18 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     setIsPlaying(false);
   };
 
-  const [noteForm, setNoteForm] = useState({
-    stringIndex: 0,
-    fret: 0,
-    startTime: 0,
-    length: 1,
+  const [noteForm, setNoteForm] = useState<NoteFormState>({
+    stringIndex: null,
+    fret: null,
+    startTime: null,
+    length: null,
   });
 
-  const [chordForm, setChordForm] = useState({
-    startTime: 0,
-    length: 1,
+  const [chordForm, setChordForm] = useState<ChordFormState>({
+    startTime: null,
+    length: null,
   });
-  const [chordTabsForm, setChordTabsForm] = useState<TabCoord[]>([]);
+  const [chordTabsForm, setChordTabsForm] = useState<OptionalTabCoord[]>([]);
 
   useEffect(() => {
     if (selectedNote) {
@@ -842,7 +899,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
         length: selectedChord.length,
       });
       setChordTabsForm(
-        selectedChord.currentTabs.map((tab) => [tab[0], tab[1]] as TabCoord)
+        selectedChord.currentTabs.map((tab) => [tab[0], tab[1]] as OptionalTabCoord)
       );
     } else {
       setChordTabsForm([]);
@@ -1058,7 +1115,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                   width: Math.max(8, (segment.end - segment.start) * scale),
                 }}
               >
-                {segment.stringIndex},{segment.fret}
+                {segment.stringIndex ?? "-"}, {segment.fret ?? "-"}
               </div>
             ))}
             {segmentEdits.slice(0, -1).map((segment, idx) => (
@@ -1093,10 +1150,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                       type="number"
                       min={0}
                       max={maxFret}
-                      value={draftNote.fret}
+                      value={draftNote.fret ?? ""}
                       onChange={(e) =>
                         setDraftNote((prev) =>
-                          prev ? { ...prev, fret: Number(e.target.value) } : prev
+                          prev ? { ...prev, fret: parseOptionalNumber(e.target.value) } : prev
                         )
                       }
                       className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
@@ -1107,10 +1164,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                     <input
                       type="number"
                       min={1}
-                      value={draftNote.length}
+                      value={draftNote.length ?? ""}
                       onChange={(e) =>
                         setDraftNote((prev) =>
-                          prev ? { ...prev, length: Number(e.target.value) } : prev
+                          prev ? { ...prev, length: parseOptionalNumber(e.target.value) } : prev
                         )
                       }
                       className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
@@ -1152,8 +1209,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                       type="number"
                       min={0}
                       max={5}
-                      value={noteForm.stringIndex}
-                      onChange={(e) => setNoteForm((prev) => ({ ...prev, stringIndex: Number(e.target.value) }))}
+                      value={noteForm.stringIndex ?? ""}
+                      onChange={(e) =>
+                        setNoteForm((prev) => ({ ...prev, stringIndex: parseOptionalNumber(e.target.value) }))
+                      }
                       className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                     />
                   </label>
@@ -1163,8 +1222,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                       type="number"
                       min={0}
                       max={maxFret}
-                      value={noteForm.fret}
-                      onChange={(e) => setNoteForm((prev) => ({ ...prev, fret: Number(e.target.value) }))}
+                      value={noteForm.fret ?? ""}
+                      onChange={(e) =>
+                        setNoteForm((prev) => ({ ...prev, fret: parseOptionalNumber(e.target.value) }))
+                      }
                       className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                     />
                   </label>
@@ -1173,8 +1234,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                     <input
                       type="number"
                       min={0}
-                      value={noteForm.startTime}
-                      onChange={(e) => setNoteForm((prev) => ({ ...prev, startTime: Number(e.target.value) }))}
+                      value={noteForm.startTime ?? ""}
+                      onChange={(e) =>
+                        setNoteForm((prev) => ({ ...prev, startTime: parseOptionalNumber(e.target.value) }))
+                      }
                       className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                     />
                   </label>
@@ -1183,8 +1246,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                     <input
                       type="number"
                       min={1}
-                      value={noteForm.length}
-                      onChange={(e) => setNoteForm((prev) => ({ ...prev, length: Number(e.target.value) }))}
+                      value={noteForm.length ?? ""}
+                      onChange={(e) =>
+                        setNoteForm((prev) => ({ ...prev, length: parseOptionalNumber(e.target.value) }))
+                      }
                       className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                     />
                   </label>
@@ -1268,8 +1333,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                     <input
                       type="number"
                       min={0}
-                      value={chordForm.startTime}
-                      onChange={(e) => setChordForm((prev) => ({ ...prev, startTime: Number(e.target.value) }))}
+                      value={chordForm.startTime ?? ""}
+                      onChange={(e) =>
+                        setChordForm((prev) => ({ ...prev, startTime: parseOptionalNumber(e.target.value) }))
+                      }
                       className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                     />
                   </label>
@@ -1278,8 +1345,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                     <input
                       type="number"
                       min={1}
-                      value={chordForm.length}
-                      onChange={(e) => setChordForm((prev) => ({ ...prev, length: Number(e.target.value) }))}
+                      value={chordForm.length ?? ""}
+                      onChange={(e) =>
+                        setChordForm((prev) => ({ ...prev, length: parseOptionalNumber(e.target.value) }))
+                      }
                       className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                     />
                   </label>
@@ -1331,11 +1400,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                             type="number"
                             min={0}
                             max={5}
-                            value={tab[0]}
+                            value={tab[0] ?? ""}
                             onChange={(e) =>
                               setChordTabsForm((prev) =>
                                 prev.map((entry, eidx) =>
-                                  eidx === idx ? [Number(e.target.value), entry[1]] : entry
+                                  eidx === idx ? [parseOptionalNumber(e.target.value), entry[1]] : entry
                                 )
                               )
                             }
@@ -1345,11 +1414,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                             type="number"
                             min={0}
                             max={maxFret}
-                            value={tab[1]}
+                            value={tab[1] ?? ""}
                             onChange={(e) =>
                               setChordTabsForm((prev) =>
                                 prev.map((entry, eidx) =>
-                                  eidx === idx ? [entry[0], Number(e.target.value)] : entry
+                                  eidx === idx ? [entry[0], parseOptionalNumber(e.target.value)] : entry
                                 )
                               )
                             }
@@ -1421,11 +1490,13 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                       type="number"
                       min={0}
                       max={5}
-                      value={seg.stringIndex}
+                      value={seg.stringIndex ?? ""}
                       onChange={(e) =>
                         setSegmentEdits((prev) =>
                           prev.map((item, sidx) =>
-                            sidx === idx ? { ...item, stringIndex: Number(e.target.value) } : item
+                            sidx === idx
+                              ? { ...item, stringIndex: parseOptionalNumber(e.target.value) }
+                              : item
                           )
                         )
                       }
@@ -1435,11 +1506,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                       type="number"
                       min={0}
                       max={maxFret}
-                      value={seg.fret}
+                      value={seg.fret ?? ""}
                       onChange={(e) =>
                         setSegmentEdits((prev) =>
                           prev.map((item, sidx) =>
-                            sidx === idx ? { ...item, fret: Number(e.target.value) } : item
+                            sidx === idx ? { ...item, fret: parseOptionalNumber(e.target.value) } : item
                           )
                         )
                       }
@@ -1455,8 +1526,8 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                   <input
                     type="number"
                     min={1}
-                    value={insertTime}
-                    onChange={(e) => setInsertTime(Number(e.target.value))}
+                    value={insertTime ?? ""}
+                    onChange={(e) => setInsertTime(parseOptionalNumber(e.target.value))}
                     className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
                   />
                   <div className="flex items-center gap-2">
@@ -1464,16 +1535,16 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                       type="number"
                       min={0}
                       max={5}
-                      value={insertString}
-                      onChange={(e) => setInsertString(Number(e.target.value))}
+                      value={insertString ?? ""}
+                      onChange={(e) => setInsertString(parseOptionalNumber(e.target.value))}
                       className="w-12 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
                     />
                     <input
                       type="number"
                       min={0}
                       max={maxFret}
-                      value={insertFret}
-                      onChange={(e) => setInsertFret(Number(e.target.value))}
+                      value={insertFret ?? ""}
+                      onChange={(e) => setInsertFret(parseOptionalNumber(e.target.value))}
                       className="w-14 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
                     />
                   </div>
@@ -1490,15 +1561,15 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                   <input
                     type="number"
                     min={0}
-                    value={shiftBoundaryIndex}
-                    onChange={(e) => setShiftBoundaryIndex(Number(e.target.value))}
+                    value={shiftBoundaryIndex ?? ""}
+                    onChange={(e) => setShiftBoundaryIndex(parseOptionalNumber(e.target.value))}
                     className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
                   />
                   <input
                     type="number"
                     min={1}
-                    value={shiftBoundaryTime}
-                    onChange={(e) => setShiftBoundaryTime(Number(e.target.value))}
+                    value={shiftBoundaryTime ?? ""}
+                    onChange={(e) => setShiftBoundaryTime(parseOptionalNumber(e.target.value))}
                     className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
                   />
                   <button
@@ -1514,8 +1585,8 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                   <input
                     type="number"
                     min={0}
-                    value={deleteBoundaryIndex}
-                    onChange={(e) => setDeleteBoundaryIndex(Number(e.target.value))}
+                    value={deleteBoundaryIndex ?? ""}
+                    onChange={(e) => setDeleteBoundaryIndex(parseOptionalNumber(e.target.value))}
                     className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
                   />
                   <button

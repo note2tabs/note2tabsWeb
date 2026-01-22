@@ -17,14 +17,20 @@ type TabsResponse = {
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
 
+const parseOptionalNumber = (value: string): number | null => {
+  if (value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
 export default function HomePage() {
   const { data: session } = useSession();
   const [mode, setMode] = useState<"FILE" | "YOUTUBE">("FILE");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
-  const [ytStartTime, setYtStartTime] = useState(0);
-  const [ytDuration, setYtDuration] = useState(30);
-  const [fileDuration, setFileDuration] = useState(60);
+  const [ytStartTime, setYtStartTime] = useState<number | null>(null);
+  const [ytDuration, setYtDuration] = useState<number | null>(null);
+  const [fileDuration, setFileDuration] = useState<number | null>(null);
   const [ytSeparateGuitar, setYtSeparateGuitar] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -33,8 +39,11 @@ export default function HomePage() {
   const [credits, setCredits] = useState<CreditsSummary | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [pricingBusy, setPricingBusy] = useState(false);
+  const [pricingError, setPricingError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
+  const isSignedIn = Boolean(session);
 
   useEffect(() => {
     if (session?.user?.monthlyCreditsUsed !== undefined) {
@@ -68,8 +77,8 @@ export default function HomePage() {
   }, []);
 
   const creditsRequested = useMemo(() => {
-    if (mode === "FILE") return Math.max(1, Math.ceil(fileDuration / 60));
-    return Math.max(1, Math.ceil(ytDuration / 60));
+    const duration = mode === "FILE" ? fileDuration ?? 0 : ytDuration ?? 0;
+    return Math.max(1, Math.ceil(duration / 30));
   }, [mode, fileDuration, ytDuration]);
 
   const youtubeValid = useMemo(() => {
@@ -139,6 +148,21 @@ export default function HomePage() {
       return;
     }
 
+    if (mode === "FILE" && fileDuration !== null && fileDuration <= 0) {
+      setError("Duration must be greater than 0.");
+      return;
+    }
+    if (mode === "YOUTUBE") {
+      if (ytStartTime !== null && ytStartTime < 0) {
+        setError("Start time must be 0 or greater.");
+        return;
+      }
+      if (ytDuration !== null && ytDuration <= 0) {
+        setError("Duration must be greater than 0.");
+        return;
+      }
+    }
+
     setError(null);
     setTabsResult(null);
     setStatus(mode === "FILE" ? "Transcribing audio..." : "Downloading from YouTube...");
@@ -150,20 +174,23 @@ export default function HomePage() {
       if (mode === "FILE" && selectedFile) {
         const fd = new FormData();
         fd.append("mode", "FILE");
-        fd.append("duration", String(fileDuration || 60));
+        if (fileDuration !== null) {
+          fd.append("duration", String(fileDuration));
+        }
         fd.append("file", selectedFile);
         response = await fetch("/api/transcribe", { method: "POST", body: fd });
       } else {
+        const payload: Record<string, unknown> = {
+          mode: "YOUTUBE",
+          youtubeUrl: youtubeUrl.trim(),
+          separateGuitar: ytSeparateGuitar,
+        };
+        if (ytStartTime !== null) payload.startTime = ytStartTime;
+        if (ytDuration !== null) payload.duration = ytDuration;
         response = await fetch("/api/transcribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mode: "YOUTUBE",
-            youtubeUrl: youtubeUrl.trim(),
-            startTime: ytStartTime,
-            duration: ytDuration,
-            separateGuitar: ytSeparateGuitar,
-          }),
+          body: JSON.stringify(payload),
         });
       }
 
@@ -195,19 +222,41 @@ export default function HomePage() {
     }
   };
 
+  const handlePricingClick = async () => {
+    if (pricingBusy) return;
+    if (!session) {
+      signIn(undefined, { callbackUrl: "/#pricing" });
+      return;
+    }
+    setPricingBusy(true);
+    setPricingError(null);
+    try {
+      const res = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || !data?.url) {
+        setPricingError(data?.error || "Could not start checkout.");
+        return;
+      }
+      window.location.href = data.url;
+    } catch (err: any) {
+      setPricingError(err?.message || "Could not start checkout.");
+    } finally {
+      setPricingBusy(false);
+    }
+  };
+
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     void handleConvert();
   };
   const creditsUsageLabel = credits
-    ? credits.unlimited
-      ? "Unlimited"
-      : `${credits.used}/${credits.limit}`
+    ? `${credits.used}/${credits.limit}`
     : session
     ? "-"
-    : "Sign in";
+    : "10";
   const creditsResetLabel = credits ? new Date(credits.resetAt).toLocaleDateString() : "";
-  const showCreditsEmpty = credits && !credits.unlimited && credits.remaining === 0;
+  const showCreditsEmpty = credits && credits.remaining === 0;
+  const resetLabelText = isPremiumRole(session?.user?.role) ? "Next credits" : "Resets";
 
   return (
     <>
@@ -216,25 +265,26 @@ export default function HomePage() {
         <meta name="description" content="Upload a song and get guitar tabs instantly." />
       </Head>
 
-      <main className="page">
+      <main className="page page-home">
         <section className="hero" id="hero">
           <div className="hero-glow hero-glow--one" aria-hidden="true" />
           <div className="hero-glow hero-glow--two" aria-hidden="true" />
           <div className="container hero-stack hero-stack--centered">
             <div className="hero-heading" data-reveal>
-              <h1 className="hero-title">Turn music into tabs</h1>
+              <h1 className="hero-title">Turn Music Into Tabs</h1>
             </div>
             <form className="prompt-shell" data-reveal onSubmit={handleSubmit}>
-              <div className="prompt-top">
-                <div>
-                  <span className="prompt-title">Transcriber</span>
+              {isSignedIn && credits && (
+                <div className="prompt-top prompt-top--solo">
+                  <div className="prompt-balance">
+                    <span>Credits</span>
+                    <strong>{creditsUsageLabel}</strong>
+                    <span className="prompt-reset">
+                      {resetLabelText} {creditsResetLabel}
+                    </span>
+                  </div>
                 </div>
-                <div className="prompt-balance">
-                  <span>This month</span>
-                  <strong>{creditsUsageLabel}</strong>
-                  {credits && <span className="prompt-reset">Resets {creditsResetLabel}</span>}
-                </div>
-              </div>
+              )}
 
               <div className="mode-switch" role="tablist" aria-label="Input mode">
                 <button
@@ -289,23 +339,20 @@ export default function HomePage() {
                   </label>
                 )}
 
-                <div className="prompt-footer">
-                  <span className="prompt-hint">
-                    {mode === "FILE"
-                      ? "Set audio length in Advanced options if needed."
-                      : "Set timing in Advanced options if needed."}
-                  </span>
-                  <button
-                    type="button"
-                    className="advanced-toggle"
-                    onClick={() => setShowAdvanced((prev) => !prev)}
-                  >
-                    {showAdvanced ? "Hide advanced" : "Advanced options"}
-                  </button>
-                </div>
+                {isSignedIn && (
+                  <div className="prompt-footer">
+                    <button
+                      type="button"
+                      className="advanced-toggle"
+                      onClick={() => setShowAdvanced((prev) => !prev)}
+                    >
+                      {showAdvanced ? "Hide advanced" : "Advanced options"}
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {showAdvanced && (
+              {isSignedIn && showAdvanced && (
                 <div className="advanced-grid">
                   {mode === "YOUTUBE" && (
                     <>
@@ -313,18 +360,16 @@ export default function HomePage() {
                         Start time (sec)
                         <input
                           type="number"
-                          min={0}
-                          value={ytStartTime}
-                          onChange={(event) => setYtStartTime(Number(event.target.value))}
+                          value={ytStartTime ?? ""}
+                          onChange={(event) => setYtStartTime(parseOptionalNumber(event.target.value))}
                         />
                       </label>
                       <label>
                         Duration (sec)
                         <input
                           type="number"
-                          min={10}
-                          value={ytDuration}
-                          onChange={(event) => setYtDuration(Number(event.target.value))}
+                          value={ytDuration ?? ""}
+                          onChange={(event) => setYtDuration(parseOptionalNumber(event.target.value))}
                         />
                       </label>
                       <label className="checkbox">
@@ -343,12 +388,10 @@ export default function HomePage() {
                         Approx length (sec)
                         <input
                           type="number"
-                          min={10}
-                          value={fileDuration}
-                          onChange={(event) => setFileDuration(Number(event.target.value))}
+                          value={fileDuration ?? ""}
+                          onChange={(event) => setFileDuration(parseOptionalNumber(event.target.value))}
                         />
                       </label>
-                      <div className="advanced-note">Accepted formats: MP3, WAV, M4A.</div>
                     </>
                   )}
                 </div>
@@ -362,18 +405,22 @@ export default function HomePage() {
 
               {status && <div className="status">{status}</div>}
               {error && <div className="error">{error}</div>}
-              {showCreditsEmpty && (
+              {isSignedIn && showCreditsEmpty && (
                 <div className="notice">
-                  Monthly credits used. Upgrade to Premium or wait until {creditsResetLabel}.
+                  {isPremiumRole(session?.user?.role)
+                    ? `Credits used. Next credits arrive on ${creditsResetLabel}.`
+                    : `Monthly credits used. Upgrade to Premium or wait until ${creditsResetLabel}.`}
                 </div>
               )}
-              <p className="footnote">
-                {isPremiumRole(session?.user?.role)
-                  ? "Unlimited monthly transcriptions."
-                  : `This job uses about ${creditsRequested} credit${
-                      creditsRequested > 1 ? "s" : ""
-                    } of your monthly balance.`}
-              </p>
+              {isSignedIn && (
+                <p className="footnote">
+                  {isPremiumRole(session?.user?.role)
+                    ? "Premium credits roll over. 50 credits added monthly."
+                    : `This job uses about ${creditsRequested} credit${
+                        creditsRequested > 1 ? "s" : ""
+                      } from your 10 monthly credits.`}
+                </p>
+              )}
             </form>
 
           </div>
@@ -415,20 +462,43 @@ export default function HomePage() {
 
         <section className="pricing" id="pricing">
           <div className="container">
-            <div className="pricing-card" data-reveal>
-              <div className="pricing-header">
-                <span className="pill">Premium</span>
-                <div className="pricing-price">
-                  <span className="pricing-amount">$5.99</span>
-                  <span className="pricing-interval">/ month</span>
+            <div className="pricing-grid">
+              <div className="pricing-card pricing-card--free" data-reveal>
+                <div className="pricing-header">
+                  <span className="pill">Free</span>
+                  <div className="pricing-price">
+                    <span className="pricing-amount">$0</span>
+                    <span className="pricing-interval">/ month</span>
+                  </div>
                 </div>
+                <ul className="pricing-list">
+                  <li>10 credits per month</li>
+                  <li>Standard speed</li>
+                  <li>Basic export</li>
+                </ul>
               </div>
-              <ul className="pricing-list">
-                <li>Unlimited monthly transcriptions</li>
-                <li>No ads</li>
-                <li>More features coming soon</li>
-              </ul>
+              <button
+                type="button"
+                className="pricing-card"
+                data-reveal
+                onClick={handlePricingClick}
+                disabled={pricingBusy}
+              >
+                <div className="pricing-header">
+                  <span className="pill">Premium</span>
+                  <div className="pricing-price">
+                    <span className="pricing-amount">$5.99</span>
+                    <span className="pricing-interval">/ month</span>
+                  </div>
+                </div>
+                <ul className="pricing-list">
+                  <li>50 credits per month (roll over)</li>
+                  <li>No ads</li>
+                  <li>More features coming soon</li>
+                </ul>
+              </button>
             </div>
+            {pricingError && <div className="error">{pricingError}</div>}
           </div>
         </section>
 

@@ -84,26 +84,29 @@ export const authOptions: NextAuthOptions = {
       const creditUserId = session.user.id;
       if (creditUserId) {
         const creditWindow = getCreditWindow();
-        const monthlyJobs = await prisma.tabJob.findMany({
-          where: {
-            userId: creditUserId,
-            createdAt: {
-              gte: creditWindow.start,
-              lt: creditWindow.resetAt,
-            },
-          },
-          select: { durationSec: true },
-        });
         const isPremium =
           session.user.role === "PREMIUM" ||
           session.user.role === "ADMIN" ||
           session.user.role === "MODERATOR" ||
           session.user.role === "MOD";
-        const credits = buildCreditsSummary(
-          monthlyJobs.map((job) => job.durationSec),
-          creditWindow.resetAt,
-          isPremium
-        );
+        const creditJobs = await prisma.tabJob.findMany({
+          where: isPremium
+            ? { userId: creditUserId }
+            : {
+                userId: creditUserId,
+                createdAt: {
+                  gte: creditWindow.start,
+                  lt: creditWindow.resetAt,
+                },
+              },
+          select: { durationSec: true },
+        });
+        const credits = buildCreditsSummary({
+          durations: creditJobs.map((job) => job.durationSec),
+          resetAt: creditWindow.resetAt,
+          isPremium,
+          userCreatedAt: dbUser?.createdAt,
+        });
         session.user.monthlyCreditsUsed = credits.used;
         session.user.monthlyCreditsLimit = credits.limit;
         session.user.monthlyCreditsRemaining = credits.remaining;

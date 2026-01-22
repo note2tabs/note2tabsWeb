@@ -6,8 +6,11 @@ export type CreditsSummary = {
   unlimited: boolean;
 };
 
-export const FREE_MONTHLY_CREDITS = 120;
-export const DEFAULT_DURATION_SEC = 60;
+export const STARTING_CREDITS = 10;
+export const FREE_MONTHLY_CREDITS = 10;
+export const PREMIUM_MONTHLY_CREDITS = 50;
+export const CREDIT_INTERVAL_SEC = 30;
+export const DEFAULT_DURATION_SEC = 30;
 
 export function getCreditWindow(now: Date = new Date()) {
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -18,26 +21,58 @@ export function getCreditWindow(now: Date = new Date()) {
 export function durationToCredits(durationSec?: number | null) {
   const safeDuration =
     typeof durationSec === "number" && durationSec > 0 ? durationSec : DEFAULT_DURATION_SEC;
-  return Math.max(1, Math.ceil(safeDuration / 60));
+  return Math.max(1, Math.ceil(safeDuration / CREDIT_INTERVAL_SEC));
 }
 
 export function calculateCreditsUsed(durations: Array<number | null | undefined>) {
   return durations.reduce<number>((total, duration) => total + durationToCredits(duration), 0);
 }
 
-export function buildCreditsSummary(
-  durations: Array<number | null | undefined>,
-  resetAt: Date,
-  unlimited: boolean
-): CreditsSummary {
+const startOfMonthUtc = (value: Date) =>
+  new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1));
+
+const countMonthlyGrants = (createdAt: Date, now: Date) => {
+  const start = startOfMonthUtc(createdAt);
+  const end = startOfMonthUtc(now);
+  const months =
+    (end.getUTCFullYear() - start.getUTCFullYear()) * 12 + (end.getUTCMonth() - start.getUTCMonth());
+  return Math.max(0, months) + 1;
+};
+
+type BuildCreditsOptions = {
+  durations: Array<number | null | undefined>;
+  resetAt: Date;
+  isPremium: boolean;
+  userCreatedAt?: Date;
+};
+
+export function buildCreditsSummary({
+  durations,
+  resetAt,
+  isPremium,
+  userCreatedAt,
+}: BuildCreditsOptions): CreditsSummary {
   const used = calculateCreditsUsed(durations);
-  const limit = FREE_MONTHLY_CREDITS;
+  if (!isPremium) {
+    const limit = FREE_MONTHLY_CREDITS;
+    const remaining = Math.max(0, limit - used);
+    return {
+      used,
+      limit,
+      remaining,
+      resetAt: resetAt.toISOString(),
+      unlimited: false,
+    };
+  }
+  const createdAt = userCreatedAt || new Date();
+  const grants = countMonthlyGrants(createdAt, new Date());
+  const limit = STARTING_CREDITS + grants * PREMIUM_MONTHLY_CREDITS;
   const remaining = Math.max(0, limit - used);
   return {
     used,
     limit,
     remaining,
     resetAt: resetAt.toISOString(),
-    unlimited,
+    unlimited: false,
   };
 }

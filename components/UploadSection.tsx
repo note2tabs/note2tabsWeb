@@ -6,12 +6,18 @@ type UploadSectionProps = {
 
 const BASE_URL = "http://127.0.0.1:8000";
 
+const parseOptionalNumber = (value: string): number | null => {
+  if (value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
 export default function UploadSection({ onResult }: UploadSectionProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
-  const [startTime, setStartTime] = useState("0");
-  const [duration, setDuration] = useState("30");
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [duration, setDuration] = useState<number | null>(null);
   const [separateGuitar, setSeparateGuitar] = useState(false);
   const [clipLocalFirst, setClipLocalFirst] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -62,13 +68,11 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
       return false;
     }
     if (urlValid || clipLocalFirst) {
-      const start = parseFloat(startTime);
-      const dur = parseFloat(duration);
-      if (Number.isNaN(start) || start < 0) {
+      if (startTime !== null && startTime < 0) {
         setError("Start time must be 0 or greater.");
         return false;
       }
-      if (Number.isNaN(dur) || dur <= 0) {
+      if (duration !== null && duration <= 0) {
         setError("Duration must be greater than 0.");
         return false;
       }
@@ -98,8 +102,12 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
   const fetchFromYoutube = async () => {
     const formData = new FormData();
     formData.append("link", youtubeUrl.trim());
-    formData.append("start_time", String(startTime || "0"));
-    formData.append("duration", String(duration || "30"));
+    if (startTime !== null) {
+      formData.append("start_time", String(startTime));
+    }
+    if (duration !== null) {
+      formData.append("duration", String(duration));
+    }
     formData.append("separate_guitar", separateGuitar ? "true" : "false");
 
     const response = await fetch(`${BASE_URL}/yt_processor`, {
@@ -115,8 +123,12 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
   const clipLocalFile = async (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("start_time", String(startTime || "0"));
-    formData.append("duration", String(duration || "30"));
+    if (startTime !== null) {
+      formData.append("start_time", String(startTime));
+    }
+    if (duration !== null) {
+      formData.append("duration", String(duration));
+    }
     formData.append("separate_guitar", separateGuitar ? "true" : "false");
 
     const response = await fetch(`${BASE_URL}/file_processor/`, {
@@ -232,10 +244,9 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
               <input
                 id="startTime"
                 type="number"
-                min="0"
                 step="0.1"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
+                value={startTime ?? ""}
+                onChange={(e) => setStartTime(parseOptionalNumber(e.target.value))}
                 disabled={processing}
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition"
               />
@@ -247,10 +258,9 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
               <input
                 id="duration"
                 type="number"
-                min="1"
                 step="0.1"
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
+                value={duration ?? ""}
+                onChange={(e) => setDuration(parseOptionalNumber(e.target.value))}
                 disabled={processing}
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition"
               />

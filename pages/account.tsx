@@ -22,6 +22,7 @@ type Props = {
     name: string | null;
     role: string;
     tokensRemaining: number;
+    createdAt: string;
   };
   tabs: TabJob[];
   stripeReady: boolean;
@@ -39,10 +40,10 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
   const [busy, setBusy] = useState(false);
   const isAdminOrMod = user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const isAdmin = user.role === "ADMIN";
+  const isPremium =
+    user.role === "PREMIUM" || user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const resetLabel = new Date(credits.resetAt).toLocaleDateString();
-  const creditsUsedLabel = credits.unlimited
-    ? `${credits.used} used`
-    : `${credits.used} / ${credits.limit}`;
+  const creditsUsedLabel = `${credits.used} / ${credits.limit}`;
 
   const handleDelete = async () => {
     setBusy(true);
@@ -94,9 +95,9 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
                 {user.email}
               </p>
               <p className="muted text-small">
-                {["PREMIUM", "ADMIN", "MODERATOR", "MOD"].includes(user.role)
-                  ? `Plan: ${user.role} - Unlimited`
-                  : "Plan: Free"}
+                {isPremium
+                  ? `Plan: ${user.role} - 50 credits/month (roll over)`
+                  : "Plan: Free - 10 credits/month"}
               </p>
               <p className="muted text-small">Account type: {user.role}</p>
             </div>
@@ -112,19 +113,17 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
           </div>
           <div className="account-credits">
             <div className="stat-card">
-              <span className="stat-label">This month</span>
+              <span className="stat-label">Credits used</span>
               <span className="stat-value">{creditsUsedLabel}</span>
             </div>
             <div className="stat-card">
-              <span className="stat-label">Reset</span>
+              <span className="stat-label">Next credits</span>
               <span className="stat-value">{resetLabel}</span>
             </div>
-            {!credits.unlimited && (
-              <div className="stat-card">
-                <span className="stat-label">Remaining</span>
-                <span className="stat-value">{credits.remaining}</span>
-              </div>
-            )}
+            <div className="stat-card">
+              <span className="stat-label">Remaining</span>
+              <span className="stat-value">{credits.remaining}</span>
+            </div>
           </div>
           <div className="button-row">
             <button
@@ -160,9 +159,11 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
               Delete account
             </button>
           </div>
-          {!credits.unlimited && credits.remaining === 0 && (
+          {credits.remaining === 0 && (
             <div className="notice">
-              Monthly credits used. Upgrade to Premium or wait until {resetLabel}.
+              {isPremium
+                ? `Credits used. More credits arrive on ${resetLabel}.`
+                : `Monthly credits used. Upgrade to Premium or wait until ${resetLabel}.`}
             </div>
           )}
           {error && <div className="error">{error}</div>}
@@ -217,7 +218,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { email: true, name: true, role: true, tokensRemaining: true },
+    select: { email: true, name: true, role: true, tokensRemaining: true, createdAt: true },
   });
 
   const tabs = await prisma.tabJob.findMany({
@@ -230,32 +231,41 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_PREMIUM_MONTHLY
   );
   const creditWindow = getCreditWindow();
-  const monthlyJobs = await prisma.tabJob.findMany({
-    where: {
-      userId: session.user.id,
-      createdAt: {
-        gte: creditWindow.start,
-        lt: creditWindow.resetAt,
-      },
-    },
-    select: { durationSec: true },
-  });
   const role = user?.role || "FREE";
   const isPremium = role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
-  const credits = buildCreditsSummary(
-    monthlyJobs.map((job) => job.durationSec),
-    creditWindow.resetAt,
-    isPremium
-  );
+  const creditJobs = await prisma.tabJob.findMany({
+    where: isPremium
+      ? { userId: session.user.id }
+      : {
+          userId: session.user.id,
+          createdAt: {
+            gte: creditWindow.start,
+            lt: creditWindow.resetAt,
+          },
+        },
+    select: { durationSec: true },
+  });
+  const credits = buildCreditsSummary({
+    durations: creditJobs.map((job) => job.durationSec),
+    resetAt: creditWindow.resetAt,
+    isPremium,
+    userCreatedAt: user?.createdAt,
+  });
 
   return {
     props: {
-      user: user || {
-        email: session.user.email,
-        name: session.user.name || null,
-        role: "FREE",
-        tokensRemaining: 0,
-      },
+      user: user
+        ? {
+            ...user,
+            createdAt: user.createdAt.toISOString(),
+          }
+        : {
+            email: session.user.email,
+            name: session.user.name || null,
+            role: "FREE",
+            tokensRemaining: 0,
+            createdAt: new Date().toISOString(),
+          },
       tabs: tabs.map((job) => ({
         ...job,
         createdAt: job.createdAt.toISOString(),
