@@ -5,7 +5,7 @@ export default function Header() {
     <header className="nav-shell">
       <div className="container nav">
         <Link href="/" className="logo">
-          Note2Tab
+          Note2Tabs
         </Link>
         <nav className="nav-links">
           <Link href="/">Home</Link>

@@ -34,7 +34,7 @@ export default function LoginPage() {
         <div className="card auth-card stack">
           <div className="stack" style={{ gap: "6px", textAlign: "center" }}>
             <h1 className="page-title">Log in</h1>
-            <p className="page-subtitle">Welcome back to Note2Tab.</p>
+            <p className="page-subtitle">Welcome back to Note2Tabs.</p>
           </div>
           <form className="stack" onSubmit={handleSubmit}>
             <div className="form-group">

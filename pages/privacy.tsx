@@ -15,7 +15,7 @@ export default function PrivacyPage() {
         <p className="muted text-small">
           Analytics and device fingerprinting only start after you accept cookies in the banner. With consent,
           we may collect page views, events, device type, browser, approximate location (derived from IP
-          hash), session identifiers, and optional fingerprint IDs to improve Note2Tab and prevent abuse.
+          hash), session identifiers, and optional fingerprint IDs to improve Note2Tabs and prevent abuse.
           Without consent, only minimal security logging is performed.
         </p>
         <p className="muted text-small">

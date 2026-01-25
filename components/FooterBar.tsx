@@ -5,7 +5,7 @@ export default function FooterBar() {
   return (
     <footer className="footer-shell">
       <div className="container footer-content">
-        <span>(c) {year} Note2Tab</span>
+        <span>(c) {year} Note2Tabs</span>
         <div className="footer-links">
           <Link href="/terms">Terms</Link>
           <Link href="/privacy">Privacy</Link>

@@ -23,7 +23,7 @@ export default function NavBar() {
     <header className="nav-shell">
       <div className="container nav">
         <Link href="/" className="logo">
-          Note2Tab
+          Note2Tabs
         </Link>
         <nav className={`nav-links ${menuOpen ? "open" : ""}`}>
           <a href="/#how">How it works</a>

@@ -339,7 +339,7 @@ export default function HomePage() {
   return (
     <>
       <Head>
-        <title>Note2Tab - Convert Music to Guitar Tabs</title>
+        <title>Note2Tabs - Convert Music to Guitar Tabs</title>
         <meta name="description" content="Upload a song and get guitar tabs instantly." />
       </Head>
 

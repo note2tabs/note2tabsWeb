@@ -36,7 +36,7 @@ export default function SignupPage() {
         <div className="card auth-card stack">
           <div className="stack" style={{ gap: "6px", textAlign: "center" }}>
             <h1 className="page-title">Create your account</h1>
-            <p className="page-subtitle">Get started with Note2Tab.</p>
+            <p className="page-subtitle">Get started with Note2Tabs.</p>
           </div>
           <form className="stack" onSubmit={handleSubmit}>
             <div className="form-group">
