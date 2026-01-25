@@ -1,11 +1,14 @@
 import Head from "next/head";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { sendEvent } from "../lib/analytics";
 import { copyText } from "../lib/clipboard";
 import type { CreditsSummary } from "../lib/credits";
+import { gteApi } from "../lib/gteApi";
+import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
 
 type TabsResponse = {
   tabs: string[][];
@@ -25,6 +28,7 @@ const parseOptionalNumber = (value: string): number | null => {
 
 export default function HomePage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const [mode, setMode] = useState<"FILE" | "YOUTUBE">("FILE");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -39,11 +43,27 @@ export default function HomePage() {
   const [credits, setCredits] = useState<CreditsSummary | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [editorChoices, setEditorChoices] = useState<
+    Array<{ id: string; name?: string; updatedAt?: string }>
+  >([]);
+  const [editorChoice, setEditorChoice] = useState<string>("new");
+  const [editorLoading, setEditorLoading] = useState(false);
+  const [selectedSegments, setSelectedSegments] = useState<Set<number>>(new Set());
   const [pricingBusy, setPricingBusy] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
   const isSignedIn = Boolean(session);
+  const appendEditorId = useMemo(() => {
+    if (!router.isReady) return null;
+    const value = router.query.appendEditorId;
+    if (Array.isArray(value)) {
+      return value[0] ? value[0].trim() : null;
+    }
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  }, [router.isReady, router.query.appendEditorId]);
 
   useEffect(() => {
     if (session?.user?.monthlyCreditsUsed !== undefined) {
@@ -76,6 +96,32 @@ export default function HomePage() {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    if (!tabsResult || !isSignedIn) return;
+    setEditorLoading(true);
+    gteApi
+      .listEditors()
+      .then((data) => {
+        const editors = (data.editors || []).map((editor) => ({
+          id: editor.id,
+          name: editor.name,
+          updatedAt: editor.updatedAt,
+        }));
+        setEditorChoices(editors);
+        if (appendEditorId && editors.some((editor) => editor.id === appendEditorId)) {
+          setEditorChoice(appendEditorId);
+        } else {
+          setEditorChoice("new");
+        }
+      })
+      .catch(() => {
+        setEditorChoices([]);
+      })
+      .finally(() => {
+        setEditorLoading(false);
+      });
+  }, [tabsResult, isSignedIn, appendEditorId]);
+
   const creditsRequested = useMemo(() => {
     const duration = mode === "FILE" ? fileDuration ?? 0 : ytDuration ?? 0;
     return Math.max(1, Math.ceil(duration / 30));
@@ -96,6 +142,7 @@ export default function HomePage() {
     setSelectedFile(file);
     setMode("FILE");
     setError(null);
+    setImportError(null);
     setTabsResult(null);
   };
 
@@ -122,6 +169,7 @@ export default function HomePage() {
       setSelectedFile(file);
       setMode("FILE");
       setError(null);
+      setImportError(null);
       setTabsResult(null);
     }
   };
@@ -164,6 +212,7 @@ export default function HomePage() {
     }
 
     setError(null);
+    setImportError(null);
     setTabsResult(null);
     setStatus(mode === "FILE" ? "Transcribing audio..." : "Downloading from YouTube...");
     setLoading(true);
@@ -209,6 +258,7 @@ export default function HomePage() {
         return;
       }
       setTabsResult(data.tabs);
+      setSelectedSegments(new Set());
       if (data.credits) {
         setCredits(data.credits);
       }
@@ -219,6 +269,34 @@ export default function HomePage() {
       sendEvent("transcribe_error", { mode, error: err?.message || "unknown" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleImportToEditor = async () => {
+    if (!tabsResult || importBusy) return;
+    setImportBusy(true);
+    setImportError(null);
+    try {
+      const segmentsToUse =
+        selectedSegments.size > 0
+          ? tabsResult.filter((_, idx) => selectedSegments.has(idx))
+          : tabsResult;
+      const { stamps, totalFrames } = tabSegmentsToStamps(segmentsToUse);
+      if (stamps.length === 0) {
+        setImportError("No tabs available to import.");
+        return;
+      }
+      let targetEditorId = editorChoice;
+      if (!targetEditorId || targetEditorId === "new") {
+        const created = await gteApi.createEditor();
+        targetEditorId = created.editorId;
+      }
+      await gteApi.appendImportTab(targetEditorId, { stamps, totalFrames });
+      await router.push(`/gte/${targetEditorId}`);
+    } catch (err: any) {
+      setImportError(err?.message || "Failed to import tabs.");
+    } finally {
+      setImportBusy(false);
     }
   };
 
@@ -432,15 +510,44 @@ export default function HomePage() {
               <div className="results-header">
                 <div>
                   <h2>Your tabs are ready</h2>
-                  <p>Copy the output or open the editor from your account.</p>
+                  <p>Pick the tab blocks you want to import or copy.</p>
                 </div>
                 <div className="results-actions">
+                  {isSignedIn && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        className="rounded-md border border-slate-200 bg-white px-2 py-2 text-sm"
+                        value={editorChoice}
+                        onChange={(event) => setEditorChoice(event.target.value)}
+                        disabled={editorLoading}
+                      >
+                        <option value="new">New editor</option>
+                        {editorChoices.map((editor) => (
+                          <option key={editor.id} value={editor.id}>
+                            {editor.name ? editor.name : `${editor.id.slice(0, 8)}...`}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="button-primary"
+                        onClick={() => void handleImportToEditor()}
+                        disabled={importBusy || editorLoading}
+                      >
+                        {importBusy ? "Importing..." : "Import to editor"}
+                      </button>
+                    </div>
+                  )}
                   <button
                     type="button"
-                    className="button-primary"
-                    onClick={() =>
-                      void copyText(tabsResult.map((segment) => segment.join("\n")).join("\n\n---\n\n"))
-                    }
+                    className={!isSignedIn ? "button-primary" : "button-secondary"}
+                    onClick={() => {
+                      const segmentsToUse =
+                        selectedSegments.size > 0
+                          ? tabsResult.filter((_, idx) => selectedSegments.has(idx))
+                          : tabsResult;
+                      void copyText(segmentsToUse.map((segment) => segment.join("\n")).join("\n\n---\n\n"));
+                    }}
                   >
                     Copy tabs
                   </button>
@@ -449,12 +556,33 @@ export default function HomePage() {
                   </Link>
                 </div>
               </div>
+              {importError && <div className="error">{importError}</div>}
               <div className="results-grid">
-                {tabsResult.map((segment, idx) => (
-                  <pre key={idx} className="tab-block">
-{segment.join("\n")}
-                  </pre>
-                ))}
+                {tabsResult.map((segment, idx) => {
+                  const selected = selectedSegments.has(idx);
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() =>
+                        setSelectedSegments((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(idx)) {
+                            next.delete(idx);
+                          } else {
+                            next.add(idx);
+                          }
+                          return next;
+                        })
+                      }
+                      className={`tab-block text-left transition ${
+                        selected ? "ring-2 ring-emerald-400/80 bg-emerald-50/60" : ""
+                      }`}
+                    >
+                      <pre className="whitespace-pre-wrap">{segment.join("\n")}</pre>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </section>

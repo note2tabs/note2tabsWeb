@@ -12,6 +12,7 @@ export default function GteIndexPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const router = useRouter();
 
   const loadEditors = async () => {
@@ -43,6 +44,22 @@ export default function GteIndexPage() {
     }
   };
 
+  const handleDelete = async (editor: EditorListItem) => {
+    if (deletingId) return;
+    const label = editor.name ? `"${editor.name}"` : `Editor ${editor.id.slice(0, 8)}`;
+    if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
+    setDeletingId(editor.id);
+    setError(null);
+    try {
+      await gteApi.deleteEditor(editor.id);
+      setEditors((prev) => prev.filter((item) => item.id !== editor.id));
+    } catch (err: any) {
+      setError(err?.message || "Could not delete editor.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <main className="page">
       <div className="container stack">
@@ -69,17 +86,36 @@ export default function GteIndexPage() {
           )}
           <div className="stack" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
             {editors.map((editor) => (
-              <Link key={editor.id} href={`/gte/${editor.id}`} className="card-outline">
+              <div key={editor.id} className="card-outline">
                 <div className="page-header" style={{ gap: "12px" }}>
-                  <h2 style={{ margin: 0, fontSize: "1rem" }}>Editor {editor.id.slice(0, 8)}</h2>
-                  <span className="muted text-small">v{editor.version || 1}</span>
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: "1rem" }}>
+                      <Link href={`/gte/${editor.id}`}>
+                        {editor.name ? editor.name : `Editor ${editor.id.slice(0, 8)}`}
+                      </Link>
+                    </h2>
+                    <p className="muted text-small" style={{ margin: 0 }}>
+                      {editor.id.slice(0, 8)}
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span className="muted text-small">v{editor.version || 1}</span>
+                    <button
+                      type="button"
+                      className="button-secondary button-small"
+                      onClick={() => void handleDelete(editor)}
+                      disabled={deletingId === editor.id}
+                    >
+                      {deletingId === editor.id ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
                 </div>
                 <div className="muted text-small" style={{ marginTop: "8px" }}>
                   <p>Notes: {editor.noteCount ?? 0} - Chords: {editor.chordCount ?? 0}</p>
                   <p>Frames: {editor.totalFrames ?? 0} - Bar size: {editor.framesPerMessure ?? 0}</p>
                   {editor.updatedAt && <p>Updated: {new Date(editor.updatedAt).toLocaleString()}</p>}
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         </section>

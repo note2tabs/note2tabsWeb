@@ -24,12 +24,14 @@ export type CutWithCoord = [CutRegion, TabCoord];
 
 export type EditorSnapshot = {
   id: string;
+  name?: string;
   schemaVersion?: number;
   version?: number;
   updatedAt?: string;
   framesPerMessure: number;
   fps: number;
   totalFrames: number;
+  secondsPerBar?: number;
   notes: Note[];
   chords: Chord[];
   cutPositionsWithCoords: CutWithCoord[];
@@ -39,6 +41,7 @@ export type EditorSnapshot = {
 
 export type EditorListItem = {
   id: string;
+  name?: string;
   updatedAt?: string;
   version?: number;
   framesPerMessure?: number;

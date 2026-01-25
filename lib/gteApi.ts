@@ -20,13 +20,29 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const gteApi = {
   listEditors: () => request<{ editors: EditorListItem[] }>("/editors"),
-  createEditor: (editorId?: string) =>
+  createEditor: (editorId?: string, name?: string) =>
     request<{ editorId: string; snapshot: EditorSnapshot }>("/editors", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ editorId }),
+      body: JSON.stringify({ editorId, name }),
     }),
   getEditor: (editorId: string) => request<EditorSnapshot>(`/editors/${editorId}`),
+  deleteEditor: (editorId: string) =>
+    request<{ ok: true }>(`/editors/${editorId}`, {
+      method: "DELETE",
+    }),
+  applySnapshot: (editorId: string, snapshot: EditorSnapshot) =>
+    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/snapshot`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ snapshot }),
+    }),
+  setEditorName: (editorId: string, name: string) =>
+    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/name`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }),
   addBars: (editorId: string, count: number) =>
     request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/bars/add`, {
       method: "POST",
@@ -38,6 +54,12 @@ export const gteApi = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fromIndex, toIndex }),
+    }),
+  removeBar: (editorId: string, index: number) =>
+    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/bars/remove`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ index }),
     }),
   addNote: (editorId: string, payload: { tab: TabCoord; startTime: number; length: number }) =>
     request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/notes`, {
@@ -60,11 +82,11 @@ export const gteApi = {
     ),
   setNoteStartTime: (editorId: string, noteId: number, startTime: number) =>
     request<{ ok: true; snapshot: EditorSnapshot }>(
-      `/editors/${editorId}/notes/${noteId}/set_start_time`,
+      `/editors/${editorId}/notes/${noteId}/set_start_time?start_time=${encodeURIComponent(startTime)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startTime }),
+        body: JSON.stringify({ startTime, start_time: startTime }),
       }
     ),
   setNoteLength: (editorId: string, noteId: number, length: number) =>
@@ -106,11 +128,11 @@ export const gteApi = {
     ),
   setChordStartTime: (editorId: string, chordId: number, startTime: number) =>
     request<{ ok: true; snapshot: EditorSnapshot }>(
-      `/editors/${editorId}/chords/${chordId}/set_start_time`,
+      `/editors/${editorId}/chords/${chordId}/set_start_time?start_time=${encodeURIComponent(startTime)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startTime }),
+        body: JSON.stringify({ startTime, start_time: startTime }),
       }
     ),
   setChordLength: (editorId: string, chordId: number, length: number) =>
@@ -122,6 +144,12 @@ export const gteApi = {
         body: JSON.stringify({ length }),
       }
     ),
+  sliceChord: (editorId: string, chordId: number, time: number) =>
+    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/chords/${chordId}/slice`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ time }),
+    }),
   setChordTabs: (editorId: string, chordId: number, tabs: TabCoord[]) =>
     request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/chords/${chordId}/tabs`, {
       method: "POST",
@@ -157,6 +185,26 @@ export const gteApi = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+    }),
+  appendImportTab: (
+    editorId: string,
+    payload: {
+      stamps: Array<[number, TabCoord, number]>;
+      framesPerMessure?: number;
+      fps?: number;
+      totalFrames?: number;
+    }
+  ) =>
+    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/import_append`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  setSecondsPerBar: (editorId: string, secondsPerBar: number) =>
+    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/seconds_per_bar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ secondsPerBar }),
     }),
   generateCuts: (editorId: string) =>
     request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/cuts/generate`, {

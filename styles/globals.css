@@ -79,6 +79,11 @@ input[type="number"] {
   margin: 0 auto;
 }
 
+.container.gte-wide {
+  width: calc(100% - 32px);
+  max-width: none;
+}
+
 .app-shell {
   min-height: 100vh;
   display: flex;
