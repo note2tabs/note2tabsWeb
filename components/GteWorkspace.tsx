@@ -112,6 +112,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   const [secondsPerBarInput, setSecondsPerBarInput] = useState("2");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [playbackVolume, setPlaybackVolume] = useState(0.6);
   const [undoCount, setUndoCount] = useState(0);
   const [redoCount, setRedoCount] = useState(0);
   const [selectedNoteIds, setSelectedNoteIds] = useState<number[]>([]);
@@ -181,6 +182,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   const [editingSegmentIndex, setEditingSegmentIndex] = useState<number | null>(null);
   const [segmentCoordDraft, setSegmentCoordDraft] = useState<{ stringIndex: string; fret: string } | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
+  const masterGainRef = useRef<GainNode | null>(null);
   const playheadFrameRef = useRef(0);
   const playheadStartTimeRef = useRef<number | null>(null);
   const playheadStartFrameRef = useRef(0);
@@ -253,6 +255,13 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   useEffect(() => {
     playheadFrameRef.current = playheadFrame;
   }, [playheadFrame]);
+
+  useEffect(() => {
+    if (audioRef.current && masterGainRef.current) {
+      const now = audioRef.current.currentTime;
+      masterGainRef.current.gain.setTargetAtTime(playbackVolume, now, 0.02);
+    }
+  }, [playbackVolume]);
 
   useEffect(() => {
     if (playheadFrame > timelineEnd) {
@@ -2319,6 +2328,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       void audioRef.current.close();
       audioRef.current = null;
     }
+    masterGainRef.current = null;
   };
 
   const schedulePlayback = (startFrame: number) => {
@@ -2385,8 +2395,9 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     });
 
     const master = ctx.createGain();
-    master.gain.value = 0.6;
+    master.gain.value = playbackVolume;
     master.connect(ctx.destination);
+    masterGainRef.current = master;
 
     const schedulePluck = (evt: {
       start: number;
@@ -3009,6 +3020,22 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
             <polygon points="7,5 17,12 7,19" />
           </svg>
         </button>
+        <div className="flex items-center gap-1 px-1">
+          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
+            <path d="M4 10v4h4l5 4V6L8 10H4z" />
+            <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
+          </svg>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={playbackVolume}
+            onChange={(event) => setPlaybackVolume(Number(event.target.value))}
+            className="w-20 accent-slate-700"
+            title="Volume"
+          />
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 text-xs text-slate-600">
