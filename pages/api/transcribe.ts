@@ -52,7 +52,11 @@ async function parseMultipart(req: NextApiRequest): Promise<{
     form.parse(req, (err, fields, files) => {
       if (err) return reject(err);
       const fileEntry = files.file;
-      const file = Array.isArray(fileEntry) ? fileEntry[0] : fileEntry;
+      const file = Array.isArray(fileEntry)
+        ? fileEntry[0]
+        : fileEntry
+        ? (fileEntry as FormidableFile)
+        : undefined;
       resolve({ fields, file });
     });
   });
