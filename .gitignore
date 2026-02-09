@@ -5,3 +5,11 @@ prisma/dev.db
 prisma/dev.db-journal
 *.log
 .DS_Store
+
+.env
+
+env.txt
+
+env.txt
+
+env.txt
