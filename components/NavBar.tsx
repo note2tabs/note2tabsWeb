@@ -23,9 +23,16 @@ export default function NavBar() {
     <header className="nav-shell">
       <div className="container nav">
         <Link href="/" className="logo">
-          Note2Tabs
+          <img src="/logo01black.png" alt="Note2Tabs logo" className="logo-mark" />
+          <span className="logo-text">Note2Tabs</span>
         </Link>
         <nav className={`nav-links ${menuOpen ? "open" : ""}`}>
+          <Link href="/gte" className="nav-pill">
+            Editor
+          </Link>
+          <Link href="/transcriber" className="nav-pill">
+            Transcriber
+          </Link>
           <a href="/#how">How it works</a>
           <a href="/#pricing">Pricing</a>
           {!session && (
