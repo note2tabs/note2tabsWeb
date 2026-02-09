@@ -18,7 +18,7 @@ export default function JobPage() {
   const router = useRouter();
   const { job_id } = router.query;
   const [job, setJob] = useState<JobResponse | null>(null);
-  const intervalRef = useRef<NodeJS.Timer | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [hasWatchedAd, setHasWatchedAd] = useState(false);
   const [showFallbackVideo, setShowFallbackVideo] = useState(true);
   const [adContainerKey, setAdContainerKey] = useState(0);

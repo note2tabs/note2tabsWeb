@@ -27,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
 
   const search = req.url?.split("?")[1];
-  const targetUrl = `${BASE_URL.replace(/\\/$/, "")}/${path}${search ? `?${search}` : ""}`;
+  const targetUrl = `${BASE_URL.replace(/\/$/, "")}/${path}${search ? `?${search}` : ""}`;
   const isJson = (req.headers["content-type"] || "").includes("application/json");
   const method = req.method || "GET";
 

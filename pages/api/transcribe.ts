@@ -45,7 +45,12 @@ async function parseMultipart(req: NextApiRequest): Promise<{
     const form = new IncomingForm({ multiples: false, keepExtensions: true });
     form.parse(req, (err, fields, files) => {
       if (err) return reject(err);
-      const file = Array.isArray(files.file) ? files.file[0] : (files.file as FormidableFile);
+      const fileEntry = files.file;
+      const file = Array.isArray(fileEntry)
+        ? fileEntry[0]
+        : fileEntry
+        ? (fileEntry as FormidableFile)
+        : undefined;
       resolve({ fields, file });
     });
   });
