@@ -398,19 +398,18 @@ input[type="number"] {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: #ffffff;
-  color: var(--muted);
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
   font-weight: 600;
-  font-size: 0.85rem;
-  transition: color 0.2s ease, border-color 0.2s ease;
+  font-size: 1rem;
+  transition: color 0.2s ease;
 }
 
 .nav-pill:hover {
-  color: var(--accent-strong);
-  border-color: rgba(42, 109, 244, 0.4);
+  color: var(--text);
 }
 
 .nav-links a {
