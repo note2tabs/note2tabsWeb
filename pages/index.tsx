@@ -16,6 +16,10 @@ type TabsResponse = {
 };
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
+const MAX_FREE_BYTES = 50 * 1024 * 1024;
+const MAX_PREMIUM_BYTES = 500 * 1024 * 1024;
+
+const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 
 const parseOptionalNumber = (value: string): number | null => {
   if (value.trim() === "") return null;
@@ -148,6 +152,14 @@ export default function HomePage() {
       return;
     }
 
+    if (mode === "FILE" && selectedFile) {
+      const maxBytes = isPremiumRole(session?.user?.role) ? MAX_PREMIUM_BYTES : MAX_FREE_BYTES;
+      if (selectedFile.size > maxBytes) {
+        setError(`File is too large. Max size is ${formatMb(maxBytes)} for your plan.`);
+        return;
+      }
+    }
+
     if (mode === "FILE" && fileDuration !== null && fileDuration <= 0) {
       setError("Duration must be greater than 0.");
       return;
@@ -165,20 +177,48 @@ export default function HomePage() {
 
     setError(null);
     setTabsResult(null);
-    setStatus(mode === "FILE" ? "Transcribing audio..." : "Downloading from YouTube...");
+    setStatus(mode === "FILE" ? "Uploading audio..." : "Downloading from YouTube...");
     setLoading(true);
     sendEvent("transcribe_start", { mode, ytUrl: youtubeUrl || undefined });
 
     try {
       let response: Response;
       if (mode === "FILE" && selectedFile) {
-        const fd = new FormData();
-        fd.append("mode", "FILE");
-        if (fileDuration !== null) {
-          fd.append("duration", String(fileDuration));
+        const presignRes = await fetch("/api/uploads/presign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: selectedFile.name,
+            contentType: selectedFile.type || "application/octet-stream",
+            size: selectedFile.size,
+          }),
+        });
+        const presignData = await presignRes.json().catch(() => ({}));
+        if (!presignRes.ok || !presignData?.url || !presignData?.key) {
+          throw new Error(presignData?.error || "Could not prepare upload.");
         }
-        fd.append("file", selectedFile);
-        response = await fetch("/api/transcribe", { method: "POST", body: fd });
+
+        const uploadRes = await fetch(presignData.url, {
+          method: "PUT",
+          headers: { "Content-Type": selectedFile.type || "application/octet-stream" },
+          body: selectedFile,
+        });
+        if (!uploadRes.ok) {
+          throw new Error("Upload failed. Please try again.");
+        }
+
+        setStatus("Transcribing audio...");
+        const payload: Record<string, unknown> = {
+          mode: "FILE",
+          s3Key: presignData.key,
+          fileName: selectedFile.name,
+        };
+        if (fileDuration !== null) payload.duration = fileDuration;
+        response = await fetch("/api/transcribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
       } else {
         const payload: Record<string, unknown> = {
           mode: "YOUTUBE",

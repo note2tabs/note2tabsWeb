@@ -17,6 +17,10 @@ export type JobResponse = {
   audio_preview_url?: string | null;
   stems?: Stem[] | null;
   error_message?: string | null;
+  tab_job_id?: string | null;
+  tab_id?: string | null;
+  gte_editor_id?: string | null;
+  result?: Record<string, any> | null;
 };
 
 type JobStatusLayoutProps = {

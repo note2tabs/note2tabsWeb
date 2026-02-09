@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { stripeClient } from "../../../lib/stripe";
+import { getAppBaseUrl } from "../../../lib/urls";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -19,12 +20,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const baseUrl = getAppBaseUrl(req);
     const checkout = await stripeClient.checkout.sessions.create({
       customer_email: session.user.email,
       mode: "subscription",
       line_items: [{ price: process.env.STRIPE_PRICE_PREMIUM_MONTHLY, quantity: 1 }],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/account?upgrade=success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/account?upgrade=cancel`,
+      success_url: `${baseUrl}/account?upgrade=success`,
+      cancel_url: `${baseUrl}/account?upgrade=cancel`,
       metadata: { userId: session.user.id },
     });
     return res.status(200).json({ url: checkout.url });

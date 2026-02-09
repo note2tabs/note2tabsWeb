@@ -4,9 +4,8 @@ import Script from "next/script";
 import { useRouter } from "next/router";
 import JobStatusLayout, { JobResponse } from "../../components/JobStatusLayout";
 import { saveJobToHistory } from "../../lib/history";
-import { APP_HOME_URL } from "../../lib/urls";
+import { getAppBaseUrl } from "../../lib/urls";
 
-const BASE_URL = "http://127.0.0.1:8000";
 const POLL_INTERVAL = 3000;
 const PRIMIS_CHANNEL_ID = "YOUR_PRIMIS_CHANNEL_ID";
 const ADS_AVAILABLE = PRIMIS_CHANNEL_ID && PRIMIS_CHANNEL_ID !== "YOUR_PRIMIS_CHANNEL_ID";
@@ -25,7 +24,7 @@ export default function JobPage() {
 
   const fetchJob = async (id: string) => {
     try {
-      const response = await fetch(`${BASE_URL}/api/v1/jobs/${id}`);
+      const response = await fetch(`/api/jobs/${id}`);
       if (!response.ok) throw new Error("Failed to fetch");
       const data: JobResponse = await response.json();
       setJob(data);
@@ -84,8 +83,37 @@ export default function JobPage() {
 
   useEffect(() => {
     if (job?.status !== "done" || !job_id) return;
+    const resolvedTabId =
+      (job as any).tab_job_id ||
+      (job as any).tabJobId ||
+      (job as any).tab_id ||
+      (job as any).tabId ||
+      (job as any)?.result?.tab_job_id ||
+      (job as any)?.result?.tabJobId;
+    const resolvedGteId =
+      (job as any).gte_editor_id ||
+      (job as any).gteEditorId ||
+      (job as any)?.result?.gte_editor_id ||
+      (job as any)?.result?.gteEditorId;
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (resolvedGteId) {
+      router.replace(`/gte/${resolvedGteId}`);
+      return;
+    }
+    if (resolvedTabId) {
+      router.replace(`/tabs/${resolvedTabId}`);
+    }
+  }, [job?.status, job_id, job, router]);
+
+  useEffect(() => {
+    if (job?.status !== "done" || !job_id) return;
     const base =
-      typeof window !== "undefined" ? window.location.href : `${APP_HOME_URL}job/${job_id}`;
+      typeof window !== "undefined"
+        ? window.location.href
+        : `${getAppBaseUrl()}/job/${job_id}`;
     const text = encodeURIComponent("Check out these tabs I generated with Note2Tabs!");
     setShareUrls({
       twitter: `https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent(base)}`,

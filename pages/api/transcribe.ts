@@ -12,7 +12,8 @@ import {
   DEFAULT_DURATION_SEC,
 } from "../../lib/credits";
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
+const BACKEND_SECRET = process.env.NOTE2TABS_BACKEND_SECRET;
 
 type Mode = "FILE" | "YOUTUBE";
 
@@ -27,6 +28,8 @@ type YouTubePayload = {
 type FilePayload = {
   mode: "FILE";
   duration?: number;
+  s3Key?: string;
+  fileName?: string;
 };
 
 async function readJsonBody(req: NextApiRequest) {
@@ -118,6 +121,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let youtubePayload: YouTubePayload | null = null;
     let filePayload: FilePayload | null = null;
     let uploadedFile: FormidableFile | undefined;
+    const backendHeaders: Record<string, string> = {};
+    if (BACKEND_SECRET) {
+      backendHeaders["X-Backend-Secret"] = BACKEND_SECRET;
+    }
 
     if (contentType.includes("multipart/form-data")) {
       const { fields, file } = await parseMultipart(req);
@@ -183,7 +190,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       fdYt.append("duration", String(youtubePayload.duration || 0));
       fdYt.append("separate_guitar", youtubePayload.separateGuitar ? "true" : "false");
 
-      const ytRes = await fetch(`${API_BASE}/yt_processor`, { method: "POST", body: fdYt });
+      const ytRes = await fetch(`${API_BASE}/yt_processor`, {
+        method: "POST",
+        headers: backendHeaders,
+        body: fdYt,
+      });
       if (!ytRes.ok) {
         const bodyText = await ytRes.text();
         return res.status(ytRes.status).json({ error: `yt_processor error: ${bodyText}` });
@@ -194,6 +205,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       fdProcess.append("file", wavBlob, "yt_segment.wav");
       const processRes = await fetch(`${API_BASE}/process_audio/`, {
         method: "POST",
+        headers: backendHeaders,
         body: fdProcess,
       });
       if (!processRes.ok) {
@@ -206,31 +218,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (mode === "FILE") {
-      if (!uploadedFile?.filepath) {
-        return res.status(400).json({ error: "File is required." });
-      }
-      const buffer = await fs.readFile(uploadedFile.filepath);
-      const fd = new FormData();
-      fd.append(
-        "file",
-        new Blob([buffer], {
-          type: uploadedFile.mimetype || "application/octet-stream",
-        }),
-        uploadedFile.originalFilename || "upload"
-      );
-      const processRes = await fetch(`${API_BASE}/process_audio/`, {
-        method: "POST",
-        body: fd,
-      });
-      if (!processRes.ok) {
-        const bodyText = await processRes.text();
-        return res.status(processRes.status).json({ error: `process_audio error: ${bodyText}` });
-      }
-      const data = await fetchJson<{ result: string[][] }>(processRes);
-      tabs = data.result;
-      sourceLabel = uploadedFile.originalFilename || "upload";
-      if (uploadedFile.filepath) {
-        void fs.unlink(uploadedFile.filepath).catch(() => {});
+      if (filePayload?.s3Key) {
+        const processRes = await fetch(`${API_BASE}/process_audio_s3`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...backendHeaders,
+          },
+          body: JSON.stringify({
+            s3Key: filePayload.s3Key,
+            fileName: filePayload.fileName,
+          }),
+        });
+        if (!processRes.ok) {
+          const bodyText = await processRes.text();
+          return res.status(processRes.status).json({ error: `process_audio_s3 error: ${bodyText}` });
+        }
+        const data = await fetchJson<{ result: string[][] }>(processRes);
+        tabs = data.result;
+        sourceLabel = filePayload.fileName || "upload";
+      } else {
+        if (!uploadedFile?.filepath) {
+          return res.status(400).json({ error: "File is required." });
+        }
+        const buffer = await fs.readFile(uploadedFile.filepath);
+        const fd = new FormData();
+        fd.append(
+          "file",
+          new Blob([buffer], {
+            type: uploadedFile.mimetype || "application/octet-stream",
+          }),
+          uploadedFile.originalFilename || "upload"
+        );
+        const processRes = await fetch(`${API_BASE}/process_audio/`, {
+          method: "POST",
+          headers: backendHeaders,
+          body: fd,
+        });
+        if (!processRes.ok) {
+          const bodyText = await processRes.text();
+          return res.status(processRes.status).json({ error: `process_audio error: ${bodyText}` });
+        }
+        const data = await fetchJson<{ result: string[][] }>(processRes);
+        tabs = data.result;
+        sourceLabel = uploadedFile.originalFilename || "upload";
+        if (uploadedFile.filepath) {
+          void fs.unlink(uploadedFile.filepath).catch(() => {});
+        }
       }
     }
 
@@ -272,6 +306,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         headers: {
           "Content-Type": "application/json",
           "X-User-Id": user.id,
+          ...(BACKEND_SECRET ? { "X-Backend-Secret": BACKEND_SECRET } : {}),
         },
         body: JSON.stringify({}),
       });
@@ -285,6 +320,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               headers: {
                 "Content-Type": "application/json",
                 "X-User-Id": user.id,
+                ...(BACKEND_SECRET ? { "X-Backend-Secret": BACKEND_SECRET } : {}),
               },
               body: JSON.stringify({ stamps, totalFrames }),
             });

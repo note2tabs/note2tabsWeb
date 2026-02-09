@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
-import { APP_HOME_URL } from "../lib/urls";
 
 const roleLabel = (role?: string) => {
   if (!role) return "Free";
@@ -45,7 +44,13 @@ export default function NavBar() {
               {session.user?.role === "MODERATOR" || session.user?.role === "MOD" ? (
                 <Link href="/mod/dashboard">Moderation</Link>
               ) : null}
-              <button type="button" onClick={() => signOut({ callbackUrl: APP_HOME_URL })}>
+              <button
+                type="button"
+                onClick={async () => {
+                  await signOut({ redirect: false });
+                  window.location.href = "/";
+                }}
+              >
                 Sign out
               </button>
             </>

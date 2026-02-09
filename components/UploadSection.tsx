@@ -4,13 +4,13 @@ type UploadSectionProps = {
   onResult: (segments: string[][], sourceLabel: string, audioUrl?: string) => void;
 };
 
-const BASE_URL = "http://127.0.0.1:8000";
-
 const parseOptionalNumber = (value: string): number | null => {
   if (value.trim() === "") return null;
   const parsed = Number(value);
   return Number.isNaN(parsed) ? null : parsed;
 };
+
+const formatMaxSize = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 
 export default function UploadSection({ onResult }: UploadSectionProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -19,7 +19,6 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
   const [startTime, setStartTime] = useState<number | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
   const [separateGuitar, setSeparateGuitar] = useState(false);
-  const [clipLocalFirst, setClipLocalFirst] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +66,7 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
       setError("Add an audio file or a YouTube link to continue.");
       return false;
     }
-    if (urlValid || clipLocalFirst) {
+    if (urlValid) {
       if (startTime !== null && startTime < 0) {
         setError("Start time must be 0 or greater.");
         return false;
@@ -80,65 +79,83 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
     return true;
   };
 
-  const processAudio = async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const response = await fetch(`${BASE_URL}/process_audio/`, {
+  const uploadToS3 = async (file: File) => {
+    const presignRes = await fetch("/api/uploads/presign", {
       method: "POST",
-      body: formData
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileName: file.name,
+        contentType: file.type || "application/octet-stream",
+        size: file.size,
+      }),
     });
-    if (!response.ok) {
-      throw new Error("Failed to process audio.");
+    const presignData = await presignRes.json().catch(() => ({}));
+    if (presignRes.status === 401) {
+      throw new Error("Sign in to upload files.");
     }
-    const data = await response.json();
-    const segments = Array.isArray(data?.result) ? (data.result as string[][]) : [];
+    if (presignRes.status === 413 && presignData?.maxBytes) {
+      throw new Error(`File too large. Max ${formatMaxSize(presignData.maxBytes)}.`);
+    }
+    if (!presignRes.ok || !presignData?.url || !presignData?.key) {
+      throw new Error(presignData?.error || "Could not prepare upload.");
+    }
+
+    const uploadRes = await fetch(presignData.url, {
+      method: "PUT",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    });
+    if (!uploadRes.ok) {
+      throw new Error("Upload failed. Please try again.");
+    }
+    return presignData.key as string;
+  };
+
+  const transcribeFile = async (file: File) => {
+    const s3Key = await uploadToS3(file);
+    const payload: Record<string, unknown> = {
+      mode: "FILE",
+      s3Key,
+      fileName: file.name,
+    };
+    const response = await fetch("/api/transcribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error || "Transcription failed.");
+    }
+    const segments = Array.isArray(data?.tabs) ? (data.tabs as string[][]) : [];
     if (!segments.length) {
       throw new Error("No tabs returned.");
     }
     return segments;
   };
 
-  const fetchFromYoutube = async () => {
-    const formData = new FormData();
-    formData.append("link", youtubeUrl.trim());
-    if (startTime !== null) {
-      formData.append("start_time", String(startTime));
-    }
-    if (duration !== null) {
-      formData.append("duration", String(duration));
-    }
-    formData.append("separate_guitar", separateGuitar ? "true" : "false");
-
-    const response = await fetch(`${BASE_URL}/yt_processor`, {
+  const transcribeYoutube = async () => {
+    const payload: Record<string, unknown> = {
+      mode: "YOUTUBE",
+      youtubeUrl: youtubeUrl.trim(),
+      separateGuitar,
+    };
+    if (startTime !== null) payload.startTime = startTime;
+    if (duration !== null) payload.duration = duration;
+    const response = await fetch("/api/transcribe", {
       method: "POST",
-      body: formData
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error("Failed to process YouTube link.");
+      throw new Error(data?.error || "Transcription failed.");
     }
-    return response.blob();
-  };
-
-  const clipLocalFile = async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    if (startTime !== null) {
-      formData.append("start_time", String(startTime));
+    const segments = Array.isArray(data?.tabs) ? (data.tabs as string[][]) : [];
+    if (!segments.length) {
+      throw new Error("No tabs returned.");
     }
-    if (duration !== null) {
-      formData.append("duration", String(duration));
-    }
-    formData.append("separate_guitar", separateGuitar ? "true" : "false");
-
-    const response = await fetch(`${BASE_URL}/file_processor/`, {
-      method: "POST",
-      body: formData
-    });
-    if (!response.ok) {
-      throw new Error("Failed to clip local file.");
-    }
-    return response.blob();
+    return segments;
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -149,25 +166,12 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
 
     try {
       if (urlValid) {
-        const blob = await fetchFromYoutube();
-        const fileFromYt = new File([blob], "yt_segment.wav", { type: "audio/wav" });
-        const segments = await processAudio(fileFromYt);
-        const audioUrl = URL.createObjectURL(blob);
-        onResult(segments, youtubeUrl.trim(), audioUrl);
+        const segments = await transcribeYoutube();
+        onResult(segments, youtubeUrl.trim());
       } else if (selectedFile) {
-        if (clipLocalFirst) {
-          const clippedBlob = await clipLocalFile(selectedFile);
-          const clippedFile = new File([clippedBlob], selectedFile.name || "clipped_audio.wav", {
-            type: clippedBlob.type || "audio/wav"
-          });
-          const segments = await processAudio(clippedFile);
-          const audioUrl = URL.createObjectURL(clippedBlob);
-          onResult(segments, `${selectedFile.name} (clipped)`, audioUrl);
-        } else {
-          const segments = await processAudio(selectedFile);
-          const audioUrl = URL.createObjectURL(selectedFile);
-          onResult(segments, selectedFile.name, audioUrl);
-        }
+        const segments = await transcribeFile(selectedFile);
+        const audioUrl = URL.createObjectURL(selectedFile);
+        onResult(segments, selectedFile.name, audioUrl);
       }
     } catch (err) {
       console.error(err);
@@ -276,16 +280,6 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
             />
               Separate guitar (Demucs)
             </label>
-          <label className="mt-2 flex items-center gap-2 text-sm text-slate-800">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-200 bg-white text-blue-500 focus:ring-blue-500"
-              checked={clipLocalFirst}
-              onChange={(e) => setClipLocalFirst(e.target.checked)}
-              disabled={processing}
-            />
-            Clip local file before transcription
-          </label>
         </div>
       </div>
 

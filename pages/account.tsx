@@ -6,7 +6,6 @@ import { prisma } from "../lib/prisma";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
 import { buildCreditsSummary, getCreditWindow } from "../lib/credits";
-import { APP_HOME_URL } from "../lib/urls";
 
 type TabJob = {
   id: string;
@@ -45,6 +44,11 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
   const resetLabel = new Date(credits.resetAt).toLocaleDateString();
   const creditsUsedLabel = `${credits.used} / ${credits.limit}`;
 
+  const handleSignOut = async () => {
+    await signOut({ redirect: false });
+    window.location.href = "/";
+  };
+
   const handleDelete = async () => {
     setBusy(true);
     setError(null);
@@ -55,7 +59,7 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
       setError(data?.error || "Could not delete account.");
       return;
     }
-    await signOut({ callbackUrl: APP_HOME_URL });
+    await handleSignOut();
   };
 
   const handleUpgrade = async () => {
@@ -104,7 +108,7 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
             <div className="button-row">
               <button
                 type="button"
-                onClick={() => signOut({ callbackUrl: APP_HOME_URL })}
+                onClick={handleSignOut}
                 className="button-secondary button-small"
               >
                 Log out

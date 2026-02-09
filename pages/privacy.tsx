@@ -4,9 +4,8 @@ export default function PrivacyPage() {
       <div className="container stack" style={{ maxWidth: "820px" }}>
         <h1 className="page-title">Privacy Policy</h1>
         <p className="page-subtitle">
-          We store authentication and transcription history in a local SQLite database via Prisma. Audio is
-          sent to your local FastAPI server at 127.0.0.1:8000 for processing. Only upload content you have
-          rights to.
+          We store authentication and transcription history in a database via Prisma. Audio is sent to our
+          processing backend for transcription. Only upload content you have rights to.
         </p>
         <p className="muted text-small">
           Security logging (server errors, IP addresses for abuse prevention) may be recorded in server logs.
