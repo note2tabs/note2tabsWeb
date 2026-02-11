@@ -26,16 +26,140 @@ const parseOptionalNumber = (value: string): number | null => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
+const MAX_YT_SNIPPET_SEC = 30;
+
+const isYouTubeId = (value: string) => /^[a-zA-Z0-9_-]{11}$/.test(value);
+
+const parseYouTubeId = (value: string): string | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    const host = url.hostname.replace("www.", "");
+    if (host === "youtu.be") {
+      const id = url.pathname.replace("/", "");
+      return isYouTubeId(id) ? id : null;
+    }
+    if (host.endsWith("youtube.com")) {
+      const idParam = url.searchParams.get("v");
+      if (idParam && isYouTubeId(idParam)) return idParam;
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts[0] === "embed" || parts[0] === "shorts") {
+        const id = parts[1];
+        return isYouTubeId(id) ? id : null;
+      }
+    }
+  } catch {
+    if (isYouTubeId(trimmed)) return trimmed;
+  }
+  return null;
+};
+
+let youtubeApiPromise: Promise<void> | null = null;
+const loadYouTubeApi = () => {
+  if (youtubeApiPromise) return youtubeApiPromise;
+  youtubeApiPromise = new Promise((resolve) => {
+    if (typeof window === "undefined") {
+      resolve();
+      return;
+    }
+    if ((window as any).YT?.Player) {
+      resolve();
+      return;
+    }
+    const existing = document.querySelector('script[data-youtube-iframe-api="true"]');
+    const previous = (window as any).onYouTubeIframeAPIReady;
+    (window as any).onYouTubeIframeAPIReady = () => {
+      if (typeof previous === "function") previous();
+      resolve();
+    };
+    if (existing) return;
+    const script = document.createElement("script");
+    script.src = "https://www.youtube.com/iframe_api";
+    script.async = true;
+    script.dataset.youtubeIframeApi = "true";
+    document.body.appendChild(script);
+  });
+  return youtubeApiPromise;
+};
+
+const pickAudioRecorderMimeType = () => {
+  if (typeof MediaRecorder === "undefined") return "";
+  const candidates = ["audio/webm;codecs=opus", "audio/webm"];
+  return candidates.find((mime) => MediaRecorder.isTypeSupported(mime)) || "";
+};
+
+const audioBufferToWav = (buffer: AudioBuffer) => {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const format = 1;
+  const bitDepth = 16;
+  const blockAlign = (numChannels * bitDepth) / 8;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = buffer.length * blockAlign;
+  const arrayBuffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(arrayBuffer);
+
+  const writeString = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i += 1) {
+      view.setUint8(offset + i, text.charCodeAt(i));
+    }
+  };
+
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, format, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitDepth, true);
+  writeString(36, "data");
+  view.setUint32(40, dataSize, true);
+
+  const channelData = Array.from({ length: numChannels }, (_, idx) => buffer.getChannelData(idx));
+  let offset = 44;
+  for (let i = 0; i < buffer.length; i += 1) {
+    for (let channel = 0; channel < numChannels; channel += 1) {
+      let sample = channelData[channel][i];
+      sample = Math.max(-1, Math.min(1, sample));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      offset += 2;
+    }
+  }
+
+  return arrayBuffer;
+};
+
+const decodeBlobToWav = async (blob: Blob) => {
+  const audioContext = new AudioContext();
+  const arrayBuffer = await blob.arrayBuffer();
+  const decoded = await audioContext.decodeAudioData(arrayBuffer);
+  const wavBuffer = audioBufferToWav(decoded);
+  await audioContext.close();
+  return new Blob([wavBuffer], { type: "audio/wav" });
+};
+
 export default function HomePage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const [frontTab, setFrontTab] = useState<"EDITOR" | "TRANSCRIBE">("EDITOR");
   const [mode, setMode] = useState<"FILE" | "YOUTUBE">("FILE");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [ytStartTime, setYtStartTime] = useState<number | null>(null);
   const [ytDuration, setYtDuration] = useState<number | null>(null);
   const [fileDuration, setFileDuration] = useState<number | null>(null);
-  const [ytSeparateGuitar, setYtSeparateGuitar] = useState(false);
+  const [ytPlayerReady, setYtPlayerReady] = useState(false);
+  const [ytPlayerError, setYtPlayerError] = useState<string | null>(null);
+  const [capturePhase, setCapturePhase] = useState<
+    "idle" | "permission" | "recording" | "uploading"
+  >("idle");
+  const [captureProgress, setCaptureProgress] = useState(0);
+  const [captureDuration, setCaptureDuration] = useState(MAX_YT_SNIPPET_SEC);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +179,9 @@ export default function HomePage() {
   const [pricingError, setPricingError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
+  const ytPlayerRef = useRef<any | null>(null);
+  const ytPlayerMountRef = useRef<HTMLDivElement | null>(null);
+  const captureRafRef = useRef<number | null>(null);
   const isSignedIn = Boolean(session);
   const appendEditorId = useMemo(() => {
     if (!router.isReady) return null;
@@ -64,6 +191,28 @@ export default function HomePage() {
     }
     return typeof value === "string" && value.trim() ? value.trim() : null;
   }, [router.isReady, router.query.appendEditorId]);
+  const requestedFrontTab = useMemo(() => {
+    if (!router.isReady) return null;
+    const raw = router.query.product ?? router.query.tab;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof value !== "string") return null;
+    const normalized = value.toLowerCase();
+    if (normalized.startsWith("trans")) return "TRANSCRIBE" as const;
+    if (normalized.startsWith("edit")) return "EDITOR" as const;
+    return null;
+  }, [router.isReady, router.query.product, router.query.tab]);
+  const youtubeId = useMemo(() => parseYouTubeId(youtubeUrl), [youtubeUrl]);
+  const resolvedYtDuration = useMemo(() => {
+    if (ytDuration === null) return 0;
+    return Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, ytDuration));
+  }, [ytDuration]);
+  const ytWatchUrl = useMemo(() => {
+    if (!youtubeId) return "";
+    const start = Math.max(0, ytStartTime ?? 0);
+    return `https://www.youtube.com/watch?v=${youtubeId}${start ? `&t=${start}s` : ""}`;
+  }, [youtubeId, ytStartTime]);
+  const captureActive = capturePhase !== "idle";
+  const isTranscriber = frontTab === "TRANSCRIBE";
 
   useEffect(() => {
     if (session?.user?.monthlyCreditsUsed !== undefined) {
@@ -97,6 +246,64 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    if (mode !== "YOUTUBE" || !youtubeId) {
+      setYtPlayerReady(false);
+      return;
+    }
+    let cancelled = false;
+    setYtPlayerError(null);
+    setYtPlayerReady(false);
+    void loadYouTubeApi().then(() => {
+      if (cancelled) return;
+      const YT = (window as any).YT;
+      if (!YT?.Player || !ytPlayerMountRef.current) return;
+      if (ytPlayerRef.current) {
+        try {
+          ytPlayerRef.current.loadVideoById(youtubeId);
+          setYtPlayerReady(true);
+        } catch {
+          setYtPlayerError("Could not load this YouTube link.");
+        }
+        return;
+      }
+      ytPlayerRef.current = new YT.Player(ytPlayerMountRef.current, {
+        videoId: youtubeId,
+        playerVars: {
+          modestbranding: 1,
+          rel: 0,
+          playsinline: 1,
+          origin: window.location.origin,
+        },
+        events: {
+          onReady: () => {
+            if (!cancelled) setYtPlayerReady(true);
+          },
+          onError: (event: any) => {
+            if (cancelled) return;
+            const code = event?.data;
+            if (code === 101 || code === 150) {
+              setYtPlayerError("Embedding is disabled for this video.");
+            } else {
+              setYtPlayerError("Could not load this YouTube link.");
+            }
+          },
+        },
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, youtubeId]);
+
+  useEffect(() => {
+    if (youtubeId) return;
+    if (ytPlayerRef.current?.destroy) {
+      ytPlayerRef.current.destroy();
+      ytPlayerRef.current = null;
+    }
+  }, [youtubeId]);
+
+  useEffect(() => {
     if (!tabsResult || !isSignedIn) return;
     setEditorLoading(true);
     gteApi
@@ -122,20 +329,76 @@ export default function HomePage() {
       });
   }, [tabsResult, isSignedIn, appendEditorId]);
 
-  const creditsRequested = useMemo(() => {
-    const duration = mode === "FILE" ? fileDuration ?? 0 : ytDuration ?? 0;
-    return Math.max(1, Math.ceil(duration / 30));
-  }, [mode, fileDuration, ytDuration]);
+  useEffect(() => {
+    if (requestedFrontTab) {
+      setFrontTab(requestedFrontTab);
+    }
+  }, [requestedFrontTab]);
 
-  const youtubeValid = useMemo(() => {
-    if (!youtubeUrl.trim()) return false;
-    return youtubeUrl.trim().startsWith("http");
-  }, [youtubeUrl]);
+  useEffect(() => {
+    setError(null);
+    setStatus(null);
+  }, [frontTab]);
+
+  useEffect(() => {
+    if (mode !== "YOUTUBE") {
+      setCapturePhase("idle");
+      setCaptureProgress(0);
+    }
+  }, [mode]);
+
+  const creditsRequested = useMemo(() => {
+    const duration = mode === "FILE" ? fileDuration ?? 0 : resolvedYtDuration;
+    return Math.max(1, Math.ceil(duration / 30));
+  }, [mode, fileDuration, resolvedYtDuration]);
+
+  const youtubeValid = useMemo(() => Boolean(youtubeId), [youtubeId]);
 
   const canSubmit = useMemo(() => {
     if (mode === "FILE") return Boolean(selectedFile) && !loading;
-    return youtubeValid && !loading;
-  }, [mode, selectedFile, youtubeValid, loading]);
+    return (
+      youtubeValid &&
+      ytStartTime !== null &&
+      ytDuration !== null &&
+      !loading &&
+      !captureActive &&
+      (ytPlayerReady || Boolean(ytPlayerError))
+    );
+  }, [
+    mode,
+    selectedFile,
+    youtubeValid,
+    ytStartTime,
+    ytDuration,
+    ytPlayerReady,
+    ytPlayerError,
+    loading,
+    captureActive,
+  ]);
+  const captureTitle =
+    capturePhase === "permission"
+      ? "Waiting for permission"
+      : capturePhase === "recording"
+      ? "Recording snippet"
+      : capturePhase === "uploading"
+      ? "Uploading snippet"
+      : "";
+  const captureHint =
+    capturePhase === "permission"
+      ? "Choose the tab with the YouTube player and enable audio."
+      : capturePhase === "recording"
+      ? "Keep this tab audible while we record."
+      : capturePhase === "uploading"
+      ? "Sending your snippet to the transcriber."
+      : "";
+  const captureSeconds = Math.min(captureDuration, Math.round(captureProgress * captureDuration));
+  const submitLabel = loading
+    ? mode === "YOUTUBE"
+      ? "Capturing..."
+      : "Generating..."
+    : mode === "YOUTUBE"
+    ? "Capture & generate tabs"
+    : "Generate tabs";
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
@@ -179,6 +442,115 @@ export default function HomePage() {
     event.dataTransfer.dropEffect = "copy";
   };
 
+  const captureYouTubeSnippet = async () => {
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      throw new Error("Tab audio capture is not supported in this browser.");
+    }
+
+    if (ytStartTime === null || ytDuration === null) {
+      throw new Error("Start time and duration are required.");
+    }
+    const durationSec = Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, ytDuration));
+    const startTimeSec = Math.max(0, ytStartTime);
+    const manualCapture = !ytPlayerRef.current || !ytPlayerReady || Boolean(ytPlayerError);
+    setCaptureDuration(durationSec);
+    setCaptureProgress(0);
+    setCapturePhase("permission");
+    setStatus(
+      manualCapture
+        ? "Select the YouTube tab and enable audio. We will start recording after a short countdown."
+        : "Select the YouTube tab and enable audio to record the snippet."
+    );
+
+    let displayStream: MediaStream | null = null;
+    try {
+      displayStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+      const audioTracks = displayStream.getAudioTracks();
+      if (!audioTracks.length) {
+        throw new Error("No audio track detected. Share the tab with audio enabled.");
+      }
+
+      const audioStream = new MediaStream(audioTracks);
+      const mimeType = pickAudioRecorderMimeType();
+      const recorder = new MediaRecorder(audioStream, mimeType ? { mimeType } : undefined);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      const stopPromise = new Promise<Blob>((resolve) => {
+        recorder.onstop = () => {
+          resolve(new Blob(chunks, { type: recorder.mimeType || "audio/webm" }));
+        };
+      });
+
+      const preRollMs = manualCapture ? 3000 : 0;
+      if (manualCapture) {
+        setStatus("Press play in the YouTube tab. Recording starts in 3 seconds...");
+        await new Promise((resolve) => setTimeout(resolve, preRollMs));
+      }
+
+      recorder.start();
+      setCapturePhase("recording");
+      setStatus("Recording YouTube snippet...");
+      if (!manualCapture) {
+        ytPlayerRef.current.seekTo(startTimeSec, true);
+        ytPlayerRef.current.playVideo();
+      }
+
+      const startedAt = performance.now();
+      const tick = () => {
+        const elapsed = (performance.now() - startedAt) / 1000;
+        const progress = Math.min(1, elapsed / durationSec);
+        setCaptureProgress(progress);
+        if (progress < 1) {
+          captureRafRef.current = window.requestAnimationFrame(tick);
+        }
+      };
+      captureRafRef.current = window.requestAnimationFrame(tick);
+
+      await new Promise((resolve) => setTimeout(resolve, durationSec * 1000));
+      if (!manualCapture) {
+        ytPlayerRef.current.pauseVideo();
+      }
+      recorder.stop();
+      displayStream.getTracks().forEach((track) => track.stop());
+      if (captureRafRef.current !== null) {
+        window.cancelAnimationFrame(captureRafRef.current);
+        captureRafRef.current = null;
+      }
+      setCaptureProgress(1);
+      setCapturePhase("uploading");
+      setStatus("Preparing snippet...");
+
+      const blob = await stopPromise;
+      let finalBlob = blob;
+      try {
+        finalBlob = await decodeBlobToWav(blob);
+      } catch {
+        // fallback to original recording
+      }
+      const file = new File(
+        [finalBlob],
+        `yt_capture_${youtubeId ?? "snippet"}.wav`,
+        { type: finalBlob.type || blob.type || "audio/webm" }
+      );
+      return { file, durationSec };
+    } catch (err) {
+      if (displayStream) {
+        displayStream.getTracks().forEach((track) => track.stop());
+      }
+      if (captureRafRef.current !== null) {
+        window.cancelAnimationFrame(captureRafRef.current);
+        captureRafRef.current = null;
+      }
+      throw err;
+    }
+  };
+
   const handleConvert = async () => {
     if (!session) {
       setError("Sign in to start transcribing.");
@@ -192,7 +564,19 @@ export default function HomePage() {
     }
 
     if (mode === "YOUTUBE" && !youtubeValid) {
-      setError("Please paste a valid YouTube link (starting with http).");
+      setError("Please paste a valid YouTube link.");
+      return;
+    }
+    if (mode === "YOUTUBE" && !ytPlayerReady && !ytPlayerError) {
+      setError("YouTube player is still loading. Try again in a moment.");
+      return;
+    }
+    if (mode === "YOUTUBE" && (ytStartTime === null || ytDuration === null)) {
+      setError("Start time and duration are required for YouTube capture.");
+      return;
+    }
+    if (mode === "YOUTUBE" && ytDuration !== null && ytDuration > MAX_YT_SNIPPET_SEC) {
+      setError(`Duration must be ${MAX_YT_SNIPPET_SEC} seconds or less.`);
       return;
     }
 
@@ -214,7 +598,7 @@ export default function HomePage() {
     setError(null);
     setImportError(null);
     setTabsResult(null);
-    setStatus(mode === "FILE" ? "Transcribing audio..." : "Downloading from YouTube...");
+    setStatus(mode === "FILE" ? "Transcribing audio..." : "Preparing YouTube capture...");
     setLoading(true);
     sendEvent("transcribe_start", { mode, ytUrl: youtubeUrl || undefined });
 
@@ -229,18 +613,13 @@ export default function HomePage() {
         fd.append("file", selectedFile);
         response = await fetch("/api/transcribe", { method: "POST", body: fd });
       } else {
-        const payload: Record<string, unknown> = {
-          mode: "YOUTUBE",
-          youtubeUrl: youtubeUrl.trim(),
-          separateGuitar: ytSeparateGuitar,
-        };
-        if (ytStartTime !== null) payload.startTime = ytStartTime;
-        if (ytDuration !== null) payload.duration = ytDuration;
-        response = await fetch("/api/transcribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+        const capture = await captureYouTubeSnippet();
+        setStatus("Uploading snippet...");
+        const fd = new FormData();
+        fd.append("mode", "FILE");
+        fd.append("duration", String(capture.durationSec));
+        fd.append("file", capture.file);
+        response = await fetch("/api/transcribe", { method: "POST", body: fd });
       }
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
@@ -269,6 +648,7 @@ export default function HomePage() {
       sendEvent("transcribe_error", { mode, error: err?.message || "unknown" });
     } finally {
       setLoading(false);
+      setCapturePhase("idle");
     }
   };
 
@@ -325,6 +705,7 @@ export default function HomePage() {
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
+    if (!isTranscriber) return;
     void handleConvert();
   };
   const creditsUsageLabel = credits
@@ -339,8 +720,11 @@ export default function HomePage() {
   return (
     <>
       <Head>
-        <title>Note2Tabs - Convert Music to Guitar Tabs</title>
-        <meta name="description" content="Upload a song and get guitar tabs instantly." />
+        <title>Note2Tabs - Guitar Tab Editor</title>
+        <meta
+          name="description"
+          content="Edit, play back, and optimize guitar tabs with flexible fingerings and clean layouts."
+        />
       </Head>
 
       <main className="page page-home">
@@ -349,10 +733,38 @@ export default function HomePage() {
           <div className="hero-glow hero-glow--two" aria-hidden="true" />
           <div className="container hero-stack hero-stack--centered">
             <div className="hero-heading" data-reveal>
-              <h1 className="hero-title">Turn Music Into Tabs</h1>
+              <h1 className="hero-title">Guitar Tab Editor</h1>
+              <p className="hero-subtitle">
+                Play back tabs, switch fingerings, and optimize layouts for clean, playable results.
+              </p>
+              <div className="button-row hero-cta-row">
+                <Link href="/gte" className="button-primary">
+                  Open Guitar Tab Editor
+                </Link>
+                <Link href="/transcriber" className="button-secondary">
+                  Try Transcriber
+                </Link>
+              </div>
             </div>
             <form className="prompt-shell" data-reveal onSubmit={handleSubmit}>
-              {isSignedIn && credits && (
+              <div className="product-switch" role="tablist" aria-label="Product">
+                <button
+                  type="button"
+                  className={frontTab === "EDITOR" ? "active" : ""}
+                  onClick={() => setFrontTab("EDITOR")}
+                >
+                  Guitar Tab Editor
+                </button>
+                <button
+                  type="button"
+                  className={frontTab === "TRANSCRIBE" ? "active" : ""}
+                  onClick={() => setFrontTab("TRANSCRIBE")}
+                >
+                  Transcriber
+                </button>
+              </div>
+
+              {isSignedIn && credits && isTranscriber && (
                 <div className="prompt-top prompt-top--solo">
                   <div className="prompt-balance">
                     <span>Credits</span>
@@ -364,104 +776,182 @@ export default function HomePage() {
                 </div>
               )}
 
-              <div className="mode-switch" role="tablist" aria-label="Input mode">
-                <button
-                  type="button"
-                  className={mode === "FILE" ? "active" : ""}
-                  onClick={() => setMode("FILE")}
-                >
-                  Audio file
-                </button>
-                <button
-                  type="button"
-                  className={mode === "YOUTUBE" ? "active" : ""}
-                  onClick={() => setMode("YOUTUBE")}
-                >
-                  YouTube link
-                </button>
-              </div>
-
-              <div className="prompt-field">
-                {mode === "FILE" ? (
-                  <div
-                    className={`dropzone ${dragActive ? "active" : ""}`}
-                    onClick={() => fileInputRef.current?.click()}
-                    onDrop={onDrop}
-                    onDragOver={onDragOver}
-                    onDragEnter={onDragEnter}
-                    onDragLeave={onDragLeave}
-                  >
-                    <div className="dropzone-text">
-                      <strong>{selectedFile ? "Audio attached" : "Drag audio here"}</strong>
-                      <span>
-                        {selectedFile ? selectedFile.name : "Click to browse or drop a file."}
-                      </span>
-                    </div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="audio/*"
-                      hidden
-                      onChange={onFileChange}
-                    />
+              {frontTab === "EDITOR" ? (
+                <div className="editor-showcase">
+                  <div>
+                    <h3>Make tabs playable</h3>
+                    <p className="muted">
+                      Play back your tabs, switch fingerings, and run optimizations to find clean,
+                      playable layouts before exporting.
+                    </p>
                   </div>
-                ) : (
-                  <label className="url-field">
-                    <span>YouTube URL</span>
-                    <input
-                      type="url"
-                      value={youtubeUrl}
-                      onChange={(event) => setYoutubeUrl(event.target.value)}
-                      placeholder="https://youtube.com/..."
-                    />
-                  </label>
-                )}
-
-                {isSignedIn && (
-                  <div className="prompt-footer">
+                  <div className="editor-actions">
+                    <Link href="/gte" className="button-primary">
+                      Open Guitar Tab Editor
+                    </Link>
+                    <span className="editor-note muted">
+                      Your editors and exports stay in your account library.
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="mode-switch" role="tablist" aria-label="Input mode">
                     <button
                       type="button"
-                      className="advanced-toggle"
-                      onClick={() => setShowAdvanced((prev) => !prev)}
+                      className={mode === "FILE" ? "active" : ""}
+                      onClick={() => setMode("FILE")}
                     >
-                      {showAdvanced ? "Hide advanced" : "Advanced options"}
+                      Audio file
+                    </button>
+                    <button
+                      type="button"
+                      className={mode === "YOUTUBE" ? "active" : ""}
+                      onClick={() => setMode("YOUTUBE")}
+                    >
+                      YouTube link
                     </button>
                   </div>
-                )}
-              </div>
 
-              {isSignedIn && showAdvanced && (
-                <div className="advanced-grid">
+                  <div className="prompt-field">
+                    {mode === "FILE" ? (
+                      <div
+                        className={`dropzone ${dragActive ? "active" : ""}`}
+                        onClick={() => fileInputRef.current?.click()}
+                        onDrop={onDrop}
+                        onDragOver={onDragOver}
+                        onDragEnter={onDragEnter}
+                        onDragLeave={onDragLeave}
+                      >
+                        <div className="dropzone-text">
+                          <strong>{selectedFile ? "Audio attached" : "Drag audio here"}</strong>
+                          <span>
+                            {selectedFile ? selectedFile.name : "Click to browse or drop a file."}
+                          </span>
+                        </div>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="audio/*"
+                          hidden
+                          onChange={onFileChange}
+                        />
+                      </div>
+                    ) : (
+                      <label className="url-field">
+                        <span>YouTube URL</span>
+                        <input
+                          type="url"
+                          value={youtubeUrl}
+                          onChange={(event) => setYoutubeUrl(event.target.value)}
+                          placeholder="https://youtube.com/..."
+                        />
+                      </label>
+                    )}
+
+                    {mode === "YOUTUBE" && (
+                      <div className="yt-preview">
+                        <div className="yt-frame">
+                          {youtubeId ? (
+                            <div ref={ytPlayerMountRef} className="yt-player" />
+                          ) : (
+                            <div className="yt-placeholder">Paste a YouTube link to load a preview.</div>
+                          )}
+                        </div>
+                        <div className="yt-guide">
+                          <strong>Consent capture</strong>
+                          <p>
+                            We play the snippet here and record tab audio after you grant permission. Max{" "}
+                            {MAX_YT_SNIPPET_SEC} seconds.
+                          </p>
+                          {ytPlayerError && <span className="yt-error">{ytPlayerError}</span>}
+                          {ytPlayerError && ytWatchUrl && (
+                            <button
+                              type="button"
+                              className="button-secondary button-small"
+                              onClick={() => window.open(ytWatchUrl, "_blank", "noopener")}
+                            >
+                              Open in YouTube tab
+                            </button>
+                          )}
+                          {youtubeId && !ytPlayerReady && !ytPlayerError && (
+                            <span className="yt-loading">Loading the player...</span>
+                          )}
+                          <span className="yt-note">
+                            When you click Generate tabs, choose this tab and enable Audio in the share dialog.
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {mode === "YOUTUBE" && capturePhase !== "idle" && (
+                      <div className="capture-card">
+                        <div className="capture-head">
+                          <div>
+                            <strong>{captureTitle}</strong>
+                            <span className="capture-sub">{captureHint}</span>
+                          </div>
+                          <span className="capture-time">
+                            {captureSeconds}s / {captureDuration}s
+                          </span>
+                        </div>
+                        <div className="capture-bar">
+                          <span style={{ width: `${Math.round(captureProgress * 100)}%` }} />
+                        </div>
+                      </div>
+                    )}
+
+                    {isSignedIn && mode === "FILE" && (
+                      <div className="prompt-footer">
+                        <button
+                          type="button"
+                          className="advanced-toggle"
+                          onClick={() => setShowAdvanced((prev) => !prev)}
+                        >
+                          {showAdvanced ? "Hide advanced" : "Advanced options"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   {mode === "YOUTUBE" && (
-                    <>
+                    <div className="advanced-grid">
                       <label>
                         Start time (sec)
                         <input
                           type="number"
+                          min={0}
                           value={ytStartTime ?? ""}
                           onChange={(event) => setYtStartTime(parseOptionalNumber(event.target.value))}
+                          required
                         />
                       </label>
                       <label>
-                        Duration (sec)
+                        Duration (sec, max 30)
                         <input
                           type="number"
+                          min={1}
+                          max={MAX_YT_SNIPPET_SEC}
                           value={ytDuration ?? ""}
-                          onChange={(event) => setYtDuration(parseOptionalNumber(event.target.value))}
+                          onChange={(event) => {
+                            const next = parseOptionalNumber(event.target.value);
+                            if (next === null) {
+                              setYtDuration(null);
+                              return;
+                            }
+                            setYtDuration(Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, next)));
+                          }}
+                          required
                         />
                       </label>
-                      <label className="checkbox">
-                        <input
-                          type="checkbox"
-                          checked={ytSeparateGuitar}
-                          onChange={(event) => setYtSeparateGuitar(event.target.checked)}
-                        />
-                        Separate guitar stems
-                      </label>
-                    </>
+                      <div className="advanced-note">
+                        We record the snippet in real time after you grant tab audio capture.
+                      </div>
+                    </div>
                   )}
-                  {mode === "FILE" && (
-                    <>
+
+                  {isSignedIn && showAdvanced && mode === "FILE" && (
+                    <div className="advanced-grid">
                       <label>
                         Approx length (sec)
                         <input
@@ -470,34 +960,39 @@ export default function HomePage() {
                           onChange={(event) => setFileDuration(parseOptionalNumber(event.target.value))}
                         />
                       </label>
-                    </>
+                    </div>
                   )}
-                </div>
-              )}
 
-              <div className="prompt-actions">
-                <button type="submit" className="button-primary" disabled={!canSubmit}>
-                  {loading ? "Generating..." : "Generate tabs"}
-                </button>
-              </div>
+                  <div className="prompt-actions">
+                    <button type="submit" className="button-primary" disabled={!canSubmit}>
+                      {submitLabel}
+                    </button>
+                  </div>
 
-              {status && <div className="status">{status}</div>}
-              {error && <div className="error">{error}</div>}
-              {isSignedIn && showCreditsEmpty && (
-                <div className="notice">
-                  {isPremiumRole(session?.user?.role)
-                    ? `Credits used. Next credits arrive on ${creditsResetLabel}.`
-                    : `Monthly credits used. Upgrade to Premium or wait until ${creditsResetLabel}.`}
-                </div>
-              )}
-              {isSignedIn && (
-                <p className="footnote">
-                  {isPremiumRole(session?.user?.role)
-                    ? "Premium credits roll over. 50 credits added monthly."
-                    : `This job uses about ${creditsRequested} credit${
-                        creditsRequested > 1 ? "s" : ""
-                      } from your 10 monthly credits.`}
-                </p>
+                  <div className="disclaimer">
+                    The transcriber is still a work in progress. Expect occasional errors while we
+                    improve it.
+                  </div>
+
+                  {status && <div className="status">{status}</div>}
+                  {error && <div className="error">{error}</div>}
+                  {isSignedIn && showCreditsEmpty && (
+                    <div className="notice">
+                      {isPremiumRole(session?.user?.role)
+                        ? `Credits used. Next credits arrive on ${creditsResetLabel}.`
+                        : `Monthly credits used. Upgrade to Premium or wait until ${creditsResetLabel}.`}
+                    </div>
+                  )}
+                  {isSignedIn && (
+                    <p className="footnote">
+                      {isPremiumRole(session?.user?.role)
+                        ? "Premium credits roll over. 50 credits added monthly."
+                        : `This job uses about ${creditsRequested} credit${
+                            creditsRequested > 1 ? "s" : ""
+                          } from your 10 monthly credits.`}
+                    </p>
+                  )}
+                </>
               )}
             </form>
 
@@ -651,8 +1146,8 @@ export default function HomePage() {
                     <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
                   </svg>
                 </div>
-                <h4>Fast start</h4>
-                <p>Drop a song, get tabs in moments.</p>
+                <h4>Playable previews</h4>
+                <p>Hear your tabs and catch timing issues before you export.</p>
               </div>
               <div className="benefit-card" data-reveal>
                 <div className="icon">
@@ -677,8 +1172,8 @@ export default function HomePage() {
                     />
                   </svg>
                 </div>
-                <h4>Readable output</h4>
-                <p>Tabs stay clean and easy to scan.</p>
+                <h4>Fingerings & optimals</h4>
+                <p>Switch fingerings and run optimals to clean up tricky passages.</p>
               </div>
               <div className="benefit-card" data-reveal>
                 <div className="icon">
@@ -696,8 +1191,8 @@ export default function HomePage() {
                     />
                   </svg>
                 </div>
-                <h4>Saved sessions</h4>
-                <p>Everything stays in your account library.</p>
+                <h4>Drafts when you need them</h4>
+                <p>Use the transcriber for quick starts, then refine in the editor.</p>
               </div>
             </div>
           </div>
@@ -727,8 +1222,8 @@ export default function HomePage() {
                     />
                   </svg>
                 </div>
-                <h3>1. Add audio</h3>
-                <p>Drop a file or paste a link.</p>
+                <h3>1. Open the editor</h3>
+                <p>Start a new Guitar Tab Editor session from your library.</p>
               </div>
               <div className="step-card" data-reveal>
                 <div className="icon">
@@ -744,8 +1239,8 @@ export default function HomePage() {
                     <circle cx="18" cy="16" r="3" stroke="currentColor" strokeWidth="2" />
                   </svg>
                 </div>
-                <h3>2. Generate tabs</h3>
-                <p>We map timing and strings automatically.</p>
+                <h3>2. Make it playable</h3>
+                <p>Play back, switch fingerings, and optimize for clean output.</p>
               </div>
               <div className="step-card" data-reveal>
                 <div className="icon">
@@ -759,8 +1254,8 @@ export default function HomePage() {
                     />
                   </svg>
                 </div>
-                <h3>3. Refine in GTE</h3>
-                <p>Edit, fix, and save for later.</p>
+                <h3>3. Optional transcriber</h3>
+                <p>Use the transcriber for drafts, then polish in the editor.</p>
               </div>
             </div>
           </div>
