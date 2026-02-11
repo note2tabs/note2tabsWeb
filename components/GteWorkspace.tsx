@@ -10,6 +10,7 @@ type Props = {
 };
 
 const STRING_LABELS = ["e", "B", "G", "D", "A", "E"];
+const STANDARD_TUNING_MIDI = [64, 59, 55, 50, 45, 40];
 const ROW_HEIGHT = 28;
 const ROW_GAP = 80;
 const BARS_PER_ROW = 3;
@@ -183,6 +184,8 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   const [segmentCoordDraft, setSegmentCoordDraft] = useState<{ stringIndex: string; fret: string } | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
+  const previewAudioRef = useRef<AudioContext | null>(null);
+  const previewGainRef = useRef<GainNode | null>(null);
   const playheadFrameRef = useRef(0);
   const playheadStartTimeRef = useRef<number | null>(null);
   const playheadStartFrameRef = useRef(0);
@@ -212,6 +215,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   const dragPreviewRef = useRef<DragPreview | null>(dragPreview);
   const multiDragDeltaRef = useRef<number | null>(multiDragDelta);
   const multiDragMovedRef = useRef(false);
+  const noteDragMovedRef = useRef(false);
   const multiDragStartXRef = useRef(0);
   const resizePreviewRef = useRef<number | null>(resizePreviewLength);
   const resizeChordPreviewRef = useRef<number | null>(resizeChordPreviewLength);
@@ -261,6 +265,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       const now = audioRef.current.currentTime;
       masterGainRef.current.gain.setTargetAtTime(playbackVolume, now, 0.02);
     }
+    if (previewAudioRef.current && previewGainRef.current) {
+      const now = previewAudioRef.current.currentTime;
+      previewGainRef.current.gain.setTargetAtTime(playbackVolume, now, 0.02);
+    }
   }, [playbackVolume]);
 
   useEffect(() => {
@@ -268,6 +276,16 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       setPlayheadFrame(timelineEnd);
     }
   }, [playheadFrame, timelineEnd]);
+
+  useEffect(() => {
+    return () => {
+      if (previewAudioRef.current) {
+        void previewAudioRef.current.close();
+        previewAudioRef.current = null;
+      }
+      previewGainRef.current = null;
+    };
+  }, []);
 
   const getRowBarCount = (rowIndex: number) =>
     Math.max(0, Math.min(BARS_PER_ROW, barCount - rowIndex * BARS_PER_ROW));
@@ -781,7 +799,6 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
   useEffect(() => {
     if (!dragging) return;
-
     const handleMove = (event: globalThis.MouseEvent) => {
       if (!timelineRef.current) return;
       const rect = timelineRef.current.getBoundingClientRect();
@@ -809,7 +826,6 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
         setDragPreview(next);
       }
     };
-
     const handleUp = async () => {
       const preview = dragPreviewRef.current;
       if (!preview) {
@@ -817,32 +833,34 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
         setDragPreview(null);
         return;
       }
-
       if (dragging.type === "note") {
         const targetString = preview.stringIndex ?? dragging.stringIndex ?? 0;
         const safeLength = Math.max(1, Math.round(dragging.length));
-      const rawStart = Math.round(preview.startTime ?? dragging.startTime);
-      const maxStart = Math.max(0, timelineEnd - safeLength);
-      const targetStart = clamp(rawStart, 0, maxStart);
+        const rawStart = Math.round(preview.startTime ?? dragging.startTime);
+        const maxStart = Math.max(0, timelineEnd - safeLength);
+        const targetStart = clamp(rawStart, 0, maxStart);
+        let didMove = false;
         setBusy(true);
         setError(null);
         try {
           if (targetString !== dragging.stringIndex) {
-            const res = await gteApi.assignNoteTab(editorId, dragging.id, [
-              targetString,
-              dragging.fret ?? 0,
-            ]);
+            const nextTab: TabCoord = [targetString, dragging.fret ?? 0];
+            const res = await gteApi.assignNoteTab(editorId, dragging.id, nextTab);
             applySnapshot(res.snapshot);
+            playNotePreview(nextTab);
+            didMove = true;
           }
           if (targetStart !== dragging.startTime) {
             const res = await gteApi.setNoteStartTime(editorId, dragging.id, targetStart);
             applySnapshot(res.snapshot);
+            didMove = true;
           }
         } catch (err: any) {
           setError(err?.message || "Could not move note.");
         } finally {
           setBusy(false);
         }
+        noteDragMovedRef.current = didMove;
       } else if (dragging.type === "chord") {
         const safeLength = Math.max(1, Math.round(dragging.length));
         const rawStart = Math.round(preview.startTime ?? dragging.startTime);
@@ -852,11 +870,9 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
           void runMutation(() => gteApi.setChordStartTime(editorId, dragging.id, targetStart));
         }
       }
-
       setDragging(null);
       setDragPreview(null);
     };
-
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", handleUp);
     return () => {
@@ -1651,9 +1667,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       setError("Enter a fret before adding the note.");
       return;
     }
+    const tab: TabCoord = [draftNote.stringIndex, fret];
+    playNotePreview(tab);
     void runMutation(() =>
       gteApi.addNote(editorId, {
-        tab: [draftNote.stringIndex, fret],
+        tab,
         startTime: draftNote.startTime,
         length,
       })
@@ -1961,9 +1979,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     try {
       let nextSnapshot: EditorSnapshot | null = null;
       if (stringValue !== selectedNote.tab[0] || fretValue !== selectedNote.tab[1]) {
-        const res = await gteApi.assignNoteTab(editorId, selectedNote.id, [stringValue, fretValue]);
+        const nextTab: TabCoord = [stringValue, fretValue];
+        const res = await gteApi.assignNoteTab(editorId, selectedNote.id, nextTab);
         nextSnapshot = res.snapshot;
         applySnapshot(res.snapshot);
+        playNotePreview(nextTab);
       }
       if (startValue !== selectedNote.startTime) {
         const res = await gteApi.setNoteStartTime(editorId, selectedNote.id, startValue);
@@ -2126,9 +2146,9 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       return;
     }
     if (selectedNote.tab[1] === fretValue) return;
-    void runMutation(() =>
-      gteApi.assignNoteTab(editorId, selectedNote.id, [selectedNote.tab[0], fretValue])
-    );
+    const nextTab: TabCoord = [selectedNote.tab[0], fretValue];
+    playNotePreview(nextTab);
+    void runMutation(() => gteApi.assignNoteTab(editorId, selectedNote.id, nextTab));
   };
 
   const commitNoteMenuLength = () => {
@@ -2305,6 +2325,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
   const handleAssignAlt = (tab: TabCoord) => {
     if (!selectedNote) return;
+    playNotePreview(tab);
     void runMutation(() => gteApi.assignNoteTab(editorId, selectedNote.id, tab));
   };
 
@@ -2321,6 +2342,60 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   const handleShiftChordOctave = (direction: number) => {
     if (!selectedChord) return;
     void runMutation(() => gteApi.shiftChordOctave(editorId, selectedChord.id, direction));
+  };
+
+  const getMidiFromTab = (tab: TabCoord, fallback?: number) => {
+    const value = snapshot.tabRef?.[tab[0]]?.[tab[1]];
+    if (value !== undefined && value !== null) return Number(value);
+    if (fallback !== undefined && fallback !== null) return Number(fallback);
+    const base = STANDARD_TUNING_MIDI[tab[0]];
+    if (base !== undefined && Number.isFinite(tab[1]) && tab[1] >= 0) {
+      return base + tab[1];
+    }
+    return 0;
+  };
+
+  const ensurePreviewAudio = () => {
+    let ctx = previewAudioRef.current;
+    let master = previewGainRef.current;
+    if (!ctx || ctx.state === "closed" || !master) {
+      ctx = new AudioContext();
+      master = ctx.createGain();
+      master.gain.value = playbackVolume;
+      master.connect(ctx.destination);
+      previewAudioRef.current = ctx;
+      previewGainRef.current = master;
+    }
+    return { ctx, master };
+  };
+
+  const playNotePreview = (tab: TabCoord, midiOverride?: number) => {
+    if (playbackVolume <= 0) return;
+    const midi = getMidiFromTab(tab, midiOverride);
+    if (!Number.isFinite(midi) || midi <= 0) return;
+
+    const { ctx, master } = ensurePreviewAudio();
+    void ctx.resume();
+
+    const now = ctx.currentTime;
+    const duration = 0.16;
+    const frequency = 440 * Math.pow(2, (midi - 69) / 12);
+
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(frequency, now);
+
+    const amp = ctx.createGain();
+    const peak = 0.6;
+    amp.gain.setValueAtTime(0, now);
+    amp.gain.linearRampToValueAtTime(peak, now + 0.01);
+    amp.gain.linearRampToValueAtTime(0, now + duration);
+
+    osc.connect(amp);
+    amp.connect(master);
+
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
   };
 
   const stopAudio = () => {
@@ -2348,13 +2423,6 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       gain: number;
       stringIndex?: number;
     }> = [];
-    const tabRef = snapshot.tabRef;
-    const midiFromTab = (tab: TabCoord, fallback?: number) => {
-      const value = tabRef?.[tab[0]]?.[tab[1]];
-      if (value !== undefined && value !== null) return Number(value);
-      if (fallback !== undefined && fallback !== null) return Number(fallback);
-      return 0;
-    };
 
     const pushEvent = (
       startTime: number,
@@ -2382,14 +2450,14 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     snapshot.notes.forEach((note) => {
       const key = `note-${note.id}`;
       const gain = conflictInfo.conflictKeys.has(key) ? 0.25 : 0.55;
-      const midi = Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : midiFromTab(note.tab);
+      const midi = Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(note.tab);
       pushEvent(note.startTime, note.length, midi, gain, note.tab[0]);
     });
     snapshot.chords.forEach((chord) => {
       chord.currentTabs.forEach((tab, idx) => {
         const key = `chord-${chord.id}-${idx}`;
         const gain = conflictInfo.conflictKeys.has(key) ? 0.25 : 0.5;
-        const midi = midiFromTab(tab, chord.originalMidi[idx]);
+        const midi = getMidiFromTab(tab, chord.originalMidi[idx]);
         pushEvent(chord.startTime, chord.length, midi, gain, tab[0]);
       });
     });
@@ -3469,6 +3537,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                             multiDragMovedRef.current = false;
                             return;
                           }
+                          if (noteDragMovedRef.current) {
+                            noteDragMovedRef.current = false;
+                          } else {
+                            playNotePreview([note.tab[0], note.tab[1]]);
+                          }
                           if (selectedNoteIds.length > 1) return;
                           openNoteMenu(note.id, note.tab[1], note.length, event);
                         }}
@@ -4055,3 +4128,12 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     </div>
   );
 }
+
+
+
+
+
+
+
+
+

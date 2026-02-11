@@ -5,7 +5,10 @@ export default function FooterBar() {
   return (
     <footer className="footer-shell">
       <div className="container footer-content">
-        <span>(c) {year} Note2Tabs</span>
+        <div className="footer-brand">
+          <img src="/logo01black.png" alt="Note2Tabs logo" className="footer-logo" />
+          <span>(c) {year} Note2Tabs</span>
+        </div>
         <div className="footer-links">
           <Link href="/terms">Terms</Link>
           <Link href="/privacy">Privacy</Link>
