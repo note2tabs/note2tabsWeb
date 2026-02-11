@@ -12,7 +12,7 @@ CREATE TABLE "AnalyticsEvent" (
     "os" TEXT,
     "deviceType" TEXT,
     "payload" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
@@ -22,8 +22,8 @@ CREATE TABLE "UserConsent" (
     "sessionId" TEXT,
     "fingerprintId" TEXT,
     "granted" BOOLEAN NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL
 );
 
 -- CreateIndex
