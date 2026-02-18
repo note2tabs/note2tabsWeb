@@ -12,7 +12,9 @@ import {
   DEFAULT_DURATION_SEC,
 } from "../../lib/credits";
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
+const BACKEND_SECRET =
+  process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 
 type Mode = "FILE" | "YOUTUBE";
 
@@ -276,6 +278,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         headers: {
           "Content-Type": "application/json",
           "X-User-Id": user.id,
+          ...(BACKEND_SECRET ? { "x-backend-secret": BACKEND_SECRET } : {}),
         },
         body: JSON.stringify({}),
       });
@@ -289,6 +292,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               headers: {
                 "Content-Type": "application/json",
                 "X-User-Id": user.id,
+                ...(BACKEND_SECRET ? { "x-backend-secret": BACKEND_SECRET } : {}),
               },
               body: JSON.stringify({ stamps, totalFrames }),
             });

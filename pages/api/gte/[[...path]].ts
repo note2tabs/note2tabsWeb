@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
+const BACKEND_SECRET =
+  process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 
 function buildUrl(req: NextApiRequest) {
   const path = Array.isArray(req.query.path) ? req.query.path.join("/") : "";
@@ -28,6 +30,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const headers: Record<string, string> = {
     "X-User-Id": session.user.id,
   };
+  if (BACKEND_SECRET) {
+    headers["x-backend-secret"] = BACKEND_SECRET;
+  }
 
   const method = req.method || "GET";
   let body: string | undefined;

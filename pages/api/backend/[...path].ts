@@ -4,6 +4,8 @@ import { authOptions } from "../auth/[...nextauth]";
 import { createBackendToken } from "../../../lib/backendToken";
 
 const BASE_URL = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
+const BACKEND_SECRET =
+  process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -41,6 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         Authorization: `Bearer ${token}`,
         "Content-Type": isJson ? "application/json" : (req.headers["content-type"] as string) || "application/json",
         "X-Request-ID": (req.headers["x-request-id"] as string) || "",
+        ...(BACKEND_SECRET ? { "x-backend-secret": BACKEND_SECRET } : {}),
       },
       body:
         method === "GET" || method === "HEAD"
