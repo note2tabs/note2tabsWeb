@@ -26,18 +26,29 @@ export default function TermsPage() {
         <p>You must be at least 13 years old to use the Service.</p>
 
         <h2>3. User Content</h2>
-        <p>You own the files and tablature you create or upload.</p>
+        <p>
+          You own the files and tablature you create or upload. As between you and Note2Tabs, you retain all
+          right, title, and interest in your content. We do not claim ownership of your tabs.
+        </p>
         <p>When you upload audio, you give Note2Tabs permission to:</p>
         <ul>
           <li>store it temporarily</li>
           <li>process it</li>
           <li>analyze it to produce tablature</li>
         </ul>
+        <p>
+          You grant Note2Tabs a limited, non-exclusive license to host, process, and display your content
+          solely to operate and improve the Service, provide support, and comply with legal obligations.
+        </p>
         <p>Files may be automatically deleted after processing.</p>
         <p>You must have permission to upload the audio.</p>
 
         <h2>4. Copyright Responsibility</h2>
-        <p>You are solely responsible for the material you upload.</p>
+        <p>
+          You are solely responsible for the material you upload and for ensuring you have the necessary
+          rights to create or share it. If you create original tabs, you own the copyright in that original
+          expression, subject to any underlying rights in the music.
+        </p>
         <p>Do not upload:</p>
         <ul>
           <li>copyrighted recordings you do not have rights to</li>
@@ -49,8 +60,9 @@ export default function TermsPage() {
 
         <h2>5. Generated Tablature</h2>
         <p>
-          Tabs created using the Service are for personal use. We do not guarantee accuracy or legal
-          clearance for commercial distribution. You are responsible for how you use exported tablature.
+          Tabs created using the Service may be used personally or commercially. We do not guarantee accuracy
+          or legal clearance for distribution or commercial use. You are responsible for securing any
+          necessary licenses, permissions, and clearances and for how you use exported tablature.
         </p>
 
         <h2>6. Acceptable Use</h2>
