@@ -16,6 +16,9 @@ export default function GteEditorPage({ editorId }: Props) {
   const [snapshot, setSnapshot] = useState<EditorSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
   const router = useRouter();
 
   const loadEditor = async () => {
@@ -37,13 +40,62 @@ export default function GteEditorPage({ editorId }: Props) {
     }
   }, [editorId]);
 
+  useEffect(() => {
+    if (snapshot?.name) {
+      setNameDraft(snapshot.name);
+    } else if (snapshot) {
+      setNameDraft("Untitled");
+    }
+  }, [snapshot?.name]);
+
+  const commitName = async () => {
+    if (!snapshot) return;
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      setNameDraft(snapshot.name || "Untitled");
+      return;
+    }
+    if (trimmed === snapshot.name) return;
+    setNameSaving(true);
+    setNameError(null);
+    try {
+      const res = await gteApi.setEditorName(editorId, trimmed);
+      setSnapshot(res.snapshot);
+    } catch (err: any) {
+      setNameError(err?.message || "Could not update name.");
+    } finally {
+      setNameSaving(false);
+    }
+  };
+
   return (
     <main className="page page-tight">
-      <div className="container stack">
+      <div className="container gte-wide stack">
         <div className="page-header">
           <div>
             <h1 className="page-title">GTE Workspace</h1>
-            <p className="page-subtitle">Editor {editorId.slice(0, 8)}</p>
+            <div className="page-subtitle" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <input
+                type="text"
+                value={nameDraft}
+                onChange={(event) => setNameDraft(event.target.value)}
+                onBlur={() => void commitName()}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void commitName();
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setNameDraft(snapshot?.name || "Untitled");
+                  }
+                }}
+                className="w-64 max-w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
+                placeholder="Untitled"
+              />
+              {nameSaving && <span className="muted text-small">Saving...</span>}
+              {nameError && <span className="error text-small">{nameError}</span>}
+            </div>
           </div>
           <div className="button-row">
             <button type="button" onClick={() => router.push("/gte")} className="button-secondary button-small">

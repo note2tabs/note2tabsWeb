@@ -13,7 +13,8 @@ import {
 } from "../../lib/credits";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
-const BACKEND_SECRET = process.env.NOTE2TABS_BACKEND_SECRET;
+const BACKEND_SECRET =
+  process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 
 type Mode = "FILE" | "YOUTUBE";
 
@@ -55,7 +56,11 @@ async function parseMultipart(req: NextApiRequest): Promise<{
     form.parse(req, (err, fields, files) => {
       if (err) return reject(err);
       const fileEntry = files.file;
-      const file = Array.isArray(fileEntry) ? fileEntry[0] : fileEntry;
+      const file = Array.isArray(fileEntry)
+        ? fileEntry[0]
+        : fileEntry
+        ? (fileEntry as FormidableFile)
+        : undefined;
       resolve({ fields, file });
     });
   });

@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
-const BACKEND_SECRET = process.env.NOTE2TABS_BACKEND_SECRET;
+const BACKEND_SECRET =
+  process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 
 function buildUrl(req: NextApiRequest) {
   const path = Array.isArray(req.query.path) ? req.query.path.join("/") : "";

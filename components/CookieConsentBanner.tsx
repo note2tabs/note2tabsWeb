@@ -83,7 +83,7 @@ export default function CookieConsentBanner() {
     <div className="cookie-banner">
       <div className="card cookie-card">
         <p>
-          We use cookies and device details to improve Note2Tab and prevent abuse. You can accept or reject
+          We use cookies and device details to improve Note2Tabs and prevent abuse. You can accept or reject
           analytics. See our <a className="button-link" href="/privacy">Privacy Policy</a>.
         </p>
         <div className="cookie-actions">

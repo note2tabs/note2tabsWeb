@@ -85,7 +85,7 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
         <div className="page-header">
           <div>
             <h1 className="page-title">Account</h1>
-            <p className="page-subtitle">Manage your Note2Tab account.</p>
+            <p className="page-subtitle">Manage your Note2Tabs account.</p>
           </div>
           <Link href="/" className="button-ghost button-small">
             Back to app
