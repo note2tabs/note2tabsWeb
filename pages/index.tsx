@@ -1,4 +1,3 @@
-import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import type { ChangeEvent, FormEvent } from "react";
@@ -759,21 +758,24 @@ export default function HomePage() {
 
   return (
     <>
-      <Head>
-        <title>Note2Tabs - Guitar Tab Editor</title>
-        <meta
-          name="description"
-          content="Edit, play back, and optimize guitar tabs with flexible fingerings and clean layouts."
-        />
-      </Head>
-
       <main className="page page-home">
         <section className="hero" id="hero">
           <div className="hero-glow hero-glow--one" aria-hidden="true" />
           <div className="hero-glow hero-glow--two" aria-hidden="true" />
           <div className="container hero-stack hero-stack--centered">
+            <section className="seo-intro" aria-label="Note2Tabs overview" data-reveal>
+              <h1 className="seo-title">Note2Tabs – Guitar tab generator and editor</h1>
+              <p className="seo-copy">
+                Note2Tabs turns audio into guitar tabs so you can learn songs faster and with less trial and error.
+                Upload a track or paste a YouTube link to generate playable tablature in seconds.
+              </p>
+              <p className="seo-copy">
+                Edit fingerings, simplify tricky passages, and practice with clean, readable layouts right in the
+                browser.
+              </p>
+            </section>
             <div className="hero-heading" data-reveal>
-              <h1 className="hero-title">Guitar Tab Editor</h1>
+              <h2 className="hero-title">Guitar Tab Editor</h2>
               <p className="hero-subtitle">
                 Play back tabs, switch fingerings, and optimize layouts for clean, playable results.
               </p>
