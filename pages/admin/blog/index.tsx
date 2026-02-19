@@ -1,0 +1,821 @@
+import type { GetServerSideProps } from "next";
+import Head from "next/head";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../../api/auth/[...nextauth]";
+import { useRouter } from "next/router";
+import { slugify } from "../../../lib/slug";
+import { renderMarkdown } from "../../../lib/markdown";
+
+type TaxonomyItem = {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+};
+
+type ClusterSelection = {
+  id: string;
+  isPillar: boolean;
+};
+
+type PostForm = {
+  id?: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string;
+  coverImageUrl: string;
+  seoTitle: string;
+  seoDescription: string;
+  canonicalUrl: string;
+  status: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+  publishAt: string;
+  categories: string[];
+  tags: string[];
+  clusters: ClusterSelection[];
+};
+
+type PostListItem = {
+  id: string;
+  title: string;
+  slug: string;
+  status: string;
+  updatedAt: string;
+};
+
+type Props = {
+  isAdmin: boolean;
+};
+
+const emptyPost = (): PostForm => ({
+  title: "",
+  slug: "",
+  excerpt: "",
+  content: "",
+  coverImageUrl: "",
+  seoTitle: "",
+  seoDescription: "",
+  canonicalUrl: "",
+  status: "DRAFT",
+  publishAt: "",
+  categories: [],
+  tags: [],
+  clusters: [],
+});
+
+const toInputDate = (value?: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const offset = date.getTimezoneOffset();
+  const local = new Date(date.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
+};
+
+export default function AdminBlogPage({ isAdmin }: Props) {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState("posts");
+  const [posts, setPosts] = useState<PostListItem[]>([]);
+  const [categories, setCategories] = useState<TaxonomyItem[]>([]);
+  const [tags, setTags] = useState<TaxonomyItem[]>([]);
+  const [clusters, setClusters] = useState<TaxonomyItem[]>([]);
+  const [postForm, setPostForm] = useState<PostForm>(emptyPost());
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [previewMode, setPreviewMode] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [filters, setFilters] = useState({
+    search: "",
+    status: "",
+    category: "",
+    tag: "",
+    cluster: "",
+  });
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const tab = typeof router.query.tab === "string" ? router.query.tab : "posts";
+    setActiveTab(tab);
+  }, [router.isReady, router.query.tab]);
+
+  useEffect(() => {
+    void loadTaxonomies();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "posts") {
+      void loadPosts();
+    }
+  }, [activeTab, filters]);
+
+  useEffect(() => {
+    if (!slugTouched && postForm.title) {
+      setPostForm((prev) => ({ ...prev, slug: slugify(prev.title) }));
+    }
+  }, [postForm.title, slugTouched]);
+
+  useEffect(() => {
+    const handler = (event: BeforeUnloadEvent) => {
+      if (!dirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
+
+  const loadTaxonomies = async () => {
+    try {
+      const [catsRes, tagsRes, clustersRes] = await Promise.all([
+        fetch("/api/admin/blog/categories"),
+        fetch("/api/admin/blog/tags"),
+        fetch("/api/admin/blog/clusters"),
+      ]);
+      const catsData = await catsRes.json();
+      const tagsData = await tagsRes.json();
+      const clustersData = await clustersRes.json();
+      if (catsRes.ok) setCategories(catsData.categories || []);
+      if (tagsRes.ok) setTags(tagsData.tags || []);
+      if (clustersRes.ok) setClusters(clustersData.clusters || []);
+    } catch (err) {
+      setError("Could not load taxonomy lists.");
+    }
+  };
+
+  const loadPosts = async () => {
+    setLoading(true);
+    setError(null);
+    const query = new URLSearchParams();
+    if (filters.search) query.set("search", filters.search);
+    if (filters.status) query.set("status", filters.status);
+    if (filters.category) query.set("category", filters.category);
+    if (filters.tag) query.set("tag", filters.tag);
+    if (filters.cluster) query.set("cluster", filters.cluster);
+    const res = await fetch(`/api/admin/blog/posts?${query.toString()}`);
+    const data = await res.json();
+    setLoading(false);
+    if (!res.ok) {
+      setError(data?.error || "Could not load posts.");
+      return;
+    }
+    const mapped = (data.posts || []).map((post: any) => ({
+      id: post.id,
+      title: post.title,
+      slug: post.slug,
+      status: post.status,
+      updatedAt: post.updatedAt,
+    }));
+    setPosts(mapped);
+  };
+
+  const resetForm = () => {
+    setPostForm(emptyPost());
+    setSlugTouched(false);
+    setPreviewMode(false);
+    setPreviewHtml("");
+    setDirty(false);
+  };
+
+  const handleEditPost = async (id: string) => {
+    setLoading(true);
+    setError(null);
+    const res = await fetch(`/api/admin/blog/posts/${id}`);
+    const data = await res.json();
+    setLoading(false);
+    if (!res.ok) {
+      setError(data?.error || "Could not load post.");
+      return;
+    }
+    const post = data.post;
+    setPostForm({
+      id: post.id,
+      title: post.title,
+      slug: post.slug,
+      excerpt: post.excerpt,
+      content: post.content,
+      coverImageUrl: post.coverImageUrl || "",
+      seoTitle: post.seoTitle || "",
+      seoDescription: post.seoDescription || "",
+      canonicalUrl: post.canonicalUrl || "",
+      status: post.status,
+      publishAt: toInputDate(post.publishAt || post.publishedAt),
+      categories: post.categories.map((item: any) => item.categoryId),
+      tags: post.tags.map((item: any) => item.tagId),
+      clusters: post.clusters.map((item: any) => ({
+        id: item.clusterId,
+        isPillar: item.isPillar,
+      })),
+    });
+    setSlugTouched(true);
+    setDirty(false);
+  };
+
+  const handleDeletePost = async (id: string) => {
+    if (!window.confirm("Delete this post?")) return;
+    const res = await fetch(`/api/admin/blog/posts/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data?.error || "Could not delete post.");
+      return;
+    }
+    await loadPosts();
+  };
+
+  const savePost = async (nextStatus?: PostForm["status"]) => {
+    setLoading(true);
+    setError(null);
+    setStatusMessage(null);
+
+    const payload = {
+      ...postForm,
+      status: nextStatus || postForm.status,
+      publishAt: postForm.publishAt ? new Date(postForm.publishAt).toISOString() : null,
+      clusters: postForm.clusters,
+    };
+
+    const res = await fetch(
+      postForm.id ? `/api/admin/blog/posts/${postForm.id}` : "/api/admin/blog/posts",
+      {
+        method: postForm.id ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    );
+    const data = await res.json();
+    setLoading(false);
+    if (!res.ok) {
+      setError(data?.error || "Could not save post.");
+      return;
+    }
+    setStatusMessage(postForm.id ? "Post updated." : "Post created.");
+    setDirty(false);
+    await loadPosts();
+    if (!postForm.id) {
+      setPostForm((prev) => ({ ...prev, id: data.post.id }));
+    }
+  };
+
+  const handlePreview = async () => {
+    const rendered = await renderMarkdown(postForm.content);
+    setPreviewHtml(rendered.html);
+    setPreviewMode(true);
+  };
+
+  const handleTaxonomySave = async (type: "categories" | "tags" | "clusters", form: TaxonomyItem) => {
+    const base = `/api/admin/blog/${type}`;
+    const res = await fetch(form.id ? `${base}/${form.id}` : base, {
+      method: form.id ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: form.name, slug: form.slug, description: form.description }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data?.error || "Could not save.");
+      return;
+    }
+    await loadTaxonomies();
+    setStatusMessage(`${type.slice(0, -1)} saved.`);
+  };
+
+  const handleTaxonomyDelete = async (type: "categories" | "tags" | "clusters", id: string) => {
+    if (!window.confirm("Delete this item?")) return;
+    const res = await fetch(`/api/admin/blog/${type}/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data?.error || "Could not delete.");
+      return;
+    }
+    await loadTaxonomies();
+  };
+
+  const previewLink = useMemo(() => {
+    if (!postForm.slug) return "";
+    return `/api/admin/blog/preview?slug=${encodeURIComponent(postForm.slug)}`;
+  }, [postForm.slug]);
+
+  if (!isAdmin) {
+    return (
+      <main className="page">
+        <div className="container stack">
+          <h1 className="page-title">Admin access required</h1>
+          <Link href="/auth/login" className="button-primary">
+            Sign in
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="page admin-blog">
+      <Head>
+        <title>Blog Admin | Note2Tabs</title>
+      </Head>
+      <div className="container stack">
+        <header className="page-header">
+          <div>
+            <h1 className="page-title">Blog Admin</h1>
+            <p className="page-subtitle">Create, schedule, and organize posts for Note2Tabs.</p>
+          </div>
+          <Link href="/" className="button-secondary button-small">
+            Back to app
+          </Link>
+        </header>
+
+        <nav className="admin-tabs">
+          {["posts", "categories", "tags", "clusters"].map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              className={activeTab === tab ? "active" : ""}
+              onClick={() => {
+                setActiveTab(tab);
+                router.replace({ query: { tab } }, undefined, { shallow: true });
+              }}
+            >
+              {tab[0].toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </nav>
+
+        {error && <div className="error">{error}</div>}
+        {statusMessage && <div className="success">{statusMessage}</div>}
+
+        {activeTab === "posts" && (
+          <div className="admin-grid">
+            <section className="admin-panel">
+              <div className="panel-header">
+                <h2>Posts</h2>
+                <button type="button" className="button-secondary button-small" onClick={resetForm}>
+                  New post
+                </button>
+              </div>
+              <div className="panel-filters">
+                <input
+                  type="text"
+                  placeholder="Search posts"
+                  value={filters.search}
+                  onChange={(event) =>
+                    setFilters((prev) => ({ ...prev, search: event.target.value }))
+                  }
+                />
+                <select
+                  value={filters.status}
+                  onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}
+                >
+                  <option value="">All statuses</option>
+                  <option value="DRAFT">Draft</option>
+                  <option value="SCHEDULED">Scheduled</option>
+                  <option value="PUBLISHED">Published</option>
+                </select>
+                <select
+                  value={filters.category}
+                  onChange={(event) =>
+                    setFilters((prev) => ({ ...prev, category: event.target.value }))
+                  }
+                >
+                  <option value="">All categories</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.slug}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={filters.tag}
+                  onChange={(event) => setFilters((prev) => ({ ...prev, tag: event.target.value }))}
+                >
+                  <option value="">All tags</option>
+                  {tags.map((tag) => (
+                    <option key={tag.id} value={tag.slug}>
+                      {tag.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={filters.cluster}
+                  onChange={(event) =>
+                    setFilters((prev) => ({ ...prev, cluster: event.target.value }))
+                  }
+                >
+                  <option value="">All clusters</option>
+                  {clusters.map((cluster) => (
+                    <option key={cluster.id} value={cluster.slug}>
+                      {cluster.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {loading && <p className="muted">Loading...</p>}
+              <ul className="admin-list">
+                {posts.map((post) => (
+                  <li key={post.id}>
+                    <div>
+                      <strong>{post.title}</strong>
+                      <span className="muted">{post.status}</span>
+                    </div>
+                    <div className="admin-actions">
+                      <button type="button" onClick={() => handleEditPost(post.id)}>
+                        Edit
+                      </button>
+                      <button type="button" onClick={() => handleDeletePost(post.id)}>
+                        Delete
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="admin-panel">
+              <div className="panel-header">
+                <h2>{postForm.id ? "Edit post" : "New post"}</h2>
+                <div className="panel-actions">
+                  {postForm.slug && (
+                    <button
+                      type="button"
+                      className="button-secondary button-small"
+                      onClick={() => window.open(previewLink, "_blank")}
+                    >
+                      Preview
+                    </button>
+                  )}
+                  <button type="button" className="button-secondary button-small" onClick={handlePreview}>
+                    Markdown preview
+                  </button>
+                </div>
+              </div>
+              <div className="form-grid">
+                <label>
+                  Title
+                  <input
+                    type="text"
+                    value={postForm.title}
+                    onChange={(event) => {
+                      setPostForm((prev) => ({ ...prev, title: event.target.value }));
+                      setDirty(true);
+                    }}
+                  />
+                </label>
+                <label>
+                  Slug
+                  <input
+                    type="text"
+                    value={postForm.slug}
+                    onChange={(event) => {
+                      setSlugTouched(true);
+                      setPostForm((prev) => ({ ...prev, slug: event.target.value }));
+                      setDirty(true);
+                    }}
+                  />
+                </label>
+                <label className="full">
+                  Excerpt
+                  <textarea
+                    value={postForm.excerpt}
+                    onChange={(event) => {
+                      setPostForm((prev) => ({ ...prev, excerpt: event.target.value }));
+                      setDirty(true);
+                    }}
+                  />
+                </label>
+                <label className="full">
+                  Content (Markdown)
+                  <textarea
+                    className="editor"
+                    value={postForm.content}
+                    onChange={(event) => {
+                      setPostForm((prev) => ({ ...prev, content: event.target.value }));
+                      setDirty(true);
+                    }}
+                  />
+                </label>
+                <label className="full">
+                  Cover image URL
+                  <input
+                    type="url"
+                    value={postForm.coverImageUrl}
+                    onChange={(event) => {
+                      setPostForm((prev) => ({ ...prev, coverImageUrl: event.target.value }));
+                      setDirty(true);
+                    }}
+                  />
+                </label>
+                <label>
+                  Status
+                  <select
+                    value={postForm.status}
+                    onChange={(event) => {
+                      setPostForm((prev) => ({
+                        ...prev,
+                        status: event.target.value as PostForm["status"],
+                      }));
+                      setDirty(true);
+                    }}
+                  >
+                    <option value="DRAFT">Draft</option>
+                    <option value="SCHEDULED">Scheduled</option>
+                    <option value="PUBLISHED">Published</option>
+                  </select>
+                </label>
+                <label>
+                  Publish at
+                  <input
+                    type="datetime-local"
+                    value={postForm.publishAt}
+                    onChange={(event) => {
+                      setPostForm((prev) => ({ ...prev, publishAt: event.target.value }));
+                      setDirty(true);
+                    }}
+                  />
+                </label>
+                <label>
+                  SEO title
+                  <input
+                    type="text"
+                    value={postForm.seoTitle}
+                    onChange={(event) => {
+                      setPostForm((prev) => ({ ...prev, seoTitle: event.target.value }));
+                      setDirty(true);
+                    }}
+                  />
+                </label>
+                <label>
+                  SEO description
+                  <input
+                    type="text"
+                    value={postForm.seoDescription}
+                    onChange={(event) => {
+                      setPostForm((prev) => ({ ...prev, seoDescription: event.target.value }));
+                      setDirty(true);
+                    }}
+                  />
+                </label>
+                <label className="full">
+                  Canonical URL
+                  <input
+                    type="url"
+                    value={postForm.canonicalUrl}
+                    onChange={(event) => {
+                      setPostForm((prev) => ({ ...prev, canonicalUrl: event.target.value }));
+                      setDirty(true);
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div className="form-grid">
+                <div>
+                  <h3>Categories</h3>
+                  {categories.map((category) => (
+                    <label key={category.id} className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={postForm.categories.includes(category.id)}
+                        onChange={(event) => {
+                          setPostForm((prev) => ({
+                            ...prev,
+                            categories: event.target.checked
+                              ? [...prev.categories, category.id]
+                              : prev.categories.filter((id) => id !== category.id),
+                          }));
+                          setDirty(true);
+                        }}
+                      />
+                      {category.name}
+                    </label>
+                  ))}
+                </div>
+                <div>
+                  <h3>Tags</h3>
+                  {tags.map((tag) => (
+                    <label key={tag.id} className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={postForm.tags.includes(tag.id)}
+                        onChange={(event) => {
+                          setPostForm((prev) => ({
+                            ...prev,
+                            tags: event.target.checked
+                              ? [...prev.tags, tag.id]
+                              : prev.tags.filter((id) => id !== tag.id),
+                          }));
+                          setDirty(true);
+                        }}
+                      />
+                      {tag.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-grid">
+                <div className="full">
+                  <h3>Topic clusters</h3>
+                  {clusters.map((cluster) => {
+                    const selected = postForm.clusters.find((item) => item.id === cluster.id);
+                    return (
+                      <div key={cluster.id} className="cluster-row">
+                        <label className="checkbox-row">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(selected)}
+                            onChange={(event) => {
+                              setPostForm((prev) => ({
+                                ...prev,
+                                clusters: event.target.checked
+                                  ? [...prev.clusters, { id: cluster.id, isPillar: false }]
+                                  : prev.clusters.filter((item) => item.id !== cluster.id),
+                              }));
+                              setDirty(true);
+                            }}
+                          />
+                          {cluster.name}
+                        </label>
+                        {selected && (
+                          <label className="checkbox-row">
+                            <input
+                              type="checkbox"
+                              checked={selected.isPillar}
+                              onChange={(event) => {
+                                setPostForm((prev) => ({
+                                  ...prev,
+                                  clusters: prev.clusters.map((item) =>
+                                    item.id === cluster.id
+                                      ? { ...item, isPillar: event.target.checked }
+                                      : item
+                                  ),
+                                }));
+                                setDirty(true);
+                              }}
+                            />
+                            Pillar post
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {previewMode && (
+                <div className="markdown-preview">
+                  <h3>Preview</h3>
+                  <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                </div>
+              )}
+
+              <div className="button-row">
+                <button type="button" className="button-secondary" onClick={() => savePost("DRAFT")}>
+                  Save draft
+                </button>
+                <button type="button" className="button-secondary" onClick={() => savePost("SCHEDULED")}>
+                  Schedule
+                </button>
+                <button type="button" className="button-primary" onClick={() => savePost("PUBLISHED")}>
+                  Publish now
+                </button>
+                {postForm.id && (
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => savePost("DRAFT")}
+                  >
+                    Unpublish
+                  </button>
+                )}
+              </div>
+            </section>
+          </div>
+        )}
+
+        {activeTab !== "posts" && (
+          <AdminTaxonomyTab
+            type={activeTab as "categories" | "tags" | "clusters"}
+            items={activeTab === "categories" ? categories : activeTab === "tags" ? tags : clusters}
+            onSave={handleTaxonomySave}
+            onDelete={handleTaxonomyDelete}
+          />
+        )}
+      </div>
+    </main>
+  );
+}
+
+function AdminTaxonomyTab({
+  type,
+  items,
+  onSave,
+  onDelete,
+}: {
+  type: "categories" | "tags" | "clusters";
+  items: TaxonomyItem[];
+  onSave: (type: "categories" | "tags" | "clusters", form: TaxonomyItem) => void;
+  onDelete: (type: "categories" | "tags" | "clusters", id: string) => void;
+}) {
+  const [form, setForm] = useState<TaxonomyItem>({ id: "", name: "", slug: "", description: "" });
+
+  return (
+    <div className="admin-grid">
+      <section className="admin-panel">
+        <div className="panel-header">
+          <h2>{type[0].toUpperCase() + type.slice(1)}</h2>
+        </div>
+        <ul className="admin-list">
+          {items.map((item) => (
+            <li key={item.id}>
+              <div>
+                <strong>{item.name}</strong>
+                <span className="muted">{item.slug}</span>
+              </div>
+              <div className="admin-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm({
+                      id: item.id,
+                      name: item.name,
+                      slug: item.slug,
+                      description: item.description || "",
+                    })
+                  }
+                >
+                  Edit
+                </button>
+                <button type="button" onClick={() => onDelete(type, item.id)}>
+                  Delete
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="admin-panel">
+        <div className="panel-header">
+          <h2>{form.id ? "Edit" : "Create"} {type.slice(0, -1)}</h2>
+        </div>
+        <div className="form-grid">
+          <label>
+            Name
+            <input
+              type="text"
+              value={form.name}
+              onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+            />
+          </label>
+          <label>
+            Slug
+            <input
+              type="text"
+              value={form.slug}
+              onChange={(event) => setForm((prev) => ({ ...prev, slug: event.target.value }))}
+            />
+          </label>
+          {type !== "tags" && (
+            <label className="full">
+              Description
+              <textarea
+                value={form.description || ""}
+                onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+              />
+            </label>
+          )}
+        </div>
+        <div className="button-row">
+          <button type="button" className="button-primary" onClick={() => onSave(type, form)}>
+            {form.id ? "Update" : "Create"}
+          </button>
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => setForm({ id: "", name: "", slug: "", description: "" })}
+          >
+            Clear
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
+  const session = await getServerSession(ctx.req, ctx.res, authOptions);
+  const isAdmin = session?.user?.role === "ADMIN";
+  if (!isAdmin) {
+    return {
+      redirect: {
+        destination: "/auth/login",
+        permanent: false,
+      },
+    };
+  }
+  return {
+    props: { isAdmin: true },
+  };
+};

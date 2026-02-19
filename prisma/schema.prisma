@@ -56,6 +56,7 @@ model User {
   accounts        Account[]
   sessions        Session[]
   tabs            TabJob[]
+  posts           Post[]
 }
 
 model TabJob {
@@ -94,4 +95,94 @@ model UserConsent {
   granted       Boolean
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model Post {
+  id             String       @id @default(cuid())
+  title          String
+  slug           String       @unique
+  excerpt        String
+  content        String
+  coverImageUrl  String?
+  status         PostStatus   @default(DRAFT)
+  publishAt      DateTime?
+  publishedAt    DateTime?
+  seoTitle       String?
+  seoDescription String?
+  canonicalUrl   String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  authorId       String
+  author         User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  categories     PostCategory[]
+  tags           PostTag[]
+  clusters       PostCluster[]
+
+  @@index([status, publishAt])
+}
+
+model Category {
+  id          String         @id @default(cuid())
+  name        String
+  slug        String         @unique
+  description String?
+  posts       PostCategory[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  posts     PostTag[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model TopicCluster {
+  id          String        @id @default(cuid())
+  name        String
+  slug        String        @unique
+  description String?
+  posts       PostCluster[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model PostCategory {
+  postId     String
+  categoryId String
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([postId, categoryId])
+  @@index([categoryId])
+}
+
+model PostTag {
+  postId String
+  tagId  String
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@index([tagId])
+}
+
+model PostCluster {
+  postId    String
+  clusterId String
+  isPillar  Boolean @default(false)
+  post      Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  cluster   TopicCluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+
+  @@id([postId, clusterId])
+  @@index([clusterId])
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
 }
