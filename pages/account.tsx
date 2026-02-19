@@ -151,6 +151,11 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
                 Admin analytics
               </Link>
             )}
+            {isAdmin && (
+              <Link href="/admin/blog" className="button-secondary">
+                Open blog CMS
+              </Link>
+            )}
             <Link href="/reset-password" className="button-secondary">
               Change password
             </Link>
