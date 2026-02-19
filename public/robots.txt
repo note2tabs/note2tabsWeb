@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://note2tabs.com/sitemap.xml
