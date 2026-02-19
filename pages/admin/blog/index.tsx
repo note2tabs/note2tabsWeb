@@ -49,6 +49,16 @@ type Props = {
   isAdmin: boolean;
 };
 
+const readJsonSafe = async (res: Response) => {
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) return null;
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+};
+
 const emptyPost = (): PostForm => ({
   title: "",
   slug: "",
@@ -130,20 +140,40 @@ export default function AdminBlogPage({ isAdmin }: Props) {
   }, [dirty]);
 
   const loadTaxonomies = async () => {
+    setError(null);
     try {
       const [catsRes, tagsRes, clustersRes] = await Promise.all([
         fetch("/api/admin/blog/categories"),
         fetch("/api/admin/blog/tags"),
         fetch("/api/admin/blog/clusters"),
       ]);
-      const catsData = await catsRes.json();
-      const tagsData = await tagsRes.json();
-      const clustersData = await clustersRes.json();
-      if (catsRes.ok) setCategories(catsData.categories || []);
-      if (tagsRes.ok) setTags(tagsData.tags || []);
-      if (clustersRes.ok) setClusters(clustersData.clusters || []);
+      const [catsData, tagsData, clustersData] = await Promise.all([
+        readJsonSafe(catsRes),
+        readJsonSafe(tagsRes),
+        readJsonSafe(clustersRes),
+      ]);
+
+      const failed = [
+        { res: catsRes, data: catsData, label: "categories" },
+        { res: tagsRes, data: tagsData, label: "tags" },
+        { res: clustersRes, data: clustersData, label: "topic clusters" },
+      ].find((entry) => !entry.res.ok);
+
+      if (failed) {
+        const apiError =
+          typeof failed.data?.error === "string"
+            ? failed.data.error
+            : `Could not load ${failed.label}.`;
+        setError(apiError);
+        return;
+      }
+
+      setCategories(catsData?.categories || []);
+      setTags(tagsData?.tags || []);
+      setClusters(clustersData?.clusters || []);
     } catch (err) {
-      setError("Could not load taxonomy lists.");
+      const message = err instanceof Error ? err.message : "Could not load taxonomy lists.";
+      setError(message);
     }
   };
 
@@ -157,7 +187,7 @@ export default function AdminBlogPage({ isAdmin }: Props) {
     if (filters.tag) query.set("tag", filters.tag);
     if (filters.cluster) query.set("cluster", filters.cluster);
     const res = await fetch(`/api/admin/blog/posts?${query.toString()}`);
-    const data = await res.json();
+    const data = await readJsonSafe(res);
     setLoading(false);
     if (!res.ok) {
       setError(data?.error || "Could not load posts.");
@@ -322,10 +352,21 @@ export default function AdminBlogPage({ isAdmin }: Props) {
             <h1 className="page-title">Blog Admin</h1>
             <p className="page-subtitle">Create, schedule, and organize posts for Note2Tabs.</p>
           </div>
+          <div className="admin-header-meta">
+            <span>{posts.length} posts</span>
+            <span>{categories.length} categories</span>
+            <span>{tags.length} tags</span>
+            <span>{clusters.length} clusters</span>
+          </div>
           <Link href="/" className="button-secondary button-small">
             Back to app
           </Link>
         </header>
+
+        <div className="admin-banner">
+          Changes save instantly in your production database. If this page cannot load taxonomy data
+          after deployment, run <code>npx prisma migrate deploy</code> for that environment.
+        </div>
 
         <nav className="admin-tabs">
           {["posts", "categories", "tags", "clusters"].map((tab) => (
@@ -415,20 +456,34 @@ export default function AdminBlogPage({ isAdmin }: Props) {
               <ul className="admin-list">
                 {posts.map((post) => (
                   <li key={post.id}>
-                    <div>
+                    <div className="admin-item-main">
                       <strong>{post.title}</strong>
-                      <span className="muted">{post.status}</span>
+                      <div className="admin-item-meta">
+                        <span className={`status-pill status-${post.status.toLowerCase()}`}>{post.status}</span>
+                        <span className="muted">{new Date(post.updatedAt).toLocaleDateString()}</span>
+                      </div>
                     </div>
                     <div className="admin-actions">
-                      <button type="button" onClick={() => handleEditPost(post.id)}>
+                      <button
+                        type="button"
+                        className="button-secondary button-small"
+                        onClick={() => handleEditPost(post.id)}
+                      >
                         Edit
                       </button>
-                      <button type="button" onClick={() => handleDeletePost(post.id)}>
+                      <button
+                        type="button"
+                        className="button-secondary button-small"
+                        onClick={() => handleDeletePost(post.id)}
+                      >
                         Delete
                       </button>
                     </div>
                   </li>
                 ))}
+                {!loading && posts.length === 0 && (
+                  <li className="admin-empty">No posts yet. Click "New post" to create your first article.</li>
+                )}
               </ul>
             </section>
 
@@ -729,13 +784,14 @@ function AdminTaxonomyTab({
         <ul className="admin-list">
           {items.map((item) => (
             <li key={item.id}>
-              <div>
+              <div className="admin-item-main">
                 <strong>{item.name}</strong>
-                <span className="muted">{item.slug}</span>
+                <span className="muted">/{item.slug}</span>
               </div>
               <div className="admin-actions">
                 <button
                   type="button"
+                  className="button-secondary button-small"
                   onClick={() =>
                     setForm({
                       id: item.id,
@@ -747,12 +803,21 @@ function AdminTaxonomyTab({
                 >
                   Edit
                 </button>
-                <button type="button" onClick={() => onDelete(type, item.id)}>
+                <button
+                  type="button"
+                  className="button-secondary button-small"
+                  onClick={() => onDelete(type, item.id)}
+                >
                   Delete
                 </button>
               </div>
             </li>
           ))}
+          {items.length === 0 && (
+            <li className="admin-empty">
+              No {type} yet. Create one on the right to organize your content.
+            </li>
+          )}
         </ul>
       </section>
 

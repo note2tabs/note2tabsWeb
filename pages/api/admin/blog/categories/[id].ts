@@ -6,47 +6,52 @@ import { isAdminSession } from "../../../../../lib/admin";
 import { rateLimit } from "../../../../../lib/rateLimit";
 import { taxonomyInputSchema } from "../../../../../lib/blogValidators";
 import { slugify } from "../../../../../lib/slug";
+import { sendBlogApiError } from "../../../../../lib/blogApiError";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (!rateLimit(req, res, { id: "admin-blog-category", limit: 60, windowMs: 60_000 })) {
-    return;
-  }
-  const session = await getServerSession(req, res, authOptions);
-  if (!isAdminSession(session)) {
-    return res.status(403).json({ error: "Admin access required." });
-  }
-
-  const id = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
-  if (!id) {
-    return res.status(400).json({ error: "Missing category id." });
-  }
-
-  if (req.method === "PUT") {
-    const parsed = taxonomyInputSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: "Invalid payload.", details: parsed.error.flatten() });
+  try {
+    if (!rateLimit(req, res, { id: "admin-blog-category", limit: 60, windowMs: 60_000 })) {
+      return;
     }
-    const slug = slugify(parsed.data.slug || parsed.data.name);
-    const existing = await prisma.category.findUnique({ where: { slug } });
-    if (existing && existing.id !== id) {
-      return res.status(409).json({ error: "Slug already exists." });
+    const session = await getServerSession(req, res, authOptions);
+    if (!isAdminSession(session)) {
+      return res.status(403).json({ error: "Admin access required." });
     }
-    const category = await prisma.category.update({
-      where: { id },
-      data: {
-        name: parsed.data.name,
-        slug,
-        description: parsed.data.description || null,
-      },
-    });
-    return res.status(200).json({ category });
-  }
 
-  if (req.method === "DELETE") {
-    await prisma.category.delete({ where: { id } });
-    return res.status(200).json({ ok: true });
-  }
+    const id = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
+    if (!id) {
+      return res.status(400).json({ error: "Missing category id." });
+    }
 
-  res.setHeader("Allow", ["PUT", "DELETE"]);
-  return res.status(405).json({ error: "Method not allowed." });
+    if (req.method === "PUT") {
+      const parsed = taxonomyInputSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid payload.", details: parsed.error.flatten() });
+      }
+      const slug = slugify(parsed.data.slug || parsed.data.name);
+      const existing = await prisma.category.findUnique({ where: { slug } });
+      if (existing && existing.id !== id) {
+        return res.status(409).json({ error: "Slug already exists." });
+      }
+      const category = await prisma.category.update({
+        where: { id },
+        data: {
+          name: parsed.data.name,
+          slug,
+          description: parsed.data.description || null,
+        },
+      });
+      return res.status(200).json({ category });
+    }
+
+    if (req.method === "DELETE") {
+      await prisma.category.delete({ where: { id } });
+      return res.status(200).json({ ok: true });
+    }
+
+    res.setHeader("Allow", ["PUT", "DELETE"]);
+    return res.status(405).json({ error: "Method not allowed." });
+  } catch (error) {
+    return sendBlogApiError(res, error, "Could not process category request.");
+  }
 }
