@@ -106,6 +106,27 @@ type ChordRef = {
   tabs: TabCoord[];
 };
 
+type TempNoteMapping = {
+  tempId: number;
+  signature: string;
+};
+
+type TempChordMapping = {
+  tempId: number;
+  signature: string;
+};
+
+type OptimisticMutation = {
+  id: number;
+  label: string;
+  before: EditorSnapshot;
+  optimistic: EditorSnapshot;
+  apply: (snapshot: EditorSnapshot) => EditorSnapshot;
+  commit: () => Promise<{ snapshot?: EditorSnapshot }>;
+  createdNotes?: TempNoteMapping[];
+  createdChords?: TempChordMapping[];
+};
+
 export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: Props) {
   const router = useRouter();
   const [scale, setScale] = useState(4);
@@ -200,6 +221,13 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   const undoRef = useRef<EditorSnapshot[]>([]);
   const redoRef = useRef<EditorSnapshot[]>([]);
   const snapshotRef = useRef<EditorSnapshot>(snapshot);
+  const pendingMutationsRef = useRef<OptimisticMutation[]>([]);
+  const mutationSeqRef = useRef(0);
+  const mutationProcessingRef = useRef(false);
+  const tempNoteIdRef = useRef(-1);
+  const tempChordIdRef = useRef(-1);
+  const noteIdMapRef = useRef<Map<number, number>>(new Map());
+  const chordIdMapRef = useRef<Map<number, number>>(new Map());
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const timelineOuterRef = useRef<HTMLDivElement | null>(null);
   const draftFretRef = useRef<HTMLInputElement | null>(null);
@@ -481,8 +509,13 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
   useEffect(() => {
     if (selectedNoteIds.length === 1) {
+      const resolvedId = noteIdMapRef.current.get(selectedNoteIds[0]) ?? selectedNoteIds[0];
+      if (resolvedId < 0) {
+        setNoteAlternates(null);
+        return;
+      }
       void gteApi
-        .getNoteOptimals(editorId, selectedNoteIds[0])
+        .getNoteOptimals(editorId, resolvedId)
         .then((data) => setNoteAlternates(data))
         .catch(() => setNoteAlternates(null));
     } else {
@@ -520,8 +553,13 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   useEffect(() => {
     const activeId = activeChordIds[0];
     if (activeId !== undefined) {
+      const resolvedId = chordIdMapRef.current.get(activeId) ?? activeId;
+      if (resolvedId < 0) {
+        setChordAlternatives([]);
+        return;
+      }
       void gteApi
-        .getChordAlternatives(editorId, activeId)
+        .getChordAlternatives(editorId, resolvedId)
         .then((data) => setChordAlternatives(data.alternatives || []))
         .catch(() => setChordAlternatives([]));
     } else {
@@ -632,6 +670,177 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       setBusy(false);
     }
   };
+
+  const getTempNoteId = useCallback(() => {
+    tempNoteIdRef.current -= 1;
+    return tempNoteIdRef.current;
+  }, []);
+
+  const getTempChordId = useCallback(() => {
+    tempChordIdRef.current -= 1;
+    return tempChordIdRef.current;
+  }, []);
+
+  const resolveNoteId = useCallback(
+    (id: number) => noteIdMapRef.current.get(id) ?? id,
+    []
+  );
+
+  const resolveChordId = useCallback(
+    (id: number) => chordIdMapRef.current.get(id) ?? id,
+    []
+  );
+
+  const noteSignature = useCallback((startTime: number, length: number, tab: TabCoord) => {
+    return `${startTime}|${length}|${tab[0]}|${tab[1]}`;
+  }, []);
+
+  const chordSignature = useCallback((startTime: number, length: number, tabs: TabCoord[]) => {
+    const tabKey = tabs.map((tab) => `${tab[0]}|${tab[1]}`).join(",");
+    return `${startTime}|${length}|${tabKey}`;
+  }, []);
+
+  const applyNoteIdMapping = useCallback(
+    (mapping: Map<number, number>) => {
+      if (!mapping.size) return;
+      mapping.forEach((real, temp) => noteIdMapRef.current.set(temp, real));
+      setSelectedNoteIds((prev) => prev.map((id) => mapping.get(id) ?? id));
+      setNoteMenuNoteId((prev) => (prev !== null ? mapping.get(prev) ?? prev : prev));
+      setResizingNote((prev) => (prev ? { ...prev, id: mapping.get(prev.id) ?? prev.id } : prev));
+      setDragging((prev) => {
+        if (!prev || prev.type !== "note") return prev;
+        return { ...prev, id: mapping.get(prev.id) ?? prev.id };
+      });
+    },
+    [setSelectedNoteIds, setNoteMenuNoteId, setResizingNote, setDragging]
+  );
+
+  const applyChordIdMapping = useCallback(
+    (mapping: Map<number, number>) => {
+      if (!mapping.size) return;
+      mapping.forEach((real, temp) => chordIdMapRef.current.set(temp, real));
+      setSelectedChordIds((prev) => prev.map((id) => mapping.get(id) ?? id));
+      setChordMenuChordId((prev) => (prev !== null ? mapping.get(prev) ?? prev : prev));
+      setEditingChordId((prev) => (prev !== null ? mapping.get(prev) ?? prev : prev));
+      setResizingChord((prev) => (prev ? { ...prev, id: mapping.get(prev.id) ?? prev.id } : prev));
+      setDragging((prev) => {
+        if (!prev || prev.type !== "chord") return prev;
+        return { ...prev, id: mapping.get(prev.id) ?? prev.id };
+      });
+    },
+    [setSelectedChordIds, setChordMenuChordId, setEditingChordId, setResizingChord, setDragging]
+  );
+
+  const processMutationQueue = useCallback(async () => {
+    if (mutationProcessingRef.current) return;
+    mutationProcessingRef.current = true;
+    while (pendingMutationsRef.current.length) {
+      const mutation = pendingMutationsRef.current[0];
+      try {
+        const data = await mutation.commit();
+        if (data.snapshot) {
+          const serverSnapshot = data.snapshot;
+          if (mutation.createdNotes?.length) {
+            const beforeIds = new Set(mutation.before.notes.map((note) => note.id));
+            const candidates = serverSnapshot.notes.filter((note) => !beforeIds.has(note.id));
+            const bySignature = new Map<string, number[]>();
+            candidates.forEach((note) => {
+              const signature = noteSignature(note.startTime, note.length, note.tab);
+              const list = bySignature.get(signature) ?? [];
+              list.push(note.id);
+              bySignature.set(signature, list);
+            });
+            const mapping = new Map<number, number>();
+            mutation.createdNotes.forEach((created) => {
+              const list = bySignature.get(created.signature);
+              if (list && list.length) {
+                mapping.set(created.tempId, list.shift() as number);
+              }
+            });
+            applyNoteIdMapping(mapping);
+          }
+          if (mutation.createdChords?.length) {
+            const beforeIds = new Set(mutation.before.chords.map((chord) => chord.id));
+            const candidates = serverSnapshot.chords.filter((chord) => !beforeIds.has(chord.id));
+            const bySignature = new Map<string, number[]>();
+            candidates.forEach((chord) => {
+              const signature = chordSignature(chord.startTime, chord.length, chord.currentTabs);
+              const list = bySignature.get(signature) ?? [];
+              list.push(chord.id);
+              bySignature.set(signature, list);
+            });
+            const mapping = new Map<number, number>();
+            mutation.createdChords.forEach((created) => {
+              const list = bySignature.get(created.signature);
+              if (list && list.length) {
+                mapping.set(created.tempId, list.shift() as number);
+              }
+            });
+            applyChordIdMapping(mapping);
+          }
+          pendingMutationsRef.current.shift();
+          let nextSnapshot = serverSnapshot;
+          pendingMutationsRef.current.forEach((pending) => {
+            nextSnapshot = pending.apply(cloneSnapshot(nextSnapshot));
+          });
+          applySnapshot(nextSnapshot, { recordUndo: false });
+        } else {
+          pendingMutationsRef.current.shift();
+        }
+      } catch (err: any) {
+        pendingMutationsRef.current.shift();
+        setError(err?.message || "Something went wrong.");
+        let nextSnapshot = mutation.before;
+        pendingMutationsRef.current.forEach((pending) => {
+          nextSnapshot = pending.apply(cloneSnapshot(nextSnapshot));
+        });
+        applySnapshot(nextSnapshot, { recordUndo: false });
+        undoRef.current = [];
+        redoRef.current = [];
+        setUndoCount(0);
+        setRedoCount(0);
+      }
+    }
+    mutationProcessingRef.current = false;
+  }, [
+    applySnapshot,
+    applyChordIdMapping,
+    applyNoteIdMapping,
+    chordSignature,
+    cloneSnapshot,
+    noteSignature,
+  ]);
+
+  const enqueueOptimisticMutation = useCallback(
+    (input: {
+      label: string;
+      apply: (snapshot: EditorSnapshot) => EditorSnapshot;
+      commit: () => Promise<{ snapshot?: EditorSnapshot }>;
+      createdNotes?: TempNoteMapping[];
+      createdChords?: TempChordMapping[];
+    }) => {
+      const current = snapshotRef.current;
+      if (!current) return;
+      setError(null);
+      const before = cloneSnapshot(current);
+      const optimistic = input.apply(cloneSnapshot(before));
+      const mutation: OptimisticMutation = {
+        id: mutationSeqRef.current + 1,
+        label: input.label,
+        before,
+        optimistic,
+        apply: input.apply,
+        commit: input.commit,
+        createdNotes: input.createdNotes,
+        createdChords: input.createdChords,
+      };
+      mutationSeqRef.current += 1;
+      pendingMutationsRef.current.push(mutation);
+      applySnapshot(optimistic);
+      void processMutationQueue();
+    },
+    [applySnapshot, cloneSnapshot, processMutationQueue]
+  );
 
   const applySnapshotToBackend = useCallback(
     async (value: EditorSnapshot) => {
@@ -767,33 +976,129 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   };
 
   const handleSliceAtTime = (sliceTime: number) => {
-    const notesToSlice = snapshot.notes.filter((note) => selectedNoteIds.includes(note.id));
-    const chordsToSlice = snapshot.chords.filter((chord) => selectedChordIds.includes(chord.id));
-    if (!notesToSlice.length && !chordsToSlice.length) return;
-    void runMutation(async () => {
-      let last: Awaited<ReturnType<typeof gteApi.addNote>> | Awaited<ReturnType<typeof gteApi.sliceChord>> | null =
-        null;
-      for (const note of notesToSlice) {
+    const notesToSlice = snapshot.notes
+      .filter((note) => selectedNoteIds.includes(note.id))
+      .map((note) => {
         const start = note.startTime;
         const end = note.startTime + note.length;
-        if (sliceTime <= start || sliceTime >= end) continue;
+        if (sliceTime <= start || sliceTime >= end) return null;
         const leftLength = sliceTime - start;
         const rightLength = end - sliceTime;
-        if (leftLength < 1 || rightLength < 1) continue;
-        await gteApi.setNoteLength(editorId, note.id, leftLength);
-        last = await gteApi.addNote(editorId, {
-          tab: note.tab,
-          startTime: sliceTime,
-          length: rightLength,
-        });
-      }
-      for (const chord of chordsToSlice) {
+        if (leftLength < 1 || rightLength < 1) return null;
+        return {
+          id: note.id,
+          tab: note.tab as TabCoord,
+          start,
+          leftLength,
+          rightLength,
+          tempId: getTempNoteId(),
+        };
+      })
+      .filter(
+        (
+          item
+        ): item is {
+          id: number;
+          tab: TabCoord;
+          start: number;
+          leftLength: number;
+          rightLength: number;
+          tempId: number;
+        } => Boolean(item)
+      );
+    const chordsToSlice = snapshot.chords
+      .filter((chord) => selectedChordIds.includes(chord.id))
+      .map((chord) => {
         const start = chord.startTime;
         const end = chord.startTime + chord.length;
-        if (sliceTime <= start || sliceTime >= end) continue;
-        last = await gteApi.sliceChord(editorId, chord.id, sliceTime);
-      }
-      return last ?? {};
+        if (sliceTime <= start || sliceTime >= end) return null;
+        const leftLength = sliceTime - start;
+        const rightLength = end - sliceTime;
+        if (leftLength < 1 || rightLength < 1) return null;
+        return {
+          id: chord.id,
+          start,
+          leftLength,
+          rightLength,
+          tempId: getTempChordId(),
+          currentTabs: chord.currentTabs.map((tab) => [tab[0], tab[1]] as TabCoord),
+          ogTabs: chord.ogTabs.map((tab) => [tab[0], tab[1]] as TabCoord),
+          originalMidi: chord.originalMidi.slice(),
+        };
+      })
+      .filter(
+        (
+          item
+        ): item is {
+          id: number;
+          start: number;
+          leftLength: number;
+          rightLength: number;
+          tempId: number;
+          currentTabs: TabCoord[];
+          ogTabs: TabCoord[];
+          originalMidi: number[];
+        } => Boolean(item)
+      );
+    if (!notesToSlice.length && !chordsToSlice.length) return;
+    const createdNotes: TempNoteMapping[] = notesToSlice.map((note) => ({
+      tempId: note.tempId,
+      signature: noteSignature(sliceTime, note.rightLength, note.tab),
+    }));
+    const createdChords: TempChordMapping[] = chordsToSlice.map((chord) => ({
+      tempId: chord.tempId,
+      signature: chordSignature(sliceTime, chord.rightLength, chord.currentTabs),
+    }));
+    enqueueOptimisticMutation({
+      label: "slice",
+      createdNotes,
+      createdChords,
+      apply: (draft) => {
+        notesToSlice.forEach((note) => {
+          const noteId = resolveNoteId(note.id);
+          const target = draft.notes.find((item) => item.id === noteId);
+          if (!target) return;
+          target.length = note.leftLength;
+          draft.notes.push({
+            id: note.tempId,
+            startTime: sliceTime,
+            length: note.rightLength,
+            midiNum: 0,
+            tab: [note.tab[0], note.tab[1]],
+            optimals: [],
+          });
+        });
+        chordsToSlice.forEach((chord) => {
+          const chordId = resolveChordId(chord.id);
+          const target = draft.chords.find((item) => item.id === chordId);
+          if (!target) return;
+          target.length = chord.leftLength;
+          draft.chords.push({
+            id: chord.tempId,
+            startTime: sliceTime,
+            length: chord.rightLength,
+            originalMidi: chord.originalMidi.slice(),
+            currentTabs: chord.currentTabs.map((tab) => [tab[0], tab[1]] as TabCoord),
+            ogTabs: chord.ogTabs.map((tab) => [tab[0], tab[1]] as TabCoord),
+          });
+        });
+        return draft;
+      },
+      commit: async () => {
+        let last: { snapshot?: EditorSnapshot } | null = null;
+        for (const note of notesToSlice) {
+          await gteApi.setNoteLength(editorId, resolveNoteId(note.id), note.leftLength);
+          last = await gteApi.addNote(editorId, {
+            tab: note.tab,
+            startTime: sliceTime,
+            length: note.rightLength,
+          });
+        }
+        for (const chord of chordsToSlice) {
+          last = await gteApi.sliceChord(editorId, resolveChordId(chord.id), sliceTime);
+        }
+        return last ?? {};
+      },
     });
   };
 
@@ -826,7 +1131,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
         setDragPreview(next);
       }
     };
-    const handleUp = async () => {
+    const handleUp = () => {
       const preview = dragPreviewRef.current;
       if (!preview) {
         setDragging(null);
@@ -839,35 +1144,57 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
         const rawStart = Math.round(preview.startTime ?? dragging.startTime);
         const maxStart = Math.max(0, timelineEnd - safeLength);
         const targetStart = clamp(rawStart, 0, maxStart);
-        let didMove = false;
-        setBusy(true);
-        setError(null);
-        try {
-          if (targetString !== dragging.stringIndex) {
-            const nextTab: TabCoord = [targetString, dragging.fret ?? 0];
-            const res = await gteApi.assignNoteTab(editorId, dragging.id, nextTab);
-            applySnapshot(res.snapshot);
-            playNotePreview(nextTab);
-            didMove = true;
-          }
-          if (targetStart !== dragging.startTime) {
-            const res = await gteApi.setNoteStartTime(editorId, dragging.id, targetStart);
-            applySnapshot(res.snapshot);
-            didMove = true;
-          }
-        } catch (err: any) {
-          setError(err?.message || "Could not move note.");
-        } finally {
-          setBusy(false);
+        const didChangeString = targetString !== dragging.stringIndex;
+        const didChangeStart = targetStart !== dragging.startTime;
+        if (didChangeString || didChangeStart) {
+          const nextTab: TabCoord = [targetString, dragging.fret ?? 0];
+          enqueueOptimisticMutation({
+            label: "drag-note",
+            apply: (draft) => {
+              const noteId = resolveNoteId(dragging.id);
+              const note = draft.notes.find((item) => item.id === noteId);
+              if (!note) return draft;
+              if (didChangeString) {
+                note.tab = [targetString, note.tab[1]];
+                note.midiNum = 0;
+              }
+              if (didChangeStart) {
+                note.startTime = targetStart;
+              }
+              return draft;
+            },
+            commit: async () => {
+              let last: { snapshot?: EditorSnapshot } | null = null;
+              const resolvedId = resolveNoteId(dragging.id);
+              if (didChangeString) {
+                last = await gteApi.assignNoteTab(editorId, resolvedId, nextTab);
+                playNotePreview(nextTab);
+              }
+              if (didChangeStart) {
+                last = await gteApi.setNoteStartTime(editorId, resolvedId, targetStart);
+              }
+              return last ?? {};
+            },
+          });
         }
-        noteDragMovedRef.current = didMove;
+        noteDragMovedRef.current = didChangeString || didChangeStart;
       } else if (dragging.type === "chord") {
         const safeLength = Math.max(1, Math.round(dragging.length));
         const rawStart = Math.round(preview.startTime ?? dragging.startTime);
         const maxStart = Math.max(0, timelineEnd - safeLength);
         const targetStart = clamp(rawStart, 0, maxStart);
         if (targetStart !== dragging.startTime) {
-          void runMutation(() => gteApi.setChordStartTime(editorId, dragging.id, targetStart));
+          enqueueOptimisticMutation({
+            label: "drag-chord",
+            apply: (draft) => {
+              const chordId = resolveChordId(dragging.id);
+              const chord = draft.chords.find((item) => item.id === chordId);
+              if (!chord) return draft;
+              chord.startTime = targetStart;
+              return draft;
+            },
+            commit: () => gteApi.setChordStartTime(editorId, resolveChordId(dragging.id), targetStart),
+          });
         }
       }
       setDragging(null);
@@ -879,17 +1206,19 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", handleUp);
     };
-  }, [
-    dragging,
-    editorId,
-    onSnapshotChange,
-    runMutation,
-    scale,
-    totalFrames,
-    rowFrames,
-    rows,
-    timelineHeight,
-    timelineWidth,
+    }, [
+      dragging,
+      editorId,
+      enqueueOptimisticMutation,
+      playNotePreview,
+      resolveChordId,
+      resolveNoteId,
+      scale,
+      totalFrames,
+      rowFrames,
+      rows,
+      timelineHeight,
+      timelineWidth,
     timelineEnd,
     snapCandidates,
     clamp,
@@ -935,27 +1264,45 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       setMultiDragDelta(delta);
     };
 
-    const handleUp = () => {
-      const delta = multiDragDeltaRef.current ?? 0;
-      if (delta !== 0) {
-        void runMutation(async () => {
-          let last: EditorSnapshot | null = null;
-          for (const note of multiDrag.notes) {
-            const nextStart = note.startTime + delta;
-            const res = await gteApi.setNoteStartTime(editorId, note.id, nextStart);
-            last = res.snapshot;
-          }
-          for (const chord of multiDrag.chords) {
-            const nextStart = chord.startTime + delta;
-            const res = await gteApi.setChordStartTime(editorId, chord.id, nextStart);
-            last = res.snapshot;
-          }
-          return last ? { snapshot: last } : {};
-        });
-      }
-      setMultiDrag(null);
-      setMultiDragDelta(null);
-    };
+      const handleUp = () => {
+        const delta = multiDragDeltaRef.current ?? 0;
+        if (delta !== 0) {
+          enqueueOptimisticMutation({
+            label: "multi-drag",
+            apply: (draft) => {
+              multiDrag.notes.forEach((note) => {
+                const noteId = resolveNoteId(note.id);
+                const target = draft.notes.find((item) => item.id === noteId);
+                if (target) {
+                  target.startTime = note.startTime + delta;
+                }
+              });
+              multiDrag.chords.forEach((chord) => {
+                const chordId = resolveChordId(chord.id);
+                const target = draft.chords.find((item) => item.id === chordId);
+                if (target) {
+                  target.startTime = chord.startTime + delta;
+                }
+              });
+              return draft;
+            },
+            commit: async () => {
+              let last: { snapshot?: EditorSnapshot } | null = null;
+              for (const note of multiDrag.notes) {
+                const nextStart = note.startTime + delta;
+                last = await gteApi.setNoteStartTime(editorId, resolveNoteId(note.id), nextStart);
+              }
+              for (const chord of multiDrag.chords) {
+                const nextStart = chord.startTime + delta;
+                last = await gteApi.setChordStartTime(editorId, resolveChordId(chord.id), nextStart);
+              }
+              return last ?? {};
+            },
+          });
+        }
+        setMultiDrag(null);
+        setMultiDragDelta(null);
+      };
 
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", handleUp);
@@ -963,15 +1310,17 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", handleUp);
     };
-  }, [
-    multiDrag,
-    editorId,
-    runMutation,
-    clamp,
-    scale,
-    rowFrames,
-    rowStride,
-    rows,
+    }, [
+      multiDrag,
+      editorId,
+      enqueueOptimisticMutation,
+      resolveChordId,
+      resolveNoteId,
+      clamp,
+      scale,
+      rowFrames,
+      rowStride,
+      rows,
     timelineHeight,
     timelineWidth,
     timelineEnd,
@@ -1002,14 +1351,25 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       setResizePreviewLength(nextLength);
     };
 
-    const handleUp = () => {
-      const previewLength = resizePreviewRef.current ?? resizingNote.length;
-      if (previewLength !== resizingNote.length) {
-        void runMutation(() => gteApi.setNoteLength(editorId, resizingNote.id, previewLength));
-      }
-      setResizingNote(null);
-      setResizePreviewLength(null);
-    };
+      const handleUp = () => {
+        const previewLength = resizePreviewRef.current ?? resizingNote.length;
+        if (previewLength !== resizingNote.length) {
+          enqueueOptimisticMutation({
+            label: "resize-note",
+            apply: (draft) => {
+              const noteId = resolveNoteId(resizingNote.id);
+              const note = draft.notes.find((item) => item.id === noteId);
+              if (!note) return draft;
+              note.length = previewLength;
+              return draft;
+            },
+            commit: () =>
+              gteApi.setNoteLength(editorId, resolveNoteId(resizingNote.id), previewLength),
+          });
+        }
+        setResizingNote(null);
+        setResizePreviewLength(null);
+      };
 
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", handleUp);
@@ -1017,14 +1377,15 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", handleUp);
     };
-  }, [
-    resizingNote,
-    editorId,
-    runMutation,
-    scale,
-    totalFrames,
-    rowFrames,
-    timelineWidth,
+    }, [
+      resizingNote,
+      editorId,
+      enqueueOptimisticMutation,
+      resolveNoteId,
+      scale,
+      totalFrames,
+      rowFrames,
+      timelineWidth,
     timelineHeight,
     clamp,
     framesPerMeasure,
@@ -1055,14 +1416,25 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       setResizeChordPreviewLength(nextLength);
     };
 
-    const handleUp = () => {
-      const previewLength = resizeChordPreviewRef.current ?? resizingChord.length;
-      if (previewLength !== resizingChord.length) {
-        void runMutation(() => gteApi.setChordLength(editorId, resizingChord.id, previewLength));
-      }
-      setResizingChord(null);
-      setResizeChordPreviewLength(null);
-    };
+      const handleUp = () => {
+        const previewLength = resizeChordPreviewRef.current ?? resizingChord.length;
+        if (previewLength !== resizingChord.length) {
+          enqueueOptimisticMutation({
+            label: "resize-chord",
+            apply: (draft) => {
+              const chordId = resolveChordId(resizingChord.id);
+              const chord = draft.chords.find((item) => item.id === chordId);
+              if (!chord) return draft;
+              chord.length = previewLength;
+              return draft;
+            },
+            commit: () =>
+              gteApi.setChordLength(editorId, resolveChordId(resizingChord.id), previewLength),
+          });
+        }
+        setResizingChord(null);
+        setResizeChordPreviewLength(null);
+      };
 
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", handleUp);
@@ -1070,13 +1442,14 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", handleUp);
     };
-  }, [
-    resizingChord,
-    editorId,
-    runMutation,
-    scale,
-    rowFrames,
-    timelineWidth,
+    }, [
+      resizingChord,
+      editorId,
+      enqueueOptimisticMutation,
+      resolveChordId,
+      scale,
+      rowFrames,
+      timelineWidth,
     timelineHeight,
     clamp,
     framesPerMeasure,
@@ -1668,21 +2041,38 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       return;
     }
     const tab: TabCoord = [draftNote.stringIndex, fret];
+    const tempId = getTempNoteId();
     playNotePreview(tab);
-    void runMutation(() =>
-      gteApi.addNote(editorId, {
-        tab,
-        startTime: draftNote.startTime,
-        length,
-      })
-    );
+    enqueueOptimisticMutation({
+      label: "add-note",
+      createdNotes: [{ tempId, signature: noteSignature(draftNote.startTime, length, tab) }],
+      apply: (draft) => {
+        draft.notes.push({
+          id: tempId,
+          startTime: draftNote.startTime,
+          length,
+          midiNum: 0,
+          tab: [tab[0], tab[1]],
+          optimals: [],
+        });
+        return draft;
+      },
+      commit: () =>
+        gteApi.addNote(editorId, {
+          tab,
+          startTime: draftNote.startTime,
+          length,
+        }),
+    });
     setDraftNote(null);
     setDraftNoteAnchor(null);
   };
 
   const handleAssignOptimals = () => {
     if (!selectedNoteIds.length) return;
-    void runMutation(() => gteApi.assignOptimals(editorId, selectedNoteIds));
+    const resolvedIds = selectedNoteIds.map((id) => resolveNoteId(id)).filter((id) => id >= 0);
+    if (!resolvedIds.length) return;
+    void runMutation(() => gteApi.assignOptimals(editorId, resolvedIds));
   };
 
   const handleJoinSelectedNotes = () => {
@@ -1974,35 +2364,48 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     const lengthValue = Math.max(1, Math.round(length));
     const maxStart = Math.max(0, totalFrames - lengthValue);
     const startValue = clamp(Math.round(startTime), 0, maxStart);
-    setBusy(true);
-    setError(null);
-    try {
-      let nextSnapshot: EditorSnapshot | null = null;
-      if (stringValue !== selectedNote.tab[0] || fretValue !== selectedNote.tab[1]) {
-        const nextTab: TabCoord = [stringValue, fretValue];
-        const res = await gteApi.assignNoteTab(editorId, selectedNote.id, nextTab);
-        nextSnapshot = res.snapshot;
-        applySnapshot(res.snapshot);
-        playNotePreview(nextTab);
-      }
-      if (startValue !== selectedNote.startTime) {
-        const res = await gteApi.setNoteStartTime(editorId, selectedNote.id, startValue);
-        nextSnapshot = res.snapshot;
-        applySnapshot(res.snapshot);
-      }
-      if (lengthValue !== selectedNote.length) {
-        const res = await gteApi.setNoteLength(editorId, selectedNote.id, lengthValue);
-        nextSnapshot = res.snapshot;
-        applySnapshot(res.snapshot);
-      }
-      if (!nextSnapshot) {
-        setError("No changes to save.");
-      }
-    } catch (err: any) {
-      setError(err?.message || "Could not update note.");
-    } finally {
-      setBusy(false);
+    const didChangeTab = stringValue !== selectedNote.tab[0] || fretValue !== selectedNote.tab[1];
+    const didChangeStart = startValue !== selectedNote.startTime;
+    const didChangeLength = lengthValue !== selectedNote.length;
+    if (!didChangeTab && !didChangeStart && !didChangeLength) {
+      setError("No changes to save.");
+      return;
     }
+    const nextTab: TabCoord = [stringValue, fretValue];
+    enqueueOptimisticMutation({
+      label: "update-note",
+      apply: (draft) => {
+        const noteId = resolveNoteId(selectedNote.id);
+        const note = draft.notes.find((item) => item.id === noteId);
+        if (!note) return draft;
+        if (didChangeTab) {
+          note.tab = [nextTab[0], nextTab[1]];
+          note.midiNum = 0;
+        }
+        if (didChangeStart) {
+          note.startTime = startValue;
+        }
+        if (didChangeLength) {
+          note.length = lengthValue;
+        }
+        return draft;
+      },
+      commit: async () => {
+        let last: { snapshot?: EditorSnapshot } | null = null;
+        const resolvedId = resolveNoteId(selectedNote.id);
+        if (didChangeTab) {
+          last = await gteApi.assignNoteTab(editorId, resolvedId, nextTab);
+          playNotePreview(nextTab);
+        }
+        if (didChangeStart) {
+          last = await gteApi.setNoteStartTime(editorId, resolvedId, startValue);
+        }
+        if (didChangeLength) {
+          last = await gteApi.setNoteLength(editorId, resolvedId, lengthValue);
+        }
+        return last ?? {};
+      },
+    });
   };
 
   const handleDeleteNote = () => {
@@ -2148,7 +2551,18 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     if (selectedNote.tab[1] === fretValue) return;
     const nextTab: TabCoord = [selectedNote.tab[0], fretValue];
     playNotePreview(nextTab);
-    void runMutation(() => gteApi.assignNoteTab(editorId, selectedNote.id, nextTab));
+    enqueueOptimisticMutation({
+      label: "note-menu-fret",
+      apply: (draft) => {
+        const noteId = resolveNoteId(selectedNote.id);
+        const note = draft.notes.find((item) => item.id === noteId);
+        if (!note) return draft;
+        note.tab = [nextTab[0], nextTab[1]];
+        note.midiNum = 0;
+        return draft;
+      },
+      commit: () => gteApi.assignNoteTab(editorId, resolveNoteId(selectedNote.id), nextTab),
+    });
   };
 
   const commitNoteMenuLength = () => {
@@ -2159,7 +2573,17 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       return;
     }
     if (selectedNote.length === lengthValue) return;
-    void runMutation(() => gteApi.setNoteLength(editorId, selectedNote.id, lengthValue));
+    enqueueOptimisticMutation({
+      label: "note-menu-length",
+      apply: (draft) => {
+        const noteId = resolveNoteId(selectedNote.id);
+        const note = draft.notes.find((item) => item.id === noteId);
+        if (!note) return draft;
+        note.length = lengthValue;
+        return draft;
+      },
+      commit: () => gteApi.setNoteLength(editorId, resolveNoteId(selectedNote.id), lengthValue),
+    });
   };
 
   const commitChordMenuLength = () => {
@@ -2170,7 +2594,17 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       return;
     }
     if (selectedChord.length === lengthValue) return;
-    void runMutation(() => gteApi.setChordLength(editorId, selectedChord.id, lengthValue));
+    enqueueOptimisticMutation({
+      label: "chord-menu-length",
+      apply: (draft) => {
+        const chordId = resolveChordId(selectedChord.id);
+        const chord = draft.chords.find((item) => item.id === chordId);
+        if (!chord) return draft;
+        chord.length = lengthValue;
+        return draft;
+      },
+      commit: () => gteApi.setChordLength(editorId, resolveChordId(selectedChord.id), lengthValue),
+    });
   };
 
   const handleChordOctaveShift = (direction: number) => {
@@ -2199,7 +2633,17 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       return;
     }
     if (selectedChord.length === lengthValue) return;
-    void runMutation(() => gteApi.setChordLength(editorId, selectedChord.id, lengthValue));
+    enqueueOptimisticMutation({
+      label: "chord-note-length",
+      apply: (draft) => {
+        const chordId = resolveChordId(selectedChord.id);
+        const chord = draft.chords.find((item) => item.id === chordId);
+        if (!chord) return draft;
+        chord.length = lengthValue;
+        return draft;
+      },
+      commit: () => gteApi.setChordLength(editorId, resolveChordId(selectedChord.id), lengthValue),
+    });
   };
 
   const deleteChordNote = () => {
@@ -2326,7 +2770,18 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   const handleAssignAlt = (tab: TabCoord) => {
     if (!selectedNote) return;
     playNotePreview(tab);
-    void runMutation(() => gteApi.assignNoteTab(editorId, selectedNote.id, tab));
+    enqueueOptimisticMutation({
+      label: "assign-alt",
+      apply: (draft) => {
+        const noteId = resolveNoteId(selectedNote.id);
+        const note = draft.notes.find((item) => item.id === noteId);
+        if (!note) return draft;
+        note.tab = [tab[0], tab[1]];
+        note.midiNum = 0;
+        return draft;
+      },
+      commit: () => gteApi.assignNoteTab(editorId, resolveNoteId(selectedNote.id), tab),
+    });
   };
 
   const handleApplyChordTabs = (tabs: OptionalTabCoord[]) => {
@@ -2344,7 +2799,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     void runMutation(() => gteApi.shiftChordOctave(editorId, selectedChord.id, direction));
   };
 
-  const getMidiFromTab = (tab: TabCoord, fallback?: number) => {
+  function getMidiFromTab(tab: TabCoord, fallback?: number) {
     const value = snapshot.tabRef?.[tab[0]]?.[tab[1]];
     if (value !== undefined && value !== null) return Number(value);
     if (fallback !== undefined && fallback !== null) return Number(fallback);
@@ -2353,9 +2808,9 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       return base + tab[1];
     }
     return 0;
-  };
+  }
 
-  const ensurePreviewAudio = () => {
+  function ensurePreviewAudio() {
     let ctx = previewAudioRef.current;
     let master = previewGainRef.current;
     if (!ctx || ctx.state === "closed" || !master) {
@@ -2367,9 +2822,9 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       previewGainRef.current = master;
     }
     return { ctx, master };
-  };
+  }
 
-  const playNotePreview = (tab: TabCoord, midiOverride?: number) => {
+  function playNotePreview(tab: TabCoord, midiOverride?: number) {
     if (playbackVolume <= 0) return;
     const midi = getMidiFromTab(tab, midiOverride);
     if (!Number.isFinite(midi) || midi <= 0) return;
@@ -2396,7 +2851,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
     osc.start(now);
     osc.stop(now + duration + 0.02);
-  };
+  }
 
   const stopAudio = () => {
     if (audioRef.current) {
