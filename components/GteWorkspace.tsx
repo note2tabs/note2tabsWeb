@@ -633,16 +633,16 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     return JSON.parse(JSON.stringify(value)) as EditorSnapshot;
   }, []);
 
+  const snapshotsEqual = useCallback((left: EditorSnapshot, right: EditorSnapshot) => {
+    return JSON.stringify(left) === JSON.stringify(right);
+  }, []);
+
   const applySnapshot = useCallback(
     (next: EditorSnapshot, options?: { recordUndo?: boolean }) => {
       const recordUndo = options?.recordUndo !== false;
       const current = snapshotRef.current;
-      const sameVersion =
-        current?.id === next.id &&
-        current?.version !== undefined &&
-        next.version !== undefined &&
-        current.version === next.version;
-      if (recordUndo && current && !sameVersion) {
+      const sameSnapshot = current ? snapshotsEqual(current, next) : false;
+      if (recordUndo && current && !sameSnapshot) {
         const nextUndo = [...undoRef.current, cloneSnapshot(current)];
         if (nextUndo.length > MAX_HISTORY) {
           nextUndo.splice(0, nextUndo.length - MAX_HISTORY);
@@ -655,7 +655,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       snapshotRef.current = next;
       onSnapshotChange(next);
     },
-    [cloneSnapshot, onSnapshotChange]
+    [cloneSnapshot, onSnapshotChange, snapshotsEqual]
   );
 
   const runMutation = async <T extends { snapshot?: EditorSnapshot }>(fn: () => Promise<T>) => {
