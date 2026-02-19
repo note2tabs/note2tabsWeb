@@ -134,6 +134,9 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   const [scale, setScale] = useState(4);
   const [secondsPerBar, setSecondsPerBar] = useState(2);
   const [secondsPerBarInput, setSecondsPerBarInput] = useState("2");
+  const [timeSignature, setTimeSignature] = useState(8);
+  const [timeSignatureInput, setTimeSignatureInput] = useState("8");
+  const [snapToGridEnabled, setSnapToGridEnabled] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playbackVolume, setPlaybackVolume] = useState(0.6);
@@ -527,6 +530,17 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       }
     }
   }, [snapshot.secondsPerBar]);
+
+  useEffect(() => {
+    if (snapshot.timeSignature !== undefined && snapshot.timeSignature !== null) {
+      const next = Number(snapshot.timeSignature);
+      if (Number.isFinite(next) && next >= 1) {
+        const clamped = Math.max(1, Math.min(64, Math.round(next)));
+        setTimeSignature(clamped);
+        setTimeSignatureInput(String(clamped));
+      }
+    }
+  }, [snapshot.timeSignature]);
 
   useEffect(() => {
     const container = timelineOuterRef.current;
@@ -1037,6 +1051,44 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
   const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
 
+  const snapStartTimeToGrid = useCallback(
+    (startTime: number) => {
+      const safeStart = Math.max(0, Math.round(startTime));
+      if (!snapToGridEnabled) {
+        return safeStart;
+      }
+      const frames = Math.max(1, Math.round(snapshot.framesPerMessure || 0));
+      const beats = Math.max(1, Math.min(64, Math.round(timeSignature)));
+      const signatureLength = Math.max(1, Math.floor(frames / beats));
+      const barIndex = Math.floor(safeStart / frames);
+      const barOffset = barIndex * frames;
+      const inBarStart = safeStart - barOffset;
+      const signatureIndex = Math.floor(inBarStart / signatureLength);
+      return Math.max(0, signatureIndex * signatureLength + barOffset);
+    },
+    [snapToGridEnabled, snapshot.framesPerMessure, timeSignature]
+  );
+
+  const snapNoteToGrid = useCallback(
+    (startTime: number, length: number) => {
+      const safeLength = Math.max(1, Math.round(length));
+      if (!snapToGridEnabled) {
+        return {
+          startTime: Math.max(0, Math.round(startTime)),
+          length: safeLength,
+        };
+      }
+      const frames = Math.max(1, Math.round(snapshot.framesPerMessure || 0));
+      const beats = Math.max(1, Math.min(64, Math.round(timeSignature)));
+      const signatureLength = Math.max(1, Math.floor(frames / beats));
+      const snappedStart = snapStartTimeToGrid(startTime);
+      const lengthIndex = Math.max(1, Math.floor(safeLength / signatureLength));
+      const snappedLength = lengthIndex * signatureLength;
+      return { startTime: snappedStart, length: Math.max(1, snappedLength) };
+    },
+    [snapStartTimeToGrid, snapToGridEnabled, snapshot.framesPerMessure, timeSignature]
+  );
+
   const getSpanSegments = (startTime: number, length: number) => {
     const safeLength = Math.max(1, Math.round(length));
     const endTime = startTime + safeLength;
@@ -1226,6 +1278,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
             tab: note.tab,
             startTime: sliceTime,
             length: note.rightLength,
+            snapToGrid: false,
           });
         }
         for (const chord of chordsToSlice) {
@@ -1252,7 +1305,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
         excludeNoteIds: dragging.type === "note" ? [dragging.id] : [],
         excludeChordIds: dragging.type === "chord" ? [dragging.id] : [],
       });
-      const startTime = clamp(snappedStart, 0, maxStart);
+      const clampedStart = clamp(snappedStart, 0, maxStart);
+      const startTime =
+        dragging.type === "note"
+          ? clamp(snapStartTimeToGrid(clampedStart), 0, maxStart)
+          : clampedStart;
       if (dragging.type === "note") {
         const localY = y - rowIndex * rowStride;
         const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, 5);
@@ -1277,7 +1334,8 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
         const safeLength = Math.max(1, Math.round(dragging.length));
         const rawStart = Math.round(preview.startTime ?? dragging.startTime);
         const maxStart = Math.max(0, timelineEnd - safeLength);
-        const targetStart = clamp(rawStart, 0, maxStart);
+        const clampedStart = clamp(rawStart, 0, maxStart);
+        const targetStart = clamp(snapStartTimeToGrid(clampedStart), 0, maxStart);
         const didChangeString = targetString !== dragging.stringIndex;
         const didChangeStart = targetStart !== dragging.startTime;
         if (didChangeString || didChangeStart) {
@@ -1305,7 +1363,12 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                 playNotePreview(nextTab);
               }
               if (didChangeStart) {
-                last = await gteApi.setNoteStartTime(editorId, resolvedId, targetStart);
+                last = await gteApi.setNoteStartTime(
+                  editorId,
+                  resolvedId,
+                  targetStart,
+                  snapToGridEnabled
+                );
               }
               return last ?? {};
             },
@@ -1347,10 +1410,12 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       playNotePreview,
       resolveChordId,
       resolveNoteId,
+      snapToGridEnabled,
       scale,
       totalFrames,
       rowFrames,
       rows,
+      snapStartTimeToGrid,
       timelineHeight,
       timelineWidth,
     timelineEnd,
@@ -1360,6 +1425,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
   useEffect(() => {
     if (!multiDrag) return;
+    const shouldGridSnapNotes = snapToGridEnabled && multiDrag.notes.length > 0;
 
     const handleMove = (event: globalThis.MouseEvent) => {
       if (!timelineRef.current) return;
@@ -1388,8 +1454,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
         minDelta = Math.max(minDelta, -chord.startTime);
         maxDelta = Math.min(maxDelta, timelineEnd - chord.length - chord.startTime);
       });
+      const anchorCandidate = shouldGridSnapNotes
+        ? snapStartTimeToGrid(snappedStart)
+        : snappedStart;
       const targetAnchorStart = clamp(
-        snappedStart,
+        anchorCandidate,
         multiDrag.anchorStart + minDelta,
         multiDrag.anchorStart + maxDelta
       );
@@ -1408,7 +1477,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                 const noteId = resolveNoteId(note.id);
                 const target = draft.notes.find((item) => item.id === noteId);
                 if (target) {
-                  target.startTime = note.startTime + delta;
+                  const rawStart = note.startTime + delta;
+                  const maxStart = Math.max(0, timelineEnd - note.length);
+                  const snappedStart = shouldGridSnapNotes ? snapStartTimeToGrid(rawStart) : rawStart;
+                  target.startTime = clamp(snappedStart, 0, maxStart);
                 }
               });
               multiDrag.chords.forEach((chord) => {
@@ -1423,8 +1495,16 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
             commit: async () => {
               let last: { snapshot?: EditorSnapshot } | null = null;
               for (const note of multiDrag.notes) {
-                const nextStart = note.startTime + delta;
-                last = await gteApi.setNoteStartTime(editorId, resolveNoteId(note.id), nextStart);
+                const rawStart = note.startTime + delta;
+                const maxStart = Math.max(0, timelineEnd - note.length);
+                const snappedStart = shouldGridSnapNotes ? snapStartTimeToGrid(rawStart) : rawStart;
+                const nextStart = clamp(snappedStart, 0, maxStart);
+                last = await gteApi.setNoteStartTime(
+                  editorId,
+                  resolveNoteId(note.id),
+                  nextStart,
+                  snapToGridEnabled
+                );
               }
               for (const chord of multiDrag.chords) {
                 const nextStart = chord.startTime + delta;
@@ -1450,6 +1530,8 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       enqueueOptimisticMutation,
       resolveChordId,
       resolveNoteId,
+      snapToGridEnabled,
+      snapStartTimeToGrid,
       clamp,
       scale,
       rowFrames,
@@ -2169,22 +2251,23 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   const handleAddNote = () => {
     if (!draftNote) return;
     const { fret } = draftNote;
-    const length = draftNote.length ?? DEFAULT_NOTE_LENGTH;
+    const rawLength = draftNote.length ?? DEFAULT_NOTE_LENGTH;
     if (fret === null) {
       setError("Enter a fret before adding the note.");
       return;
     }
+    const snapped = snapNoteToGrid(draftNote.startTime, rawLength);
     const tab: TabCoord = [draftNote.stringIndex, fret];
     const tempId = getTempNoteId();
     playNotePreview(tab);
     enqueueOptimisticMutation({
       label: "add-note",
-      createdNotes: [{ tempId, signature: noteSignature(draftNote.startTime, length, tab) }],
+      createdNotes: [{ tempId, signature: noteSignature(snapped.startTime, snapped.length, tab) }],
       apply: (draft) => {
         draft.notes.push({
           id: tempId,
-          startTime: draftNote.startTime,
-          length,
+          startTime: snapped.startTime,
+          length: snapped.length,
           midiNum: 0,
           tab: [tab[0], tab[1]],
           optimals: [],
@@ -2194,8 +2277,9 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       commit: () =>
         gteApi.addNote(editorId, {
           tab,
-          startTime: draftNote.startTime,
-          length,
+          startTime: snapped.startTime,
+          length: snapped.length,
+          snapToGrid: snapToGridEnabled,
         }),
     });
     setDraftNote(null);
@@ -2317,7 +2401,12 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       const addedNoteIds: number[] = [];
       const addNoteAndCollectId = async (tab: TabCoord, start: number, length: number) => {
         const beforeIds = new Set(currentSnapshot.notes.map((note) => note.id));
-        const res = await gteApi.addNote(editorId, { tab, startTime: start, length });
+        const res = await gteApi.addNote(editorId, {
+          tab,
+          startTime: start,
+          length,
+          snapToGrid: false,
+        });
         currentSnapshot = res.snapshot;
         last = res.snapshot;
         const newNote = currentSnapshot.notes.find((note) => !beforeIds.has(note.id));
@@ -2498,8 +2587,9 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     const lengthValue = Math.max(1, Math.round(length));
     const maxStart = Math.max(0, totalFrames - lengthValue);
     const startValue = clamp(Math.round(startTime), 0, maxStart);
+    const snappedStartValue = clamp(snapStartTimeToGrid(startValue), 0, maxStart);
     const didChangeTab = stringValue !== selectedNote.tab[0] || fretValue !== selectedNote.tab[1];
-    const didChangeStart = startValue !== selectedNote.startTime;
+    const didChangeStart = snappedStartValue !== selectedNote.startTime;
     const didChangeLength = lengthValue !== selectedNote.length;
     if (!didChangeTab && !didChangeStart && !didChangeLength) {
       setError("No changes to save.");
@@ -2517,7 +2607,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
           note.midiNum = 0;
         }
         if (didChangeStart) {
-          note.startTime = startValue;
+          note.startTime = snappedStartValue;
         }
         if (didChangeLength) {
           note.length = lengthValue;
@@ -2532,7 +2622,12 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
           playNotePreview(nextTab);
         }
         if (didChangeStart) {
-          last = await gteApi.setNoteStartTime(editorId, resolvedId, startValue);
+          last = await gteApi.setNoteStartTime(
+            editorId,
+            resolvedId,
+            snappedStartValue,
+            snapToGridEnabled
+          );
         }
         if (didChangeLength) {
           last = await gteApi.setNoteLength(editorId, resolvedId, lengthValue);
@@ -3741,6 +3836,55 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
             className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
           />
         </div>
+        <div className="flex items-center gap-2 text-xs text-slate-600">
+          <span>Beats/bar</span>
+          <input
+            type="number"
+            min={1}
+            max={64}
+            step={1}
+            inputMode="numeric"
+            value={timeSignatureInput}
+            onChange={(e) => setTimeSignatureInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              const next = Number(timeSignatureInput);
+              if (Number.isFinite(next) && next >= 1 && next <= 64) {
+                const normalized = Math.round(next);
+                setTimeSignature(normalized);
+                setTimeSignatureInput(String(normalized));
+                void runMutation(() => gteApi.setTimeSignature(editorId, normalized));
+              } else {
+                setTimeSignatureInput(String(timeSignature));
+              }
+            }}
+            onBlur={() => {
+              const next = Number(timeSignatureInput);
+              if (Number.isFinite(next) && next >= 1 && next <= 64) {
+                const normalized = Math.round(next);
+                setTimeSignature(normalized);
+                setTimeSignatureInput(String(normalized));
+                void runMutation(() => gteApi.setTimeSignature(editorId, normalized));
+              } else {
+                setTimeSignatureInput(String(timeSignature));
+              }
+            }}
+            className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setSnapToGridEnabled((prev) => !prev)}
+          className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold ${
+            snapToGridEnabled
+              ? "border-emerald-300 bg-emerald-100 text-emerald-800"
+              : "border-slate-200 bg-white text-slate-600"
+          }`}
+          title="Snap new notes to the beat grid"
+        >
+          Snap to grid: {snapToGridEnabled ? "On" : "Off"}
+        </button>
         <button
           type="button"
           onClick={() => void router.push("/")}
@@ -3752,7 +3896,8 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
           Scale: {scale}px/frame (auto)
         </div>
         <div className="text-xs text-slate-500">
-          FPS: {fps} - Frames per bar: {computedFramesPerBar} - Total frames: {computedTotalFrames}
+          FPS: {fps} - Beats/bar: {timeSignature} - Frames per bar: {computedFramesPerBar} - Total
+          frames: {computedTotalFrames}
         </div>
       </div>
 
@@ -3838,6 +3983,8 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                   const rowTop = rowIdx * rowStride;
                   const rowBarCount = Math.max(0, Math.min(BARS_PER_ROW, barCount - rowIdx * BARS_PER_ROW));
                   const rowWidth = Math.max(1, rowBarCount) * framesPerMeasure * scale;
+                  const beatsPerBar = Math.max(1, Math.round(timeSignature));
+                  const beatWidth = framesPerMeasure > 0 ? (framesPerMeasure / beatsPerBar) * scale : 0;
                   return (
                     <div key={`row-${rowIdx}`} className="absolute left-0" style={{ top: rowTop, width: rowWidth }}>
                       {[...Array(6)].map((_, idx) => (
@@ -3848,25 +3995,50 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                         />
                       ))}
                       {framesPerMeasure > 0 &&
-                        [...Array(BARS_PER_ROW)].map((_, bidx) => {
+                        rowBarCount > 0 &&
+                        beatsPerBar > 1 &&
+                        [...Array(rowBarCount * beatsPerBar - 1)].map((_, beatIdx) => {
+                          const beat = beatIdx + 1;
+                          if (beat % beatsPerBar === 0) return null;
+                          const left = beat * beatWidth;
+                          return (
+                            <div
+                              key={`row-${rowIdx}-beat-${beat}`}
+                              className={`absolute top-0 h-full w-px pointer-events-none ${
+                                snapToGridEnabled ? "bg-emerald-300/60" : "bg-slate-200/70"
+                              }`}
+                              style={{ left, height: rowHeight }}
+                            />
+                          );
+                        })}
+                      {framesPerMeasure > 0 &&
+                        [...Array(rowBarCount + 1)].map((_, edgeIdx) => {
+                          const rawDividerX = edgeIdx * framesPerMeasure * scale;
+                          const dividerX =
+                            edgeIdx === rowBarCount ? Math.max(0, rowWidth - 2) : rawDividerX;
+                          const isOuterEdge = edgeIdx === 0 || edgeIdx === rowBarCount;
+                          return (
+                            <div
+                              key={`row-${rowIdx}-bar-edge-${edgeIdx}`}
+                              className={`absolute top-0 w-[2px] pointer-events-none ${
+                                isOuterEdge ? "bg-slate-300/90" : "bg-slate-400"
+                              }`}
+                              style={{ left: dividerX, height: rowHeight }}
+                            />
+                          );
+                        })}
+                      {framesPerMeasure > 0 &&
+                        [...Array(rowBarCount)].map((_, bidx) => {
                           const barIndex = rowIdx * BARS_PER_ROW + bidx;
-                          if (barIndex >= barCount) return null;
                           const dividerX = bidx * framesPerMeasure * scale;
                           return (
-                            <div key={`bar-${barIndex}`}>
-                              {bidx > 0 && (
-                                <div
-                                  className="absolute top-0 bottom-0 w-[2px] bg-slate-400 pointer-events-none"
-                                  style={{ left: dividerX }}
-                                />
-                              )}
-                              <span
-                                className="absolute -top-5 text-[10px] text-slate-600"
-                                style={{ left: dividerX + 2 }}
-                              >
-                                Bar {barIndex + 1}
-                              </span>
-                            </div>
+                            <span
+                              key={`bar-label-${barIndex}`}
+                              className="absolute -top-5 text-[10px] text-slate-600"
+                              style={{ left: dividerX + 2 }}
+                            >
+                              Bar {barIndex + 1}
+                            </span>
                           );
                         })}
                       <div

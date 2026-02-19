@@ -28,6 +28,7 @@ export type EditorSnapshot = {
   schemaVersion?: number;
   version?: number;
   updatedAt?: string;
+  timeSignature?: number;
   framesPerMessure: number;
   fps: number;
   totalFrames: number;

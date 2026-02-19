@@ -61,7 +61,10 @@ export const gteApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ index }),
     }),
-  addNote: (editorId: string, payload: { tab: TabCoord; startTime: number; length: number }) =>
+  addNote: (
+    editorId: string,
+    payload: { tab: TabCoord; startTime: number; length: number; snapToGrid?: boolean }
+  ) =>
     request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/notes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -80,13 +83,18 @@ export const gteApi = {
         body: JSON.stringify({ tab }),
       }
     ),
-  setNoteStartTime: (editorId: string, noteId: number, startTime: number) =>
+  setNoteStartTime: (
+    editorId: string,
+    noteId: number,
+    startTime: number,
+    snapToGrid?: boolean
+  ) =>
     request<{ ok: true; snapshot: EditorSnapshot }>(
       `/editors/${editorId}/notes/${noteId}/set_start_time?start_time=${encodeURIComponent(startTime)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startTime, start_time: startTime }),
+        body: JSON.stringify({ startTime, start_time: startTime, snapToGrid, snap_to_grid: snapToGrid }),
       }
     ),
   setNoteLength: (editorId: string, noteId: number, length: number) =>
@@ -205,6 +213,12 @@ export const gteApi = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ secondsPerBar }),
+    }),
+  setTimeSignature: (editorId: string, timeSignature: number) =>
+    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/time_signature`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ timeSignature }),
     }),
   generateCuts: (editorId: string) =>
     request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/cuts/generate`, {
