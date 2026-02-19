@@ -76,92 +76,82 @@ export default function BlogPostPage({ post, toc, readingMinutes, relatedPosts }
       </Head>
 
       <div className="container stack">
-        <header className={`post-header${post.coverImageUrl ? "" : " post-header--no-cover"}`}>
-          <div>
-            <p className="blog-breadcrumb">
-              <Link href="/blog">Blog</Link> <span>/</span> <span>{post.title}</span>
-            </p>
-            <Link href="/blog" className="back-link">
-              ← Back to blog
-            </Link>
-            <h1 className="page-title">{post.title}</h1>
-            <p className="page-subtitle">{post.excerpt}</p>
-            <div className="post-meta">
-              <span>{post.authorName}</span>
-              {displayDate && (
+        <header className="post-header post-header--reader">
+          <p className="blog-breadcrumb">
+            <Link href="/blog">Blog</Link> <span>/</span> <span>{post.title}</span>
+          </p>
+          <Link href="/blog" className="back-link">
+            ← Back to blog
+          </Link>
+          <h1 className="post-title">{post.title}</h1>
+          <p className="post-meta-line">
+            <span>{post.authorName}</span>
+            {displayDate && (
+              <>
+                <span aria-hidden="true">·</span>
                 <span>{new Date(displayDate).toLocaleDateString()}</span>
-              )}
-              <span>{readingMinutes} min read</span>
-            </div>
-          </div>
-          {post.coverImageUrl && (
-            <div className="post-cover-shell">
-              <img src={post.coverImageUrl} alt={post.title} className="post-cover" />
-            </div>
-          )}
+              </>
+            )}
+            <span aria-hidden="true">·</span>
+            <span>{readingMinutes} min read</span>
+          </p>
+          <p className="post-lead">{post.excerpt}</p>
         </header>
 
-        <div className="post-layout">
-          <article className="post-content">
-            <div className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
-          </article>
-          <aside className="post-aside">
-            {toc.length > 0 && (
-              <div className="toc">
-                <h3>On this page</h3>
-                <ul>
-                  {toc.map((item) => (
-                    <li key={item.id} className={`toc-level-${item.level}`}>
-                      <a href={`#${item.id}`}>{item.text}</a>
-                    </li>
+        {post.coverImageUrl && (
+          <figure className="post-cover-shell">
+            <img src={post.coverImageUrl} alt={post.title} className="post-cover" />
+          </figure>
+        )}
+
+        <article className="post-content">
+          <div className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
+        </article>
+
+        {(post.categories.length > 0 || post.tags.length > 0 || post.clusters.length > 0) && (
+          <section className="post-taxonomy post-taxonomy--inline">
+            {post.categories.length > 0 && (
+              <>
+                <h4>Categories</h4>
+                <div className="tag-row">
+                  {post.categories.map((cat) => (
+                    <Link key={cat.id} href={`/blog/category/${cat.slug}`}>
+                      {cat.name}
+                    </Link>
                   ))}
-                </ul>
-              </div>
+                </div>
+              </>
             )}
-            <div className="post-taxonomy">
-              {post.categories.length > 0 && (
-                <>
-                  <h4>Categories</h4>
-                  <div className="tag-row">
-                    {post.categories.map((cat) => (
-                      <Link key={cat.id} href={`/blog/category/${cat.slug}`}>
-                        {cat.name}
-                      </Link>
-                    ))}
-                  </div>
-                </>
-              )}
-              {post.tags.length > 0 && (
-                <>
-                  <h4>Tags</h4>
-                  <div className="tag-row">
-                    {post.tags.map((tag) => (
-                      <Link key={tag.id} href={`/blog/tag/${tag.slug}`}>
-                        {tag.name}
-                      </Link>
-                    ))}
-                  </div>
-                </>
-              )}
-              {post.clusters.length > 0 && (
-                <>
-                  <h4>Topic clusters</h4>
-                  <div className="tag-row">
-                    {post.clusters.map((cluster) => (
-                      <Link key={cluster.id} href={`/blog/cluster/${cluster.slug}`}>
-                        {cluster.name}
-                        {cluster.isPillar ? " (pillar)" : ""}
-                      </Link>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </aside>
-        </div>
+            {post.tags.length > 0 && (
+              <>
+                <h4>Tags</h4>
+                <div className="tag-row">
+                  {post.tags.map((tag) => (
+                    <Link key={tag.id} href={`/blog/tag/${tag.slug}`}>
+                      {tag.name}
+                    </Link>
+                  ))}
+                </div>
+              </>
+            )}
+            {post.clusters.length > 0 && (
+              <>
+                <h4>Topic clusters</h4>
+                <div className="tag-row">
+                  {post.clusters.map((cluster) => (
+                    <Link key={cluster.id} href={`/blog/cluster/${cluster.slug}`}>
+                      {cluster.name}
+                      {cluster.isPillar ? " (pillar)" : ""}
+                    </Link>
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
+        )}
 
         {relatedPosts.length > 0 && (
-          <section className="related-posts blog-section">
+          <section className="related-posts">
             <h2 className="section-title">Related posts</h2>
             <div className="blog-grid">
               {relatedPosts.map((rel) => (

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/router";
 import { useSession, signIn, signOut } from "next-auth/react";
 
 const roleLabel = (role?: string) => {
@@ -11,21 +12,25 @@ const roleLabel = (role?: string) => {
 };
 
 export default function NavBar() {
+  const router = useRouter();
   const { data: session } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
+  const isReadingArticle = router.pathname === "/blog/[slug]";
   const initial =
     session?.user?.email?.[0]?.toUpperCase() ||
     session?.user?.name?.[0]?.toUpperCase() ||
     "N";
 
   return (
-    <header className="nav-shell">
+    <header className={`nav-shell${isReadingArticle ? " nav-shell--reading" : ""}`}>
       <div className="container nav">
         <Link href="/" className="logo">
           <img src="/logo01black.png" alt="Note2Tabs logo" className="logo-mark" />
           <span className="logo-text">Note2Tabs</span>
         </Link>
-        <nav className={`nav-links ${menuOpen ? "open" : ""}`}>
+        <nav
+          className={`nav-links ${menuOpen ? "open" : ""}${isReadingArticle ? " nav-links--reading" : ""}`}
+        >
           <Link href="/gte" className="nav-pill">
             Editor
           </Link>
