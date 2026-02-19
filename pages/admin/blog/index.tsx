@@ -59,6 +59,28 @@ const readJsonSafe = async (res: Response) => {
   }
 };
 
+const formatApiError = (data: any, fallback: string) => {
+  if (data?.error !== "Invalid payload.") {
+    return data?.error || fallback;
+  }
+
+  const fieldErrors = data?.details?.fieldErrors;
+  if (fieldErrors && typeof fieldErrors === "object") {
+    for (const [field, errors] of Object.entries(fieldErrors as Record<string, unknown>)) {
+      if (Array.isArray(errors) && errors.length > 0 && typeof errors[0] === "string") {
+        return `${field}: ${errors[0]}`;
+      }
+    }
+  }
+
+  const formErrors = data?.details?.formErrors;
+  if (Array.isArray(formErrors) && formErrors.length > 0 && typeof formErrors[0] === "string") {
+    return formErrors[0];
+  }
+
+  return data?.error || fallback;
+};
+
 const emptyPost = (): PostForm => ({
   title: "",
   slug: "",
@@ -279,7 +301,7 @@ export default function AdminBlogPage({ isAdmin }: Props) {
     const data = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setError(data?.error || "Could not save post.");
+      setError(formatApiError(data, "Could not save post."));
       return;
     }
     setStatusMessage(postForm.id ? "Post updated." : "Post created.");
@@ -305,7 +327,7 @@ export default function AdminBlogPage({ isAdmin }: Props) {
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data?.error || "Could not save.");
+      setError(formatApiError(data, "Could not save."));
       return;
     }
     await loadTaxonomies();

@@ -3,10 +3,19 @@ import Head from "next/head";
 import Link from "next/link";
 import { prisma } from "../../../lib/prisma";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
+import BlogPostCard from "../../../components/blog/BlogPostCard";
 
 type TagPageProps = {
   tag: { name: string; slug: string };
-  posts: { id: string; title: string; slug: string; excerpt: string; readingMinutes: number }[];
+  posts: {
+    id: string;
+    title: string;
+    slug: string;
+    excerpt: string;
+    readingMinutes: number;
+    coverImageUrl: string | null;
+    publishedAt: string | null;
+  }[];
 };
 
 export default function BlogTagPage({ tag, posts }: TagPageProps) {
@@ -17,29 +26,37 @@ export default function BlogTagPage({ tag, posts }: TagPageProps) {
         <meta name="description" content={`Articles tagged with ${tag.name}.`} />
       </Head>
       <div className="container stack">
-        <header className="page-header">
-          <div>
+        <header className="blog-hero blog-hero--compact">
+          <div className="blog-hero-copy">
+            <p className="blog-breadcrumb">
+              <Link href="/blog">Blog</Link> <span>/</span> Tag
+            </p>
             <h1 className="page-title">Tag: {tag.name}</h1>
             <p className="page-subtitle">Posts that cover this topic.</p>
           </div>
-          <Link href="/blog" className="button-secondary button-small">
-            Back to blog
-          </Link>
+          <div className="blog-hero-actions">
+            <div className="blog-hero-metrics">
+              <span>{posts.length} posts</span>
+            </div>
+            <Link href="/blog" className="button-secondary button-small">
+              Back to blog
+            </Link>
+          </div>
         </header>
 
-        <section>
-          {posts.length === 0 && <p className="muted">No posts found.</p>}
+        <section className="blog-section">
+          {posts.length === 0 && <div className="blog-empty">No posts found for this tag.</div>}
           <div className="blog-grid">
             {posts.map((post) => (
-              <article key={post.id} className="blog-card">
-                <Link href={`/blog/${post.slug}`} className="blog-card-title">
-                  {post.title}
-                </Link>
-                <p className="blog-card-excerpt">{post.excerpt}</p>
-                <div className="blog-card-meta">
-                  <span>{post.readingMinutes} min read</span>
-                </div>
-              </article>
+              <BlogPostCard
+                key={post.id}
+                slug={post.slug}
+                title={post.title}
+                excerpt={post.excerpt}
+                coverImageUrl={post.coverImageUrl}
+                publishedAt={post.publishedAt}
+                readingMinutes={post.readingMinutes}
+              />
             ))}
           </div>
         </section>
@@ -75,6 +92,8 @@ export const getServerSideProps: GetServerSideProps<TagPageProps> = async (ctx) 
         slug: post.slug,
         excerpt: post.excerpt,
         readingMinutes: estimateReadingTime(post.content || "").minutes,
+        coverImageUrl: post.coverImageUrl,
+        publishedAt: post.publishedAt ? post.publishedAt.toISOString() : null,
       })),
     },
   };

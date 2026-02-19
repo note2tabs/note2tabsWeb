@@ -6,6 +6,7 @@ import { authOptions } from "../api/auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
 import { estimateReadingTime, getBaseUrl, getPublishedWhere } from "../../lib/blog";
 import { renderMarkdown, type TocItem } from "../../lib/markdown";
+import BlogPostCard from "../../components/blog/BlogPostCard";
 
 type PostPageProps = {
   post: {
@@ -75,8 +76,11 @@ export default function BlogPostPage({ post, toc, readingMinutes, relatedPosts }
       </Head>
 
       <div className="container stack">
-        <header className="post-header">
+        <header className={`post-header${post.coverImageUrl ? "" : " post-header--no-cover"}`}>
           <div>
+            <p className="blog-breadcrumb">
+              <Link href="/blog">Blog</Link> <span>/</span> <span>{post.title}</span>
+            </p>
             <Link href="/blog" className="back-link">
               ← Back to blog
             </Link>
@@ -91,13 +95,15 @@ export default function BlogPostPage({ post, toc, readingMinutes, relatedPosts }
             </div>
           </div>
           {post.coverImageUrl && (
-            <img src={post.coverImageUrl} alt={post.title} className="post-cover" />
+            <div className="post-cover-shell">
+              <img src={post.coverImageUrl} alt={post.title} className="post-cover" />
+            </div>
           )}
         </header>
 
         <div className="post-layout">
           <article className="post-content">
-            <div dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
+            <div className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
           </article>
           <aside className="post-aside">
             {toc.length > 0 && (
@@ -155,15 +161,11 @@ export default function BlogPostPage({ post, toc, readingMinutes, relatedPosts }
         </div>
 
         {relatedPosts.length > 0 && (
-          <section className="related-posts">
+          <section className="related-posts blog-section">
             <h2 className="section-title">Related posts</h2>
             <div className="blog-grid">
               {relatedPosts.map((rel) => (
-                <article key={rel.id} className="blog-card">
-                  <Link href={`/blog/${rel.slug}`} className="blog-card-title">
-                    {rel.title}
-                  </Link>
-                </article>
+                <BlogPostCard key={rel.id} slug={rel.slug} title={rel.title} />
               ))}
             </div>
           </section>

@@ -3,11 +3,27 @@ import Head from "next/head";
 import Link from "next/link";
 import { prisma } from "../../../lib/prisma";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
+import BlogPostCard from "../../../components/blog/BlogPostCard";
 
 type ClusterPageProps = {
   cluster: { name: string; slug: string; description: string | null };
-  pillarPost: { id: string; title: string; slug: string; excerpt: string } | null;
-  supportingPosts: { id: string; title: string; slug: string; excerpt: string; readingMinutes: number }[];
+  pillarPost: {
+    id: string;
+    title: string;
+    slug: string;
+    excerpt: string;
+    coverImageUrl: string | null;
+    publishedAt: string | null;
+  } | null;
+  supportingPosts: {
+    id: string;
+    title: string;
+    slug: string;
+    excerpt: string;
+    readingMinutes: number;
+    coverImageUrl: string | null;
+    publishedAt: string | null;
+  }[];
 };
 
 export default function BlogClusterPage({ cluster, pillarPost, supportingPosts }: ClusterPageProps) {
@@ -21,44 +37,57 @@ export default function BlogClusterPage({ cluster, pillarPost, supportingPosts }
         />
       </Head>
       <div className="container stack">
-        <header className="page-header">
-          <div>
+        <header className="blog-hero blog-hero--compact">
+          <div className="blog-hero-copy">
+            <p className="blog-breadcrumb">
+              <Link href="/blog">Blog</Link> <span>/</span> Cluster
+            </p>
             <h1 className="page-title">{cluster.name}</h1>
             <p className="page-subtitle">
               {cluster.description || "Topic cluster map with pillar and supporting guides."}
             </p>
           </div>
-          <Link href="/blog" className="button-secondary button-small">
-            Back to blog
-          </Link>
+          <div className="blog-hero-actions">
+            <div className="blog-hero-metrics">
+              {pillarPost && <span>1 pillar guide</span>}
+              <span>{supportingPosts.length} supporting guides</span>
+            </div>
+            <Link href="/blog" className="button-secondary button-small">
+              Back to blog
+            </Link>
+          </div>
         </header>
 
         {pillarPost && (
-          <section className="blog-feature">
+          <section className="blog-section blog-feature">
             <h2 className="section-title">Pillar post</h2>
-            <article className="blog-card">
-              <Link href={`/blog/${pillarPost.slug}`} className="blog-card-title">
-                {pillarPost.title}
-              </Link>
-              <p className="blog-card-excerpt">{pillarPost.excerpt}</p>
-            </article>
+            <BlogPostCard
+              slug={pillarPost.slug}
+              title={pillarPost.title}
+              excerpt={pillarPost.excerpt}
+              coverImageUrl={pillarPost.coverImageUrl}
+              publishedAt={pillarPost.publishedAt}
+              variant="featured"
+            />
           </section>
         )}
 
-        <section>
+        <section className="blog-section">
           <h2 className="section-title">Supporting posts</h2>
-          {supportingPosts.length === 0 && <p className="muted">No supporting posts yet.</p>}
+          {supportingPosts.length === 0 && (
+            <div className="blog-empty">No supporting posts in this cluster yet.</div>
+          )}
           <div className="blog-grid">
             {supportingPosts.map((post) => (
-              <article key={post.id} className="blog-card">
-                <Link href={`/blog/${post.slug}`} className="blog-card-title">
-                  {post.title}
-                </Link>
-                <p className="blog-card-excerpt">{post.excerpt}</p>
-                <div className="blog-card-meta">
-                  <span>{post.readingMinutes} min read</span>
-                </div>
-              </article>
+              <BlogPostCard
+                key={post.id}
+                slug={post.slug}
+                title={post.title}
+                excerpt={post.excerpt}
+                coverImageUrl={post.coverImageUrl}
+                publishedAt={post.publishedAt}
+                readingMinutes={post.readingMinutes}
+              />
             ))}
           </div>
         </section>
@@ -95,7 +124,14 @@ export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (c
         description: cluster.description,
       },
       pillarPost: pillar
-        ? { id: pillar.id, title: pillar.title, slug: pillar.slug, excerpt: pillar.excerpt }
+        ? {
+            id: pillar.id,
+            title: pillar.title,
+            slug: pillar.slug,
+            excerpt: pillar.excerpt,
+            coverImageUrl: pillar.coverImageUrl,
+            publishedAt: pillar.publishedAt ? pillar.publishedAt.toISOString() : null,
+          }
         : null,
       supportingPosts: postsRaw
         .filter((post) => post.id !== pillar?.id)
@@ -105,6 +141,8 @@ export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (c
           slug: post.slug,
           excerpt: post.excerpt,
           readingMinutes: estimateReadingTime(post.content || "").minutes,
+          coverImageUrl: post.coverImageUrl,
+          publishedAt: post.publishedAt ? post.publishedAt.toISOString() : null,
         })),
     },
   };

@@ -19,7 +19,7 @@ const schema = {
   attributes: {
     ...defaultSchema.attributes,
     a: ["href", "title", "rel", "target"],
-    img: ["src", "alt", "title"],
+    img: ["src", "alt", "title", "loading"],
     code: ["className"],
     span: ["className"],
     h1: ["id"],

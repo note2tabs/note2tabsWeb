@@ -3,6 +3,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { prisma } from "../../lib/prisma";
 import { BLOG_PAGE_SIZE, estimateReadingTime, getPublishedWhere } from "../../lib/blog";
+import BlogPostCard from "../../components/blog/BlogPostCard";
 
 type BlogPostCard = {
   id: string;
@@ -60,39 +61,52 @@ export default function BlogIndexPage({
         />
       </Head>
       <div className="container stack">
-        <header className="page-header">
-          <div>
+        <header className="blog-hero">
+          <div className="blog-hero-copy">
+            <span className="blog-kicker">Knowledge Hub</span>
             <h1 className="page-title">Note2Tabs Blog</h1>
             <p className="page-subtitle">
-              Guides, workflows, and product updates for guitar tab creation and practice.
+              Practical guides, workflows, and updates for converting songs into playable guitar tabs.
             </p>
           </div>
-          <Link href="/" className="button-secondary button-small">
-            Back to app
-          </Link>
+          <div className="blog-hero-actions">
+            <div className="blog-hero-metrics">
+              <span>{total} published posts</span>
+              <span>{categories.length} categories</span>
+              <span>{tags.length} tags</span>
+            </div>
+            <Link href="/" className="button-secondary button-small">
+              Back to app
+            </Link>
+          </div>
         </header>
 
         {pillars.length > 0 && (
-          <section className="blog-feature">
+          <section className="blog-section blog-feature">
             <h2 className="section-title">Pillar guides</h2>
             <div className="blog-grid">
               {pillars.map((post) => (
-                <article key={post.id} className="blog-card">
-                  <Link href={`/blog/${post.slug}`} className="blog-card-title">
-                    {post.title}
-                  </Link>
-                  <p className="blog-card-excerpt">{post.excerpt}</p>
-                  <div className="blog-card-meta">
-                    <span>{post.readingMinutes} min read</span>
-                    {post.publishedAt && <span>{new Date(post.publishedAt).toLocaleDateString()}</span>}
-                  </div>
-                </article>
+                <BlogPostCard
+                  key={post.id}
+                  slug={post.slug}
+                  title={post.title}
+                  excerpt={post.excerpt}
+                  coverImageUrl={post.coverImageUrl}
+                  publishedAt={post.publishedAt}
+                  readingMinutes={post.readingMinutes}
+                  chips={post.categories.slice(0, 3).map((item) => ({
+                    id: item.category.id,
+                    name: item.category.name,
+                    href: `/blog/category/${item.category.slug}`,
+                  }))}
+                  variant="featured"
+                />
               ))}
             </div>
           </section>
         )}
 
-        <section className="blog-filters">
+        <section className="blog-section blog-filters">
           <div className="filter-group">
             <span className="filter-label">Categories</span>
             <div className="filter-links">
@@ -129,28 +143,25 @@ export default function BlogIndexPage({
           </div>
         </section>
 
-        <section>
+        <section className="blog-section">
           <h2 className="section-title">Latest posts</h2>
-          {posts.length === 0 && <p className="muted">No posts found.</p>}
+          {posts.length === 0 && <div className="blog-empty">No posts found for this filter.</div>}
           <div className="blog-grid">
             {posts.map((post) => (
-              <article key={post.id} className="blog-card">
-                <Link href={`/blog/${post.slug}`} className="blog-card-title">
-                  {post.title}
-                </Link>
-                <p className="blog-card-excerpt">{post.excerpt}</p>
-                <div className="blog-card-meta">
-                  <span>{post.readingMinutes} min read</span>
-                  {post.publishedAt && <span>{new Date(post.publishedAt).toLocaleDateString()}</span>}
-                </div>
-                <div className="blog-card-tags">
-                  {post.categories.map((item) => (
-                    <Link key={item.category.id} href={`/blog/category/${item.category.slug}`}>
-                      {item.category.name}
-                    </Link>
-                  ))}
-                </div>
-              </article>
+              <BlogPostCard
+                key={post.id}
+                slug={post.slug}
+                title={post.title}
+                excerpt={post.excerpt}
+                coverImageUrl={post.coverImageUrl}
+                publishedAt={post.publishedAt}
+                readingMinutes={post.readingMinutes}
+                chips={post.categories.slice(0, 3).map((item) => ({
+                  id: item.category.id,
+                  name: item.category.name,
+                  href: `/blog/category/${item.category.slug}`,
+                }))}
+              />
             ))}
           </div>
         </section>

@@ -1,5 +1,16 @@
 import { z } from "zod";
 
+const isValidCanonical = (value: string) => {
+  if (!value) return true;
+  if (value.startsWith("/")) return true;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+};
+
 export const postInputSchema = z.object({
   title: z.string().min(3),
   slug: z.string().optional(),
@@ -10,7 +21,14 @@ export const postInputSchema = z.object({
   publishAt: z.string().datetime().optional().nullable(),
   seoTitle: z.string().optional().or(z.literal("")),
   seoDescription: z.string().optional().or(z.literal("")),
-  canonicalUrl: z.string().url().optional().or(z.literal("")),
+  canonicalUrl: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(""))
+    .refine((value) => isValidCanonical(value || ""), {
+      message: "Canonical URL must be absolute or begin with /",
+    }),
   categories: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
   clusters: z

@@ -3,11 +3,27 @@ import Head from "next/head";
 import Link from "next/link";
 import { prisma } from "../../../lib/prisma";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
+import BlogPostCard from "../../../components/blog/BlogPostCard";
 
 type CategoryPageProps = {
   category: { name: string; slug: string; description: string | null };
-  posts: { id: string; title: string; slug: string; excerpt: string; readingMinutes: number }[];
-  pillarPost: { id: string; title: string; slug: string } | null;
+  posts: {
+    id: string;
+    title: string;
+    slug: string;
+    excerpt: string;
+    readingMinutes: number;
+    coverImageUrl: string | null;
+    publishedAt: string | null;
+  }[];
+  pillarPost: {
+    id: string;
+    title: string;
+    slug: string;
+    excerpt: string;
+    coverImageUrl: string | null;
+    publishedAt: string | null;
+  } | null;
 };
 
 export default function BlogCategoryPage({ category, posts, pillarPost }: CategoryPageProps) {
@@ -21,43 +37,55 @@ export default function BlogCategoryPage({ category, posts, pillarPost }: Catego
         />
       </Head>
       <div className="container stack">
-        <header className="page-header">
-          <div>
+        <header className="blog-hero blog-hero--compact">
+          <div className="blog-hero-copy">
+            <p className="blog-breadcrumb">
+              <Link href="/blog">Blog</Link> <span>/</span> Category
+            </p>
             <h1 className="page-title">{category.name}</h1>
             <p className="page-subtitle">
               {category.description || "Curated guides and posts for this category."}
             </p>
           </div>
-          <Link href="/blog" className="button-secondary button-small">
-            Back to blog
-          </Link>
+          <div className="blog-hero-actions">
+            <div className="blog-hero-metrics">
+              <span>{posts.length} posts</span>
+              {pillarPost && <span>Pillar included</span>}
+            </div>
+            <Link href="/blog" className="button-secondary button-small">
+              Back to blog
+            </Link>
+          </div>
         </header>
 
         {pillarPost && (
-          <section className="blog-feature">
+          <section className="blog-section blog-feature">
             <h2 className="section-title">Pillar post</h2>
-            <article className="blog-card">
-              <Link href={`/blog/${pillarPost.slug}`} className="blog-card-title">
-                {pillarPost.title}
-              </Link>
-            </article>
+            <BlogPostCard
+              slug={pillarPost.slug}
+              title={pillarPost.title}
+              excerpt={pillarPost.excerpt}
+              coverImageUrl={pillarPost.coverImageUrl}
+              publishedAt={pillarPost.publishedAt}
+              variant="featured"
+            />
           </section>
         )}
 
-        <section>
+        <section className="blog-section">
           <h2 className="section-title">Posts</h2>
-          {posts.length === 0 && <p className="muted">No posts found.</p>}
+          {posts.length === 0 && <div className="blog-empty">No posts found in this category yet.</div>}
           <div className="blog-grid">
             {posts.map((post) => (
-              <article key={post.id} className="blog-card">
-                <Link href={`/blog/${post.slug}`} className="blog-card-title">
-                  {post.title}
-                </Link>
-                <p className="blog-card-excerpt">{post.excerpt}</p>
-                <div className="blog-card-meta">
-                  <span>{post.readingMinutes} min read</span>
-                </div>
-              </article>
+              <BlogPostCard
+                key={post.id}
+                slug={post.slug}
+                title={post.title}
+                excerpt={post.excerpt}
+                coverImageUrl={post.coverImageUrl}
+                publishedAt={post.publishedAt}
+                readingMinutes={post.readingMinutes}
+              />
             ))}
           </div>
         </section>
@@ -92,7 +120,14 @@ export const getServerSideProps: GetServerSideProps<CategoryPageProps> = async (
         description: category.description,
       },
       pillarPost: pillarCandidate
-        ? { id: pillarCandidate.id, title: pillarCandidate.title, slug: pillarCandidate.slug }
+        ? {
+            id: pillarCandidate.id,
+            title: pillarCandidate.title,
+            slug: pillarCandidate.slug,
+            excerpt: pillarCandidate.excerpt,
+            coverImageUrl: pillarCandidate.coverImageUrl,
+            publishedAt: pillarCandidate.publishedAt ? pillarCandidate.publishedAt.toISOString() : null,
+          }
         : null,
       posts: postsRaw.map((post) => ({
         id: post.id,
@@ -100,6 +135,8 @@ export const getServerSideProps: GetServerSideProps<CategoryPageProps> = async (
         slug: post.slug,
         excerpt: post.excerpt,
         readingMinutes: estimateReadingTime(post.content || "").minutes,
+        coverImageUrl: post.coverImageUrl,
+        publishedAt: post.publishedAt ? post.publishedAt.toISOString() : null,
       })),
     },
   };

@@ -7,6 +7,7 @@ import { rateLimit } from "../../../../../lib/rateLimit";
 import { postInputSchema } from "../../../../../lib/blogValidators";
 import { slugify } from "../../../../../lib/slug";
 import { sendBlogApiError } from "../../../../../lib/blogApiError";
+import { normalizeCanonicalUrl } from "../../../../../lib/canonical";
 
 const PAGE_SIZE = 20;
 
@@ -80,10 +81,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === "POST") {
       const parsed = postInputSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ error: "Invalid payload.", details: parsed.error.flatten() });
+        return res.status(400).json({
+          error: "Invalid payload.",
+          details: parsed.error.flatten(),
+        });
       }
       const input = parsed.data;
       const slug = slugify(input.slug || input.title);
+      const canonicalUrl = normalizeCanonicalUrl(input.canonicalUrl);
 
       const existing = await prisma.post.findUnique({ where: { slug } });
       if (existing) {
@@ -117,7 +122,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             publishedAt,
             seoTitle: input.seoTitle || null,
             seoDescription: input.seoDescription || null,
-            canonicalUrl: input.canonicalUrl || null,
+            canonicalUrl,
             authorId,
             categories: {
               create: categoryIds.map((categoryId) => ({ categoryId })),
