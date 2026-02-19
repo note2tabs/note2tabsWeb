@@ -38,6 +38,7 @@ export default function BlogPostPage({ post, toc, readingMinutes, relatedPosts }
   const canonical = post.canonicalUrl || `${baseUrl}/blog/${post.slug}`;
   const ogImage = post.coverImageUrl || `${baseUrl}/api/og?title=${encodeURIComponent(title)}`;
   const published = post.publishedAt || post.publishAt || undefined;
+  const displayDate = post.publishedAt ?? post.publishAt;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -83,8 +84,8 @@ export default function BlogPostPage({ post, toc, readingMinutes, relatedPosts }
             <p className="page-subtitle">{post.excerpt}</p>
             <div className="post-meta">
               <span>{post.authorName}</span>
-              {(post.publishedAt || post.publishAt) && (
-                <span>{new Date(post.publishedAt || post.publishAt).toLocaleDateString()}</span>
+              {displayDate && (
+                <span>{new Date(displayDate).toLocaleDateString()}</span>
               )}
               <span>{readingMinutes} min read</span>
             </div>

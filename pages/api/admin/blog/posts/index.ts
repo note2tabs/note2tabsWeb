@@ -17,7 +17,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!isAdminSession(session)) {
     return res.status(403).json({ error: "Admin access required." });
   }
-  if (!session?.user?.id) {
+  const authorId = session?.user?.id;
+  if (!authorId) {
     return res.status(401).json({ error: "Authentication required." });
   }
 
@@ -115,7 +116,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           seoTitle: input.seoTitle || null,
           seoDescription: input.seoDescription || null,
           canonicalUrl: input.canonicalUrl || null,
-          authorId: session.user.id,
+          authorId,
           categories: {
             create: categoryIds.map((categoryId) => ({ categoryId })),
           },
