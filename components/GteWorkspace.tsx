@@ -20,6 +20,8 @@ const CUT_SEGMENT_OFFSET = 14;
 const CUT_SEGMENT_MIN_WIDTH = 28;
 const CUT_BOUNDARY_OVERHANG = 12;
 const MAX_HISTORY = 16;
+const AUTOSAVE_DEBOUNCE_MS = 2500;
+const AUTOSAVE_INTERVAL_MS = 30000;
 
 type OptionalNumber = number | null;
 type OptionalTabCoord = [OptionalNumber, OptionalNumber];
@@ -137,6 +139,9 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   const [playbackVolume, setPlaybackVolume] = useState(0.6);
   const [undoCount, setUndoCount] = useState(0);
   const [redoCount, setRedoCount] = useState(0);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isAutosaving, setIsAutosaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(snapshot.updatedAt || null);
   const [selectedNoteIds, setSelectedNoteIds] = useState<number[]>([]);
   const [selectedChordIds, setSelectedChordIds] = useState<number[]>([]);
   const [draftNote, setDraftNote] = useState<DraftNote | null>(null);
@@ -252,6 +257,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   const chordNoteDragStartYRef = useRef(0);
   const mousePosRef = useRef<{ x: number; y: number }>({ x: 80, y: 120 });
   const selectionRef = useRef<SelectionState | null>(null);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosaveInFlightRef = useRef(false);
+  const autosaveQueuedRef = useRef(false);
+  const localRevisionRef = useRef(0);
+  const savedRevisionRef = useRef(0);
 
   const fps = 90;
   const framesPerMeasure = snapshot.framesPerMessure || 0;
@@ -278,10 +288,33 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   }, [snapshot]);
 
   useEffect(() => {
+    if (!hasUnsavedChanges) {
+      setLastSavedAt(snapshot.updatedAt || null);
+    }
+  }, [snapshot.updatedAt, hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
     undoRef.current = [];
     redoRef.current = [];
+    pendingMutationsRef.current = [];
+    mutationProcessingRef.current = false;
+    noteIdMapRef.current = new Map();
+    chordIdMapRef.current = new Map();
+    tempNoteIdRef.current = 0;
+    tempChordIdRef.current = 0;
+    autosaveInFlightRef.current = false;
+    autosaveQueuedRef.current = false;
+    localRevisionRef.current = 0;
+    savedRevisionRef.current = 0;
     setUndoCount(0);
     setRedoCount(0);
+    setHasUnsavedChanges(false);
+    setIsAutosaving(false);
+    setLastSavedAt(null);
   }, [editorId]);
 
   useEffect(() => {
@@ -307,6 +340,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
   useEffect(() => {
     return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
       if (previewAudioRef.current) {
         void previewAudioRef.current.close();
         previewAudioRef.current = null;
@@ -658,12 +695,139 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     [cloneSnapshot, onSnapshotChange, snapshotsEqual]
   );
 
+  const syncSavedRevision = useCallback((revision: number) => {
+    savedRevisionRef.current = Math.max(savedRevisionRef.current, revision);
+    setHasUnsavedChanges(localRevisionRef.current > savedRevisionRef.current);
+  }, []);
+
+  const persistSnapshotToBackend = useCallback(
+    async (reason: string, options?: { force?: boolean }) => {
+      const needsSave = localRevisionRef.current > savedRevisionRef.current;
+      if (!options?.force && !needsSave) return;
+      if (autosaveInFlightRef.current) {
+        autosaveQueuedRef.current = true;
+        return;
+      }
+      autosaveInFlightRef.current = true;
+      setIsAutosaving(true);
+      const revisionToSave = localRevisionRef.current;
+      const payload = cloneSnapshot(snapshotRef.current);
+      payload.id = editorId;
+      try {
+        const res = await gteApi.applySnapshot(editorId, payload);
+        if (localRevisionRef.current === revisionToSave) {
+          applySnapshot(res.snapshot, { recordUndo: false });
+        }
+        syncSavedRevision(revisionToSave);
+        setLastSavedAt(res.snapshot.updatedAt || new Date().toISOString());
+      } catch (err: any) {
+        if (reason === "pre-server-mutation") {
+          throw err;
+        }
+        setError(err?.message || "Autosave failed. Changes are still local.");
+        autosaveQueuedRef.current = true;
+      } finally {
+        autosaveInFlightRef.current = false;
+        setIsAutosaving(false);
+        const shouldRetry =
+          autosaveQueuedRef.current || localRevisionRef.current > savedRevisionRef.current;
+        autosaveQueuedRef.current = false;
+        if (shouldRetry) {
+          setTimeout(() => {
+            void persistSnapshotToBackend("queued", { force: true });
+          }, 200);
+        }
+      }
+    },
+    [applySnapshot, cloneSnapshot, editorId, syncSavedRevision]
+  );
+
+  const scheduleAutosave = useCallback(() => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+    }
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
+      void persistSnapshotToBackend("debounce");
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [persistSnapshotToBackend]);
+
+  const markLocalSnapshotDirty = useCallback(() => {
+    localRevisionRef.current += 1;
+    setHasUnsavedChanges(true);
+    scheduleAutosave();
+  }, [scheduleAutosave]);
+
+  const markServerSnapshotSynced = useCallback((nextSnapshot?: EditorSnapshot) => {
+    localRevisionRef.current += 1;
+    savedRevisionRef.current = localRevisionRef.current;
+    setHasUnsavedChanges(false);
+    if (nextSnapshot?.updatedAt) {
+      setLastSavedAt(nextSnapshot.updatedAt);
+    } else {
+      setLastSavedAt(new Date().toISOString());
+    }
+  }, []);
+
+  const flushLocalChangesBeforeServerMutation = useCallback(async () => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    if (localRevisionRef.current <= savedRevisionRef.current) return;
+    await persistSnapshotToBackend("pre-server-mutation", { force: true });
+    while (autosaveInFlightRef.current) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    if (localRevisionRef.current > savedRevisionRef.current) {
+      await persistSnapshotToBackend("pre-server-mutation", { force: true });
+    }
+  }, [persistSnapshotToBackend]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const interval = setInterval(() => {
+      void persistSnapshotToBackend("interval");
+    }, AUTOSAVE_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [hasUnsavedChanges, persistSnapshotToBackend]);
+
+  useEffect(() => {
+    const flushNow = () => {
+      if (localRevisionRef.current <= savedRevisionRef.current) return;
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+      void persistSnapshotToBackend("lifecycle", { force: true });
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushNow();
+      }
+    };
+    const handleBlur = () => flushNow();
+    const handleBeforeUnload = () => flushNow();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [persistSnapshotToBackend]);
+
   const runMutation = async <T extends { snapshot?: EditorSnapshot }>(fn: () => Promise<T>) => {
     setBusy(true);
     setError(null);
     try {
+      await flushLocalChangesBeforeServerMutation();
       const data = await fn();
-      if (data.snapshot) applySnapshot(data.snapshot);
+      if (data.snapshot) {
+        applySnapshot(data.snapshot);
+        markServerSnapshotSynced(data.snapshot);
+      }
     } catch (err: any) {
       setError(err?.message || "Something went wrong.");
     } finally {
@@ -672,12 +836,16 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   };
 
   const getTempNoteId = useCallback(() => {
-    tempNoteIdRef.current -= 1;
+    const current = snapshotRef.current;
+    const maxExisting = current.notes.reduce((max, note) => Math.max(max, note.id), 0);
+    tempNoteIdRef.current = Math.max(tempNoteIdRef.current, maxExisting) + 1;
     return tempNoteIdRef.current;
   }, []);
 
   const getTempChordId = useCallback(() => {
-    tempChordIdRef.current -= 1;
+    const current = snapshotRef.current;
+    const maxExisting = current.chords.reduce((max, chord) => Math.max(max, chord.id), 0);
+    tempChordIdRef.current = Math.max(tempChordIdRef.current, maxExisting) + 1;
     return tempChordIdRef.current;
   }, []);
 
@@ -824,82 +992,48 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       setError(null);
       const before = cloneSnapshot(current);
       const optimistic = input.apply(cloneSnapshot(before));
-      const mutation: OptimisticMutation = {
-        id: mutationSeqRef.current + 1,
-        label: input.label,
-        before,
-        optimistic,
-        apply: input.apply,
-        commit: input.commit,
-        createdNotes: input.createdNotes,
-        createdChords: input.createdChords,
-      };
       mutationSeqRef.current += 1;
-      pendingMutationsRef.current.push(mutation);
       applySnapshot(optimistic);
-      void processMutationQueue();
+      markLocalSnapshotDirty();
     },
-    [applySnapshot, cloneSnapshot, processMutationQueue]
+    [applySnapshot, cloneSnapshot, markLocalSnapshotDirty]
   );
 
-  const applySnapshotToBackend = useCallback(
-    async (value: EditorSnapshot) => {
-      const payload = { ...value, id: editorId };
-      const res = await gteApi.applySnapshot(editorId, payload);
-      return res.snapshot;
-    },
-    [editorId]
-  );
-
-  const handleUndo = useCallback(async () => {
+  const handleUndo = useCallback(() => {
     if (busy) return;
     const undoList = undoRef.current;
     if (!undoList.length) return;
     const previous = undoList[undoList.length - 1];
     const current = snapshotRef.current;
     if (!current) return;
-    setBusy(true);
     setError(null);
-    try {
-      const snapshotFromServer = await applySnapshotToBackend(previous);
-      const nextUndo = undoList.slice(0, -1);
-      const nextRedo = [...redoRef.current, cloneSnapshot(current)];
-      undoRef.current = nextUndo;
-      redoRef.current = nextRedo;
-      setUndoCount(nextUndo.length);
-      setRedoCount(nextRedo.length);
-      applySnapshot(snapshotFromServer, { recordUndo: false });
-    } catch (err: any) {
-      setError(err?.message || "Could not undo.");
-    } finally {
-      setBusy(false);
-    }
-  }, [applySnapshot, applySnapshotToBackend, busy, cloneSnapshot]);
+    const nextUndo = undoList.slice(0, -1);
+    const nextRedo = [...redoRef.current, cloneSnapshot(current)];
+    undoRef.current = nextUndo;
+    redoRef.current = nextRedo;
+    setUndoCount(nextUndo.length);
+    setRedoCount(nextRedo.length);
+    applySnapshot(cloneSnapshot(previous), { recordUndo: false });
+    markLocalSnapshotDirty();
+  }, [applySnapshot, busy, cloneSnapshot, markLocalSnapshotDirty]);
 
-  const handleRedo = useCallback(async () => {
+  const handleRedo = useCallback(() => {
     if (busy) return;
     const redoList = redoRef.current;
     if (!redoList.length) return;
     const next = redoList[redoList.length - 1];
     const current = snapshotRef.current;
     if (!current) return;
-    setBusy(true);
     setError(null);
-    try {
-      const snapshotFromServer = await applySnapshotToBackend(next);
-      const nextRedo = redoList.slice(0, -1);
-      const nextUndo = [...undoRef.current, cloneSnapshot(current)];
-      undoRef.current = nextUndo;
-      redoRef.current = nextRedo;
-      setUndoCount(nextUndo.length);
-      setRedoCount(nextRedo.length);
-      applySnapshot(snapshotFromServer, { recordUndo: false });
-    } catch (err: any) {
-      setError(err?.message || "Could not redo.");
-    } finally {
-      setBusy(false);
-    }
-  }, [applySnapshot, applySnapshotToBackend, busy, cloneSnapshot]);
+    const nextRedo = redoList.slice(0, -1);
+    const nextUndo = [...undoRef.current, cloneSnapshot(current)];
+    undoRef.current = nextUndo;
+    redoRef.current = nextRedo;
+    setUndoCount(nextUndo.length);
+    setRedoCount(nextRedo.length);
+    applySnapshot(cloneSnapshot(next), { recordUndo: false });
+    markLocalSnapshotDirty();
+  }, [applySnapshot, busy, cloneSnapshot, markLocalSnapshotDirty]);
 
   const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
 
@@ -3489,6 +3623,18 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
             <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
           </svg>
         </button>
+        <span className="mx-1 whitespace-nowrap text-[10px] text-slate-500">
+          {isAutosaving
+            ? "Saving..."
+            : hasUnsavedChanges
+              ? "Unsaved changes"
+              : lastSavedAt
+                ? `Saved ${new Date(lastSavedAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}`
+                : "Saved"}
+        </span>
         <button
           type="button"
           onClick={skipToStart}
