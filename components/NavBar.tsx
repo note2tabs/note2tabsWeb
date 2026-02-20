@@ -16,6 +16,7 @@ export default function NavBar() {
   const { data: session } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const isReadingArticle = router.pathname === "/blog/[slug]";
+  const editorHref = session?.user?.id ? "/gte" : "/gte/local";
   const initial =
     session?.user?.email?.[0]?.toUpperCase() ||
     session?.user?.name?.[0]?.toUpperCase() ||
@@ -31,7 +32,7 @@ export default function NavBar() {
         <nav
           className={`nav-links ${menuOpen ? "open" : ""}${isReadingArticle ? " nav-links--reading" : ""}`}
         >
-          <Link href="/gte" className="nav-pill">
+          <Link href={editorHref} className="nav-pill">
             Editor
           </Link>
           <Link href="/transcriber" className="nav-pill">

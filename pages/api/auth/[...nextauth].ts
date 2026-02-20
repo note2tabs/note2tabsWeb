@@ -22,12 +22,14 @@ const providers: Provider[] = [
       if (!user?.passwordHash) return null;
       const isValid = await compare(credentials.password, user.passwordHash);
       if (!isValid) return null;
+      const isEmailVerified = Boolean((user as any).emailVerifiedBool || user.emailVerified);
       return {
         id: user.id,
         email: user.email,
         name: user.name,
         role: user.role,
         tokensRemaining: user.tokensRemaining,
+        isEmailVerified,
       };
     },
   }),
@@ -50,12 +52,29 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   providers,
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider && account.provider !== "credentials" && user?.email) {
+        try {
+          await prisma.user.updateMany({
+            where: { email: user.email.toLowerCase() },
+            data: {
+              emailVerified: new Date(),
+              ...( { emailVerifiedBool: true } as any),
+            } as any,
+          });
+        } catch (error) {
+          console.error("Failed to mark OAuth user as verified", error);
+        }
+      }
+      return true;
+    },
     async jwt({ token, user, account }) {
       // On initial sign in, persist DB identifiers into the JWT.
       if (user) {
         token.id = (user as any).id;
         token.role = (user as any).role;
         token.tokensRemaining = (user as any).tokensRemaining;
+        token.isEmailVerified = Boolean((user as any).isEmailVerified);
       }
 
       // For OAuth logins, fetch the user to sync role/tokens.
@@ -65,6 +84,7 @@ export const authOptions: NextAuthOptions = {
           token.id = dbUser.id;
           token.role = dbUser.role;
           token.tokensRemaining = dbUser.tokensRemaining;
+          token.isEmailVerified = Boolean((dbUser as any).emailVerifiedBool || dbUser.emailVerified);
         }
       }
       return token;
@@ -77,10 +97,19 @@ export const authOptions: NextAuthOptions = {
         session.user.id = dbUser.id;
         session.user.role = dbUser.role;
         session.user.tokensRemaining = dbUser.tokensRemaining;
+        const isEmailVerified = Boolean((dbUser as any).emailVerifiedBool || dbUser.emailVerified);
+        session.user.isEmailVerified = isEmailVerified;
+        if (isEmailVerified && !(dbUser as any).emailVerifiedBool) {
+          await prisma.user.update({
+            where: { id: dbUser.id },
+            data: { ...( { emailVerifiedBool: true } as any) } as any,
+          });
+        }
       } else {
         session.user.id = token.id as string;
         session.user.role = (token.role as string) || "FREE";
         session.user.tokensRemaining = (token.tokensRemaining as number) ?? 0;
+        session.user.isEmailVerified = Boolean(token.isEmailVerified);
       }
       const creditUserId = session.user.id;
       if (creditUserId) {

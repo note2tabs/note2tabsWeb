@@ -1,29 +1,17 @@
-import Head from "next/head";
-import GteIndexPage, { getServerSideProps } from "../gte/index";
-
-export { getServerSideProps };
+import type { GetServerSideProps } from "next";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../api/auth/[...nextauth]";
 
 export default function EditorRoute() {
-  return (
-    <>
-      <Head>
-        <title>Editor | Note2Tabs</title>
-        <meta
-          name="description"
-          content="Edit, simplify, and organize guitar tabs with the Note2Tabs editor. Adjust fingerings, optimize layouts, and practice efficiently."
-        />
-        <meta property="og:title" content="Editor | Note2Tabs" />
-        <meta
-          property="og:description"
-          content="Edit, simplify, and organize guitar tabs with the Note2Tabs editor. Adjust fingerings, optimize layouts, and practice efficiently."
-        />
-        <meta name="twitter:title" content="Editor | Note2Tabs" />
-        <meta
-          name="twitter:description"
-          content="Edit, simplify, and organize guitar tabs with the Note2Tabs editor. Adjust fingerings, optimize layouts, and practice efficiently."
-        />
-      </Head>
-      <GteIndexPage />
-    </>
-  );
+  return null;
 }
+
+export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  const session = await getServerSession(ctx.req, ctx.res, authOptions);
+  return {
+    redirect: {
+      destination: session?.user?.id ? "/gte" : "/gte/local",
+      permanent: false,
+    },
+  };
+};
