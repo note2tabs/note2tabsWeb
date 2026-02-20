@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
+import { logGteAnalyticsEvent } from "../../../lib/gteAnalytics";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -107,6 +108,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       updatedAtMs: Date.now(),
     });
     pruneSnapshotSaveCache();
+  }
+  if (upstream.ok && method === "POST" && path === "editors") {
+    try {
+      const parsed = text ? (JSON.parse(text) as { editorId?: string }) : {};
+      const editorId = typeof parsed.editorId === "string" ? parsed.editorId : undefined;
+      if (editorId) {
+        await logGteAnalyticsEvent({
+          userId: session.user.id,
+          event: "gte_editor_created",
+          path: "/api/gte/editors",
+          payload: { editorId, source: "gte_proxy" },
+        });
+      }
+    } catch {
+      // ignore analytics parse/logging failures
+    }
   }
   if (!text) {
     return res.end();

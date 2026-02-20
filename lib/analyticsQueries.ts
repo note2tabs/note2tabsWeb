@@ -2,6 +2,23 @@ import { prisma } from "./prisma";
 
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 
+function parsePayload(payload?: string | null): Record<string, any> {
+  if (!payload) return {};
+  try {
+    const parsed = JSON.parse(payload);
+    return typeof parsed === "object" && parsed ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function percentile(values: number[], p: number) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.round(((p / 100) * (sorted.length - 1)))));
+  return sorted[idx];
+}
+
 export async function getSummaryStats(from: Date, to: Date) {
   const events = await prisma.analyticsEvent.findMany({
     where: { createdAt: { gte: from, lte: to } },
@@ -319,4 +336,146 @@ export async function getRecentEvents(from: Date, to: Date, limit = 50) {
     ...e,
     userEmail: e.userId ? map[e.userId] || null : null,
   }));
+}
+
+export async function getGteEditorStats(from: Date, to: Date, topUsersLimit = 25) {
+  const gteEvents = await prisma.analyticsEvent.findMany({
+    where: {
+      createdAt: { gte: from, lte: to },
+      event: {
+        in: [
+          "gte_editor_created",
+          "gte_editor_visit",
+          "gte_editor_session_start",
+          "gte_editor_session_end",
+        ],
+      },
+    },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      event: true,
+      userId: true,
+      sessionId: true,
+      payload: true,
+      path: true,
+      createdAt: true,
+    },
+  });
+
+  const createdDailyMap: Record<string, number> = {};
+  const visitedDailyMap: Record<string, number> = {};
+  const cursor = new Date(from);
+  while (cursor <= to) {
+    const key = dayKey(cursor);
+    createdDailyMap[key] = 0;
+    visitedDailyMap[key] = 0;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const createdPerUser = new Map<string, { count: number; lastAt: Date | null }>();
+  const uniqueVisitUsers = new Set<string>();
+  const uniqueVisitSessions = new Set<string>();
+  const createdEvents: Array<{
+    id: string;
+    userId: string | null;
+    createdAt: Date;
+    path: string | null;
+    editorId: string | null;
+  }> = [];
+  const sessionDurations: number[] = [];
+  const sessionStarts = gteEvents.filter((e) => e.event === "gte_editor_session_start").length;
+  const sessionEnds = gteEvents.filter((e) => e.event === "gte_editor_session_end").length;
+
+  gteEvents.forEach((event) => {
+    const key = dayKey(event.createdAt);
+    const payload = parsePayload(event.payload);
+
+    if (event.event === "gte_editor_created") {
+      createdDailyMap[key] = (createdDailyMap[key] || 0) + 1;
+      createdEvents.push({
+        id: event.id,
+        userId: event.userId || null,
+        createdAt: event.createdAt,
+        path: event.path || null,
+        editorId: typeof payload.editorId === "string" ? payload.editorId : null,
+      });
+      if (event.userId) {
+        const current = createdPerUser.get(event.userId) || { count: 0, lastAt: null };
+        current.count += 1;
+        current.lastAt = !current.lastAt || current.lastAt < event.createdAt ? event.createdAt : current.lastAt;
+        createdPerUser.set(event.userId, current);
+      }
+    }
+
+    if (event.event === "gte_editor_visit") {
+      visitedDailyMap[key] = (visitedDailyMap[key] || 0) + 1;
+      if (event.userId) uniqueVisitUsers.add(event.userId);
+      if (event.sessionId) uniqueVisitSessions.add(event.sessionId);
+    }
+
+    if (event.event === "gte_editor_session_end") {
+      const duration =
+        typeof payload.durationSec === "number"
+          ? payload.durationSec
+          : Number(payload.durationSec || 0);
+      if (Number.isFinite(duration) && duration >= 0) {
+        sessionDurations.push(Math.round(duration));
+      }
+    }
+  });
+
+  const userIds = Array.from(createdPerUser.keys());
+  const users = userIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, email: true, role: true },
+      })
+    : [];
+  const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+
+  const createdPerUserRows = userIds
+    .map((userId) => {
+      const counts = createdPerUser.get(userId);
+      return {
+        userId,
+        email: userMap[userId]?.email || "Unknown",
+        role: userMap[userId]?.role || "FREE",
+        count: counts?.count || 0,
+        lastCreatedAt: counts?.lastAt || null,
+      };
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, topUsersLimit);
+
+  const createdDaily = Object.entries(createdDailyMap).map(([date, count]) => ({ date, count }));
+  const visitedDaily = Object.entries(visitedDailyMap).map(([date, count]) => ({ date, count }));
+  const avgDuration =
+    sessionDurations.length > 0
+      ? sessionDurations.reduce((sum, value) => sum + value, 0) / sessionDurations.length
+      : 0;
+
+  return {
+    createdTotal: createdEvents.length,
+    visitTotal: gteEvents.filter((e) => e.event === "gte_editor_visit").length,
+    uniqueVisitUsers: uniqueVisitUsers.size,
+    uniqueVisitSessions: uniqueVisitSessions.size,
+    sessionStarts,
+    sessionEnds,
+    sessionsWithDuration: sessionDurations.length,
+    avgSessionDurationSec: avgDuration,
+    medianSessionDurationSec: percentile(sessionDurations, 50),
+    p95SessionDurationSec: percentile(sessionDurations, 95),
+    createdDaily,
+    visitedDaily,
+    createdPerUser: createdPerUserRows,
+    recentCreated: createdEvents
+      .slice()
+      .reverse()
+      .slice(0, 50)
+      .map((item) => ({
+        ...item,
+        userEmail: item.userId ? userMap[item.userId]?.email || null : null,
+      })),
+  };
 }

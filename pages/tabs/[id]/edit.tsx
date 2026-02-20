@@ -2,6 +2,7 @@ import type { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../api/auth/[...nextauth]";
 import { prisma } from "../../../lib/prisma";
+import { logGteAnalyticsEvent } from "../../../lib/gteAnalytics";
 import { tabSegmentsToStamps } from "../../../lib/tabTextToStamps";
 
 type Props = {
@@ -93,6 +94,12 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     if (!created?.editorId) {
       return { props: { error: "GTE editor creation returned no id." } };
     }
+    await logGteAnalyticsEvent({
+      userId: session.user.id,
+      event: "gte_editor_created",
+      path: "/tabs/[id]/edit",
+      payload: { editorId: created.editorId, source: "tab_edit_redirect", tabJobId: job.id },
+    });
 
     if (stamps.length > 0) {
       const importRes = await fetch(`${API_BASE}/gte/editors/${created.editorId}/import`, {

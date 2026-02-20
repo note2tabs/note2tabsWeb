@@ -12,6 +12,7 @@ import {
   getTopUsers,
   getRecentEvents,
   getUsersActivity,
+  getGteEditorStats,
 } from "../../lib/analyticsQueries";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
@@ -40,6 +41,7 @@ type Devices = Awaited<ReturnType<typeof getDeviceBreakdown>>;
 type Errors = Awaited<ReturnType<typeof getErrorStats>>;
 type TopUser = Awaited<ReturnType<typeof getTopUsers>>[number];
 type RecentEvent = Awaited<ReturnType<typeof getRecentEvents>>[number];
+type GteStats = Awaited<ReturnType<typeof getGteEditorStats>>;
 
 type Props = {
   from: string;
@@ -53,6 +55,12 @@ type Props = {
   topUsers: TopUser[];
   recentEvents: RecentEvent[];
   usersActivity: Awaited<ReturnType<typeof getUsersActivity>>;
+  gteStats: Omit<GteStats, "createdPerUser" | "recentCreated"> & {
+    createdPerUser: Array<
+      Omit<GteStats["createdPerUser"][number], "lastCreatedAt"> & { lastCreatedAt: string | null }
+    >;
+    recentCreated: Array<Omit<GteStats["recentCreated"][number], "createdAt"> & { createdAt: string }>;
+  };
 };
 
 const presetRanges: Record<string, number> = {
@@ -73,6 +81,7 @@ export default function AnalyticsDashboard({
   topUsers,
   recentEvents,
   usersActivity,
+  gteStats,
 }: Props) {
   const funnelSteps = [
     { label: "Visitors", value: funnel.step1_visitors },
@@ -139,6 +148,118 @@ export default function AnalyticsDashboard({
               title="Avg transcriptions / user"
               value={summary.avgTranscriptionsPerUser.toFixed(2)}
             />
+          </section>
+
+          <section className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+            <Card title="Editors created" value={gteStats.createdTotal} />
+            <Card title="Editor visits" value={gteStats.visitTotal} />
+            <Card title="Unique editor users" value={gteStats.uniqueVisitUsers} />
+            <Card title="Tracked sessions" value={gteStats.sessionsWithDuration} />
+            <Card title="Avg session" value={formatDuration(gteStats.avgSessionDurationSec)} />
+            <Card title="P95 session" value={formatDuration(gteStats.p95SessionDurationSec)} />
+          </section>
+
+          <section className="grid gap-4 lg:grid-cols-2">
+            <div className="card stack">
+              <SectionHeader title="Editor creations per user" />
+              <div className="overflow-x-auto">
+                <table className="table">
+                  <thead>
+                    <tr className="text-left text-slate-600">
+                      <th className="px-2 py-1">Email</th>
+                      <th className="px-2 py-1">Role</th>
+                      <th className="px-2 py-1">Editors created</th>
+                      <th className="px-2 py-1">Last created</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gteStats.createdPerUser.map((row) => (
+                      <tr key={row.userId} className="border-t border-slate-200">
+                        <td className="px-2 py-1">{row.email}</td>
+                        <td className="px-2 py-1">{row.role}</td>
+                        <td className="px-2 py-1">{row.count}</td>
+                        <td className="px-2 py-1 text-slate-600">
+                          {row.lastCreatedAt ? new Date(row.lastCreatedAt).toLocaleString() : "-"}
+                        </td>
+                      </tr>
+                    ))}
+                    {gteStats.createdPerUser.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-2 py-3 text-center text-slate-500">
+                          No editor creations in range.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="card stack">
+              <SectionHeader title="Recent editor creations" />
+              <div className="overflow-x-auto">
+                <table className="table">
+                  <thead>
+                    <tr className="text-left text-slate-600">
+                      <th className="px-2 py-1">Time</th>
+                      <th className="px-2 py-1">Editor</th>
+                      <th className="px-2 py-1">User</th>
+                      <th className="px-2 py-1">Source</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gteStats.recentCreated.map((row) => (
+                      <tr key={row.id} className="border-t border-slate-200">
+                        <td className="px-2 py-1 text-slate-600">
+                          {new Date(row.createdAt).toLocaleString()}
+                        </td>
+                        <td className="px-2 py-1">{row.editorId || "-"}</td>
+                        <td className="px-2 py-1">{row.userEmail || "-"}</td>
+                        <td className="px-2 py-1">{row.path || "-"}</td>
+                      </tr>
+                    ))}
+                    {gteStats.recentCreated.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-2 py-3 text-center text-slate-500">
+                          No editor creations recorded yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section className="card stack">
+            <SectionHeader title="Daily editor activity" />
+            <div className="overflow-x-auto">
+              <table className="table">
+                <thead>
+                  <tr className="text-left text-slate-600">
+                    <th className="px-2 py-1">Date</th>
+                    <th className="px-2 py-1">Editors created</th>
+                    <th className="px-2 py-1">Editor visits</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gteStats.createdDaily.map((row, idx) => (
+                    <tr key={row.date} className="border-t border-slate-200">
+                      <td className="px-2 py-1">{row.date}</td>
+                      <td className="px-2 py-1">{row.count}</td>
+                      <td className="px-2 py-1">{gteStats.visitedDaily[idx]?.count ?? 0}</td>
+                    </tr>
+                  ))}
+                  {gteStats.createdDaily.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-2 py-3 text-center text-slate-500">
+                        No daily editor metrics in range.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </section>
 
           <section className="card stack">
@@ -366,6 +487,13 @@ function pct(prev: number, next: number) {
   return Math.round((next / prev) * 100);
 }
 
+function formatDuration(seconds: number) {
+  const rounded = Math.max(0, Math.round(seconds));
+  const mins = Math.floor(rounded / 60);
+  const secs = rounded % 60;
+  return `${mins}m ${secs}s`;
+}
+
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   if (!session?.user?.id || session.user.role !== "ADMIN") {
@@ -380,7 +508,8 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const from = new Date();
   from.setDate(to.getDate() - (days - 1));
 
-  const [summary, daily, funnel, dropoff, devices, errors, topUsers, recentEvents, usersActivity] = await Promise.all([
+  const [summary, daily, funnel, dropoff, devices, errors, topUsers, recentEvents, usersActivity, gteStats] =
+    await Promise.all([
     getSummaryStats(from, to),
     getDailyTimeSeries(from, to),
     getConversionFunnel(from, to),
@@ -390,6 +519,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     getTopUsers(from, to, 10),
     getRecentEvents(from, to, 50),
     getUsersActivity(from, to, 100),
+    getGteEditorStats(from, to, 25),
   ]);
 
   return {
@@ -411,6 +541,17 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         ...u,
         lastActive: u.lastActive ? u.lastActive.toISOString() : null,
       })),
+      gteStats: {
+        ...gteStats,
+        createdPerUser: gteStats.createdPerUser.map((row) => ({
+          ...row,
+          lastCreatedAt: row.lastCreatedAt ? row.lastCreatedAt.toISOString() : null,
+        })),
+        recentCreated: gteStats.recentCreated.map((row) => ({
+          ...row,
+          createdAt: row.createdAt.toISOString(),
+        })),
+      },
     },
   };
 };

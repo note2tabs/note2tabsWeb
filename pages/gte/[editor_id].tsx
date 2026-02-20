@@ -1,6 +1,6 @@
 import { GetServerSideProps } from "next";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
@@ -19,6 +19,9 @@ export default function GteEditorPage({ editorId }: Props) {
   const [nameDraft, setNameDraft] = useState("");
   const [nameSaving, setNameSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const telemetrySessionRef = useRef<string | null>(null);
+  const telemetryStartedAtRef = useRef<number | null>(null);
+  const telemetryClosedRef = useRef(false);
   const router = useRouter();
 
   const loadEditor = async () => {
@@ -38,6 +41,81 @@ export default function GteEditorPage({ editorId }: Props) {
     if (editorId) {
       void loadEditor();
     }
+  }, [editorId]);
+
+  useEffect(() => {
+    if (!editorId) return;
+
+    const createSessionId = () => {
+      if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function") {
+        return globalThis.crypto.randomUUID();
+      }
+      return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    };
+
+    const sessionId = createSessionId();
+    telemetrySessionRef.current = sessionId;
+    telemetryStartedAtRef.current = Date.now();
+    telemetryClosedRef.current = false;
+
+    const sendTelemetry = (
+      event: "gte_editor_visit" | "gte_editor_session_start" | "gte_editor_session_end",
+      durationSec?: number
+    ) => {
+      const payload = {
+        event,
+        editorId,
+        sessionId,
+        path: window.location.pathname,
+        ...(durationSec !== undefined ? { durationSec } : {}),
+      };
+      return fetch("/api/gte/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      });
+    };
+
+    void sendTelemetry("gte_editor_visit").catch(() => {});
+    void sendTelemetry("gte_editor_session_start").catch(() => {});
+
+    const flushSessionEnd = () => {
+      if (telemetryClosedRef.current) return;
+      telemetryClosedRef.current = true;
+      const startedAt = telemetryStartedAtRef.current ?? Date.now();
+      const durationSec = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+      const payload = JSON.stringify({
+        event: "gte_editor_session_end",
+        editorId,
+        sessionId,
+        durationSec,
+        path: window.location.pathname,
+      });
+
+      if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+        const blob = new Blob([payload], { type: "application/json" });
+        navigator.sendBeacon("/api/gte/telemetry", blob);
+        return;
+      }
+
+      void fetch("/api/gte/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {});
+    };
+
+    const handlePageHide = () => flushSessionEnd();
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("beforeunload", handlePageHide);
+
+    return () => {
+      flushSessionEnd();
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("beforeunload", handlePageHide);
+    };
   }, [editorId]);
 
   useEffect(() => {

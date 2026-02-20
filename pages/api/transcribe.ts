@@ -4,6 +4,7 @@ import { IncomingForm, type File as FormidableFile } from "formidable";
 import { promises as fs } from "fs";
 import { authOptions } from "./auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
+import { logGteAnalyticsEvent } from "../../lib/gteAnalytics";
 import { tabSegmentsToStamps } from "../../lib/tabTextToStamps";
 import {
   buildCreditsSummary,
@@ -318,6 +319,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (createRes.ok) {
         const created = (await createRes.json()) as { editorId?: string };
         if (created?.editorId) {
+          await logGteAnalyticsEvent({
+            userId: user.id,
+            event: "gte_editor_created",
+            path: "/api/transcribe",
+            payload: { editorId: created.editorId, source: "transcribe" },
+          });
           let importOk = true;
           if (stamps.length > 0) {
             const importRes = await fetch(`${API_BASE}/gte/editors/${created.editorId}/import`, {
