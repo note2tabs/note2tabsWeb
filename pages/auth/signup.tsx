@@ -1,6 +1,5 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
 import { useRouter } from "next/router";
 
 export default function SignupPage() {
@@ -10,6 +9,16 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const nextHref = useMemo(() => {
+    const raw = router.query.next;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof value !== "string") return "/";
+    const trimmed = value.trim();
+    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "/";
+    return trimmed;
+  }, [router.query.next]);
+  const loginHref =
+    nextHref === "/" ? "/auth/login" : `/auth/login?next=${encodeURIComponent(nextHref)}`;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -26,8 +35,10 @@ export default function SignupPage() {
       setError(data?.error || "Could not sign up.");
       return;
     }
-    await signIn("credentials", { redirect: false, email, password, callbackUrl: "/" });
-    router.push("/");
+    const nextEmail = encodeURIComponent((data?.email as string) || email);
+    const sentParam = data?.emailSent === false ? "&sent=0" : "";
+    const nextParam = nextHref === "/" ? "" : `&next=${encodeURIComponent(nextHref)}`;
+    router.push(`/auth/verify-email?email=${nextEmail}${sentParam}${nextParam}`);
   };
 
   return (
@@ -75,7 +86,7 @@ export default function SignupPage() {
             </button>
           </form>
           <div className="button-row" style={{ justifyContent: "center" }}>
-            <Link href="/auth/login" className="button-link">
+            <Link href={loginHref} className="button-link">
               Already have an account? Log in
             </Link>
           </div>

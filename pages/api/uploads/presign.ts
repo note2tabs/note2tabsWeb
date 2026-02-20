@@ -18,6 +18,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session?.user?.id) {
     return res.status(401).json({ error: "Not authenticated" });
   }
+  if (!session.user.isEmailVerified) {
+    return res.status(403).json({
+      error: "Please verify your email before using the transcriber.",
+      verificationRequired: true,
+    });
+  }
 
   const { fileName, contentType, size } = req.body || {};
   const sizeNum = typeof size === "number" ? size : Number(size);

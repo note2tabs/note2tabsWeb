@@ -15,6 +15,7 @@ type TabsResponse = {
   credits?: CreditsSummary;
   jobId?: string;
   gteEditorId?: string;
+  verificationRequired?: boolean;
 };
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
@@ -186,6 +187,11 @@ export default function HomePage() {
   const ytPlayerMountRef = useRef<HTMLDivElement | null>(null);
   const captureRafRef = useRef<number | null>(null);
   const isSignedIn = Boolean(session);
+  const isEmailVerified = Boolean(session?.user?.isEmailVerified);
+  const editorHref = isSignedIn ? "/gte" : "/gte/local";
+  const verifyHref = `/auth/verify-email${
+    session?.user?.email ? `?email=${encodeURIComponent(session.user.email)}` : ""
+  }`;
   const appendEditorId = useMemo(() => {
     if (!router.isReady) return null;
     const value = router.query.appendEditorId;
@@ -358,6 +364,7 @@ export default function HomePage() {
   const youtubeValid = useMemo(() => Boolean(youtubeId), [youtubeId]);
 
   const canSubmit = useMemo(() => {
+    if (isSignedIn && !isEmailVerified) return false;
     if (mode === "FILE") return Boolean(selectedFile) && !loading;
     return (
       youtubeValid &&
@@ -377,6 +384,8 @@ export default function HomePage() {
     ytPlayerError,
     loading,
     captureActive,
+    isSignedIn,
+    isEmailVerified,
   ]);
   const captureTitle =
     capturePhase === "permission"
@@ -560,6 +569,10 @@ export default function HomePage() {
       signIn(undefined, { callbackUrl: "/" });
       return;
     }
+    if (!isEmailVerified) {
+      setError("Please verify your email before using the transcriber.");
+      return;
+    }
 
     if (mode === "FILE" && !selectedFile) {
       setError("Please select an audio file to transcribe.");
@@ -665,6 +678,10 @@ export default function HomePage() {
       if (!response.ok) {
         if (data.credits) {
           setCredits(data.credits);
+        }
+        if (data.verificationRequired) {
+          setError("Please verify your email before using the transcriber.");
+          return;
         }
         setError(data?.error || "Transcription failed. Please try again.");
         sendEvent("transcribe_error", { mode, error: data?.error || "unknown" });
@@ -780,8 +797,8 @@ export default function HomePage() {
                 Play back tabs, switch fingerings, and optimize layouts for clean, playable results.
               </p>
               <div className="button-row hero-cta-row">
-                <Link href="/gte" className="button-primary">
-                  Open Guitar Tab Editor
+                <Link href={editorHref} className="button-primary">
+                  {isSignedIn ? "Open Guitar Tab Editor" : "Try Guitar Tab Editor"}
                 </Link>
                 <Link href="/transcriber" className="button-secondary">
                   Try Transcriber
@@ -828,11 +845,13 @@ export default function HomePage() {
                     </p>
                   </div>
                   <div className="editor-actions">
-                    <Link href="/gte" className="button-primary">
-                      Open Guitar Tab Editor
+                    <Link href={editorHref} className="button-primary">
+                      {isSignedIn ? "Open Guitar Tab Editor" : "Try Guitar Tab Editor"}
                     </Link>
                     <span className="editor-note muted">
-                      Your editors and exports stay in your account library.
+                      {isSignedIn
+                        ? "Your editors and exports stay in your account library."
+                        : "Runs locally in your browser. Create an account when you want to save."}
                     </span>
                   </div>
                 </div>
@@ -1018,6 +1037,14 @@ export default function HomePage() {
 
                   {status && <div className="status">{status}</div>}
                   {error && <div className="error">{error}</div>}
+                  {isSignedIn && !isEmailVerified && (
+                    <div className="notice">
+                      Verify your email to use the transcriber.{" "}
+                      <Link href={verifyHref} className="button-link">
+                        Verify now
+                      </Link>
+                    </div>
+                  )}
                   {isSignedIn && showCreditsEmpty && (
                     <div className="notice">
                       {isPremiumRole(session?.user?.role)

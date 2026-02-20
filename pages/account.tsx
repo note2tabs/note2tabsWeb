@@ -22,6 +22,7 @@ type Props = {
     role: string;
     tokensRemaining: number;
     createdAt: string;
+    isEmailVerified: boolean;
   };
   tabs: TabJob[];
   stripeReady: boolean;
@@ -37,6 +38,8 @@ type Props = {
 export default function AccountPage({ user, tabs, stripeReady, credits }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const isAdminOrMod = user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const isAdmin = user.role === "ADMIN";
   const isPremium =
@@ -79,6 +82,27 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
     window.location.href = data.url;
   };
 
+  const handleResendVerification = async () => {
+    setVerifyBusy(true);
+    setVerifyMessage(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Could not resend verification email.");
+      }
+      setVerifyMessage(data?.alreadyVerified ? "Your email is already verified." : "Verification email sent.");
+    } catch (err: any) {
+      setError(err?.message || "Could not resend verification email.");
+    } finally {
+      setVerifyBusy(false);
+    }
+  };
+
   return (
     <main className="page">
       <div className="container stack">
@@ -104,6 +128,9 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
                   : "Plan: Free - 10 credits/month"}
               </p>
               <p className="muted text-small">Account type: {user.role}</p>
+              <p className="muted text-small">
+                Email verified: {user.isEmailVerified ? "Yes" : "No"}
+              </p>
             </div>
             <div className="button-row">
               <button
@@ -115,6 +142,25 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
               </button>
             </div>
           </div>
+          {!user.isEmailVerified && (
+            <div className="notice">
+              Please verify your email before using the transcriber.
+              <div className="button-row" style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  className="button-secondary button-small"
+                  disabled={verifyBusy}
+                >
+                  {verifyBusy ? "Sending..." : "Resend verification email"}
+                </button>
+                <Link href={`/auth/verify-email?email=${encodeURIComponent(user.email)}`} className="button-link">
+                  Open verification page
+                </Link>
+              </div>
+              {verifyMessage && <p className="muted text-small" style={{ marginTop: 8 }}>{verifyMessage}</p>}
+            </div>
+          )}
           <div className="account-credits">
             <div className="stat-card">
               <span className="stat-label">Credits used</span>
@@ -227,7 +273,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { email: true, name: true, role: true, tokensRemaining: true, createdAt: true },
+    select: { email: true, name: true, role: true, tokensRemaining: true, createdAt: true, emailVerified: true },
   });
 
   const tabs = await prisma.tabJob.findMany({
@@ -267,6 +313,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         ? {
             ...user,
             createdAt: user.createdAt.toISOString(),
+            isEmailVerified: Boolean((user as any).emailVerifiedBool || user.emailVerified),
           }
         : {
             email: session.user.email,
@@ -274,6 +321,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
             role: "FREE",
             tokensRemaining: 0,
             createdAt: new Date().toISOString(),
+            isEmailVerified: Boolean(session.user.isEmailVerified),
           },
       tabs: tabs.map((job) => ({
         ...job,

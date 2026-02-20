@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -9,6 +9,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const nextHref = useMemo(() => {
+    const raw = router.query.next;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof value !== "string") return "/";
+    const trimmed = value.trim();
+    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "/";
+    return trimmed;
+  }, [router.query.next]);
+  const signupHref =
+    nextHref === "/" ? "/auth/signup" : `/auth/signup?next=${encodeURIComponent(nextHref)}`;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -18,13 +28,13 @@ export default function LoginPage() {
       redirect: false,
       email,
       password,
-      callbackUrl: "/",
+      callbackUrl: nextHref,
     });
     setLoading(false);
     if (res?.error) {
       setError(res.error);
     } else {
-      router.push("/");
+      router.push(nextHref);
     }
   };
 
@@ -62,11 +72,15 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Log in"}
             </button>
           </form>
-          <button type="button" onClick={() => signIn("google")} className="button-secondary">
+          <button
+            type="button"
+            onClick={() => signIn("google", { callbackUrl: nextHref })}
+            className="button-secondary"
+          >
             Continue with Google
           </button>
           <div className="button-row" style={{ justifyContent: "space-between" }}>
-            <Link href="/auth/signup" className="button-link">
+            <Link href={signupHref} className="button-link">
               Need an account? Sign up
             </Link>
             <Link href="/reset-password" className="button-link">

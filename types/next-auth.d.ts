@@ -6,6 +6,7 @@ declare module "next-auth" {
       id: string;
       role?: string;
       tokensRemaining?: number;
+      isEmailVerified?: boolean;
       monthlyCreditsUsed?: number;
       monthlyCreditsLimit?: number;
       monthlyCreditsRemaining?: number;
@@ -17,6 +18,7 @@ declare module "next-auth" {
   interface User {
     role?: string;
     tokensRemaining?: number;
+    isEmailVerified?: boolean;
   }
 }
 
@@ -25,5 +27,6 @@ declare module "next-auth/jwt" {
     id?: string;
     role?: string;
     tokensRemaining?: number;
+    isEmailVerified?: boolean;
   }
 }

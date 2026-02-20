@@ -7,6 +7,7 @@ type Props = {
   editorId: string;
   snapshot: EditorSnapshot;
   onSnapshotChange: (snapshot: EditorSnapshot) => void;
+  allowBackend?: boolean;
 };
 
 const STRING_LABELS = ["e", "B", "G", "D", "A", "E"];
@@ -15,6 +16,8 @@ const ROW_HEIGHT = 28;
 const ROW_GAP = 80;
 const BARS_PER_ROW = 3;
 const DEFAULT_NOTE_LENGTH = 20;
+const FIXED_FRAMES_PER_BAR = 480;
+const DEFAULT_SECONDS_PER_BAR = 2;
 const CUT_SEGMENT_HEIGHT = 20;
 const CUT_SEGMENT_OFFSET = 14;
 const CUT_SEGMENT_MIN_WIDTH = 28;
@@ -23,6 +26,11 @@ const MAX_HISTORY = 16;
 const AUTOSAVE_DEBOUNCE_MS = 2500;
 const AUTOSAVE_INTERVAL_MS = 30000;
 
+const fpsFromSecondsPerBar = (secondsPerBar: number) => {
+  const safeSeconds = Math.max(0.1, secondsPerBar);
+  return Math.max(1, Math.round(FIXED_FRAMES_PER_BAR / safeSeconds));
+};
+
 type OptionalNumber = number | null;
 type OptionalTabCoord = [OptionalNumber, OptionalNumber];
 
@@ -30,6 +38,175 @@ const parseOptionalNumber = (value: string): OptionalNumber => {
   if (value.trim() === "") return null;
   const parsed = Number(value);
   return Number.isNaN(parsed) ? null : parsed;
+};
+
+const cloneTabCoord = (tab: TabCoord): TabCoord => [tab[0], tab[1]];
+
+const getTabMidi = (snapshot: EditorSnapshot, tab: TabCoord) => {
+  const fromRef = snapshot.tabRef?.[tab[0]]?.[tab[1]];
+  if (fromRef !== undefined && fromRef !== null && Number.isFinite(Number(fromRef))) {
+    return Number(fromRef);
+  }
+  const base = STANDARD_TUNING_MIDI[tab[0]];
+  if (base !== undefined && Number.isFinite(tab[1])) {
+    return base + tab[1];
+  }
+  return 0;
+};
+
+const removeNoteFromSnapshot = (draft: EditorSnapshot, noteId: number) => {
+  draft.notes = draft.notes.filter((note) => note.id !== noteId);
+};
+
+const removeChordFromSnapshot = (draft: EditorSnapshot, chordId: number) => {
+  draft.chords = draft.chords.filter((chord) => chord.id !== chordId);
+};
+
+const setChordTabsInSnapshot = (draft: EditorSnapshot, chordId: number, tabs: TabCoord[]) => {
+  const chord = draft.chords.find((item) => item.id === chordId);
+  if (!chord) return;
+  chord.currentTabs = tabs.map((tab) => cloneTabCoord(tab));
+};
+
+const shiftChordOctaveInSnapshot = (
+  draft: EditorSnapshot,
+  chordId: number,
+  direction: number
+) => {
+  const chord = draft.chords.find((item) => item.id === chordId);
+  if (!chord) return;
+  if (direction !== 1 && direction !== -1) return;
+  const maxFret = draft.tabRef?.[0]?.length ? draft.tabRef[0].length - 1 : 36;
+  const delta = direction * 12;
+  chord.currentTabs = chord.currentTabs.map((tab) => [
+    tab[0],
+    Math.max(0, Math.min(maxFret, tab[1] + delta)),
+  ]);
+};
+
+const disbandChordInSnapshot = (draft: EditorSnapshot, chordId: number) => {
+  const chordIndex = draft.chords.findIndex((item) => item.id === chordId);
+  if (chordIndex < 0) return;
+  const chord = draft.chords[chordIndex];
+  const nextNoteId = draft.notes.reduce((max, note) => Math.max(max, note.id), 0) + 1;
+  const disbandedNotes = chord.currentTabs.map((tab, idx) => ({
+    id: nextNoteId + idx,
+    startTime: chord.startTime,
+    length: chord.length,
+    midiNum: getTabMidi(draft, tab),
+    tab: cloneTabCoord(tab),
+    optimals: [],
+  }));
+  draft.notes.push(...disbandedNotes);
+  draft.chords.splice(chordIndex, 1);
+};
+
+const makeChordInSnapshot = (draft: EditorSnapshot, noteIds: number[]) => {
+  const noteSet = new Set(noteIds);
+  const chordNotes = draft.notes.filter((note) => noteSet.has(note.id));
+  if (chordNotes.length < 2) return;
+  chordNotes.sort((a, b) => a.startTime - b.startTime || a.tab[0] - b.tab[0]);
+  const startTime = Math.min(...chordNotes.map((note) => note.startTime));
+  const endTime = Math.max(
+    ...chordNotes.map((note) => note.startTime + Math.max(1, Math.round(note.length)))
+  );
+  const length = Math.max(1, endTime - startTime);
+  const nextChordId = draft.chords.reduce((max, chord) => Math.max(max, chord.id), 0) + 1;
+  const tabs = chordNotes.map((note) => cloneTabCoord(note.tab));
+  draft.chords.push({
+    id: nextChordId,
+    startTime,
+    length,
+    originalMidi: chordNotes.map((note) => note.midiNum),
+    currentTabs: tabs,
+    ogTabs: tabs.map((tab) => cloneTabCoord(tab)),
+  });
+  draft.notes = draft.notes.filter((note) => !noteSet.has(note.id));
+};
+
+const setSecondsPerBarInSnapshot = (draft: EditorSnapshot, secondsPerBar: number) => {
+  const safeSeconds = Math.max(0.1, secondsPerBar);
+  draft.framesPerMessure = FIXED_FRAMES_PER_BAR;
+  draft.fps = fpsFromSecondsPerBar(safeSeconds);
+  draft.secondsPerBar = safeSeconds;
+  draft.totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(draft.totalFrames || FIXED_FRAMES_PER_BAR));
+};
+
+const setTimeSignatureInSnapshot = (draft: EditorSnapshot, timeSignature: number) => {
+  draft.timeSignature = Math.max(1, Math.min(64, Math.round(timeSignature)));
+};
+
+const addBarsInSnapshot = (draft: EditorSnapshot, count: number) => {
+  const safeCount = Math.max(1, Math.round(count));
+  const framesPerBar = FIXED_FRAMES_PER_BAR;
+  draft.framesPerMessure = framesPerBar;
+  draft.fps = fpsFromSecondsPerBar(
+    Math.max(0.1, Number(draft.secondsPerBar || DEFAULT_SECONDS_PER_BAR))
+  );
+  draft.totalFrames = Math.max(framesPerBar, (draft.totalFrames || framesPerBar) + safeCount * framesPerBar);
+};
+
+const removeBarInSnapshot = (draft: EditorSnapshot, index: number) => {
+  const framesPerBar = FIXED_FRAMES_PER_BAR;
+  draft.framesPerMessure = framesPerBar;
+  draft.fps = fpsFromSecondsPerBar(
+    Math.max(0.1, Number(draft.secondsPerBar || DEFAULT_SECONDS_PER_BAR))
+  );
+  const totalBars = Math.max(1, Math.ceil(Math.max(framesPerBar, draft.totalFrames || framesPerBar) / framesPerBar));
+  if (totalBars <= 1) return;
+  const safeIndex = Math.max(0, Math.min(totalBars - 1, Math.round(index)));
+  const removeStart = safeIndex * framesPerBar;
+  const removeEnd = removeStart + framesPerBar;
+
+  const normalizeLength = (length: number) => Math.max(1, Math.round(length));
+
+  draft.notes = draft.notes
+    .filter((note) => {
+      const noteStart = Math.round(note.startTime);
+      const noteEnd = noteStart + normalizeLength(note.length);
+      if (noteEnd <= removeStart) return true;
+      if (noteStart >= removeEnd) return true;
+      return false;
+    })
+    .map((note) => {
+      const noteStart = Math.round(note.startTime);
+      if (noteStart >= removeEnd) {
+        return { ...note, startTime: Math.max(0, noteStart - framesPerBar) };
+      }
+      return note;
+    });
+
+  draft.chords = draft.chords
+    .filter((chord) => {
+      const chordStart = Math.round(chord.startTime);
+      const chordEnd = chordStart + normalizeLength(chord.length);
+      if (chordEnd <= removeStart) return true;
+      if (chordStart >= removeEnd) return true;
+      return false;
+    })
+    .map((chord) => {
+      const chordStart = Math.round(chord.startTime);
+      if (chordStart >= removeEnd) {
+        return { ...chord, startTime: Math.max(0, chordStart - framesPerBar) };
+      }
+      return chord;
+    });
+
+  draft.cutPositionsWithCoords = draft.cutPositionsWithCoords.flatMap(([region, coord]) => {
+    const start = Math.max(0, Math.round(region[0]));
+    const end = Math.max(start + 1, Math.round(region[1]));
+    if (end <= removeStart) {
+      return [[[start, end], coord] as CutWithCoord];
+    }
+    if (start >= removeEnd) {
+      const shiftedStart = Math.max(0, start - framesPerBar);
+      const shiftedEnd = Math.max(shiftedStart + 1, end - framesPerBar);
+      return [[[shiftedStart, shiftedEnd], coord] as CutWithCoord];
+    }
+    return [];
+  });
+
+  draft.totalFrames = Math.max(framesPerBar, (totalBars - 1) * framesPerBar);
 };
 
 type DraftNote = {
@@ -129,7 +306,12 @@ type OptimisticMutation = {
   createdChords?: TempChordMapping[];
 };
 
-export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: Props) {
+export default function GteWorkspace({
+  editorId,
+  snapshot,
+  onSnapshotChange,
+  allowBackend = true,
+}: Props) {
   const router = useRouter();
   const [scale, setScale] = useState(4);
   const [secondsPerBar, setSecondsPerBar] = useState(2);
@@ -266,25 +448,22 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   const localRevisionRef = useRef(0);
   const savedRevisionRef = useRef(0);
 
-  const fps = 90;
-  const framesPerMeasure = snapshot.framesPerMessure || 0;
-  const computedFramesPerBar = Math.max(1, Math.round(secondsPerBar * fps));
+  const fps = fpsFromSecondsPerBar(secondsPerBar);
+  const framesPerMeasure = FIXED_FRAMES_PER_BAR;
   const totalFrames = snapshot.totalFrames || 0;
   const maxFret = snapshot.tabRef?.[0]?.length ? snapshot.tabRef[0].length - 1 : 22;
-  const barCount =
-    framesPerMeasure > 0 ? Math.max(1, Math.ceil(totalFrames / framesPerMeasure)) : 1;
-  const computedTotalFrames = barCount * computedFramesPerBar;
-  const rowFrames = framesPerMeasure > 0 ? framesPerMeasure * BARS_PER_ROW : 1;
+  const barCount = Math.max(1, Math.ceil(Math.max(1, totalFrames) / framesPerMeasure));
+  const computedTotalFrames = barCount * framesPerMeasure;
+  const rowFrames = framesPerMeasure * BARS_PER_ROW;
   const rows = Math.max(1, Math.ceil(Math.max(1, totalFrames) / rowFrames));
   const timelineWidth = Math.max(1, rowFrames) * scale;
   const rowHeight = ROW_HEIGHT * 6;
   const rowBlockHeight = rowHeight + CUT_SEGMENT_OFFSET + CUT_SEGMENT_HEIGHT;
   const rowStride = rowBlockHeight + ROW_GAP;
   const timelineHeight = rows * rowBlockHeight + Math.max(0, rows - 1) * ROW_GAP;
-  const timelineEnd = framesPerMeasure > 0 ? barCount * framesPerMeasure : totalFrames;
+  const timelineEnd = barCount * framesPerMeasure;
   const snapThresholdFrames = Math.max(1, Math.round(4 / Math.max(1, scale)));
-  const playbackFps =
-    framesPerMeasure > 0 ? Math.max(1, framesPerMeasure / Math.max(0.1, secondsPerBar)) : fps;
+  const playbackFps = fps;
 
   useEffect(() => {
     snapshotRef.current = snapshot;
@@ -527,9 +706,16 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       if (Number.isFinite(next) && next > 0) {
         setSecondsPerBar(next);
         setSecondsPerBarInput(String(next));
+        return;
       }
     }
-  }, [snapshot.secondsPerBar]);
+    const snapshotFps = Math.max(1, Number(snapshot.fps || fpsFromSecondsPerBar(DEFAULT_SECONDS_PER_BAR)));
+    const inferred = FIXED_FRAMES_PER_BAR / snapshotFps;
+    if (!Number.isFinite(inferred) || inferred <= 0) return;
+    const normalized = Math.round(inferred * 1000) / 1000;
+    setSecondsPerBar(normalized);
+    setSecondsPerBarInput(String(normalized));
+  }, [snapshot.secondsPerBar, snapshot.fps]);
 
   useEffect(() => {
     if (snapshot.timeSignature !== undefined && snapshot.timeSignature !== null) {
@@ -548,7 +734,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
     const computeScale = () => {
       const availableWidth = Math.max(240, container.clientWidth - 16);
-      const nextScale = Math.max(2, Math.min(12, Math.floor(availableWidth / Math.max(1, rowFrames))));
+      const nextScale = Math.max(1, Math.min(12, Math.floor(availableWidth / Math.max(1, rowFrames))));
       setScale((prev) => (prev === nextScale ? prev : nextScale));
     };
 
@@ -716,6 +902,12 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
   const persistSnapshotToBackend = useCallback(
     async (reason: string, options?: { force?: boolean }) => {
+      if (!allowBackend) {
+        syncSavedRevision(localRevisionRef.current);
+        setLastSavedAt(new Date().toISOString());
+        setIsAutosaving(false);
+        return;
+      }
       const needsSave = localRevisionRef.current > savedRevisionRef.current;
       if (!options?.force && !needsSave) return;
       if (autosaveInFlightRef.current) {
@@ -753,7 +945,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
         }
       }
     },
-    [applySnapshot, cloneSnapshot, editorId, syncSavedRevision]
+    [allowBackend, applySnapshot, cloneSnapshot, editorId, syncSavedRevision]
   );
 
   const scheduleAutosave = useCallback(() => {
@@ -784,6 +976,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   }, []);
 
   const flushLocalChangesBeforeServerMutation = useCallback(async () => {
+    if (!allowBackend) return;
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current);
       autosaveTimerRef.current = null;
@@ -796,7 +989,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     if (localRevisionRef.current > savedRevisionRef.current) {
       await persistSnapshotToBackend("pre-server-mutation", { force: true });
     }
-  }, [persistSnapshotToBackend]);
+  }, [allowBackend, persistSnapshotToBackend]);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -832,7 +1025,34 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     };
   }, [persistSnapshotToBackend]);
 
-  const runMutation = async <T extends { snapshot?: EditorSnapshot }>(fn: () => Promise<T>) => {
+  const runMutation = async <T extends { snapshot?: EditorSnapshot }>(
+    fn: () => Promise<T>,
+    options?: {
+      localApply?: (draft: EditorSnapshot) => void;
+      unavailableMessage?: string;
+    }
+  ) => {
+    if (!allowBackend) {
+      const current = snapshotRef.current;
+      if (!current) return;
+      if (!options?.localApply) {
+        setError(
+          options?.unavailableMessage || "This action is available after saving this draft to an account."
+        );
+        return;
+      }
+      setError(null);
+      try {
+        const next = cloneSnapshot(current);
+        options.localApply(next);
+        applySnapshot(next);
+        markLocalSnapshotDirty();
+      } catch (err: any) {
+        setError(err?.message || "Could not apply local change.");
+      }
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
@@ -1057,7 +1277,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       if (!snapToGridEnabled) {
         return safeStart;
       }
-      const frames = Math.max(1, Math.round(snapshot.framesPerMessure || 0));
+      const frames = FIXED_FRAMES_PER_BAR;
       const beats = Math.max(1, Math.min(64, Math.round(timeSignature)));
       const signatureLength = Math.max(1, Math.floor(frames / beats));
       const barIndex = Math.floor(safeStart / frames);
@@ -1066,7 +1286,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       const signatureIndex = Math.floor(inBarStart / signatureLength);
       return Math.max(0, signatureIndex * signatureLength + barOffset);
     },
-    [snapToGridEnabled, snapshot.framesPerMessure, timeSignature]
+    [snapToGridEnabled, timeSignature]
   );
 
   const snapNoteToGrid = useCallback(
@@ -1078,7 +1298,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
           length: safeLength,
         };
       }
-      const frames = Math.max(1, Math.round(snapshot.framesPerMessure || 0));
+      const frames = FIXED_FRAMES_PER_BAR;
       const beats = Math.max(1, Math.min(64, Math.round(timeSignature)));
       const signatureLength = Math.max(1, Math.floor(frames / beats));
       const snappedStart = snapStartTimeToGrid(startTime);
@@ -1086,7 +1306,7 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       const snappedLength = lengthIndex * signatureLength;
       return { startTime: snappedStart, length: Math.max(1, snappedLength) };
     },
-    [snapStartTimeToGrid, snapToGridEnabled, snapshot.framesPerMessure, timeSignature]
+    [snapStartTimeToGrid, snapToGridEnabled, timeSignature]
   );
 
   const getSpanSegments = (startTime: number, length: number) => {
@@ -1699,7 +1919,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
           const nextTabs = chord.currentTabs.map((tab, idx) =>
             idx === draggingChordNote.tabIndex ? ([preview.stringIndex, tab[1]] as TabCoord) : tab
           );
-          void runMutation(() => gteApi.setChordTabs(editorId, chord.id, nextTabs));
+          void runMutation(() => gteApi.setChordTabs(editorId, chord.id, nextTabs), {
+            localApply: (draft) => {
+              setChordTabsInSnapshot(draft, chord.id, nextTabs);
+            },
+          });
         }
       }
       setDraggingChordNote(null);
@@ -2176,7 +2400,9 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       setDragBarIndex(null);
       return;
     }
-    void runMutation(() => gteApi.reorderBars(editorId, dragBarIndex, targetIndex));
+    void runMutation(() => gteApi.reorderBars(editorId, dragBarIndex, targetIndex), {
+      unavailableMessage: "Bar reordering is available after saving this draft to your account.",
+    });
     setDragBarIndex(null);
   };
 
@@ -2209,6 +2435,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   };
 
   const handleExport = async () => {
+    if (!allowBackend) {
+      setError("Export is available after saving this draft to your account.");
+      return;
+    }
     setBusy(true);
     setError(null);
     setIoMessage(null);
@@ -2224,6 +2454,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   };
 
   const handleImport = async () => {
+    if (!allowBackend) {
+      setError("Import is available after saving this draft to your account.");
+      return;
+    }
     setBusy(true);
     setError(null);
     setIoMessage(null);
@@ -2571,7 +2805,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     }
 
     if (baseNoteIds.length < 2) return;
-    void runMutation(() => gteApi.makeChord(editorId, baseNoteIds));
+    void runMutation(() => gteApi.makeChord(editorId, baseNoteIds), {
+      localApply: (draft) => {
+        makeChordInSnapshot(draft, baseNoteIds);
+      },
+    });
     setSelectedNoteIds([]);
   };
 
@@ -2639,7 +2877,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
   const handleDeleteNote = () => {
     if (!selectedNote) return;
-    void runMutation(() => gteApi.deleteNote(editorId, selectedNote.id));
+    void runMutation(() => gteApi.deleteNote(editorId, selectedNote.id), {
+      localApply: (draft) => {
+        removeNoteFromSnapshot(draft, selectedNote.id);
+      },
+    });
     setSelectedNoteIds([]);
   };
 
@@ -2653,6 +2895,17 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     const lengthValue = Math.max(1, Math.round(length));
     const maxStart = Math.max(0, totalFrames - lengthValue);
     const startValue = clamp(Math.round(startTime), 0, maxStart);
+    if (!allowBackend) {
+      void runMutation(() => gteApi.setChordStartTime(editorId, selectedChord.id, startValue), {
+        localApply: (draft) => {
+          const chord = draft.chords.find((item) => item.id === selectedChord.id);
+          if (!chord) return;
+          chord.startTime = startValue;
+          chord.length = lengthValue;
+        },
+      });
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -2673,7 +2926,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
   const handleDisbandChord = () => {
     if (!selectedChord) return;
-    void runMutation(() => gteApi.disbandChord(editorId, selectedChord.id));
+    void runMutation(() => gteApi.disbandChord(editorId, selectedChord.id), {
+      localApply: (draft) => {
+        disbandChordInSnapshot(draft, selectedChord.id);
+      },
+    });
     setSelectedChordIds([]);
   };
 
@@ -2685,7 +2942,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
   const handleDeleteChord = () => {
     if (!selectedChord) return;
-    void runMutation(() => gteApi.deleteChord(editorId, selectedChord.id));
+    void runMutation(() => gteApi.deleteChord(editorId, selectedChord.id), {
+      localApply: (draft) => {
+        removeChordFromSnapshot(draft, selectedChord.id);
+      },
+    });
     setSelectedChordIds([]);
   };
 
@@ -2838,7 +3099,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
 
   const handleChordOctaveShift = (direction: number) => {
     if (!selectedChord) return;
-    void runMutation(() => gteApi.shiftChordOctave(editorId, selectedChord.id, direction));
+    void runMutation(() => gteApi.shiftChordOctave(editorId, selectedChord.id, direction), {
+      localApply: (draft) => {
+        shiftChordOctaveInSnapshot(draft, selectedChord.id, direction);
+      },
+    });
   };
 
   const commitChordNoteFret = () => {
@@ -2851,7 +3116,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     const nextTabs = selectedChord.currentTabs.map((tab, idx) =>
       idx === chordNoteMenuIndex ? ([tab[0], fretValue] as TabCoord) : tab
     );
-    void runMutation(() => gteApi.setChordTabs(editorId, selectedChord.id, nextTabs));
+    void runMutation(() => gteApi.setChordTabs(editorId, selectedChord.id, nextTabs), {
+      localApply: (draft) => {
+        setChordTabsInSnapshot(draft, selectedChord.id, nextTabs);
+      },
+    });
   };
 
   const commitChordNoteLength = () => {
@@ -2879,12 +3148,20 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
     if (!selectedChord || chordNoteMenuIndex === null) return;
     const nextTabs = selectedChord.currentTabs.filter((_, idx) => idx !== chordNoteMenuIndex);
     if (nextTabs.length === 0) {
-      void runMutation(() => gteApi.deleteChord(editorId, selectedChord.id));
+      void runMutation(() => gteApi.deleteChord(editorId, selectedChord.id), {
+        localApply: (draft) => {
+          removeChordFromSnapshot(draft, selectedChord.id);
+        },
+      });
       setSelectedChordIds([]);
       exitChordEdit();
       return;
     }
-    void runMutation(() => gteApi.setChordTabs(editorId, selectedChord.id, nextTabs));
+    void runMutation(() => gteApi.setChordTabs(editorId, selectedChord.id, nextTabs), {
+      localApply: (draft) => {
+        setChordTabsInSnapshot(draft, selectedChord.id, nextTabs);
+      },
+    });
     setChordNoteMenuIndex(null);
     setChordNoteMenuAnchor(null);
     setChordNoteMenuDraft(null);
@@ -2988,12 +3265,20 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
   };
 
   const handleAddBar = () => {
-    void runMutation(() => gteApi.addBars(editorId, 1));
+    void runMutation(() => gteApi.addBars(editorId, 1), {
+      localApply: (draft) => {
+        addBarsInSnapshot(draft, 1);
+      },
+    });
   };
 
   const handleRemoveBar = (index: number) => {
     if (barCount <= 1) return;
-    void runMutation(() => gteApi.removeBar(editorId, index));
+    void runMutation(() => gteApi.removeBar(editorId, index), {
+      localApply: (draft) => {
+        removeBarInSnapshot(draft, index);
+      },
+    });
   };
 
   const handleAssignAlt = (tab: TabCoord) => {
@@ -3020,12 +3305,20 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
       return;
     }
     const normalized = tabs.map((tab) => [tab[0] as number, tab[1] as number]) as TabCoord[];
-    void runMutation(() => gteApi.setChordTabs(editorId, selectedChord.id, normalized));
+    void runMutation(() => gteApi.setChordTabs(editorId, selectedChord.id, normalized), {
+      localApply: (draft) => {
+        setChordTabsInSnapshot(draft, selectedChord.id, normalized);
+      },
+    });
   };
 
   const handleShiftChordOctave = (direction: number) => {
     if (!selectedChord) return;
-    void runMutation(() => gteApi.shiftChordOctave(editorId, selectedChord.id, direction));
+    void runMutation(() => gteApi.shiftChordOctave(editorId, selectedChord.id, direction), {
+      localApply: (draft) => {
+        shiftChordOctaveInSnapshot(draft, selectedChord.id, direction);
+      },
+    });
   };
 
   function getMidiFromTab(tab: TabCoord, fallback?: number) {
@@ -3392,6 +3685,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
           void runMutation(async () => {
             const latestSnapshot = await disbandChordIds(chordIds);
             return latestSnapshot ? { snapshot: latestSnapshot } : {};
+          }, {
+            localApply: (draft) => {
+              chordIds.forEach((chordId) => disbandChordInSnapshot(draft, chordId));
+            },
           });
           setSelectedChordIds([]);
         }
@@ -3438,21 +3735,31 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
         return;
       }
       if (selectedNoteIds.length > 0) {
+        const noteIdsToDelete = [...selectedNoteIds];
         void runMutation(async () => {
           let last = null as Awaited<ReturnType<typeof gteApi.deleteNote>> | null;
-          for (const id of selectedNoteIds) {
+          for (const id of noteIdsToDelete) {
             last = await gteApi.deleteNote(editorId, id);
           }
           return last ?? {};
+        }, {
+          localApply: (draft) => {
+            noteIdsToDelete.forEach((id) => removeNoteFromSnapshot(draft, id));
+          },
         });
         setSelectedNoteIds([]);
       } else if (activeChordIds.length > 0) {
+        const chordIdsToDelete = [...activeChordIds];
         void runMutation(async () => {
           let last = null as Awaited<ReturnType<typeof gteApi.deleteChord>> | null;
-          for (const id of activeChordIds) {
+          for (const id of chordIdsToDelete) {
             last = await gteApi.deleteChord(editorId, id);
           }
           return last ?? {};
+        }, {
+          localApply: (draft) => {
+            chordIdsToDelete.forEach((id) => removeChordFromSnapshot(draft, id));
+          },
         });
         setSelectedChordIds([]);
       }
@@ -3582,6 +3889,10 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                     void runMutation(async () => {
                       const latestSnapshot = await disbandChordIds(chordIds);
                       return latestSnapshot ? { snapshot: latestSnapshot } : {};
+                    }, {
+                      localApply: (draft) => {
+                        chordIds.forEach((chordId) => disbandChordInSnapshot(draft, chordId));
+                      },
                     });
                     setSelectedChordIds([]);
                   }
@@ -3719,16 +4030,20 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
           </svg>
         </button>
         <span className="mx-1 whitespace-nowrap text-[10px] text-slate-500">
-          {isAutosaving
-            ? "Saving..."
-            : hasUnsavedChanges
-              ? "Unsaved changes"
-              : lastSavedAt
-                ? `Saved ${new Date(lastSavedAt).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}`
-                : "Saved"}
+          {!allowBackend
+            ? hasUnsavedChanges
+              ? "Saving local draft..."
+              : "Local draft saved"
+            : isAutosaving
+              ? "Saving..."
+              : hasUnsavedChanges
+                ? "Unsaved changes"
+                : lastSavedAt
+                  ? `Saved ${new Date(lastSavedAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}`
+                  : "Saved"}
         </span>
         <button
           type="button"
@@ -3818,7 +4133,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
               if (Number.isFinite(next) && next > 0) {
                 setSecondsPerBar(next);
                 setSecondsPerBarInput(String(next));
-                void runMutation(() => gteApi.setSecondsPerBar(editorId, next));
+                void runMutation(() => gteApi.setSecondsPerBar(editorId, next), {
+                  localApply: (draft) => {
+                    setSecondsPerBarInSnapshot(draft, next);
+                  },
+                });
               } else {
                 setSecondsPerBarInput(String(secondsPerBar));
               }
@@ -3828,7 +4147,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
               if (Number.isFinite(next) && next > 0) {
                 setSecondsPerBar(next);
                 setSecondsPerBarInput(String(next));
-                void runMutation(() => gteApi.setSecondsPerBar(editorId, next));
+                void runMutation(() => gteApi.setSecondsPerBar(editorId, next), {
+                  localApply: (draft) => {
+                    setSecondsPerBarInSnapshot(draft, next);
+                  },
+                });
               } else {
                 setSecondsPerBarInput(String(secondsPerBar));
               }
@@ -3854,7 +4177,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                 const normalized = Math.round(next);
                 setTimeSignature(normalized);
                 setTimeSignatureInput(String(normalized));
-                void runMutation(() => gteApi.setTimeSignature(editorId, normalized));
+                void runMutation(() => gteApi.setTimeSignature(editorId, normalized), {
+                  localApply: (draft) => {
+                    setTimeSignatureInSnapshot(draft, normalized);
+                  },
+                });
               } else {
                 setTimeSignatureInput(String(timeSignature));
               }
@@ -3865,7 +4192,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                 const normalized = Math.round(next);
                 setTimeSignature(normalized);
                 setTimeSignatureInput(String(normalized));
-                void runMutation(() => gteApi.setTimeSignature(editorId, normalized));
+                void runMutation(() => gteApi.setTimeSignature(editorId, normalized), {
+                  localApply: (draft) => {
+                    setTimeSignatureInSnapshot(draft, normalized);
+                  },
+                });
               } else {
                 setTimeSignatureInput(String(timeSignature));
               }
@@ -3896,9 +4227,9 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
           Scale: {scale}px/frame (auto)
         </div>
         <div className="text-xs text-slate-500">
-          FPS: {fps} - Beats/bar: {timeSignature} - Frames per bar: {computedFramesPerBar} - Total
-          frames: {computedTotalFrames}
-        </div>
+            FPS: {fps} - Beats/bar: {timeSignature} - Frames per bar: {framesPerMeasure} - Total
+            frames: {computedTotalFrames}
+          </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-700">
@@ -4565,12 +4896,16 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                         </div>
                       ) : null}
                       <button
-                        type="button"
-                        onClick={() => {
-                          void runMutation(() => gteApi.deleteNote(editorId, selectedNote.id));
-                          setSelectedNoteIds([]);
-                          setNoteMenuAnchor(null);
-                          setNoteMenuNoteId(null);
+                          type="button"
+                          onClick={() => {
+                            void runMutation(() => gteApi.deleteNote(editorId, selectedNote.id), {
+                              localApply: (draft) => {
+                                removeNoteFromSnapshot(draft, selectedNote.id);
+                              },
+                            });
+                            setSelectedNoteIds([]);
+                            setNoteMenuAnchor(null);
+                            setNoteMenuNoteId(null);
                           setNoteMenuDraft(null);
                         }}
                         className="mt-3 w-full rounded-md bg-rose-500/80 px-2 py-1 text-xs font-semibold text-white"
@@ -4667,7 +5002,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                         <button
                           type="button"
                           onClick={() => {
-                            void runMutation(() => gteApi.disbandChord(editorId, selectedChord.id));
+                            void runMutation(() => gteApi.disbandChord(editorId, selectedChord.id), {
+                              localApply: (draft) => {
+                                disbandChordInSnapshot(draft, selectedChord.id);
+                              },
+                            });
                             setSelectedChordIds([]);
                             setChordMenuAnchor(null);
                             setChordMenuChordId(null);
@@ -4680,7 +5019,11 @@ export default function GteWorkspace({ editorId, snapshot, onSnapshotChange }: P
                         <button
                           type="button"
                           onClick={() => {
-                            void runMutation(() => gteApi.deleteChord(editorId, selectedChord.id));
+                            void runMutation(() => gteApi.deleteChord(editorId, selectedChord.id), {
+                              localApply: (draft) => {
+                                removeChordFromSnapshot(draft, selectedChord.id);
+                              },
+                            });
                             setSelectedChordIds([]);
                             setChordMenuAnchor(null);
                             setChordMenuChordId(null);

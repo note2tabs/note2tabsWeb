@@ -16,6 +16,7 @@ type TabsResponse = {
   credits?: CreditsSummary;
   jobId?: string;
   gteEditorId?: string;
+  verificationRequired?: boolean;
 };
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
@@ -180,6 +181,10 @@ export default function TranscriberPage() {
   const ytPlayerMountRef = useRef<HTMLDivElement | null>(null);
   const captureRafRef = useRef<number | null>(null);
   const isSignedIn = Boolean(session);
+  const isEmailVerified = Boolean(session?.user?.isEmailVerified);
+  const verifyHref = `/auth/verify-email${
+    session?.user?.email ? `?email=${encodeURIComponent(session.user.email)}` : ""
+  }`;
   const appendEditorId = useMemo(() => {
     if (!router.isReady) return null;
     const value = router.query.appendEditorId;
@@ -330,6 +335,7 @@ export default function TranscriberPage() {
   const youtubeValid = useMemo(() => Boolean(youtubeId), [youtubeId]);
 
   const canSubmit = useMemo(() => {
+    if (isSignedIn && !isEmailVerified) return false;
     if (mode === "FILE") return Boolean(selectedFile) && !loading;
     return (
       youtubeValid &&
@@ -349,6 +355,8 @@ export default function TranscriberPage() {
     ytPlayerError,
     loading,
     captureActive,
+    isSignedIn,
+    isEmailVerified,
   ]);
   const captureTitle =
     capturePhase === "permission"
@@ -532,6 +540,10 @@ export default function TranscriberPage() {
       signIn(undefined, { callbackUrl: "/transcriber" });
       return;
     }
+    if (!isEmailVerified) {
+      setError("Please verify your email before using the transcriber.");
+      return;
+    }
 
     if (mode === "FILE" && !selectedFile) {
       setError("Please select an audio file to transcribe.");
@@ -601,6 +613,10 @@ export default function TranscriberPage() {
       if (!response.ok) {
         if (data.credits) {
           setCredits(data.credits);
+        }
+        if (data.verificationRequired) {
+          setError("Please verify your email before using the transcriber.");
+          return;
         }
         setError(data?.error || "Transcription failed. Please try again.");
         sendEvent("transcribe_error", { mode, error: data?.error || "unknown" });
@@ -890,6 +906,14 @@ export default function TranscriberPage() {
 
               {status && <div className="status">{status}</div>}
               {error && <div className="error">{error}</div>}
+              {isSignedIn && !isEmailVerified && (
+                <div className="notice">
+                  Verify your email to use the transcriber.{" "}
+                  <Link href={verifyHref} className="button-link">
+                    Verify now
+                  </Link>
+                </div>
+              )}
               {isSignedIn && showCreditsEmpty && (
                 <div className="notice">
                   {isPremiumRole(session?.user?.role)

@@ -100,6 +100,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!user) {
       return res.status(401).json({ error: "User not found" });
     }
+    const isEmailVerified = Boolean((user as any).emailVerifiedBool || user.emailVerified);
+    if (!isEmailVerified) {
+      return res.status(403).json({
+        error: "Please verify your email before using the transcriber.",
+        verificationRequired: true,
+      });
+    }
+    if (!(user as any).emailVerifiedBool) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { ...( { emailVerifiedBool: true } as any) } as any,
+      });
+    }
     const isPremium =
       user.role === "PREMIUM" || user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
     const creditWindow = getCreditWindow();

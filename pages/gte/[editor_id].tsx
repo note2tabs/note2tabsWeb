@@ -2,17 +2,26 @@ import { GetServerSideProps } from "next";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { getServerSession } from "next-auth/next";
+import { useSession } from "next-auth/react";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
 import { gteApi } from "../../lib/gteApi";
 import type { EditorSnapshot } from "../../types/gte";
 import GteWorkspace from "../../components/GteWorkspace";
+import {
+  GTE_GUEST_EDITOR_ID,
+  createGuestSnapshot,
+  readGuestDraft,
+  writeGuestDraft,
+} from "../../lib/gteGuestDraft";
 
 type Props = {
   editorId: string;
+  isGuestMode: boolean;
 };
 
-export default function GteEditorPage({ editorId }: Props) {
+export default function GteEditorPage({ editorId, isGuestMode }: Props) {
+  const { data: session } = useSession();
   const [snapshot, setSnapshot] = useState<EditorSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,8 +32,12 @@ export default function GteEditorPage({ editorId }: Props) {
   const telemetryStartedAtRef = useRef<number | null>(null);
   const telemetryClosedRef = useRef(false);
   const router = useRouter();
+  const saveToAccountPath = "/gte?importGuest=1";
+  const loginSaveHref = `/auth/login?next=${encodeURIComponent(saveToAccountPath)}`;
+  const signupSaveHref = `/auth/signup?next=${encodeURIComponent(saveToAccountPath)}`;
 
   const loadEditor = async () => {
+    if (isGuestMode) return;
     setLoading(true);
     setError(null);
     try {
@@ -38,13 +51,21 @@ export default function GteEditorPage({ editorId }: Props) {
   };
 
   useEffect(() => {
-    if (editorId) {
-      void loadEditor();
+    if (!editorId) return;
+    if (isGuestMode) {
+      setLoading(true);
+      setError(null);
+      const localSnapshot = readGuestDraft() ?? createGuestSnapshot(editorId);
+      localSnapshot.id = editorId;
+      setSnapshot(localSnapshot);
+      setLoading(false);
+      return;
     }
-  }, [editorId]);
+    void loadEditor();
+  }, [editorId, isGuestMode]);
 
   useEffect(() => {
-    if (!editorId) return;
+    if (!editorId || isGuestMode) return;
 
     const createSessionId = () => {
       if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function") {
@@ -116,7 +137,7 @@ export default function GteEditorPage({ editorId }: Props) {
       window.removeEventListener("pagehide", handlePageHide);
       window.removeEventListener("beforeunload", handlePageHide);
     };
-  }, [editorId]);
+  }, [editorId, isGuestMode]);
 
   useEffect(() => {
     if (snapshot?.name) {
@@ -126,18 +147,34 @@ export default function GteEditorPage({ editorId }: Props) {
     }
   }, [snapshot?.name]);
 
+  useEffect(() => {
+    if (!isGuestMode || !snapshot) return;
+    writeGuestDraft({
+      ...snapshot,
+      id: GTE_GUEST_EDITOR_ID,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [isGuestMode, snapshot]);
+
   const commitName = async () => {
     if (!snapshot) return;
     const trimmed = nameDraft.trim();
-    if (!trimmed) {
-      setNameDraft(snapshot.name || "Untitled");
+    const normalized = trimmed || "Untitled";
+    if (normalized === (snapshot.name || "Untitled")) return;
+    if (isGuestMode) {
+      const next = {
+        ...snapshot,
+        name: normalized,
+        updatedAt: new Date().toISOString(),
+      };
+      setNameDraft(normalized);
+      setSnapshot(next);
       return;
     }
-    if (trimmed === snapshot.name) return;
     setNameSaving(true);
     setNameError(null);
     try {
-      const res = await gteApi.setEditorName(editorId, trimmed);
+      const res = await gteApi.setEditorName(editorId, normalized);
       setSnapshot(res.snapshot);
     } catch (err: any) {
       setNameError(err?.message || "Could not update name.");
@@ -171,29 +208,75 @@ export default function GteEditorPage({ editorId }: Props) {
                 className="w-64 max-w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                 placeholder="Untitled"
               />
-              {nameSaving && <span className="muted text-small">Saving...</span>}
+              {nameSaving && !isGuestMode && <span className="muted text-small">Saving...</span>}
               {nameError && <span className="error text-small">{nameError}</span>}
             </div>
           </div>
           <div className="button-row">
-            <button type="button" onClick={() => router.push("/gte")} className="button-secondary button-small">
-              Back to editors
-            </button>
-            <Link href="/account" className="button-secondary button-small">
-              Account
-            </Link>
+            {isGuestMode ? (
+              <>
+                <Link href="/" className="button-secondary button-small">
+                  Back home
+                </Link>
+                {session?.user?.id ? (
+                  <button
+                    type="button"
+                    onClick={() => void router.push(saveToAccountPath)}
+                    className="button-primary button-small"
+                  >
+                    Save draft to account
+                  </button>
+                ) : (
+                  <>
+                    <Link href={loginSaveHref} className="button-secondary button-small">
+                      Log in to save
+                    </Link>
+                    <Link href={signupSaveHref} className="button-primary button-small">
+                      Create account
+                    </Link>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={() => router.push("/gte")} className="button-secondary button-small">
+                  Back to editors
+                </button>
+                <Link href="/account" className="button-secondary button-small">
+                  Account
+                </Link>
+              </>
+            )}
           </div>
         </div>
 
+        {isGuestMode && (
+          <div className="notice">
+            Guest mode is local-only. This draft is saved in your browser until you import it into an account.
+          </div>
+        )}
         {loading && <p className="muted text-small">Loading editor...</p>}
         {error && <div className="error">{error}</div>}
-        {snapshot && <GteWorkspace editorId={editorId} snapshot={snapshot} onSnapshotChange={setSnapshot} />}
+        {snapshot && (
+          <GteWorkspace
+            editorId={editorId}
+            snapshot={snapshot}
+            onSnapshotChange={setSnapshot}
+            allowBackend={!isGuestMode}
+          />
+        )}
       </div>
     </main>
   );
 }
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  const editorId = `${ctx.params?.editor_id || ""}`;
+  const normalizedEditorId = editorId.trim().toLowerCase();
+  if (normalizedEditorId === GTE_GUEST_EDITOR_ID) {
+    return { props: { editorId: GTE_GUEST_EDITOR_ID, isGuestMode: true } };
+  }
+
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   if (!session?.user?.id) {
     return {
@@ -203,6 +286,5 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       },
     };
   }
-  const editorId = ctx.params?.editor_id as string;
-  return { props: { editorId } };
+  return { props: { editorId, isGuestMode: false } };
 };

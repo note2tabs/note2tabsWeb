@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { hash } from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
+import { issueAndSendVerificationEmail } from "../../../lib/emailVerification";
 
 const MIN_PASSWORD = 10;
 
@@ -27,17 +28,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const passwordHash = await hash(password, 10);
-    await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         email: email.toLowerCase(),
         name: name || null,
         passwordHash,
         role: "FREE",
         tokensRemaining: 120,
-      },
+        ...( { emailVerifiedBool: false } as any),
+      } as any,
     });
 
-    return res.status(200).json({ ok: true });
+    let sent = false;
+    try {
+      const result = await issueAndSendVerificationEmail({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      });
+      sent = result.sent;
+    } catch (mailError) {
+      console.error("Signup verification email error", mailError);
+    }
+
+    return res.status(200).json({
+      ok: true,
+      requiresVerification: true,
+      emailSent: sent,
+      email: user.email,
+    });
   } catch (error) {
     console.error("Signup error", error);
     return res.status(500).json({ error: "Could not create account." });
