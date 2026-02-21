@@ -97,10 +97,16 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+const normalizeLatexDelimiters = (value: string) =>
+  value
+    .replace(/\\\[((?:.|\n)*?)\\\]/g, (_, expr: string) => `$$${expr}$$`)
+    .replace(/\\\(((?:.|\n)*?)\\\)/g, (_, expr: string) => `$${expr}$`);
+
 export const renderMarkdown = async (markdown: string, options: RenderMarkdownOptions = {}) => {
   const toc: TocItem[] = [];
   const slugger = new GithubSlugger();
   const enableMath = Boolean(options.enableMath);
+  const source = enableMath ? normalizeLatexDelimiters(markdown || "") : markdown || "";
 
   const processor = unified().use(remarkParse).use(remarkGfm);
   if (enableMath) {
@@ -125,7 +131,7 @@ export const renderMarkdown = async (markdown: string, options: RenderMarkdownOp
 
   processor.use(rehypeSanitize, enableMath ? mathSchema : baseSchema).use(rehypeStringify);
 
-  const file = await processor.process(markdown || "");
+  const file = await processor.process(source);
   return { html: String(file), toc };
 };
 
