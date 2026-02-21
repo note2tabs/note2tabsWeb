@@ -73,8 +73,8 @@ const mathSchema = {
   attributes: {
     ...baseSchema.attributes,
     code: [...(defaultAttributes.code || []), ["className", /^language-./, "math-inline", "math-display"]],
-    span: [...(defaultAttributes.span || []), ["className", /^katex.*/]],
-    div: [...(defaultAttributes.div || []), ["className", /^katex.*/]],
+    span: [...(defaultAttributes.span || []), "className"],
+    div: [...(defaultAttributes.div || []), "className"],
     math: [...(defaultAttributes.math || []), "xmlns", "display"],
     annotation: [...(defaultAttributes.annotation || []), "encoding"],
   },
@@ -97,6 +97,100 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+const normalizeInlineLatexFormatting = (value: string) => {
+  let output = value;
+  for (let i = 0; i < 8; i += 1) {
+    const prev = output;
+    output = output
+      .replace(/\\href\{([^{}]+)\}\{([^{}]+)\}/g, "[$2]($1)")
+      .replace(/\\url\{([^{}]+)\}/g, "<$1>")
+      .replace(/\\textbf\{([^{}]*)\}/g, "**$1**")
+      .replace(/\\textit\{([^{}]*)\}/g, "*$1*")
+      .replace(/\\emph\{([^{}]*)\}/g, "*$1*")
+      .replace(/\\underline\{([^{}]*)\}/g, "_$1_");
+    if (output === prev) break;
+  }
+
+  return output
+    .replace(/\\%/g, "%")
+    .replace(/\\_/g, "_")
+    .replace(/\\&/g, "&")
+    .replace(/\\#/g, "#")
+    .replace(/\\\$/g, "$");
+};
+
+const preprocessLatexDocument = (value: string) => {
+  let source = (value || "").replace(/\r\n/g, "\n");
+
+  for (let i = 0; i < 6; i += 1) {
+    const prev = source;
+    source = source
+      .replace(
+        /\\(title|section\*?|subsection\*?|subsubsection\*?)\{\s*\\textbf\{([\s\S]*?)\}\s*\}/g,
+        "\\$1{$2}"
+      )
+      .replace(
+        /\\(title|section\*?|subsection\*?|subsubsection\*?)\{\s*\\emph\{([\s\S]*?)\}\s*\}/g,
+        "\\$1{$2}"
+      );
+    if (source === prev) break;
+  }
+
+  const hasLatexStructure =
+    /\\documentclass|\\begin\{document\}|\\section\*?\{|\\subsection\*?\{|\\begin\{abstract\}/.test(
+      source
+    );
+  if (!hasLatexStructure) {
+    return normalizeInlineLatexFormatting(source);
+  }
+
+  let title = "";
+  const titleMatch = source.match(/\\title\{([^}]*)\}/);
+  if (titleMatch?.[1]) {
+    title = normalizeInlineLatexFormatting(titleMatch[1]).trim();
+  }
+
+  source = source.replace(/\\begin\{document\}/g, "").replace(/\\end\{document\}/g, "");
+  source = source.replace(/^\\(?:documentclass|usepackage|titleformat|author|date|title)\b.*$/gm, "");
+  source = source.replace(/\\maketitle/g, "");
+  source = source.replace(/\\tableofcontents/g, "");
+
+  source = source.replace(/\\begin\{abstract\}([\s\S]*?)\\end\{abstract\}/g, (_, content: string) => {
+    const text = normalizeInlineLatexFormatting(content)
+      .trim()
+      .replace(/\n{2,}/g, "\n")
+      .split("\n")
+      .map((line) => `> ${line.trim()}`)
+      .join("\n");
+    return `${text}\n\n`;
+  });
+
+  source = source.replace(
+    /\\subsubsection\*?\{([\s\S]*?)\}/g,
+    (_, heading: string) => `\n\n#### ${normalizeInlineLatexFormatting(heading).trim()}\n\n`
+  );
+  source = source.replace(
+    /\\subsection\*?\{([\s\S]*?)\}/g,
+    (_, heading: string) => `\n\n### ${normalizeInlineLatexFormatting(heading).trim()}\n\n`
+  );
+  source = source.replace(
+    /\\section\*?\{([\s\S]*?)\}/g,
+    (_, heading: string) => `\n\n## ${normalizeInlineLatexFormatting(heading).trim()}\n\n`
+  );
+
+  source = source.replace(/\\begin\{itemize\}|\\end\{itemize\}|\\begin\{enumerate\}|\\end\{enumerate\}/g, "");
+  source = source.replace(/^\s*\\item\s+/gm, "- ");
+
+  source = source.replace(/\\\\/g, "\n");
+  source = normalizeInlineLatexFormatting(source);
+  source = source.replace(/\n{3,}/g, "\n\n").trim();
+
+  if (title) {
+    return `# ${title}\n\n${source}`.trim();
+  }
+  return source;
+};
+
 const normalizeLatexDelimiters = (value: string) =>
   value
     .replace(/\\\[((?:.|\n)*?)\\\]/g, (_, expr: string) => `$$${expr}$$`)
@@ -106,7 +200,8 @@ export const renderMarkdown = async (markdown: string, options: RenderMarkdownOp
   const toc: TocItem[] = [];
   const slugger = new GithubSlugger();
   const enableMath = Boolean(options.enableMath);
-  const source = enableMath ? normalizeLatexDelimiters(markdown || "") : markdown || "";
+  const prepared = enableMath ? preprocessLatexDocument(markdown || "") : markdown || "";
+  const source = enableMath ? normalizeLatexDelimiters(prepared) : prepared;
 
   const processor = unified().use(remarkParse).use(remarkGfm);
   if (enableMath) {
