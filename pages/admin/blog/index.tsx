@@ -6,7 +6,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
 import { slugify } from "../../../lib/slug";
-import { renderMarkdown, renderPlainText } from "../../../lib/markdown";
+import { renderLatexDocument, renderPlainText } from "../../../lib/markdown";
 
 type TaxonomyItem = {
   id: string;
@@ -346,7 +346,7 @@ export default function AdminBlogPage({ isAdmin }: Props) {
   const handlePreview = async () => {
     const rendered =
       postForm.contentMode === "LATEX"
-        ? await renderMarkdown(postForm.content, { enableMath: true })
+        ? await renderLatexDocument(postForm.content)
         : await renderPlainText(postForm.content);
     setPreviewHtml(rendered.html);
     setPreviewMode(true);
@@ -608,22 +608,22 @@ export default function AdminBlogPage({ isAdmin }: Props) {
                     }}
                   >
                     <option value="PLAIN">Plain text</option>
-                    <option value="LATEX">Markdown + LaTeX</option>
+                    <option value="LATEX">Full LaTeX document</option>
                   </select>
                   <span className="field-hint">
-                    Plain text uses paragraph breaks. LaTeX mode supports Markdown with inline math.
+                    Use full LaTeX article structure in this mode (for example document, section, subsection, itemize).
                   </span>
                 </label>
                 <label className="full">
                   {postForm.contentMode === "LATEX"
-                    ? "Content (Markdown + LaTeX)"
+                    ? "Content (Full LaTeX document)"
                     : "Content (Plain text)"}
                   <textarea
                     className="editor"
                     value={postForm.content}
                     placeholder={
                       postForm.contentMode === "LATEX"
-                        ? "Use Markdown headings and $inline$ or $$block$$ equations."
+                        ? "\\documentclass{article}\n\\begin{document}\n\\section*{Title}\nYour article...\n\\end{document}"
                         : "Write plain text. Add a blank line to create a new paragraph."
                     }
                     onChange={(event) => {
@@ -832,7 +832,7 @@ export default function AdminBlogPage({ isAdmin }: Props) {
               {previewMode && (
                 <div className="markdown-preview">
                   <h3>
-                    Preview ({postForm.contentMode === "LATEX" ? "Markdown + LaTeX" : "Plain text"})
+                    Preview ({postForm.contentMode === "LATEX" ? "Full LaTeX document" : "Plain text"})
                   </h3>
                   <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
                 </div>

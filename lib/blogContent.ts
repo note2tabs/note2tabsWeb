@@ -1,5 +1,5 @@
 import type { PostContentMode } from "@prisma/client";
-import { renderMarkdown, renderPlainText, type TocItem } from "./markdown";
+import { renderLatexDocument, renderPlainText, type TocItem } from "./markdown";
 
 type TocRow = {
   id: string;
@@ -19,7 +19,7 @@ const normalizeToc = (toc: TocItem[]): TocRow[] =>
 export const compilePostContent = async (content: string, contentMode: PostContentMode) => {
   const rendered =
     contentMode === "LATEX"
-      ? await renderMarkdown(content, { enableMath: true })
+      ? await renderLatexDocument(content)
       : await renderPlainText(content);
 
   return {

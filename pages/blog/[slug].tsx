@@ -197,7 +197,11 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
 
   let contentHtml = post.contentHtml || "";
   let toc = parseStoredToc(post.contentToc);
-  if (!contentHtml || toc.length === 0) {
+  if (post.contentMode === "LATEX") {
+    const compiled = await compilePostContent(post.content, post.contentMode);
+    contentHtml = compiled.contentHtml;
+    toc = compiled.contentToc;
+  } else if (!contentHtml || toc.length === 0) {
     const compiled = await compilePostContent(post.content, post.contentMode);
     if (!contentHtml) contentHtml = compiled.contentHtml;
     if (toc.length === 0) toc = compiled.contentToc;
