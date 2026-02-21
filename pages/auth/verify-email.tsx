@@ -76,6 +76,10 @@ export default function VerifyEmailPage() {
       }
       if (data?.alreadyVerified) {
         setResendMessage("Your email is already verified.");
+      } else if (data?.sent === false) {
+        setResendMessage(
+          "Verification email delivery is not configured yet. Set RESEND_API_KEY and a valid sender address."
+        );
       } else {
         setResendMessage("Verification email sent. Please check your inbox.");
       }
