@@ -6,7 +6,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
 import { slugify } from "../../../lib/slug";
-import { renderMarkdown } from "../../../lib/markdown";
+import { renderMarkdown, renderPlainText } from "../../../lib/markdown";
 
 type TaxonomyItem = {
   id: string;
@@ -26,6 +26,7 @@ type PostForm = {
   slug: string;
   excerpt: string;
   content: string;
+  contentMode: "PLAIN" | "LATEX";
   coverImageUrl: string;
   seoTitle: string;
   seoDescription: string;
@@ -86,6 +87,7 @@ const emptyPost = (): PostForm => ({
   slug: "",
   excerpt: "",
   content: "",
+  contentMode: "PLAIN",
   coverImageUrl: "",
   seoTitle: "",
   seoDescription: "",
@@ -104,6 +106,11 @@ const toInputDate = (value?: string | null) => {
   const offset = date.getTimezoneOffset();
   const local = new Date(date.getTime() - offset * 60000);
   return local.toISOString().slice(0, 16);
+};
+
+const scheduleDateInput = (hoursFromNow = 24) => {
+  const date = new Date(Date.now() + hoursFromNow * 60 * 60 * 1000);
+  return toInputDate(date.toISOString());
 };
 
 export default function AdminBlogPage({ isAdmin }: Props) {
@@ -250,6 +257,7 @@ export default function AdminBlogPage({ isAdmin }: Props) {
       slug: post.slug,
       excerpt: post.excerpt,
       content: post.content,
+      contentMode: post.contentMode || "PLAIN",
       coverImageUrl: post.coverImageUrl || "",
       seoTitle: post.seoTitle || "",
       seoDescription: post.seoDescription || "",
@@ -283,10 +291,24 @@ export default function AdminBlogPage({ isAdmin }: Props) {
     setError(null);
     setStatusMessage(null);
 
+    const targetStatus = nextStatus || postForm.status;
+    const resolvedPublishAt =
+      targetStatus === "SCHEDULED"
+        ? postForm.publishAt || scheduleDateInput(24)
+        : postForm.publishAt;
+
+    if (targetStatus === "SCHEDULED" && !postForm.publishAt) {
+      setPostForm((prev) => ({
+        ...prev,
+        status: "SCHEDULED",
+        publishAt: resolvedPublishAt,
+      }));
+    }
+
     const payload = {
       ...postForm,
-      status: nextStatus || postForm.status,
-      publishAt: postForm.publishAt ? new Date(postForm.publishAt).toISOString() : null,
+      status: targetStatus,
+      publishAt: resolvedPublishAt ? new Date(resolvedPublishAt).toISOString() : null,
       clusters: postForm.clusters,
     };
 
@@ -312,8 +334,20 @@ export default function AdminBlogPage({ isAdmin }: Props) {
     }
   };
 
+  const applyQuickSchedule = (hoursFromNow: number) => {
+    setPostForm((prev) => ({
+      ...prev,
+      status: "SCHEDULED",
+      publishAt: scheduleDateInput(hoursFromNow),
+    }));
+    setDirty(true);
+  };
+
   const handlePreview = async () => {
-    const rendered = await renderMarkdown(postForm.content);
+    const rendered =
+      postForm.contentMode === "LATEX"
+        ? await renderMarkdown(postForm.content, { enableMath: true })
+        : await renderPlainText(postForm.content);
     setPreviewHtml(rendered.html);
     setPreviewMode(true);
   };
@@ -514,7 +548,7 @@ export default function AdminBlogPage({ isAdmin }: Props) {
                 <h2>{postForm.id ? "Edit post" : "New post"}</h2>
                 <div className="panel-actions">
                   {postForm.slug && (
-                    <button
+                  <button
                       type="button"
                       className="button-secondary button-small"
                       onClick={() => window.open(previewLink, "_blank")}
@@ -523,7 +557,7 @@ export default function AdminBlogPage({ isAdmin }: Props) {
                     </button>
                   )}
                   <button type="button" className="button-secondary button-small" onClick={handlePreview}>
-                    Markdown preview
+                    {postForm.contentMode === "LATEX" ? "LaTeX preview" : "Text preview"}
                   </button>
                 </div>
               </div>
@@ -561,11 +595,37 @@ export default function AdminBlogPage({ isAdmin }: Props) {
                     }}
                   />
                 </label>
+                <label>
+                  Content mode
+                  <select
+                    value={postForm.contentMode}
+                    onChange={(event) => {
+                      setPostForm((prev) => ({
+                        ...prev,
+                        contentMode: event.target.value as PostForm["contentMode"],
+                      }));
+                      setDirty(true);
+                    }}
+                  >
+                    <option value="PLAIN">Plain text</option>
+                    <option value="LATEX">Markdown + LaTeX</option>
+                  </select>
+                  <span className="field-hint">
+                    Plain text uses paragraph breaks. LaTeX mode supports Markdown with inline math.
+                  </span>
+                </label>
                 <label className="full">
-                  Content (Markdown)
+                  {postForm.contentMode === "LATEX"
+                    ? "Content (Markdown + LaTeX)"
+                    : "Content (Plain text)"}
                   <textarea
                     className="editor"
                     value={postForm.content}
+                    placeholder={
+                      postForm.contentMode === "LATEX"
+                        ? "Use Markdown headings and $inline$ or $$block$$ equations."
+                        : "Write plain text. Add a blank line to create a new paragraph."
+                    }
                     onChange={(event) => {
                       setPostForm((prev) => ({ ...prev, content: event.target.value }));
                       setDirty(true);
@@ -588,9 +648,14 @@ export default function AdminBlogPage({ isAdmin }: Props) {
                   <select
                     value={postForm.status}
                     onChange={(event) => {
+                      const status = event.target.value as PostForm["status"];
                       setPostForm((prev) => ({
                         ...prev,
-                        status: event.target.value as PostForm["status"],
+                        status,
+                        publishAt:
+                          status === "SCHEDULED" && !prev.publishAt
+                            ? scheduleDateInput(24)
+                            : prev.publishAt,
                       }));
                       setDirty(true);
                     }}
@@ -610,6 +675,30 @@ export default function AdminBlogPage({ isAdmin }: Props) {
                       setDirty(true);
                     }}
                   />
+                  <div className="schedule-quick-row">
+                    <button type="button" className="button-secondary button-small" onClick={() => applyQuickSchedule(24)}>
+                      +24h
+                    </button>
+                    <button type="button" className="button-secondary button-small" onClick={() => applyQuickSchedule(72)}>
+                      +3d
+                    </button>
+                    <button type="button" className="button-secondary button-small" onClick={() => applyQuickSchedule(168)}>
+                      +7d
+                    </button>
+                    <button
+                      type="button"
+                      className="button-secondary button-small"
+                      onClick={() => {
+                        setPostForm((prev) => ({ ...prev, publishAt: "" }));
+                        setDirty(true);
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <span className="field-hint">
+                    Local timezone. Scheduled posts auto-fill +24h if publish date is empty.
+                  </span>
                 </label>
                 <label>
                   SEO title
@@ -742,7 +831,9 @@ export default function AdminBlogPage({ isAdmin }: Props) {
 
               {previewMode && (
                 <div className="markdown-preview">
-                  <h3>Preview</h3>
+                  <h3>
+                    Preview ({postForm.contentMode === "LATEX" ? "Markdown + LaTeX" : "Plain text"})
+                  </h3>
                   <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
                 </div>
               )}
