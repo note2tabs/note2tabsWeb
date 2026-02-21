@@ -16,6 +16,7 @@ export const postInputSchema = z.object({
   slug: z.string().optional(),
   excerpt: z.string().min(1),
   content: z.string().min(1),
+  contentMode: z.enum(["PLAIN", "LATEX"]).optional(),
   coverImageUrl: z.string().url().optional().or(z.literal("")),
   status: z.enum(["DRAFT", "SCHEDULED", "PUBLISHED"]),
   publishAt: z.string().datetime().optional().nullable(),

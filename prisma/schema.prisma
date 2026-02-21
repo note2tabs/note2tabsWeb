@@ -104,6 +104,7 @@ model Post {
   slug           String       @unique
   excerpt        String
   content        String
+  contentMode    PostContentMode @default(PLAIN)
   coverImageUrl  String?
   status         PostStatus   @default(DRAFT)
   publishAt      DateTime?
@@ -186,4 +187,9 @@ enum PostStatus {
   DRAFT
   SCHEDULED
   PUBLISHED
+}
+
+enum PostContentMode {
+  PLAIN
+  LATEX
 }

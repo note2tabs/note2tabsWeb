@@ -6,6 +6,7 @@ import NavBar from "../components/NavBar";
 import FooterBar from "../components/FooterBar";
 import CookieConsentBanner from "../components/CookieConsentBanner";
 import "../styles/globals.css";
+import "katex/dist/katex.min.css";
 
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   const router = useRouter();
