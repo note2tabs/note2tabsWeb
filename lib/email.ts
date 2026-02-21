@@ -6,11 +6,11 @@ type SendEmailInput = {
 };
 
 function getFromAddress() {
-  return process.env.EMAIL_FROM || "Note2Tabs <no-reply@note2tabs.local>";
+  return process.env.EMAIL_FROM || process.env.RESEND_FROM || "Note2Tabs <onboarding@resend.dev>";
 }
 
 export async function sendTransactionalEmail(input: SendEmailInput): Promise<boolean> {
-  const resendApiKey = process.env.RESEND_API_KEY;
+  const resendApiKey = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
   const from = getFromAddress();
 
   if (resendApiKey) {
@@ -30,7 +30,7 @@ export async function sendTransactionalEmail(input: SendEmailInput): Promise<boo
     });
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(body || "Failed to send email via Resend.");
+      throw new Error(`Resend send failed (${response.status}): ${body || "Unknown error"}`);
     }
     return true;
   }
