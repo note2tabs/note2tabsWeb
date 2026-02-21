@@ -5,7 +5,8 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
 import { estimateReadingTime, getBaseUrl, getPublishedWhere } from "../../lib/blog";
-import { renderMarkdown, renderPlainText, type TocItem } from "../../lib/markdown";
+import type { TocItem } from "../../lib/markdown";
+import { compilePostContent, parseStoredToc } from "../../lib/blogContent";
 import BlogPostCard from "../../components/blog/BlogPostCard";
 
 type PostPageProps = {
@@ -194,10 +195,13 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
     return { notFound: true };
   }
 
-  const { html, toc } =
-    post.contentMode === "LATEX"
-      ? await renderMarkdown(post.content, { enableMath: true })
-      : await renderPlainText(post.content);
+  let contentHtml = post.contentHtml || "";
+  let toc = parseStoredToc(post.contentToc);
+  if (!contentHtml || toc.length === 0) {
+    const compiled = await compilePostContent(post.content, post.contentMode);
+    if (!contentHtml) contentHtml = compiled.contentHtml;
+    if (toc.length === 0) toc = compiled.contentToc;
+  }
   const { minutes } = estimateReadingTime(post.content);
 
   const tagIds = post.tags.map((tag) => tag.tagId);
@@ -225,7 +229,7 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
         slug: post.slug,
         excerpt: post.excerpt,
         contentMode: post.contentMode,
-        contentHtml: html,
+        contentHtml,
         coverImageUrl: post.coverImageUrl,
         publishedAt: post.publishedAt ? post.publishedAt.toISOString() : null,
         publishAt: post.publishAt ? post.publishAt.toISOString() : null,

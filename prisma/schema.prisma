@@ -104,6 +104,8 @@ model Post {
   slug           String       @unique
   excerpt        String
   content        String
+  contentHtml    String?
+  contentToc     Json?
   contentMode    PostContentMode @default(PLAIN)
   coverImageUrl  String?
   status         PostStatus   @default(DRAFT)

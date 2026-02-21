@@ -8,6 +8,7 @@ import { postInputSchema } from "../../../../../lib/blogValidators";
 import { slugify } from "../../../../../lib/slug";
 import { sendBlogApiError } from "../../../../../lib/blogApiError";
 import { normalizeCanonicalUrl } from "../../../../../lib/canonical";
+import { compilePostContent } from "../../../../../lib/blogContent";
 
 const PAGE_SIZE = 20;
 
@@ -90,6 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const slug = slugify(input.slug || input.title);
       const canonicalUrl = normalizeCanonicalUrl(input.canonicalUrl);
       const contentMode = input.contentMode || "PLAIN";
+      const compiledContent = await compilePostContent(input.content, contentMode);
 
       const existing = await prisma.post.findUnique({ where: { slug } });
       if (existing) {
@@ -117,6 +119,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             slug,
             excerpt: input.excerpt,
             content: input.content,
+            contentHtml: compiledContent.contentHtml,
+            contentToc: compiledContent.contentToc,
             contentMode,
             coverImageUrl: input.coverImageUrl || null,
             status: input.status,
