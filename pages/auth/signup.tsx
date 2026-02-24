@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { signIn } from "next-auth/react";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -76,7 +77,7 @@ export default function SignupPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
+                minLength={10}
                 className="form-input"
               />
             </div>
@@ -85,6 +86,13 @@ export default function SignupPage() {
               {loading ? "Creating account..." : "Sign up"}
             </button>
           </form>
+          <button
+            type="button"
+            onClick={() => signIn("google", { callbackUrl: "/" })}
+            className="button-secondary"
+          >
+            Continue with Google
+          </button>
           <div className="button-row" style={{ justifyContent: "center" }}>
             <Link href={loginHref} className="button-link">
               Already have an account? Log in

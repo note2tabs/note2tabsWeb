@@ -739,7 +739,7 @@ export default function HomePage() {
   const handlePricingClick = async () => {
     if (pricingBusy) return;
     if (!session) {
-      signIn(undefined, { callbackUrl: "/#pricing" });
+      signIn(undefined, { callbackUrl: "/" });
       return;
     }
     setPricingBusy(true);

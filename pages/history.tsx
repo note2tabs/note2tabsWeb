@@ -7,7 +7,7 @@ export default function HistoryRedirect() {
 export const getServerSideProps: GetServerSideProps = async () => {
   return {
     redirect: {
-      destination: "/account",
+      destination: "/tabs",
       permanent: false,
     },
   };

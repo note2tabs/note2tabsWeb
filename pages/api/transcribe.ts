@@ -115,7 +115,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     const isPremium =
       user.role === "PREMIUM" || user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
-    const creditWindow = getCreditWindow();
+    const creditWindow = getCreditWindow({ userCreatedAt: user.createdAt });
     const creditJobs = await prisma.tabJob.findMany({
       where: isPremium
         ? { userId: session.user.id }

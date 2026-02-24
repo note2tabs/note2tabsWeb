@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { hash } from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
 import { issueAndSendVerificationEmail } from "../../../lib/emailVerification";
+import { STARTING_CREDITS } from "../../../lib/credits";
 
 const MIN_PASSWORD = 10;
 
@@ -34,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         name: name || null,
         passwordHash,
         role: "FREE",
-        tokensRemaining: 120,
+        tokensRemaining: STARTING_CREDITS,
         ...( { emailVerifiedBool: false } as any),
       } as any,
     });

@@ -537,7 +537,7 @@ export default function TranscriberPage() {
   const handleConvert = async () => {
     if (!session) {
       setError("Sign in to start transcribing.");
-      signIn(undefined, { callbackUrl: "/transcriber" });
+      signIn(undefined, { callbackUrl: "/" });
       return;
     }
     if (!isEmailVerified) {

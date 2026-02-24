@@ -28,13 +28,13 @@ export default function LoginPage() {
       redirect: false,
       email,
       password,
-      callbackUrl: nextHref,
+      callbackUrl: "/",
     });
     setLoading(false);
     if (res?.error) {
       setError(res.error);
     } else {
-      router.push(nextHref);
+      router.push("/");
     }
   };
 
@@ -74,7 +74,7 @@ export default function LoginPage() {
           </form>
           <button
             type="button"
-            onClick={() => signIn("google", { callbackUrl: nextHref })}
+            onClick={() => signIn("google", { callbackUrl: "/" })}
             className="button-secondary"
           >
             Continue with Google

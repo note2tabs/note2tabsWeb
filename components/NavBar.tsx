@@ -53,6 +53,8 @@ export default function NavBar() {
           {session && (
             <>
               <Link href="/account">Account</Link>
+              <Link href="/tabs">Saved tabs</Link>
+              <Link href="/settings">Settings</Link>
               {session.user?.role === "ADMIN" && <Link href="/admin/analytics">Admin</Link>}
               {session.user?.role === "MODERATOR" || session.user?.role === "MOD" ? (
                 <Link href="/mod/dashboard">Moderation</Link>

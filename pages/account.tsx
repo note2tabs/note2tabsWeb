@@ -1,30 +1,20 @@
 import { GetServerSideProps } from "next";
 import Link from "next/link";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "./api/auth/[...nextauth]";
-import { prisma } from "../lib/prisma";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
+import { authOptions } from "./api/auth/[...nextauth]";
 import { buildCreditsSummary, getCreditWindow } from "../lib/credits";
-
-type TabJob = {
-  id: string;
-  sourceType: string;
-  sourceLabel: string | null;
-  createdAt: string;
-  gteEditorId?: string | null;
-};
+import { prisma } from "../lib/prisma";
 
 type Props = {
   user: {
     email: string;
     name: string | null;
     role: string;
-    tokensRemaining: number;
     createdAt: string;
     isEmailVerified: boolean;
   };
-  tabs: TabJob[];
   stripeReady: boolean;
   credits: {
     used: number;
@@ -35,34 +25,21 @@ type Props = {
   };
 };
 
-export default function AccountPage({ user, tabs, stripeReady, credits }: Props) {
+export default function AccountPage({ user, stripeReady, credits }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [verifyBusy, setVerifyBusy] = useState(false);
-  const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const isAdminOrMod = user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const isAdmin = user.role === "ADMIN";
   const isPremium =
     user.role === "PREMIUM" || user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const resetLabel = new Date(credits.resetAt).toLocaleDateString();
+  const createdLabel = new Date(user.createdAt).toLocaleDateString();
   const creditsUsedLabel = `${credits.used} / ${credits.limit}`;
+  const verifyHref = `/auth/verify-email?email=${encodeURIComponent(user.email)}`;
 
   const handleSignOut = async () => {
     await signOut({ redirect: false });
     window.location.href = "/";
-  };
-
-  const handleDelete = async () => {
-    setBusy(true);
-    setError(null);
-    const res = await fetch("/api/account/delete", { method: "DELETE" });
-    const data = await res.json();
-    setBusy(false);
-    if (!res.ok) {
-      setError(data?.error || "Could not delete account.");
-      return;
-    }
-    await handleSignOut();
   };
 
   const handleUpgrade = async () => {
@@ -82,34 +59,13 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
     window.location.href = data.url;
   };
 
-  const handleResendVerification = async () => {
-    setVerifyBusy(true);
-    setVerifyMessage(null);
-    setError(null);
-    try {
-      const res = await fetch("/api/auth/resend-verification", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.error || "Could not resend verification email.");
-      }
-      setVerifyMessage(data?.alreadyVerified ? "Your email is already verified." : "Verification email sent.");
-    } catch (err: any) {
-      setError(err?.message || "Could not resend verification email.");
-    } finally {
-      setVerifyBusy(false);
-    }
-  };
-
   return (
     <main className="page">
       <div className="container stack">
         <div className="page-header">
           <div>
             <h1 className="page-title">Account</h1>
-            <p className="page-subtitle">Manage your Note2Tabs account.</p>
+            <p className="page-subtitle">Overview of your Note2Tabs account and credits.</p>
           </div>
           <Link href="/" className="button-ghost button-small">
             Back to app
@@ -128,39 +84,36 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
                   : "Plan: Free - 10 credits/month"}
               </p>
               <p className="muted text-small">Account type: {user.role}</p>
-              <p className="muted text-small">
-                Email verified: {user.isEmailVerified ? "Yes" : "No"}
-              </p>
+              <p className="muted text-small">Created: {createdLabel}</p>
+              <p className="muted text-small">Email verified: {user.isEmailVerified ? "Yes" : "No"}</p>
             </div>
             <div className="button-row">
-              <button
-                type="button"
-                onClick={handleSignOut}
-                className="button-secondary button-small"
-              >
+              <button type="button" onClick={handleSignOut} className="button-secondary button-small">
                 Log out
               </button>
+              <Link href="/settings" className="button-secondary button-small">
+                Settings
+              </Link>
+              <Link href="/tabs" className="button-secondary button-small">
+                Saved tabs
+              </Link>
             </div>
           </div>
+
           {!user.isEmailVerified && (
             <div className="notice">
               Please verify your email before using the transcriber.
               <div className="button-row" style={{ marginTop: 8 }}>
-                <button
-                  type="button"
-                  onClick={handleResendVerification}
-                  className="button-secondary button-small"
-                  disabled={verifyBusy}
-                >
-                  {verifyBusy ? "Sending..." : "Resend verification email"}
-                </button>
-                <Link href={`/auth/verify-email?email=${encodeURIComponent(user.email)}`} className="button-link">
+                <Link href={verifyHref} className="button-link">
                   Open verification page
                 </Link>
+                <Link href="/settings" className="button-link">
+                  Email settings
+                </Link>
               </div>
-              {verifyMessage && <p className="muted text-small" style={{ marginTop: 8 }}>{verifyMessage}</p>}
             </div>
           )}
+
           <div className="account-credits">
             <div className="stat-card">
               <span className="stat-label">Credits used</span>
@@ -175,13 +128,9 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
               <span className="stat-value">{credits.remaining}</span>
             </div>
           </div>
+
           <div className="button-row">
-            <button
-              type="button"
-              onClick={handleUpgrade}
-              className="button-primary"
-              disabled={busy}
-            >
+            <button type="button" onClick={handleUpgrade} className="button-primary" disabled={busy}>
               {stripeReady ? "Upgrade to Premium" : "Premium (coming soon)"}
             </button>
             <Link href="/gte" className="button-secondary">
@@ -202,18 +151,8 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
                 Open blog CMS
               </Link>
             )}
-            <Link href="/reset-password" className="button-secondary">
-              Change password
-            </Link>
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="button-danger"
-              disabled={busy}
-            >
-              Delete account
-            </button>
           </div>
+
           {credits.remaining === 0 && (
             <div className="notice">
               {isPremium
@@ -222,38 +161,6 @@ export default function AccountPage({ user, tabs, stripeReady, credits }: Props)
             </div>
           )}
           {error && <div className="error">{error}</div>}
-        </section>
-
-        <section className="card stack">
-          <div className="page-header">
-            <h2 className="section-title" style={{ margin: 0 }}>
-              Tab history
-            </h2>
-            <span className="muted text-small">{tabs.length} jobs</span>
-          </div>
-          {tabs.length === 0 && <p className="muted text-small">No transcriptions yet.</p>}
-          <div className="stack">
-            {tabs.map((job) => (
-              <div key={job.id} className="card-outline">
-                <div className="page-header" style={{ gap: "12px" }}>
-                  <Link href={`/tabs/${job.id}`} className="stack" style={{ gap: "4px" }}>
-                    <p style={{ margin: 0, fontWeight: 600 }}>
-                      {job.sourceLabel || "Unknown source"}
-                    </p>
-                    <p className="muted text-small" style={{ margin: 0 }}>
-                      {job.sourceType} - {new Date(job.createdAt).toLocaleString()}
-                    </p>
-                  </Link>
-                  <Link
-                    href={job.gteEditorId ? `/gte/${job.gteEditorId}` : `/tabs/${job.id}/edit`}
-                    className="button-secondary button-small"
-                  >
-                    {job.gteEditorId ? "Open GTE" : "Edit in GTE"}
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
         </section>
       </div>
     </main>
@@ -273,19 +180,20 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { email: true, name: true, role: true, tokensRemaining: true, createdAt: true, emailVerified: true },
-  });
-
-  const tabs = await prisma.tabJob.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
-    select: { id: true, sourceType: true, sourceLabel: true, createdAt: true, gteEditorId: true },
+    select: {
+      email: true,
+      name: true,
+      role: true,
+      createdAt: true,
+      emailVerified: true,
+      emailVerifiedBool: true,
+    },
   });
 
   const stripeReady = Boolean(
     process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_PREMIUM_MONTHLY
   );
-  const creditWindow = getCreditWindow();
+  const creditWindow = getCreditWindow({ userCreatedAt: user?.createdAt });
   const role = user?.role || "FREE";
   const isPremium = role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
   const creditJobs = await prisma.tabJob.findMany({
@@ -313,20 +221,15 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         ? {
             ...user,
             createdAt: user.createdAt.toISOString(),
-            isEmailVerified: Boolean((user as any).emailVerifiedBool || user.emailVerified),
+            isEmailVerified: Boolean(user.emailVerifiedBool || user.emailVerified),
           }
         : {
             email: session.user.email,
             name: session.user.name || null,
             role: "FREE",
-            tokensRemaining: 0,
             createdAt: new Date().toISOString(),
             isEmailVerified: Boolean(session.user.isEmailVerified),
           },
-      tabs: tabs.map((job) => ({
-        ...job,
-        createdAt: job.createdAt.toISOString(),
-      })),
       stripeReady,
       credits,
     },

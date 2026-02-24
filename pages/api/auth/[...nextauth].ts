@@ -57,6 +57,9 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   providers,
   callbacks: {
+    async redirect({ baseUrl }) {
+      return baseUrl;
+    },
     async signIn({ user, account }) {
       if (account?.provider && account.provider !== "credentials" && user?.email) {
         try {
@@ -132,7 +135,7 @@ export const authOptions: NextAuthOptions = {
       const creditUserId = session.user.id;
       if (creditUserId) {
         try {
-          const creditWindow = getCreditWindow();
+          const creditWindow = getCreditWindow({ userCreatedAt: dbUser?.createdAt });
           const isPremium =
             session.user.role === "PREMIUM" ||
             session.user.role === "ADMIN" ||

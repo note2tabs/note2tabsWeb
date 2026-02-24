@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as R
 import { useRouter } from "next/router";
 import { gteApi } from "../lib/gteApi";
 import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
+import TabViewer from "./TabViewer";
+import { buildTabTextFromSnapshot } from "../lib/gteTabText";
 
 type Props = {
   editorId: string;
@@ -377,6 +379,7 @@ export default function GteWorkspace({
   const [ioPayload, setIoPayload] = useState("");
   const [ioMessage, setIoMessage] = useState<string | null>(null);
   const [toolbarOpen, setToolbarOpen] = useState(false);
+  const [tabPreviewOpen, setTabPreviewOpen] = useState(false);
   const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number }>({ x: 80, y: 120 });
   const [toolbarDragging, setToolbarDragging] = useState(false);
   const [sliceToolActive, setSliceToolActive] = useState(false);
@@ -464,6 +467,10 @@ export default function GteWorkspace({
   const timelineEnd = barCount * framesPerMeasure;
   const snapThresholdFrames = Math.max(1, Math.round(4 / Math.max(1, scale)));
   const playbackFps = fps;
+  const tabPreviewText = useMemo(
+    () => buildTabTextFromSnapshot(snapshot, { barsPerRow: BARS_PER_ROW }),
+    [snapshot]
+  );
 
   useEffect(() => {
     snapshotRef.current = snapshot;
@@ -4223,6 +4230,17 @@ export default function GteWorkspace({
         >
           Generate tabs
         </button>
+        <button
+          type="button"
+          onClick={() => setTabPreviewOpen((prev) => !prev)}
+          className={`rounded-lg border px-3 py-2 text-xs font-semibold ${
+            tabPreviewOpen
+              ? "border-slate-900 bg-slate-900 text-white"
+              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          {tabPreviewOpen ? "Hide tablature" : "View tablature"}
+        </button>
         <div className="text-xs text-slate-600">
           Scale: {scale}px/frame (auto)
         </div>
@@ -4231,6 +4249,24 @@ export default function GteWorkspace({
             frames: {computedTotalFrames}
           </div>
       </div>
+
+      {tabPreviewOpen && (
+        <div className="card-outline stack">
+          <div className="page-header">
+            <h2 className="section-title" style={{ margin: 0, fontSize: "1rem" }}>
+              Tablature view
+            </h2>
+            <button
+              type="button"
+              onClick={() => setTabPreviewOpen(false)}
+              className="button-secondary button-small"
+            >
+              Close
+            </button>
+          </div>
+          <TabViewer tabText={tabPreviewText} songTitle={snapshot.name || "note2tabs"} />
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-700">
         {Array.from({ length: barCount }).map((_, idx) => (
@@ -5244,7 +5280,6 @@ export default function GteWorkspace({
     </div>
   );
 }
-
 
 
 
