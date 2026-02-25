@@ -2,6 +2,11 @@ import type { EditorListItem, EditorSnapshot, TabCoord } from "../types/gte";
 
 const BASE = "/api/gte";
 
+const encodeSnapToGridQuery = (snapToGrid?: boolean) =>
+  snapToGrid === undefined
+    ? ""
+    : `&snap_to_grid=${encodeURIComponent(String(snapToGrid))}&snapToGrid=${encodeURIComponent(String(snapToGrid))}`;
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, options);
   const text = await res.text();
@@ -90,20 +95,20 @@ export const gteApi = {
     snapToGrid?: boolean
   ) =>
     request<{ ok: true; snapshot: EditorSnapshot }>(
-      `/editors/${editorId}/notes/${noteId}/set_start_time?start_time=${encodeURIComponent(startTime)}`,
+      `/editors/${editorId}/notes/${noteId}/set_start_time?start_time=${encodeURIComponent(startTime)}${encodeSnapToGridQuery(snapToGrid)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ startTime, start_time: startTime, snapToGrid, snap_to_grid: snapToGrid }),
       }
     ),
-  setNoteLength: (editorId: string, noteId: number, length: number) =>
+  setNoteLength: (editorId: string, noteId: number, length: number, snapToGrid?: boolean) =>
     request<{ ok: true; snapshot: EditorSnapshot }>(
-      `/editors/${editorId}/notes/${noteId}/set_length`,
+      `/editors/${editorId}/notes/${noteId}/set_length?length=${encodeURIComponent(length)}${encodeSnapToGridQuery(snapToGrid)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ length }),
+        body: JSON.stringify({ length, snapToGrid, snap_to_grid: snapToGrid }),
       }
     ),
   getNoteOptimals: (editorId: string, noteId: number) =>
@@ -134,22 +139,32 @@ export const gteApi = {
         headers: { "Content-Type": "application/json" },
       }
     ),
-  setChordStartTime: (editorId: string, chordId: number, startTime: number) =>
+  setChordStartTime: (
+    editorId: string,
+    chordId: number,
+    startTime: number,
+    snapToGrid?: boolean
+  ) =>
     request<{ ok: true; snapshot: EditorSnapshot }>(
-      `/editors/${editorId}/chords/${chordId}/set_start_time?start_time=${encodeURIComponent(startTime)}`,
+      `/editors/${editorId}/chords/${chordId}/set_start_time?start_time=${encodeURIComponent(startTime)}${encodeSnapToGridQuery(snapToGrid)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startTime, start_time: startTime }),
+        body: JSON.stringify({
+          startTime,
+          start_time: startTime,
+          snapToGrid,
+          snap_to_grid: snapToGrid,
+        }),
       }
     ),
-  setChordLength: (editorId: string, chordId: number, length: number) =>
+  setChordLength: (editorId: string, chordId: number, length: number, snapToGrid?: boolean) =>
     request<{ ok: true; snapshot: EditorSnapshot }>(
-      `/editors/${editorId}/chords/${chordId}/set_length`,
+      `/editors/${editorId}/chords/${chordId}/set_length?length=${encodeURIComponent(length)}${encodeSnapToGridQuery(snapToGrid)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ length }),
+        body: JSON.stringify({ length, snapToGrid, snap_to_grid: snapToGrid }),
       }
     ),
   sliceChord: (editorId: string, chordId: number, time: number) =>

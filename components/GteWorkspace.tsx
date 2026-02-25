@@ -1229,8 +1229,22 @@ export default function GteWorkspace({
       mutationSeqRef.current += 1;
       applySnapshot(optimistic);
       markLocalSnapshotDirty();
+      if (!allowBackend) {
+        return;
+      }
+      pendingMutationsRef.current.push({
+        id: mutationSeqRef.current,
+        label: input.label,
+        before,
+        optimistic,
+        apply: input.apply,
+        commit: input.commit,
+        createdNotes: input.createdNotes,
+        createdChords: input.createdChords,
+      });
+      void processMutationQueue();
     },
-    [applySnapshot, cloneSnapshot, markLocalSnapshotDirty]
+    [allowBackend, applySnapshot, cloneSnapshot, markLocalSnapshotDirty, processMutationQueue]
   );
 
   const handleUndo = useCallback(() => {
@@ -1307,6 +1321,21 @@ export default function GteWorkspace({
       return { startTime: snappedStart, length: Math.max(1, snappedLength) };
     },
     [snapStartTimeToGrid, snapToGridEnabled, timeSignature]
+  );
+
+  const snapLengthToGrid = useCallback(
+    (length: number) => {
+      const safeLength = Math.max(1, Math.round(length));
+      if (!snapToGridEnabled) {
+        return safeLength;
+      }
+      const frames = FIXED_FRAMES_PER_BAR;
+      const beats = Math.max(1, Math.min(64, Math.round(timeSignature)));
+      const signatureLength = Math.max(1, Math.floor(frames / beats));
+      const signatureAmount = Math.max(1, Math.floor(safeLength / signatureLength));
+      return Math.max(1, signatureAmount * signatureLength);
+    },
+    [snapToGridEnabled, timeSignature]
   );
 
   const getSpanSegments = (startTime: number, length: number) => {
@@ -1493,7 +1522,7 @@ export default function GteWorkspace({
       commit: async () => {
         let last: { snapshot?: EditorSnapshot } | null = null;
         for (const note of notesToSlice) {
-          await gteApi.setNoteLength(editorId, resolveNoteId(note.id), note.leftLength);
+          await gteApi.setNoteLength(editorId, resolveNoteId(note.id), note.leftLength, false);
           last = await gteApi.addNote(editorId, {
             tab: note.tab,
             startTime: sliceTime,
@@ -1529,7 +1558,7 @@ export default function GteWorkspace({
       const startTime =
         dragging.type === "note"
           ? clamp(snapStartTimeToGrid(clampedStart), 0, maxStart)
-          : clampedStart;
+          : clamp(snapStartTimeToGrid(clampedStart), 0, maxStart);
       if (dragging.type === "note") {
         const localY = y - rowIndex * rowStride;
         const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, 5);
@@ -1599,7 +1628,7 @@ export default function GteWorkspace({
         const safeLength = Math.max(1, Math.round(dragging.length));
         const rawStart = Math.round(preview.startTime ?? dragging.startTime);
         const maxStart = Math.max(0, timelineEnd - safeLength);
-        const targetStart = clamp(rawStart, 0, maxStart);
+        const targetStart = clamp(snapStartTimeToGrid(rawStart), 0, maxStart);
         if (targetStart !== dragging.startTime) {
           enqueueOptimisticMutation({
             label: "drag-chord",
@@ -1610,7 +1639,13 @@ export default function GteWorkspace({
               chord.startTime = targetStart;
               return draft;
             },
-            commit: () => gteApi.setChordStartTime(editorId, resolveChordId(dragging.id), targetStart),
+            commit: () =>
+              gteApi.setChordStartTime(
+                editorId,
+                resolveChordId(dragging.id),
+                targetStart,
+                snapToGridEnabled
+              ),
           });
         }
       }
@@ -1645,7 +1680,8 @@ export default function GteWorkspace({
 
   useEffect(() => {
     if (!multiDrag) return;
-    const shouldGridSnapNotes = snapToGridEnabled && multiDrag.notes.length > 0;
+    const shouldGridSnapStarts =
+      snapToGridEnabled && (multiDrag.notes.length > 0 || multiDrag.chords.length > 0);
 
     const handleMove = (event: globalThis.MouseEvent) => {
       if (!timelineRef.current) return;
@@ -1674,7 +1710,7 @@ export default function GteWorkspace({
         minDelta = Math.max(minDelta, -chord.startTime);
         maxDelta = Math.min(maxDelta, timelineEnd - chord.length - chord.startTime);
       });
-      const anchorCandidate = shouldGridSnapNotes
+      const anchorCandidate = shouldGridSnapStarts
         ? snapStartTimeToGrid(snappedStart)
         : snappedStart;
       const targetAnchorStart = clamp(
@@ -1699,7 +1735,7 @@ export default function GteWorkspace({
                 if (target) {
                   const rawStart = note.startTime + delta;
                   const maxStart = Math.max(0, timelineEnd - note.length);
-                  const snappedStart = shouldGridSnapNotes ? snapStartTimeToGrid(rawStart) : rawStart;
+                  const snappedStart = shouldGridSnapStarts ? snapStartTimeToGrid(rawStart) : rawStart;
                   target.startTime = clamp(snappedStart, 0, maxStart);
                 }
               });
@@ -1707,7 +1743,10 @@ export default function GteWorkspace({
                 const chordId = resolveChordId(chord.id);
                 const target = draft.chords.find((item) => item.id === chordId);
                 if (target) {
-                  target.startTime = chord.startTime + delta;
+                  const rawStart = chord.startTime + delta;
+                  const maxStart = Math.max(0, timelineEnd - chord.length);
+                  const snappedStart = snapStartTimeToGrid(rawStart);
+                  target.startTime = clamp(snappedStart, 0, maxStart);
                 }
               });
               return draft;
@@ -1717,7 +1756,7 @@ export default function GteWorkspace({
               for (const note of multiDrag.notes) {
                 const rawStart = note.startTime + delta;
                 const maxStart = Math.max(0, timelineEnd - note.length);
-                const snappedStart = shouldGridSnapNotes ? snapStartTimeToGrid(rawStart) : rawStart;
+                const snappedStart = shouldGridSnapStarts ? snapStartTimeToGrid(rawStart) : rawStart;
                 const nextStart = clamp(snappedStart, 0, maxStart);
                 last = await gteApi.setNoteStartTime(
                   editorId,
@@ -1727,8 +1766,16 @@ export default function GteWorkspace({
                 );
               }
               for (const chord of multiDrag.chords) {
-                const nextStart = chord.startTime + delta;
-                last = await gteApi.setChordStartTime(editorId, resolveChordId(chord.id), nextStart);
+                const rawStart = chord.startTime + delta;
+                const maxStart = Math.max(0, timelineEnd - chord.length);
+                const snappedStart = snapStartTimeToGrid(rawStart);
+                const nextStart = clamp(snappedStart, 0, maxStart);
+                last = await gteApi.setChordStartTime(
+                  editorId,
+                  resolveChordId(chord.id),
+                  nextStart,
+                  snapToGridEnabled
+                );
               }
               return last ?? {};
             },
@@ -1789,18 +1836,26 @@ export default function GteWorkspace({
 
       const handleUp = () => {
         const previewLength = resizePreviewRef.current ?? resizingNote.length;
-        if (previewLength !== resizingNote.length) {
+        const snappedPreviewLength = allowBackend
+          ? Math.max(1, Math.round(previewLength))
+          : snapLengthToGrid(previewLength);
+        if (snappedPreviewLength !== resizingNote.length) {
           enqueueOptimisticMutation({
             label: "resize-note",
             apply: (draft) => {
               const noteId = resolveNoteId(resizingNote.id);
               const note = draft.notes.find((item) => item.id === noteId);
               if (!note) return draft;
-              note.length = previewLength;
+              note.length = snappedPreviewLength;
               return draft;
             },
             commit: () =>
-              gteApi.setNoteLength(editorId, resolveNoteId(resizingNote.id), previewLength),
+              gteApi.setNoteLength(
+                editorId,
+                resolveNoteId(resizingNote.id),
+                snappedPreviewLength,
+                snapToGridEnabled
+              ),
           });
         }
         setResizingNote(null);
@@ -1815,6 +1870,7 @@ export default function GteWorkspace({
     };
     }, [
       resizingNote,
+      allowBackend,
       editorId,
       enqueueOptimisticMutation,
       resolveNoteId,
@@ -1822,6 +1878,8 @@ export default function GteWorkspace({
       totalFrames,
       rowFrames,
       timelineWidth,
+      snapLengthToGrid,
+      snapToGridEnabled,
     timelineHeight,
     clamp,
     framesPerMeasure,
@@ -1854,18 +1912,26 @@ export default function GteWorkspace({
 
       const handleUp = () => {
         const previewLength = resizeChordPreviewRef.current ?? resizingChord.length;
-        if (previewLength !== resizingChord.length) {
+        const snappedPreviewLength = allowBackend
+          ? Math.max(1, Math.round(previewLength))
+          : snapLengthToGrid(previewLength);
+        if (snappedPreviewLength !== resizingChord.length) {
           enqueueOptimisticMutation({
             label: "resize-chord",
             apply: (draft) => {
               const chordId = resolveChordId(resizingChord.id);
               const chord = draft.chords.find((item) => item.id === chordId);
               if (!chord) return draft;
-              chord.length = previewLength;
+              chord.length = snappedPreviewLength;
               return draft;
             },
             commit: () =>
-              gteApi.setChordLength(editorId, resolveChordId(resizingChord.id), previewLength),
+              gteApi.setChordLength(
+                editorId,
+                resolveChordId(resizingChord.id),
+                snappedPreviewLength,
+                snapToGridEnabled
+              ),
           });
         }
         setResizingChord(null);
@@ -1880,12 +1946,15 @@ export default function GteWorkspace({
     };
     }, [
       resizingChord,
+      allowBackend,
       editorId,
       enqueueOptimisticMutation,
       resolveChordId,
       scale,
       rowFrames,
       timelineWidth,
+      snapLengthToGrid,
+      snapToGridEnabled,
     timelineHeight,
     clamp,
     framesPerMeasure,
@@ -2549,7 +2618,7 @@ export default function GteWorkspace({
         const targetEnd = lastNote.startTime + lastNote.length;
         const nextLength = Math.max(1, targetEnd - first.startTime);
         if (nextLength !== first.length) {
-          await gteApi.setNoteLength(editorId, first.id, nextLength);
+          await gteApi.setNoteLength(editorId, first.id, nextLength, false);
         }
         for (const note of notes.slice(1)) {
           last = await gteApi.deleteNote(editorId, note.id);
@@ -2822,7 +2891,9 @@ export default function GteWorkspace({
     }
     const stringValue = stringIndex;
     const fretValue = fret;
-    const lengthValue = Math.max(1, Math.round(length));
+    const lengthValue = allowBackend
+      ? Math.max(1, Math.round(length))
+      : snapLengthToGrid(length);
     const maxStart = Math.max(0, totalFrames - lengthValue);
     const startValue = clamp(Math.round(startTime), 0, maxStart);
     const snappedStartValue = clamp(snapStartTimeToGrid(startValue), 0, maxStart);
@@ -2868,7 +2939,7 @@ export default function GteWorkspace({
           );
         }
         if (didChangeLength) {
-          last = await gteApi.setNoteLength(editorId, resolvedId, lengthValue);
+          last = await gteApi.setNoteLength(editorId, resolvedId, lengthValue, snapToGridEnabled);
         }
         return last ?? {};
       },
@@ -2892,29 +2963,45 @@ export default function GteWorkspace({
       setError("Fill in start time and length before updating the chord.");
       return;
     }
-    const lengthValue = Math.max(1, Math.round(length));
+    const lengthValue = allowBackend
+      ? Math.max(1, Math.round(length))
+      : snapLengthToGrid(length);
     const maxStart = Math.max(0, totalFrames - lengthValue);
     const startValue = clamp(Math.round(startTime), 0, maxStart);
+    const snappedStartValue = clamp(snapStartTimeToGrid(startValue), 0, maxStart);
     if (!allowBackend) {
-      void runMutation(() => gteApi.setChordStartTime(editorId, selectedChord.id, startValue), {
-        localApply: (draft) => {
-          const chord = draft.chords.find((item) => item.id === selectedChord.id);
-          if (!chord) return;
-          chord.startTime = startValue;
-          chord.length = lengthValue;
-        },
-      });
+      void runMutation(
+        () => gteApi.setChordStartTime(editorId, selectedChord.id, snappedStartValue, snapToGridEnabled),
+        {
+          localApply: (draft) => {
+            const chord = draft.chords.find((item) => item.id === selectedChord.id);
+            if (!chord) return;
+            chord.startTime = snappedStartValue;
+            chord.length = lengthValue;
+          },
+        }
+      );
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      if (startValue !== selectedChord.startTime) {
-        const res = await gteApi.setChordStartTime(editorId, selectedChord.id, startValue);
+      if (snappedStartValue !== selectedChord.startTime) {
+        const res = await gteApi.setChordStartTime(
+          editorId,
+          selectedChord.id,
+          snappedStartValue,
+          snapToGridEnabled
+        );
         applySnapshot(res.snapshot);
       }
       if (lengthValue !== selectedChord.length) {
-        const res = await gteApi.setChordLength(editorId, selectedChord.id, lengthValue);
+        const res = await gteApi.setChordLength(
+          editorId,
+          selectedChord.id,
+          lengthValue,
+          snapToGridEnabled
+        );
         applySnapshot(res.snapshot);
       }
     } catch (err: any) {
@@ -3057,11 +3144,12 @@ export default function GteWorkspace({
 
   const commitNoteMenuLength = () => {
     if (!selectedNote || !noteMenuDraft) return;
-    const lengthValue = Number(noteMenuDraft.length);
-    if (!Number.isInteger(lengthValue) || lengthValue < 1) {
+    const rawLength = Number(noteMenuDraft.length);
+    if (!Number.isInteger(rawLength) || rawLength < 1) {
       setError("Invalid length.");
       return;
     }
+    const lengthValue = allowBackend ? rawLength : snapLengthToGrid(rawLength);
     if (selectedNote.length === lengthValue) return;
     enqueueOptimisticMutation({
       label: "note-menu-length",
@@ -3072,17 +3160,19 @@ export default function GteWorkspace({
         note.length = lengthValue;
         return draft;
       },
-      commit: () => gteApi.setNoteLength(editorId, resolveNoteId(selectedNote.id), lengthValue),
+      commit: () =>
+        gteApi.setNoteLength(editorId, resolveNoteId(selectedNote.id), lengthValue, snapToGridEnabled),
     });
   };
 
   const commitChordMenuLength = () => {
     if (!selectedChord || !chordMenuDraft) return;
-    const lengthValue = Number(chordMenuDraft.length);
-    if (!Number.isInteger(lengthValue) || lengthValue < 1) {
+    const rawLength = Number(chordMenuDraft.length);
+    if (!Number.isInteger(rawLength) || rawLength < 1) {
       setError("Invalid length.");
       return;
     }
+    const lengthValue = allowBackend ? rawLength : snapLengthToGrid(rawLength);
     if (selectedChord.length === lengthValue) return;
     enqueueOptimisticMutation({
       label: "chord-menu-length",
@@ -3093,7 +3183,8 @@ export default function GteWorkspace({
         chord.length = lengthValue;
         return draft;
       },
-      commit: () => gteApi.setChordLength(editorId, resolveChordId(selectedChord.id), lengthValue),
+      commit: () =>
+        gteApi.setChordLength(editorId, resolveChordId(selectedChord.id), lengthValue, snapToGridEnabled),
     });
   };
 
@@ -3125,11 +3216,12 @@ export default function GteWorkspace({
 
   const commitChordNoteLength = () => {
     if (!selectedChord || !chordNoteMenuDraft) return;
-    const lengthValue = Number(chordNoteMenuDraft.length);
-    if (!Number.isInteger(lengthValue) || lengthValue < 1) {
+    const rawLength = Number(chordNoteMenuDraft.length);
+    if (!Number.isInteger(rawLength) || rawLength < 1) {
       setError("Invalid length.");
       return;
     }
+    const lengthValue = allowBackend ? rawLength : snapLengthToGrid(rawLength);
     if (selectedChord.length === lengthValue) return;
     enqueueOptimisticMutation({
       label: "chord-note-length",
@@ -3140,7 +3232,8 @@ export default function GteWorkspace({
         chord.length = lengthValue;
         return draft;
       },
-      commit: () => gteApi.setChordLength(editorId, resolveChordId(selectedChord.id), lengthValue),
+      commit: () =>
+        gteApi.setChordLength(editorId, resolveChordId(selectedChord.id), lengthValue, snapToGridEnabled),
     });
   };
 
