@@ -2,9 +2,10 @@ import { GetServerSideProps } from "next";
 import Link from "next/link";
 import { getServerSession } from "next-auth/next";
 import { signOut } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { authOptions } from "./api/auth/[...nextauth]";
 import { prisma } from "../lib/prisma";
+import { generateFingerprint } from "../lib/fingerprint";
 
 type Props = {
   user: {
@@ -21,7 +22,25 @@ export default function SettingsPage({ user }: Props) {
   const [busy, setBusy] = useState(false);
   const [verifyBusy, setVerifyBusy] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
+  const [consentBusy, setConsentBusy] = useState(false);
+  const [consentMessage, setConsentMessage] = useState<string | null>(null);
+  const [consentState, setConsentState] = useState<"granted" | "denied" | "missing">("missing");
   const verifyHref = `/auth/verify-email?email=${encodeURIComponent(user.email)}`;
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const match = document.cookie.match(/(?:^|; )analytics_consent=([^;]*)/);
+    if (!match?.[1]) {
+      setConsentState("missing");
+      return;
+    }
+    const value = decodeURIComponent(match[1]);
+    if (value === "denied") {
+      setConsentState("denied");
+      return;
+    }
+    setConsentState("granted");
+  }, []);
 
   const handleSignOut = async () => {
     await signOut({ redirect: false });
@@ -64,6 +83,43 @@ export default function SettingsPage({ user }: Props) {
       return;
     }
     await handleSignOut();
+  };
+
+  const handleConsentUpdate = async (state: "granted" | "denied") => {
+    setConsentBusy(true);
+    setConsentMessage(null);
+    setError(null);
+    try {
+      let fingerprintId: string | undefined;
+      if (state === "granted") {
+        try {
+          const fingerprint = await generateFingerprint();
+          fingerprintId = fingerprint.fingerprintId;
+        } catch {
+          // best effort
+        }
+      }
+      const endpoint = state === "denied" ? "/api/consent/deny" : "/api/consent/update";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: state === "granted" ? JSON.stringify({ state: "granted", fingerprintId }) : undefined,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Could not update analytics consent.");
+      }
+      setConsentState(state);
+      setConsentMessage(
+        state === "granted"
+          ? "Analytics tracking is enabled. You can deny it again at any time."
+          : "Analytics tracking is denied and analytics identifiers were cleared."
+      );
+    } catch (err: any) {
+      setError(err?.message || "Could not update analytics consent.");
+    } finally {
+      setConsentBusy(false);
+    }
   };
 
   return (
@@ -136,6 +192,35 @@ export default function SettingsPage({ user }: Props) {
             {verifyMessage && <div className="notice">{verifyMessage}</div>}
           </section>
         )}
+
+        <section className="card stack" id="privacy-controls">
+          <h2 className="section-title" style={{ margin: 0 }}>
+            Privacy controls
+          </h2>
+          <p className="muted text-small">
+            Analytics are enabled by default unless you deny them. Current state:{" "}
+            <strong>{consentState === "missing" ? "granted (default)" : consentState}</strong>.
+          </p>
+          <div className="button-row">
+            <button
+              type="button"
+              onClick={() => void handleConsentUpdate("granted")}
+              className="button-secondary"
+              disabled={consentBusy}
+            >
+              {consentBusy && consentState !== "granted" ? "Saving..." : "Enable analytics"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleConsentUpdate("denied")}
+              className="button-secondary"
+              disabled={consentBusy}
+            >
+              {consentBusy && consentState !== "denied" ? "Saving..." : "Deny analytics"}
+            </button>
+          </div>
+          {consentMessage && <div className="notice">{consentMessage}</div>}
+        </section>
 
         <section className="card stack">
           <h2 className="section-title" style={{ margin: 0 }}>

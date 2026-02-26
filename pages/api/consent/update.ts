@@ -1,10 +1,16 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
+import { z } from "zod";
 import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "../../../lib/prisma";
 import { hashFingerprint } from "../../../lib/analyticsV2/fingerprintHash";
 import { parseRequestCookies } from "../../../lib/analyticsV2/cookies";
 import { persistConsentState } from "../../../lib/analyticsV2/consent";
+
+const bodySchema = z.object({
+  state: z.enum(["granted", "denied"]),
+  fingerprintId: z.string().optional(),
+});
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -13,35 +19,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
+    const parsedBody = bodySchema.parse(typeof req.body === "string" ? JSON.parse(req.body) : req.body || {});
     const session = await getServerSession(req, res, authOptions);
     const userId = session?.user?.id || null;
     const cookies = parseRequestCookies(req);
-    const fingerprintHash = hashFingerprint(body?.fingerprintId);
+    const fingerprintHash = hashFingerprint(parsedBody.fingerprintId);
 
     const result = await persistConsentState({
       prismaClient: prisma,
       res,
       cookies,
-      state: "granted",
+      state: parsedBody.state,
       userId,
-      rawFingerprint: body?.fingerprintId,
+      rawFingerprint: parsedBody.fingerprintId,
       fingerprintHash,
-      source: "api_consent_grant",
+      source: "api_consent_update",
     });
 
-    const sessionId = result.cookies.sessionId || cookies.analytics_session || body?.sessionId;
+    const sessionId = result.cookies.sessionId || cookies.analytics_session || null;
     if (userId) {
       await prisma.userConsent.upsert({
         where: { userId },
         update: {
-          granted: true,
+          granted: parsedBody.state === "granted",
           sessionId: sessionId || undefined,
           userId: userId || undefined,
           fingerprintId: fingerprintHash || undefined,
         },
         create: {
-          granted: true,
+          granted: parsedBody.state === "granted",
           sessionId: sessionId || undefined,
           userId: userId || undefined,
           fingerprintId: fingerprintHash || undefined,
@@ -50,16 +56,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } else if (sessionId) {
       await prisma.userConsent.create({
         data: {
-          granted: true,
+          granted: parsedBody.state === "granted",
           sessionId,
           fingerprintId: fingerprintHash || undefined,
         },
       });
     }
 
-    return res.status(200).json({ ok: true, state: "granted" });
-  } catch (error) {
-    console.error("consent grant error", error);
-    return res.status(500).json({ error: "Could not save consent" });
+    return res.status(200).json({
+      ok: true,
+      state: parsedBody.state,
+      subjectId: result.subject.id.toString(),
+    });
+  } catch (error: any) {
+    console.error("consent update error", error);
+    return res.status(400).json({ error: error?.message || "Could not update consent" });
   }
 }

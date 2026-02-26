@@ -119,6 +119,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           event: "gte_editor_created",
           path: "/api/gte/editors",
           payload: { editorId, source: "gte_proxy" },
+          req,
+          res,
         });
       }
     } catch {

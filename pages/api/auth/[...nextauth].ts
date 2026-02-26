@@ -6,6 +6,8 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
 import { buildCreditsSummary, getCreditWindow } from "../../../lib/credits";
+import { parseCookieHeader } from "../../../lib/analyticsV2/cookies";
+import { linkIdentityToUser } from "../../../lib/analyticsV2/identity";
 
 const providers: Provider[] = [
   CredentialsProvider({
@@ -14,7 +16,7 @@ const providers: Provider[] = [
       email: { label: "Email", type: "email" },
       password: { label: "Password", type: "password" },
     },
-    async authorize(credentials) {
+    async authorize(credentials, req) {
       try {
         if (!credentials?.email || !credentials?.password) return null;
         const user = await prisma.user.findUnique({
@@ -24,6 +26,22 @@ const providers: Provider[] = [
         const isValid = await compare(credentials.password, user.passwordHash);
         if (!isValid) return null;
         const isEmailVerified = Boolean((user as any).emailVerifiedBool || user.emailVerified);
+
+        try {
+          const cookies = parseCookieHeader(req.headers?.cookie);
+          const rawFingerprint =
+            typeof req.body?.fingerprintId === "string" ? req.body.fingerprintId : undefined;
+          await linkIdentityToUser({
+            userId: user.id,
+            source: "login",
+            anonId: cookies.analytics_anon,
+            sessionId: cookies.analytics_session,
+            rawFingerprint,
+          });
+        } catch (linkError) {
+          console.warn("credentials login identity link warning", linkError);
+        }
+
         return {
           id: user.id,
           email: user.email,

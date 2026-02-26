@@ -75,6 +75,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ...(sessionId ? { sessionId } : {}),
       ...(durationSec !== undefined ? { durationSec } : {}),
     },
+    req,
+    res,
   });
 
   return res.status(200).json({ ok: true });

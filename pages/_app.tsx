@@ -5,6 +5,7 @@ import { SessionProvider } from "next-auth/react";
 import NavBar from "../components/NavBar";
 import FooterBar from "../components/FooterBar";
 import CookieConsentBanner from "../components/CookieConsentBanner";
+import AnalyticsIdentityLinker from "../components/AnalyticsIdentityLinker";
 import "../styles/globals.css";
 
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
@@ -53,6 +54,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         </main>
         <FooterBar />
         <CookieConsentBanner />
+        <AnalyticsIdentityLinker />
       </div>
     </SessionProvider>
   );

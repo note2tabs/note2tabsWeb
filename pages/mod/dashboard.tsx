@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import Link from "next/link";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
+import { toLegacyName } from "../../lib/analyticsV2/canonical";
 
 type AnalyticsRow = {
   id: string;
@@ -171,33 +172,84 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     };
   }
 
-  const analytics = await prisma.analyticsEvent.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    select: {
-      id: true,
-      event: true,
-      path: true,
-      referer: true,
-      browser: true,
-      os: true,
-      deviceType: true,
-      createdAt: true,
-    },
-  });
+  const readsEnabled = (process.env.ANALYTICS_V2_READS_ENABLED || "false").toLowerCase() === "true";
 
-  const consents = await prisma.userConsent.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    select: {
-      id: true,
-      userId: true,
-      sessionId: true,
-      fingerprintId: true,
-      granted: true,
-      createdAt: true,
-    },
-  });
+  const analytics = readsEnabled
+    ? (
+        await prisma.analyticsEventV2.findMany({
+          orderBy: { ts: "desc" },
+          take: 50,
+          select: {
+            id: true,
+            name: true,
+            legacyEventName: true,
+            path: true,
+            referrer: true,
+            uaBrowser: true,
+            uaOs: true,
+            uaDevice: true,
+            ts: true,
+          },
+        })
+      ).map((row) => ({
+        id: row.id.toString(),
+        event: toLegacyName(row.name, row.legacyEventName),
+        path: row.path,
+        referer: row.referrer,
+        browser: row.uaBrowser,
+        os: row.uaOs,
+        deviceType: row.uaDevice,
+        createdAt: row.ts,
+      }))
+    : await prisma.analyticsEvent.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        select: {
+          id: true,
+          event: true,
+          path: true,
+          referer: true,
+          browser: true,
+          os: true,
+          deviceType: true,
+          createdAt: true,
+        },
+      });
+
+  const consents = readsEnabled
+    ? (
+        await prisma.analyticsConsentSubject.findMany({
+          orderBy: { updatedAt: "desc" },
+          take: 50,
+          select: {
+            id: true,
+            userId: true,
+            anonId: true,
+            fingerprintHash: true,
+            state: true,
+            updatedAt: true,
+          },
+        })
+      ).map((row) => ({
+        id: row.id.toString(),
+        userId: row.userId,
+        sessionId: row.anonId,
+        fingerprintId: row.fingerprintHash,
+        granted: row.state === "granted",
+        createdAt: row.updatedAt,
+      }))
+    : await prisma.userConsent.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        select: {
+          id: true,
+          userId: true,
+          sessionId: true,
+          fingerprintId: true,
+          granted: true,
+          createdAt: true,
+        },
+      });
 
   const eventsByType: Record<string, number> = {};
   for (const row of analytics) {

@@ -98,6 +98,121 @@ model UserConsent {
   updatedAt     DateTime @updatedAt
 }
 
+model AnalyticsEventV2 {
+  id              BigInt                   @id @default(autoincrement())
+  eventId         String                   @unique
+  schemaVersion   Int
+  name            String
+  legacyEventName String?
+  ts              DateTime
+  receivedAt      DateTime                 @default(now())
+  accountId       String?
+  anonId          String?
+  sessionId       String?
+  fingerprintHash String?
+  consentSubjectId BigInt?
+  path            String?
+  referrer        String?
+  utmSource       String?
+  utmMedium       String?
+  utmCampaign     String?
+  utmTerm         String?
+  utmContent      String?
+  ipHash          String?
+  uaBrowser       String?
+  uaOs            String?
+  uaDevice        String?
+  props           Json
+  env             String
+  appVersion      String?
+  consentSubject  AnalyticsConsentSubject? @relation(fields: [consentSubjectId], references: [id], onDelete: SetNull)
+
+  @@index([ts])
+  @@index([name, ts])
+  @@index([accountId, ts])
+  @@index([anonId, ts])
+  @@index([fingerprintHash, ts])
+  @@index([path, ts])
+}
+
+model AnalyticsConsentSubject {
+  id              BigInt                 @id @default(autoincrement())
+  userId          String?                @unique
+  anonId          String?                @unique
+  fingerprintHash String?
+  state           AnalyticsConsentState  @default(granted)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  audits          AnalyticsConsentAudit[]
+  events          AnalyticsEventV2[]
+
+  @@index([fingerprintHash])
+}
+
+model AnalyticsConsentAudit {
+  id        BigInt                 @id @default(autoincrement())
+  subjectId BigInt
+  state     AnalyticsConsentState
+  source    String?
+  metadata  Json?
+  changedAt DateTime               @default(now())
+  subject   AnalyticsConsentSubject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@index([subjectId, changedAt])
+}
+
+model AnalyticsIdentityLink {
+  id              BigInt                 @id @default(autoincrement())
+  userId          String
+  anonId          String?
+  fingerprintHash String?
+  firstSeenAt     DateTime
+  lastSeenAt      DateTime
+  expiresAt       DateTime
+  source          AnalyticsIdentitySource
+
+  @@unique([userId, fingerprintHash])
+  @@unique([userId, anonId])
+  @@index([userId])
+  @@index([fingerprintHash])
+  @@index([anonId])
+  @@index([lastSeenAt])
+}
+
+model AnalyticsGteSession {
+  gteSessionId    String    @id @db.Uuid
+  editorId        String
+  accountId       String?
+  anonId          String?
+  fingerprintHash String?
+  startedAt       DateTime
+  endedAt         DateTime?
+  durationMs      Int?
+  endReason       String?
+  inferredStart   Boolean   @default(false)
+  props           Json?
+  env             String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([editorId, startedAt])
+  @@index([accountId, startedAt])
+  @@index([anonId, startedAt])
+  @@index([fingerprintHash, startedAt])
+}
+
+model AnalyticsDailyKpi {
+  id        BigInt   @id @default(autoincrement())
+  day       DateTime
+  env       String
+  metrics   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([day, env])
+  @@index([day])
+}
+
 model Post {
   id             String       @id @default(cuid())
   title          String
@@ -194,4 +309,14 @@ enum PostStatus {
 enum PostContentMode {
   PLAIN
   LATEX
+}
+
+enum AnalyticsConsentState {
+  granted
+  denied
+}
+
+enum AnalyticsIdentitySource {
+  signup
+  login
 }

@@ -337,6 +337,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             event: "gte_editor_created",
             path: "/api/transcribe",
             payload: { editorId: created.editorId, source: "transcribe" },
+            req,
+            res,
           });
           let importOk = true;
           if (stamps.length > 0) {

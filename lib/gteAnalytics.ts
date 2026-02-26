@@ -1,4 +1,5 @@
-import { prisma } from "./prisma";
+import { ingestAnalyticsEvents } from "./analyticsV2/ingest";
+import type { NextApiRequest, NextApiResponse } from "next";
 
 export type GteAnalyticsEvent =
   | "gte_editor_created"
@@ -12,18 +13,23 @@ type LogGteAnalyticsInput = {
   path?: string;
   sessionId?: string;
   payload?: Record<string, unknown>;
+  req?: NextApiRequest;
+  res?: NextApiResponse;
 };
 
 export async function logGteAnalyticsEvent(input: LogGteAnalyticsInput) {
-  const { userId, event, path, sessionId, payload } = input;
+  const { userId, event, path, sessionId, payload, req, res } = input;
   try {
-    await prisma.analyticsEvent.create({
-      data: {
-        userId,
-        sessionId,
+    await ingestAnalyticsEvents({
+      req,
+      res,
+      accountId: userId,
+      source: "gte_server_log",
+      body: {
         event,
         path,
-        payload: payload ? JSON.stringify(payload) : undefined,
+        sessionId,
+        payload: payload || {},
       },
     });
   } catch (error) {

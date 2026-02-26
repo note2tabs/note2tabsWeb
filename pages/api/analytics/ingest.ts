@@ -12,21 +12,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const session = await getServerSession(req, res, authOptions);
     const accountId = session?.user?.id || null;
-
     const result = await ingestAnalyticsEvents({
       req,
       res,
       body: req.body,
       accountId,
-      source: "api_event_legacy",
+      source: "api_ingest",
     });
-
     return res.status(200).json(result);
   } catch (error: any) {
-    console.error("analytics event error", error);
+    console.error("analytics ingest error", error);
     return res.status(400).json({
       ok: false,
-      error: error?.message || "Could not record event",
+      error: error?.message || "Could not ingest analytics event.",
     });
   }
 }

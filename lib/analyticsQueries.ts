@@ -1,6 +1,79 @@
 import { prisma } from "./prisma";
+import { analyticsFlags } from "./analyticsV2/flags";
+import { CANONICAL_TO_LEGACY_EVENT_NAME } from "./analyticsV2/canonical";
 
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+
+type UnifiedAnalyticsEvent = {
+  id: string;
+  event: string;
+  path: string | null;
+  referer: string | null;
+  createdAt: Date;
+  userId: string | null;
+  sessionId: string | null;
+  browser: string | null;
+  os: string | null;
+  deviceType: string | null;
+  payload: string | null;
+};
+
+function mapEventNameFromV2(name: string) {
+  return CANONICAL_TO_LEGACY_EVENT_NAME[name] || name;
+}
+
+async function getUnifiedEvents(from: Date, to: Date): Promise<UnifiedAnalyticsEvent[]> {
+  if (!analyticsFlags.readsEnabled) {
+    return prisma.analyticsEvent.findMany({
+      where: { createdAt: { gte: from, lte: to } },
+      select: {
+        id: true,
+        event: true,
+        path: true,
+        referer: true,
+        createdAt: true,
+        userId: true,
+        sessionId: true,
+        browser: true,
+        os: true,
+        deviceType: true,
+        payload: true,
+      },
+    });
+  }
+
+  const rows = await prisma.analyticsEventV2.findMany({
+    where: { ts: { gte: from, lte: to } },
+    select: {
+      id: true,
+      name: true,
+      legacyEventName: true,
+      path: true,
+      referrer: true,
+      ts: true,
+      accountId: true,
+      sessionId: true,
+      uaBrowser: true,
+      uaOs: true,
+      uaDevice: true,
+      props: true,
+    },
+  });
+
+  return rows.map((row) => ({
+    id: row.id.toString(),
+    event: mapEventNameFromV2(row.name),
+    path: row.path || null,
+    referer: row.referrer || null,
+    createdAt: row.ts,
+    userId: row.accountId || null,
+    sessionId: row.sessionId || null,
+    browser: row.uaBrowser || null,
+    os: row.uaOs || null,
+    deviceType: row.uaDevice || null,
+    payload: row.props ? JSON.stringify(row.props) : null,
+  }));
+}
 
 function parsePayload(payload?: string | null): Record<string, any> {
   if (!payload) return {};
@@ -20,10 +93,7 @@ function percentile(values: number[], p: number) {
 }
 
 export async function getSummaryStats(from: Date, to: Date) {
-  const events = await prisma.analyticsEvent.findMany({
-    where: { createdAt: { gte: from, lte: to } },
-    select: { event: true, sessionId: true, userId: true },
-  });
+  const events = await getUnifiedEvents(from, to);
   const tabJobs = await prisma.tabJob.findMany({
     where: { createdAt: { gte: from, lte: to } },
     select: { userId: true },
@@ -56,10 +126,7 @@ export async function getSummaryStats(from: Date, to: Date) {
 }
 
 export async function getDailyTimeSeries(from: Date, to: Date) {
-  const events = await prisma.analyticsEvent.findMany({
-    where: { createdAt: { gte: from, lte: to } },
-    select: { event: true, createdAt: true, sessionId: true, userId: true },
-  });
+  const events = await getUnifiedEvents(from, to);
   const tabJobs = await prisma.tabJob.findMany({
     where: { createdAt: { gte: from, lte: to } },
     select: { createdAt: true, userId: true },
@@ -104,10 +171,7 @@ export async function getDailyTimeSeries(from: Date, to: Date) {
 }
 
 export async function getConversionFunnel(from: Date, to: Date) {
-  const events = await prisma.analyticsEvent.findMany({
-    where: { createdAt: { gte: from, lte: to } },
-    select: { event: true, path: true, sessionId: true, userId: true },
-  });
+  const events = await getUnifiedEvents(from, to);
   const tabJobs = await prisma.tabJob.findMany({
     where: { createdAt: { gte: from, lte: to } },
     select: { userId: true },
@@ -142,10 +206,7 @@ export async function getConversionFunnel(from: Date, to: Date) {
 }
 
 export async function getDropoffPoints(from: Date, to: Date) {
-  const events = await prisma.analyticsEvent.findMany({
-    where: { createdAt: { gte: from, lte: to } },
-    select: { event: true, path: true, sessionId: true },
-  });
+  const events = await getUnifiedEvents(from, to);
 
   const homepage = new Set<string>();
   const signupOpened = new Set<string>();
@@ -171,10 +232,7 @@ export async function getDropoffPoints(from: Date, to: Date) {
 }
 
 export async function getDeviceBreakdown(from: Date, to: Date) {
-  const events = await prisma.analyticsEvent.findMany({
-    where: { createdAt: { gte: from, lte: to } },
-    select: { deviceType: true, browser: true, os: true },
-  });
+  const events = await getUnifiedEvents(from, to);
 
   const deviceTypeCounts: Record<string, number> = {};
   const browserCounts: Record<string, number> = {};
@@ -193,13 +251,7 @@ export async function getDeviceBreakdown(from: Date, to: Date) {
 }
 
 export async function getErrorStats(from: Date, to: Date) {
-  const events = await prisma.analyticsEvent.findMany({
-    where: {
-      createdAt: { gte: from, lte: to },
-      event: "transcription_failed",
-    },
-    select: { payload: true },
-  });
+  const events = (await getUnifiedEvents(from, to)).filter((event) => event.event === "transcription_failed");
   const byMessage: Record<string, number> = {};
   events.forEach((e) => {
     let msg = "Unknown error";
@@ -288,16 +340,13 @@ export async function getUsersActivity(from: Date, to: Date, limit = 100) {
     ])
   );
 
-  const signupCounts = await prisma.analyticsEvent.groupBy({
-    by: ["userId"],
-    where: {
-      createdAt: { gte: from, lte: to },
-      event: "signup_success",
-      userId: { in: userIds },
-    },
-    _count: { _all: true },
+  const signupMap: Record<string, number> = {};
+  const signupEvents = await getUnifiedEvents(from, to);
+  signupEvents.forEach((event) => {
+    if (event.event !== "signup_success" || !event.userId) return;
+    if (!userIds.includes(event.userId)) return;
+    signupMap[event.userId] = (signupMap[event.userId] || 0) + 1;
   });
-  const signupMap = Object.fromEntries(signupCounts.map((s) => [s.userId, s._count._all]));
 
   return users.map((u) => ({
     id: u.id,
@@ -312,20 +361,10 @@ export async function getUsersActivity(from: Date, to: Date, limit = 100) {
 }
 
 export async function getRecentEvents(from: Date, to: Date, limit = 50) {
-  const events = await prisma.analyticsEvent.findMany({
-    where: { createdAt: { gte: from, lte: to } },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    select: {
-      id: true,
-      event: true,
-      path: true,
-      referer: true,
-      createdAt: true,
-      userId: true,
-      sessionId: true,
-    },
-  });
+  const events = (await getUnifiedEvents(from, to))
+    .slice()
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, limit);
   const userIds = events.map((e) => e.userId).filter(Boolean) as string[];
   const users = await prisma.user.findMany({
     where: { id: { in: userIds } },
@@ -339,29 +378,16 @@ export async function getRecentEvents(from: Date, to: Date, limit = 50) {
 }
 
 export async function getGteEditorStats(from: Date, to: Date, topUsersLimit = 25) {
-  const gteEvents = await prisma.analyticsEvent.findMany({
-    where: {
-      createdAt: { gte: from, lte: to },
-      event: {
-        in: [
-          "gte_editor_created",
-          "gte_editor_visit",
-          "gte_editor_session_start",
-          "gte_editor_session_end",
-        ],
-      },
-    },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      event: true,
-      userId: true,
-      sessionId: true,
-      payload: true,
-      path: true,
-      createdAt: true,
-    },
-  });
+  const gteEvents = (await getUnifiedEvents(from, to))
+    .filter((event) =>
+      [
+        "gte_editor_created",
+        "gte_editor_visit",
+        "gte_editor_session_start",
+        "gte_editor_session_end",
+      ].includes(event.event)
+    )
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
   const createdDailyMap: Record<string, number> = {};
   const visitedDailyMap: Record<string, number> = {};
@@ -477,5 +503,91 @@ export async function getGteEditorStats(from: Date, to: Date, topUsersLimit = 25
         ...item,
         userEmail: item.userId ? userMap[item.userId]?.email || null : null,
       })),
+  };
+}
+
+type ParityRow = {
+  oldValue: number;
+  v2Value: number;
+  diffPct: number;
+  flagged: boolean;
+};
+
+function buildParityRow(oldValue: number, v2Value: number, threshold: number): ParityRow {
+  const denominator = Math.max(oldValue, v2Value, 1);
+  const diffPct = Math.round((Math.abs(v2Value - oldValue) / denominator) * 10000) / 100;
+  const minimumVolume = 20;
+  const flagged = denominator >= minimumVolume && diffPct > threshold;
+  return { oldValue, v2Value, diffPct, flagged };
+}
+
+export async function getParityMetrics(from: Date, to: Date) {
+  const threshold = Math.max(1, analyticsFlags.parityThresholdPct);
+  const [oldEvents, v2Events, gteV2Sessions] = await Promise.all([
+    prisma.analyticsEvent.findMany({
+      where: { createdAt: { gte: from, lte: to } },
+      select: { event: true, sessionId: true, payload: true },
+    }),
+    prisma.analyticsEventV2.findMany({
+      where: { ts: { gte: from, lte: to } },
+      select: { name: true, anonId: true, sessionId: true },
+    }),
+    prisma.analyticsGteSession.findMany({
+      where: { startedAt: { gte: from, lte: to } },
+      select: { durationMs: true },
+    }),
+  ]);
+
+  const oldVisitors = new Set(
+    oldEvents
+      .filter((event) => event.event === "page_view" && event.sessionId)
+      .map((event) => event.sessionId as string)
+  ).size;
+  const v2Visitors = new Set(
+    v2Events
+      .filter((event) => event.name === "page_viewed")
+      .map((event) => event.anonId || event.sessionId)
+      .filter(Boolean) as string[]
+  ).size;
+
+  const oldPageviews = oldEvents.filter((event) => event.event === "page_view").length;
+  const v2Pageviews = v2Events.filter((event) => event.name === "page_viewed").length;
+
+  const oldTranscriptionStarted = oldEvents.filter((event) => event.event === "transcription_started").length;
+  const v2TranscriptionStarted = v2Events.filter((event) => event.name === "transcription_started").length;
+
+  const oldTranscriptionSucceeded = oldEvents.filter((event) => event.event === "transcription_completed").length;
+  const v2TranscriptionSucceeded = v2Events.filter((event) => event.name === "transcription_succeeded").length;
+
+  const oldTranscriptionFailed = oldEvents.filter((event) => event.event === "transcription_failed").length;
+  const v2TranscriptionFailed = v2Events.filter((event) => event.name === "transcription_failed").length;
+
+  const oldGteSessionEndEvents = oldEvents.filter((event) => event.event === "gte_editor_session_end");
+  const oldGteSessionsCount = oldGteSessionEndEvents.length;
+  const oldGteDurationMs = oldGteSessionEndEvents.reduce((sum, event) => {
+    if (!event.payload) return sum;
+    try {
+      const parsed = JSON.parse(event.payload);
+      const durationSec =
+        typeof parsed.durationSec === "number" ? parsed.durationSec : Number(parsed.durationSec || 0);
+      if (!Number.isFinite(durationSec)) return sum;
+      return sum + Math.max(0, Math.round(durationSec * 1000));
+    } catch {
+      return sum;
+    }
+  }, 0);
+
+  const v2GteSessionsCount = gteV2Sessions.length;
+  const v2GteDurationMs = gteV2Sessions.reduce((sum, row) => sum + Math.max(0, row.durationMs || 0), 0);
+
+  return {
+    threshold,
+    visitors: buildParityRow(oldVisitors, v2Visitors, threshold),
+    pageviews: buildParityRow(oldPageviews, v2Pageviews, threshold),
+    transcriptionStarted: buildParityRow(oldTranscriptionStarted, v2TranscriptionStarted, threshold),
+    transcriptionSucceeded: buildParityRow(oldTranscriptionSucceeded, v2TranscriptionSucceeded, threshold),
+    transcriptionFailed: buildParityRow(oldTranscriptionFailed, v2TranscriptionFailed, threshold),
+    gteSessionsCount: buildParityRow(oldGteSessionsCount, v2GteSessionsCount, threshold),
+    gteSessionsDurationMs: buildParityRow(oldGteDurationMs, v2GteDurationMs, threshold),
   };
 }

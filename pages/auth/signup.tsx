@@ -2,6 +2,7 @@ import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { signIn } from "next-auth/react";
+import { generateFingerprint } from "../../lib/fingerprint";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -25,10 +26,17 @@ export default function SignupPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    let fingerprintId: string | undefined;
+    try {
+      const fingerprint = await generateFingerprint();
+      fingerprintId = fingerprint.fingerprintId;
+    } catch {
+      // best effort only
+    }
     const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, name }),
+      body: JSON.stringify({ email, password, name, fingerprintId }),
     });
     setLoading(false);
     const data = await res.json();

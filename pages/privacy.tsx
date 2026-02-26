@@ -19,8 +19,8 @@ export default function PrivacyPage() {
         </p>
         <h2>Cookies and Similar Technologies</h2>
         <p className="muted text-small">
-          We use cookies to run the Service and, if you consent, to measure usage and improve performance.
-          Without consent, only essential cookies and security logging are used.
+          We use cookies to run the Service and to measure usage and improve performance. Analytics is enabled
+          by default unless you explicitly deny it from the banner or settings.
         </p>
         <ul className="muted text-small">
           <li>
@@ -32,18 +32,22 @@ export default function PrivacyPage() {
           </li>
           <li>
             Analytics session cookie: <strong>analytics_session</strong> stores a random session identifier to
-            measure site usage after you accept analytics. It is set for up to 365 days.
+            measure site usage. It is set for up to 24 hours.
+          </li>
+          <li>
+            Anonymous analytics cookie: <strong>analytics_anon</strong> stores a random identifier used to
+            connect related events for up to 90 days.
           </li>
         </ul>
         <p className="muted text-small">
-          Analytics and device fingerprinting only start after you accept cookies in the banner. With consent,
-          we may collect page views, events, device type, browser, approximate location (derived from IP
-          hash), session identifiers, and optional fingerprint IDs to improve Note2Tabs and prevent abuse.
+          With analytics enabled, we may collect page views, events, device type, browser, approximate
+          location (derived from an IP hash), session identifiers, and a server-salted hash of device
+          fingerprint data to improve Note2Tabs and prevent abuse.
         </p>
         <p className="muted text-small">
-          You can decline analytics and continue using basic features (subject to rate limits/security). You
-          can also delete cookies in your browser settings at any time. You may request account deletion at
-          any time.
+          You can deny analytics and continue using basic features (subject to rate limits/security). You can
+          manage this later from cookie settings, delete cookies in your browser, and request account deletion
+          at any time.
         </p>
       </div>
     </main>

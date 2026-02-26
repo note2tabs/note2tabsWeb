@@ -13,6 +13,7 @@ import {
   getRecentEvents,
   getUsersActivity,
   getGteEditorStats,
+  getParityMetrics,
 } from "../../lib/analyticsQueries";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
@@ -61,6 +62,7 @@ type Props = {
     >;
     recentCreated: Array<Omit<GteStats["recentCreated"][number], "createdAt"> & { createdAt: string }>;
   };
+  parity: Awaited<ReturnType<typeof getParityMetrics>> | null;
 };
 
 const presetRanges: Record<string, number> = {
@@ -82,6 +84,7 @@ export default function AnalyticsDashboard({
   recentEvents,
   usersActivity,
   gteStats,
+  parity,
 }: Props) {
   const funnelSteps = [
     { label: "Visitors", value: funnel.step1_visitors },
@@ -158,6 +161,47 @@ export default function AnalyticsDashboard({
             <Card title="Avg session" value={formatDuration(gteStats.avgSessionDurationSec)} />
             <Card title="P95 session" value={formatDuration(gteStats.p95SessionDurationSec)} />
           </section>
+
+          {parity && (
+            <section className="card stack">
+              <SectionHeader title="Old vs V2 parity (last 7d)" />
+              <p className="text-sm text-slate-600">
+                Threshold: {parity.threshold}% with minimum-volume guard.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="table">
+                  <thead>
+                    <tr className="text-left text-slate-600">
+                      <th className="px-2 py-1">Metric</th>
+                      <th className="px-2 py-1">Old</th>
+                      <th className="px-2 py-1">V2</th>
+                      <th className="px-2 py-1">Diff %</th>
+                      <th className="px-2 py-1">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { label: "Visitors", row: parity.visitors },
+                      { label: "Pageviews", row: parity.pageviews },
+                      { label: "Transcription started", row: parity.transcriptionStarted },
+                      { label: "Transcription succeeded", row: parity.transcriptionSucceeded },
+                      { label: "Transcription failed", row: parity.transcriptionFailed },
+                      { label: "GTE sessions", row: parity.gteSessionsCount },
+                      { label: "GTE duration (ms)", row: parity.gteSessionsDurationMs },
+                    ].map(({ label, row }) => (
+                      <tr key={label} className="border-t border-slate-200">
+                        <td className="px-2 py-1">{label}</td>
+                        <td className="px-2 py-1">{row.oldValue}</td>
+                        <td className="px-2 py-1">{row.v2Value}</td>
+                        <td className="px-2 py-1">{row.diffPct.toFixed(2)}%</td>
+                        <td className="px-2 py-1">{row.flagged ? "Alert" : "OK"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           <section className="grid gap-4 lg:grid-cols-2">
             <div className="card stack">
@@ -504,23 +548,28 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const range = (ctx.query.range as string) || "30d";
   const days = presetRanges[range] || 30;
+  const parityEnabled = (process.env.ANALYTICS_ADMIN_PARITY_ENABLED || "true").toLowerCase() !== "false";
   const to = new Date();
   const from = new Date();
   from.setDate(to.getDate() - (days - 1));
 
-  const [summary, daily, funnel, dropoff, devices, errors, topUsers, recentEvents, usersActivity, gteStats] =
+  const parityFrom = new Date();
+  parityFrom.setDate(parityFrom.getDate() - 6);
+
+  const [summary, daily, funnel, dropoff, devices, errors, topUsers, recentEvents, usersActivity, gteStats, parity] =
     await Promise.all([
-    getSummaryStats(from, to),
-    getDailyTimeSeries(from, to),
-    getConversionFunnel(from, to),
-    getDropoffPoints(from, to),
-    getDeviceBreakdown(from, to),
-    getErrorStats(from, to),
-    getTopUsers(from, to, 10),
-    getRecentEvents(from, to, 50),
-    getUsersActivity(from, to, 100),
-    getGteEditorStats(from, to, 25),
-  ]);
+      getSummaryStats(from, to),
+      getDailyTimeSeries(from, to),
+      getConversionFunnel(from, to),
+      getDropoffPoints(from, to),
+      getDeviceBreakdown(from, to),
+      getErrorStats(from, to),
+      getTopUsers(from, to, 10),
+      getRecentEvents(from, to, 50),
+      getUsersActivity(from, to, 100),
+      getGteEditorStats(from, to, 25),
+      parityEnabled ? getParityMetrics(parityFrom, to) : Promise.resolve(null),
+    ]);
 
   return {
     props: {
@@ -541,6 +590,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         ...u,
         lastActive: u.lastActive ? u.lastActive.toISOString() : null,
       })),
+      parity,
       gteStats: {
         ...gteStats,
         createdPerUser: gteStats.createdPerUser.map((row) => ({

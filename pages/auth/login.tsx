@@ -2,6 +2,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { generateFingerprint } from "../../lib/fingerprint";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,10 +25,18 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    let fingerprintId: string | undefined;
+    try {
+      const fingerprint = await generateFingerprint();
+      fingerprintId = fingerprint.fingerprintId;
+    } catch {
+      // best effort only
+    }
     const res = await signIn("credentials", {
       redirect: false,
       email,
       password,
+      fingerprintId,
       callbackUrl: "/",
     });
     setLoading(false);

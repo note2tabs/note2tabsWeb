@@ -3,6 +3,7 @@ import { hash } from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
 import { issueAndSendVerificationEmail } from "../../../lib/emailVerification";
 import { STARTING_CREDITS } from "../../../lib/credits";
+import { linkIdentityToUser } from "../../../lib/analyticsV2/identity";
 
 const MIN_PASSWORD = 10;
 
@@ -39,6 +40,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ...( { emailVerifiedBool: false } as any),
       } as any,
     });
+
+    try {
+      const rawFingerprint =
+        typeof req.body?.fingerprintId === "string" ? req.body.fingerprintId : undefined;
+      await linkIdentityToUser({
+        userId: user.id,
+        source: "signup",
+        req,
+        res,
+        rawFingerprint,
+      });
+    } catch (linkError) {
+      console.warn("signup identity link warning", linkError);
+    }
 
     let sent = false;
     try {

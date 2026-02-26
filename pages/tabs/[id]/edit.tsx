@@ -99,6 +99,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       event: "gte_editor_created",
       path: "/tabs/[id]/edit",
       payload: { editorId: created.editorId, source: "tab_edit_redirect", tabJobId: job.id },
+      req: ctx.req as any,
+      res: ctx.res as any,
     });
 
     if (stamps.length > 0) {
