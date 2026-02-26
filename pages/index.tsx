@@ -150,7 +150,7 @@ const decodeBlobToWav = async (blob: Blob) => {
 export default function HomePage() {
   const { data: session } = useSession();
   const router = useRouter();
-  const [frontTab, setFrontTab] = useState<"EDITOR" | "TRANSCRIBE">("EDITOR");
+  const [frontTab, setFrontTab] = useState<"EDITOR" | "TRANSCRIBE">("TRANSCRIBE");
   const [mode, setMode] = useState<"FILE" | "YOUTUBE">("FILE");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");

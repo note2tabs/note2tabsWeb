@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { analyticsFlags } from "./analyticsV2/flags";
-import { CANONICAL_TO_LEGACY_EVENT_NAME } from "./analyticsV2/canonical";
+import { CANONICAL_TO_LEGACY_EVENT_NAME, toLegacyName } from "./analyticsV2/canonical";
 
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -589,5 +589,99 @@ export async function getParityMetrics(from: Date, to: Date) {
     transcriptionFailed: buildParityRow(oldTranscriptionFailed, v2TranscriptionFailed, threshold),
     gteSessionsCount: buildParityRow(oldGteSessionsCount, v2GteSessionsCount, threshold),
     gteSessionsDurationMs: buildParityRow(oldGteDurationMs, v2GteDurationMs, threshold),
+  };
+}
+
+export async function getModerationSnapshot(limit = 50) {
+  const analytics = analyticsFlags.readsEnabled
+    ? (
+        await prisma.analyticsEventV2.findMany({
+          orderBy: { ts: "desc" },
+          take: limit,
+          select: {
+            id: true,
+            name: true,
+            legacyEventName: true,
+            path: true,
+            referrer: true,
+            uaBrowser: true,
+            uaOs: true,
+            uaDevice: true,
+            ts: true,
+          },
+        })
+      ).map((row) => ({
+        id: row.id.toString(),
+        event: toLegacyName(row.name, row.legacyEventName),
+        path: row.path,
+        referer: row.referrer,
+        browser: row.uaBrowser,
+        os: row.uaOs,
+        deviceType: row.uaDevice,
+        createdAt: row.ts,
+      }))
+    : await prisma.analyticsEvent.findMany({
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        select: {
+          id: true,
+          event: true,
+          path: true,
+          referer: true,
+          browser: true,
+          os: true,
+          deviceType: true,
+          createdAt: true,
+        },
+      });
+
+  const consents = analyticsFlags.readsEnabled
+    ? (
+        await prisma.analyticsConsentSubject.findMany({
+          orderBy: { updatedAt: "desc" },
+          take: limit,
+          select: {
+            id: true,
+            userId: true,
+            anonId: true,
+            fingerprintHash: true,
+            state: true,
+            updatedAt: true,
+          },
+        })
+      ).map((row) => ({
+        id: row.id.toString(),
+        userId: row.userId,
+        sessionId: row.anonId,
+        fingerprintId: row.fingerprintHash,
+        granted: row.state === "granted",
+        createdAt: row.updatedAt,
+      }))
+    : await prisma.userConsent.findMany({
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        select: {
+          id: true,
+          userId: true,
+          sessionId: true,
+          fingerprintId: true,
+          granted: true,
+          createdAt: true,
+        },
+      });
+
+  const eventsByType: Record<string, number> = {};
+  for (const row of analytics) {
+    eventsByType[row.event] = (eventsByType[row.event] || 0) + 1;
+  }
+
+  return {
+    analytics,
+    consents,
+    stats: {
+      totalEvents: analytics.length,
+      totalConsents: consents.length,
+      eventsByType,
+    },
   };
 }

@@ -30,6 +30,9 @@ export default function AccountPage({ user, stripeReady, credits }: Props) {
   const [busy, setBusy] = useState(false);
   const isAdminOrMod = user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const isAdmin = user.role === "ADMIN";
+  const analyticsHref = isAdmin
+    ? "/admin/analytics?view=overview&range=30d"
+    : "/admin/analytics?view=moderation&range=30d";
   const isPremium =
     user.role === "PREMIUM" || user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const resetLabel = new Date(credits.resetAt).toLocaleDateString();
@@ -137,13 +140,8 @@ export default function AccountPage({ user, stripeReady, credits }: Props) {
               Open GTE editor
             </Link>
             {isAdminOrMod && (
-              <Link href="/mod/dashboard" className="button-secondary">
-                Open dashboard
-              </Link>
-            )}
-            {isAdmin && (
-              <Link href="/admin/analytics" className="button-secondary">
-                Admin analytics
+              <Link href={analyticsHref} className="button-secondary">
+                Open analytics hub
               </Link>
             )}
             {isAdmin && (

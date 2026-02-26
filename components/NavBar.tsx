@@ -17,6 +17,13 @@ export default function NavBar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const isReadingArticle = router.pathname === "/blog/[slug]";
   const editorHref = session?.user?.id ? "/gte" : "/gte/local";
+  const role = session?.user?.role || "";
+  const isAdmin = role === "ADMIN";
+  const isModerator = role === "MODERATOR" || role === "MOD";
+  const analyticsHref = isAdmin
+    ? "/admin/analytics?view=overview&range=30d"
+    : "/admin/analytics?view=moderation&range=30d";
+  const analyticsLabel = isAdmin ? "Analytics" : "Moderation";
   const initial =
     session?.user?.email?.[0]?.toUpperCase() ||
     session?.user?.name?.[0]?.toUpperCase() ||
@@ -55,10 +62,7 @@ export default function NavBar() {
               <Link href="/account">Account</Link>
               <Link href="/tabs">Saved tabs</Link>
               <Link href="/settings">Settings</Link>
-              {session.user?.role === "ADMIN" && <Link href="/admin/analytics">Admin</Link>}
-              {session.user?.role === "MODERATOR" || session.user?.role === "MOD" ? (
-                <Link href="/mod/dashboard">Moderation</Link>
-              ) : null}
+              {(isAdmin || isModerator) && <Link href={analyticsHref}>{analyticsLabel}</Link>}
               <button
                 type="button"
                 onClick={async () => {
