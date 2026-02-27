@@ -1116,60 +1116,32 @@ export default function HomePage() {
             <h2 className="section-title" data-reveal>
               How it works
             </h2>
-            <div className="steps-grid">
-              <div className="step-card" data-reveal>
-                <div className="icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M12 16V4m0 0l-4 4m4-4l4 4"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </div>
-                <h3>1. Transcribe</h3>
+            <div className="how-flow" data-reveal>
+              <article className="how-step">
+                <span className="how-step-index">1</span>
+                <h3>Transcribe</h3>
                 <p>Upload audio or paste a YouTube link to generate draft tabs quickly.</p>
+              </article>
+
+              <div className="how-arrow how-arrow--1" aria-hidden="true">
+                <span className="how-arrow-head" />
               </div>
-              <div className="step-card" data-reveal>
-                <div className="icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M9 18V6l12-2v12"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <circle cx="6" cy="18" r="3" stroke="currentColor" strokeWidth="2" />
-                    <circle cx="18" cy="16" r="3" stroke="currentColor" strokeWidth="2" />
-                  </svg>
-                </div>
-                <h3>2. Edit your style</h3>
-                <p>Edit the tablature to your preferred playing style and technique.</p>
+
+              <article className="how-step">
+                <span className="how-step-index">2</span>
+                <h3>Edit your style</h3>
+                <p>Edit the tablature to match your preferred playing style and technique.</p>
+              </article>
+
+              <div className="how-arrow how-arrow--2" aria-hidden="true">
+                <span className="how-arrow-head" />
               </div>
-              <div className="step-card" data-reveal>
-                <div className="icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M6 3l12 6-12 6v6"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-                <h3>3. Play guitar</h3>
+
+              <article className="how-step">
+                <span className="how-step-index">3</span>
+                <h3>Play guitar</h3>
                 <p>Press play, grab your guitar, and start playing the song.</p>
-              </div>
+              </article>
             </div>
           </div>
         </section>

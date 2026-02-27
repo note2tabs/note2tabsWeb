@@ -638,16 +638,16 @@ input[type="number"] {
     radial-gradient(
       120% 94% at 50% -8%,
       rgba(255, 255, 255, 0.99) 0%,
-      rgba(246, 255, 249, 0.94) 46%,
-      rgba(198, 246, 220, 0.62) 72%,
-      rgba(132, 230, 177, 0.52) 88%,
-      rgba(92, 214, 154, 0.54) 100%
+      rgba(248, 255, 250, 0.95) 48%,
+      rgba(208, 247, 226, 0.52) 73%,
+      rgba(148, 234, 186, 0.43) 89%,
+      rgba(110, 220, 165, 0.44) 100%
     ),
     radial-gradient(
       85% 72% at 50% 114%,
-      rgba(66, 205, 134, 0.58) 0%,
-      rgba(118, 230, 168, 0.42) 56%,
-      rgba(224, 252, 236, 0.22) 86%,
+      rgba(78, 210, 142, 0.44) 0%,
+      rgba(136, 234, 176, 0.31) 56%,
+      rgba(230, 253, 240, 0.18) 86%,
       rgba(255, 255, 255, 0) 100%
     );
 }
@@ -2592,6 +2592,106 @@ input[type="number"] {
   padding: 50px 0 80px;
 }
 
+.how-flow {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px minmax(0, 1fr) 90px minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.how-step {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  padding: 22px;
+  display: grid;
+  gap: 10px;
+}
+
+.how-step-index {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  display: grid;
+  place-items: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.how-step h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+}
+
+.how-step p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+  font-size: 0.92rem;
+}
+
+.how-arrow {
+  align-self: center;
+  position: relative;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.16);
+}
+
+.how-arrow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2a6df4, #1fbf9f);
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+
+.how-arrow-head {
+  position: absolute;
+  right: -1px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 12px solid rgba(15, 23, 42, 0.25);
+}
+
+.how-flow.visible .how-arrow--1::after {
+  animation: howArrowGrowX 0.75s ease forwards 0.2s;
+}
+
+.how-flow.visible .how-arrow--2::after {
+  animation: howArrowGrowX 0.75s ease forwards 1.05s;
+}
+
+.how-flow.visible .how-arrow--1 .how-arrow-head {
+  border-left-color: #1fbf9f;
+  transition: border-left-color 0.18s ease 0.82s;
+}
+
+.how-flow.visible .how-arrow--2 .how-arrow-head {
+  border-left-color: #1fbf9f;
+  transition: border-left-color 0.18s ease 1.65s;
+}
+
+@keyframes howArrowGrowX {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 .section-title {
   font-size: 1.8rem;
   margin-bottom: 10px;
@@ -2627,6 +2727,58 @@ input[type="number"] {
   margin: 0;
   color: var(--muted);
   line-height: 1.5;
+}
+
+@media (max-width: 920px) {
+  .how-flow {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .how-arrow {
+    width: 3px;
+    height: 48px;
+    justify-self: center;
+  }
+
+  .how-arrow::after {
+    transform-origin: center top;
+    transform: scaleY(0);
+  }
+
+  .how-arrow-head {
+    right: 50%;
+    top: auto;
+    bottom: -2px;
+    transform: translateX(50%);
+    border-top: 12px solid rgba(15, 23, 42, 0.25);
+    border-bottom: none;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+  }
+
+  .how-flow.visible .how-arrow--1::after {
+    animation: howArrowGrowY 0.65s ease forwards 0.2s;
+  }
+
+  .how-flow.visible .how-arrow--2::after {
+    animation: howArrowGrowY 0.65s ease forwards 1.05s;
+  }
+
+  .how-flow.visible .how-arrow--1 .how-arrow-head,
+  .how-flow.visible .how-arrow--2 .how-arrow-head {
+    border-left-color: transparent;
+    border-top-color: #1fbf9f;
+  }
+}
+
+@keyframes howArrowGrowY {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
 }
 
 .icon {
