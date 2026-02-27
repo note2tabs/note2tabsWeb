@@ -798,9 +798,9 @@ export default function HomePage() {
               </p>
             </section>
             <div className="hero-heading" data-reveal>
-              <h2 className="hero-title">Convert Any Song Into Playable Guitar Tabs</h2>
+              <h2 className="hero-title">Transcribe Any Song to Playable Tabs</h2>
               <p className="hero-subtitle">
-                Upload an audio file or paste a YouTube link. Edit instantly in our smart tab editor.
+                Paste a YouTube link or upload audio, then shape the result in the editor.
               </p>
             </div>
             <form className="prompt-shell prompt-shell--funnel" data-reveal onSubmit={handleSubmit}>
@@ -816,65 +816,68 @@ export default function HomePage() {
                 </div>
               )}
 
-              <div className="mode-switch mode-switch--hero" role="tablist" aria-label="Input mode">
-                <button
-                  type="button"
-                  className={mode === "FILE" ? "active" : ""}
-                  onClick={() => setMode("FILE")}
-                >
-                  Audio file
-                </button>
-                <button
-                  type="button"
-                  className={mode === "YOUTUBE" ? "active" : ""}
-                  onClick={() => setMode("YOUTUBE")}
-                >
-                  YouTube link
-                </button>
-              </div>
-
-              <div className="funnel-row">
-                <div
-                  className={`funnel-input ${mode === "FILE" ? "is-file" : "is-url"} ${
-                    dragActive ? "active" : ""
-                  }`}
-                  onClick={mode === "FILE" ? () => fileInputRef.current?.click() : undefined}
-                  onDrop={mode === "FILE" ? onDrop : undefined}
-                  onDragOver={mode === "FILE" ? onDragOver : undefined}
-                  onDragEnter={mode === "FILE" ? onDragEnter : undefined}
-                  onDragLeave={mode === "FILE" ? onDragLeave : undefined}
-                >
-                  <span className="funnel-icon" aria-hidden="true">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M8 5.5v13l10-6.5-10-6.5z" />
-                    </svg>
-                  </span>
-                  {mode === "FILE" ? (
-                    <span className="funnel-file-label">
-                      {selectedFile ? selectedFile.name : "Paste YouTube link or upload file"}
+              <div className="funnel-panel">
+                <div className="funnel-row">
+                  <div
+                    className={`funnel-input ${mode === "FILE" ? "is-file" : "is-url"} ${
+                      dragActive ? "active" : ""
+                    }`}
+                    onClick={mode === "FILE" ? () => fileInputRef.current?.click() : undefined}
+                    onDrop={mode === "FILE" ? onDrop : undefined}
+                    onDragOver={mode === "FILE" ? onDragOver : undefined}
+                    onDragEnter={mode === "FILE" ? onDragEnter : undefined}
+                    onDragLeave={mode === "FILE" ? onDragLeave : undefined}
+                  >
+                    <span className="funnel-icon" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5.5v13l10-6.5-10-6.5z" />
+                      </svg>
                     </span>
-                  ) : (
+                    {mode === "FILE" ? (
+                      <span className="funnel-file-label">
+                        {selectedFile ? selectedFile.name : "Upload audio file or drop it here"}
+                      </span>
+                    ) : (
+                      <input
+                        type="url"
+                        value={youtubeUrl}
+                        onChange={(event) => setYoutubeUrl(event.target.value)}
+                        placeholder="Paste YouTube link"
+                      />
+                    )}
                     <input
-                      type="url"
-                      value={youtubeUrl}
-                      onChange={(event) => setYoutubeUrl(event.target.value)}
-                      placeholder="Paste YouTube link or upload file"
+                      ref={fileInputRef}
+                      type="file"
+                      accept="audio/*"
+                      hidden
+                      onChange={onFileChange}
                     />
-                  )}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="audio/*"
-                    hidden
-                    onChange={onFileChange}
-                  />
+                  </div>
                 </div>
-                <button type="submit" className="button-primary funnel-submit" disabled={!canSubmit}>
-                  {loading ? submitLabel : "Convert to Tabs - Free"}
-                </button>
+                <div className="funnel-toolbar">
+                  <div className="mode-switch mode-switch--hero" role="tablist" aria-label="Input mode">
+                    <button
+                      type="button"
+                      className={mode === "FILE" ? "active" : ""}
+                      onClick={() => setMode("FILE")}
+                    >
+                      Audio file
+                    </button>
+                    <button
+                      type="button"
+                      className={mode === "YOUTUBE" ? "active" : ""}
+                      onClick={() => setMode("YOUTUBE")}
+                    >
+                      YouTube link
+                    </button>
+                  </div>
+                  <button type="submit" className="button-primary funnel-submit" disabled={!canSubmit}>
+                    {loading ? submitLabel : "Convert to Tabs"}
+                  </button>
+                </div>
               </div>
 
-              {(mode === "YOUTUBE" || (isSignedIn && mode === "FILE")) && (
+              {((mode === "YOUTUBE" && Boolean(youtubeId)) || (isSignedIn && mode === "FILE")) && (
                 <div className="prompt-field prompt-field--compact">
                   {mode === "YOUTUBE" && (
                     <>
@@ -1020,14 +1023,6 @@ export default function HomePage() {
                 </p>
               )}
             </form>
-            <div className="hero-trust" data-reveal>
-              <span className="hero-trust-icon" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" />
-                </svg>
-              </span>
-              <strong>Trusted by guitarists worldwide</strong>
-            </div>
 
           </div>
         </section>
@@ -1115,48 +1110,6 @@ export default function HomePage() {
             </div>
           </section>
         )}
-
-        <section className="pricing" id="pricing">
-          <div className="container">
-            <div className="pricing-grid">
-              <div className="pricing-card pricing-card--free" data-reveal>
-                <div className="pricing-header">
-                  <span className="pill">Free</span>
-                  <div className="pricing-price">
-                    <span className="pricing-amount">$0</span>
-                    <span className="pricing-interval">/ month</span>
-                  </div>
-                </div>
-                <ul className="pricing-list">
-                  <li>10 credits per month</li>
-                  <li>Standard speed</li>
-                  <li>Basic export</li>
-                </ul>
-              </div>
-              <button
-                type="button"
-                className="pricing-card"
-                data-reveal
-                onClick={handlePricingClick}
-                disabled={pricingBusy}
-              >
-                <div className="pricing-header">
-                  <span className="pill">Premium</span>
-                  <div className="pricing-price">
-                    <span className="pricing-amount">$5.99</span>
-                    <span className="pricing-interval">/ month</span>
-                  </div>
-                </div>
-                <ul className="pricing-list">
-                  <li>50 credits per month (roll over)</li>
-                  <li>No ads</li>
-                  <li>More features coming soon</li>
-                </ul>
-              </button>
-            </div>
-            {pricingError && <div className="error">{pricingError}</div>}
-          </div>
-        </section>
 
         <section className="benefits" id="features">
           <div className="container">
@@ -1291,6 +1244,48 @@ export default function HomePage() {
                 <p>Use the transcriber for drafts, then polish in the editor.</p>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className="pricing" id="pricing">
+          <div className="container">
+            <div className="pricing-grid">
+              <div className="pricing-card pricing-card--free" data-reveal>
+                <div className="pricing-header">
+                  <span className="pill">Free</span>
+                  <div className="pricing-price">
+                    <span className="pricing-amount">$0</span>
+                    <span className="pricing-interval">/ month</span>
+                  </div>
+                </div>
+                <ul className="pricing-list">
+                  <li>10 credits per month</li>
+                  <li>Standard speed</li>
+                  <li>Basic export</li>
+                </ul>
+              </div>
+              <button
+                type="button"
+                className="pricing-card"
+                data-reveal
+                onClick={handlePricingClick}
+                disabled={pricingBusy}
+              >
+                <div className="pricing-header">
+                  <span className="pill">Premium</span>
+                  <div className="pricing-price">
+                    <span className="pricing-amount">$5.99</span>
+                    <span className="pricing-interval">/ month</span>
+                  </div>
+                </div>
+                <ul className="pricing-list">
+                  <li>50 credits per month (roll over)</li>
+                  <li>No ads</li>
+                  <li>More features coming soon</li>
+                </ul>
+              </button>
+            </div>
+            {pricingError && <div className="error">{pricingError}</div>}
           </div>
         </section>
       </main>

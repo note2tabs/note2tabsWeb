@@ -42,9 +42,6 @@ export default function NavBar() {
           <Link href={editorHref} className="nav-pill">
             Editor
           </Link>
-          <Link href="/transcriber" className="nav-pill">
-            Transcriber
-          </Link>
           <a href="/#how">How it works</a>
           <a href="/#pricing">Pricing</a>
           {!session && (
