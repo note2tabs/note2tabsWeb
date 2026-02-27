@@ -780,7 +780,7 @@ export default function HomePage() {
           <div className="hero-glow hero-glow--one" aria-hidden="true" />
           <div className="hero-glow hero-glow--two" aria-hidden="true" />
           <div className="container hero-stack hero-stack--centered">
-            <section className="seo-intro" aria-label="Note2Tabs overview" data-reveal>
+            <section className="seo-intro seo-crawler-only" aria-label="Note2Tabs overview" data-reveal>
               <h1 className="seo-title">Note2Tabs – Guitar tab generator and editor</h1>
               <p className="seo-copy">
                 Note2Tabs turns audio into guitar tabs so you can learn songs faster and with less trial and error.
@@ -792,9 +792,9 @@ export default function HomePage() {
               </p>
             </section>
             <div className="hero-heading" data-reveal>
-              <h2 className="hero-title">Guitar Tab Editor</h2>
+              <h2 className="hero-title">Turn any Note To Tabs</h2>
               <p className="hero-subtitle">
-                Play back tabs, switch fingerings, and optimize layouts for clean, playable results.
+                Turn any audio into tabulature and edit them in our editor.
               </p>
               <div className="button-row hero-cta-row">
                 <Link href={editorHref} className="button-primary">

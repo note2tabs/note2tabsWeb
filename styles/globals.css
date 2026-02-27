@@ -654,6 +654,19 @@ input[type="number"] {
   text-align: center;
 }
 
+.seo-crawler-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(100%);
+  border: 0;
+  white-space: nowrap;
+}
+
 .seo-title {
   margin: 0;
   font-size: clamp(1.7rem, 3.4vw, 2.4rem);
