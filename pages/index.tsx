@@ -1111,79 +1111,6 @@ export default function HomePage() {
           </section>
         )}
 
-        <section className="benefits" id="features">
-          <div className="container">
-            <h2 className="section-title" data-reveal>
-              Practice-friendly by default
-            </h2>
-            <p className="section-subtitle" data-reveal>
-              Clean output and a focused editor, ready when you scroll.
-            </p>
-            <div className="benefits-grid">
-              <div className="benefit-card" data-reveal>
-                <div className="icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M12 8v8m-4-4h8"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-                  </svg>
-                </div>
-                <h4>Playable previews</h4>
-                <p>Hear your tabs and catch timing issues before you export.</p>
-              </div>
-              <div className="benefit-card" data-reveal>
-                <div className="icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M5 12h14"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M9 8h6"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M9 16h6"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </div>
-                <h4>Fingerings & optimals</h4>
-                <p>Switch fingerings and run optimals to clean up tricky passages.</p>
-              </div>
-              <div className="benefit-card" data-reveal>
-                <div className="icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M4 12a8 8 0 0116 0v5H4v-5z"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    />
-                    <path
-                      d="M8 17v2h8v-2"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </div>
-                <h4>Drafts when you need them</h4>
-                <p>Use the transcriber for quick starts, then refine in the editor.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <section className="steps" id="how">
           <div className="container">
             <h2 className="section-title" data-reveal>
@@ -1208,8 +1135,8 @@ export default function HomePage() {
                     />
                   </svg>
                 </div>
-                <h3>1. Open the editor</h3>
-                <p>Start a new Guitar Tab Editor session from your library.</p>
+                <h3>1. Transcribe</h3>
+                <p>Upload audio or paste a YouTube link to generate draft tabs quickly.</p>
               </div>
               <div className="step-card" data-reveal>
                 <div className="icon">
@@ -1225,8 +1152,8 @@ export default function HomePage() {
                     <circle cx="18" cy="16" r="3" stroke="currentColor" strokeWidth="2" />
                   </svg>
                 </div>
-                <h3>2. Make it playable</h3>
-                <p>Play back, switch fingerings, and optimize for clean output.</p>
+                <h3>2. Edit your style</h3>
+                <p>Edit the tablature to your preferred playing style and technique.</p>
               </div>
               <div className="step-card" data-reveal>
                 <div className="icon">
@@ -1240,8 +1167,8 @@ export default function HomePage() {
                     />
                   </svg>
                 </div>
-                <h3>3. Optional transcriber</h3>
-                <p>Use the transcriber for drafts, then polish in the editor.</p>
+                <h3>3. Play guitar</h3>
+                <p>Press play, grab your guitar, and start playing the song.</p>
               </div>
             </div>
           </div>

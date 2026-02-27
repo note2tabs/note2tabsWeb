@@ -40,8 +40,7 @@ h1,
 h2,
 h3,
 h4,
-.logo,
-.nav-cta {
+.logo {
   font-family: var(--font-display);
 }
 
@@ -387,8 +386,13 @@ input[type="number"] {
 .nav {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 26px;
   padding: 14px 0;
+}
+
+.nav .logo {
+  margin-right: auto;
 }
 
 .nav-links {
@@ -397,6 +401,7 @@ input[type="number"] {
   gap: 22px;
   font-weight: 400;
   color: #0b0f1a;
+  margin-left: auto;
 }
 
 .nav-links--reading {
@@ -458,6 +463,7 @@ input[type="number"] {
   border-radius: 999px;
   background: transparent;
   color: #ffffff;
+  font-family: var(--font-sans);
   font-weight: 700;
   letter-spacing: 0.01em;
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.25);
@@ -626,21 +632,22 @@ input[type="number"] {
 }
 
 .hero--landing-funnel {
-  min-height: calc(100vh - 72px);
+  min-height: calc(100dvh - 64px);
+  padding: 34px 0 40px;
   background:
     radial-gradient(
       120% 94% at 50% -8%,
-      rgba(255, 255, 255, 0.98) 0%,
-      rgba(245, 255, 248, 0.92) 42%,
-      rgba(176, 245, 206, 0.78) 68%,
-      rgba(95, 224, 156, 0.74) 86%,
-      rgba(50, 194, 123, 0.78) 100%
+      rgba(255, 255, 255, 0.99) 0%,
+      rgba(246, 255, 249, 0.94) 46%,
+      rgba(198, 246, 220, 0.62) 72%,
+      rgba(132, 230, 177, 0.52) 88%,
+      rgba(92, 214, 154, 0.54) 100%
     ),
     radial-gradient(
       85% 72% at 50% 114%,
-      rgba(31, 190, 118, 0.9) 0%,
-      rgba(70, 219, 143, 0.72) 56%,
-      rgba(210, 252, 227, 0.25) 86%,
+      rgba(66, 205, 134, 0.58) 0%,
+      rgba(118, 230, 168, 0.42) 56%,
+      rgba(224, 252, 236, 0.22) 86%,
       rgba(255, 255, 255, 0) 100%
     );
 }
@@ -650,7 +657,7 @@ input[type="number"] {
 }
 
 .hero--landing-funnel .hero-stack {
-  min-height: calc(100vh - 160px);
+  min-height: calc(100dvh - 138px);
   align-content: center;
 }
 
@@ -765,7 +772,7 @@ input[type="number"] {
   font-weight: 800;
   letter-spacing: -0.04em;
   color: #06110d;
-  font-size: clamp(2.4rem, 6vw, 4.9rem);
+  font-size: clamp(2rem, 4.8vw, 3.8rem);
   line-height: 1.02;
   max-width: 980px;
 }
@@ -775,7 +782,7 @@ input[type="number"] {
   font-weight: 400;
   letter-spacing: -0.008em;
   color: rgba(6, 17, 13, 0.72);
-  font-size: clamp(1rem, 1.7vw, 1.32rem);
+  font-size: clamp(0.96rem, 1.35vw, 1.12rem);
   line-height: 1.5;
   max-width: 740px;
 }
@@ -2398,6 +2405,17 @@ input[type="number"] {
   .funnel-submit {
     width: 100%;
     font-size: 1rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .hero--landing-funnel {
+    min-height: auto;
+    padding: 26px 0 32px;
+  }
+
+  .hero--landing-funnel .hero-stack {
+    min-height: 0;
   }
 }
 
