@@ -150,7 +150,6 @@ const decodeBlobToWav = async (blob: Blob) => {
 export default function HomePage() {
   const { data: session } = useSession();
   const router = useRouter();
-  const [frontTab, setFrontTab] = useState<"EDITOR" | "TRANSCRIBE">("TRANSCRIBE");
   const [mode, setMode] = useState<"FILE" | "YOUTUBE">("FILE");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -200,16 +199,6 @@ export default function HomePage() {
     }
     return typeof value === "string" && value.trim() ? value.trim() : null;
   }, [router.isReady, router.query.appendEditorId]);
-  const requestedFrontTab = useMemo(() => {
-    if (!router.isReady) return null;
-    const raw = router.query.product ?? router.query.tab;
-    const value = Array.isArray(raw) ? raw[0] : raw;
-    if (typeof value !== "string") return null;
-    const normalized = value.toLowerCase();
-    if (normalized.startsWith("trans")) return "TRANSCRIBE" as const;
-    if (normalized.startsWith("edit")) return "EDITOR" as const;
-    return null;
-  }, [router.isReady, router.query.product, router.query.tab]);
   const youtubeId = useMemo(() => parseYouTubeId(youtubeUrl), [youtubeUrl]);
   const resolvedYtDuration = useMemo(() => {
     if (ytDuration === null) return 0;
@@ -221,7 +210,6 @@ export default function HomePage() {
     return `https://www.youtube.com/watch?v=${youtubeId}${start ? `&t=${start}s` : ""}`;
   }, [youtubeId, ytStartTime]);
   const captureActive = capturePhase !== "idle";
-  const isTranscriber = frontTab === "TRANSCRIBE";
 
   useEffect(() => {
     if (session?.user?.monthlyCreditsUsed !== undefined) {
@@ -339,21 +327,16 @@ export default function HomePage() {
   }, [tabsResult, isSignedIn, appendEditorId]);
 
   useEffect(() => {
-    if (requestedFrontTab) {
-      setFrontTab(requestedFrontTab);
-    }
-  }, [requestedFrontTab]);
-
-  useEffect(() => {
-    setError(null);
-    setStatus(null);
-  }, [frontTab]);
-
-  useEffect(() => {
     if (mode !== "YOUTUBE") {
       setCapturePhase("idle");
       setCaptureProgress(0);
     }
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== "YOUTUBE") return;
+    setYtStartTime((prev) => (prev === null ? 0 : prev));
+    setYtDuration((prev) => (prev === null ? MAX_YT_SNIPPET_SEC : prev));
   }, [mode]);
 
   const creditsRequested = useMemo(() => {
@@ -563,6 +546,20 @@ export default function HomePage() {
     }
   };
 
+  const openTabsInEditor = async (segments: string[][], gteEditorId?: string | null) => {
+    if (gteEditorId) {
+      await router.push(`/gte/${gteEditorId}?source=transcriber`);
+      return;
+    }
+    const { stamps, totalFrames } = tabSegmentsToStamps(segments);
+    if (stamps.length === 0) {
+      throw new Error("No tabs available to import into the editor.");
+    }
+    const created = await gteApi.createEditor();
+    await gteApi.appendImportTab(created.editorId, { stamps, totalFrames });
+    await router.push(`/gte/${created.editorId}?source=transcriber`);
+  };
+
   const handleConvert = async () => {
     if (!session) {
       setError("Sign in to start transcribing.");
@@ -692,13 +689,24 @@ export default function HomePage() {
         sendEvent("transcribe_error", { mode, error: "no tabs" });
         return;
       }
-      setTabsResult(data.tabs);
+      const nextTabs = data.tabs;
       setSelectedSegments(new Set());
       if (data.credits) {
         setCredits(data.credits);
       }
-      setStatus(null);
       sendEvent("transcribe_success", { mode, jobId: data.jobId });
+      setStatus("Tabs ready. Opening Guitar Tab Editor...");
+      try {
+        await openTabsInEditor(nextTabs, data.gteEditorId);
+        return;
+      } catch (openErr: any) {
+        setTabsResult(nextTabs);
+        setImportError(
+          openErr?.message ||
+            "Transcription succeeded, but we could not open the editor automatically. Import manually below."
+        );
+        setStatus(null);
+      }
     } catch (err: any) {
       setError(err?.message || "Something went wrong. Please try again.");
       sendEvent("transcribe_error", { mode, error: err?.message || "unknown" });
@@ -761,7 +769,6 @@ export default function HomePage() {
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    if (!isTranscriber) return;
     void handleConvert();
   };
   const creditsUsageLabel = credits
@@ -792,38 +799,17 @@ export default function HomePage() {
               </p>
             </section>
             <div className="hero-heading" data-reveal>
-              <h2 className="hero-title">Turn any Note To Tabs</h2>
+              <h2 className="hero-title">Convert Any Song Into Playable Guitar Tabs</h2>
               <p className="hero-subtitle">
-                Turn any audio into tabulature and edit them in our editor.
+                Upload an audio file or paste a YouTube link. Edit instantly in our smart tab editor.
               </p>
-              <div className="button-row hero-cta-row">
-                <Link href={editorHref} className="button-primary">
-                  {isSignedIn ? "Open Guitar Tab Editor" : "Try Guitar Tab Editor"}
-                </Link>
-                <Link href="/transcriber" className="button-secondary">
-                  Try Transcriber
-                </Link>
-              </div>
+              <p className="hero-linkline">
+                After transcription, we open your tabs directly in the{" "}
+                <Link href={editorHref}>Guitar Tab Editor</Link>.
+              </p>
             </div>
-            <form className="prompt-shell" data-reveal onSubmit={handleSubmit}>
-              <div className="product-switch" role="tablist" aria-label="Product">
-                <button
-                  type="button"
-                  className={frontTab === "EDITOR" ? "active" : ""}
-                  onClick={() => setFrontTab("EDITOR")}
-                >
-                  Guitar Tab Editor
-                </button>
-                <button
-                  type="button"
-                  className={frontTab === "TRANSCRIBE" ? "active" : ""}
-                  onClick={() => setFrontTab("TRANSCRIBE")}
-                >
-                  Transcriber
-                </button>
-              </div>
-
-              {isSignedIn && credits && isTranscriber && (
+            <form className="prompt-shell prompt-shell--funnel" data-reveal onSubmit={handleSubmit}>
+              {isSignedIn && credits && (
                 <div className="prompt-top prompt-top--solo">
                   <div className="prompt-balance">
                     <span>Credits</span>
@@ -835,147 +821,106 @@ export default function HomePage() {
                 </div>
               )}
 
-              {frontTab === "EDITOR" ? (
-                <div className="editor-showcase">
-                  <div>
-                    <h3>Make tabs playable</h3>
-                    <p className="muted">
-                      Play back your tabs, switch fingerings, and run optimizations to find clean,
-                      playable layouts before exporting.
-                    </p>
-                  </div>
-                  <div className="editor-actions">
-                    <Link href={editorHref} className="button-primary">
-                      {isSignedIn ? "Open Guitar Tab Editor" : "Try Guitar Tab Editor"}
-                    </Link>
-                    <span className="editor-note muted">
-                      {isSignedIn
-                        ? "Your editors and exports stay in your account library."
-                        : "Runs locally in your browser. Create an account when you want to save."}
+              <div className="mode-switch mode-switch--hero" role="tablist" aria-label="Input mode">
+                <button
+                  type="button"
+                  className={mode === "FILE" ? "active" : ""}
+                  onClick={() => setMode("FILE")}
+                >
+                  Audio file
+                </button>
+                <button
+                  type="button"
+                  className={mode === "YOUTUBE" ? "active" : ""}
+                  onClick={() => setMode("YOUTUBE")}
+                >
+                  YouTube link
+                </button>
+              </div>
+
+              <div className="funnel-row">
+                <div
+                  className={`funnel-input ${mode === "FILE" ? "is-file" : "is-url"} ${
+                    dragActive ? "active" : ""
+                  }`}
+                  onClick={mode === "FILE" ? () => fileInputRef.current?.click() : undefined}
+                  onDrop={mode === "FILE" ? onDrop : undefined}
+                  onDragOver={mode === "FILE" ? onDragOver : undefined}
+                  onDragEnter={mode === "FILE" ? onDragEnter : undefined}
+                  onDragLeave={mode === "FILE" ? onDragLeave : undefined}
+                >
+                  <span className="funnel-icon" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M8 5.5v13l10-6.5-10-6.5z" />
+                    </svg>
+                  </span>
+                  {mode === "FILE" ? (
+                    <span className="funnel-file-label">
+                      {selectedFile ? selectedFile.name : "Paste YouTube link or upload file"}
                     </span>
-                  </div>
+                  ) : (
+                    <input
+                      type="url"
+                      value={youtubeUrl}
+                      onChange={(event) => setYoutubeUrl(event.target.value)}
+                      placeholder="Paste YouTube link or upload file"
+                    />
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="audio/*"
+                    hidden
+                    onChange={onFileChange}
+                  />
                 </div>
-              ) : (
-                <>
-                  <div className="mode-switch" role="tablist" aria-label="Input mode">
-                    <button
-                      type="button"
-                      className={mode === "FILE" ? "active" : ""}
-                      onClick={() => setMode("FILE")}
-                    >
-                      Audio file
-                    </button>
-                    <button
-                      type="button"
-                      className={mode === "YOUTUBE" ? "active" : ""}
-                      onClick={() => setMode("YOUTUBE")}
-                    >
-                      YouTube link
-                    </button>
-                  </div>
+                <button type="submit" className="button-primary funnel-submit" disabled={!canSubmit}>
+                  {loading ? submitLabel : "Convert to Tabs - Free"}
+                </button>
+              </div>
 
-                  <div className="prompt-field">
-                    {mode === "FILE" ? (
-                      <div
-                        className={`dropzone ${dragActive ? "active" : ""}`}
-                        onClick={() => fileInputRef.current?.click()}
-                        onDrop={onDrop}
-                        onDragOver={onDragOver}
-                        onDragEnter={onDragEnter}
-                        onDragLeave={onDragLeave}
-                      >
-                        <div className="dropzone-text">
-                          <strong>{selectedFile ? "Audio attached" : "Drag audio here"}</strong>
-                          <span>
-                            {selectedFile ? selectedFile.name : "Click to browse or drop a file."}
-                          </span>
-                        </div>
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="audio/*"
-                          hidden
-                          onChange={onFileChange}
-                        />
+              <div className="prompt-field prompt-field--compact">
+                {mode === "FILE" ? (
+                  <p className="funnel-file-help">
+                    {selectedFile
+                      ? `Ready to transcribe: ${selectedFile.name}`
+                      : "Upload a file above to generate draft tabs. After transcription, we send you straight into the editor."}
+                  </p>
+                ) : (
+                  <>
+                    <div className="yt-preview">
+                      <div className="yt-frame">
+                        {youtubeId ? (
+                          <div ref={ytPlayerMountRef} className="yt-player" />
+                        ) : (
+                          <div className="yt-placeholder">Paste a YouTube link to load a preview.</div>
+                        )}
                       </div>
-                    ) : (
-                      <label className="url-field">
-                        <span>YouTube URL</span>
-                        <input
-                          type="url"
-                          value={youtubeUrl}
-                          onChange={(event) => setYoutubeUrl(event.target.value)}
-                          placeholder="https://youtube.com/..."
-                        />
-                      </label>
-                    )}
-
-                    {mode === "YOUTUBE" && (
-                      <div className="yt-preview">
-                        <div className="yt-frame">
-                          {youtubeId ? (
-                            <div ref={ytPlayerMountRef} className="yt-player" />
-                          ) : (
-                            <div className="yt-placeholder">Paste a YouTube link to load a preview.</div>
-                          )}
-                        </div>
-                        <div className="yt-guide">
-                          <strong>Consent capture</strong>
-                          <p>
-                            We play the snippet here and record tab audio after you grant permission. Max{" "}
-                            {MAX_YT_SNIPPET_SEC} seconds.
-                          </p>
-                          {ytPlayerError && <span className="yt-error">{ytPlayerError}</span>}
-                          {ytPlayerError && ytWatchUrl && (
-                            <button
-                              type="button"
-                              className="button-secondary button-small"
-                              onClick={() => window.open(ytWatchUrl, "_blank", "noopener")}
-                            >
-                              Open in YouTube tab
-                            </button>
-                          )}
-                          {youtubeId && !ytPlayerReady && !ytPlayerError && (
-                            <span className="yt-loading">Loading the player...</span>
-                          )}
-                          <span className="yt-note">
-                            When you click Generate tabs, choose this tab and enable Audio in the share dialog.
-                          </span>
-                        </div>
+                      <div className="yt-guide">
+                        <strong>Consent capture</strong>
+                        <p>
+                          We play the snippet here and record tab audio after you grant permission. Max{" "}
+                          {MAX_YT_SNIPPET_SEC} seconds.
+                        </p>
+                        {ytPlayerError && <span className="yt-error">{ytPlayerError}</span>}
+                        {ytPlayerError && ytWatchUrl && (
+                          <button
+                            type="button"
+                            className="button-secondary button-small"
+                            onClick={() => window.open(ytWatchUrl, "_blank", "noopener")}
+                          >
+                            Open in YouTube tab
+                          </button>
+                        )}
+                        {youtubeId && !ytPlayerReady && !ytPlayerError && (
+                          <span className="yt-loading">Loading the player...</span>
+                        )}
+                        <span className="yt-note">
+                          When you click Convert, choose this tab and enable Audio in the share dialog.
+                        </span>
                       </div>
-                    )}
+                    </div>
 
-                    {mode === "YOUTUBE" && capturePhase !== "idle" && (
-                      <div className="capture-card">
-                        <div className="capture-head">
-                          <div>
-                            <strong>{captureTitle}</strong>
-                            <span className="capture-sub">{captureHint}</span>
-                          </div>
-                          <span className="capture-time">
-                            {captureSeconds}s / {captureDuration}s
-                          </span>
-                        </div>
-                        <div className="capture-bar">
-                          <span style={{ width: `${Math.round(captureProgress * 100)}%` }} />
-                        </div>
-                      </div>
-                    )}
-
-                    {isSignedIn && mode === "FILE" && (
-                      <div className="prompt-footer">
-                        <button
-                          type="button"
-                          className="advanced-toggle"
-                          onClick={() => setShowAdvanced((prev) => !prev)}
-                        >
-                          {showAdvanced ? "Hide advanced" : "Advanced options"}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {mode === "YOUTUBE" && (
                     <div className="advanced-grid">
                       <label>
                         Start time (sec)
@@ -1009,61 +954,89 @@ export default function HomePage() {
                         We record the snippet in real time after you grant tab audio capture.
                       </div>
                     </div>
-                  )}
+                  </>
+                )}
 
-                  {isSignedIn && showAdvanced && mode === "FILE" && (
-                    <div className="advanced-grid">
-                      <label>
-                        Approx length (sec)
-                        <input
-                          type="number"
-                          value={fileDuration ?? ""}
-                          onChange={(event) => setFileDuration(parseOptionalNumber(event.target.value))}
-                        />
-                      </label>
+                {mode === "YOUTUBE" && capturePhase !== "idle" && (
+                  <div className="capture-card">
+                    <div className="capture-head">
+                      <div>
+                        <strong>{captureTitle}</strong>
+                        <span className="capture-sub">{captureHint}</span>
+                      </div>
+                      <span className="capture-time">
+                        {captureSeconds}s / {captureDuration}s
+                      </span>
                     </div>
-                  )}
+                    <div className="capture-bar">
+                      <span style={{ width: `${Math.round(captureProgress * 100)}%` }} />
+                    </div>
+                  </div>
+                )}
 
-                  <div className="prompt-actions">
-                    <button type="submit" className="button-primary" disabled={!canSubmit}>
-                      {submitLabel}
+                {isSignedIn && mode === "FILE" && (
+                  <div className="prompt-footer">
+                    <button
+                      type="button"
+                      className="advanced-toggle"
+                      onClick={() => setShowAdvanced((prev) => !prev)}
+                    >
+                      {showAdvanced ? "Hide advanced" : "Advanced options"}
                     </button>
                   </div>
+                )}
+              </div>
 
-                  <div className="disclaimer">
-                    The transcriber is still a work in progress. Expect occasional errors while we
-                    improve it.
-                  </div>
+              {isSignedIn && showAdvanced && mode === "FILE" && (
+                <div className="advanced-grid">
+                  <label>
+                    Approx length (sec)
+                    <input
+                      type="number"
+                      value={fileDuration ?? ""}
+                      onChange={(event) => setFileDuration(parseOptionalNumber(event.target.value))}
+                    />
+                  </label>
+                </div>
+              )}
 
-                  {status && <div className="status">{status}</div>}
-                  {error && <div className="error">{error}</div>}
-                  {isSignedIn && !isEmailVerified && (
-                    <div className="notice">
-                      Verify your email to use the transcriber.{" "}
-                      <Link href={verifyHref} className="button-link">
-                        Verify now
-                      </Link>
-                    </div>
-                  )}
-                  {isSignedIn && showCreditsEmpty && (
-                    <div className="notice">
-                      {isPremiumRole(session?.user?.role)
-                        ? `Credits used. Next credits arrive on ${creditsResetLabel}.`
-                        : `Monthly credits used. Upgrade to Premium or wait until ${creditsResetLabel}.`}
-                    </div>
-                  )}
-                  {isSignedIn && (
-                    <p className="footnote">
-                      {isPremiumRole(session?.user?.role)
-                        ? "Premium credits roll over. 50 credits added monthly."
-                        : `This job uses about ${creditsRequested} credit${
-                            creditsRequested > 1 ? "s" : ""
-                          } from your 10 monthly credits.`}
-                    </p>
-                  )}
-                </>
+              <div className="disclaimer">
+                The transcriber is still a work in progress. Expect occasional errors while we improve it.
+              </div>
+
+              {status && <div className="status">{status}</div>}
+              {error && <div className="error">{error}</div>}
+              {isSignedIn && !isEmailVerified && (
+                <div className="notice">
+                  Verify your email to use the transcriber.{" "}
+                  <Link href={verifyHref} className="button-link">
+                    Verify now
+                  </Link>
+                </div>
+              )}
+              {isSignedIn && showCreditsEmpty && (
+                <div className="notice">
+                  {isPremiumRole(session?.user?.role)
+                    ? `Credits used. Next credits arrive on ${creditsResetLabel}.`
+                    : `Monthly credits used. Upgrade to Premium or wait until ${creditsResetLabel}.`}
+                </div>
+              )}
+              {isSignedIn && (
+                <p className="footnote">
+                  {isPremiumRole(session?.user?.role)
+                    ? "Premium credits roll over. 50 credits added monthly."
+                    : `This job uses about ${creditsRequested} credit${creditsRequested > 1 ? "s" : ""} from your 10 monthly credits.`}
+                </p>
               )}
             </form>
+            <div className="hero-trust" data-reveal>
+              <span className="hero-trust-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" />
+                </svg>
+              </span>
+              <strong>Trusted by guitarists worldwide</strong>
+            </div>
 
           </div>
         </section>
