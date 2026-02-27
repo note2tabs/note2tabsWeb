@@ -798,7 +798,7 @@ export default function HomePage() {
               </p>
             </section>
             <div className="hero-heading" data-reveal>
-              <h2 className="hero-title">Transcribe Any Song to Playable Tabs</h2>
+              <h2 className="hero-title">Convert Any Song to Tabs</h2>
               <p className="hero-subtitle">
                 Paste a YouTube link or upload audio, then shape the result in the editor.
               </p>
