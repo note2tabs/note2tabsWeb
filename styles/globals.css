@@ -708,17 +708,6 @@ input[type="number"] {
   line-height: 1.45;
 }
 
-.hero-linkline {
-  margin: 14px 0 0;
-  color: #475569;
-  font-size: 0.9rem;
-}
-
-.hero-linkline a {
-  color: #1d4ed8;
-  font-weight: 700;
-}
-
 .hero-trust {
   width: min(100%, 900px);
   display: inline-flex;
@@ -740,6 +729,56 @@ input[type="number"] {
   place-items: center;
   color: #fff;
   background: linear-gradient(135deg, #0ea5e9, #3b82f6);
+}
+
+.hero--landing-funnel .hero-title {
+  font-family: "Satoshi", var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: #0a0f18;
+  font-size: clamp(2rem, 4.1vw, 3.1rem);
+}
+
+.hero--landing-funnel .hero-subtitle {
+  font-family: "Satoshi", var(--font-sans);
+  font-weight: 400;
+  letter-spacing: -0.008em;
+  color: #2f3f57;
+  font-size: clamp(0.95rem, 1.45vw, 1.15rem);
+  line-height: 1.5;
+}
+
+.hero--landing-funnel .prompt-shell,
+.hero--landing-funnel .mode-switch button,
+.hero--landing-funnel .funnel-file-label,
+.hero--landing-funnel .funnel-input input,
+.hero--landing-funnel .yt-guide,
+.hero--landing-funnel .yt-note,
+.hero--landing-funnel .advanced-note,
+.hero--landing-funnel .disclaimer,
+.hero--landing-funnel .footnote,
+.hero--landing-funnel .notice,
+.hero--landing-funnel .prompt-reset {
+  font-family: "Satoshi", var(--font-sans);
+  font-weight: 300;
+  color: #5a6b83;
+}
+
+.hero--landing-funnel .prompt-balance span {
+  font-family: "Satoshi", var(--font-sans);
+  font-weight: 300;
+  color: #5a6b83;
+}
+
+.hero--landing-funnel .prompt-balance strong {
+  font-family: "Satoshi", var(--font-sans);
+  font-weight: 600;
+  color: #1f2f46;
+}
+
+.hero--landing-funnel .mode-switch button.active {
+  font-weight: 500;
+  color: #fff;
 }
 
 .hero-text h1 {
@@ -2055,12 +2094,6 @@ input[type="number"] {
 .prompt-field--compact {
   margin-top: 12px;
   background: rgba(255, 255, 255, 0.8);
-}
-
-.funnel-file-help {
-  margin: 0;
-  color: #475569;
-  font-size: 0.9rem;
 }
 
 .dropzone {

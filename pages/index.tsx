@@ -187,7 +187,6 @@ export default function HomePage() {
   const captureRafRef = useRef<number | null>(null);
   const isSignedIn = Boolean(session);
   const isEmailVerified = Boolean(session?.user?.isEmailVerified);
-  const editorHref = isSignedIn ? "/gte" : "/gte/local";
   const verifyHref = `/auth/verify-email${
     session?.user?.email ? `?email=${encodeURIComponent(session.user.email)}` : ""
   }`;
@@ -783,7 +782,7 @@ export default function HomePage() {
   return (
     <>
       <main className="page page-home">
-        <section className="hero" id="hero">
+        <section className="hero hero--landing-funnel" id="hero">
           <div className="hero-glow hero-glow--one" aria-hidden="true" />
           <div className="hero-glow hero-glow--two" aria-hidden="true" />
           <div className="container hero-stack hero-stack--centered">
@@ -802,10 +801,6 @@ export default function HomePage() {
               <h2 className="hero-title">Convert Any Song Into Playable Guitar Tabs</h2>
               <p className="hero-subtitle">
                 Upload an audio file or paste a YouTube link. Edit instantly in our smart tab editor.
-              </p>
-              <p className="hero-linkline">
-                After transcription, we open your tabs directly in the{" "}
-                <Link href={editorHref}>Guitar Tab Editor</Link>.
               </p>
             </div>
             <form className="prompt-shell prompt-shell--funnel" data-reveal onSubmit={handleSubmit}>
@@ -879,113 +874,109 @@ export default function HomePage() {
                 </button>
               </div>
 
-              <div className="prompt-field prompt-field--compact">
-                {mode === "FILE" ? (
-                  <p className="funnel-file-help">
-                    {selectedFile
-                      ? `Ready to transcribe: ${selectedFile.name}`
-                      : "Upload a file above to generate draft tabs. After transcription, we send you straight into the editor."}
-                  </p>
-                ) : (
-                  <>
-                    <div className="yt-preview">
-                      <div className="yt-frame">
-                        {youtubeId ? (
-                          <div ref={ytPlayerMountRef} className="yt-player" />
-                        ) : (
-                          <div className="yt-placeholder">Paste a YouTube link to load a preview.</div>
-                        )}
+              {(mode === "YOUTUBE" || (isSignedIn && mode === "FILE")) && (
+                <div className="prompt-field prompt-field--compact">
+                  {mode === "YOUTUBE" && (
+                    <>
+                      <div className="yt-preview">
+                        <div className="yt-frame">
+                          {youtubeId ? (
+                            <div ref={ytPlayerMountRef} className="yt-player" />
+                          ) : (
+                            <div className="yt-placeholder">Paste a YouTube link to load a preview.</div>
+                          )}
+                        </div>
+                        <div className="yt-guide">
+                          <strong>Consent capture</strong>
+                          <p>
+                            We play the snippet here and record tab audio after you grant permission. Max{" "}
+                            {MAX_YT_SNIPPET_SEC} seconds.
+                          </p>
+                          {ytPlayerError && <span className="yt-error">{ytPlayerError}</span>}
+                          {ytPlayerError && ytWatchUrl && (
+                            <button
+                              type="button"
+                              className="button-secondary button-small"
+                              onClick={() => window.open(ytWatchUrl, "_blank", "noopener")}
+                            >
+                              Open in YouTube tab
+                            </button>
+                          )}
+                          {youtubeId && !ytPlayerReady && !ytPlayerError && (
+                            <span className="yt-loading">Loading the player...</span>
+                          )}
+                          <span className="yt-note">
+                            When you click Convert, choose this tab and enable Audio in the share dialog.
+                          </span>
+                        </div>
                       </div>
-                      <div className="yt-guide">
-                        <strong>Consent capture</strong>
-                        <p>
-                          We play the snippet here and record tab audio after you grant permission. Max{" "}
-                          {MAX_YT_SNIPPET_SEC} seconds.
-                        </p>
-                        {ytPlayerError && <span className="yt-error">{ytPlayerError}</span>}
-                        {ytPlayerError && ytWatchUrl && (
-                          <button
-                            type="button"
-                            className="button-secondary button-small"
-                            onClick={() => window.open(ytWatchUrl, "_blank", "noopener")}
-                          >
-                            Open in YouTube tab
-                          </button>
-                        )}
-                        {youtubeId && !ytPlayerReady && !ytPlayerError && (
-                          <span className="yt-loading">Loading the player...</span>
-                        )}
-                        <span className="yt-note">
-                          When you click Convert, choose this tab and enable Audio in the share dialog.
+
+                      <div className="advanced-grid">
+                        <label>
+                          Start time (sec)
+                          <input
+                            type="number"
+                            min={0}
+                            value={ytStartTime ?? ""}
+                            onChange={(event) => setYtStartTime(parseOptionalNumber(event.target.value))}
+                            required
+                          />
+                        </label>
+                        <label>
+                          Duration (sec, max 30)
+                          <input
+                            type="number"
+                            min={1}
+                            max={MAX_YT_SNIPPET_SEC}
+                            value={ytDuration ?? ""}
+                            onChange={(event) => {
+                              const next = parseOptionalNumber(event.target.value);
+                              if (next === null) {
+                                setYtDuration(null);
+                                return;
+                              }
+                              setYtDuration(Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, next)));
+                            }}
+                            required
+                          />
+                        </label>
+                        <div className="advanced-note">
+                          We record the snippet in real time after you grant tab audio capture.
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {mode === "YOUTUBE" && capturePhase !== "idle" && (
+                    <div className="capture-card">
+                      <div className="capture-head">
+                        <div>
+                          <strong>{captureTitle}</strong>
+                          <span className="capture-sub">{captureHint}</span>
+                        </div>
+                        <span className="capture-time">
+                          {captureSeconds}s / {captureDuration}s
                         </span>
                       </div>
-                    </div>
-
-                    <div className="advanced-grid">
-                      <label>
-                        Start time (sec)
-                        <input
-                          type="number"
-                          min={0}
-                          value={ytStartTime ?? ""}
-                          onChange={(event) => setYtStartTime(parseOptionalNumber(event.target.value))}
-                          required
-                        />
-                      </label>
-                      <label>
-                        Duration (sec, max 30)
-                        <input
-                          type="number"
-                          min={1}
-                          max={MAX_YT_SNIPPET_SEC}
-                          value={ytDuration ?? ""}
-                          onChange={(event) => {
-                            const next = parseOptionalNumber(event.target.value);
-                            if (next === null) {
-                              setYtDuration(null);
-                              return;
-                            }
-                            setYtDuration(Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, next)));
-                          }}
-                          required
-                        />
-                      </label>
-                      <div className="advanced-note">
-                        We record the snippet in real time after you grant tab audio capture.
+                      <div className="capture-bar">
+                        <span style={{ width: `${Math.round(captureProgress * 100)}%` }} />
                       </div>
                     </div>
-                  </>
-                )}
+                  )}
 
-                {mode === "YOUTUBE" && capturePhase !== "idle" && (
-                  <div className="capture-card">
-                    <div className="capture-head">
-                      <div>
-                        <strong>{captureTitle}</strong>
-                        <span className="capture-sub">{captureHint}</span>
-                      </div>
-                      <span className="capture-time">
-                        {captureSeconds}s / {captureDuration}s
-                      </span>
+                  {isSignedIn && mode === "FILE" && (
+                    <div className="prompt-footer">
+                      <button
+                        type="button"
+                        className="advanced-toggle"
+                        onClick={() => setShowAdvanced((prev) => !prev)}
+                      >
+                        {showAdvanced ? "Hide advanced" : "Advanced options"}
+                      </button>
                     </div>
-                    <div className="capture-bar">
-                      <span style={{ width: `${Math.round(captureProgress * 100)}%` }} />
-                    </div>
-                  </div>
-                )}
-
-                {isSignedIn && mode === "FILE" && (
-                  <div className="prompt-footer">
-                    <button
-                      type="button"
-                      className="advanced-toggle"
-                      onClick={() => setShowAdvanced((prev) => !prev)}
-                    >
-                      {showAdvanced ? "Hide advanced" : "Advanced options"}
-                    </button>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
               {isSignedIn && showAdvanced && mode === "FILE" && (
                 <div className="advanced-grid">
