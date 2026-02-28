@@ -71,6 +71,63 @@ export const gteApi = {
         method: "DELETE",
       }
     ),
+  reorderCanvasEditor: (editorId: string, laneId: string, toIndex: number) =>
+    request<{ ok: true; canvas: CanvasSnapshot }>(`/editors/${editorId}/canvas/editors/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ laneId, toIndex }),
+    }),
+  selectCanvasBars: (editorId: string, laneId: string, barIndices: number[]) =>
+    request<{ ok: true; clipboard: EditorSnapshot }>(`/editors/${editorId}/canvas/bars/select`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ laneId, barIndexes: barIndices }),
+    }),
+  insertCanvasBars: (
+    editorId: string,
+    laneId: string,
+    insertIndex: number,
+    clipboard: EditorSnapshot | Record<string, any>
+  ) =>
+    request<{ ok: true; canvas: CanvasSnapshot; snapshot: EditorSnapshot }>(
+      `/editors/${editorId}/canvas/bars/insert`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ laneId, insertIndex, clipboard }),
+      }
+    ),
+  deleteCanvasBars: (editorId: string, laneId: string, barIndices: number[]) =>
+    request<{ ok: true; canvas: CanvasSnapshot; snapshot: EditorSnapshot }>(
+      `/editors/${editorId}/canvas/bars/delete`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ laneId, barIndexes: barIndices }),
+      }
+    ),
+  moveCanvasBars: (
+    editorId: string,
+    payload: {
+      sourceLaneId: string;
+      targetLaneId: string;
+      barIndices: number[];
+      insertIndex: number;
+    }
+  ) =>
+    request<{ ok: true; canvas: CanvasSnapshot; snapshot: EditorSnapshot }>(
+      `/editors/${editorId}/canvas/bars/move`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceLaneId: payload.sourceLaneId,
+          targetLaneId: payload.targetLaneId,
+          barIndexes: payload.barIndices,
+          insertIndex: payload.insertIndex,
+        }),
+      }
+    ),
   addBars: (editorId: string, count: number) =>
     request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/bars/add`, {
       method: "POST",

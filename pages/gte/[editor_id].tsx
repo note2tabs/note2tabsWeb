@@ -148,6 +148,445 @@ const buildLocalLane = (index: number, secondsPerBar: number): EditorSnapshot =>
   return normalizeLane(createGuestSnapshot(laneId), laneId, secondsPerBar, index);
 };
 
+type BarSelectionState = {
+  laneId: string;
+  barIndices: number[];
+};
+
+type BarDragState = {
+  sourceLaneId: string;
+  barIndices: number[];
+};
+
+const getLaneBarCount = (lane: EditorSnapshot) =>
+  Math.max(
+    1,
+    Math.ceil(
+      Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR))) /
+        FIXED_FRAMES_PER_BAR
+    )
+  );
+
+const normalizeBarIndices = (lane: EditorSnapshot, barIndices: number[]) => {
+  const barCount = getLaneBarCount(lane);
+  return Array.from(
+    new Set(
+      barIndices
+        .map((value) => Math.trunc(Number(value)))
+        .filter((value) => Number.isFinite(value) && value >= 0 && value < barCount)
+    )
+  ).sort((left, right) => left - right);
+};
+
+const buildDefaultCutRegions = (totalFrames: number): EditorSnapshot["cutPositionsWithCoords"] => [
+  [[0, Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(totalFrames, FIXED_FRAMES_PER_BAR)))], [2, 0]],
+];
+
+const cloneCutRegion = (region: EditorSnapshot["cutPositionsWithCoords"][number]) => [
+  [Number(region[0][0]), Number(region[0][1])],
+  [Number(region[1][0]), Number(region[1][1])],
+] as EditorSnapshot["cutPositionsWithCoords"][number];
+
+const selectBarsFromLane = (lane: EditorSnapshot, barIndices: number[]): EditorSnapshot | null => {
+  const normalized = normalizeBarIndices(lane, barIndices);
+  if (!normalized.length) return null;
+
+  const notes: EditorSnapshot["notes"] = [];
+  const chords: EditorSnapshot["chords"] = [];
+  const cutPositionsWithCoords: EditorSnapshot["cutPositionsWithCoords"] = [];
+
+  normalized.forEach((barIndex, outputIndex) => {
+    const barStart = barIndex * FIXED_FRAMES_PER_BAR;
+    const barEnd = barStart + FIXED_FRAMES_PER_BAR;
+    const outputStart = outputIndex * FIXED_FRAMES_PER_BAR;
+    const offset = outputStart - barStart;
+
+    lane.notes.forEach((note) => {
+      const noteStart = Math.round(toNumber(note.startTime, 0));
+      if (noteStart < barStart || noteStart >= barEnd) return;
+      notes.push({
+        ...note,
+        id: notes.length + 1,
+        startTime: noteStart + offset,
+        length: Math.max(1, Math.round(toNumber(note.length, 1))),
+        tab: [note.tab[0], note.tab[1]],
+        optimals: Array.isArray(note.optimals)
+          ? note.optimals.map((tab) => [tab[0], tab[1]] as [number, number])
+          : [],
+      });
+    });
+
+    lane.chords.forEach((chord) => {
+      const chordStart = Math.round(toNumber(chord.startTime, 0));
+      if (chordStart < barStart || chordStart >= barEnd) return;
+      chords.push({
+        ...chord,
+        id: chords.length + 1,
+        startTime: chordStart + offset,
+        length: Math.max(1, Math.round(toNumber(chord.length, 1))),
+        originalMidi: Array.isArray(chord.originalMidi) ? [...chord.originalMidi] : [],
+        currentTabs: Array.isArray(chord.currentTabs)
+          ? chord.currentTabs.map((tab) => [tab[0], tab[1]] as [number, number])
+          : [],
+        ogTabs: Array.isArray(chord.ogTabs)
+          ? chord.ogTabs.map((tab) => [tab[0], tab[1]] as [number, number])
+          : [],
+      });
+    });
+
+    lane.cutPositionsWithCoords.forEach((cutRegion) => {
+      const start = Math.round(toNumber(cutRegion[0]?.[0], barStart));
+      const end = Math.round(toNumber(cutRegion[0]?.[1], barEnd));
+      const overlapStart = Math.max(barStart, start);
+      const overlapEnd = Math.min(barEnd, end);
+      if (overlapEnd <= overlapStart) return;
+      const coord = [
+        Math.round(toNumber(cutRegion[1]?.[0], 2)),
+        Math.round(toNumber(cutRegion[1]?.[1], 0)),
+      ] as [number, number];
+      cutPositionsWithCoords.push([
+        [overlapStart - barStart + outputStart, overlapEnd - barStart + outputStart],
+        coord,
+      ]);
+    });
+  });
+
+  const totalFrames = normalized.length * FIXED_FRAMES_PER_BAR;
+  return normalizeLane(
+    {
+      ...lane,
+      id: "clipboard",
+      name: "Clipboard",
+      version: 1,
+      totalFrames,
+      notes,
+      chords,
+      cutPositionsWithCoords: cutPositionsWithCoords.length
+        ? cutPositionsWithCoords
+        : buildDefaultCutRegions(totalFrames),
+      optimalsByTime: {},
+    },
+    "clipboard",
+    Math.max(0.1, toNumber(lane.secondsPerBar, DEFAULT_SECONDS_PER_BAR)),
+    0
+  );
+};
+
+const insertBarsIntoLane = (
+  lane: EditorSnapshot,
+  insertIndex: number,
+  clipboard: EditorSnapshot
+): EditorSnapshot | null => {
+  const totalBars = getLaneBarCount(lane);
+  const safeInsertIndex = Math.max(0, Math.min(totalBars, Math.round(toNumber(insertIndex, 0))));
+  const clipLength = Math.max(
+    FIXED_FRAMES_PER_BAR,
+    Math.round(toNumber(clipboard.totalFrames, FIXED_FRAMES_PER_BAR))
+  );
+  const insertFrame = safeInsertIndex * FIXED_FRAMES_PER_BAR;
+
+  let nextNoteId = lane.notes.reduce((max, note) => Math.max(max, Math.round(toNumber(note.id, 0))), 0) + 1;
+  let nextChordId =
+    lane.chords.reduce((max, chord) => Math.max(max, Math.round(toNumber(chord.id, 0))), 0) + 1;
+
+  const shiftedCuts: EditorSnapshot["cutPositionsWithCoords"] = [];
+  lane.cutPositionsWithCoords.forEach((cutRegion) => {
+    const start = Math.round(toNumber(cutRegion[0]?.[0], 0));
+    const end = Math.round(toNumber(cutRegion[0]?.[1], start));
+    const coord = [
+      Math.round(toNumber(cutRegion[1]?.[0], 2)),
+      Math.round(toNumber(cutRegion[1]?.[1], 0)),
+    ] as [number, number];
+    if (start < insertFrame && end > insertFrame) {
+      shiftedCuts.push([[start, insertFrame], [...coord] as [number, number]]);
+      shiftedCuts.push([[insertFrame + clipLength, end + clipLength], [...coord] as [number, number]]);
+      return;
+    }
+    if (start >= insertFrame) {
+      shiftedCuts.push([[start + clipLength, end + clipLength], coord]);
+      return;
+    }
+    shiftedCuts.push([[start, end], coord]);
+  });
+
+  clipboard.cutPositionsWithCoords.forEach((cutRegion) => {
+    const cloned = cloneCutRegion(cutRegion);
+    shiftedCuts.push([
+      [cloned[0][0] + insertFrame, cloned[0][1] + insertFrame],
+      [cloned[1][0], cloned[1][1]],
+    ]);
+  });
+
+  const nextNotes = [
+    ...lane.notes.map((note) => {
+      const noteStart = Math.round(toNumber(note.startTime, 0));
+      if (noteStart < insertFrame) return note;
+      return { ...note, startTime: noteStart + clipLength };
+    }),
+    ...clipboard.notes.map((note) => ({
+      ...note,
+      id: nextNoteId++,
+      startTime: Math.round(toNumber(note.startTime, 0)) + insertFrame,
+      length: Math.max(1, Math.round(toNumber(note.length, 1))),
+      tab: [note.tab[0], note.tab[1]] as [number, number],
+      optimals: Array.isArray(note.optimals)
+        ? note.optimals.map((tab) => [tab[0], tab[1]] as [number, number])
+        : [],
+    })),
+  ].sort((left, right) => left.startTime - right.startTime || left.id - right.id);
+
+  const nextChords = [
+    ...lane.chords.map((chord) => {
+      const chordStart = Math.round(toNumber(chord.startTime, 0));
+      if (chordStart < insertFrame) return chord;
+      return { ...chord, startTime: chordStart + clipLength };
+    }),
+    ...clipboard.chords.map((chord) => ({
+      ...chord,
+      id: nextChordId++,
+      startTime: Math.round(toNumber(chord.startTime, 0)) + insertFrame,
+      length: Math.max(1, Math.round(toNumber(chord.length, 1))),
+      originalMidi: Array.isArray(chord.originalMidi) ? [...chord.originalMidi] : [],
+      currentTabs: Array.isArray(chord.currentTabs)
+        ? chord.currentTabs.map((tab) => [tab[0], tab[1]] as [number, number])
+        : [],
+      ogTabs: Array.isArray(chord.ogTabs)
+        ? chord.ogTabs.map((tab) => [tab[0], tab[1]] as [number, number])
+        : [],
+    })),
+  ].sort((left, right) => left.startTime - right.startTime || left.id - right.id);
+
+  const nextTotalFrames =
+    Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR))) + clipLength;
+
+  return normalizeLane(
+    {
+      ...lane,
+      totalFrames: nextTotalFrames,
+      notes: nextNotes,
+      chords: nextChords,
+      cutPositionsWithCoords: shiftedCuts.length ? shiftedCuts : buildDefaultCutRegions(nextTotalFrames),
+    },
+    lane.id,
+    Math.max(0.1, toNumber(lane.secondsPerBar, DEFAULT_SECONDS_PER_BAR)),
+    0
+  );
+};
+
+const removeSingleBarFromLane = (lane: EditorSnapshot, index: number): EditorSnapshot | null => {
+  const totalBars = getLaneBarCount(lane);
+  if (totalBars <= 1) return null;
+
+  const safeIndex = Math.max(0, Math.min(totalBars - 1, Math.round(toNumber(index, 0))));
+  const removeStart = safeIndex * FIXED_FRAMES_PER_BAR;
+  const removeEnd = removeStart + FIXED_FRAMES_PER_BAR;
+
+  const nextNotes = lane.notes
+    .filter((note) => {
+      const start = Math.round(toNumber(note.startTime, 0));
+      const end = start + Math.max(1, Math.round(toNumber(note.length, 1)));
+      return end <= removeStart || start >= removeEnd;
+    })
+    .map((note) => {
+      const start = Math.round(toNumber(note.startTime, 0));
+      if (start < removeEnd) return note;
+      return { ...note, startTime: start - FIXED_FRAMES_PER_BAR };
+    });
+
+  const nextChords = lane.chords
+    .filter((chord) => {
+      const start = Math.round(toNumber(chord.startTime, 0));
+      const end = start + Math.max(1, Math.round(toNumber(chord.length, 1)));
+      return end <= removeStart || start >= removeEnd;
+    })
+    .map((chord) => {
+      const start = Math.round(toNumber(chord.startTime, 0));
+      if (start < removeEnd) return chord;
+      return { ...chord, startTime: start - FIXED_FRAMES_PER_BAR };
+    });
+
+  const nextCuts: EditorSnapshot["cutPositionsWithCoords"] = [];
+  lane.cutPositionsWithCoords.forEach((cutRegion) => {
+    const start = Math.round(toNumber(cutRegion[0]?.[0], 0));
+    const end = Math.round(toNumber(cutRegion[0]?.[1], start));
+    const coord = [
+      Math.round(toNumber(cutRegion[1]?.[0], 2)),
+      Math.round(toNumber(cutRegion[1]?.[1], 0)),
+    ] as [number, number];
+    if (end <= removeStart) {
+      nextCuts.push([[start, end], coord]);
+      return;
+    }
+    if (start >= removeEnd) {
+      nextCuts.push([[start - FIXED_FRAMES_PER_BAR, end - FIXED_FRAMES_PER_BAR], coord]);
+      return;
+    }
+    if (start < removeStart) {
+      nextCuts.push([[start, removeStart], [...coord] as [number, number]]);
+    }
+    if (end > removeEnd) {
+      nextCuts.push([[removeStart, end - FIXED_FRAMES_PER_BAR], [...coord] as [number, number]]);
+    }
+  });
+
+  const nextTotalFrames = Math.max(
+    FIXED_FRAMES_PER_BAR,
+    Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)) - FIXED_FRAMES_PER_BAR
+  );
+
+  return normalizeLane(
+    {
+      ...lane,
+      totalFrames: nextTotalFrames,
+      notes: nextNotes,
+      chords: nextChords,
+      cutPositionsWithCoords: nextCuts.length ? nextCuts : buildDefaultCutRegions(nextTotalFrames),
+    },
+    lane.id,
+    Math.max(0.1, toNumber(lane.secondsPerBar, DEFAULT_SECONDS_PER_BAR)),
+    0
+  );
+};
+
+const deleteBarsFromLane = (lane: EditorSnapshot, barIndices: number[]): EditorSnapshot | null => {
+  const normalized = normalizeBarIndices(lane, barIndices).sort((left, right) => right - left);
+  if (!normalized.length || normalized.length >= getLaneBarCount(lane)) return null;
+  let nextLane: EditorSnapshot = lane;
+  for (const barIndex of normalized) {
+    const updated = removeSingleBarFromLane(nextLane, barIndex);
+    if (!updated) return null;
+    nextLane = updated;
+  }
+  return nextLane;
+};
+
+const insertBarsIntoCanvas = (
+  canvas: CanvasSnapshot,
+  laneId: string,
+  insertIndex: number,
+  clipboard: EditorSnapshot
+): CanvasSnapshot | null => {
+  const laneIndex = canvas.editors.findIndex((lane) => lane.id === laneId);
+  if (laneIndex < 0) return null;
+  const nextLane = insertBarsIntoLane(canvas.editors[laneIndex], insertIndex, clipboard);
+  if (!nextLane) return null;
+  const nextEditors = [...canvas.editors];
+  nextEditors[laneIndex] = nextLane;
+  return normalizeCanvas(
+    {
+      ...canvas,
+      editors: nextEditors,
+      updatedAt: new Date().toISOString(),
+    },
+    canvas.id
+  );
+};
+
+const deleteBarsFromCanvas = (
+  canvas: CanvasSnapshot,
+  laneId: string,
+  barIndices: number[]
+): CanvasSnapshot | null => {
+  const laneIndex = canvas.editors.findIndex((lane) => lane.id === laneId);
+  if (laneIndex < 0) return null;
+  const lane = canvas.editors[laneIndex];
+  const normalized = normalizeBarIndices(lane, barIndices);
+  if (!normalized.length) return null;
+  if (normalized.length >= getLaneBarCount(lane)) {
+    if (canvas.editors.length <= 1) return null;
+    const nextEditors = canvas.editors.filter((item) => item.id !== laneId);
+    return normalizeCanvas(
+      {
+        ...canvas,
+        editors: nextEditors,
+        updatedAt: new Date().toISOString(),
+      },
+      canvas.id
+    );
+  }
+  const nextLane = deleteBarsFromLane(lane, normalized);
+  if (!nextLane) return null;
+  const nextEditors = [...canvas.editors];
+  nextEditors[laneIndex] = nextLane;
+  return normalizeCanvas(
+    {
+      ...canvas,
+      editors: nextEditors,
+      updatedAt: new Date().toISOString(),
+    },
+    canvas.id
+  );
+};
+
+const moveBarsInCanvas = (
+  canvas: CanvasSnapshot,
+  sourceLaneId: string,
+  targetLaneId: string,
+  barIndices: number[],
+  insertIndex: number
+): CanvasSnapshot | null => {
+  const sourceIndex = canvas.editors.findIndex((lane) => lane.id === sourceLaneId);
+  const targetIndex = canvas.editors.findIndex((lane) => lane.id === targetLaneId);
+  if (sourceIndex < 0 || targetIndex < 0) return null;
+
+  const sourceLane = canvas.editors[sourceIndex];
+  const normalized = normalizeBarIndices(sourceLane, barIndices);
+  if (!normalized.length) return null;
+
+  const clipboard = selectBarsFromLane(sourceLane, normalized);
+  if (!clipboard) return null;
+
+  const sourceBarCount = getLaneBarCount(sourceLane);
+  const nextEditors = [...canvas.editors];
+  if (sourceIndex === targetIndex) {
+    if (normalized.length >= sourceBarCount) return null;
+    const barsBeforeInsert = normalized.filter((barIndex) => barIndex < insertIndex).length;
+    const adjustedInsert = Math.max(
+      0,
+      Math.min(
+        Math.round(toNumber(insertIndex, 0)) - barsBeforeInsert,
+        sourceBarCount - normalized.length
+      )
+    );
+    const afterDelete = deleteBarsFromLane(sourceLane, normalized);
+    if (!afterDelete) return null;
+    const afterInsert = insertBarsIntoLane(afterDelete, adjustedInsert, clipboard);
+    if (!afterInsert) return null;
+    nextEditors[sourceIndex] = afterInsert;
+  } else {
+    if (normalized.length >= sourceBarCount) {
+      const nextTarget = insertBarsIntoLane(canvas.editors[targetIndex], insertIndex, clipboard);
+      if (!nextTarget) return null;
+      const nextEditorsWithoutSource = canvas.editors
+        .filter((lane) => lane.id !== sourceLaneId)
+        .map((lane) => (lane.id === targetLaneId ? nextTarget : lane));
+      return normalizeCanvas(
+        {
+          ...canvas,
+          editors: nextEditorsWithoutSource,
+          updatedAt: new Date().toISOString(),
+        },
+        canvas.id
+      );
+    }
+    const nextTarget = insertBarsIntoLane(canvas.editors[targetIndex], insertIndex, clipboard);
+    if (!nextTarget) return null;
+    const nextSource = deleteBarsFromLane(sourceLane, normalized);
+    if (!nextSource) return null;
+    nextEditors[sourceIndex] = nextSource;
+    nextEditors[targetIndex] = nextTarget;
+  }
+
+  return normalizeCanvas(
+    {
+      ...canvas,
+      editors: nextEditors,
+      updatedAt: new Date().toISOString(),
+    },
+    canvas.id
+  );
+};
+
 export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const { data: session } = useSession();
   const [canvas, setCanvas] = useState<CanvasSnapshot | null>(null);
@@ -181,6 +620,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [selectionClearExemptEditorId, setSelectionClearExemptEditorId] = useState<string | null>(
     null
   );
+  const [barSelectionClearEpoch, setBarSelectionClearEpoch] = useState(0);
+  const [barSelectionClearExemptEditorId, setBarSelectionClearExemptEditorId] = useState<
+    string | null
+  >(null);
+  const [barSelection, setBarSelection] = useState<BarSelectionState | null>(null);
+  const [barClipboard, setBarClipboard] = useState<EditorSnapshot | null>(null);
+  const [barDragState, setBarDragState] = useState<BarDragState | null>(null);
+  const [pendingTrackReorder, setPendingTrackReorder] = useState<{
+    laneId: string;
+    startY: number;
+  } | null>(null);
+  const [trackDragLaneId, setTrackDragLaneId] = useState<string | null>(null);
+  const [trackDropIndex, setTrackDropIndex] = useState<number | null>(null);
   const globalPlaybackFrameRef = useRef(0);
   const [canvasUndoCount, setCanvasUndoCount] = useState(0);
   const [canvasRedoCount, setCanvasRedoCount] = useState(0);
@@ -199,6 +651,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const previousTrackMuteByIdRef = useRef<Record<string, boolean> | null>(null);
   const canvasUndoRef = useRef<CanvasSnapshot[]>([]);
   const canvasRedoRef = useRef<CanvasSnapshot[]>([]);
+  const trackSectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const router = useRouter();
   const saveToAccountPath = "/gte?importGuest=1";
   const loginSaveHref = `/auth/login?next=${encodeURIComponent(saveToAccountPath)}`;
@@ -612,6 +1065,47 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
   };
 
+  const handleReorderTrack = useCallback(
+    async (laneId: string, insertionIndex: number) => {
+      if (!canvas) return;
+      const currentIndex = canvas.editors.findIndex((lane) => lane.id === laneId);
+      if (currentIndex < 0) return;
+
+      const clampedInsertion = Math.max(0, Math.min(canvas.editors.length, Math.round(toNumber(insertionIndex, currentIndex))));
+      let nextIndex = clampedInsertion > currentIndex ? clampedInsertion - 1 : clampedInsertion;
+      nextIndex = Math.max(0, Math.min(canvas.editors.length - 1, nextIndex));
+      if (nextIndex === currentIndex) return;
+
+      setError(null);
+      try {
+        if (isGuestMode) {
+          const nextEditors = [...canvas.editors];
+          const [moved] = nextEditors.splice(currentIndex, 1);
+          if (!moved) return;
+          nextEditors.splice(nextIndex, 0, moved);
+          applyCanvasUpdate(
+            normalizeCanvas(
+              {
+                ...canvas,
+                editors: nextEditors,
+                updatedAt: new Date().toISOString(),
+              },
+              editorId
+            ),
+            { markDirty: true }
+          );
+        } else {
+          const res = await gteApi.reorderCanvasEditor(editorId, laneId, nextIndex);
+          applyCanvasUpdate(normalizeCanvas(res.canvas, editorId), { markDirty: true });
+        }
+        setActiveLaneId(laneId);
+      } catch (err: any) {
+        setError(err?.message || "Could not reorder tracks.");
+      }
+    },
+    [applyCanvasUpdate, canvas, editorId, isGuestMode]
+  );
+
   const handleLaneSnapshotChange = (
     laneId: string,
     nextLaneSnapshot: EditorSnapshot,
@@ -643,6 +1137,159 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setHasPendingCommit(true);
     }
   };
+
+  const clearBarSelectionState = useCallback((exemptEditorRef: string | null = null) => {
+    setBarSelection(null);
+    setBarDragState(null);
+    setBarSelectionClearExemptEditorId(exemptEditorRef);
+    setBarSelectionClearEpoch((prev) => prev + 1);
+  }, []);
+
+  const applyCanvasBarUpdate = useCallback(
+    (nextCanvas: CanvasSnapshot) => {
+      applyCanvasUpdate(normalizeCanvas(nextCanvas, editorId), { markDirty: true });
+    },
+    [applyCanvasUpdate, editorId]
+  );
+
+  const handleBarSelectionStateChange = useCallback((laneId: string, barIndices: number[]) => {
+    setBarSelection((prev) => {
+      if (!barIndices.length) {
+        return prev?.laneId === laneId ? null : prev;
+      }
+      if (
+        prev?.laneId === laneId &&
+        prev.barIndices.length === barIndices.length &&
+        prev.barIndices.every((value, index) => value === barIndices[index])
+      ) {
+        return prev;
+      }
+      return {
+        laneId,
+        barIndices: [...barIndices],
+      };
+    });
+  }, []);
+
+  const handleCopySelectedBars = useCallback(
+    async (laneId: string, barIndices: number[]) => {
+      if (!canvas || !barIndices.length) return;
+      setError(null);
+      try {
+        if (isGuestMode) {
+          const lane = canvas.editors.find((item) => item.id === laneId);
+          if (!lane) {
+            throw new Error("Track not found.");
+          }
+          const clipboard = selectBarsFromLane(lane, barIndices);
+          if (!clipboard) {
+            throw new Error("Unable to copy bars.");
+          }
+          setBarClipboard(clipboard);
+          return;
+        }
+        const res = await gteApi.selectCanvasBars(editorId, laneId, barIndices);
+        setBarClipboard(
+          normalizeLane(
+            res.clipboard,
+            res.clipboard.id || "clipboard",
+            Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR)),
+            0
+          )
+        );
+      } catch (err: any) {
+        setError(err?.message || "Could not copy bars.");
+      }
+    },
+    [canvas, editorId, isGuestMode]
+  );
+
+  const handlePasteBars = useCallback(
+    async (laneId: string, insertIndex: number) => {
+      if (!canvas || !barClipboard) return;
+      setError(null);
+      try {
+        if (isGuestMode) {
+          const nextCanvas = insertBarsIntoCanvas(canvas, laneId, insertIndex, barClipboard);
+          if (!nextCanvas) {
+            throw new Error("Unable to insert bars.");
+          }
+          applyCanvasBarUpdate(nextCanvas);
+        } else {
+          const res = await gteApi.insertCanvasBars(editorId, laneId, insertIndex, barClipboard);
+          applyCanvasBarUpdate(res.canvas);
+        }
+        setActiveLaneId(laneId);
+      } catch (err: any) {
+        setError(err?.message || "Could not paste bars.");
+      }
+    },
+    [applyCanvasBarUpdate, barClipboard, canvas, editorId, isGuestMode]
+  );
+
+  const handleDeleteSelectedBars = useCallback(
+    async (laneId: string, barIndices: number[]) => {
+      if (!canvas || !barIndices.length) return;
+      setError(null);
+      try {
+        if (isGuestMode) {
+          const nextCanvas = deleteBarsFromCanvas(canvas, laneId, barIndices);
+          if (!nextCanvas) {
+            throw new Error("Unable to delete bars.");
+          }
+          applyCanvasBarUpdate(nextCanvas);
+        } else {
+          const res = await gteApi.deleteCanvasBars(editorId, laneId, barIndices);
+          applyCanvasBarUpdate(res.canvas);
+        }
+        clearBarSelectionState();
+      } catch (err: any) {
+        setError(err?.message || "Could not delete bars.");
+      }
+    },
+    [applyCanvasBarUpdate, canvas, clearBarSelectionState, editorId, isGuestMode]
+  );
+
+  const handleMoveSelectedBars = useCallback(
+    async (
+      sourceLaneId: string,
+      barIndices: number[],
+      targetLaneId: string,
+      insertIndex: number
+    ) => {
+      if (!canvas || !barIndices.length) return;
+      setError(null);
+      try {
+        if (isGuestMode) {
+          const nextCanvas = moveBarsInCanvas(
+            canvas,
+            sourceLaneId,
+            targetLaneId,
+            barIndices,
+            insertIndex
+          );
+          if (!nextCanvas) {
+            throw new Error("Unable to move bars.");
+          }
+          applyCanvasBarUpdate(nextCanvas);
+        } else {
+          const res = await gteApi.moveCanvasBars(editorId, {
+            sourceLaneId,
+            targetLaneId,
+            barIndices,
+            insertIndex,
+          });
+          applyCanvasBarUpdate(res.canvas);
+        }
+        setActiveLaneId(targetLaneId);
+        setBarDragState(null);
+        clearBarSelectionState();
+      } catch (err: any) {
+        setError(err?.message || "Could not move bars.");
+      }
+    },
+    [applyCanvasBarUpdate, canvas, clearBarSelectionState, editorId, isGuestMode]
+  );
 
   const handleCanvasUndo = useCallback(() => {
     if (!canvas) return;
@@ -864,6 +1511,119 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     });
   }, [canvas]);
 
+  useEffect(() => {
+    if (!canvas) {
+      setBarSelection(null);
+      setBarDragState(null);
+      setPendingTrackReorder(null);
+      setTrackDragLaneId(null);
+      setTrackDropIndex(null);
+      return;
+    }
+    setBarSelection((prev) => {
+      if (!prev) return prev;
+      const lane = canvas.editors.find((item) => item.id === prev.laneId);
+      if (!lane) return null;
+      const nextBarIndices = normalizeBarIndices(lane, prev.barIndices);
+      if (!nextBarIndices.length) return null;
+      if (
+        nextBarIndices.length === prev.barIndices.length &&
+        nextBarIndices.every((value, index) => value === prev.barIndices[index])
+      ) {
+        return prev;
+      }
+      return { laneId: prev.laneId, barIndices: nextBarIndices };
+    });
+    setBarDragState((prev) => {
+      if (!prev) return prev;
+      const lane = canvas.editors.find((item) => item.id === prev.sourceLaneId);
+      if (!lane) return null;
+      const nextBarIndices = normalizeBarIndices(lane, prev.barIndices);
+      if (!nextBarIndices.length) return null;
+      if (
+        nextBarIndices.length === prev.barIndices.length &&
+        nextBarIndices.every((value, index) => value === prev.barIndices[index])
+      ) {
+        return prev;
+      }
+      return { sourceLaneId: prev.sourceLaneId, barIndices: nextBarIndices };
+    });
+  }, [canvas]);
+
+  const computeTrackDropIndex = useCallback(
+    (pointerY: number) => {
+      if (!canvas || !canvas.editors.length) return null;
+      for (let index = 0; index < canvas.editors.length; index += 1) {
+        const laneId = canvas.editors[index].id || `ed-${index + 1}`;
+        const node = trackSectionRefs.current[laneId];
+        if (!node) continue;
+        const rect = node.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        if (pointerY < mid) {
+          return index;
+        }
+      }
+      return canvas.editors.length;
+    },
+    [canvas]
+  );
+
+  useEffect(() => {
+    if (!pendingTrackReorder && !trackDragLaneId) return;
+
+    const previousBodyUserSelect = document.body.style.userSelect;
+    const previousBodyWebkitUserSelect = (document.body.style as CSSStyleDeclaration & {
+      webkitUserSelect?: string;
+    }).webkitUserSelect;
+    document.body.style.userSelect = "none";
+    (document.body.style as CSSStyleDeclaration & { webkitUserSelect?: string }).webkitUserSelect =
+      "none";
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const activeLane = trackDragLaneId || pendingTrackReorder?.laneId || null;
+      if (!activeLane) return;
+
+      if (!trackDragLaneId && pendingTrackReorder) {
+        if (Math.abs(event.clientY - pendingTrackReorder.startY) < 8) return;
+        setTrackDragLaneId(pendingTrackReorder.laneId);
+      }
+
+      event.preventDefault();
+      const nextDropIndex = computeTrackDropIndex(event.clientY);
+      setTrackDropIndex(nextDropIndex);
+    };
+
+    const handleMouseUp = () => {
+      const draggingLaneId = trackDragLaneId;
+      const dropIndex = trackDropIndex;
+      setPendingTrackReorder(null);
+      setTrackDragLaneId(null);
+      setTrackDropIndex(null);
+      if (!draggingLaneId || dropIndex === null) return;
+      void handleReorderTrack(draggingLaneId, dropIndex);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.body.style.userSelect = previousBodyUserSelect;
+      (
+        document.body.style as CSSStyleDeclaration & {
+          webkitUserSelect?: string;
+        }
+      ).webkitUserSelect = previousBodyWebkitUserSelect;
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [
+    computeTrackDropIndex,
+    handleReorderTrack,
+    pendingTrackReorder,
+    trackDragLaneId,
+    trackDropIndex,
+  ]);
+
   const handleLaneSelectionStateChange = useCallback(
     (
       laneId: string,
@@ -1047,7 +1807,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           ? (ctx as AudioContext).outputLatency
           : 0);
       const base = ctx.currentTime + latencySec;
-      let endFrame = startFrame;
+      let endFrame = Math.max(startFrame, canvasTimelineEnd);
       const events: Array<{ start: number; duration: number; midi: number; gain: number }> = [];
 
       const pushEvent = (eventStart: number, eventLength: number, midi: number, gain: number) => {
@@ -1084,11 +1844,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         });
       });
 
-      if (!events.length) {
-        void ctx.close();
-        return null;
-      }
-
       const master = ctx.createGain();
       master.gain.value = globalPlaybackVolume;
       master.connect(ctx.destination);
@@ -1117,7 +1872,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
       return { ctx, endFrame, startTimeSec: base };
     },
-    [canvas, globalPlaybackFps, globalPlaybackVolume, trackMuteById]
+    [canvas, canvasTimelineEnd, globalPlaybackFps, globalPlaybackVolume, trackMuteById]
   );
 
   const startGlobalPlayback = useCallback((startFrameOverride?: number) => {
@@ -1465,22 +2220,61 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               const laneEditorRef = buildLaneEditorRef(editorId, laneId);
               const isActive = laneId === activeLaneId;
               const isTrackMuted = Boolean(trackMuteById[laneId]);
-              return (
-                <section
-                  key={laneId}
-                  data-gte-track="true"
-                  className="relative w-full min-w-0 max-w-full"
-                  onMouseDownCapture={(event) => {
-                    if (!event.shiftKey && activeLaneId !== laneId) {
-                      setSelectionClearExemptEditorId(laneEditorRef);
-                      setSelectionClearEpoch((prev) => prev + 1);
+                return (
+                  <section
+                    key={laneId}
+                    ref={(node) => {
+                      trackSectionRefs.current[laneId] = node;
+                    }}
+                    data-gte-track="true"
+                    data-gte-track-lane-id={laneId}
+                    className="relative w-full min-w-0 max-w-full"
+                    onMouseDownCapture={(event) => {
+                      const target = event.target as HTMLElement | null;
+                      const clickedBarSelector = Boolean(
+                        target?.closest("[data-bar-select='true']")
+                    );
+                    if (activeLaneId !== laneId) {
+                      setBarSelectionClearExemptEditorId(
+                        clickedBarSelector ? laneEditorRef : null
+                      );
+                      setBarSelectionClearEpoch((prev) => prev + 1);
                     }
-                    setActiveLaneId(laneId);
-                  }}
-                >
-                  <div className="absolute top-1 left-1 z-20">
-                    <button
-                      type="button"
+                    if (
+                      activeLaneId !== laneId &&
+                      (!event.shiftKey || clickedBarSelector)
+                    ) {
+                      setSelectionClearExemptEditorId(laneEditorRef);
+                        setSelectionClearEpoch((prev) => prev + 1);
+                      }
+                      setActiveLaneId(laneId);
+                      if (event.button !== 0) {
+                        setPendingTrackReorder(null);
+                        return;
+                      }
+                      if (
+                        target?.closest(
+                          "button, a, input, textarea, select, label, [role='button'], [data-track-reorder-block='true']"
+                        )
+                      ) {
+                        setPendingTrackReorder(null);
+                        return;
+                      }
+                      setPendingTrackReorder({
+                        laneId,
+                        startY: event.clientY,
+                      });
+                    }}
+                  >
+                    {trackDragLaneId !== null && trackDropIndex === index && (
+                      <div className="pointer-events-none absolute -top-1 left-4 right-4 z-30 h-1 rounded-full bg-sky-400 shadow-sm" />
+                    )}
+                    {trackDragLaneId !== null && trackDropIndex === index + 1 && (
+                      <div className="pointer-events-none absolute -bottom-1 left-4 right-4 z-30 h-1 rounded-full bg-sky-400 shadow-sm" />
+                    )}
+                    <div className="absolute top-1 left-1 z-20">
+                      <button
+                        type="button"
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
@@ -1559,7 +2353,41 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     }
                     selectionClearEpoch={selectionClearEpoch}
                     selectionClearExemptEditorId={selectionClearExemptEditorId}
+                    barSelectionClearEpoch={barSelectionClearEpoch}
+                    barSelectionClearExemptEditorId={barSelectionClearExemptEditorId}
+                    onBarSelectionStateChange={(barIndices) =>
+                      handleBarSelectionStateChange(laneId, barIndices)
+                    }
+                    onRequestSelectedBarsCopy={(barIndices) =>
+                      void handleCopySelectedBars(laneId, barIndices)
+                    }
+                    onRequestSelectedBarsPaste={(insertIndex) =>
+                      void handlePasteBars(laneId, insertIndex)
+                    }
+                    onRequestSelectedBarsDelete={(barIndices) =>
+                      void handleDeleteSelectedBars(laneId, barIndices)
+                    }
+                    barClipboardAvailable={Boolean(barClipboard)}
+                    activeBarDrag={barDragState}
+                    onBarDragStart={(barIndices) => {
+                      const nextBarIndices =
+                        barSelection?.laneId === laneId ? barSelection.barIndices : barIndices;
+                      setBarDragState({ sourceLaneId: laneId, barIndices: [...nextBarIndices] });
+                    }}
+                    onBarDragEnd={() => setBarDragState(null)}
+                    onRequestBarDrop={(insertIndex) => {
+                      if (!barDragState) return;
+                      void handleMoveSelectedBars(
+                        barDragState.sourceLaneId,
+                        barDragState.barIndices,
+                        laneId,
+                        insertIndex
+                      );
+                    }}
                   />
+                  {trackDragLaneId === laneId && (
+                    <div className="pointer-events-none absolute inset-0 z-10 rounded-xl border border-sky-300 bg-sky-100/20" />
+                  )}
                 </section>
               );
             })}
