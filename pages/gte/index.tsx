@@ -88,11 +88,17 @@ export default function GteIndexPage() {
     setError(null);
     try {
       const created = await gteApi.createEditor(undefined, draft.name || "Untitled");
-      const payload = { ...draft, id: created.editorId };
-      const res = await gteApi.applySnapshot(created.editorId, payload);
+      const payload = {
+        id: created.editorId,
+        name: draft.name || "Untitled",
+        secondsPerBar: draft.secondsPerBar,
+        editors: [{ ...draft, id: "ed-1", name: draft.name || "Editor 1" }],
+      };
+      await gteApi.applySnapshot(created.editorId, payload as any);
+      await gteApi.commitEditor(created.editorId);
       clearGuestDraft();
       setGuestDraft(null);
-      await router.push(`/gte/${res.snapshot.id}`);
+      await router.push(`/gte/${created.editorId}`);
     } catch (err: any) {
       setError(err?.message || "Could not import local draft.");
     } finally {

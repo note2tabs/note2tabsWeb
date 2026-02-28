@@ -50,3 +50,14 @@ export type EditorListItem = {
   noteCount?: number;
   chordCount?: number;
 };
+
+export type CanvasSnapshot = {
+  id: string;
+  name?: string;
+  schemaVersion?: number;
+  canvasSchemaVersion?: number;
+  version?: number;
+  updatedAt?: string;
+  secondsPerBar?: number;
+  editors: EditorSnapshot[];
+};

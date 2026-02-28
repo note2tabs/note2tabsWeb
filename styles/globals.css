@@ -241,7 +241,8 @@ input[type="number"] {
 
 .button-primary,
 .button-secondary,
-.button-ghost {
+.button-ghost,
+.button-save {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -303,6 +304,31 @@ input[type="number"] {
 .button-secondary:hover {
   border-color: rgba(42, 109, 244, 0.4);
   color: var(--accent-strong);
+}
+
+.button-save {
+  background: linear-gradient(180deg, #ffffff, #eef2f7);
+  color: #334155;
+  border-color: rgba(148, 163, 184, 0.65);
+  box-shadow:
+    0 10px 22px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.button-save:hover {
+  border-color: rgba(100, 116, 139, 0.85);
+  color: #0f172a;
+  box-shadow:
+    0 14px 28px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  transform: translateY(-1px);
+}
+
+.button-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .button-ghost {
@@ -2854,4 +2880,13 @@ input[type="number"] {
     align-items: center;
     gap: 8px;
   }
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
