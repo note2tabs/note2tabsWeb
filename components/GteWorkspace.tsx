@@ -23,6 +23,7 @@ type Props = {
   sharedViewportBarCount?: number;
   sharedTimelineScrollRatio?: number;
   onSharedTimelineScrollRatioChange?: (next: number) => void;
+  timelineZoomFactor?: number;
   historyUndoCount?: number;
   historyRedoCount?: number;
   onRequestUndo?: () => void;
@@ -55,6 +56,7 @@ const STANDARD_TUNING_MIDI = [64, 59, 55, 50, 45, 40];
 const ROW_HEIGHT = 24;
 const ROW_GAP = 80;
 const DEFAULT_NOTE_LENGTH = 20;
+const MAX_EVENT_LENGTH_FRAMES = 800;
 const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
 const CUT_SEGMENT_HEIGHT = 20;
@@ -65,6 +67,8 @@ const MAX_HISTORY = 16;
 const AUTOSAVE_DEBOUNCE_MS = 2500;
 const AUTOSAVE_INTERVAL_MS = 20000;
 const TARGET_VISIBLE_BARS = 2.5;
+const MIN_TIMELINE_ZOOM = 0.1;
+const MAX_TIMELINE_ZOOM = 2.5;
 const STREAMLINE_TOOLBAR_ICONS = {
   chordize: "/icons/toolbar/make-chord.png",
   disband: "/icons/toolbar/disband.png",
@@ -75,10 +79,55 @@ const STREAMLINE_TOOLBAR_ICONS = {
   cut: "/icons/toolbar/cut.png",
   merge: "/icons/toolbar/merge.png",
 } as const;
+const SCALE_TOOL_MODE_STORAGE_KEY = "gte-scale-tool-mode-v1";
+const SCALE_FACTOR_MIN = 0.1;
+const SCALE_FACTOR_MAX = 8;
+const SCALE_FACTOR_DRAG_PIXELS = 240;
+const SCALE_TOOL_MODES = ["length", "start", "both"] as const;
 
 const fpsFromSecondsPerBar = (secondsPerBar: number) => {
   const safeSeconds = Math.max(0.1, secondsPerBar);
   return Math.max(1, Math.round(FIXED_FRAMES_PER_BAR / safeSeconds));
+};
+
+const isScaleToolMode = (value: unknown): value is ScaleToolMode =>
+  typeof value === "string" && SCALE_TOOL_MODES.includes(value as ScaleToolMode);
+
+const formatScaleFactor = (value: number) => {
+  const rounded = Math.round(value * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+};
+
+const clampEventLength = (length: number) =>
+  Math.max(1, Math.min(MAX_EVENT_LENGTH_FRAMES, Math.round(length)));
+
+const NON_TEXT_INPUT_TYPES = new Set([
+  "button",
+  "submit",
+  "reset",
+  "checkbox",
+  "radio",
+  "range",
+  "color",
+  "file",
+  "image",
+  "hidden",
+]);
+
+const isShortcutTextEntryTarget = (target: HTMLElement | null) => {
+  if (!target) return false;
+  if (target.isContentEditable || target.closest("textarea, select")) return true;
+  const input = target.closest("input");
+  if (!(input instanceof HTMLInputElement)) return false;
+  const type = (input.type || "text").toLowerCase();
+  return !NON_TEXT_INPUT_TYPES.has(type);
+};
+
+const blurFocusedShortcutControl = (target: HTMLElement | null) => {
+  const focusedControl = target?.closest("button, a, input[type='range']");
+  if (focusedControl instanceof HTMLElement) {
+    focusedControl.blur();
+  }
 };
 
 type OptionalNumber = number | null;
@@ -158,9 +207,9 @@ const makeChordInSnapshot = (draft: EditorSnapshot, noteIds: number[]) => {
   chordNotes.sort((a, b) => a.startTime - b.startTime || a.tab[0] - b.tab[0]);
   const startTime = Math.min(...chordNotes.map((note) => note.startTime));
   const endTime = Math.max(
-    ...chordNotes.map((note) => note.startTime + Math.max(1, Math.round(note.length)))
+    ...chordNotes.map((note) => note.startTime + clampEventLength(note.length))
   );
-  const length = Math.max(1, endTime - startTime);
+  const length = clampEventLength(endTime - startTime);
   const nextChordId = draft.chords.reduce((max, chord) => Math.max(max, chord.id), 0) + 1;
   const tabs = chordNotes.map((note) => cloneTabCoord(note.tab));
   draft.chords.push({
@@ -208,7 +257,7 @@ const removeBarInSnapshot = (draft: EditorSnapshot, index: number) => {
   const removeStart = safeIndex * framesPerBar;
   const removeEnd = removeStart + framesPerBar;
 
-  const normalizeLength = (length: number) => Math.max(1, Math.round(length));
+  const normalizeLength = (length: number) => clampEventLength(length);
 
   draft.notes = draft.notes
     .filter((note) => {
@@ -356,6 +405,26 @@ type OptimisticMutation = {
   createdChords?: TempChordMapping[];
 };
 
+type ScaleToolMode = (typeof SCALE_TOOL_MODES)[number];
+
+type ScaleEntityBase = {
+  id: number;
+  startTime: number;
+  length: number;
+};
+
+type ScalePreviewEntity = {
+  startTime: number;
+  length: number;
+};
+
+type ScaleSession = {
+  anchorX: number;
+  notes: ScaleEntityBase[];
+  chords: ScaleEntityBase[];
+  minTime: number;
+};
+
 export default function GteWorkspace({
   editorId,
   snapshot,
@@ -369,6 +438,7 @@ export default function GteWorkspace({
   sharedViewportBarCount,
   sharedTimelineScrollRatio,
   onSharedTimelineScrollRatioChange,
+  timelineZoomFactor,
   historyUndoCount,
   historyRedoCount,
   onRequestUndo,
@@ -390,7 +460,7 @@ export default function GteWorkspace({
   onSelectionStateChange,
   onRequestGlobalSelectedShift,
 }: Props) {
-  const [scale, setScale] = useState(4);
+  const [baseScale, setBaseScale] = useState(4);
   const [secondsPerBar, setSecondsPerBar] = useState(2);
   const [secondsPerBarInput, setSecondsPerBarInput] = useState("2");
   const [timeSignature, setTimeSignature] = useState(8);
@@ -457,6 +527,14 @@ export default function GteWorkspace({
   const [sliceToolActive, setSliceToolActive] = useState(false);
   const [sliceCursor, setSliceCursor] = useState<{ time: number; rowIndex: number } | null>(null);
   const [cutToolActive, setCutToolActive] = useState(false);
+  const [scaleToolActive, setScaleToolActive] = useState(false);
+  const [scaleToolMode, setScaleToolMode] = useState<ScaleToolMode>("length");
+  const [scaleFactor, setScaleFactor] = useState(1);
+  const [scaleFactorInput, setScaleFactorInput] = useState("1");
+  const [scaleHudPosition, setScaleHudPosition] = useState<{ x: number; y: number } | null>(null);
+  const [scalePreviewNotes, setScalePreviewNotes] = useState<Record<number, ScalePreviewEntity>>({});
+  const [scalePreviewChords, setScalePreviewChords] = useState<Record<number, ScalePreviewEntity>>({});
+  const [scalePreviewMaxEnd, setScalePreviewMaxEnd] = useState(0);
   const [selectedCutBoundaryIndex, setSelectedCutBoundaryIndex] = useState<number | null>(null);
   const [playheadFrame, setPlayheadFrame] = useState(0);
   const [playheadDragging, setPlayheadDragging] = useState(false);
@@ -502,6 +580,7 @@ export default function GteWorkspace({
   const chordEditPanelRef = useRef<HTMLDivElement | null>(null);
   const chordNoteMenuRef = useRef<HTMLDivElement | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const scaleHudRef = useRef<HTMLDivElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const segmentEditsRef = useRef<SegmentEdit[]>(segmentEdits);
   const dragPreviewRef = useRef<DragPreview | null>(dragPreview);
@@ -521,13 +600,19 @@ export default function GteWorkspace({
   const autosaveQueuedRef = useRef(false);
   const localRevisionRef = useRef(0);
   const savedRevisionRef = useRef(0);
+  const lastAddedNoteLengthRef = useRef(DEFAULT_NOTE_LENGTH);
   const applyingSharedScrollRef = useRef(false);
+  const scaleSessionRef = useRef<ScaleSession | null>(null);
+  const scaleFactorTypingRef = useRef<string | null>(null);
+  const scaleFactorTypingAtRef = useRef(0);
 
   const fps = fpsFromSecondsPerBar(secondsPerBar);
   const framesPerMeasure = FIXED_FRAMES_PER_BAR;
   const totalFrames = snapshot.totalFrames || 0;
+  const previewFrames = scaleToolActive ? Math.max(0, Math.round(scalePreviewMaxEnd)) : 0;
+  const effectiveTotalFrames = Math.max(totalFrames, previewFrames);
   const maxFret = snapshot.tabRef?.[0]?.length ? snapshot.tabRef[0].length - 1 : 22;
-  const barCount = Math.max(1, Math.ceil(Math.max(1, totalFrames) / framesPerMeasure));
+  const barCount = Math.max(1, Math.ceil(Math.max(1, effectiveTotalFrames) / framesPerMeasure));
   const normalizedSharedViewportBars =
     sharedViewportBarCount !== undefined && Number.isFinite(sharedViewportBarCount)
       ? Math.max(1, Math.round(sharedViewportBarCount))
@@ -538,6 +623,11 @@ export default function GteWorkspace({
   const barsPerRow = Math.max(1, barCount);
   const rowFrames = framesPerMeasure * barsPerRow;
   const rows = 1;
+  const normalizedTimelineZoomFactor =
+    timelineZoomFactor !== undefined && Number.isFinite(timelineZoomFactor)
+      ? Math.max(MIN_TIMELINE_ZOOM, Math.min(MAX_TIMELINE_ZOOM, timelineZoomFactor))
+      : 1;
+  const scale = baseScale * normalizedTimelineZoomFactor;
   const timelineWidth = Math.max(1, computedTotalFrames) * scale;
   const viewportTimelineWidth = Math.max(1, viewportTotalFrames) * scale;
   const rowHeight = ROW_HEIGHT * 6;
@@ -637,8 +727,8 @@ export default function GteWorkspace({
     mutationProcessingRef.current = false;
     noteIdMapRef.current = new Map();
     chordIdMapRef.current = new Map();
-    tempNoteIdRef.current = 0;
-    tempChordIdRef.current = 0;
+    tempNoteIdRef.current = -1;
+    tempChordIdRef.current = -1;
     autosaveInFlightRef.current = false;
     autosaveQueuedRef.current = false;
     localRevisionRef.current = 0;
@@ -887,7 +977,7 @@ export default function GteWorkspace({
       const availableWidth = Math.max(240, container.clientWidth - 16);
       const rawScale = availableWidth / Math.max(1, framesPerMeasure * TARGET_VISIBLE_BARS);
       const nextScale = Math.max(0.5, Math.min(4, rawScale));
-      setScale((prev) => (Math.abs(prev - nextScale) < 0.01 ? prev : nextScale));
+      setBaseScale((prev) => (Math.abs(prev - nextScale) < 0.01 ? prev : nextScale));
     };
 
     computeScale();
@@ -926,7 +1016,9 @@ export default function GteWorkspace({
 
   useEffect(() => {
     if (selectedNoteIds.length === 1) {
-      const resolvedId = noteIdMapRef.current.get(selectedNoteIds[0]) ?? selectedNoteIds[0];
+      const selectedId = selectedNoteIds[0];
+      const resolvedId =
+        selectedId < 0 ? noteIdMapRef.current.get(selectedId) ?? selectedId : selectedId;
       if (resolvedId < 0) {
         setNoteAlternates(null);
         return;
@@ -970,7 +1062,7 @@ export default function GteWorkspace({
   useEffect(() => {
     const activeId = activeChordIds[0];
     if (activeId !== undefined) {
-      const resolvedId = chordIdMapRef.current.get(activeId) ?? activeId;
+      const resolvedId = activeId < 0 ? chordIdMapRef.current.get(activeId) ?? activeId : activeId;
       if (resolvedId < 0) {
         setChordAlternatives([]);
         return;
@@ -987,6 +1079,19 @@ export default function GteWorkspace({
   useEffect(() => {
     setSelectedNoteIds((prev) => prev.filter((id) => snapshot.notes.some((note) => note.id === id)));
     setSelectedChordIds((prev) => prev.filter((id) => snapshot.chords.some((chord) => chord.id === id)));
+  }, [snapshot.notes, snapshot.chords]);
+
+  useEffect(() => {
+    noteIdMapRef.current.forEach((_, tempId) => {
+      if (tempId >= 0) {
+        noteIdMapRef.current.delete(tempId);
+      }
+    });
+    chordIdMapRef.current.forEach((_, tempId) => {
+      if (tempId >= 0) {
+        chordIdMapRef.current.delete(tempId);
+      }
+    });
   }, [snapshot.notes, snapshot.chords]);
 
   useEffect(() => {
@@ -1261,25 +1366,25 @@ export default function GteWorkspace({
 
   const getTempNoteId = useCallback(() => {
     const current = snapshotRef.current;
-    const maxExisting = current.notes.reduce((max, note) => Math.max(max, note.id), 0);
-    tempNoteIdRef.current = Math.max(tempNoteIdRef.current, maxExisting) + 1;
+    const minExisting = current.notes.reduce((min, note) => Math.min(min, note.id), 0);
+    tempNoteIdRef.current = Math.min(tempNoteIdRef.current, minExisting, -1) - 1;
     return tempNoteIdRef.current;
   }, []);
 
   const getTempChordId = useCallback(() => {
     const current = snapshotRef.current;
-    const maxExisting = current.chords.reduce((max, chord) => Math.max(max, chord.id), 0);
-    tempChordIdRef.current = Math.max(tempChordIdRef.current, maxExisting) + 1;
+    const minExisting = current.chords.reduce((min, chord) => Math.min(min, chord.id), 0);
+    tempChordIdRef.current = Math.min(tempChordIdRef.current, minExisting, -1) - 1;
     return tempChordIdRef.current;
   }, []);
 
   const resolveNoteId = useCallback(
-    (id: number) => noteIdMapRef.current.get(id) ?? id,
+    (id: number) => (id < 0 ? noteIdMapRef.current.get(id) ?? id : id),
     []
   );
 
   const resolveChordId = useCallback(
-    (id: number) => chordIdMapRef.current.get(id) ?? id,
+    (id: number) => (id < 0 ? chordIdMapRef.current.get(id) ?? id : id),
     []
   );
 
@@ -1489,7 +1594,10 @@ export default function GteWorkspace({
     void handleRedo();
   }, [handleRedo, onRequestRedo]);
 
-  const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
+  const clamp = useCallback(
+    (value: number, min: number, max: number) => Math.max(min, Math.min(value, max)),
+    []
+  );
 
   const snapStartTimeToGrid = useCallback(
     (startTime: number) => {
@@ -1511,7 +1619,7 @@ export default function GteWorkspace({
 
   const snapNoteToGrid = useCallback(
     (startTime: number, length: number) => {
-      const safeLength = Math.max(1, Math.round(length));
+      const safeLength = clampEventLength(length);
       if (!snapToGridEnabled) {
         return {
           startTime: Math.max(0, Math.round(startTime)),
@@ -1524,14 +1632,14 @@ export default function GteWorkspace({
       const snappedStart = snapStartTimeToGrid(startTime);
       const lengthIndex = Math.max(1, Math.floor(safeLength / signatureLength));
       const snappedLength = lengthIndex * signatureLength;
-      return { startTime: snappedStart, length: Math.max(1, snappedLength) };
+      return { startTime: snappedStart, length: clampEventLength(snappedLength) };
     },
     [snapStartTimeToGrid, snapToGridEnabled, timeSignature]
   );
 
   const snapLengthToGrid = useCallback(
     (length: number) => {
-      const safeLength = Math.max(1, Math.round(length));
+      const safeLength = clampEventLength(length);
       if (!snapToGridEnabled) {
         return safeLength;
       }
@@ -1539,10 +1647,346 @@ export default function GteWorkspace({
       const beats = Math.max(1, Math.min(64, Math.round(timeSignature)));
       const signatureLength = Math.max(1, Math.floor(frames / beats));
       const signatureAmount = Math.max(1, Math.floor(safeLength / signatureLength));
-      return Math.max(1, signatureAmount * signatureLength);
+      return clampEventLength(signatureAmount * signatureLength);
     },
     [snapToGridEnabled, timeSignature]
   );
+
+  const computeScalePreview = useCallback(
+    (session: ScaleSession, factor: number, mode: ScaleToolMode) => {
+      const normalizedFactor = clamp(factor, SCALE_FACTOR_MIN, SCALE_FACTOR_MAX);
+      const signatureLength = Math.max(1, Math.floor(framesPerMeasure / Math.max(1, Math.round(timeSignature))));
+      const scaleStart = mode === "start" || mode === "both";
+      const scaleLength = mode === "length" || mode === "both";
+      const notes: Record<number, ScalePreviewEntity> = {};
+      const chords: Record<number, ScalePreviewEntity> = {};
+      let maxEnd = 0;
+
+      const scaleStartTime = (value: number) => {
+        let next = Math.trunc((value - session.minTime) * normalizedFactor + session.minTime);
+        if (snapToGridEnabled) {
+          const barIndex = Math.trunc(next / framesPerMeasure);
+          const barOffset = framesPerMeasure * barIndex;
+          const inBar = next - barOffset;
+          const signatureIndex = Math.trunc(inBar / signatureLength);
+          next = signatureIndex * signatureLength + barOffset;
+        }
+        return Math.max(0, next);
+      };
+
+      const scaleItemLength = (value: number) => {
+        if (snapToGridEnabled) {
+          const amount = Math.max(1, Math.round((value * normalizedFactor) / signatureLength));
+          return clampEventLength(amount * signatureLength);
+        }
+        return clampEventLength(Math.trunc(value * normalizedFactor));
+      };
+
+      session.notes.forEach((note) => {
+        const nextStart = scaleStart ? scaleStartTime(note.startTime) : note.startTime;
+        const nextLength = scaleLength ? scaleItemLength(note.length) : note.length;
+        notes[note.id] = { startTime: nextStart, length: nextLength };
+        maxEnd = Math.max(maxEnd, nextStart + nextLength);
+      });
+
+      session.chords.forEach((chord) => {
+        const nextStart = scaleStart ? scaleStartTime(chord.startTime) : chord.startTime;
+        const nextLength = scaleLength ? scaleItemLength(chord.length) : chord.length;
+        chords[chord.id] = { startTime: nextStart, length: nextLength };
+        maxEnd = Math.max(maxEnd, nextStart + nextLength);
+      });
+
+      return { notes, chords, maxEnd, factor: normalizedFactor };
+    },
+    [clamp, framesPerMeasure, snapToGridEnabled, timeSignature]
+  );
+
+  const applyScalePreview = useCallback(
+    (
+      factor: number,
+      options?: { mode?: ScaleToolMode; syncInput?: boolean; cursor?: { x: number; y: number } }
+    ) => {
+      const session = scaleSessionRef.current;
+      if (!session) return;
+      const mode = options?.mode ?? scaleToolMode;
+      const preview = computeScalePreview(session, factor, mode);
+      setScalePreviewNotes(preview.notes);
+      setScalePreviewChords(preview.chords);
+      setScalePreviewMaxEnd(preview.maxEnd);
+      setScaleFactor(preview.factor);
+      if (options?.syncInput !== false) {
+        setScaleFactorInput(formatScaleFactor(preview.factor));
+      }
+      if (options?.cursor) {
+        setScaleHudPosition(options.cursor);
+      }
+    },
+    [computeScalePreview, scaleToolMode]
+  );
+
+  const deactivateScaleTool = useCallback(() => {
+    setScaleToolActive(false);
+    setScaleFactor(1);
+    setScaleFactorInput("1");
+    setScalePreviewNotes({});
+    setScalePreviewChords({});
+    setScalePreviewMaxEnd(0);
+    setScaleHudPosition(null);
+    scaleSessionRef.current = null;
+    scaleFactorTypingRef.current = null;
+    scaleFactorTypingAtRef.current = 0;
+  }, []);
+
+  const activateScaleTool = useCallback(
+    (anchor?: { x: number; y: number }) => {
+      const notes = snapshot.notes
+        .filter((note) => selectedNoteIds.includes(note.id))
+        .map((note) => ({ id: note.id, startTime: note.startTime, length: note.length }));
+      const chords = snapshot.chords
+        .filter((chord) => selectedChordIds.includes(chord.id))
+        .map((chord) => ({ id: chord.id, startTime: chord.startTime, length: chord.length }));
+      if (!notes.length && !chords.length) {
+        setError("Select at least one note/chord before using Scale.");
+        return false;
+      }
+      setError(null);
+      const minTime = Math.min(
+        ...notes.map((item) => item.startTime),
+        ...chords.map((item) => item.startTime)
+      );
+      const nextAnchor = anchor ?? mousePosRef.current;
+      scaleSessionRef.current = {
+        anchorX: nextAnchor.x,
+        notes,
+        chords,
+        minTime: Number.isFinite(minTime) ? minTime : 0,
+      };
+      setCutToolActive(false);
+      setSliceToolActive(false);
+      setScaleToolActive(true);
+      scaleFactorTypingRef.current = null;
+      scaleFactorTypingAtRef.current = 0;
+      applyScalePreview(1, { syncInput: true, cursor: nextAnchor });
+      return true;
+    },
+    [applyScalePreview, selectedChordIds, selectedNoteIds, snapshot.chords, snapshot.notes]
+  );
+
+  const commitScaleTool = useCallback(() => {
+    if (!scaleToolActive) return false;
+    const session = scaleSessionRef.current;
+    if (!session) {
+      deactivateScaleTool();
+      return false;
+    }
+    const preview = computeScalePreview(session, scaleFactor, scaleToolMode);
+    const noteUpdates = session.notes
+      .map((item) => {
+        const next = preview.notes[item.id];
+        if (!next) return null;
+        const changedStart = next.startTime !== item.startTime;
+        const changedLength = next.length !== item.length;
+        if (!changedStart && !changedLength) return null;
+        return {
+          id: item.id,
+          startTime: next.startTime,
+          length: next.length,
+          changedStart,
+          changedLength,
+        };
+      })
+      .filter(
+        (
+          item
+        ): item is {
+          id: number;
+          startTime: number;
+          length: number;
+          changedStart: boolean;
+          changedLength: boolean;
+        } => Boolean(item)
+      );
+    const chordUpdates = session.chords
+      .map((item) => {
+        const next = preview.chords[item.id];
+        if (!next) return null;
+        const changedStart = next.startTime !== item.startTime;
+        const changedLength = next.length !== item.length;
+        if (!changedStart && !changedLength) return null;
+        return {
+          id: item.id,
+          startTime: next.startTime,
+          length: next.length,
+          changedStart,
+          changedLength,
+        };
+      })
+      .filter(
+        (
+          item
+        ): item is {
+          id: number;
+          startTime: number;
+          length: number;
+          changedStart: boolean;
+          changedLength: boolean;
+        } => Boolean(item)
+      );
+
+    const nextTotalFrames =
+      preview.maxEnd > 0
+        ? Math.max(
+            framesPerMeasure,
+            Math.ceil(Math.max(preview.maxEnd, framesPerMeasure) / framesPerMeasure) * framesPerMeasure
+          )
+        : framesPerMeasure;
+
+    deactivateScaleTool();
+    if (!noteUpdates.length && !chordUpdates.length) {
+      return true;
+    }
+
+    enqueueOptimisticMutation({
+      label: `scale-${scaleToolMode}`,
+      apply: (draft) => {
+        noteUpdates.forEach((update) => {
+          const noteId = resolveNoteId(update.id);
+          const note = draft.notes.find((item) => item.id === noteId);
+          if (!note) return;
+          note.startTime = update.startTime;
+          note.length = update.length;
+        });
+        chordUpdates.forEach((update) => {
+          const chordId = resolveChordId(update.id);
+          const chord = draft.chords.find((item) => item.id === chordId);
+          if (!chord) return;
+          chord.startTime = update.startTime;
+          chord.length = update.length;
+        });
+        draft.totalFrames = Math.max(Number(draft.totalFrames || 0), nextTotalFrames);
+        return draft;
+      },
+      commit: async () => {
+        let last: { snapshot?: EditorSnapshot } | null = null;
+        for (const update of noteUpdates) {
+          const noteId = resolveNoteId(update.id);
+          if (update.changedStart) {
+            last = await gteApi.setNoteStartTime(
+              editorId,
+              noteId,
+              update.startTime,
+              snapToGridEnabled
+            );
+          }
+          if (update.changedLength) {
+            last = await gteApi.setNoteLength(editorId, noteId, update.length, snapToGridEnabled);
+          }
+        }
+        for (const update of chordUpdates) {
+          const chordId = resolveChordId(update.id);
+          if (update.changedStart) {
+            last = await gteApi.setChordStartTime(
+              editorId,
+              chordId,
+              update.startTime,
+              snapToGridEnabled
+            );
+          }
+          if (update.changedLength) {
+            last = await gteApi.setChordLength(editorId, chordId, update.length, snapToGridEnabled);
+          }
+        }
+        return last ?? {};
+      },
+    });
+    return true;
+  }, [
+    computeScalePreview,
+    deactivateScaleTool,
+    editorId,
+    enqueueOptimisticMutation,
+    framesPerMeasure,
+    resolveChordId,
+    resolveNoteId,
+    scaleFactor,
+    scaleToolActive,
+    scaleToolMode,
+    snapToGridEnabled,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = window.localStorage.getItem(SCALE_TOOL_MODE_STORAGE_KEY);
+      if (isScaleToolMode(stored)) {
+        setScaleToolMode(stored);
+      }
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(SCALE_TOOL_MODE_STORAGE_KEY, scaleToolMode);
+    } catch {
+      // no-op
+    }
+  }, [scaleToolMode]);
+
+  useEffect(() => {
+    if (!scaleToolActive) return;
+    if (!scaleSessionRef.current) return;
+    applyScalePreview(scaleFactor, { mode: scaleToolMode, syncInput: false });
+  }, [applyScalePreview, scaleFactor, scaleToolActive, scaleToolMode, snapToGridEnabled, timeSignature]);
+
+  useEffect(() => {
+    if (!scaleToolActive) return;
+    const handleMove = (event: globalThis.MouseEvent) => {
+      const session = scaleSessionRef.current;
+      if (!session) return;
+      const deltaX = event.clientX - session.anchorX;
+      const nextFactor = 1 + deltaX / SCALE_FACTOR_DRAG_PIXELS;
+      applyScalePreview(nextFactor, {
+        mode: scaleToolMode,
+        syncInput: true,
+        cursor: { x: event.clientX, y: event.clientY },
+      });
+    };
+    window.addEventListener("mousemove", handleMove);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+    };
+  }, [applyScalePreview, scaleToolActive, scaleToolMode]);
+
+  useEffect(() => {
+    if (!scaleToolActive) return;
+    let commitTimer: number | null = null;
+    const handleClickCapture = (event: globalThis.MouseEvent) => {
+      if (event.button !== 0) return;
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (toolbarRef.current && toolbarRef.current.contains(target)) return;
+      if (scaleHudRef.current && scaleHudRef.current.contains(target)) return;
+      commitTimer = window.setTimeout(() => {
+        commitScaleTool();
+      }, 0);
+    };
+    window.addEventListener("click", handleClickCapture, true);
+    return () => {
+      window.removeEventListener("click", handleClickCapture, true);
+      if (commitTimer !== null) {
+        window.clearTimeout(commitTimer);
+      }
+    };
+  }, [commitScaleTool, scaleToolActive]);
+
+  useEffect(() => {
+    if (!scaleToolActive) return;
+    if (selectedNoteIds.length + selectedChordIds.length > 0) return;
+    deactivateScaleTool();
+  }, [deactivateScaleTool, scaleToolActive, selectedChordIds.length, selectedNoteIds.length]);
 
   const getSpanSegments = (startTime: number, length: number) => {
     const safeLength = Math.max(1, Math.round(length));
@@ -1604,20 +2048,54 @@ export default function GteWorkspace({
       const next = !prev;
       if (next) {
         setSliceToolActive(false);
+        deactivateScaleTool();
       }
       return next;
     });
-  }, []);
+  }, [deactivateScaleTool]);
 
   const toggleSliceTool = useCallback(() => {
     setSliceToolActive((prev) => {
       const next = !prev;
       if (next) {
         setCutToolActive(false);
+        deactivateScaleTool();
       }
       return next;
     });
-  }, []);
+  }, [deactivateScaleTool]);
+
+  const toggleScaleTool = useCallback(() => {
+    if (scaleToolActive) {
+      deactivateScaleTool();
+      return;
+    }
+    activateScaleTool();
+  }, [activateScaleTool, deactivateScaleTool, scaleToolActive]);
+
+  const cycleScaleToolModeWithShortcut = useCallback(() => {
+    if (!scaleToolActive) return;
+    const idx = SCALE_TOOL_MODES.indexOf(scaleToolMode);
+    const nextMode =
+      idx >= 0
+        ? SCALE_TOOL_MODES[(idx + 1) % SCALE_TOOL_MODES.length]
+        : SCALE_TOOL_MODES[0];
+    setScaleToolMode(nextMode);
+    applyScalePreview(scaleFactor, { mode: nextMode, syncInput: false });
+  }, [applyScalePreview, scaleFactor, scaleToolActive, scaleToolMode]);
+
+  const handleScaleFactorInputChange = useCallback(
+    (value: string) => {
+      setScaleFactorInput(value);
+      if (value.trim() === "") return;
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) return;
+      applyScalePreview(parsed, { mode: scaleToolMode, syncInput: false });
+      scaleFactorTypingRef.current = value;
+      scaleFactorTypingAtRef.current = Date.now();
+    },
+    [applyScalePreview, scaleToolMode]
+  );
 
   const getPointerFrame = (clientX: number, clientY: number) => {
     if (!timelineRef.current) return null;
@@ -1643,8 +2121,8 @@ export default function GteWorkspace({
         const start = note.startTime;
         const end = note.startTime + note.length;
         if (sliceTime <= start || sliceTime >= end) return null;
-        const leftLength = sliceTime - start;
-        const rightLength = end - sliceTime;
+        const leftLength = clampEventLength(sliceTime - start);
+        const rightLength = clampEventLength(end - sliceTime);
         if (leftLength < 1 || rightLength < 1) return null;
         return {
           id: note.id,
@@ -1748,11 +2226,16 @@ export default function GteWorkspace({
       commit: async () => {
         let last: { snapshot?: EditorSnapshot } | null = null;
         for (const note of notesToSlice) {
-          await gteApi.setNoteLength(editorId, resolveNoteId(note.id), note.leftLength, false);
+          await gteApi.setNoteLength(
+            editorId,
+            resolveNoteId(note.id),
+            clampEventLength(note.leftLength),
+            false
+          );
           last = await gteApi.addNote(editorId, {
             tab: note.tab,
             startTime: sliceTime,
-            length: note.rightLength,
+            length: clampEventLength(note.rightLength),
             snapToGrid: false,
           });
         }
@@ -2098,7 +2581,7 @@ export default function GteWorkspace({
       const handleUp = () => {
         const previewLength = resizePreviewRef.current ?? resizingNote.length;
         const snappedPreviewLength = allowBackend
-          ? Math.max(1, Math.round(previewLength))
+          ? clampEventLength(previewLength)
           : snapLengthToGrid(previewLength);
         if (snappedPreviewLength !== resizingNote.length) {
           enqueueOptimisticMutation({
@@ -2174,7 +2657,7 @@ export default function GteWorkspace({
       const handleUp = () => {
         const previewLength = resizeChordPreviewRef.current ?? resizingChord.length;
         const snappedPreviewLength = allowBackend
-          ? Math.max(1, Math.round(previewLength))
+          ? clampEventLength(previewLength)
           : snapLengthToGrid(previewLength);
         if (snappedPreviewLength !== resizingChord.length) {
           enqueueOptimisticMutation({
@@ -2318,7 +2801,7 @@ export default function GteWorkspace({
           rowStart,
           rowStart + availableFrames - 1
         );
-        const defaultLength = DEFAULT_NOTE_LENGTH;
+        const defaultLength = lastAddedNoteLengthRef.current;
         setDraftNote({
           stringIndex,
           startTime,
@@ -2804,7 +3287,7 @@ export default function GteWorkspace({
   const handleAddNote = () => {
     if (!draftNote) return;
     const { fret } = draftNote;
-    const rawLength = draftNote.length ?? DEFAULT_NOTE_LENGTH;
+    const rawLength = clampEventLength(draftNote.length ?? lastAddedNoteLengthRef.current);
     if (fret === null) {
       setError("Enter a fret before adding the note.");
       return;
@@ -2835,6 +3318,7 @@ export default function GteWorkspace({
           snapToGrid: snapToGridEnabled,
         }),
     });
+    lastAddedNoteLengthRef.current = clampEventLength(snapped.length);
     setDraftNote(null);
     setDraftNoteAnchor(null);
   };
@@ -2866,7 +3350,7 @@ export default function GteWorkspace({
         nextSelected.push(first.id);
         if (notes.length < 2) continue;
         const targetEnd = lastNote.startTime + lastNote.length;
-        const nextLength = Math.max(1, targetEnd - first.startTime);
+        const nextLength = clampEventLength(targetEnd - first.startTime);
         if (nextLength !== first.length) {
           await gteApi.setNoteLength(editorId, first.id, nextLength, false);
         }
@@ -2953,11 +3437,12 @@ export default function GteWorkspace({
       let last: EditorSnapshot | null = null;
       const addedNoteIds: number[] = [];
       const addNoteAndCollectId = async (tab: TabCoord, start: number, length: number) => {
+        const clampedLength = clampEventLength(length);
         const beforeIds = new Set(currentSnapshot.notes.map((note) => note.id));
         const res = await gteApi.addNote(editorId, {
           tab,
           startTime: start,
-          length,
+          length: clampedLength,
           snapToGrid: false,
         });
         currentSnapshot = res.snapshot;
@@ -2969,7 +3454,10 @@ export default function GteWorkspace({
         }
         const fallback = currentSnapshot.notes.find(
           (note) =>
-            note.startTime === start && note.length === length && note.tab[0] === tab[0] && note.tab[1] === tab[1]
+            note.startTime === start &&
+            note.length === clampedLength &&
+            note.tab[0] === tab[0] &&
+            note.tab[1] === tab[1]
         );
         if (fallback) {
           addedNoteIds.push(fallback.id);
@@ -3142,7 +3630,7 @@ export default function GteWorkspace({
     const stringValue = stringIndex;
     const fretValue = fret;
     const lengthValue = allowBackend
-      ? Math.max(1, Math.round(length))
+      ? clampEventLength(length)
       : snapLengthToGrid(length);
     const maxStart = Math.max(0, totalFrames - lengthValue);
     const startValue = clamp(Math.round(startTime), 0, maxStart);
@@ -3214,7 +3702,7 @@ export default function GteWorkspace({
       return;
     }
     const lengthValue = allowBackend
-      ? Math.max(1, Math.round(length))
+      ? clampEventLength(length)
       : snapLengthToGrid(length);
     const maxStart = Math.max(0, totalFrames - lengthValue);
     const startValue = clamp(Math.round(startTime), 0, maxStart);
@@ -3396,10 +3884,10 @@ export default function GteWorkspace({
     if (!selectedNote || !noteMenuDraft) return;
     const rawLength = Number(noteMenuDraft.length);
     if (!Number.isInteger(rawLength) || rawLength < 1) {
-      setError("Invalid length.");
+      setError(`Invalid length. Use 1-${MAX_EVENT_LENGTH_FRAMES}.`);
       return;
     }
-    const lengthValue = allowBackend ? rawLength : snapLengthToGrid(rawLength);
+    const lengthValue = allowBackend ? clampEventLength(rawLength) : snapLengthToGrid(rawLength);
     if (selectedNote.length === lengthValue) return;
     enqueueOptimisticMutation({
       label: "note-menu-length",
@@ -3419,10 +3907,10 @@ export default function GteWorkspace({
     if (!selectedChord || !chordMenuDraft) return;
     const rawLength = Number(chordMenuDraft.length);
     if (!Number.isInteger(rawLength) || rawLength < 1) {
-      setError("Invalid length.");
+      setError(`Invalid length. Use 1-${MAX_EVENT_LENGTH_FRAMES}.`);
       return;
     }
-    const lengthValue = allowBackend ? rawLength : snapLengthToGrid(rawLength);
+    const lengthValue = allowBackend ? clampEventLength(rawLength) : snapLengthToGrid(rawLength);
     if (selectedChord.length === lengthValue) return;
     enqueueOptimisticMutation({
       label: "chord-menu-length",
@@ -3468,10 +3956,10 @@ export default function GteWorkspace({
     if (!selectedChord || !chordNoteMenuDraft) return;
     const rawLength = Number(chordNoteMenuDraft.length);
     if (!Number.isInteger(rawLength) || rawLength < 1) {
-      setError("Invalid length.");
+      setError(`Invalid length. Use 1-${MAX_EVENT_LENGTH_FRAMES}.`);
       return;
     }
-    const lengthValue = allowBackend ? rawLength : snapLengthToGrid(rawLength);
+    const lengthValue = allowBackend ? clampEventLength(rawLength) : snapLengthToGrid(rawLength);
     if (selectedChord.length === lengthValue) return;
     enqueueOptimisticMutation({
       label: "chord-note-length",
@@ -3837,9 +4325,13 @@ export default function GteWorkspace({
     setIsPlaying(false);
   };
 
-  const startPlayback = () => {
+  const startPlayback = (startFrameOverride?: number) => {
     if (isPlaying) return;
-    const startFrame = clamp(Math.round(playheadFrameRef.current), 0, timelineEnd);
+    const startFrame = clamp(
+      Math.round(startFrameOverride ?? playheadFrameRef.current),
+      0,
+      timelineEnd
+    );
     stopAudio();
     const scheduled = schedulePlayback(startFrame);
     if (scheduled?.ctx) {
@@ -3879,9 +4371,10 @@ export default function GteWorkspace({
     if (isPlaying) {
       stopPlayback();
     } else {
-      startPlayback();
+      const atTimelineEnd = Math.round(playheadFrameRef.current) >= timelineEnd;
+      startPlayback(atTimelineEnd ? 0 : undefined);
     }
-  }, [isPlaying, onGlobalPlaybackToggle]);
+  }, [isPlaying, onGlobalPlaybackToggle, timelineEnd]);
 
   useEffect(() => {
     if (!isActive && !useExternalPlayback && isPlaying) {
@@ -3951,12 +4444,10 @@ export default function GteWorkspace({
     }
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      const isTyping =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable ||
-          target.closest("select"));
+      const isTyping = isShortcutTextEntryTarget(target);
+      if (!isTyping) {
+        blurFocusedShortcutControl(target);
+      }
       if ((event.ctrlKey || event.metaKey) && (event.key === "z" || event.key === "Z")) {
         if (isTyping) return;
         event.preventDefault();
@@ -3974,6 +4465,11 @@ export default function GteWorkspace({
         return;
       }
       if (event.key === "Escape") {
+        if (scaleToolActive) {
+          event.preventDefault();
+          deactivateScaleTool();
+          return;
+        }
         if (editingChordId !== null) {
           exitChordEdit();
           return;
@@ -3992,9 +4488,74 @@ export default function GteWorkspace({
         setChordMenuDraft(null);
         return;
       }
+      if (event.key === "Enter" && scaleToolActive) {
+        if (isTyping && !target?.closest("[data-scale-hud='true']")) return;
+        event.preventDefault();
+        commitScaleTool();
+        return;
+      }
       if (event.key === "Enter" && editingChordId !== null) {
         if (isTyping || chordNoteMenuIndex !== null) return;
         exitChordEdit();
+        return;
+      }
+      if (
+        event.code === "KeyS" &&
+        !event.shiftKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey
+      ) {
+        if (isTyping) return;
+        event.preventDefault();
+        if (!scaleToolActive) {
+          activateScaleTool();
+        }
+        return;
+      }
+      if (
+        event.code === "KeyH" &&
+        !event.shiftKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        scaleToolActive
+      ) {
+        if (isTyping) return;
+        event.preventDefault();
+        cycleScaleToolModeWithShortcut();
+        return;
+      }
+      if (
+        scaleToolActive &&
+        !isTyping &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        (/^\d$/.test(event.key) || event.key === "." || event.key === "Backspace")
+      ) {
+        event.preventDefault();
+        const now = Date.now();
+        const lastTyped = scaleFactorTypingAtRef.current;
+        let buffer = scaleFactorTypingRef.current ?? "";
+        if (!buffer || now - lastTyped > 1400) {
+          buffer = "";
+        }
+        if (event.key === "Backspace") {
+          buffer = buffer.slice(0, -1);
+        } else if (event.key === ".") {
+          if (buffer.includes(".")) return;
+          buffer = buffer.length ? `${buffer}.` : "0.";
+        } else {
+          buffer += event.key;
+        }
+        scaleFactorTypingRef.current = buffer;
+        scaleFactorTypingAtRef.current = now;
+        if (!buffer) {
+          setScaleFactorInput("");
+          return;
+        }
+        handleScaleFactorInputChange(buffer);
         return;
       }
       if (event.key === "t" || event.key === "T") {
@@ -4034,6 +4595,18 @@ export default function GteWorkspace({
         if (isTyping) return;
         event.preventDefault();
         togglePlayback();
+        return;
+      }
+      if (
+        event.code === "KeyG" &&
+        !event.shiftKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey
+      ) {
+        if (isTyping) return;
+        event.preventDefault();
+        setSnapToGridEnabled((prev) => !prev);
         return;
       }
       if (event.key === "c" || event.key === "C") {
@@ -4137,9 +4710,9 @@ export default function GteWorkspace({
         setSelectedChordIds([]);
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, true);
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [
     isActive,
@@ -4155,12 +4728,20 @@ export default function GteWorkspace({
     guardSingleTrackSelectionAction,
     toggleSliceTool,
     togglePlayback,
+    activateScaleTool,
+    cycleScaleToolModeWithShortcut,
+    commitScaleTool,
+    deactivateScaleTool,
+    handleScaleFactorInputChange,
+    setSnapToGridEnabled,
+    scaleToolActive,
   ]);
 
   useEffect(() => {
     const handleMouseDown = (event: globalThis.MouseEvent) => {
       const target = event.target as HTMLElement | null;
       if (!target) return;
+      if (event.shiftKey && target.closest("[data-gte-track='true']")) return;
       if (!target.closest("[data-cut-edit]")) {
         cancelSegmentEditIfActive();
       }
@@ -4343,6 +4924,48 @@ export default function GteWorkspace({
                   />
                   <span className="text-[9px] leading-none">Join</span>
                 </button>
+                <div className="group relative flex w-[106px] flex-col gap-1">
+                  <select
+                    value={scaleToolMode}
+                    onChange={(event) => {
+                      const nextMode = event.target.value;
+                      if (!isScaleToolMode(nextMode)) return;
+                      setScaleToolMode(nextMode);
+                      if (scaleToolActive) {
+                        applyScalePreview(scaleFactor, { mode: nextMode, syncInput: false });
+                      }
+                    }}
+                    className="h-5 rounded border border-slate-200 bg-white px-1 text-[10px] text-slate-700"
+                    title="Scale mode - Shortcut: H"
+                  >
+                    <option value="length">Length scaling</option>
+                    <option value="start">Start-time scaling</option>
+                    <option value="both">Start + length</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={toggleScaleTool}
+                    disabled={!scaleToolActive && selectedNoteIds.length + selectedChordIds.length === 0}
+                    title="Scale - Shortcut: S"
+                    className={`relative flex h-[27px] w-full items-center justify-center gap-1 rounded-md text-[9px] font-semibold ${
+                      scaleToolActive
+                        ? "bg-amber-500 text-white"
+                        : "border border-slate-200 text-slate-700 hover:bg-slate-100"
+                    } disabled:cursor-not-allowed disabled:text-slate-400`}
+                  >
+                    <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">S</span>
+                    <svg
+                      viewBox="0 0 24 24"
+                      className={`h-3.5 w-3.5 ${scaleToolActive ? "fill-white" : "fill-current"}`}
+                      aria-hidden="true"
+                    >
+                      <path d="M3 10h18v4H3z" />
+                      <path d="M7 6l-4 6 4 6z" />
+                      <path d="M17 6l4 6-4 6z" />
+                    </svg>
+                    <span className="leading-none">Scale</span>
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={toggleSliceTool}
@@ -4430,6 +5053,43 @@ export default function GteWorkspace({
             </div>
           </div>
       )}
+      {scaleToolActive && scaleHudPosition && (
+        <div
+          ref={scaleHudRef}
+          data-scale-hud="true"
+          className="fixed z-[10000] rounded-md border border-amber-300 bg-white/95 px-2 py-1 shadow-lg backdrop-blur"
+          style={{ left: scaleHudPosition.x + 12, top: scaleHudPosition.y + 12 }}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="text-[9px] font-semibold uppercase tracking-wide text-amber-700">
+            {scaleToolMode === "length"
+              ? "Length scaling"
+              : scaleToolMode === "start"
+              ? "Start-time scaling"
+              : "Start + length"}
+          </div>
+          <div className="mt-0.5 flex items-center gap-1">
+            <span className="text-[10px] text-slate-600">x</span>
+            <input
+              type="text"
+              value={scaleFactorInput}
+              onChange={(event) => handleScaleFactorInputChange(event.target.value)}
+              onBlur={() => setScaleFactorInput(formatScaleFactor(scaleFactor))}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commitScaleTool();
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  deactivateScaleTool();
+                }
+              }}
+              className="w-16 rounded border border-slate-200 bg-white px-1 py-0.5 text-[11px] text-slate-700"
+            />
+          </div>
+          <div className="mt-0.5 text-[9px] text-slate-500">Enter or click to apply</div>
+        </div>
+      )}
       {contextMenu && (
         <div
           ref={contextMenuRef}
@@ -4460,7 +5120,7 @@ export default function GteWorkspace({
           </button>
         </div>
       )}
-      {showFloatingUi && (
+      {showToolbarUi && (
       <div className="fixed right-4 bottom-16 z-[9996] flex items-center gap-1 rounded-full border border-slate-200 bg-white/90 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
         <button
           type="button"
@@ -4810,10 +5470,31 @@ export default function GteWorkspace({
               onScroll={handleTimelineOuterScroll}
             >
               <div className="relative pt-5" style={{ width: viewportTimelineWidth }}>
+                <button
+                  type="button"
+                  onClick={handleAddBar}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  className="absolute z-40 flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white/95 text-base font-semibold text-slate-600 shadow-sm hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900"
+                  style={{
+                    left: Math.max(0, Math.min(viewportTimelineWidth - 28, timelineWidth - 14)),
+                    top: 20 + Math.max(0, Math.round(rowHeight / 2) - 14),
+                  }}
+                  title="Add bar to end"
+                  aria-label="Add bar to end"
+                >
+                  +
+                </button>
               <div
                 ref={timelineRef}
                 className={`relative rounded-xl border border-slate-200 bg-white ${
-                  cutToolActive || sliceToolActive ? "cursor-crosshair" : ""
+                  cutToolActive || sliceToolActive
+                    ? "cursor-crosshair"
+                    : scaleToolActive
+                    ? "cursor-ew-resize"
+                    : ""
                 }`}
                 style={{ height: timelineHeight }}
                 onMouseDown={handleTimelineMouseDown}
@@ -5124,17 +5805,22 @@ export default function GteWorkspace({
                 )}
 
                 {snapshot.notes.flatMap((note) => {
+                  const scalePreview = scaleToolActive ? scalePreviewNotes[note.id] : undefined;
                   const preview =
                     dragging?.type === "note" && dragging.id === note.id ? dragPreview : null;
                   const multiDelta =
                     multiDragDelta !== null && selectedNoteIds.includes(note.id) ? multiDragDelta : null;
-                  const displayStart =
-                    multiDelta !== null ? note.startTime + multiDelta : preview?.startTime ?? note.startTime;
+                  const displayStart = scalePreview
+                    ? scalePreview.startTime
+                    : multiDelta !== null
+                    ? note.startTime + multiDelta
+                    : preview?.startTime ?? note.startTime;
                   const displayString = preview?.stringIndex ?? note.tab[0];
-                  const displayLength =
-                    resizingNote?.id === note.id && resizePreviewLength !== null
-                      ? resizePreviewLength
-                      : note.length;
+                  const displayLength = scalePreview
+                    ? scalePreview.length
+                    : resizingNote?.id === note.id && resizePreviewLength !== null
+                    ? resizePreviewLength
+                    : note.length;
                   const segments = getSpanSegments(displayStart, displayLength);
                   const endTime = displayStart + Math.max(1, Math.round(displayLength));
                   return segments.map((segment, idx) => {
@@ -5166,7 +5852,9 @@ export default function GteWorkspace({
                           if (selectedNoteIds.length > 1) return;
                           openNoteMenu(note.id, note.tab[1], note.length, event);
                         }}
-                        className={`absolute cursor-grab rounded-md px-1 text-[11px] font-semibold text-slate-900 ${
+                        className={`absolute rounded-md px-1 text-[11px] font-semibold text-slate-900 ${
+                          scaleToolActive ? "cursor-ew-resize" : "cursor-grab"
+                        } ${
                           selectedNoteIds.includes(note.id)
                             ? "bg-amber-400"
                             : conflictInfo.noteConflicts.has(note.id)
@@ -5208,16 +5896,21 @@ export default function GteWorkspace({
                 })}
 
                 {snapshot.chords.flatMap((chord) => {
+                  const scalePreview = scaleToolActive ? scalePreviewChords[chord.id] : undefined;
                   const preview =
                     dragging?.type === "chord" && dragging.id === chord.id ? dragPreview : null;
                   const multiDelta =
                     multiDragDelta !== null && selectedChordIds.includes(chord.id) ? multiDragDelta : null;
-                  const displayStart =
-                    multiDelta !== null ? chord.startTime + multiDelta : preview?.startTime ?? chord.startTime;
-                  const displayLength =
-                    resizingChord?.id === chord.id && resizeChordPreviewLength !== null
-                      ? resizeChordPreviewLength
-                      : chord.length;
+                  const displayStart = scalePreview
+                    ? scalePreview.startTime
+                    : multiDelta !== null
+                    ? chord.startTime + multiDelta
+                    : preview?.startTime ?? chord.startTime;
+                  const displayLength = scalePreview
+                    ? scalePreview.length
+                    : resizingChord?.id === chord.id && resizeChordPreviewLength !== null
+                    ? resizeChordPreviewLength
+                    : chord.length;
                   const segments = getSpanSegments(displayStart, displayLength);
                   const endTime = displayStart + Math.max(1, Math.round(displayLength));
                   return chord.currentTabs.flatMap((tab, idx) =>
@@ -5271,7 +5964,9 @@ export default function GteWorkspace({
                             }
                             openChordMenu(chord.id, chord.length, event);
                           }}
-                          className={`absolute cursor-grab rounded-md px-1 text-[11px] font-semibold text-slate-900 ${
+                          className={`absolute rounded-md px-1 text-[11px] font-semibold text-slate-900 ${
+                            scaleToolActive ? "cursor-ew-resize" : "cursor-grab"
+                          } ${
                             selectedChordIds.includes(chord.id) ? "bg-blue-400" : "bg-blue-300"
                           } ${isDimmed ? "opacity-30 pointer-events-none" : ""}`}
                           style={{
@@ -5359,6 +6054,7 @@ export default function GteWorkspace({
                           <input
                             type="number"
                             min={1}
+                            max={MAX_EVENT_LENGTH_FRAMES}
                             className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
                             value={noteMenuDraft.length}
                             onChange={(event) =>
@@ -5452,6 +6148,7 @@ export default function GteWorkspace({
                           <input
                             type="number"
                             min={1}
+                            max={MAX_EVENT_LENGTH_FRAMES}
                             className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
                             value={chordMenuDraft.length}
                             onChange={(event) =>
@@ -5623,6 +6320,7 @@ export default function GteWorkspace({
                           <input
                             type="number"
                             min={1}
+                            max={MAX_EVENT_LENGTH_FRAMES}
                             className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
                             value={chordNoteMenuDraft.length}
                             onChange={(event) =>
@@ -5706,11 +6404,17 @@ export default function GteWorkspace({
                         <input
                           type="number"
                           min={1}
+                          max={MAX_EVENT_LENGTH_FRAMES}
                           value={draftNote.length ?? ""}
                           onChange={(e) =>
-                            setDraftNote((prev) =>
-                              prev ? { ...prev, length: parseOptionalNumber(e.target.value) } : prev
-                            )
+                            setDraftNote((prev) => {
+                              if (!prev) return prev;
+                              const parsed = parseOptionalNumber(e.target.value);
+                              return {
+                                ...prev,
+                                length: parsed === null ? null : clampEventLength(parsed),
+                              };
+                            })
                           }
                           onKeyDown={(event) => {
                             if (event.key === "Enter") {

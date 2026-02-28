@@ -33,10 +33,42 @@ const DEFAULT_SECONDS_PER_BAR = 2;
 const CANVAS_AUTOSAVE_MS = 20000;
 const MAX_CANVAS_HISTORY = 64;
 const STANDARD_TUNING_MIDI = [64, 59, 55, 50, 45, 40];
+const TIMELINE_ZOOM_MIN = 10;
+const TIMELINE_ZOOM_MAX = 250;
+const TIMELINE_ZOOM_DEFAULT = 100;
 
 const toNumber = (value: unknown, fallback: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const NON_TEXT_INPUT_TYPES = new Set([
+  "button",
+  "submit",
+  "reset",
+  "checkbox",
+  "radio",
+  "range",
+  "color",
+  "file",
+  "image",
+  "hidden",
+]);
+
+const isShortcutTextEntryTarget = (target: HTMLElement | null) => {
+  if (!target) return false;
+  if (target.isContentEditable || target.closest("textarea, select")) return true;
+  const input = target.closest("input");
+  if (!(input instanceof HTMLInputElement)) return false;
+  const type = (input.type || "text").toLowerCase();
+  return !NON_TEXT_INPUT_TYPES.has(type);
+};
+
+const blurFocusedShortcutControl = (target: HTMLElement | null) => {
+  const focusedControl = target?.closest("button, a, input[type='range']");
+  if (focusedControl instanceof HTMLElement) {
+    focusedControl.blur();
+  }
 };
 
 const fpsFromSecondsPerBar = (secondsPerBar: number) =>
@@ -136,6 +168,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [deletingLaneId, setDeletingLaneId] = useState<string | null>(null);
   const [confirmDeleteTrackId, setConfirmDeleteTrackId] = useState<string | null>(null);
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
+  const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
   const [sharedTimelineScrollRatio, setSharedTimelineScrollRatio] = useState(0);
   const [globalPlaybackFrame, setGlobalPlaybackFrame] = useState(0);
   const [globalPlaybackIsPlaying, setGlobalPlaybackIsPlaying] = useState(false);
@@ -163,6 +196,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const globalPlaybackStartFrameRef = useRef(0);
   const globalPlaybackEndFrameRef = useRef<number | null>(null);
   const globalPlaybackAudioStartRef = useRef<number | null>(null);
+  const previousTrackMuteByIdRef = useRef<Record<string, boolean> | null>(null);
   const canvasUndoRef = useRef<CanvasSnapshot[]>([]);
   const canvasRedoRef = useRef<CanvasSnapshot[]>([]);
   const router = useRouter();
@@ -330,6 +364,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     const target = event.target;
     if (!(target instanceof Element)) return;
     if (target.closest("[data-gte-track='true']")) return;
+    if (target.closest("button, a, input, textarea, select, label, [role='button']")) return;
     setActiveLaneId(null);
   }, []);
 
@@ -667,12 +702,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (activeLaneId !== null) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      const isTyping =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable ||
-          target.closest("select"));
+      const isTyping = isShortcutTextEntryTarget(target);
+      if (!isTyping) {
+        blurFocusedShortcutControl(target);
+      }
       if (isTyping) return;
       if ((event.ctrlKey || event.metaKey) && (event.key === "z" || event.key === "Z")) {
         event.preventDefault();
@@ -688,8 +721,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         handleCanvasRedo();
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [activeLaneId, handleCanvasRedo, handleCanvasUndo]);
 
   const saveStatus = useMemo(() => {
@@ -1087,10 +1120,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [canvas, globalPlaybackFps, globalPlaybackVolume, trackMuteById]
   );
 
-  const startGlobalPlayback = useCallback(() => {
+  const startGlobalPlayback = useCallback((startFrameOverride?: number) => {
     if (!canvas) return;
     if (globalPlaybackRafRef.current !== null) return;
-    const startFrame = Math.max(0, Math.min(canvasTimelineEnd, Math.round(globalPlaybackFrame)));
+    const startFrame = Math.max(
+      0,
+      Math.min(
+        canvasTimelineEnd,
+        Math.round(startFrameOverride ?? globalPlaybackFrameRef.current)
+      )
+    );
     stopGlobalPlaybackAudio();
     const scheduled = scheduleGlobalPlayback(startFrame);
     if (!scheduled?.ctx) {
@@ -1128,7 +1167,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [
     canvas,
     canvasTimelineEnd,
-    globalPlaybackFrame,
     globalPlaybackFps,
     scheduleGlobalPlayback,
     stopGlobalPlayback,
@@ -1140,27 +1178,37 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       stopGlobalPlayback();
       return;
     }
-    startGlobalPlayback();
-  }, [globalPlaybackIsPlaying, startGlobalPlayback, stopGlobalPlayback]);
+    const atTimelineEnd = Math.round(globalPlaybackFrameRef.current) >= canvasTimelineEnd;
+    startGlobalPlayback(atTimelineEnd ? 0 : undefined);
+  }, [canvasTimelineEnd, globalPlaybackIsPlaying, startGlobalPlayback, stopGlobalPlayback]);
 
   useEffect(() => {
     if (activeLaneId !== null) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      const isTyping =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable ||
-          target.closest("select"));
+      const isTyping = isShortcutTextEntryTarget(target);
+      if (!isTyping) {
+        blurFocusedShortcutControl(target);
+      }
       if (isTyping) return;
+      if (
+        event.code === "KeyG" &&
+        !event.shiftKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey
+      ) {
+        event.preventDefault();
+        setGlobalSnapToGridEnabled((prev) => !prev);
+        return;
+      }
       if (event.code === "Space") {
         event.preventDefault();
         toggleGlobalPlayback();
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [activeLaneId, toggleGlobalPlayback]);
 
   const seekGlobalPlayback = useCallback(
@@ -1201,6 +1249,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, []);
 
   useEffect(() => {
+    const previousTrackMuteById = previousTrackMuteByIdRef.current;
+    previousTrackMuteByIdRef.current = trackMuteById;
+    if (!previousTrackMuteById || previousTrackMuteById === trackMuteById) return;
     if (!globalPlaybackIsPlaying) return;
     const resumeFrame = Math.max(0, Math.round(globalPlaybackFrameRef.current));
     stopGlobalPlayback();
@@ -1296,6 +1347,29 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                 />
               </label>
+              <label
+                className="text-small muted"
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                Time scale
+                <input
+                  type="range"
+                  min={TIMELINE_ZOOM_MIN}
+                  max={TIMELINE_ZOOM_MAX}
+                  step={1}
+                  value={timelineZoomPercent}
+                  onChange={(event) => {
+                    const next = Number(event.target.value);
+                    if (!Number.isFinite(next)) return;
+                    setTimelineZoomPercent(
+                      Math.max(TIMELINE_ZOOM_MIN, Math.min(TIMELINE_ZOOM_MAX, Math.round(next)))
+                    );
+                  }}
+                  className="w-28"
+                  title="Scale editor width in time direction"
+                />
+                <span className="text-[11px] text-slate-600">{timelineZoomPercent}%</span>
+              </label>
               <button
                 type="button"
                 onClick={() => setGlobalSnapToGridEnabled((prev) => !prev)}
@@ -1304,7 +1378,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     ? "border-emerald-300 bg-emerald-100 text-emerald-800"
                     : "border-slate-200 bg-white text-slate-600"
                 }`}
-                title="Global snap to grid for all tracks"
+                title="Global snap to grid for all tracks. shortcut 'G'"
               >
                 Snap to grid: {globalSnapToGridEnabled ? "On" : "Off"}
               </button>
@@ -1359,10 +1433,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             <button
               type="button"
               onClick={() => void commitCanvasToBackend({ force: true })}
-              className="button-primary button-small"
+              className="button-save button-small"
               disabled={savingCanvas || isGuestMode}
+              aria-label={savingCanvas ? "Saving..." : "Save now"}
+              title={savingCanvas ? "Saving..." : "Save now"}
+              style={{ paddingInline: 10, minWidth: 40 }}
             >
-              {savingCanvas ? "Saving..." : "Save now"}
+              <img
+                src="/icons/save-now.png"
+                alt=""
+                aria-hidden="true"
+                draggable={false}
+                style={{ width: 16, height: 16, display: "block" }}
+              />
             </button>
           </div>
         </div>
@@ -1451,6 +1534,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     sharedViewportBarCount={sharedViewportBarCount}
                     sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                     onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
+                    timelineZoomFactor={timelineZoomPercent / 100}
                     historyUndoCount={canvasUndoCount}
                     historyRedoCount={canvasRedoCount}
                     onRequestUndo={handleCanvasUndo}
