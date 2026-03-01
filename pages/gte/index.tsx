@@ -1,6 +1,6 @@
 import { GetServerSideProps } from "next";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
@@ -24,6 +24,43 @@ export default function GteIndexPage() {
     return value === "1" || value === "true";
   }, [router.isReady, router.query.importGuest]);
 
+  const hasGuestDraftContent = useCallback((snapshot: EditorSnapshot | null) => {
+    if (!snapshot) return false;
+    if (snapshot.notes.length > 0 || snapshot.chords.length > 0) return true;
+    if (snapshot.cutPositionsWithCoords.length > 1) return true;
+    if ((snapshot.name || "Untitled") !== "Untitled") return true;
+    return false;
+  }, []);
+
+  const loadGuestDraft = useCallback(async () => {
+    try {
+      const data = await gteApi.getEditor(GTE_GUEST_EDITOR_ID);
+      if (data && typeof data === "object" && Array.isArray((data as any).editors)) {
+        const canvas = data as any;
+        const lane = canvas.editors?.[0];
+        if (lane) {
+          const snapshot: EditorSnapshot = {
+            ...lane,
+            id: GTE_GUEST_EDITOR_ID,
+            name: canvas.name || lane.name || "Untitled",
+            secondsPerBar: canvas.secondsPerBar ?? lane.secondsPerBar,
+          };
+          if (hasGuestDraftContent(snapshot)) {
+            setGuestDraft(snapshot);
+            return snapshot;
+          }
+        }
+      }
+    } catch {
+      // fall back to legacy browser storage below
+    }
+
+    const legacy = readGuestDraft();
+    const nextLegacy = hasGuestDraftContent(legacy) ? legacy : null;
+    setGuestDraft(nextLegacy);
+    return nextLegacy;
+  }, [hasGuestDraftContent]);
+
   const loadEditors = async () => {
     setLoading(true);
     setError(null);
@@ -42,11 +79,13 @@ export default function GteIndexPage() {
   }, []);
 
   useEffect(() => {
-    const refresh = () => setGuestDraft(readGuestDraft());
+    const refresh = () => {
+      void loadGuestDraft();
+    };
     refresh();
     window.addEventListener("focus", refresh);
     return () => window.removeEventListener("focus", refresh);
-  }, []);
+  }, [loadGuestDraft]);
 
   const handleCreate = async () => {
     setCreating(true);
@@ -78,10 +117,10 @@ export default function GteIndexPage() {
 
   const handleImportGuestDraft = async () => {
     if (guestImporting) return;
-    const draft = readGuestDraft();
+    const draft = guestDraft ?? (await loadGuestDraft());
     if (!draft) {
       setGuestDraft(null);
-      setError("No local draft found to import.");
+      setError("No guest draft found to import.");
       return;
     }
     setGuestImporting(true);
@@ -96,19 +135,21 @@ export default function GteIndexPage() {
       };
       await gteApi.applySnapshot(created.editorId, payload as any);
       await gteApi.commitEditor(created.editorId);
+      await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
       clearGuestDraft();
       setGuestDraft(null);
       await router.push(`/gte/${created.editorId}`);
     } catch (err: any) {
-      setError(err?.message || "Could not import local draft.");
+      setError(err?.message || "Could not import guest draft.");
     } finally {
       setGuestImporting(false);
     }
   };
 
-  const handleDiscardGuestDraft = () => {
+  const handleDiscardGuestDraft = async () => {
     if (!guestDraft) return;
-    if (!window.confirm("Discard your local guest draft? This cannot be undone.")) return;
+    if (!window.confirm("Discard your guest draft? This cannot be undone.")) return;
+    await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
     clearGuestDraft();
     setGuestDraft(null);
   };
@@ -123,7 +164,7 @@ export default function GteIndexPage() {
           </div>
           <div className="button-row">
             <Link href={`/gte/${GTE_GUEST_EDITOR_ID}`} className="button-secondary button-small">
-              Local guest editor
+              Guest editor
             </Link>
             <Link href="/account" className="button-secondary button-small">
               Back to account
@@ -143,7 +184,7 @@ export default function GteIndexPage() {
               <div className="page-header" style={{ gap: "10px" }}>
                 <div>
                   <p style={{ margin: 0, fontWeight: 600 }}>
-                    Local guest draft found{guestDraft.name ? `: ${guestDraft.name}` : ""}
+                    Guest draft found{guestDraft.name ? `: ${guestDraft.name}` : ""}
                   </p>
                   <p className="muted text-small" style={{ margin: 0 }}>
                     Import it into your account to add it to your editor library.
@@ -159,12 +200,12 @@ export default function GteIndexPage() {
                     {guestImporting ? "Importing..." : "Import draft"}
                   </button>
                   <Link href={`/gte/${GTE_GUEST_EDITOR_ID}`} className="button-secondary button-small">
-                    Keep editing local
+                    Keep editing guest
                   </Link>
                   <button
                     type="button"
                     className="button-secondary button-small"
-                    onClick={handleDiscardGuestDraft}
+                    onClick={() => void handleDiscardGuestDraft()}
                     disabled={guestImporting}
                   >
                     Discard draft

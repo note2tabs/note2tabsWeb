@@ -20,7 +20,6 @@ import {
   GTE_GUEST_EDITOR_ID,
   createGuestSnapshot,
   readGuestDraft,
-  writeGuestDraft,
 } from "../../lib/gteGuestDraft";
 
 type Props = {
@@ -84,6 +83,7 @@ const normalizeLane = (
   index: number
 ): EditorSnapshot => {
   const safeSeconds = Math.max(0.1, toNumber(lane.secondsPerBar, secondsPerBar));
+  const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)));
   return {
     ...lane,
     id: laneId,
@@ -91,11 +91,14 @@ const normalizeLane = (
     framesPerMessure: FIXED_FRAMES_PER_BAR,
     secondsPerBar: safeSeconds,
     fps: fpsFromSecondsPerBar(safeSeconds),
-    totalFrames: Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR))),
+    totalFrames,
     timeSignature: Math.max(1, Math.min(64, Math.round(toNumber(lane.timeSignature, 8)))),
     notes: Array.isArray(lane.notes) ? lane.notes : [],
     chords: Array.isArray(lane.chords) ? lane.chords : [],
-    cutPositionsWithCoords: Array.isArray(lane.cutPositionsWithCoords) ? lane.cutPositionsWithCoords : [],
+    cutPositionsWithCoords:
+      Array.isArray(lane.cutPositionsWithCoords) && lane.cutPositionsWithCoords.length
+        ? lane.cutPositionsWithCoords
+        : [[[0, totalFrames], [2, 0]]],
     optimalsByTime:
       lane.optimalsByTime && typeof lane.optimalsByTime === "object" ? lane.optimalsByTime : {},
     tabRef: Array.isArray(lane.tabRef) ? lane.tabRef : createGuestSnapshot(laneId).tabRef,
@@ -141,11 +144,6 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
     secondsPerBar: lane.secondsPerBar || DEFAULT_SECONDS_PER_BAR,
     editors: [lane],
   };
-};
-
-const buildLocalLane = (index: number, secondsPerBar: number): EditorSnapshot => {
-  const laneId = `ed-${index + 1}`;
-  return normalizeLane(createGuestSnapshot(laneId), laneId, secondsPerBar, index);
 };
 
 type BarSelectionState = {
@@ -712,18 +710,47 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!editorId) return;
     setSharedTimelineScrollRatio(0);
     if (isGuestMode) {
-      setLoading(true);
-      setError(null);
-      const localSnapshot = readGuestDraft() ?? createGuestSnapshot(editorId);
-      const normalized = normalizeCanvas(localSnapshot, editorId);
-      setCanvas(normalized);
-      resetCanvasHistory();
-      setActiveLaneId((prev) =>
-        prev && normalized.editors.some((lane) => lane.id === prev) ? prev : normalized.editors[0]?.id || null
-      );
-      setLastCommittedAt(normalized.updatedAt || null);
-      setHasPendingCommit(false);
-      setLoading(false);
+      const loadGuestEditor = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const data = await gteApi.getEditor(editorId);
+          let normalized = normalizeCanvas(data, editorId);
+          const legacy = readGuestDraft();
+          const hasSessionContent =
+            (normalized.name || "Untitled") !== "Untitled" ||
+            normalized.editors.some(
+              (lane) =>
+                lane.notes.length > 0 ||
+                lane.chords.length > 0 ||
+                lane.cutPositionsWithCoords.length > 1
+            );
+          if (!hasSessionContent && legacy) {
+            normalized = normalizeCanvas(
+              {
+                id: editorId,
+                name: legacy.name || "Untitled",
+                secondsPerBar: legacy.secondsPerBar,
+                editors: [{ ...legacy, id: "ed-1", name: legacy.name || "Editor 1" }],
+              },
+              editorId
+            );
+            await gteApi.applySnapshot(editorId, normalized);
+          }
+          setCanvas(normalized);
+          resetCanvasHistory();
+          setActiveLaneId((prev) =>
+            prev && normalized.editors.some((lane) => lane.id === prev) ? prev : normalized.editors[0]?.id || null
+          );
+          setLastCommittedAt(normalized.updatedAt || null);
+          setHasPendingCommit(false);
+        } catch (err: any) {
+          setError(err?.message || "Could not load guest editor.");
+        } finally {
+          setLoading(false);
+        }
+      };
+      void loadGuestEditor();
       return;
     }
     void loadEditor();
@@ -821,25 +848,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setActiveLaneId(null);
   }, []);
 
-  useEffect(() => {
-    if (!isGuestMode || !canvas) return;
-    const firstLane = canvas.editors[0];
-    if (!firstLane) return;
-    writeGuestDraft({
-      ...firstLane,
-      id: GTE_GUEST_EDITOR_ID,
-      name: canvas.name || firstLane.name || "Untitled",
-      updatedAt: new Date().toISOString(),
-      secondsPerBar: canvas.secondsPerBar || firstLane.secondsPerBar || DEFAULT_SECONDS_PER_BAR,
-    });
-  }, [isGuestMode, canvas]);
-
   const commitCanvasToBackend = useCallback(
     async (options?: { force?: boolean; keepalive?: boolean }) => {
       if (!canvas) return;
       if (isGuestMode) {
-        setHasPendingCommit(false);
-        setLastCommittedAt(new Date().toISOString());
+        if (!options?.force && !hasPendingCommit) return;
+        setSavingCanvas(true);
+        setSaveError(null);
+        try {
+          const res = await gteApi.applySnapshot(editorId, cloneCanvas(canvas));
+          const normalized = normalizeCanvas((res as any).canvas ?? res.snapshot ?? canvas, editorId);
+          setCanvas(normalized);
+          setLastCommittedAt(normalized.updatedAt || new Date().toISOString());
+          setHasPendingCommit(false);
+        } catch (err: any) {
+          setSaveError(err?.message || "Could not save guest session.");
+        } finally {
+          setSavingCanvas(false);
+        }
         return;
       }
       if (!options?.force && !hasPendingCommit) return;
@@ -857,12 +883,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         setSavingCanvas(false);
       }
     },
-    [canvas, editorId, hasPendingCommit, isGuestMode]
+    [canvas, cloneCanvas, editorId, hasPendingCommit, isGuestMode]
   );
 
   const syncCanvasDraftToBackend = useCallback(
     async (nextCanvas: CanvasSnapshot, options?: { silent?: boolean }) => {
-      if (isGuestMode) return;
       try {
         await gteApi.applySnapshot(editorId, cloneCanvas(nextCanvas));
       } catch (err: any) {
@@ -871,19 +896,28 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         }
       }
     },
-    [cloneCanvas, editorId, isGuestMode]
+    [cloneCanvas, editorId]
   );
 
   useEffect(() => {
-    if (isGuestMode || !hasPendingCommit) return;
-    const timer = setInterval(() => {
-      void commitCanvasToBackend();
-    }, CANVAS_AUTOSAVE_MS);
-    return () => clearInterval(timer);
-  }, [isGuestMode, hasPendingCommit, commitCanvasToBackend]);
+    if (!hasPendingCommit) return;
+    const timer = isGuestMode
+      ? setTimeout(() => {
+          void commitCanvasToBackend();
+        }, 1000)
+      : setInterval(() => {
+          void commitCanvasToBackend();
+        }, CANVAS_AUTOSAVE_MS);
+    return () => {
+      if (isGuestMode) {
+        clearTimeout(timer);
+        return;
+      }
+      clearInterval(timer);
+    };
+  }, [hasPendingCommit, commitCanvasToBackend, isGuestMode]);
 
   useEffect(() => {
-    if (isGuestMode) return;
     const flush = () => {
       if (!hasPendingCommit) return;
       void commitCanvasToBackend({ force: true, keepalive: true });
@@ -901,7 +935,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [isGuestMode, hasPendingCommit, commitCanvasToBackend]);
+  }, [hasPendingCommit, commitCanvasToBackend]);
 
   const applyCanvasUpdate = useCallback(
     (next: CanvasSnapshot, options?: { markDirty?: boolean; recordHistory?: boolean }) => {
@@ -923,17 +957,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     const trimmed = nameDraft.trim();
     const normalizedName = trimmed || "Untitled";
     if (normalizedName === (canvas.name || "Untitled")) return;
-    if (isGuestMode) {
-      applyCanvasUpdate(
-        {
-          ...canvas,
-          name: normalizedName,
-          updatedAt: new Date().toISOString(),
-        },
-        { markDirty: true }
-      );
-      return;
-    }
     setNameSaving(true);
     setNameError(null);
     try {
@@ -942,7 +965,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         (res as any).canvas ? (res as any).canvas : (res as any).snapshot,
         editorId
       );
-      applyCanvasUpdate(nextCanvas, { markDirty: true });
+      applyCanvasUpdate(nextCanvas, { markDirty: !isGuestMode });
     } catch (err: any) {
       setNameError(err?.message || "Could not update name.");
     } finally {
@@ -960,26 +983,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
     const normalized = Math.max(0.1, next);
     if (Math.abs(normalized - (canvas.secondsPerBar || DEFAULT_SECONDS_PER_BAR)) < 0.0001) return;
-    if (isGuestMode) {
-      applyCanvasUpdate(
-        {
-          ...canvas,
-          secondsPerBar: normalized,
-          updatedAt: new Date().toISOString(),
-          editors: canvas.editors.map((lane, index) =>
-            normalizeLane(lane, lane.id || `ed-${index + 1}`, normalized, index)
-          ),
-        },
-        { markDirty: true }
-      );
-      return;
-    }
     setSecondsSaving(true);
     setSecondsError(null);
     try {
       const res = await gteApi.setSecondsPerBar(editorId, normalized);
       const nextCanvas = normalizeCanvas((res as any).canvas ?? canvas, editorId);
-      applyCanvasUpdate(nextCanvas, { markDirty: true });
+      applyCanvasUpdate(nextCanvas, { markDirty: !isGuestMode });
     } catch (err: any) {
       setSecondsError(err?.message || "Could not update seconds per bar.");
     } finally {
@@ -989,28 +998,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const handleAddLane = async () => {
     if (!canvas || addingLane) return;
-    if (isGuestMode) {
-      const existing = new Set(canvas.editors.map((lane) => lane.id));
-      let laneIndex = canvas.editors.length + 1;
-      while (existing.has(`ed-${laneIndex}`)) {
-        laneIndex += 1;
-      }
-      const lane = buildLocalLane(laneIndex - 1, canvas.secondsPerBar || DEFAULT_SECONDS_PER_BAR);
-      const nextCanvas = {
-        ...canvas,
-        updatedAt: new Date().toISOString(),
-        editors: [...canvas.editors, lane],
-      };
-      applyCanvasUpdate(nextCanvas, { markDirty: true });
-      setActiveLaneId(lane.id);
-      return;
-    }
     setAddingLane(true);
     setError(null);
     try {
       const res = await gteApi.addCanvasEditor(editorId);
       const nextCanvas = normalizeCanvas(res.canvas, editorId);
-      applyCanvasUpdate(nextCanvas, { markDirty: true });
+      applyCanvasUpdate(nextCanvas, { markDirty: !isGuestMode });
       setActiveLaneId(res.editor?.id || nextCanvas.editors[nextCanvas.editors.length - 1]?.id || null);
     } catch (err: any) {
       setError(err?.message || "Could not add track.");
@@ -1039,22 +1032,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
     setConfirmDeleteTrackId(null);
 
-    if (isGuestMode) {
-      const nextEditors = canvas.editors.filter((lane) => lane.id !== laneId);
-      const nextCanvas = { ...canvas, editors: nextEditors, updatedAt: new Date().toISOString() };
-      applyCanvasUpdate(nextCanvas, { markDirty: true });
-      if (activeLaneId === laneId) {
-        setActiveLaneId(nextEditors[0]?.id || null);
-      }
-      return;
-    }
-
     setDeletingLaneId(laneId);
     setError(null);
     try {
       const res = await gteApi.deleteCanvasEditor(editorId, laneId);
       const nextCanvas = normalizeCanvas(res.canvas, editorId);
-      applyCanvasUpdate(nextCanvas, { markDirty: true });
+      applyCanvasUpdate(nextCanvas, { markDirty: !isGuestMode });
       if (activeLaneId === laneId) {
         setActiveLaneId(nextCanvas.editors[0]?.id || null);
       }
@@ -1078,26 +1061,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
       setError(null);
       try {
-        if (isGuestMode) {
-          const nextEditors = [...canvas.editors];
-          const [moved] = nextEditors.splice(currentIndex, 1);
-          if (!moved) return;
-          nextEditors.splice(nextIndex, 0, moved);
-          applyCanvasUpdate(
-            normalizeCanvas(
-              {
-                ...canvas,
-                editors: nextEditors,
-                updatedAt: new Date().toISOString(),
-              },
-              editorId
-            ),
-            { markDirty: true }
-          );
-        } else {
-          const res = await gteApi.reorderCanvasEditor(editorId, laneId, nextIndex);
-          applyCanvasUpdate(normalizeCanvas(res.canvas, editorId), { markDirty: true });
-        }
+        const res = await gteApi.reorderCanvasEditor(editorId, laneId, nextIndex);
+        applyCanvasUpdate(normalizeCanvas(res.canvas, editorId), { markDirty: !isGuestMode });
         setActiveLaneId(laneId);
       } catch (err: any) {
         setError(err?.message || "Could not reorder tracks.");
@@ -1373,7 +1338,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [activeLaneId, handleCanvasRedo, handleCanvasUndo]);
 
   const saveStatus = useMemo(() => {
-    if (isGuestMode) return "Local draft only";
+    if (isGuestMode) {
+      if (savingCanvas) return "Saving guest session...";
+      if (hasPendingCommit) return "Unsaved guest session changes";
+      return "Guest session only";
+    }
     if (savingCanvas) return "Saving...";
     if (hasPendingCommit) return "Unsaved canvas changes";
     if (lastCommittedAt) {
@@ -2319,7 +2288,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     onSnapshotChange={(nextSnapshot, options) =>
                       handleLaneSnapshotChange(laneId, nextSnapshot, options)
                     }
-                    allowBackend={!isGuestMode}
+                    allowBackend
                     embedded
                     isActive={isActive}
                     onFocusWorkspace={() => setActiveLaneId(laneId)}

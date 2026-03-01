@@ -85,9 +85,11 @@ const ROW_HEIGHT = 24;
 const ROW_GAP = 80;
 const BARS_PER_ROW = 3;
 const DEFAULT_NOTE_LENGTH = 20;
+const DEFAULT_MAX_FRET = 22;
 const MAX_EVENT_LENGTH_FRAMES = 800;
 const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
+const DEFAULT_CUT_COORD: TabCoord = [2, 0];
 const CUT_SEGMENT_HEIGHT = 20;
 const CUT_SEGMENT_OFFSET = 14;
 const CUT_SEGMENT_MIN_WIDTH = 28;
@@ -170,6 +172,146 @@ const parseOptionalNumber = (value: string): OptionalNumber => {
 
 const cloneTabCoord = (tab: TabCoord): TabCoord => [tab[0], tab[1]];
 
+const getMaxFret = (snapshot: Pick<EditorSnapshot, "tabRef">) =>
+  snapshot.tabRef?.[0]?.length ? snapshot.tabRef[0].length - 1 : DEFAULT_MAX_FRET;
+
+const isTabCoordValidForSnapshot = (snapshot: Pick<EditorSnapshot, "tabRef">, tab: TabCoord) => {
+  const maxFret = getMaxFret(snapshot);
+  return (
+    Number.isInteger(tab[0]) &&
+    Number.isInteger(tab[1]) &&
+    tab[0] >= 0 &&
+    tab[0] <= 5 &&
+    tab[1] >= 0 &&
+    tab[1] <= maxFret
+  );
+};
+
+const clampTabCoordInSnapshot = (snapshot: Pick<EditorSnapshot, "tabRef">, tab?: TabCoord | null): TabCoord => {
+  const maxFret = getMaxFret(snapshot);
+  const source = tab ?? DEFAULT_CUT_COORD;
+  const stringIndex = Number.isFinite(source[0]) ? Math.max(0, Math.min(5, Math.round(source[0]))) : 0;
+  const fret = Number.isFinite(source[1])
+    ? Math.max(0, Math.min(maxFret, Math.round(source[1])))
+    : Math.min(maxFret, DEFAULT_CUT_COORD[1]);
+  return [stringIndex, fret];
+};
+
+const buildDefaultCutRegions = (draft: EditorSnapshot): CutWithCoord[] => {
+  const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(draft.totalFrames || FIXED_FRAMES_PER_BAR));
+  return [[[0, totalFrames], clampTabCoordInSnapshot(draft, DEFAULT_CUT_COORD)]];
+};
+
+const normalizeCutRegions = (draft: EditorSnapshot, regions: CutWithCoord[]): CutWithCoord[] => {
+  const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(draft.totalFrames || FIXED_FRAMES_PER_BAR));
+  const normalized = regions
+    .map((entry) => {
+      const start = Math.max(0, Math.min(totalFrames - 1, Math.round(entry[0]?.[0] ?? 0)));
+      const end = Math.max(start + 1, Math.min(totalFrames, Math.round(entry[0]?.[1] ?? totalFrames)));
+      return [[start, end], clampTabCoordInSnapshot(draft, entry[1])] as CutWithCoord;
+    })
+    .filter((entry) => entry[0][1] > entry[0][0])
+    .sort((left, right) => left[0][0] - right[0][0]);
+  return normalized.length ? normalized : buildDefaultCutRegions(draft);
+};
+
+const getCutRegions = (draft: EditorSnapshot) =>
+  normalizeCutRegions(draft, Array.isArray(draft.cutPositionsWithCoords) ? draft.cutPositionsWithCoords : []);
+
+const setCutRegionsInSnapshot = (draft: EditorSnapshot, regions: CutWithCoord[]) => {
+  draft.cutPositionsWithCoords = normalizeCutRegions(draft, regions);
+};
+
+const applyManualCutsInSnapshot = (draft: EditorSnapshot, cutPositionsWithCoords: CutWithCoord[]) => {
+  setCutRegionsInSnapshot(draft, cutPositionsWithCoords);
+};
+
+const insertCutAtInSnapshot = (draft: EditorSnapshot, time: number, coord?: TabCoord) => {
+  const regions = getCutRegions(draft);
+  const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(draft.totalFrames || FIXED_FRAMES_PER_BAR));
+  if (totalFrames <= 1) return;
+  const insertTime = Math.max(1, Math.min(totalFrames - 1, Math.round(time)));
+  const targetIndex = regions.findIndex((entry) => entry[0][0] < insertTime && entry[0][1] > insertTime);
+  if (targetIndex < 0) return;
+  const [targetRegion, targetCoord] = regions[targetIndex];
+  const next = [...regions];
+  next.splice(
+    targetIndex,
+    1,
+    [[targetRegion[0], insertTime], cloneTabCoord(targetCoord)],
+    [[insertTime, targetRegion[1]], clampTabCoordInSnapshot(draft, coord ?? targetCoord)]
+  );
+  setCutRegionsInSnapshot(draft, next);
+};
+
+const shiftCutBoundaryInSnapshot = (draft: EditorSnapshot, boundaryIndex: number, newTime: number) => {
+  const regions = getCutRegions(draft);
+  if (boundaryIndex < 0 || boundaryIndex >= regions.length - 1) return;
+  const left = regions[boundaryIndex];
+  const right = regions[boundaryIndex + 1];
+  const minTime = left[0][0] + 1;
+  const maxTime = right[0][1] - 1;
+  if (maxTime < minTime) return;
+  const nextTime = Math.max(minTime, Math.min(maxTime, Math.round(newTime)));
+  const next = [...regions];
+  next[boundaryIndex] = [[left[0][0], nextTime], cloneTabCoord(left[1])];
+  next[boundaryIndex + 1] = [[nextTime, right[0][1]], cloneTabCoord(right[1])];
+  setCutRegionsInSnapshot(draft, next);
+};
+
+const deleteCutBoundaryInSnapshot = (draft: EditorSnapshot, boundaryIndex: number) => {
+  const regions = getCutRegions(draft);
+  if (boundaryIndex < 0 || boundaryIndex >= regions.length - 1) return;
+  const left = regions[boundaryIndex];
+  const right = regions[boundaryIndex + 1];
+  const next = [...regions];
+  next.splice(boundaryIndex, 2, [[left[0][0], right[0][1]], cloneTabCoord(left[1])]);
+  setCutRegionsInSnapshot(draft, next);
+};
+
+const generateCutsInSnapshot = (draft: EditorSnapshot) => {
+  const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(draft.totalFrames || FIXED_FRAMES_PER_BAR));
+  const events = [
+    ...draft.notes.map((note) => ({
+      time: Math.max(0, Math.min(totalFrames, Math.round(note.startTime))),
+      coord: clampTabCoordInSnapshot(draft, note.tab),
+    })),
+    ...draft.chords
+      .filter((chord) => chord.currentTabs.length > 0)
+      .map((chord) => ({
+        time: Math.max(0, Math.min(totalFrames, Math.round(chord.startTime))),
+        coord: clampTabCoordInSnapshot(draft, chord.currentTabs[0]),
+      })),
+  ].sort((left, right) => left.time - right.time);
+
+  if (!events.length) {
+    draft.cutPositionsWithCoords = buildDefaultCutRegions(draft);
+    return;
+  }
+
+  const boundaries = Array.from(
+    new Set(
+      [0, ...events.map((event) => event.time).filter((time) => time > 0 && time < totalFrames), totalFrames].sort(
+        (left, right) => left - right
+      )
+    )
+  );
+
+  const next: CutWithCoord[] = [];
+  for (let index = 0; index < boundaries.length - 1; index += 1) {
+    const start = boundaries[index];
+    const end = boundaries[index + 1];
+    if (end <= start) continue;
+    let coord = clampTabCoordInSnapshot(draft, DEFAULT_CUT_COORD);
+    for (const event of events) {
+      if (event.time > start) break;
+      coord = cloneTabCoord(event.coord);
+    }
+    next.push([[start, end], coord]);
+  }
+  setCutRegionsInSnapshot(draft, next);
+};
+
 const getTabMidi = (snapshot: EditorSnapshot, tab: TabCoord) => {
   const fromRef = snapshot.tabRef?.[tab[0]]?.[tab[1]];
   if (fromRef !== undefined && fromRef !== null && Number.isFinite(Number(fromRef))) {
@@ -204,7 +346,7 @@ const shiftChordOctaveInSnapshot = (
   const chord = draft.chords.find((item) => item.id === chordId);
   if (!chord) return;
   if (direction !== 1 && direction !== -1) return;
-  const maxFret = draft.tabRef?.[0]?.length ? draft.tabRef[0].length - 1 : 36;
+  const maxFret = getMaxFret(draft);
   const delta = direction * 12;
   chord.currentTabs = chord.currentTabs.map((tab) => [
     tab[0],
@@ -272,6 +414,9 @@ const addBarsInSnapshot = (draft: EditorSnapshot, count: number) => {
     Math.max(0.1, Number(draft.secondsPerBar || DEFAULT_SECONDS_PER_BAR))
   );
   draft.totalFrames = Math.max(framesPerBar, (draft.totalFrames || framesPerBar) + safeCount * framesPerBar);
+  if (!draft.cutPositionsWithCoords.length) {
+    draft.cutPositionsWithCoords = buildDefaultCutRegions(draft);
+  }
 };
 
 const removeBarInSnapshot = (draft: EditorSnapshot, index: number) => {
@@ -661,7 +806,7 @@ export default function GteWorkspace({
   const totalFrames = snapshot.totalFrames || 0;
   const previewFrames = scaleToolActive ? Math.max(0, Math.round(scalePreviewMaxEnd)) : 0;
   const effectiveTotalFrames = Math.max(totalFrames, previewFrames);
-  const maxFret = snapshot.tabRef?.[0]?.length ? snapshot.tabRef[0].length - 1 : 22;
+  const maxFret = getMaxFret(snapshot);
   const barCount = Math.max(1, Math.ceil(Math.max(1, effectiveTotalFrames) / framesPerMeasure));
   const normalizedSharedViewportBars =
     sharedViewportBarCount !== undefined && Number.isFinite(sharedViewportBarCount)
@@ -3043,7 +3188,11 @@ export default function GteWorkspace({
       const segments = segmentEditsRef.current;
       const target = segments[segmentDragIndex];
       if (target) {
-        void runMutation(() => gteApi.shiftCutBoundary(editorId, segmentDragIndex, target.end));
+        void runMutation(() => gteApi.shiftCutBoundary(editorId, segmentDragIndex, target.end), {
+          localApply: (draft) => {
+            shiftCutBoundaryInSnapshot(draft, segmentDragIndex, target.end);
+          },
+        });
       }
       setSegmentDragIndex(null);
     };
@@ -3387,6 +3536,10 @@ export default function GteWorkspace({
       setError("Enter a fret before adding the note.");
       return;
     }
+    if (!Number.isInteger(fret) || fret < 0 || fret > maxFret) {
+      setError(`Fret must be between 0 and ${maxFret}.`);
+      return;
+    }
     const snapped = snapNoteToGrid(draftNote.startTime, rawLength);
     const tab: TabCoord = [draftNote.stringIndex, fret];
     const tempId = getTempNoteId();
@@ -3724,6 +3877,17 @@ export default function GteWorkspace({
     }
     const stringValue = stringIndex;
     const fretValue = fret;
+    if (
+      !Number.isInteger(stringValue) ||
+      !Number.isInteger(fretValue) ||
+      stringValue < 0 ||
+      stringValue > 5 ||
+      fretValue < 0 ||
+      fretValue > maxFret
+    ) {
+      setError(`String must be 0-5 and fret must be 0-${maxFret}.`);
+      return;
+    }
     const lengthValue = allowBackend
       ? clampEventLength(length)
       : snapLengthToGrid(length);
@@ -3856,7 +4020,11 @@ export default function GteWorkspace({
 
   const handleMergeCutBoundary = () => {
     if (selectedCutBoundaryIndex === null) return;
-    void runMutation(() => gteApi.deleteCutBoundary(editorId, selectedCutBoundaryIndex));
+    void runMutation(() => gteApi.deleteCutBoundary(editorId, selectedCutBoundaryIndex), {
+      localApply: (draft) => {
+        deleteCutBoundaryInSnapshot(draft, selectedCutBoundaryIndex);
+      },
+    });
     setSelectedCutBoundaryIndex(null);
   };
 
@@ -4148,7 +4316,11 @@ export default function GteWorkspace({
         ? [stringValue, fretValue]
         : [region[1][0], region[1][1]],
     ]);
-    void runMutation(() => gteApi.applyManualCuts(editorId, payload));
+    void runMutation(() => gteApi.applyManualCuts(editorId, payload), {
+      localApply: (draft) => {
+        applyManualCutsInSnapshot(draft, payload);
+      },
+    });
     cancelSegmentEdit();
   };
 
@@ -4167,7 +4339,11 @@ export default function GteWorkspace({
       [seg.start, seg.end],
       [seg.stringIndex as number, seg.fret as number],
     ]);
-    void runMutation(() => gteApi.applyManualCuts(editorId, payload));
+    void runMutation(() => gteApi.applyManualCuts(editorId, payload), {
+      localApply: (draft) => {
+        applyManualCutsInSnapshot(draft, payload);
+      },
+    });
   };
 
   const handleInsertBoundary = () => {
@@ -4175,9 +4351,22 @@ export default function GteWorkspace({
       setError("Enter time, string, and fret before inserting.");
       return;
     }
-    void runMutation(() =>
-      gteApi.insertCutAt(editorId, insertTime, [insertString, insertFret])
-    );
+    if (
+      !Number.isInteger(insertString) ||
+      !Number.isInteger(insertFret) ||
+      insertString < 0 ||
+      insertString > 5 ||
+      insertFret < 0 ||
+      insertFret > maxFret
+    ) {
+      setError(`String must be 0-5 and fret must be 0-${maxFret}.`);
+      return;
+    }
+    void runMutation(() => gteApi.insertCutAt(editorId, insertTime, [insertString, insertFret]), {
+      localApply: (draft) => {
+        insertCutAtInSnapshot(draft, insertTime, [insertString, insertFret]);
+      },
+    });
   };
 
   const handleShiftBoundary = () => {
@@ -4185,7 +4374,11 @@ export default function GteWorkspace({
       setError("Enter an index and time before shifting.");
       return;
     }
-    void runMutation(() => gteApi.shiftCutBoundary(editorId, shiftBoundaryIndex, shiftBoundaryTime));
+    void runMutation(() => gteApi.shiftCutBoundary(editorId, shiftBoundaryIndex, shiftBoundaryTime), {
+      localApply: (draft) => {
+        shiftCutBoundaryInSnapshot(draft, shiftBoundaryIndex, shiftBoundaryTime);
+      },
+    });
   };
 
   const handleDeleteBoundary = () => {
@@ -4193,11 +4386,19 @@ export default function GteWorkspace({
       setError("Enter a boundary index to delete.");
       return;
     }
-    void runMutation(() => gteApi.deleteCutBoundary(editorId, deleteBoundaryIndex));
+    void runMutation(() => gteApi.deleteCutBoundary(editorId, deleteBoundaryIndex), {
+      localApply: (draft) => {
+        deleteCutBoundaryInSnapshot(draft, deleteBoundaryIndex);
+      },
+    });
   };
 
   const handleGenerateCuts = () => {
-    void runMutation(() => gteApi.generateCuts(editorId));
+    void runMutation(() => gteApi.generateCuts(editorId), {
+      localApply: (draft) => {
+        generateCutsInSnapshot(draft);
+      },
+    });
   };
 
   const handleAddBar = () => {
@@ -4400,6 +4601,10 @@ export default function GteWorkspace({
 
   const handleAssignAlt = (tab: TabCoord) => {
     if (!selectedNote) return;
+    if (!isTabCoordValidForSnapshot(snapshot, tab)) {
+      setError(`Tab must stay within strings 0-5 and frets 0-${maxFret}.`);
+      return;
+    }
     playNotePreview(tab);
     enqueueOptimisticMutation({
       label: "assign-alt",
@@ -4422,6 +4627,10 @@ export default function GteWorkspace({
       return;
     }
     const normalized = tabs.map((tab) => [tab[0] as number, tab[1] as number]) as TabCoord[];
+    if (normalized.some((tab) => !isTabCoordValidForSnapshot(snapshot, tab))) {
+      setError(`Chord tabs must stay within strings 0-5 and frets 0-${maxFret}.`);
+      return;
+    }
     void runMutation(() => gteApi.setChordTabs(editorId, selectedChord.id, normalized), {
       localApply: (draft) => {
         setChordTabsInSnapshot(draft, selectedChord.id, normalized);
@@ -5002,7 +5211,11 @@ export default function GteWorkspace({
       }
       if (selectedCutBoundaryIndex !== null) {
         event.preventDefault();
-        void runMutation(() => gteApi.deleteCutBoundary(editorId, selectedCutBoundaryIndex));
+        void runMutation(() => gteApi.deleteCutBoundary(editorId, selectedCutBoundaryIndex), {
+          localApply: (draft) => {
+            deleteCutBoundaryInSnapshot(draft, selectedCutBoundaryIndex);
+          },
+        });
         setSelectedCutBoundaryIndex(null);
         return;
       }
@@ -6286,7 +6499,11 @@ export default function GteWorkspace({
                                 const rawTime = segStart + Math.round((segEnd - segStart) * ratio);
                                 const cutTime = clamp(rawTime, segStart + 1, segEnd - 1);
                                 if (cutTime <= segStart || cutTime >= segEnd) return;
-                                void runMutation(() => gteApi.insertCutAt(editorId, cutTime));
+                                void runMutation(() => gteApi.insertCutAt(editorId, cutTime), {
+                                  localApply: (draft) => {
+                                    insertCutAtInSnapshot(draft, cutTime);
+                                  },
+                                });
                                 return;
                               }
                               startSegmentEdit(segIndex, segment);

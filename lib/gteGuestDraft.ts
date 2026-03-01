@@ -9,6 +9,7 @@ const DEFAULT_FPS = Math.round(FIXED_FRAMES_PER_BAR / DEFAULT_SECONDS_PER_BAR);
 const DEFAULT_TOTAL_FRAMES = FIXED_FRAMES_PER_BAR * 2;
 const DEFAULT_TIME_SIGNATURE = 4;
 const DEFAULT_MAX_FRET = 22;
+const DEFAULT_CUT_COORD: TabCoord = [2, 0];
 const STANDARD_TUNING_MIDI = [64, 59, 55, 50, 45, 40];
 
 type GuestDraftRecord = {
@@ -81,10 +82,37 @@ const buildDefaultTabRef = (maxFret: number) => {
   );
 };
 
+const buildDefaultCutPositions = (totalFrames: number = DEFAULT_TOTAL_FRAMES): CutWithCoord[] => [
+  [
+    [
+      0,
+      Math.max(
+        FIXED_FRAMES_PER_BAR,
+        clampInt(totalFrames, DEFAULT_TOTAL_FRAMES, FIXED_FRAMES_PER_BAR, 100000000)
+      ),
+    ],
+    [DEFAULT_CUT_COORD[0], DEFAULT_CUT_COORD[1]],
+  ],
+];
+
+const buildNormalizedTabRef = (value: unknown): number[][] => {
+  const fallback = buildDefaultTabRef(DEFAULT_MAX_FRET);
+  if (!Array.isArray(value)) return fallback;
+  return fallback.map((fallbackString, stringIndex) => {
+    const source = value[stringIndex];
+    if (!Array.isArray(source)) return fallbackString;
+    const normalized = source
+      .map((fretValue) => toFiniteNumber(fretValue, NaN))
+      .filter((fretValue) => Number.isFinite(fretValue));
+    const base = normalized.length ? normalized[0] : fallbackString[0];
+    return Array.from({ length: DEFAULT_MAX_FRET + 1 }, (_, fret) => normalized[fret] ?? base + fret);
+  });
+};
+
 const normalizeTab = (value: unknown): TabCoord | null => {
   if (!Array.isArray(value) || value.length < 2) return null;
   const stringIndex = clampInt(value[0], 0, 0, 5);
-  const fret = clampInt(value[1], 0, 0, 36);
+  const fret = clampInt(value[1], 0, 0, DEFAULT_MAX_FRET);
   return [stringIndex, fret];
 };
 
@@ -117,7 +145,7 @@ export const createGuestSnapshot = (editorId: string = GTE_GUEST_EDITOR_ID): Edi
     secondsPerBar: DEFAULT_SECONDS_PER_BAR,
     notes: [],
     chords: [],
-    cutPositionsWithCoords: [],
+    cutPositionsWithCoords: buildDefaultCutPositions(DEFAULT_TOTAL_FRAMES),
     optimalsByTime: {},
     tabRef: buildDefaultTabRef(DEFAULT_MAX_FRET),
   };
@@ -196,17 +224,8 @@ export const normalizeGuestSnapshot = (
         .filter((chord): chord is EditorSnapshot["chords"][number] => chord !== null)
     : [];
 
-  const tabRef = Array.isArray(raw.tabRef)
-    ? raw.tabRef
-        .map((stringValues) => {
-          if (!Array.isArray(stringValues)) return null;
-          const normalized = stringValues
-            .map((fretValue) => toFiniteNumber(fretValue, NaN))
-            .filter((value) => Number.isFinite(value));
-          return normalized.length ? normalized : null;
-        })
-        .filter(Boolean)
-    : [];
+  const cutPositionsWithCoords = normalizeCutPositions(raw.cutPositionsWithCoords, frameRatio);
+  const tabRef = buildNormalizedTabRef(raw.tabRef);
 
   const id = typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : fallbackEditorId;
   const name = typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : "Untitled";
@@ -224,9 +243,11 @@ export const normalizeGuestSnapshot = (
     secondsPerBar,
     notes,
     chords,
-    cutPositionsWithCoords: normalizeCutPositions(raw.cutPositionsWithCoords, frameRatio),
+    cutPositionsWithCoords: cutPositionsWithCoords.length
+      ? cutPositionsWithCoords
+      : buildDefaultCutPositions(totalFrames),
     optimalsByTime: normalizeOptimalsByTime(raw.optimalsByTime, frameRatio),
-    tabRef: tabRef.length ? (tabRef as number[][]) : base.tabRef,
+    tabRef,
   };
 };
 

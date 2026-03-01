@@ -1,19 +1,29 @@
 import type { CanvasSnapshot, EditorListItem, EditorSnapshot, TabCoord } from "../types/gte";
+import { GTE_GUEST_EDITOR_ID } from "./gteGuestDraft";
 
-const BASE = "/api/gte";
+const AUTH_BASE = "/api/gte";
+const GUEST_BASE = "/api/gte-guest";
 const LANE_DELIMITER = "__ed__";
 export type EditorOrCanvasSnapshot = EditorSnapshot | CanvasSnapshot;
 
 export const buildLaneEditorRef = (canvasId: string, laneId: string) =>
   `${canvasId}${LANE_DELIMITER}${laneId}`;
 
+const isGuestEditorRef = (editorId?: string | null) =>
+  Boolean(
+    editorId &&
+      (editorId === GTE_GUEST_EDITOR_ID || editorId.startsWith(`${GTE_GUEST_EDITOR_ID}${LANE_DELIMITER}`))
+  );
+
+const getBaseForEditor = (editorId?: string | null) => (isGuestEditorRef(editorId) ? GUEST_BASE : AUTH_BASE);
+
 const encodeSnapToGridQuery = (snapToGrid?: boolean) =>
   snapToGrid === undefined
     ? ""
     : `&snap_to_grid=${encodeURIComponent(String(snapToGrid))}&snapToGrid=${encodeURIComponent(String(snapToGrid))}`;
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, options);
+async function request<T>(path: string, options: RequestInit = {}, base: string = AUTH_BASE): Promise<T> {
+  const res = await fetch(`${base}${path}`, options);
   const text = await res.text();
   if (!res.ok) {
     throw new Error(text || "Request failed");
@@ -28,6 +38,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 }
 
+async function requestForEditor<T>(
+  editorId: string,
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
+  return request<T>(path, options, getBaseForEditor(editorId));
+}
+
 export const gteApi = {
   listEditors: () => request<{ editors: EditorListItem[] }>("/editors"),
   createEditor: (editorId?: string, name?: string) =>
@@ -36,49 +54,58 @@ export const gteApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ editorId, name }),
     }),
-  getEditor: (editorId: string) => request<EditorOrCanvasSnapshot>(`/editors/${editorId}`),
+  getEditor: (editorId: string) => requestForEditor<EditorOrCanvasSnapshot>(editorId, `/editors/${editorId}`),
   deleteEditor: (editorId: string) =>
-    request<{ ok: true }>(`/editors/${editorId}`, {
+    requestForEditor<{ ok: true }>(editorId, `/editors/${editorId}`, {
       method: "DELETE",
     }),
   applySnapshot: (editorId: string, snapshot: EditorOrCanvasSnapshot | Record<string, any>) =>
-    request<{ ok: true; snapshot: any; canvas?: CanvasSnapshot }>(`/editors/${editorId}/snapshot`, {
+    requestForEditor<{ ok: true; snapshot: any; canvas?: CanvasSnapshot }>(editorId, `/editors/${editorId}/snapshot`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ snapshot }),
     }),
   commitEditor: (editorId: string, options?: { keepalive?: boolean }) =>
-    request<{ ok: true; snapshot: CanvasSnapshot }>(`/editors/${editorId}/commit`, {
+    requestForEditor<{ ok: true; snapshot: CanvasSnapshot }>(editorId, `/editors/${editorId}/commit`, {
       method: "POST",
       keepalive: Boolean(options?.keepalive),
     }),
   setEditorName: (editorId: string, name: string) =>
-    request<{ ok: true; snapshot: EditorOrCanvasSnapshot; canvas?: CanvasSnapshot }>(`/editors/${editorId}/name`, {
+    requestForEditor<{ ok: true; snapshot: EditorOrCanvasSnapshot; canvas?: CanvasSnapshot }>(
+      editorId,
+      `/editors/${editorId}/name`,
+      {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
-    }),
+      }
+    ),
   addCanvasEditor: (editorId: string, name?: string) =>
-    request<{ ok: true; canvas: CanvasSnapshot; editor: EditorSnapshot }>(`/editors/${editorId}/canvas/editors`, {
+    requestForEditor<{ ok: true; canvas: CanvasSnapshot; editor: EditorSnapshot }>(
+      editorId,
+      `/editors/${editorId}/canvas/editors`,
+      {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
-    }),
+      }
+    ),
   deleteCanvasEditor: (editorId: string, laneId: string) =>
-    request<{ ok: true; canvas: CanvasSnapshot; removedEditorId: string }>(
+    requestForEditor<{ ok: true; canvas: CanvasSnapshot; removedEditorId: string }>(
+      editorId,
       `/editors/${editorId}/canvas/editors/${encodeURIComponent(laneId)}`,
       {
         method: "DELETE",
       }
     ),
   reorderCanvasEditor: (editorId: string, laneId: string, toIndex: number) =>
-    request<{ ok: true; canvas: CanvasSnapshot }>(`/editors/${editorId}/canvas/editors/reorder`, {
+    requestForEditor<{ ok: true; canvas: CanvasSnapshot }>(editorId, `/editors/${editorId}/canvas/editors/reorder`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ laneId, toIndex }),
     }),
   selectCanvasBars: (editorId: string, laneId: string, barIndices: number[]) =>
-    request<{ ok: true; clipboard: EditorSnapshot }>(`/editors/${editorId}/canvas/bars/select`, {
+    requestForEditor<{ ok: true; clipboard: EditorSnapshot }>(editorId, `/editors/${editorId}/canvas/bars/select`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ laneId, barIndexes: barIndices }),
@@ -89,7 +116,8 @@ export const gteApi = {
     insertIndex: number,
     clipboard: EditorSnapshot | Record<string, any>
   ) =>
-    request<{ ok: true; canvas: CanvasSnapshot; snapshot: EditorSnapshot }>(
+    requestForEditor<{ ok: true; canvas: CanvasSnapshot; snapshot: EditorSnapshot }>(
+      editorId,
       `/editors/${editorId}/canvas/bars/insert`,
       {
         method: "POST",
@@ -98,7 +126,8 @@ export const gteApi = {
       }
     ),
   deleteCanvasBars: (editorId: string, laneId: string, barIndices: number[]) =>
-    request<{ ok: true; canvas: CanvasSnapshot; snapshot: EditorSnapshot }>(
+    requestForEditor<{ ok: true; canvas: CanvasSnapshot; snapshot: EditorSnapshot }>(
+      editorId,
       `/editors/${editorId}/canvas/bars/delete`,
       {
         method: "POST",
@@ -115,7 +144,8 @@ export const gteApi = {
       insertIndex: number;
     }
   ) =>
-    request<{ ok: true; canvas: CanvasSnapshot; snapshot: EditorSnapshot }>(
+    requestForEditor<{ ok: true; canvas: CanvasSnapshot; snapshot: EditorSnapshot }>(
+      editorId,
       `/editors/${editorId}/canvas/bars/move`,
       {
         method: "POST",
@@ -129,19 +159,19 @@ export const gteApi = {
       }
     ),
   addBars: (editorId: string, count: number) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/bars/add`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/bars/add`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ count }),
     }),
   reorderBars: (editorId: string, fromIndex: number, toIndex: number) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/bars/reorder`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/bars/reorder`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fromIndex, toIndex }),
     }),
   removeBar: (editorId: string, index: number) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/bars/remove`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/bars/remove`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ index }),
@@ -150,17 +180,18 @@ export const gteApi = {
     editorId: string,
     payload: { tab: TabCoord; startTime: number; length: number; snapToGrid?: boolean }
   ) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/notes`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/notes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
   deleteNote: (editorId: string, noteId: number) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/notes/${noteId}`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/notes/${noteId}`, {
       method: "DELETE",
     }),
   assignNoteTab: (editorId: string, noteId: number, tab: TabCoord) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(
+      editorId,
       `/editors/${editorId}/notes/${noteId}/assign_tab`,
       {
         method: "POST",
@@ -174,7 +205,8 @@ export const gteApi = {
     startTime: number,
     snapToGrid?: boolean
   ) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(
+      editorId,
       `/editors/${editorId}/notes/${noteId}/set_start_time?start_time=${encodeURIComponent(startTime)}${encodeSnapToGridQuery(snapToGrid)}`,
       {
         method: "POST",
@@ -183,7 +215,8 @@ export const gteApi = {
       }
     ),
   setNoteLength: (editorId: string, noteId: number, length: number, snapToGrid?: boolean) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(
+      editorId,
       `/editors/${editorId}/notes/${noteId}/set_length?length=${encodeURIComponent(length)}${encodeSnapToGridQuery(snapToGrid)}`,
       {
         method: "POST",
@@ -192,27 +225,29 @@ export const gteApi = {
       }
     ),
   getNoteOptimals: (editorId: string, noteId: number) =>
-    request<{ possibleTabs: TabCoord[]; blockedTabs: TabCoord[] }>(
+    requestForEditor<{ possibleTabs: TabCoord[]; blockedTabs: TabCoord[] }>(
+      editorId,
       `/editors/${editorId}/notes/${noteId}/optimals`
     ),
   assignOptimals: (editorId: string, noteIds: number[]) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/optimals/assign`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/optimals/assign`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ noteIds }),
     }),
   makeChord: (editorId: string, noteIds: number[]) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/chords`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/chords`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ noteIds }),
     }),
   deleteChord: (editorId: string, chordId: number) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/chords/${chordId}`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/chords/${chordId}`, {
       method: "DELETE",
     }),
   disbandChord: (editorId: string, chordId: number) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(
+      editorId,
       `/editors/${editorId}/chords/${chordId}/disband`,
       {
         method: "POST",
@@ -225,7 +260,8 @@ export const gteApi = {
     startTime: number,
     snapToGrid?: boolean
   ) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(
+      editorId,
       `/editors/${editorId}/chords/${chordId}/set_start_time?start_time=${encodeURIComponent(startTime)}${encodeSnapToGridQuery(snapToGrid)}`,
       {
         method: "POST",
@@ -239,7 +275,8 @@ export const gteApi = {
       }
     ),
   setChordLength: (editorId: string, chordId: number, length: number, snapToGrid?: boolean) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(
+      editorId,
       `/editors/${editorId}/chords/${chordId}/set_length?length=${encodeURIComponent(length)}${encodeSnapToGridQuery(snapToGrid)}`,
       {
         method: "POST",
@@ -248,33 +285,33 @@ export const gteApi = {
       }
     ),
   sliceChord: (editorId: string, chordId: number, time: number) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/chords/${chordId}/slice`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/chords/${chordId}/slice`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ time }),
     }),
   setChordTabs: (editorId: string, chordId: number, tabs: TabCoord[]) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/chords/${chordId}/tabs`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/chords/${chordId}/tabs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tabs }),
     }),
   getChordAlternatives: (editorId: string, chordId: number) =>
-    request<{ alternatives: TabCoord[][] }>(`/editors/${editorId}/chords/${chordId}/alternatives`),
+    requestForEditor<{ alternatives: TabCoord[][] }>(editorId, `/editors/${editorId}/chords/${chordId}/alternatives`),
   shiftChordOctave: (editorId: string, chordId: number, direction: number) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/chords/${chordId}/octave`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/chords/${chordId}/octave`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ direction }),
     }),
   exportTab: (editorId: string) =>
-    request<{
+    requestForEditor<{
       stamps: Array<[number, TabCoord, number]>;
       framesPerMessure: number;
       fps: number;
       totalFrames: number;
       tabStrings: string[];
-    }>(`/editors/${editorId}/export`),
+    }>(editorId, `/editors/${editorId}/export`),
   importTab: (
     editorId: string,
     payload: {
@@ -284,7 +321,7 @@ export const gteApi = {
       totalFrames?: number;
     }
   ) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/import`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/import`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -298,48 +335,56 @@ export const gteApi = {
       totalFrames?: number;
     }
   ) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/import_append`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/import_append`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
   setSecondsPerBar: (editorId: string, secondsPerBar: number) =>
-    request<{ ok: true; snapshot: EditorSnapshot; canvas?: CanvasSnapshot }>(`/editors/${editorId}/seconds_per_bar`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot; canvas?: CanvasSnapshot }>(
+      editorId,
+      `/editors/${editorId}/seconds_per_bar`,
+      {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ secondsPerBar }),
-    }),
+      }
+    ),
   setTimeSignature: (editorId: string, timeSignature: number) =>
-    request<{ ok: true; snapshot: EditorSnapshot; canvas?: CanvasSnapshot }>(`/editors/${editorId}/time_signature`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot; canvas?: CanvasSnapshot }>(
+      editorId,
+      `/editors/${editorId}/time_signature`,
+      {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ timeSignature }),
-    }),
+      }
+    ),
   generateCuts: (editorId: string) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/cuts/generate`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/cuts/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     }),
   applyManualCuts: (editorId: string, cutPositionsWithCoords: any) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/cuts/apply_manual`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/cuts/apply_manual`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cutPositionsWithCoords }),
     }),
   shiftCutBoundary: (editorId: string, boundaryIndex: number, newTime: number) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/cuts/shift_boundary`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/cuts/shift_boundary`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ boundaryIndex, newTime }),
     }),
   insertCutAt: (editorId: string, time: number, coord?: TabCoord) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/cuts/insert_at`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/cuts/insert_at`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ time, coord }),
     }),
   deleteCutBoundary: (editorId: string, boundaryIndex: number) =>
-    request<{ ok: true; snapshot: EditorSnapshot }>(`/editors/${editorId}/cuts/delete_boundary`, {
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/cuts/delete_boundary`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ boundaryIndex }),
