@@ -654,6 +654,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const saveToAccountPath = "/gte?importGuest=1";
   const loginSaveHref = `/auth/login?next=${encodeURIComponent(saveToAccountPath)}`;
   const signupSaveHref = `/auth/signup?next=${encodeURIComponent(saveToAccountPath)}`;
+  const transcriberHref = isGuestMode
+    ? "/transcriber"
+    : `/transcriber?appendEditorId=${encodeURIComponent(editorId)}`;
 
   const cloneCanvas = useCallback((value: CanvasSnapshot) => {
     return JSON.parse(JSON.stringify(value)) as CanvasSnapshot;
@@ -2108,11 +2111,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               </button>
               <button
                 type="button"
-                disabled
-                className="rounded-md border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500 opacity-80"
-                title="Generate tabs is disabled for this update"
+                onClick={() => void router.push(transcriberHref)}
+                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                title="Open the standalone transcriber"
               >
-                Generate tabs (Disabled)
+                Generate tabs
               </button>
               {(nameSaving || secondsSaving) && !isGuestMode && <span className="muted text-small">Saving draft...</span>}
               {(nameError || secondsError) && <span className="error text-small">{nameError || secondsError}</span>}

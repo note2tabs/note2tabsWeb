@@ -127,6 +127,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // ignore analytics parse/logging failures
     }
   }
+  if (upstream.ok && method === "POST" && path === "transcriber/import") {
+    try {
+      const target = typeof (req.body as { target?: unknown } | undefined)?.target === "string"
+        ? String((req.body as { target?: string }).target).trim().toLowerCase()
+        : "";
+      const shouldLogCreate = !target || target === "new";
+      if (shouldLogCreate) {
+        const parsed = text ? (JSON.parse(text) as { editorId?: string }) : {};
+        const editorId = typeof parsed.editorId === "string" ? parsed.editorId : undefined;
+        if (editorId) {
+          await logGteAnalyticsEvent({
+            userId: session.user.id,
+            event: "gte_editor_created",
+            path: "/api/gte/transcriber/import",
+            payload: { editorId, source: "gte_transcriber_import" },
+            req,
+            res,
+          });
+        }
+      }
+    } catch {
+      // ignore analytics parse/logging failures
+    }
+  }
   if (!text) {
     return res.end();
   }

@@ -18,6 +18,7 @@ const providers: Provider[] = [
     },
     async authorize(credentials, req) {
       try {
+        if (shouldBypassPrismaSync()) return null;
         if (!credentials?.email || !credentials?.password) return null;
         const user = await prisma.user.findUnique({
           where: { email: credentials.email.toLowerCase() },
@@ -51,6 +52,7 @@ const providers: Provider[] = [
           isEmailVerified,
         };
       } catch (error) {
+        markPrismaUnavailable(error);
         console.error("Credentials authorize failed", error);
         return null;
       }
@@ -67,8 +69,20 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   );
 }
 
+const allowDevAuthFallback = process.env.NODE_ENV !== "production";
+let devPrismaUnavailable = allowDevAuthFallback;
+
+const shouldBypassPrismaSync = () => allowDevAuthFallback && devPrismaUnavailable;
+
+const markPrismaUnavailable = (error: unknown) => {
+  if (!allowDevAuthFallback) return;
+  if (error instanceof Error) {
+    devPrismaUnavailable = true;
+  }
+};
+
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: allowDevAuthFallback ? undefined : PrismaAdapter(prisma),
   session: {
     strategy: "jwt",
   },
@@ -79,6 +93,7 @@ export const authOptions: NextAuthOptions = {
       return baseUrl;
     },
     async signIn({ user, account }) {
+      if (shouldBypassPrismaSync()) return true;
       if (account?.provider && account.provider !== "credentials" && user?.email) {
         try {
           await prisma.user.updateMany({
@@ -89,6 +104,7 @@ export const authOptions: NextAuthOptions = {
             } as any,
           });
         } catch (error) {
+          markPrismaUnavailable(error);
           console.error("Failed to mark OAuth user as verified", error);
         }
       }
@@ -104,7 +120,7 @@ export const authOptions: NextAuthOptions = {
       }
 
       // For OAuth logins, fetch the user to sync role/tokens.
-      if (!user && account && token.email) {
+      if (!user && account && token.email && !shouldBypassPrismaSync()) {
         try {
           const dbUser = await prisma.user.findUnique({ where: { email: token.email.toString() } });
           if (dbUser) {
@@ -114,6 +130,7 @@ export const authOptions: NextAuthOptions = {
             token.isEmailVerified = Boolean((dbUser as any).emailVerifiedBool || dbUser.emailVerified);
           }
         } catch (error) {
+          markPrismaUnavailable(error);
           console.error("JWT callback user sync failed", error);
         }
       }
@@ -121,11 +138,19 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (!session.user || !token?.email) return session;
+      if (shouldBypassPrismaSync()) {
+        session.user.id = (token.id as string) || session.user.id || "dev-guest";
+        session.user.role = (token.role as string) || "FREE";
+        session.user.tokensRemaining = (token.tokensRemaining as number) ?? 0;
+        session.user.isEmailVerified = Boolean(token.isEmailVerified);
+        return session;
+      }
       // Fetch latest user data to keep tokens/role in sync.
       let dbUser: Awaited<ReturnType<typeof prisma.user.findUnique>> | null = null;
       try {
         dbUser = await prisma.user.findUnique({ where: { email: token.email.toString() } });
       } catch (error) {
+        markPrismaUnavailable(error);
         console.error("Session callback user lookup failed", error);
       }
       if (dbUser) {
@@ -141,6 +166,7 @@ export const authOptions: NextAuthOptions = {
               data: { ...( { emailVerifiedBool: true } as any) } as any,
             });
           } catch (error) {
+            markPrismaUnavailable(error);
             console.error("Session callback emailVerifiedBool backfill failed", error);
           }
         }
@@ -151,7 +177,7 @@ export const authOptions: NextAuthOptions = {
         session.user.isEmailVerified = Boolean(token.isEmailVerified);
       }
       const creditUserId = session.user.id;
-      if (creditUserId) {
+      if (creditUserId && !shouldBypassPrismaSync()) {
         try {
           const creditWindow = getCreditWindow({ userCreatedAt: dbUser?.createdAt });
           const isPremium =
@@ -183,6 +209,7 @@ export const authOptions: NextAuthOptions = {
           session.user.monthlyCreditsResetAt = credits.resetAt;
           session.user.monthlyCreditsUnlimited = credits.unlimited;
         } catch (error) {
+          markPrismaUnavailable(error);
           console.error("Session callback credits sync failed", error);
         }
       }

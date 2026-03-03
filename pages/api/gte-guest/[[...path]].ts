@@ -8,6 +8,9 @@ import {
 import type { CanvasSnapshot, CutWithCoord, EditorSnapshot, TabCoord } from "../../../types/gte";
 
 const COOKIE_NAME = "note2tabs_gte_guest_session";
+const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
+const BACKEND_SECRET =
+  process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 const STORE_LIMIT = 200;
 const LANE_DELIMITER = "__ed__";
 const FIXED_FRAMES_PER_BAR = 480;
@@ -363,6 +366,43 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const body = req.body && typeof req.body === "object" ? (req.body as Record<string, any>) : {};
 
   try {
+    if (path === "transcriber/import" && method === "POST") {
+      const guestUserId = `guest-${sessionId}`;
+      return fetch(`${API_BASE}/gte/transcriber/import`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": guestUserId,
+          ...(BACKEND_SECRET ? { "X-Backend-Secret": BACKEND_SECRET } : {}),
+        },
+        body: JSON.stringify({
+          ...body,
+          target: "guest",
+          editorId: GTE_GUEST_EDITOR_ID,
+        }),
+      })
+        .then(async (upstream) => {
+          const text = await upstream.text();
+          if (!upstream.ok) {
+            return res.status(upstream.status).json({ error: text || "Guest import failed." });
+          }
+          let parsed: Record<string, any> = {};
+          try {
+            parsed = text ? (JSON.parse(text) as Record<string, any>) : {};
+          } catch {
+            return res.status(502).json({ error: "Invalid guest import response." });
+          }
+          if (!parsed.canvas || typeof parsed.canvas !== "object") {
+            return res.status(502).json({ error: "Guest import returned no canvas." });
+          }
+          const canvas = persistCanvas(sessionId, parsed.canvas as CanvasSnapshot);
+          return res.status(200).json({ ...parsed, canvas });
+        })
+        .catch((error: any) => {
+          return res.status(500).json({ error: error?.message || "Guest import failed." });
+        });
+    }
+
     if (path === "editors" && method === "GET") {
       const canvas = getCanvas(sessionId, GTE_GUEST_EDITOR_ID);
       return res.status(200).json({

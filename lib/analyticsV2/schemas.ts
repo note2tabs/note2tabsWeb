@@ -7,8 +7,8 @@ const anyRecordSchema = z.record(z.unknown());
 
 const canonicalSchema = z
   .object({
-    event_id: z.string().uuid().optional(),
-    eventId: z.string().uuid().optional(),
+    event_id: z.string().min(1).optional(),
+    eventId: z.string().min(1).optional(),
     schema_version: z.number().int().positive().optional(),
     schemaVersion: z.number().int().positive().optional(),
     name: z.string().min(1),
@@ -45,8 +45,8 @@ const canonicalSchema = z
 const legacySchema = z
   .object({
     event: z.string().min(1),
-    event_id: z.string().uuid().optional(),
-    eventId: z.string().uuid().optional(),
+    event_id: z.string().min(1).optional(),
+    eventId: z.string().min(1).optional(),
     path: z.string().optional(),
     referer: z.string().optional(),
     referrer: z.string().optional(),

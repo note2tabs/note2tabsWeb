@@ -19,6 +19,7 @@ function generateEventId() {
 
 export async function sendEvent(event: string, payload?: EventPayload) {
   if (typeof window === "undefined") return;
+  if (process.env.NODE_ENV !== "production") return;
   const consent = getCookie("analytics_consent");
   if (consent === "denied") return;
 

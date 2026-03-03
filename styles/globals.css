@@ -2602,7 +2602,8 @@ input[type="number"] {
 .results-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
 }
 
 .tab-block {
@@ -2612,6 +2613,25 @@ input[type="number"] {
   border-radius: var(--radius-md);
   font-size: 0.85rem;
   overflow-x: auto;
+}
+
+.results-grid .tab-block {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  padding: 20px 22px;
+  text-align: left;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tab-block-content {
+  margin: 0;
+  min-width: max-content;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+  line-height: 1.45;
 }
 
 .steps {

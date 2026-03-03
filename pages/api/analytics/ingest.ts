@@ -9,6 +9,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  if (process.env.NODE_ENV !== "production") {
+    return res.status(200).json({
+      ok: true,
+      reason: "analytics_disabled_in_dev",
+      received: 0,
+      written: 0,
+      deduped: 0,
+      dualWritten: 0,
+      blocked: 0,
+    });
+  }
+
   try {
     const session = await getServerSession(req, res, authOptions);
     const accountId = session?.user?.id || null;

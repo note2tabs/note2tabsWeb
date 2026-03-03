@@ -14,6 +14,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  if (process.env.NODE_ENV !== "production") {
+    return res.status(503).json({
+      error: "Presign is disabled in local no-db mode. Use direct upload instead.",
+    });
+  }
+
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.id) {
     return res.status(401).json({ error: "Not authenticated" });

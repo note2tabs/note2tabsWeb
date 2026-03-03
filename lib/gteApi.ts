@@ -5,6 +5,20 @@ const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
 const LANE_DELIMITER = "__ed__";
 export type EditorOrCanvasSnapshot = EditorSnapshot | CanvasSnapshot;
+export type TranscriberSegment = {
+  lineStart: number;
+  lineEnd: number;
+  midiNum?: number | null;
+  MidiNumLine: number[];
+};
+export type TranscriberSegmentGroup = TranscriberSegment[];
+export type TranscriberImportResponse = {
+  ok: true;
+  target?: string;
+  editorId: string;
+  importedEditorIds?: string[];
+  canvas?: CanvasSnapshot;
+};
 
 export const buildLaneEditorRef = (canvasId: string, laneId: string) =>
   `${canvasId}${LANE_DELIMITER}${laneId}`;
@@ -54,6 +68,31 @@ export const gteApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ editorId, name }),
     }),
+  importTranscriberToSaved: (payload: {
+    segmentGroups: TranscriberSegmentGroup[];
+    target?: "new" | "existing";
+    editorId?: string;
+    name?: string;
+  }) =>
+    request<TranscriberImportResponse>("/transcriber/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  importTranscriberToGuest: (payload: {
+    segmentGroups: TranscriberSegmentGroup[];
+    editorId?: string;
+    name?: string;
+  }) =>
+    request<TranscriberImportResponse>(
+      "/transcriber/import",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, target: "guest" }),
+      },
+      GUEST_BASE
+    ),
   getEditor: (editorId: string) => requestForEditor<EditorOrCanvasSnapshot>(editorId, `/editors/${editorId}`),
   deleteEditor: (editorId: string) =>
     requestForEditor<{ ok: true }>(editorId, `/editors/${editorId}`, {

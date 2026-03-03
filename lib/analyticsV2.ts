@@ -129,6 +129,7 @@ export async function flush(reason: "timer" | "manual" | "pagehide" = "manual") 
 
 export async function track(name: string, props: EventProps = {}) {
   if (typeof window === "undefined") return;
+  if (process.env.NODE_ENV !== "production") return;
   if (!shouldTrack()) return;
 
   const { sessionId, anonId } = ensureIds();

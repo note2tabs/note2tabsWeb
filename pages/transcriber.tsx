@@ -7,11 +7,13 @@ import { signIn, useSession } from "next-auth/react";
 import { sendEvent } from "../lib/analytics";
 import { copyText } from "../lib/clipboard";
 import type { CreditsSummary } from "../lib/credits";
-import { gteApi } from "../lib/gteApi";
+import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
+import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
 
 type TabsResponse = {
   tabs: string[][];
+  transcriberSegments?: TranscriberSegmentGroup[];
   tokensRemaining?: number;
   credits?: CreditsSummary;
   jobId?: string;
@@ -164,6 +166,7 @@ export default function TranscriberPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tabsResult, setTabsResult] = useState<string[][] | null>(null);
+  const [transcriberSegments, setTranscriberSegments] = useState<TranscriberSegmentGroup[] | null>(null);
   const [credits, setCredits] = useState<CreditsSummary | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -180,10 +183,15 @@ export default function TranscriberPage() {
   const ytPlayerRef = useRef<any | null>(null);
   const ytPlayerMountRef = useRef<HTMLDivElement | null>(null);
   const captureRafRef = useRef<number | null>(null);
-  const isSignedIn = Boolean(session);
-  const isEmailVerified = Boolean(session?.user?.isEmailVerified);
+  const disableDbInDev = process.env.NODE_ENV !== "production";
+  const transcriberSession = session ?? null;
+  const isSignedIn = Boolean(transcriberSession);
+  const requireVerifiedEmail = process.env.NODE_ENV === "production";
+  const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
   const verifyHref = `/auth/verify-email${
-    session?.user?.email ? `?email=${encodeURIComponent(session.user.email)}` : ""
+    transcriberSession?.user?.email
+      ? `?email=${encodeURIComponent(transcriberSession.user.email)}`
+      : ""
   }`;
   const appendEditorId = useMemo(() => {
     if (!router.isReady) return null;
@@ -204,6 +212,7 @@ export default function TranscriberPage() {
     return `https://www.youtube.com/watch?v=${youtubeId}${start ? `&t=${start}s` : ""}`;
   }, [youtubeId, ytStartTime]);
   const captureActive = capturePhase !== "idle";
+  const shouldDeferEditorSync = Boolean(appendEditorId);
 
   useEffect(() => {
     if (session?.user?.monthlyCreditsUsed !== undefined) {
@@ -554,13 +563,36 @@ export default function TranscriberPage() {
     await router.push(`/gte/${created.editorId}?source=transcriber`);
   };
 
+  const openTabsInGuestEditor = async (segments: string[][]) => {
+    const { stamps, totalFrames } = tabSegmentsToStamps(segments);
+    if (stamps.length === 0) {
+      throw new Error("No tabs available to import into the guest editor.");
+    }
+    const guestLaneEditorId = buildLaneEditorRef(GTE_GUEST_EDITOR_ID, "ed-1");
+    await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
+    await gteApi.importTab(guestLaneEditorId, { stamps, totalFrames });
+    await router.push(`/gte/${GTE_GUEST_EDITOR_ID}?source=transcriber`);
+  };
+
+  const getSelectedTranscriberSegmentGroups = () => {
+    if (!transcriberSegments || transcriberSegments.length === 0) return null;
+    const indexes =
+      selectedSegments.size > 0
+        ? Array.from(selectedSegments).sort((a, b) => a - b)
+        : transcriberSegments.map((_, idx) => idx);
+    const groups = indexes
+      .map((idx) => transcriberSegments[idx])
+      .filter((group): group is TranscriberSegmentGroup => Array.isArray(group) && group.length > 0);
+    return groups.length > 0 ? groups : null;
+  };
+
   const handleConvert = async () => {
-    if (!session) {
+    if (!transcriberSession && !disableDbInDev) {
       setError("Sign in to start transcribing.");
       signIn(undefined, { callbackUrl: "/" });
       return;
     }
-    if (!isEmailVerified) {
+    if (transcriberSession && !isEmailVerified) {
       setError("Please verify your email before using the transcriber.");
       return;
     }
@@ -605,6 +637,7 @@ export default function TranscriberPage() {
     setError(null);
     setImportError(null);
     setTabsResult(null);
+    setTranscriberSegments(null);
     setStatus(mode === "FILE" ? "Transcribing audio..." : "Preparing YouTube capture...");
     setLoading(true);
     sendEvent("transcribe_start", { mode, ytUrl: youtubeUrl || undefined });
@@ -617,6 +650,9 @@ export default function TranscriberPage() {
         if (fileDuration !== null) {
           fd.append("duration", String(fileDuration));
         }
+        if (shouldDeferEditorSync) {
+          fd.append("skipAutoEditorSync", "true");
+        }
         fd.append("file", selectedFile);
         response = await fetch("/api/transcribe", { method: "POST", body: fd });
       } else {
@@ -625,6 +661,9 @@ export default function TranscriberPage() {
         const fd = new FormData();
         fd.append("mode", "FILE");
         fd.append("duration", String(capture.durationSec));
+        if (shouldDeferEditorSync) {
+          fd.append("skipAutoEditorSync", "true");
+        }
         fd.append("file", capture.file);
         response = await fetch("/api/transcribe", { method: "POST", body: fd });
       }
@@ -649,10 +688,26 @@ export default function TranscriberPage() {
       }
       const nextTabs = data.tabs;
       setSelectedSegments(new Set());
+      setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
       if (data.credits) {
         setCredits(data.credits);
       }
       sendEvent("transcribe_success", { mode, jobId: data.jobId });
+      if (!transcriberSession) {
+        if (disableDbInDev) {
+          setTabsResult(nextTabs);
+          setStatus("Tabs ready. Select tab blocks below.");
+          return;
+        }
+        setTabsResult(nextTabs);
+        setStatus("Tabs ready.");
+        return;
+      }
+      if (shouldDeferEditorSync) {
+        setTabsResult(nextTabs);
+        setStatus("Tabs ready. Import into your editor below.");
+        return;
+      }
       setStatus("Tabs ready. Opening Guitar Tab Editor...");
       try {
         await openTabsInEditor(nextTabs, data.gteEditorId);
@@ -679,6 +734,20 @@ export default function TranscriberPage() {
     setImportBusy(true);
     setImportError(null);
     try {
+      const selectedTranscriberGroups = getSelectedTranscriberSegmentGroups();
+      if (selectedTranscriberGroups) {
+        const targetEditorId = editorChoice;
+        const imported = await gteApi.importTranscriberToSaved({
+          target: !targetEditorId || targetEditorId === "new" ? "new" : "existing",
+          editorId:
+            targetEditorId && targetEditorId !== "new"
+              ? targetEditorId
+              : undefined,
+          segmentGroups: selectedTranscriberGroups,
+        });
+        await router.push(`/gte/${imported.editorId}`);
+        return;
+      }
       const segmentsToUse =
         selectedSegments.size > 0
           ? tabsResult.filter((_, idx) => selectedSegments.has(idx))
@@ -702,18 +771,44 @@ export default function TranscriberPage() {
     }
   };
 
+  const handleOpenGuestEditor = async () => {
+    if (!tabsResult || importBusy) return;
+    setImportBusy(true);
+    setImportError(null);
+    try {
+      const selectedTranscriberGroups = getSelectedTranscriberSegmentGroups();
+      if (selectedTranscriberGroups) {
+        const imported = await gteApi.importTranscriberToGuest({
+          segmentGroups: selectedTranscriberGroups,
+          editorId: GTE_GUEST_EDITOR_ID,
+        });
+        await router.push(`/gte/${imported.editorId}?source=transcriber`);
+        return;
+      }
+      const segmentsToUse =
+        selectedSegments.size > 0
+          ? tabsResult.filter((_, idx) => selectedSegments.has(idx))
+          : tabsResult;
+      await openTabsInGuestEditor(segmentsToUse);
+    } catch (err: any) {
+      setImportError(err?.message || "Failed to open the guest editor.");
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     void handleConvert();
   };
   const creditsUsageLabel = credits
     ? `${credits.used}/${credits.limit}`
-    : session
+    : transcriberSession
     ? "-"
     : "10";
   const creditsResetLabel = credits ? new Date(credits.resetAt).toLocaleDateString() : "";
   const showCreditsEmpty = credits && credits.remaining === 0;
-  const resetLabelText = isPremiumRole(session?.user?.role) ? "Next credits" : "Resets";
+  const resetLabelText = isPremiumRole(transcriberSession?.user?.role) ? "Next credits" : "Resets";
 
   return (
     <>
@@ -947,14 +1042,14 @@ export default function TranscriberPage() {
               )}
               {isSignedIn && showCreditsEmpty && (
                 <div className="notice">
-                  {isPremiumRole(session?.user?.role)
+                  {isPremiumRole(transcriberSession?.user?.role)
                     ? `Credits used. Next credits arrive on ${creditsResetLabel}.`
                     : `Monthly credits used. Upgrade to Premium or wait until ${creditsResetLabel}.`}
                 </div>
               )}
               {isSignedIn && (
                 <p className="footnote">
-                  {isPremiumRole(session?.user?.role)
+                  {isPremiumRole(transcriberSession?.user?.role)
                     ? "Premium credits roll over. 50 credits added monthly."
                     : `This job uses about ${creditsRequested} credit${
                         creditsRequested > 1 ? "s" : ""
@@ -1000,6 +1095,16 @@ export default function TranscriberPage() {
                       </button>
                     </div>
                   )}
+                  {!isSignedIn && disableDbInDev && (
+                    <button
+                      type="button"
+                      className="button-primary"
+                      onClick={() => void handleOpenGuestEditor()}
+                      disabled={importBusy}
+                    >
+                      {importBusy ? "Opening..." : "Open in guest editor"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className={!isSignedIn ? "button-primary" : "button-secondary"}
@@ -1013,9 +1118,19 @@ export default function TranscriberPage() {
                   >
                     Copy tabs
                   </button>
-                  <Link href="/account" className="button-secondary">
-                    Open account
-                  </Link>
+                  {isSignedIn ? (
+                    <Link href="/account" className="button-secondary">
+                      Open account
+                    </Link>
+                  ) : disableDbInDev ? (
+                    <Link href={`/gte/${GTE_GUEST_EDITOR_ID}`} className="button-secondary">
+                      Open guest editor
+                    </Link>
+                  ) : (
+                    <Link href="/account" className="button-secondary">
+                      Open account
+                    </Link>
+                  )}
                 </div>
               </div>
               {importError && <div className="error">{importError}</div>}
@@ -1041,7 +1156,7 @@ export default function TranscriberPage() {
                         selected ? "ring-2 ring-emerald-400/80 bg-emerald-50/60" : ""
                       }`}
                     >
-                      <pre className="whitespace-pre-wrap">{segment.join("\n")}</pre>
+                      <pre className="tab-block-content">{segment.join("\n")}</pre>
                     </button>
                   );
                 })}
