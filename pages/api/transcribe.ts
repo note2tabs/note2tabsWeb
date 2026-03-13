@@ -8,6 +8,7 @@ import { logGteAnalyticsEvent } from "../../lib/gteAnalytics";
 import { tabSegmentsToStamps } from "../../lib/tabTextToStamps";
 import {
   type CreditsSummary,
+  buildDevCreditsSummary,
   buildCreditsSummary,
   durationToCredits,
   getCreditWindow,
@@ -45,14 +46,6 @@ type SerializedTranscriberSegment = {
 };
 
 type SerializedTranscriberSegmentGroup = SerializedTranscriberSegment[];
-
-const buildDevCreditsSummary = (): CreditsSummary => ({
-  used: 0,
-  limit: 9999,
-  remaining: 9999,
-  resetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-  unlimited: true,
-});
 
 function buildDevWorkerUserId() {
   return `local-dev-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { sendEvent } from "../lib/analytics";
 import { copyText } from "../lib/clipboard";
-import type { CreditsSummary } from "../lib/credits";
+import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
@@ -193,6 +193,10 @@ export default function HomePage() {
   const isSignedIn = Boolean(transcriberSession);
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
+  const displayedCredits = useMemo(
+    () => credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
+    [credits, disableDbInDev]
+  );
   const verifyHref = `/auth/verify-email${
     transcriberSession?.user?.email
       ? `?email=${encodeURIComponent(transcriberSession.user.email)}`
@@ -889,13 +893,13 @@ export default function HomePage() {
     event.preventDefault();
     void handleConvert();
   };
-  const creditsUsageLabel = credits
-    ? `${credits.used}/${credits.limit}`
-    : transcriberSession
+  const creditsUsageLabel = displayedCredits
+    ? `${displayedCredits.remaining}/${displayedCredits.limit}`
+    : transcriberSession || disableDbInDev
     ? "-"
     : "10";
-  const creditsResetLabel = credits ? new Date(credits.resetAt).toLocaleDateString() : "";
-  const showCreditsEmpty = credits && credits.remaining === 0;
+  const creditsResetLabel = displayedCredits ? new Date(displayedCredits.resetAt).toLocaleDateString() : "";
+  const showCreditsEmpty = displayedCredits && displayedCredits.remaining === 0;
   const resetLabelText = isPremiumRole(transcriberSession?.user?.role) ? "Next credits" : "Resets";
 
   return (
@@ -923,7 +927,7 @@ export default function HomePage() {
               </p>
             </div>
             <form className="prompt-shell prompt-shell--funnel" data-reveal onSubmit={handleSubmit}>
-              {isSignedIn && credits && (
+              {displayedCredits && (
                 <div className="prompt-top prompt-top--solo">
                   <div className="prompt-balance">
                     <span>Credits</span>
