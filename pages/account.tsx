@@ -191,9 +191,11 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const stripeReady = Boolean(
     process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_PREMIUM_MONTHLY
   );
-  const creditWindow = getCreditWindow({ userCreatedAt: user?.createdAt });
   const role = user?.role || "FREE";
   const isPremium = role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
+  const creditWindow = isPremium
+    ? getCreditWindow({ userCreatedAt: user?.createdAt })
+    : getCreditWindow();
   const creditJobs = await prisma.tabJob.findMany({
     where: isPremium
       ? { userId: session.user.id }

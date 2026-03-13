@@ -1,7 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
-import { logGteAnalyticsEvent } from "../../../lib/gteAnalytics";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -48,6 +47,22 @@ function buildUrl(req: NextApiRequest) {
     }
   });
   return url.toString();
+}
+
+async function maybeLogGteAnalyticsEvent(input: {
+  userId: string;
+  event: "gte_editor_created";
+  path: string;
+  payload: Record<string, unknown>;
+  req: NextApiRequest;
+  res: NextApiResponse;
+}) {
+  try {
+    const analytics = await import("../../../lib/gteAnalytics");
+    await analytics.logGteAnalyticsEvent(input);
+  } catch {
+    // Keep the GTE proxy independent from analytics/Prisma failures.
+  }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -114,7 +129,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const parsed = text ? (JSON.parse(text) as { editorId?: string }) : {};
       const editorId = typeof parsed.editorId === "string" ? parsed.editorId : undefined;
       if (editorId) {
-        await logGteAnalyticsEvent({
+        await maybeLogGteAnalyticsEvent({
           userId: session.user.id,
           event: "gte_editor_created",
           path: "/api/gte/editors",
@@ -137,7 +152,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const parsed = text ? (JSON.parse(text) as { editorId?: string }) : {};
         const editorId = typeof parsed.editorId === "string" ? parsed.editorId : undefined;
         if (editorId) {
-          await logGteAnalyticsEvent({
+          await maybeLogGteAnalyticsEvent({
             userId: session.user.id,
             event: "gte_editor_created",
             path: "/api/gte/transcriber/import",
