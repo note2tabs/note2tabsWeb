@@ -219,7 +219,9 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     props: {
       user: user
         ? {
-            ...user,
+            email: user.email,
+            name: user.name,
+            role: user.role,
             createdAt: user.createdAt.toISOString(),
             isEmailVerified: Boolean(user.emailVerifiedBool || user.emailVerified),
           }

@@ -1,7 +1,7 @@
 import TabViewer from "./TabViewer";
 import StemsList from "./StemsList";
 
-export type JobStatus = "pending" | "processing" | "done" | "error";
+export type JobStatus = "queued" | "pending" | "processing" | "running" | "done" | "error" | "failed";
 
 export type Stem = {
   name: string;
@@ -52,7 +52,7 @@ export default function JobStatusLayout({
   onVideoComplete,
   shareUrls,
 }: JobStatusLayoutProps) {
-  if (!job || job.status === "pending" || job.status === "processing") {
+  if (!job || job.status === "queued" || job.status === "pending" || job.status === "processing" || job.status === "running") {
     return (
       <div className="card">
         <div className="stack" style={{ gap: "10px" }}>
@@ -65,7 +65,7 @@ export default function JobStatusLayout({
     );
   }
 
-  if (job.status === "error") {
+  if (job.status === "error" || job.status === "failed") {
     return (
       <div className="card">
         <p style={{ fontWeight: 600, margin: 0 }}>Something went wrong.</p>

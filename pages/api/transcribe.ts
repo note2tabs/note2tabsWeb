@@ -14,6 +14,10 @@ import {
   getCreditWindow,
   DEFAULT_DURATION_SEC,
 } from "../../lib/credits";
+import {
+  isEmailVerificationRequiredServer,
+  isLocalNoDbServerMode,
+} from "../../lib/serverDevMode";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -46,6 +50,12 @@ type SerializedTranscriberSegment = {
 };
 
 type SerializedTranscriberSegmentGroup = SerializedTranscriberSegment[];
+
+const JOB_POLL_INTERVAL_MS = 1500;
+const JOB_POLL_TIMEOUT_MS = 15000;
+const BACKEND_PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "running"]);
+const BACKEND_FINISHED_JOB_STATUSES = new Set(["done", "completed", "succeeded", "success"]);
+const BACKEND_FAILED_JOB_STATUSES = new Set(["error", "failed", "cancelled", "canceled"]);
 
 function buildDevWorkerUserId() {
   return `local-dev-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -112,6 +122,14 @@ function normalizeTabLine(value: unknown): string | null {
 
 function toTabSegments(value: unknown): string[][] {
   if (typeof value === "string") {
+    const trimmed = value.trim();
+    if ((trimmed.startsWith("[") || trimmed.startsWith("{")) && trimmed.length > 1) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        const nested = toTabSegments(parsed);
+        if (nested.length > 0) return nested;
+      } catch (error) {}
+    }
     const lines = value
       .split(/\r?\n/)
       .map((line) => line.trimEnd())
@@ -140,34 +158,65 @@ function toTabSegments(value: unknown): string[][] {
     .filter((segment) => segment.length > 0);
 }
 
-function extractTabsFromPayload(payload: unknown): string[][] {
-  if (!payload || typeof payload !== "object") {
-    return toTabSegments(payload);
-  }
+function findFirstInPayload<T>(
+  payload: unknown,
+  normalize: (value: unknown) => T | null,
+  preferredKeys: string[],
+  maxDepth = 6
+): T | null {
+  const seen = new Set<unknown>();
 
-  const record = payload as Record<string, unknown>;
-  const candidates = [
-    record.result,
-    record.tabs,
-    record.data,
-    record.output,
-    record.response,
-  ];
+  const visit = (value: unknown, depth: number): T | null => {
+    const normalized = normalize(value);
+    if (normalized !== null) return normalized;
 
-  for (const candidate of candidates) {
-    const normalized = toTabSegments(candidate);
-    if (normalized.length > 0) return normalized;
-  }
-
-  if (record.data && typeof record.data === "object") {
-    const nested = record.data as Record<string, unknown>;
-    for (const candidate of [nested.result, nested.tabs, nested.output]) {
-      const normalized = toTabSegments(candidate);
-      if (normalized.length > 0) return normalized;
+    if (depth >= maxDepth || !value || typeof value !== "object") {
+      return null;
     }
-  }
 
-  return [];
+    if (seen.has(value)) {
+      return null;
+    }
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const nested = visit(entry, depth + 1);
+        if (nested !== null) return nested;
+      }
+      return null;
+    }
+
+    const record = value as Record<string, unknown>;
+    for (const key of preferredKeys) {
+      if (!(key in record)) continue;
+      const nested = visit(record[key], depth + 1);
+      if (nested !== null) return nested;
+    }
+
+    for (const [key, entry] of Object.entries(record)) {
+      if (preferredKeys.includes(key)) continue;
+      const nested = visit(entry, depth + 1);
+      if (nested !== null) return nested;
+    }
+
+    return null;
+  };
+
+  return visit(payload, 0);
+}
+
+function extractTabsFromPayload(payload: unknown): string[][] {
+  return (
+    findFirstInPayload<string[][]>(
+      payload,
+      (value) => {
+        const normalized = toTabSegments(value);
+        return normalized.length > 0 ? normalized : null;
+      },
+      ["tabs", "tabText", "tab_text", "result", "output", "data", "response", "payload", "body"]
+    ) || []
+  );
 }
 
 function normalizeTranscriberSegment(value: unknown): SerializedTranscriberSegment | null {
@@ -204,6 +253,12 @@ function normalizeTranscriberSegment(value: unknown): SerializedTranscriberSegme
 function extractTranscriberSegmentGroupsFromPayload(payload: unknown): SerializedTranscriberSegmentGroup[] {
   const fromValue = (value: unknown): SerializedTranscriberSegmentGroup[] => {
     if (!Array.isArray(value)) return [];
+    const singleGroup = value
+      .map((segment) => normalizeTranscriberSegment(segment))
+      .filter((segment): segment is SerializedTranscriberSegment => Boolean(segment));
+    if (singleGroup.length > 0) {
+      return [singleGroup];
+    }
     return value
       .map((group) => {
         if (!Array.isArray(group)) return [];
@@ -214,21 +269,109 @@ function extractTranscriberSegmentGroupsFromPayload(payload: unknown): Serialize
       .filter((group) => group.length > 0);
   };
 
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return fromValue(payload);
+  return (
+    findFirstInPayload<SerializedTranscriberSegmentGroup[]>(
+      payload,
+      (value) => {
+        const normalized = fromValue(value);
+        return normalized.length > 0 ? normalized : null;
+      },
+      ["segmentGroups", "transcriberSegments", "segments", "result", "output", "data", "response", "payload"]
+    ) || []
+  );
+}
+
+function getRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function extractBackendJobId(payload: unknown): string | null {
+  const record = getRecord(payload);
+  if (!record) return null;
+  const candidates = [record.job_id, record.jobId];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+  return null;
+}
+
+function extractBackendJobStatus(payload: unknown): string | null {
+  const record = getRecord(payload);
+  if (!record || typeof record.status !== "string") return null;
+  const normalized = record.status.trim().toLowerCase();
+  return normalized || null;
+}
+
+function extractBackendJobError(payload: unknown): string {
+  const record = getRecord(payload);
+  if (!record) return "";
+  const directCandidates = [
+    record.lastError,
+    record.error_message,
+    record.errorMessage,
+    record.error,
+  ];
+  for (const candidate of directCandidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+  const detail = getRecord(record.detail);
+  if (detail && typeof detail.error === "string" && detail.error.trim()) {
+    return detail.error.trim();
+  }
+  return "";
+}
+
+function extractBackendJobOutput(payload: unknown): unknown {
+  const record = getRecord(payload);
+  if (!record) return payload;
+  return record.output ?? record.result ?? record.data ?? payload;
+}
+
+async function sleep(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchBackendJobPayload(jobId: string, headers: Record<string, string>) {
+  const response = await fetch(`${API_BASE}/api/v1/jobs/${encodeURIComponent(jobId)}`, {
+    headers,
+  });
+  if (!response.ok) {
+    const bodyText = await response.text();
+    throw new Error(bodyText || `Failed to fetch backend job ${jobId}.`);
+  }
+  return fetchJson<unknown>(response);
+}
+
+async function waitForBackendJobResult(initialPayload: unknown, headers: Record<string, string>) {
+  const jobId = extractBackendJobId(initialPayload);
+  if (!jobId) {
+    return { jobId: null, completed: true, payload: initialPayload };
   }
 
-  const record = payload as Record<string, unknown>;
-  const direct = fromValue(record.segmentGroups ?? record.transcriberSegments);
-  if (direct.length > 0) return direct;
+  let currentPayload = initialPayload;
+  const deadline = Date.now() + JOB_POLL_TIMEOUT_MS;
 
-  if (record.data && typeof record.data === "object" && !Array.isArray(record.data)) {
-    const nested = record.data as Record<string, unknown>;
-    const nestedGroups = fromValue(nested.segmentGroups ?? nested.transcriberSegments);
-    if (nestedGroups.length > 0) return nestedGroups;
+  while (Date.now() < deadline) {
+    const status = extractBackendJobStatus(currentPayload);
+    if (status && BACKEND_FINISHED_JOB_STATUSES.has(status)) {
+      return { jobId, completed: true, payload: currentPayload };
+    }
+    if (status && BACKEND_FAILED_JOB_STATUSES.has(status)) {
+      return { jobId, completed: true, payload: currentPayload };
+    }
+    if (!status || !BACKEND_PENDING_JOB_STATUSES.has(status)) {
+      return { jobId, completed: true, payload: currentPayload };
+    }
+    await sleep(JOB_POLL_INTERVAL_MS);
+    currentPayload = await fetchBackendJobPayload(jobId, headers);
   }
 
-  return [];
+  return { jobId, completed: false, payload: currentPayload };
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -246,7 +389,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   };
 
   try {
-    const allowDevGuestTranscription = process.env.NODE_ENV !== "production";
+    const allowDevGuestTranscription = isLocalNoDbServerMode;
     let session = null;
     if (!allowDevGuestTranscription) {
       try {
@@ -270,7 +413,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           console.warn("transcribe user lookup returned no user, using dev guest fallback");
         } else {
           const isEmailVerified = Boolean((user as any).emailVerifiedBool || user.emailVerified);
-          if (!isEmailVerified) {
+          if (isEmailVerificationRequiredServer && !isEmailVerified) {
             return res.status(403).json({
               error: "Please verify your email before using the transcriber.",
               verificationRequired: true,
@@ -338,7 +481,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let uploadedFile: FormidableFile | undefined;
     let skipAutoEditorSync = false;
     const backendHeaders: Record<string, string> = {};
-    if (allowDevGuestTranscription) {
+    if (user?.id) {
+      backendHeaders["X-User-Id"] = user.id;
+    } else if (session?.user?.id) {
+      backendHeaders["X-User-Id"] = session.user.id;
+    } else if (allowDevGuestTranscription) {
       // The local worker keeps its own credit ledger, so use a transient dev-only id.
       backendHeaders["X-User-Id"] = buildDevWorkerUserId();
     }
@@ -408,7 +555,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let tabs: string[][] = [];
     let transcriberSegmentGroups: SerializedTranscriberSegmentGroup[] = [];
     let lastBackendPayload: unknown = null;
+    let backendJobId: string | undefined;
     let sourceLabel = "";
+    const cleanupUploadedFile = () => {
+      if (uploadedFile?.filepath) {
+        void fs.unlink(uploadedFile.filepath).catch(() => {});
+      }
+    };
 
     if (mode === "YOUTUBE" && youtubePayload) {
       const fdYt = new FormData();
@@ -439,10 +592,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const bodyText = await processRes.text();
         return res.status(processRes.status).json({ error: `process_audio error: ${bodyText}` });
       }
-      const data = await fetchJson<unknown>(processRes);
+      let data = await fetchJson<unknown>(processRes);
+      const queuedJob = await waitForBackendJobResult(data, backendHeaders);
+      backendJobId = queuedJob.jobId || undefined;
+      data = queuedJob.payload;
+      if (!queuedJob.completed) {
+        return res.status(202).json({
+          jobId: queuedJob.jobId,
+          status: extractBackendJobStatus(data) || "queued",
+        });
+      }
       lastBackendPayload = data;
-      tabs = extractTabsFromPayload(data);
-      transcriberSegmentGroups = extractTranscriberSegmentGroupsFromPayload(data);
+      const resolvedPayload = extractBackendJobOutput(data);
+      tabs = extractTabsFromPayload(resolvedPayload);
+      transcriberSegmentGroups = extractTranscriberSegmentGroupsFromPayload(resolvedPayload);
       sourceLabel = youtubePayload.youtubeUrl;
     }
 
@@ -463,10 +626,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const bodyText = await processRes.text();
           return res.status(processRes.status).json({ error: `process_audio_s3 error: ${bodyText}` });
         }
-        const data = await fetchJson<unknown>(processRes);
+        let data = await fetchJson<unknown>(processRes);
+        const queuedJob = await waitForBackendJobResult(data, backendHeaders);
+        backendJobId = queuedJob.jobId || undefined;
+        data = queuedJob.payload;
+        if (!queuedJob.completed) {
+          cleanupUploadedFile();
+          return res.status(202).json({
+            jobId: queuedJob.jobId,
+            status: extractBackendJobStatus(data) || "queued",
+          });
+        }
         lastBackendPayload = data;
-        tabs = extractTabsFromPayload(data);
-        transcriberSegmentGroups = extractTranscriberSegmentGroupsFromPayload(data);
+        const resolvedPayload = extractBackendJobOutput(data);
+        tabs = extractTabsFromPayload(resolvedPayload);
+        transcriberSegmentGroups = extractTranscriberSegmentGroupsFromPayload(resolvedPayload);
         sourceLabel = filePayload.fileName || "upload";
       } else {
         if (!uploadedFile?.filepath) {
@@ -490,28 +664,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const bodyText = await processRes.text();
           return res.status(processRes.status).json({ error: `process_audio error: ${bodyText}` });
         }
-        const data = await fetchJson<unknown>(processRes);
-        lastBackendPayload = data;
-        tabs = extractTabsFromPayload(data);
-        transcriberSegmentGroups = extractTranscriberSegmentGroupsFromPayload(data);
-        sourceLabel = uploadedFile.originalFilename || "upload";
-        if (uploadedFile.filepath) {
-          void fs.unlink(uploadedFile.filepath).catch(() => {});
+        let data = await fetchJson<unknown>(processRes);
+        const queuedJob = await waitForBackendJobResult(data, backendHeaders);
+        backendJobId = queuedJob.jobId || undefined;
+        data = queuedJob.payload;
+        if (!queuedJob.completed) {
+          return res.status(202).json({
+            jobId: queuedJob.jobId,
+            status: extractBackendJobStatus(data) || "queued",
+          });
         }
+        lastBackendPayload = data;
+        const resolvedPayload = extractBackendJobOutput(data);
+        tabs = extractTabsFromPayload(resolvedPayload);
+        transcriberSegmentGroups = extractTranscriberSegmentGroupsFromPayload(resolvedPayload);
+        sourceLabel = uploadedFile.originalFilename || "upload";
+        cleanupUploadedFile();
       }
     }
 
     if (!tabs?.length) {
-      const backendError =
-        lastBackendPayload &&
-        typeof lastBackendPayload === "object" &&
-        typeof (lastBackendPayload as { error?: unknown }).error === "string"
-          ? ((lastBackendPayload as { error: string }).error || "").trim()
-          : "";
+      const backendError = extractBackendJobError(lastBackendPayload);
       if (process.env.NODE_ENV !== "production") {
         console.warn("transcribe backend returned no tab segments", {
           mode,
           sourceLabel,
+          jobId: backendJobId,
+          jobStatus: extractBackendJobStatus(lastBackendPayload),
           payloadType: Array.isArray(lastBackendPayload) ? "array" : typeof lastBackendPayload,
           payloadKeys:
             lastBackendPayload && typeof lastBackendPayload === "object" && !Array.isArray(lastBackendPayload)
@@ -661,7 +840,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       transcriberSegments: transcriberSegmentGroups.length > 0 ? transcriberSegmentGroups : undefined,
       tokensRemaining: updatedTokens,
       credits: user ? creditsAfter : undefined,
-      jobId,
+      jobId: backendJobId || jobId,
       gteEditorId,
     });
   } catch (error) {

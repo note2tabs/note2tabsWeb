@@ -4,6 +4,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { sendEvent } from "../lib/analytics";
+import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { copyText } from "../lib/clipboard";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
@@ -16,6 +17,7 @@ type TabsResponse = {
   tokensRemaining?: number;
   credits?: CreditsSummary;
   jobId?: string;
+  status?: string;
   gteEditorId?: string;
   verificationRequired?: boolean;
 };
@@ -188,7 +190,7 @@ export default function HomePage() {
   const ytPlayerRef = useRef<any | null>(null);
   const ytPlayerMountRef = useRef<HTMLDivElement | null>(null);
   const captureRafRef = useRef<number | null>(null);
-  const disableDbInDev = process.env.NODE_ENV !== "production";
+  const disableDbInDev = isLocalNoDbClientMode;
   const transcriberSession = session ?? null;
   const isSignedIn = Boolean(transcriberSession);
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
@@ -678,7 +680,7 @@ export default function HomePage() {
           return await fetch("/api/transcribe", { method: "POST", body: fd });
         };
 
-        if (disableDbInDev) {
+        if (isDevelopmentClient) {
           response = await postFileDirectly();
         } else {
           const presignRes = await fetch("/api/uploads/presign", {
@@ -691,9 +693,7 @@ export default function HomePage() {
             }),
           });
           const presignData = await presignRes.json().catch(() => ({}));
-          if ((!presignRes.ok || !presignData?.url || !presignData?.key) && disableDbInDev) {
-            response = await postFileDirectly();
-          } else if (!presignRes.ok || !presignData?.url || !presignData?.key) {
+          if (!presignRes.ok || !presignData?.url || !presignData?.key) {
             throw new Error(presignData?.error || "Could not prepare upload.");
           } else {
             const uploadRes = await fetch(presignData.url, {
@@ -702,11 +702,7 @@ export default function HomePage() {
               body: selectedFile,
             });
             if (!uploadRes.ok) {
-              if (disableDbInDev) {
-                response = await postFileDirectly();
-              } else {
-                throw new Error("Upload failed. Please try again.");
-              }
+              throw new Error("Upload failed. Please try again.");
             } else {
               setStatus("Transcribing audio...");
               const payload: Record<string, unknown> = {
@@ -738,6 +734,15 @@ export default function HomePage() {
       }
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
+      if (response.status === 202 && data.jobId) {
+        if (data.credits) {
+          setCredits(data.credits);
+        }
+        setStatus("Transcription queued. Opening job status...");
+        sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
+        await router.push(`/job/${data.jobId}`);
+        return;
+      }
       if (!response.ok) {
         if (data.credits) {
           setCredits(data.credits);

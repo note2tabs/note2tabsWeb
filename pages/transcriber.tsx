@@ -5,6 +5,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { sendEvent } from "../lib/analytics";
+import { isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { copyText } from "../lib/clipboard";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
@@ -17,6 +18,7 @@ type TabsResponse = {
   tokensRemaining?: number;
   credits?: CreditsSummary;
   jobId?: string;
+  status?: string;
   gteEditorId?: string;
   verificationRequired?: boolean;
 };
@@ -183,7 +185,7 @@ export default function TranscriberPage() {
   const ytPlayerRef = useRef<any | null>(null);
   const ytPlayerMountRef = useRef<HTMLDivElement | null>(null);
   const captureRafRef = useRef<number | null>(null);
-  const disableDbInDev = process.env.NODE_ENV !== "production";
+  const disableDbInDev = isLocalNoDbClientMode;
   const transcriberSession = session ?? null;
   const isSignedIn = Boolean(transcriberSession);
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
@@ -673,6 +675,15 @@ export default function TranscriberPage() {
       }
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
+      if (response.status === 202 && data.jobId) {
+        if (data.credits) {
+          setCredits(data.credits);
+        }
+        setStatus("Transcription queued. Opening job status...");
+        sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
+        await router.push(`/job/${data.jobId}`);
+        return;
+      }
       if (!response.ok) {
         if (data.credits) {
           setCredits(data.credits);

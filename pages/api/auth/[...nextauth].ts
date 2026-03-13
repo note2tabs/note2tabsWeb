@@ -6,6 +6,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
 import { buildCreditsSummary, buildDevCreditsSummary, getCreditWindow } from "../../../lib/credits";
+import { isLocalNoDbServerMode } from "../../../lib/serverDevMode";
 import { parseCookieHeader } from "../../../lib/analyticsV2/cookies";
 import { linkIdentityToUser } from "../../../lib/analyticsV2/identity";
 
@@ -69,7 +70,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   );
 }
 
-const allowDevAuthFallback = process.env.NODE_ENV !== "production";
+const allowDevAuthFallback = isLocalNoDbServerMode;
 let devPrismaUnavailable = allowDevAuthFallback;
 
 const shouldBypassPrismaSync = () => allowDevAuthFallback && devPrismaUnavailable;

@@ -1,14 +1,78 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Head from "next/head";
 import Script from "next/script";
 import { useRouter } from "next/router";
 import JobStatusLayout, { JobResponse } from "../../components/JobStatusLayout";
 import { saveJobToHistory } from "../../lib/history";
+import { tabsToTabText } from "../../lib/tabTextToStamps";
 import { getAppBaseUrl } from "../../lib/urls";
 
 const POLL_INTERVAL = 3000;
 const PRIMIS_CHANNEL_ID = "YOUR_PRIMIS_CHANNEL_ID";
 const ADS_AVAILABLE = PRIMIS_CHANNEL_ID && PRIMIS_CHANNEL_ID !== "YOUR_PRIMIS_CHANNEL_ID";
+
+function getJobSources(job: JobResponse | null) {
+  if (!job) return [] as Record<string, unknown>[];
+  const direct = job as unknown as Record<string, unknown>;
+  const output = direct.output as Record<string, unknown> | undefined;
+  const result = direct.result as Record<string, unknown> | undefined;
+  return [direct, output, result, output?.result as Record<string, unknown> | undefined, result?.output as Record<string, unknown> | undefined]
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry));
+}
+
+function getFirstJobValue(job: JobResponse | null, keys: string[]) {
+  for (const source of getJobSources(job)) {
+    for (const key of keys) {
+      const value = source[key];
+      if (value !== undefined && value !== null && value !== "") {
+        return value;
+      }
+    }
+  }
+  return null;
+}
+
+function tabsValueToText(value: unknown) {
+  if (!Array.isArray(value)) return "";
+  const segments = value
+    .map((segment) =>
+      Array.isArray(segment)
+        ? segment.filter((line): line is string => typeof line === "string" && line.trim().length > 0)
+        : []
+    )
+    .filter((segment) => segment.length > 0);
+  return segments.length > 0 ? tabsToTabText(segments) : "";
+}
+
+function normalizeJobForDisplay(job: JobResponse | null): JobResponse | null {
+  if (!job) return null;
+  const tabText =
+    (typeof getFirstJobValue(job, ["tab_text", "tabText"]) === "string"
+      ? (getFirstJobValue(job, ["tab_text", "tabText"]) as string)
+      : "") || tabsValueToText(getFirstJobValue(job, ["tabs"]));
+  const stems = getFirstJobValue(job, ["stems"]);
+  return {
+    ...job,
+    song_title:
+      (typeof getFirstJobValue(job, ["song_title", "songTitle"]) === "string"
+        ? (getFirstJobValue(job, ["song_title", "songTitle"]) as string)
+        : job.song_title) || job.song_title,
+    artist:
+      (typeof getFirstJobValue(job, ["artist"]) === "string"
+        ? (getFirstJobValue(job, ["artist"]) as string)
+        : job.artist) || job.artist,
+    tab_text: tabText || job.tab_text,
+    audio_preview_url:
+      (typeof getFirstJobValue(job, ["audio_preview_url", "audioPreviewUrl"]) === "string"
+        ? (getFirstJobValue(job, ["audio_preview_url", "audioPreviewUrl"]) as string)
+        : job.audio_preview_url) || job.audio_preview_url,
+    stems: Array.isArray(stems) ? stems : job.stems,
+    error_message:
+      (typeof getFirstJobValue(job, ["error_message", "errorMessage", "lastError"]) === "string"
+        ? (getFirstJobValue(job, ["error_message", "errorMessage", "lastError"]) as string)
+        : job.error_message) || job.error_message,
+  };
+}
 
 export default function JobPage() {
   const router = useRouter();
@@ -21,6 +85,7 @@ export default function JobPage() {
   const [loadAdScript, setLoadAdScript] = useState(false);
   const [savedHistory, setSavedHistory] = useState(false);
   const [shareUrls, setShareUrls] = useState<{ twitter: string; reddit: string } | null>(null);
+  const displayJob = useMemo(() => normalizeJobForDisplay(job), [job]);
 
   const fetchJob = async (id: string) => {
     try {
@@ -60,19 +125,19 @@ export default function JobPage() {
   }, [job_id]);
 
   useEffect(() => {
-    if (job?.status === "done") {
+    if (displayJob?.status === "done") {
       if (!hasWatchedAd && ADS_AVAILABLE) setLoadAdScript(true);
       if (!savedHistory && job_id && typeof job_id === "string") {
         saveJobToHistory({
           jobId: job_id,
-          songTitle: job.song_title,
-          artist: job.artist,
+          songTitle: displayJob.song_title,
+          artist: displayJob.artist,
           createdAt: new Date().toISOString(),
         });
         setSavedHistory(true);
       }
     }
-  }, [job?.status, hasWatchedAd, savedHistory, job_id, job?.song_title, job?.artist]);
+  }, [displayJob?.status, hasWatchedAd, savedHistory, job_id, displayJob?.song_title, displayJob?.artist]);
 
   useEffect(() => {
     setHasWatchedAd(false);
@@ -82,34 +147,24 @@ export default function JobPage() {
   }, [job_id]);
 
   useEffect(() => {
-    if (job?.status !== "done" || !job_id) return;
-    const resolvedTabId =
-      (job as any).tab_job_id ||
-      (job as any).tabJobId ||
-      (job as any).tab_id ||
-      (job as any).tabId ||
-      (job as any)?.result?.tab_job_id ||
-      (job as any)?.result?.tabJobId;
-    const resolvedGteId =
-      (job as any).gte_editor_id ||
-      (job as any).gteEditorId ||
-      (job as any)?.result?.gte_editor_id ||
-      (job as any)?.result?.gteEditorId;
+    if (displayJob?.status !== "done" || !job_id) return;
+    const resolvedTabId = getFirstJobValue(displayJob, ["tab_job_id", "tabJobId", "tab_id", "tabId"]);
+    const resolvedGteId = getFirstJobValue(displayJob, ["gte_editor_id", "gteEditorId"]);
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    if (resolvedGteId) {
+    if (typeof resolvedGteId === "string" && resolvedGteId) {
       router.replace(`/gte/${resolvedGteId}`);
       return;
     }
-    if (resolvedTabId) {
+    if (typeof resolvedTabId === "string" && resolvedTabId) {
       router.replace(`/tabs/${resolvedTabId}`);
     }
-  }, [job?.status, job_id, job, router]);
+  }, [displayJob?.status, job_id, displayJob, router]);
 
   useEffect(() => {
-    if (job?.status !== "done" || !job_id) return;
+    if (displayJob?.status !== "done" || !job_id) return;
     const base =
       typeof window !== "undefined"
         ? window.location.href
@@ -119,19 +174,19 @@ export default function JobPage() {
       twitter: `https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent(base)}`,
       reddit: `https://reddit.com/submit?url=${encodeURIComponent(base)}&title=${text}`,
     });
-  }, [job?.status, job_id]);
+  }, [displayJob?.status, job_id]);
 
   useEffect(() => {
-    if (job?.status === "done" && !savedHistory && job_id && typeof job_id === "string") {
+    if (displayJob?.status === "done" && !savedHistory && job_id && typeof job_id === "string") {
       saveJobToHistory({
         jobId: job_id,
-        songTitle: job.song_title,
-        artist: job.artist,
+        songTitle: displayJob.song_title,
+        artist: displayJob.artist,
         createdAt: new Date().toISOString(),
       });
       setSavedHistory(true);
     }
-  }, [job?.status, savedHistory, job_id, job?.song_title, job?.artist]);
+  }, [displayJob?.status, savedHistory, job_id, displayJob?.song_title, displayJob?.artist]);
 
   useEffect(() => {
     if (!loadAdScript) return;
@@ -153,12 +208,12 @@ export default function JobPage() {
   }, [loadAdScript]);
 
   const handleDownloadTabs = () => {
-    const content = job?.tab_text || "";
+    const content = displayJob?.tab_text || "";
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${job?.song_title || "note2tabs"}.txt`;
+    link.download = `${displayJob?.song_title || "note2tabs"}.txt`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -171,11 +226,11 @@ export default function JobPage() {
     handleSkipAd();
   };
 
-  const showAdGate = job?.status === "done" && !hasWatchedAd;
+  const showAdGate = displayJob?.status === "done" && !hasWatchedAd;
   const title =
-    job?.status === "done" && job?.song_title
-      ? `${job.song_title} - Note2Tabs`
-      : job?.status === "done"
+    displayJob?.status === "done" && displayJob?.song_title
+      ? `${displayJob.song_title} - Note2Tabs`
+      : displayJob?.status === "done"
       ? "Tabs Ready - Note2Tabs"
       : "Processing - Note2Tabs";
 
@@ -203,7 +258,7 @@ export default function JobPage() {
             </button>
           </div>
           <JobStatusLayout
-            job={job}
+            job={displayJob}
             onDownloadTabs={handleDownloadTabs}
             onRestart={handleRestart}
             hasWatchedAd={hasWatchedAd}
