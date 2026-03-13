@@ -294,7 +294,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             user.role === "ADMIN" ||
             user.role === "MODERATOR" ||
             user.role === "MOD";
-          const creditWindow = getCreditWindow({ userCreatedAt: user.createdAt });
+          const creditWindow = isPremium
+            ? getCreditWindow({ userCreatedAt: user.createdAt })
+            : getCreditWindow();
           const creditJobs = await prisma.tabJob.findMany({
             where: isPremium
               ? { userId: session.user.id }
@@ -313,6 +315,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             isPremium,
             userCreatedAt: user.createdAt,
           });
+          if (!isPremium && user.tokensRemaining !== refreshedCredits.remaining) {
+            user.tokensRemaining = refreshedCredits.remaining;
+            try {
+              await prisma.user.update({
+                where: { id: user.id },
+                data: { tokensRemaining: refreshedCredits.remaining },
+              });
+            } catch (error) {
+              console.warn("transcribe monthly credit sync failed", error);
+            }
+          }
         }
       } catch (error) {
         user = null;

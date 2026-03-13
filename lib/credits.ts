@@ -18,6 +18,12 @@ const toSafeDate = (value?: Date | null) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const startOfUtcMonth = (value: Date) =>
+  new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1));
+
+const addUtcMonths = (value: Date, monthsToAdd: number) =>
+  new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + monthsToAdd, 1));
+
 const daysInUtcMonth = (year: number, monthIndex: number) =>
   new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
 
@@ -63,10 +69,14 @@ type CreditWindowOptions = {
 export function getCreditWindow({ now = new Date(), userCreatedAt }: CreditWindowOptions = {}) {
   const safeNow = toSafeDate(now) || new Date();
   const safeCreatedAt = toSafeDate(userCreatedAt);
-  const anchor = safeCreatedAt || new Date(Date.UTC(safeNow.getUTCFullYear(), safeNow.getUTCMonth(), 1));
-  const elapsed = countElapsedMonthlyCycles(anchor, safeNow);
-  const start = addMonthsClampedUtc(anchor, elapsed);
-  const resetAt = addMonthsClampedUtc(anchor, elapsed + 1);
+  if (!safeCreatedAt) {
+    const start = startOfUtcMonth(safeNow);
+    const resetAt = addUtcMonths(start, 1);
+    return { start, resetAt };
+  }
+  const elapsed = countElapsedMonthlyCycles(safeCreatedAt, safeNow);
+  const start = addMonthsClampedUtc(safeCreatedAt, elapsed);
+  const resetAt = addMonthsClampedUtc(safeCreatedAt, elapsed + 1);
   return { start, resetAt };
 }
 
@@ -81,8 +91,8 @@ export function calculateCreditsUsed(durations: Array<number | null | undefined>
 }
 
 const countMonthlyGrants = (createdAt: Date, now: Date) => {
-  const safeCreatedAt = toSafeDate(createdAt) || now;
   const safeNow = toSafeDate(now) || new Date();
+  const safeCreatedAt = toSafeDate(createdAt) || safeNow;
   return countElapsedMonthlyCycles(safeCreatedAt, safeNow) + 1;
 };
 
