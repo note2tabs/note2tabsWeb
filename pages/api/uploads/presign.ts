@@ -10,7 +10,8 @@ const MAX_FREE_BYTES = 50 * 1024 * 1024;
 const MAX_PREMIUM_BYTES = 500 * 1024 * 1024;
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
-const BACKEND_SECRET = process.env.NOTE2TABS_BACKEND_SECRET;
+const BACKEND_SECRET =
+  process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
