@@ -693,7 +693,12 @@ export default function HomePage() {
             }),
           });
           const presignData = await presignRes.json().catch(() => ({}));
-          if (!presignRes.ok || !presignData?.url || !presignData?.key) {
+          const shouldFallbackToDirectUpload =
+            presignRes.status >= 500 || (presignRes.ok && (!presignData?.url || !presignData?.key));
+          if (shouldFallbackToDirectUpload) {
+            setStatus("Upload service unavailable. Falling back to direct upload...");
+            response = await postFileDirectly();
+          } else if (!presignRes.ok || !presignData?.url || !presignData?.key) {
             throw new Error(presignData?.error || "Could not prepare upload.");
           } else {
             const uploadRes = await fetch(presignData.url, {

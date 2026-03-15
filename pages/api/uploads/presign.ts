@@ -65,11 +65,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       contentType: typeof contentType === "string" ? contentType : "application/octet-stream",
     }),
   });
-  const data = await upstream.json().catch(() => ({}));
+  const rawText = await upstream.text();
+  let data: any = {};
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch (error) {
+    data = {};
+  }
   if (!upstream.ok) {
-    return res.status(upstream.status).json({ error: data?.error || "Could not prepare upload." });
+    const errorMessage =
+      (typeof data?.error === "string" && data.error.trim()) ||
+      (typeof data?.detail === "string" && data.detail.trim()) ||
+      (typeof data?.detail?.error === "string" && data.detail.error.trim()) ||
+      rawText.trim() ||
+      "Could not prepare upload.";
+    console.error("upload presign upstream error", {
+      status: upstream.status,
+      userId: session.user.id,
+      fileName,
+      contentType,
+      response: rawText || null,
+    });
+    return res.status(upstream.status).json({ error: errorMessage });
   }
   if (!data?.url || !data?.key) {
+    console.error("upload presign invalid upstream response", {
+      userId: session.user.id,
+      fileName,
+      response: rawText || null,
+    });
     return res.status(502).json({ error: "Invalid presign response." });
   }
   return res.status(200).json({ url: data.url, key: data.key, maxBytes });
