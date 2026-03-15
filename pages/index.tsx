@@ -922,7 +922,12 @@ export default function HomePage() {
                 Paste a YouTube link or upload audio, then shape the result in the editor.
               </p>
             </div>
-            <form className="prompt-shell prompt-shell--funnel" data-reveal onSubmit={handleSubmit}>
+            <form
+              id="transcriber-start"
+              className="prompt-shell prompt-shell--funnel"
+              data-reveal
+              onSubmit={handleSubmit}
+            >
               {displayedCredits && (
                 <div className="prompt-top prompt-top--solo">
                   <div className="prompt-balance">
@@ -1324,6 +1329,25 @@ export default function HomePage() {
               </button>
             </div>
             {pricingError && <div className="error">{pricingError}</div>}
+          </div>
+        </section>
+
+        <section className="bottom-transcriber" data-reveal>
+          <div className="container">
+            <div className="bottom-transcriber-shell">
+              <h2 className="bottom-transcriber-title">Ready to convert audio to tabs?</h2>
+              <p className="bottom-transcriber-subtitle">
+                Start a fresh transcription and jump straight into your playable tab workflow.
+              </p>
+              <div className="bottom-transcriber-actions">
+                <Link href="#transcriber-start" className="button-primary">
+                  Start transcribing
+                </Link>
+                <Link href="/transcriber" className="button-secondary">
+                  Open full transcriber
+                </Link>
+              </div>
+            </div>
           </div>
         </section>
       </main>
