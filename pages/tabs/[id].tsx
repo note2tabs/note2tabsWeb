@@ -7,7 +7,6 @@ import { authOptions } from "../api/auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
 import { copyText } from "../../lib/clipboard";
 import { gteApi } from "../../lib/gteApi";
-import { tabSegmentsToStamps } from "../../lib/tabTextToStamps";
 import { parseStoredTabPayload, type StoredTranscriberSegmentGroup } from "../../lib/storedTabs";
 import type { EditorListItem } from "../../types/gte";
 
@@ -78,29 +77,16 @@ export default function TabDetailPage({ id, sourceLabel, createdAt, tabs, transc
     setImportError(null);
     try {
       const selectedTranscriberGroups = getSelectedTranscriberGroups();
-      if (selectedTranscriberGroups) {
-        const imported = await gteApi.importTranscriberToSaved({
-          target: !editorChoice || editorChoice === "new" ? "new" : "existing",
-          editorId: !editorChoice || editorChoice === "new" ? undefined : editorChoice,
-          name: sourceLabel || "Imported transcription",
-          segmentGroups: selectedTranscriberGroups,
-        });
-        await router.push(`/gte/${imported.editorId}?source=saved-tab&tabId=${encodeURIComponent(id)}`);
-        return;
+      if (!selectedTranscriberGroups) {
+        throw new Error("This saved transcription is missing transcriber segment data.");
       }
-
-      const { stamps, totalFrames } = tabSegmentsToStamps(selectedTabs);
-      if (stamps.length === 0) {
-        setImportError("No tabs available to import.");
-        return;
-      }
-      let targetEditorId = editorChoice;
-      if (!targetEditorId || targetEditorId === "new") {
-        const created = await gteApi.createEditor(undefined, sourceLabel || "Imported transcription");
-        targetEditorId = created.editorId;
-      }
-      await gteApi.appendImportTab(targetEditorId, { stamps, totalFrames });
-      await router.push(`/gte/${targetEditorId}?source=saved-tab&tabId=${encodeURIComponent(id)}`);
+      const imported = await gteApi.importTranscriberToSaved({
+        target: !editorChoice || editorChoice === "new" ? "new" : "existing",
+        editorId: !editorChoice || editorChoice === "new" ? undefined : editorChoice,
+        name: sourceLabel || "Imported transcription",
+        segmentGroups: selectedTranscriberGroups,
+      });
+      await router.push(`/gte/${imported.editorId}?source=saved-tab&tabId=${encodeURIComponent(id)}`);
     } catch (err: any) {
       setImportError(err?.message || "Failed to import tabs.");
     } finally {
@@ -225,6 +211,9 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   }
 
   const parsed = parseStoredTabPayload(job.resultJson);
+  if (parsed.transcriberSegments.length === 0) {
+    return { notFound: true };
+  }
 
   return {
     props: {

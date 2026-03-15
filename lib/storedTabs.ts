@@ -70,13 +70,6 @@ function normalizeTranscriberSegments(value: unknown): StoredTranscriberSegmentG
 }
 
 export function normalizeStoredTabPayload(value: unknown): StoredTabPayload {
-  if (Array.isArray(value)) {
-    return {
-      tabs: normalizeTabSegments(value),
-      transcriberSegments: [],
-      backendJobId: null,
-    };
-  }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {
       tabs: [],

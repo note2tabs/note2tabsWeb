@@ -1,0 +1,1 @@
+-- No schema change was recorded for this migration.

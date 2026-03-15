@@ -28,8 +28,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       parsed = JSON.parse(resultJson);
       const normalized = normalizeStoredTabPayload(parsed);
-      if (normalized.tabs.length === 0) {
-        return res.status(400).json({ error: "resultJson must include at least one tab block" });
+      if (normalized.tabs.length === 0 || normalized.transcriberSegments.length === 0) {
+        return res.status(400).json({ error: "resultJson must include tabs and transcriberSegments" });
       }
     } catch (error) {
       return res.status(400).json({ error: "Invalid JSON" });
