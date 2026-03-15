@@ -1,12 +1,17 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
+import {
+  isEmailVerificationRequiredServer,
+  isLocalNoDbServerMode,
+} from "../../../lib/serverDevMode";
 
 const MAX_FREE_BYTES = 50 * 1024 * 1024;
 const MAX_PREMIUM_BYTES = 500 * 1024 * 1024;
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
-const BACKEND_SECRET = process.env.NOTE2TABS_BACKEND_SECRET;
+const BACKEND_SECRET =
+  process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -14,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  if (process.env.NODE_ENV !== "production") {
+  if (isLocalNoDbServerMode) {
     return res.status(503).json({
       error: "Presign is disabled in local no-db mode. Use direct upload instead.",
     });
@@ -24,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session?.user?.id) {
     return res.status(401).json({ error: "Not authenticated" });
   }
-  if (!session.user.isEmailVerified) {
+  if (isEmailVerificationRequiredServer && !session.user.isEmailVerified) {
     return res.status(403).json({
       error: "Please verify your email before using the transcriber.",
       verificationRequired: true,
@@ -60,11 +65,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       contentType: typeof contentType === "string" ? contentType : "application/octet-stream",
     }),
   });
-  const data = await upstream.json().catch(() => ({}));
+  const rawText = await upstream.text();
+  let data: any = {};
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch (error) {
+    data = {};
+  }
   if (!upstream.ok) {
-    return res.status(upstream.status).json({ error: data?.error || "Could not prepare upload." });
+    const errorMessage =
+      (typeof data?.error === "string" && data.error.trim()) ||
+      (typeof data?.detail === "string" && data.detail.trim()) ||
+      (typeof data?.detail?.error === "string" && data.detail.error.trim()) ||
+      rawText.trim() ||
+      "Could not prepare upload.";
+    console.error("upload presign upstream error", {
+      status: upstream.status,
+      userId: session.user.id,
+      fileName,
+      contentType,
+      response: rawText || null,
+    });
+    return res.status(upstream.status).json({ error: errorMessage });
   }
   if (!data?.url || !data?.key) {
+    console.error("upload presign invalid upstream response", {
+      userId: session.user.id,
+      fileName,
+      response: rawText || null,
+    });
     return res.status(502).json({ error: "Invalid presign response." });
   }
   return res.status(200).json({ url: data.url, key: data.key, maxBytes });

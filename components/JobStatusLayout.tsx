@@ -1,7 +1,7 @@
 import TabViewer from "./TabViewer";
 import StemsList from "./StemsList";
 
-export type JobStatus = "pending" | "processing" | "done" | "error";
+export type JobStatus = "queued" | "pending" | "processing" | "running" | "done" | "error" | "failed";
 
 export type Stem = {
   name: string;
@@ -27,6 +27,10 @@ type JobStatusLayoutProps = {
   job: JobResponse | null;
   onRestart: () => void;
   onDownloadTabs: () => void;
+  onImportToEditor?: (() => void) | null;
+  importBusy?: boolean;
+  importButtonLabel?: string;
+  importError?: string | null;
   hasWatchedAd: boolean;
   showAdGate: boolean;
   onRetryAd: () => void;
@@ -42,6 +46,10 @@ export default function JobStatusLayout({
   job,
   onRestart,
   onDownloadTabs,
+  onImportToEditor,
+  importBusy = false,
+  importButtonLabel = "Import to editor",
+  importError,
   hasWatchedAd,
   showAdGate,
   onRetryAd,
@@ -52,7 +60,7 @@ export default function JobStatusLayout({
   onVideoComplete,
   shareUrls,
 }: JobStatusLayoutProps) {
-  if (!job || job.status === "pending" || job.status === "processing") {
+  if (!job || job.status === "queued" || job.status === "pending" || job.status === "processing" || job.status === "running") {
     return (
       <div className="card">
         <div className="stack" style={{ gap: "10px" }}>
@@ -65,7 +73,7 @@ export default function JobStatusLayout({
     );
   }
 
-  if (job.status === "error") {
+  if (job.status === "error" || job.status === "failed") {
     return (
       <div className="card">
         <p style={{ fontWeight: 600, margin: 0 }}>Something went wrong.</p>
@@ -154,6 +162,11 @@ export default function JobStatusLayout({
       </div>
 
       <div className="button-row">
+        {onImportToEditor && (
+          <button type="button" onClick={onImportToEditor} className="button-primary button-small" disabled={importBusy}>
+            {importBusy ? "Importing..." : importButtonLabel}
+          </button>
+        )}
         <button type="button" onClick={onDownloadTabs} className="button-secondary button-small">
           Download Tab (TXT)
         </button>
@@ -181,6 +194,7 @@ export default function JobStatusLayout({
           </div>
         )}
       </div>
+      {importError ? <div className="error">{importError}</div> : null}
     </div>
   );
 }

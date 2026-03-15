@@ -5,8 +5,9 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { sendEvent } from "../lib/analytics";
+import { isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { copyText } from "../lib/clipboard";
-import type { CreditsSummary } from "../lib/credits";
+import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
@@ -17,6 +18,8 @@ type TabsResponse = {
   tokensRemaining?: number;
   credits?: CreditsSummary;
   jobId?: string;
+  tabJobId?: string;
+  status?: string;
   gteEditorId?: string;
   verificationRequired?: boolean;
 };
@@ -183,11 +186,15 @@ export default function TranscriberPage() {
   const ytPlayerRef = useRef<any | null>(null);
   const ytPlayerMountRef = useRef<HTMLDivElement | null>(null);
   const captureRafRef = useRef<number | null>(null);
-  const disableDbInDev = process.env.NODE_ENV !== "production";
+  const disableDbInDev = isLocalNoDbClientMode;
   const transcriberSession = session ?? null;
   const isSignedIn = Boolean(transcriberSession);
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
+  const displayedCredits = useMemo(
+    () => credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
+    [credits, disableDbInDev]
+  );
   const verifyHref = `/auth/verify-email${
     transcriberSession?.user?.email
       ? `?email=${encodeURIComponent(transcriberSession.user.email)}`
@@ -549,20 +556,6 @@ export default function TranscriberPage() {
     }
   };
 
-  const openTabsInEditor = async (segments: string[][], gteEditorId?: string | null) => {
-    if (gteEditorId) {
-      await router.push(`/gte/${gteEditorId}?source=transcriber`);
-      return;
-    }
-    const { stamps, totalFrames } = tabSegmentsToStamps(segments);
-    if (stamps.length === 0) {
-      throw new Error("No tabs available to import into the editor.");
-    }
-    const created = await gteApi.createEditor();
-    await gteApi.appendImportTab(created.editorId, { stamps, totalFrames });
-    await router.push(`/gte/${created.editorId}?source=transcriber`);
-  };
-
   const openTabsInGuestEditor = async (segments: string[][]) => {
     const { stamps, totalFrames } = tabSegmentsToStamps(segments);
     if (stamps.length === 0) {
@@ -669,6 +662,19 @@ export default function TranscriberPage() {
       }
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
+      if (response.status === 202 && data.jobId) {
+        if (data.credits) {
+          setCredits(data.credits);
+        }
+        setStatus("Transcription queued. Opening job status...");
+        sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
+        await router.push(
+          appendEditorId
+            ? `/job/${data.jobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
+            : `/job/${data.jobId}`
+        );
+        return;
+      }
       if (!response.ok) {
         if (data.credits) {
           setCredits(data.credits);
@@ -693,6 +699,15 @@ export default function TranscriberPage() {
         setCredits(data.credits);
       }
       sendEvent("transcribe_success", { mode, jobId: data.jobId });
+      if (transcriberSession && data.tabJobId) {
+        setStatus("Tabs ready. Opening import page...");
+        await router.push(
+          appendEditorId
+            ? `/tabs/${data.tabJobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
+            : `/tabs/${data.tabJobId}`
+        );
+        return;
+      }
       if (!transcriberSession) {
         if (disableDbInDev) {
           setTabsResult(nextTabs);
@@ -703,23 +718,9 @@ export default function TranscriberPage() {
         setStatus("Tabs ready.");
         return;
       }
-      if (shouldDeferEditorSync) {
-        setTabsResult(nextTabs);
-        setStatus("Tabs ready. Import into your editor below.");
-        return;
-      }
-      setStatus("Tabs ready. Opening Guitar Tab Editor...");
-      try {
-        await openTabsInEditor(nextTabs, data.gteEditorId);
-        return;
-      } catch (openErr: any) {
-        setTabsResult(nextTabs);
-        setImportError(
-          openErr?.message ||
-            "Transcription succeeded, but we could not open the editor automatically. Import manually below."
-        );
-        setStatus(null);
-      }
+      setTabsResult(nextTabs);
+      setStatus("Tabs ready. Import into your editor below.");
+      return;
     } catch (err: any) {
       setError(err?.message || "Something went wrong. Please try again.");
       sendEvent("transcribe_error", { mode, error: err?.message || "unknown" });
@@ -801,13 +802,13 @@ export default function TranscriberPage() {
     event.preventDefault();
     void handleConvert();
   };
-  const creditsUsageLabel = credits
-    ? `${credits.used}/${credits.limit}`
-    : transcriberSession
+  const creditsUsageLabel = displayedCredits
+    ? `${displayedCredits.remaining}/${displayedCredits.limit}`
+    : transcriberSession || disableDbInDev
     ? "-"
     : "10";
-  const creditsResetLabel = credits ? new Date(credits.resetAt).toLocaleDateString() : "";
-  const showCreditsEmpty = credits && credits.remaining === 0;
+  const creditsResetLabel = displayedCredits ? new Date(displayedCredits.resetAt).toLocaleDateString() : "";
+  const showCreditsEmpty = displayedCredits && displayedCredits.remaining === 0;
   const resetLabelText = isPremiumRole(transcriberSession?.user?.role) ? "Next credits" : "Resets";
 
   return (
@@ -843,7 +844,7 @@ export default function TranscriberPage() {
               </p>
             </div>
             <form className="prompt-shell" data-reveal onSubmit={handleSubmit}>
-              {isSignedIn && credits && (
+              {displayedCredits && (
                 <div className="prompt-top prompt-top--solo">
                   <div className="prompt-balance">
                     <span>Credits</span>

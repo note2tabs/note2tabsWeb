@@ -4,8 +4,9 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { sendEvent } from "../lib/analytics";
+import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { copyText } from "../lib/clipboard";
-import type { CreditsSummary } from "../lib/credits";
+import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
@@ -16,6 +17,8 @@ type TabsResponse = {
   tokensRemaining?: number;
   credits?: CreditsSummary;
   jobId?: string;
+  tabJobId?: string;
+  status?: string;
   gteEditorId?: string;
   verificationRequired?: boolean;
 };
@@ -188,11 +191,15 @@ export default function HomePage() {
   const ytPlayerRef = useRef<any | null>(null);
   const ytPlayerMountRef = useRef<HTMLDivElement | null>(null);
   const captureRafRef = useRef<number | null>(null);
-  const disableDbInDev = process.env.NODE_ENV !== "production";
+  const disableDbInDev = isLocalNoDbClientMode;
   const transcriberSession = session ?? null;
   const isSignedIn = Boolean(transcriberSession);
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
+  const displayedCredits = useMemo(
+    () => credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
+    [credits, disableDbInDev]
+  );
   const verifyHref = `/auth/verify-email${
     transcriberSession?.user?.email
       ? `?email=${encodeURIComponent(transcriberSession.user.email)}`
@@ -554,20 +561,6 @@ export default function HomePage() {
     }
   };
 
-  const openTabsInEditor = async (segments: string[][], gteEditorId?: string | null) => {
-    if (gteEditorId) {
-      await router.push(`/gte/${gteEditorId}?source=transcriber`);
-      return;
-    }
-    const { stamps, totalFrames } = tabSegmentsToStamps(segments);
-    if (stamps.length === 0) {
-      throw new Error("No tabs available to import into the editor.");
-    }
-    const created = await gteApi.createEditor();
-    await gteApi.appendImportTab(created.editorId, { stamps, totalFrames });
-    await router.push(`/gte/${created.editorId}?source=transcriber`);
-  };
-
   const openTabsInGuestEditor = async (segments: string[][]) => {
     const { stamps, totalFrames } = tabSegmentsToStamps(segments);
     if (stamps.length === 0) {
@@ -674,7 +667,7 @@ export default function HomePage() {
           return await fetch("/api/transcribe", { method: "POST", body: fd });
         };
 
-        if (disableDbInDev) {
+        if (isDevelopmentClient) {
           response = await postFileDirectly();
         } else {
           const presignRes = await fetch("/api/uploads/presign", {
@@ -687,7 +680,10 @@ export default function HomePage() {
             }),
           });
           const presignData = await presignRes.json().catch(() => ({}));
-          if ((!presignRes.ok || !presignData?.url || !presignData?.key) && disableDbInDev) {
+          const shouldFallbackToDirectUpload =
+            presignRes.status >= 500 || (presignRes.ok && (!presignData?.url || !presignData?.key));
+          if (shouldFallbackToDirectUpload) {
+            setStatus("Upload service unavailable. Falling back to direct upload...");
             response = await postFileDirectly();
           } else if (!presignRes.ok || !presignData?.url || !presignData?.key) {
             throw new Error(presignData?.error || "Could not prepare upload.");
@@ -698,11 +694,7 @@ export default function HomePage() {
               body: selectedFile,
             });
             if (!uploadRes.ok) {
-              if (disableDbInDev) {
-                response = await postFileDirectly();
-              } else {
-                throw new Error("Upload failed. Please try again.");
-              }
+              throw new Error("Upload failed. Please try again.");
             } else {
               setStatus("Transcribing audio...");
               const payload: Record<string, unknown> = {
@@ -734,6 +726,19 @@ export default function HomePage() {
       }
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
+      if (response.status === 202 && data.jobId) {
+        if (data.credits) {
+          setCredits(data.credits);
+        }
+        setStatus("Transcription queued. Opening job status...");
+          sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
+          await router.push(
+            appendEditorId
+              ? `/job/${data.jobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
+              : `/job/${data.jobId}`
+          );
+          return;
+        }
       if (!response.ok) {
         if (data.credits) {
           setCredits(data.credits);
@@ -750,41 +755,36 @@ export default function HomePage() {
         setError("No tabs returned from server.");
         sendEvent("transcribe_error", { mode, error: "no tabs" });
         return;
-      }
-      const nextTabs = data.tabs;
-      setSelectedSegments(new Set());
-      setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
-      if (data.credits) {
-        setCredits(data.credits);
-      }
-      sendEvent("transcribe_success", { mode, jobId: data.jobId });
-      if (!transcriberSession) {
-        if (disableDbInDev) {
+        }
+        const nextTabs = data.tabs;
+        setSelectedSegments(new Set());
+        setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
+        if (data.credits) {
+          setCredits(data.credits);
+        }
+        sendEvent("transcribe_success", { mode, jobId: data.jobId });
+        if (transcriberSession && data.tabJobId) {
+          setStatus("Tabs ready. Opening import page...");
+          await router.push(
+            appendEditorId
+              ? `/tabs/${data.tabJobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
+              : `/tabs/${data.tabJobId}`
+          );
+          return;
+        }
+        if (!transcriberSession) {
+          if (disableDbInDev) {
+            setTabsResult(nextTabs);
+            setStatus("Tabs ready. Select tab blocks below.");
+            return;
+          }
           setTabsResult(nextTabs);
-          setStatus("Tabs ready. Select tab blocks below.");
+          setStatus("Tabs ready.");
           return;
         }
         setTabsResult(nextTabs);
-        setStatus("Tabs ready.");
-        return;
-      }
-      if (shouldDeferEditorSync) {
-        setTabsResult(nextTabs);
         setStatus("Tabs ready. Import into your editor below.");
         return;
-      }
-      setStatus("Tabs ready. Opening Guitar Tab Editor...");
-      try {
-        await openTabsInEditor(nextTabs, data.gteEditorId);
-        return;
-      } catch (openErr: any) {
-        setTabsResult(nextTabs);
-        setImportError(
-          openErr?.message ||
-            "Transcription succeeded, but we could not open the editor automatically. Import manually below."
-        );
-        setStatus(null);
-      }
     } catch (err: any) {
       setError(err?.message || "Something went wrong. Please try again.");
       sendEvent("transcribe_error", { mode, error: err?.message || "unknown" });
@@ -889,13 +889,13 @@ export default function HomePage() {
     event.preventDefault();
     void handleConvert();
   };
-  const creditsUsageLabel = credits
-    ? `${credits.used}/${credits.limit}`
-    : transcriberSession
+  const creditsUsageLabel = displayedCredits
+    ? `${displayedCredits.remaining}/${displayedCredits.limit}`
+    : transcriberSession || disableDbInDev
     ? "-"
     : "10";
-  const creditsResetLabel = credits ? new Date(credits.resetAt).toLocaleDateString() : "";
-  const showCreditsEmpty = credits && credits.remaining === 0;
+  const creditsResetLabel = displayedCredits ? new Date(displayedCredits.resetAt).toLocaleDateString() : "";
+  const showCreditsEmpty = displayedCredits && displayedCredits.remaining === 0;
   const resetLabelText = isPremiumRole(transcriberSession?.user?.role) ? "Next credits" : "Resets";
 
   return (
@@ -928,7 +928,7 @@ export default function HomePage() {
               data-reveal
               onSubmit={handleSubmit}
             >
-              {isSignedIn && credits && (
+              {displayedCredits && (
                 <div className="prompt-top prompt-top--solo">
                   <div className="prompt-balance">
                     <span>Credits</span>

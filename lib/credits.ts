@@ -11,6 +11,7 @@ export const FREE_MONTHLY_CREDITS = 10;
 export const PREMIUM_MONTHLY_CREDITS = 50;
 export const CREDIT_INTERVAL_SEC = 30;
 export const DEFAULT_DURATION_SEC = 30;
+export const DEV_CREDITS_LIMIT = 9999;
 
 const toSafeDate = (value?: Date | null) => {
   if (!value) return null;
@@ -88,6 +89,16 @@ export function durationToCredits(durationSec?: number | null) {
 
 export function calculateCreditsUsed(durations: Array<number | null | undefined>) {
   return durations.reduce<number>((total, duration) => total + durationToCredits(duration), 0);
+}
+
+export function buildDevCreditsSummary(): CreditsSummary {
+  return {
+    used: 0,
+    limit: DEV_CREDITS_LIMIT,
+    remaining: DEV_CREDITS_LIMIT,
+    resetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    unlimited: true,
+  };
 }
 
 const countMonthlyGrants = (createdAt: Date, now: Date) => {

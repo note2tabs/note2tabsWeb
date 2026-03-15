@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import crypto from "crypto";
 import { prisma } from "../../../lib/prisma";
+import { issueAndSendPasswordResetEmail } from "../../../lib/passwordReset";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -17,24 +17,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (!user) {
       // Avoid leaking user existence
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({
+        ok: true,
+        deliveryConfigured: Boolean(process.env.RESEND_API_KEY || process.env.RESEND_KEY),
+      });
     }
 
-    const token = crypto.randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
-
-    await prisma.verificationToken.create({
-      data: {
-        identifier: email.toLowerCase(),
-        token,
-        expires,
-      },
+    const result = await issueAndSendPasswordResetEmail({
+      id: user.id,
+      email: user.email,
+      name: user.name,
     });
 
-    const link = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password/${token}`;
-    console.log("Password reset link:", link);
-
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({
+      ok: true,
+      deliveryConfigured: Boolean(process.env.RESEND_API_KEY || process.env.RESEND_KEY),
+      sent: result.sent,
+    });
   } catch (error) {
     console.error("request-reset error", error);
     return res.status(500).json({ error: "Could not start password reset." });

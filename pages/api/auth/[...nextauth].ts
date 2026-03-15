@@ -5,7 +5,8 @@ import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
-import { buildCreditsSummary, getCreditWindow } from "../../../lib/credits";
+import { buildCreditsSummary, buildDevCreditsSummary, getCreditWindow } from "../../../lib/credits";
+import { isLocalNoDbServerMode } from "../../../lib/serverDevMode";
 import { parseCookieHeader } from "../../../lib/analyticsV2/cookies";
 import { linkIdentityToUser } from "../../../lib/analyticsV2/identity";
 
@@ -69,7 +70,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   );
 }
 
-const allowDevAuthFallback = process.env.NODE_ENV !== "production";
+const allowDevAuthFallback = isLocalNoDbServerMode;
 let devPrismaUnavailable = allowDevAuthFallback;
 
 const shouldBypassPrismaSync = () => allowDevAuthFallback && devPrismaUnavailable;
@@ -139,10 +140,17 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (!session.user || !token?.email) return session;
       if (shouldBypassPrismaSync()) {
+        const devCredits = buildDevCreditsSummary();
         session.user.id = (token.id as string) || session.user.id || "dev-guest";
         session.user.role = (token.role as string) || "FREE";
-        session.user.tokensRemaining = (token.tokensRemaining as number) ?? 0;
+        session.user.tokensRemaining =
+          (token.tokensRemaining as number) ?? devCredits.remaining;
         session.user.isEmailVerified = Boolean(token.isEmailVerified);
+        session.user.monthlyCreditsUsed = devCredits.used;
+        session.user.monthlyCreditsLimit = devCredits.limit;
+        session.user.monthlyCreditsRemaining = devCredits.remaining;
+        session.user.monthlyCreditsResetAt = devCredits.resetAt;
+        session.user.monthlyCreditsUnlimited = devCredits.unlimited;
         return session;
       }
       // Fetch latest user data to keep tokens/role in sync.
