@@ -4,8 +4,6 @@ import { IncomingForm, type File as FormidableFile } from "formidable";
 import { promises as fs } from "fs";
 import { authOptions } from "./auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
-import { logGteAnalyticsEvent } from "../../lib/gteAnalytics";
-import { tabSegmentsToStamps } from "../../lib/tabTextToStamps";
 import {
   type CreditsSummary,
   buildDevCreditsSummary,
@@ -18,6 +16,7 @@ import {
   isEmailVerificationRequiredServer,
   isLocalNoDbServerMode,
 } from "../../lib/serverDevMode";
+import { serializeStoredTabPayload } from "../../lib/storedTabs";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -374,6 +373,24 @@ async function waitForBackendJobResult(initialPayload: unknown, headers: Record<
   return { jobId, completed: false, payload: currentPayload };
 }
 
+async function syncBackendCredits(userId: string, credits: number, headers: Record<string, string>) {
+  const response = await fetch(`${API_BASE}/api/v1/credits/set`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...headers,
+    },
+    body: JSON.stringify({
+      userId,
+      credits: Math.max(0, Math.floor(credits)),
+    }),
+  });
+  if (!response.ok) {
+    const bodyText = await response.text();
+    throw new Error(bodyText || "Failed to sync backend credits.");
+  }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
@@ -552,6 +569,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
     }
 
+    if (user?.id) {
+      await syncBackendCredits(user.id, refreshedCredits.remaining, backendHeaders);
+    }
+
     let tabs: string[][] = [];
     let transcriberSegmentGroups: SerializedTranscriberSegmentGroup[] = [];
     let lastBackendPayload: unknown = null;
@@ -564,6 +585,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     if (mode === "YOUTUBE" && youtubePayload) {
+      if (user?.id) {
+        await syncBackendCredits(user.id, refreshedCredits.remaining, backendHeaders);
+      }
       const fdYt = new FormData();
       fdYt.append("link", youtubePayload.youtubeUrl);
       fdYt.append("start_time", String(youtubePayload.startTime || 0));
@@ -581,6 +605,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       const wavBlob = await ytRes.blob();
+      if (user?.id) {
+        await syncBackendCredits(user.id, refreshedCredits.remaining, backendHeaders);
+      }
       const fdProcess = new FormData();
       fdProcess.append("file", wavBlob, "yt_segment.wav");
       const processRes = await fetch(`${API_BASE}/process_audio/`, {
@@ -611,6 +638,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (mode === "FILE") {
       if (filePayload?.s3Key) {
+        if (user?.id) {
+          await syncBackendCredits(user.id, refreshedCredits.remaining, backendHeaders);
+        }
         const processRes = await fetch(`${API_BASE}/process_audio_s3`, {
           method: "POST",
           headers: {
@@ -645,6 +675,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } else {
         if (!uploadedFile?.filepath) {
           return res.status(400).json({ error: "File is required." });
+        }
+        if (user?.id) {
+          await syncBackendCredits(user.id, refreshedCredits.remaining, backendHeaders);
         }
         const buffer = await fs.readFile(uploadedFile.filepath);
         const fd = new FormData();
@@ -737,7 +770,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             sourceType: mode,
             sourceLabel,
             durationSec: durationSec || null,
-            resultJson: JSON.stringify(tabs),
+            resultJson: serializeStoredTabPayload({
+              tabs,
+              transcriberSegments: transcriberSegmentGroups,
+              backendJobId: backendJobId || null,
+            }),
           },
         });
         jobId = job.id;
@@ -750,98 +787,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    let gteEditorId: string | null = null;
-    if (persistedUser && !skipAutoEditorSync) {
-      try {
-        if (transcriberSegmentGroups.length > 0) {
-          const importRes = await fetch(`${API_BASE}/gte/transcriber/import`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-User-Id": persistedUser.id,
-              ...(BACKEND_SECRET ? { "X-Backend-Secret": BACKEND_SECRET } : {}),
-            },
-            body: JSON.stringify({
-              target: "new",
-              segmentGroups: transcriberSegmentGroups,
-            }),
-          });
-          if (importRes.ok) {
-            const imported = (await importRes.json()) as { editorId?: string };
-            if (imported?.editorId) {
-              gteEditorId = imported.editorId;
-            }
-          }
-        }
-        if (!gteEditorId) {
-          const { stamps, totalFrames } = tabSegmentsToStamps(tabs);
-          const createRes = await fetch(`${API_BASE}/gte/editors`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-User-Id": persistedUser.id,
-              ...(BACKEND_SECRET ? { "X-Backend-Secret": BACKEND_SECRET } : {}),
-            },
-            body: JSON.stringify({}),
-          });
-          if (createRes.ok) {
-            const created = (await createRes.json()) as { editorId?: string };
-            if (created?.editorId) {
-              let importOk = true;
-              if (stamps.length > 0) {
-                const importRes = await fetch(`${API_BASE}/gte/editors/${created.editorId}/import`, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "X-User-Id": persistedUser.id,
-                    ...(BACKEND_SECRET ? { "X-Backend-Secret": BACKEND_SECRET } : {}),
-                  },
-                  body: JSON.stringify({ stamps, totalFrames }),
-                });
-                importOk = importRes.ok;
-              }
-              if (importOk) {
-                gteEditorId = created.editorId;
-              }
-            }
-          }
-        }
-        if (gteEditorId) {
-          await logGteAnalyticsEvent({
-            userId: persistedUser.id,
-            event: "gte_editor_created",
-            path: "/api/transcribe",
-            payload: { editorId: gteEditorId, source: "transcribe" },
-            req,
-            res,
-          });
-        }
-      } catch (error) {
-        console.warn("GTE sync failed", error);
-      }
-    }
-
-    if (gteEditorId && jobId && persistedUser) {
-      try {
-        await prisma.tabJob.update({
-          where: { id: jobId },
-          data: { gteEditorId },
-        });
-      } catch (error) {
-        if (!allowDevGuestTranscription) {
-          throw error;
-        }
-        console.warn("transcribe job sync skipped in dev", error);
-      }
-    }
-
     return res.status(200).json({
       tabs,
       transcriberSegments: transcriberSegmentGroups.length > 0 ? transcriberSegmentGroups : undefined,
       tokensRemaining: updatedTokens,
       credits: user ? creditsAfter : undefined,
       jobId: backendJobId || jobId,
-      gteEditorId,
+      tabJobId: jobId,
     });
   } catch (error) {
     console.error("transcribe error", error);

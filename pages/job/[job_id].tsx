@@ -2,9 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Head from "next/head";
 import Script from "next/script";
 import { useRouter } from "next/router";
+import { signIn, useSession } from "next-auth/react";
 import JobStatusLayout, { JobResponse } from "../../components/JobStatusLayout";
+import { isLocalNoDbClientMode } from "../../lib/clientDevMode";
+import { buildLaneEditorRef, gteApi } from "../../lib/gteApi";
+import { GTE_GUEST_EDITOR_ID } from "../../lib/gteGuestDraft";
 import { saveJobToHistory } from "../../lib/history";
-import { tabsToTabText } from "../../lib/tabTextToStamps";
+import { normalizeTabSegments, tabSegmentsToStamps, tabsToTabText } from "../../lib/tabTextToStamps";
 import { getAppBaseUrl } from "../../lib/urls";
 
 const POLL_INTERVAL = 3000;
@@ -33,15 +37,38 @@ function getFirstJobValue(job: JobResponse | null, keys: string[]) {
 }
 
 function tabsValueToText(value: unknown) {
-  if (!Array.isArray(value)) return "";
-  const segments = value
-    .map((segment) =>
+  const segments = tabsValueToSegments(value);
+  return segments.length > 0 ? tabsToTabText(segments) : "";
+}
+
+function tabsValueToSegments(value: unknown): string[][] {
+  if (!Array.isArray(value)) return [];
+  return normalizeTabSegments(
+    value.map((segment) =>
       Array.isArray(segment)
         ? segment.filter((line): line is string => typeof line === "string" && line.trim().length > 0)
         : []
     )
-    .filter((segment) => segment.length > 0);
-  return segments.length > 0 ? tabsToTabText(segments) : "";
+  );
+}
+
+function tabTextToSegments(tabText?: string | null): string[][] {
+  if (!tabText) return [];
+  return normalizeTabSegments(
+    tabText
+      .split(/\n\s*\n+/)
+      .map((segment) => segment.split("\n").map((line) => line.trimEnd()))
+  );
+}
+
+function getJobTabSegments(job: JobResponse | null): string[][] {
+  const structuredSegments = tabsValueToSegments(getFirstJobValue(job, ["tabs"]));
+  if (structuredSegments.length > 0) return structuredSegments;
+  const tabText =
+    typeof getFirstJobValue(job, ["tab_text", "tabText"]) === "string"
+      ? (getFirstJobValue(job, ["tab_text", "tabText"]) as string)
+      : job?.tab_text;
+  return tabTextToSegments(tabText);
 }
 
 function normalizeJobForDisplay(job: JobResponse | null): JobResponse | null {
@@ -75,6 +102,7 @@ function normalizeJobForDisplay(job: JobResponse | null): JobResponse | null {
 }
 
 export default function JobPage() {
+  const { data: session } = useSession();
   const router = useRouter();
   const { job_id } = router.query;
   const [job, setJob] = useState<JobResponse | null>(null);
@@ -85,7 +113,19 @@ export default function JobPage() {
   const [loadAdScript, setLoadAdScript] = useState(false);
   const [savedHistory, setSavedHistory] = useState(false);
   const [shareUrls, setShareUrls] = useState<{ twitter: string; reddit: string } | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const displayJob = useMemo(() => normalizeJobForDisplay(job), [job]);
+  const appendEditorId = useMemo(() => {
+    if (!router.isReady) return null;
+    const value = router.query.appendEditorId;
+    if (Array.isArray(value)) return value[0]?.trim() || null;
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  }, [router.isReady, router.query.appendEditorId]);
+  const isSignedIn = Boolean(session);
+  const canOpenGuestEditor = !isSignedIn && isLocalNoDbClientMode;
+  const importButtonLabel = canOpenGuestEditor ? "Open in guest editor" : "Import to editor";
+  const canImportToEditor = displayJob?.status === "done" && getJobTabSegments(displayJob).length > 0;
 
   const fetchJob = async (id: string) => {
     try {
@@ -149,19 +189,18 @@ export default function JobPage() {
   useEffect(() => {
     if (displayJob?.status !== "done" || !job_id) return;
     const resolvedTabId = getFirstJobValue(displayJob, ["tab_job_id", "tabJobId", "tab_id", "tabId"]);
-    const resolvedGteId = getFirstJobValue(displayJob, ["gte_editor_id", "gteEditorId"]);
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    if (typeof resolvedGteId === "string" && resolvedGteId) {
-      router.replace(`/gte/${resolvedGteId}`);
-      return;
-    }
     if (typeof resolvedTabId === "string" && resolvedTabId) {
-      router.replace(`/tabs/${resolvedTabId}`);
+      router.replace(
+        appendEditorId
+          ? `/tabs/${resolvedTabId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
+          : `/tabs/${resolvedTabId}`
+      );
     }
-  }, [displayJob?.status, job_id, displayJob, router]);
+  }, [displayJob?.status, job_id, displayJob, router, appendEditorId]);
 
   useEffect(() => {
     if (displayJob?.status !== "done" || !job_id) return;
@@ -218,6 +257,46 @@ export default function JobPage() {
     URL.revokeObjectURL(url);
   };
 
+  const handleImportToEditor = async () => {
+    if (!displayJob || importBusy) return;
+    const segments = getJobTabSegments(displayJob);
+    if (segments.length === 0) {
+      setImportError("No tabs are available to import into the editor.");
+      return;
+    }
+    setImportBusy(true);
+    setImportError(null);
+    try {
+      const { stamps, totalFrames } = tabSegmentsToStamps(segments);
+      if (stamps.length === 0) {
+        throw new Error("No playable tab notes were found in this transcription.");
+      }
+      if (canOpenGuestEditor) {
+        const guestLaneEditorId = buildLaneEditorRef(GTE_GUEST_EDITOR_ID, "ed-1");
+        await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
+        await gteApi.importTab(guestLaneEditorId, { stamps, totalFrames });
+        await router.push(`/gte/${GTE_GUEST_EDITOR_ID}?source=job`);
+        return;
+      }
+      if (!isSignedIn) {
+        await signIn(undefined, {
+          callbackUrl:
+            typeof window !== "undefined"
+              ? window.location.href
+              : `${getAppBaseUrl()}/job/${displayJob.job_id}`,
+        });
+        return;
+      }
+      const created = await gteApi.createEditor(undefined, displayJob.song_title || "Imported transcription");
+      await gteApi.appendImportTab(created.editorId, { stamps, totalFrames });
+      await router.push(`/gte/${created.editorId}?source=job`);
+    } catch (err: any) {
+      setImportError(err?.message || "Failed to import tabs into the editor.");
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
   const handleRestart = () => router.push("/");
   const handleSkipAd = () => {
     setHasWatchedAd(true);
@@ -259,6 +338,10 @@ export default function JobPage() {
           </div>
           <JobStatusLayout
             job={displayJob}
+            onImportToEditor={canImportToEditor ? () => void handleImportToEditor() : null}
+            importBusy={importBusy}
+            importButtonLabel={importButtonLabel}
+            importError={importError}
             onDownloadTabs={handleDownloadTabs}
             onRestart={handleRestart}
             hasWatchedAd={hasWatchedAd}

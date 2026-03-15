@@ -17,6 +17,7 @@ type TabsResponse = {
   tokensRemaining?: number;
   credits?: CreditsSummary;
   jobId?: string;
+  tabJobId?: string;
   status?: string;
   gteEditorId?: string;
   verificationRequired?: boolean;
@@ -560,20 +561,6 @@ export default function HomePage() {
     }
   };
 
-  const openTabsInEditor = async (segments: string[][], gteEditorId?: string | null) => {
-    if (gteEditorId) {
-      await router.push(`/gte/${gteEditorId}?source=transcriber`);
-      return;
-    }
-    const { stamps, totalFrames } = tabSegmentsToStamps(segments);
-    if (stamps.length === 0) {
-      throw new Error("No tabs available to import into the editor.");
-    }
-    const created = await gteApi.createEditor();
-    await gteApi.appendImportTab(created.editorId, { stamps, totalFrames });
-    await router.push(`/gte/${created.editorId}?source=transcriber`);
-  };
-
   const openTabsInGuestEditor = async (segments: string[][]) => {
     const { stamps, totalFrames } = tabSegmentsToStamps(segments);
     if (stamps.length === 0) {
@@ -744,10 +731,14 @@ export default function HomePage() {
           setCredits(data.credits);
         }
         setStatus("Transcription queued. Opening job status...");
-        sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
-        await router.push(`/job/${data.jobId}`);
-        return;
-      }
+          sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
+          await router.push(
+            appendEditorId
+              ? `/job/${data.jobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
+              : `/job/${data.jobId}`
+          );
+          return;
+        }
       if (!response.ok) {
         if (data.credits) {
           setCredits(data.credits);
@@ -764,41 +755,36 @@ export default function HomePage() {
         setError("No tabs returned from server.");
         sendEvent("transcribe_error", { mode, error: "no tabs" });
         return;
-      }
-      const nextTabs = data.tabs;
-      setSelectedSegments(new Set());
-      setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
-      if (data.credits) {
-        setCredits(data.credits);
-      }
-      sendEvent("transcribe_success", { mode, jobId: data.jobId });
-      if (!transcriberSession) {
-        if (disableDbInDev) {
+        }
+        const nextTabs = data.tabs;
+        setSelectedSegments(new Set());
+        setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
+        if (data.credits) {
+          setCredits(data.credits);
+        }
+        sendEvent("transcribe_success", { mode, jobId: data.jobId });
+        if (transcriberSession && data.tabJobId) {
+          setStatus("Tabs ready. Opening import page...");
+          await router.push(
+            appendEditorId
+              ? `/tabs/${data.tabJobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
+              : `/tabs/${data.tabJobId}`
+          );
+          return;
+        }
+        if (!transcriberSession) {
+          if (disableDbInDev) {
+            setTabsResult(nextTabs);
+            setStatus("Tabs ready. Select tab blocks below.");
+            return;
+          }
           setTabsResult(nextTabs);
-          setStatus("Tabs ready. Select tab blocks below.");
+          setStatus("Tabs ready.");
           return;
         }
         setTabsResult(nextTabs);
-        setStatus("Tabs ready.");
-        return;
-      }
-      if (shouldDeferEditorSync) {
-        setTabsResult(nextTabs);
         setStatus("Tabs ready. Import into your editor below.");
         return;
-      }
-      setStatus("Tabs ready. Opening Guitar Tab Editor...");
-      try {
-        await openTabsInEditor(nextTabs, data.gteEditorId);
-        return;
-      } catch (openErr: any) {
-        setTabsResult(nextTabs);
-        setImportError(
-          openErr?.message ||
-            "Transcription succeeded, but we could not open the editor automatically. Import manually below."
-        );
-        setStatus(null);
-      }
     } catch (err: any) {
       setError(err?.message || "Something went wrong. Please try again.");
       sendEvent("transcribe_error", { mode, error: err?.message || "unknown" });

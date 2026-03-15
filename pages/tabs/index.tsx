@@ -55,11 +55,8 @@ export default function SavedTabsPage({ tabs }: Props) {
                       {job.sourceType} - {new Date(job.createdAt).toLocaleString()}
                     </p>
                   </Link>
-                  <Link
-                    href={job.gteEditorId ? `/gte/${job.gteEditorId}` : `/tabs/${job.id}/edit`}
-                    className="button-secondary button-small"
-                  >
-                    {job.gteEditorId ? "Open GTE" : "Edit in GTE"}
+                  <Link href={`/tabs/${job.id}`} className="button-secondary button-small">
+                    Open import page
                   </Link>
                 </div>
               </div>

@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "../../../lib/prisma";
+import { normalizeStoredTabPayload } from "../../../lib/storedTabs";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -20,14 +21,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "Missing tab id" });
     }
     if (typeof resultJson !== "string") {
-      return res.status(400).json({ error: "resultJson must be a stringified JSON array" });
+      return res.status(400).json({ error: "resultJson must be a stringified tab payload" });
     }
 
     let parsed: unknown;
     try {
       parsed = JSON.parse(resultJson);
-      if (!Array.isArray(parsed)) {
-        return res.status(400).json({ error: "resultJson must be an array (string[][])" });
+      const normalized = normalizeStoredTabPayload(parsed);
+      if (normalized.tabs.length === 0) {
+        return res.status(400).json({ error: "resultJson must include at least one tab block" });
       }
     } catch (error) {
       return res.status(400).json({ error: "Invalid JSON" });

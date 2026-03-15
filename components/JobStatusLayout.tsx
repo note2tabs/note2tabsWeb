@@ -27,6 +27,10 @@ type JobStatusLayoutProps = {
   job: JobResponse | null;
   onRestart: () => void;
   onDownloadTabs: () => void;
+  onImportToEditor?: (() => void) | null;
+  importBusy?: boolean;
+  importButtonLabel?: string;
+  importError?: string | null;
   hasWatchedAd: boolean;
   showAdGate: boolean;
   onRetryAd: () => void;
@@ -42,6 +46,10 @@ export default function JobStatusLayout({
   job,
   onRestart,
   onDownloadTabs,
+  onImportToEditor,
+  importBusy = false,
+  importButtonLabel = "Import to editor",
+  importError,
   hasWatchedAd,
   showAdGate,
   onRetryAd,
@@ -154,6 +162,11 @@ export default function JobStatusLayout({
       </div>
 
       <div className="button-row">
+        {onImportToEditor && (
+          <button type="button" onClick={onImportToEditor} className="button-primary button-small" disabled={importBusy}>
+            {importBusy ? "Importing..." : importButtonLabel}
+          </button>
+        )}
         <button type="button" onClick={onDownloadTabs} className="button-secondary button-small">
           Download Tab (TXT)
         </button>
@@ -181,6 +194,7 @@ export default function JobStatusLayout({
           </div>
         )}
       </div>
+      {importError ? <div className="error">{importError}</div> : null}
     </div>
   );
 }
