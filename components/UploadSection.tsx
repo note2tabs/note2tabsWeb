@@ -18,7 +18,7 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [startTime, setStartTime] = useState<number | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
-  const [separateGuitar, setSeparateGuitar] = useState(false);
+  const [separateGuitar, setSeparateGuitar] = useState(true);
   const [dragActive, setDragActive] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);

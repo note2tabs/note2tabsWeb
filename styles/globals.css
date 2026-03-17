@@ -209,6 +209,130 @@ input[type="number"] {
   color: #0e6d5c;
 }
 
+.job-progress-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.job-progress-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.job-progress-phase {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.job-progress-stat {
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  min-width: 92px;
+}
+
+.job-progress-value {
+  font-size: 1.7rem;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--accent-strong);
+}
+
+.job-progress-track {
+  position: relative;
+  overflow: hidden;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(42, 109, 244, 0.12);
+  border: 1px solid rgba(42, 109, 244, 0.18);
+}
+
+.job-progress-fill {
+  position: relative;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1b4fd1 0%, #2a6df4 45%, #63a8ff 100%);
+  box-shadow: 0 8px 20px rgba(42, 109, 244, 0.28);
+  transition: width 0.9s ease;
+}
+
+.job-progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.3) 35%, transparent 70%);
+  animation: job-progress-shimmer 1.8s linear infinite;
+}
+
+.job-progress-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.job-progress-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(249, 115, 22, 0.12);
+  border: 1px solid rgba(249, 115, 22, 0.18);
+  color: #9a3412;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.job-progress-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.job-progress-step {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.job-progress-step.is-complete {
+  background: rgba(31, 191, 159, 0.12);
+  border-color: rgba(31, 191, 159, 0.24);
+  color: #0e6d5c;
+}
+
+.job-progress-step.is-active {
+  background: rgba(42, 109, 244, 0.12);
+  border-color: rgba(42, 109, 244, 0.24);
+  color: var(--accent-strong);
+}
+
+.job-progress-step.is-upcoming {
+  opacity: 0.72;
+}
+
+@keyframes job-progress-shimmer {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+
 .label {
   font-size: 0.85rem;
   color: var(--muted);

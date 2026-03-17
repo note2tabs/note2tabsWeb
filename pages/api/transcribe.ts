@@ -38,6 +38,7 @@ type FilePayload = {
   duration?: number;
   s3Key?: string;
   fileName?: string;
+  separateGuitar?: boolean;
   skipAutoEditorSync?: boolean;
 };
 
@@ -328,6 +329,9 @@ function extractBackendJobError(payload: unknown): string {
 function extractBackendJobOutput(payload: unknown): unknown {
   const record = getRecord(payload);
   if (!record) return payload;
+  if ("tabs" in record || "transcriberSegments" in record || "segmentGroups" in record) {
+    return payload;
+  }
   return record.output ?? record.result ?? record.data ?? payload;
 }
 
@@ -531,6 +535,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         filePayload = {
           mode: "FILE",
           duration: Number(fields.duration || fields.durationSec || 0) || undefined,
+          separateGuitar: parseBooleanLike(fields.separateGuitar ?? fields.separate_guitar),
           skipAutoEditorSync: parseBooleanLike(fields.skipAutoEditorSync),
         };
         skipAutoEditorSync = Boolean(filePayload.skipAutoEditorSync);
@@ -538,8 +543,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } else {
       const body = (await readJsonBody(req)) as YouTubePayload | FilePayload;
       mode = normalizeMode(body?.mode) || null;
-      if (mode === "YOUTUBE") youtubePayload = body as YouTubePayload;
-      if (mode === "FILE") filePayload = body as FilePayload;
+      if (mode === "YOUTUBE") {
+        youtubePayload = {
+          ...(body as YouTubePayload),
+          separateGuitar: parseBooleanLike(
+            (body as { separateGuitar?: unknown; separate_guitar?: unknown }).separateGuitar ??
+              (body as { separate_guitar?: unknown }).separate_guitar
+          ),
+        };
+      }
+      if (mode === "FILE") {
+        filePayload = {
+          ...(body as FilePayload),
+          separateGuitar: parseBooleanLike(
+            (body as { separateGuitar?: unknown; separate_guitar?: unknown }).separateGuitar ??
+              (body as { separate_guitar?: unknown }).separate_guitar
+          ),
+        };
+      }
       skipAutoEditorSync = parseBooleanLike((body as { skipAutoEditorSync?: unknown })?.skipAutoEditorSync);
     }
 
@@ -604,22 +625,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(ytRes.status).json({ error: `yt_processor error: ${bodyText}` });
       }
 
-      const wavBlob = await ytRes.blob();
-      if (user?.id) {
-        await syncBackendCredits(user.id, refreshedCredits.remaining, backendHeaders);
-      }
-      const fdProcess = new FormData();
-      fdProcess.append("file", wavBlob, "yt_segment.wav");
-      const processRes = await fetch(`${API_BASE}/process_audio/`, {
-        method: "POST",
-        headers: backendHeaders,
-        body: fdProcess,
-      });
-      if (!processRes.ok) {
-        const bodyText = await processRes.text();
-        return res.status(processRes.status).json({ error: `process_audio error: ${bodyText}` });
-      }
-      let data = await fetchJson<unknown>(processRes);
+      let data = await fetchJson<unknown>(ytRes);
       const queuedJob = await waitForBackendJobResult(data, backendHeaders);
       backendJobId = queuedJob.jobId || undefined;
       data = queuedJob.payload;
@@ -650,6 +656,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           body: JSON.stringify({
             s3Key: filePayload.s3Key,
             fileName: filePayload.fileName,
+            separate_guitar: Boolean(filePayload.separateGuitar),
           }),
         });
         if (!processRes.ok) {
@@ -688,6 +695,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }),
           uploadedFile.originalFilename || "upload"
         );
+        fd.append("separate_guitar", filePayload?.separateGuitar ? "true" : "false");
         const processRes = await fetch(`${API_BASE}/process_audio/`, {
           method: "POST",
           headers: backendHeaders,

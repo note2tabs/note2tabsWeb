@@ -1,7 +1,7 @@
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { sendEvent } from "../lib/analytics";
@@ -61,94 +61,6 @@ const parseYouTubeId = (value: string): string | null => {
   return null;
 };
 
-let youtubeApiPromise: Promise<void> | null = null;
-const loadYouTubeApi = () => {
-  if (youtubeApiPromise) return youtubeApiPromise;
-  youtubeApiPromise = new Promise((resolve) => {
-    if (typeof window === "undefined") {
-      resolve();
-      return;
-    }
-    if ((window as any).YT?.Player) {
-      resolve();
-      return;
-    }
-    const existing = document.querySelector('script[data-youtube-iframe-api="true"]');
-    const previous = (window as any).onYouTubeIframeAPIReady;
-    (window as any).onYouTubeIframeAPIReady = () => {
-      if (typeof previous === "function") previous();
-      resolve();
-    };
-    if (existing) return;
-    const script = document.createElement("script");
-    script.src = "https://www.youtube.com/iframe_api";
-    script.async = true;
-    script.dataset.youtubeIframeApi = "true";
-    document.body.appendChild(script);
-  });
-  return youtubeApiPromise;
-};
-
-const pickAudioRecorderMimeType = () => {
-  if (typeof MediaRecorder === "undefined") return "";
-  const candidates = ["audio/webm;codecs=opus", "audio/webm"];
-  return candidates.find((mime) => MediaRecorder.isTypeSupported(mime)) || "";
-};
-
-const audioBufferToWav = (buffer: AudioBuffer) => {
-  const numChannels = buffer.numberOfChannels;
-  const sampleRate = buffer.sampleRate;
-  const format = 1;
-  const bitDepth = 16;
-  const blockAlign = (numChannels * bitDepth) / 8;
-  const byteRate = sampleRate * blockAlign;
-  const dataSize = buffer.length * blockAlign;
-  const arrayBuffer = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(arrayBuffer);
-
-  const writeString = (offset: number, text: string) => {
-    for (let i = 0; i < text.length; i += 1) {
-      view.setUint8(offset + i, text.charCodeAt(i));
-    }
-  };
-
-  writeString(0, "RIFF");
-  view.setUint32(4, 36 + dataSize, true);
-  writeString(8, "WAVE");
-  writeString(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, format, true);
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitDepth, true);
-  writeString(36, "data");
-  view.setUint32(40, dataSize, true);
-
-  const channelData = Array.from({ length: numChannels }, (_, idx) => buffer.getChannelData(idx));
-  let offset = 44;
-  for (let i = 0; i < buffer.length; i += 1) {
-    for (let channel = 0; channel < numChannels; channel += 1) {
-      let sample = channelData[channel][i];
-      sample = Math.max(-1, Math.min(1, sample));
-      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-      offset += 2;
-    }
-  }
-
-  return arrayBuffer;
-};
-
-const decodeBlobToWav = async (blob: Blob) => {
-  const audioContext = new AudioContext();
-  const arrayBuffer = await blob.arrayBuffer();
-  const decoded = await audioContext.decodeAudioData(arrayBuffer);
-  const wavBuffer = audioBufferToWav(decoded);
-  await audioContext.close();
-  return new Blob([wavBuffer], { type: "audio/wav" });
-};
-
 export default function TranscriberPage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -158,13 +70,7 @@ export default function TranscriberPage() {
   const [ytStartTime, setYtStartTime] = useState<number | null>(null);
   const [ytDuration, setYtDuration] = useState<number | null>(null);
   const [fileDuration, setFileDuration] = useState<number | null>(null);
-  const [ytPlayerReady, setYtPlayerReady] = useState(false);
-  const [ytPlayerError, setYtPlayerError] = useState<string | null>(null);
-  const [capturePhase, setCapturePhase] = useState<
-    "idle" | "permission" | "recording" | "uploading"
-  >("idle");
-  const [captureProgress, setCaptureProgress] = useState(0);
-  const [captureDuration, setCaptureDuration] = useState(MAX_YT_SNIPPET_SEC);
+  const [separateGuitar, setSeparateGuitar] = useState(true);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -183,9 +89,6 @@ export default function TranscriberPage() {
   const [selectedSegments, setSelectedSegments] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
-  const ytPlayerRef = useRef<any | null>(null);
-  const ytPlayerMountRef = useRef<HTMLDivElement | null>(null);
-  const captureRafRef = useRef<number | null>(null);
   const disableDbInDev = isLocalNoDbClientMode;
   const transcriberSession = session ?? null;
   const isSignedIn = Boolean(transcriberSession);
@@ -213,12 +116,6 @@ export default function TranscriberPage() {
     if (ytDuration === null) return 0;
     return Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, ytDuration));
   }, [ytDuration]);
-  const ytWatchUrl = useMemo(() => {
-    if (!youtubeId) return "";
-    const start = Math.max(0, ytStartTime ?? 0);
-    return `https://www.youtube.com/watch?v=${youtubeId}${start ? `&t=${start}s` : ""}`;
-  }, [youtubeId, ytStartTime]);
-  const captureActive = capturePhase !== "idle";
   const shouldDeferEditorSync = Boolean(appendEditorId);
 
   useEffect(() => {
@@ -253,64 +150,6 @@ export default function TranscriberPage() {
   }, []);
 
   useEffect(() => {
-    if (mode !== "YOUTUBE" || !youtubeId) {
-      setYtPlayerReady(false);
-      return;
-    }
-    let cancelled = false;
-    setYtPlayerError(null);
-    setYtPlayerReady(false);
-    void loadYouTubeApi().then(() => {
-      if (cancelled) return;
-      const YT = (window as any).YT;
-      if (!YT?.Player || !ytPlayerMountRef.current) return;
-      if (ytPlayerRef.current) {
-        try {
-          ytPlayerRef.current.loadVideoById(youtubeId);
-          setYtPlayerReady(true);
-        } catch {
-          setYtPlayerError("Could not load this YouTube link.");
-        }
-        return;
-      }
-      ytPlayerRef.current = new YT.Player(ytPlayerMountRef.current, {
-        videoId: youtubeId,
-        playerVars: {
-          modestbranding: 1,
-          rel: 0,
-          playsinline: 1,
-          origin: window.location.origin,
-        },
-        events: {
-          onReady: () => {
-            if (!cancelled) setYtPlayerReady(true);
-          },
-          onError: (event: any) => {
-            if (cancelled) return;
-            const code = event?.data;
-            if (code === 101 || code === 150) {
-              setYtPlayerError("Embedding is disabled for this video.");
-            } else {
-              setYtPlayerError("Could not load this YouTube link.");
-            }
-          },
-        },
-      });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, youtubeId]);
-
-  useEffect(() => {
-    if (youtubeId) return;
-    if (ytPlayerRef.current?.destroy) {
-      ytPlayerRef.current.destroy();
-      ytPlayerRef.current = null;
-    }
-  }, [youtubeId]);
-
-  useEffect(() => {
     if (!tabsResult || !isSignedIn) return;
     setEditorLoading(true);
     gteApi
@@ -337,13 +176,6 @@ export default function TranscriberPage() {
   }, [tabsResult, isSignedIn, appendEditorId]);
 
   useEffect(() => {
-    if (mode !== "YOUTUBE") {
-      setCapturePhase("idle");
-      setCaptureProgress(0);
-    }
-  }, [mode]);
-
-  useEffect(() => {
     if (mode !== "YOUTUBE") return;
     setYtStartTime((prev) => (prev === null ? 0 : prev));
     setYtDuration((prev) => (prev === null ? MAX_YT_SNIPPET_SEC : prev));
@@ -359,51 +191,30 @@ export default function TranscriberPage() {
   const canSubmit = useMemo(() => {
     if (isSignedIn && !isEmailVerified) return false;
     if (mode === "FILE") return Boolean(selectedFile) && !loading;
-    return (
-      youtubeValid &&
-      ytStartTime !== null &&
-      ytDuration !== null &&
-      !loading &&
-      !captureActive &&
-      (ytPlayerReady || Boolean(ytPlayerError))
-    );
+    return youtubeValid && ytStartTime !== null && ytDuration !== null && !loading;
   }, [
     mode,
     selectedFile,
     youtubeValid,
     ytStartTime,
     ytDuration,
-    ytPlayerReady,
-    ytPlayerError,
     loading,
-    captureActive,
     isSignedIn,
     isEmailVerified,
   ]);
-  const captureTitle =
-    capturePhase === "permission"
-      ? "Waiting for permission"
-      : capturePhase === "recording"
-      ? "Recording snippet"
-      : capturePhase === "uploading"
-      ? "Uploading snippet"
-      : "";
-  const captureHint =
-    capturePhase === "permission"
-      ? "Choose the tab with the YouTube player and enable audio."
-      : capturePhase === "recording"
-      ? "Keep this tab audible while we record."
-      : capturePhase === "uploading"
-      ? "Sending your snippet to the transcriber."
-      : "";
-  const captureSeconds = Math.min(captureDuration, Math.round(captureProgress * captureDuration));
   const submitLabel = loading
     ? mode === "YOUTUBE"
-      ? "Capturing..."
+      ? "Downloading..."
       : "Generating..."
     : mode === "YOUTUBE"
-    ? "Capture & generate tabs"
+    ? "Download & generate tabs"
     : "Generate tabs";
+  const transcribingStatusLabel = separateGuitar
+    ? "Separating guitar and transcribing audio..."
+    : "Transcribing audio...";
+  const youtubeTranscribingStatusLabel = separateGuitar
+    ? "Downloading YouTube audio, separating guitar, and transcribing..."
+    : "Downloading YouTube audio and transcribing...";
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
@@ -445,115 +256,6 @@ export default function TranscriberPage() {
   const onDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
-  };
-
-  const captureYouTubeSnippet = async () => {
-    if (!navigator.mediaDevices?.getDisplayMedia) {
-      throw new Error("Tab audio capture is not supported in this browser.");
-    }
-
-    if (ytStartTime === null || ytDuration === null) {
-      throw new Error("Start time and duration are required.");
-    }
-    const durationSec = Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, ytDuration));
-    const startTimeSec = Math.max(0, ytStartTime);
-    const manualCapture = !ytPlayerRef.current || !ytPlayerReady || Boolean(ytPlayerError);
-    setCaptureDuration(durationSec);
-    setCaptureProgress(0);
-    setCapturePhase("permission");
-    setStatus(
-      manualCapture
-        ? "Select the YouTube tab and enable audio. We will start recording after a short countdown."
-        : "Select the YouTube tab and enable audio to record the snippet."
-    );
-
-    let displayStream: MediaStream | null = null;
-    try {
-      displayStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
-      const audioTracks = displayStream.getAudioTracks();
-      if (!audioTracks.length) {
-        throw new Error("No audio track detected. Share the tab with audio enabled.");
-      }
-
-      const audioStream = new MediaStream(audioTracks);
-      const mimeType = pickAudioRecorderMimeType();
-      const recorder = new MediaRecorder(audioStream, mimeType ? { mimeType } : undefined);
-      const chunks: Blob[] = [];
-
-      recorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          chunks.push(event.data);
-        }
-      };
-
-      const stopPromise = new Promise<Blob>((resolve) => {
-        recorder.onstop = () => {
-          resolve(new Blob(chunks, { type: recorder.mimeType || "audio/webm" }));
-        };
-      });
-
-      const preRollMs = manualCapture ? 3000 : 0;
-      if (manualCapture) {
-        setStatus("Press play in the YouTube tab. Recording starts in 3 seconds...");
-        await new Promise((resolve) => setTimeout(resolve, preRollMs));
-      }
-
-      recorder.start();
-      setCapturePhase("recording");
-      setStatus("Recording YouTube snippet...");
-      if (!manualCapture) {
-        ytPlayerRef.current.seekTo(startTimeSec, true);
-        ytPlayerRef.current.playVideo();
-      }
-
-      const startedAt = performance.now();
-      const tick = () => {
-        const elapsed = (performance.now() - startedAt) / 1000;
-        const progress = Math.min(1, elapsed / durationSec);
-        setCaptureProgress(progress);
-        if (progress < 1) {
-          captureRafRef.current = window.requestAnimationFrame(tick);
-        }
-      };
-      captureRafRef.current = window.requestAnimationFrame(tick);
-
-      await new Promise((resolve) => setTimeout(resolve, durationSec * 1000));
-      if (!manualCapture) {
-        ytPlayerRef.current.pauseVideo();
-      }
-      recorder.stop();
-      displayStream.getTracks().forEach((track) => track.stop());
-      if (captureRafRef.current !== null) {
-        window.cancelAnimationFrame(captureRafRef.current);
-        captureRafRef.current = null;
-      }
-      setCaptureProgress(1);
-      setCapturePhase("uploading");
-      setStatus("Preparing snippet...");
-
-      const blob = await stopPromise;
-      let finalBlob = blob;
-      try {
-        finalBlob = await decodeBlobToWav(blob);
-      } catch {
-        // fallback to original recording
-      }
-      const file = new File(
-        [finalBlob],
-        `yt_capture_${youtubeId ?? "snippet"}.wav`,
-        { type: finalBlob.type || blob.type || "audio/webm" }
-      );
-      return { file, durationSec };
-    } catch (err) {
-      if (displayStream) {
-        displayStream.getTracks().forEach((track) => track.stop());
-      }
-      if (captureRafRef.current !== null) {
-        window.cancelAnimationFrame(captureRafRef.current);
-        captureRafRef.current = null;
-      }
-      throw err;
-    }
   };
 
   const openTabsInGuestEditor = async (segments: string[][]) => {
@@ -599,12 +301,8 @@ export default function TranscriberPage() {
       setError("Please paste a valid YouTube link.");
       return;
     }
-    if (mode === "YOUTUBE" && !ytPlayerReady && !ytPlayerError) {
-      setError("YouTube player is still loading. Try again in a moment.");
-      return;
-    }
     if (mode === "YOUTUBE" && (ytStartTime === null || ytDuration === null)) {
-      setError("Start time and duration are required for YouTube capture.");
+      setError("Start time and duration are required for YouTube download.");
       return;
     }
     if (mode === "YOUTUBE" && ytDuration !== null && ytDuration > MAX_YT_SNIPPET_SEC) {
@@ -631,7 +329,7 @@ export default function TranscriberPage() {
     setImportError(null);
     setTabsResult(null);
     setTranscriberSegments(null);
-    setStatus(mode === "FILE" ? "Transcribing audio..." : "Preparing YouTube capture...");
+    setStatus(mode === "FILE" ? transcribingStatusLabel : "Preparing YouTube download...");
     setLoading(true);
     sendEvent("transcribe_start", { mode, ytUrl: youtubeUrl || undefined });
 
@@ -643,22 +341,28 @@ export default function TranscriberPage() {
         if (fileDuration !== null) {
           fd.append("duration", String(fileDuration));
         }
+        fd.append("separateGuitar", separateGuitar ? "true" : "false");
         if (shouldDeferEditorSync) {
           fd.append("skipAutoEditorSync", "true");
         }
         fd.append("file", selectedFile);
+        setStatus(transcribingStatusLabel);
         response = await fetch("/api/transcribe", { method: "POST", body: fd });
       } else {
-        const capture = await captureYouTubeSnippet();
-        setStatus("Uploading snippet...");
-        const fd = new FormData();
-        fd.append("mode", "FILE");
-        fd.append("duration", String(capture.durationSec));
-        if (shouldDeferEditorSync) {
-          fd.append("skipAutoEditorSync", "true");
-        }
-        fd.append("file", capture.file);
-        response = await fetch("/api/transcribe", { method: "POST", body: fd });
+        setStatus(youtubeTranscribingStatusLabel);
+        const payload: Record<string, unknown> = {
+          mode: "YOUTUBE",
+          youtubeUrl: youtubeUrl.trim(),
+          startTime: Math.max(0, ytStartTime ?? 0),
+          duration: resolvedYtDuration,
+          separateGuitar,
+        };
+        if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
+        response = await fetch("/api/transcribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
       }
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
@@ -668,10 +372,14 @@ export default function TranscriberPage() {
         }
         setStatus("Transcription queued. Opening job status...");
         sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
+        const jobParams = new URLSearchParams();
+        jobParams.set("mode", mode);
+        jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
+        if (appendEditorId) {
+          jobParams.set("appendEditorId", appendEditorId);
+        }
         await router.push(
-          appendEditorId
-            ? `/job/${data.jobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
-            : `/job/${data.jobId}`
+          jobParams.toString() ? `/job/${data.jobId}?${jobParams.toString()}` : `/job/${data.jobId}`
         );
         return;
       }
@@ -726,7 +434,6 @@ export default function TranscriberPage() {
       sendEvent("transcribe_error", { mode, error: err?.message || "unknown" });
     } finally {
       setLoading(false);
-      setCapturePhase("idle");
     }
   };
 
@@ -798,9 +505,10 @@ export default function TranscriberPage() {
     }
   };
 
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    void handleConvert();
+  const preventEnterSubmit = (event: KeyboardEvent<HTMLFormElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+    }
   };
   const creditsUsageLabel = displayedCredits
     ? `${displayedCredits.remaining}/${displayedCredits.limit}`
@@ -817,7 +525,7 @@ export default function TranscriberPage() {
         <title>Note2Tabs - Transcriber</title>
         <meta
           name="description"
-          content="Capture a short audio snippet and generate a draft guitar tab you can refine."
+          content="Upload audio or enter a YouTube segment to generate a draft guitar tab you can refine."
         />
       </Head>
 
@@ -829,7 +537,7 @@ export default function TranscriberPage() {
             <div className="hero-heading" data-reveal>
               <h1 className="hero-title">Transcriber</h1>
               <p className="hero-subtitle">
-                Capture a short snippet and get a draft tab you can refine in the editor.
+                Upload audio or enter a YouTube segment and get a draft tab you can refine in the editor.
               </p>
               <div className="button-row hero-cta-row">
                 <Link href="/gte" className="button-primary">
@@ -840,10 +548,10 @@ export default function TranscriberPage() {
                 </Link>
               </div>
               <p className="muted text-small">
-                Max {MAX_YT_SNIPPET_SEC} seconds per capture. Choose a start time and duration.
+                Max {MAX_YT_SNIPPET_SEC} seconds per download. Choose a start time and duration.
               </p>
             </div>
-            <form className="prompt-shell" data-reveal onSubmit={handleSubmit}>
+            <form className="prompt-shell" data-reveal onKeyDown={preventEnterSubmit}>
               {displayedCredits && (
                 <div className="prompt-top prompt-top--solo">
                   <div className="prompt-balance">
@@ -908,54 +616,15 @@ export default function TranscriberPage() {
                 )}
 
                 {mode === "YOUTUBE" && (
-                  <div className="yt-preview">
-                    <div className="yt-frame">
-                      {youtubeId ? (
-                        <div ref={ytPlayerMountRef} className="yt-player" />
-                      ) : (
-                        <div className="yt-placeholder">Paste a YouTube link to load a preview.</div>
-                      )}
-                    </div>
-                    <div className="yt-guide">
-                      <strong>Consent capture</strong>
-                      <p>
-                        We play the snippet here and record tab audio after you grant permission. Max{" "}
-                        {MAX_YT_SNIPPET_SEC} seconds.
-                      </p>
-                      {ytPlayerError && <span className="yt-error">{ytPlayerError}</span>}
-                      {ytPlayerError && ytWatchUrl && (
-                        <button
-                          type="button"
-                          className="button-secondary button-small"
-                          onClick={() => window.open(ytWatchUrl, "_blank", "noopener")}
-                        >
-                          Open in YouTube tab
-                        </button>
-                      )}
-                      {youtubeId && !ytPlayerReady && !ytPlayerError && (
-                        <span className="yt-loading">Loading the player...</span>
-                      )}
-                      <span className="yt-note">
-                        When you click Generate tabs, choose this tab and enable Audio in the share dialog.
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {mode === "YOUTUBE" && capturePhase !== "idle" && (
-                  <div className="capture-card">
-                    <div className="capture-head">
-                      <div>
-                        <strong>{captureTitle}</strong>
-                        <span className="capture-sub">{captureHint}</span>
-                      </div>
-                      <span className="capture-time">
-                        {captureSeconds}s / {captureDuration}s
-                      </span>
-                    </div>
-                    <div className="capture-bar">
-                      <span style={{ width: `${Math.round(captureProgress * 100)}%` }} />
-                    </div>
+                  <div className="yt-guide">
+                    <strong>Backend download</strong>
+                    <p>
+                      We download the requested YouTube audio snippet on the backend, then run
+                      transcription on that segment. Max {MAX_YT_SNIPPET_SEC} seconds.
+                    </p>
+                    <span className="yt-note">
+                      Generation uses only the link, start time, and duration you enter below.
+                    </span>
                   </div>
                 )}
 
@@ -970,6 +639,16 @@ export default function TranscriberPage() {
                     </button>
                   </div>
                 )}
+
+                <label className="checkbox">
+                    <input
+                      type="checkbox"
+                      checked={separateGuitar}
+                      onChange={(event) => setSeparateGuitar(event.target.checked)}
+                      disabled={loading}
+                    />
+                  <span>Separate guitar only with Demucs before transcription</span>
+                </label>
               </div>
 
               {mode === "YOUTUBE" && (
@@ -1003,7 +682,7 @@ export default function TranscriberPage() {
                     />
                   </label>
                   <div className="advanced-note">
-                    We record the snippet in real time after you grant tab audio capture.
+                    The backend downloads exactly this time window before transcription starts.
                   </div>
                 </div>
               )}
@@ -1022,7 +701,12 @@ export default function TranscriberPage() {
               )}
 
               <div className="prompt-actions">
-                <button type="submit" className="button-primary" disabled={!canSubmit}>
+                <button
+                  type="button"
+                  className="button-primary"
+                  disabled={!canSubmit}
+                  onClick={() => void handleConvert()}
+                >
                   {submitLabel}
                 </button>
               </div>
