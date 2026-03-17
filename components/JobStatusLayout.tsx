@@ -11,6 +11,16 @@ export type Stem = {
 export type JobResponse = {
   job_id: string;
   status: JobStatus;
+  type?: string | null;
+  rawStatus?: string | null;
+  progress?: number | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  attempts?: number | null;
+  lastError?: string | null;
+  output?: Record<string, any> | null;
   song_title?: string | null;
   artist?: string | null;
   tab_text?: string | null;
@@ -23,8 +33,26 @@ export type JobResponse = {
   result?: Record<string, any> | null;
 };
 
+export type PendingJobStage = {
+  label: string;
+  state: "complete" | "active" | "upcoming";
+};
+
+export type PendingJobPresentation = {
+  badgeLabel: string;
+  phaseLabel: string;
+  detail: string;
+  progressPercent: number;
+  elapsedLabel: string;
+  typicalDurationLabel: string;
+  attemptLabel?: string | null;
+  warningLabel?: string | null;
+  stages: PendingJobStage[];
+};
+
 type JobStatusLayoutProps = {
   job: JobResponse | null;
+  pendingPresentation?: PendingJobPresentation | null;
   onRestart: () => void;
   onDownloadTabs: () => void;
   onImportToEditor?: (() => void) | null;
@@ -44,6 +72,7 @@ type JobStatusLayoutProps = {
 
 export default function JobStatusLayout({
   job,
+  pendingPresentation,
   onRestart,
   onDownloadTabs,
   onImportToEditor,
@@ -61,13 +90,56 @@ export default function JobStatusLayout({
   shareUrls,
 }: JobStatusLayoutProps) {
   if (!job || job.status === "queued" || job.status === "pending" || job.status === "processing" || job.status === "running") {
+    const pending = pendingPresentation;
     return (
       <div className="card">
-        <div className="stack" style={{ gap: "10px" }}>
-          <span className="badge">Analyzing audio</span>
-          <p className="muted text-small">
-            Separating guitar stems and generating tabs. This usually takes less than a minute.
-          </p>
+        <div className="job-progress-shell">
+          <div className="job-progress-header">
+            <div className="stack" style={{ gap: "8px" }}>
+              <span className="badge">{pending?.badgeLabel || "Processing"}</span>
+              <p className="job-progress-phase">{pending?.phaseLabel || "Analyzing audio"}</p>
+              <p className="muted text-small" style={{ margin: 0 }}>
+                {pending?.detail || "Preparing your transcription. This usually takes less than a minute."}
+              </p>
+            </div>
+            {pending ? (
+              <div className="job-progress-stat">
+                <span className="job-progress-value">{pending.progressPercent}%</span>
+                <span className="muted text-small">estimated</span>
+              </div>
+            ) : null}
+          </div>
+          {pending ? (
+            <>
+              <div
+                className="job-progress-track"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={pending.progressPercent}
+                aria-label="Estimated job progress"
+              >
+                <div className="job-progress-fill" style={{ width: `${pending.progressPercent}%` }} />
+              </div>
+              <div className="job-progress-meta">
+                <span>{pending.elapsedLabel}</span>
+                <span>{pending.typicalDurationLabel}</span>
+              </div>
+              {pending.attemptLabel ? (
+                <p className="muted text-small" style={{ margin: 0 }}>
+                  {pending.attemptLabel}
+                </p>
+              ) : null}
+              {pending.warningLabel ? <p className="job-progress-warning">{pending.warningLabel}</p> : null}
+              <div className="job-progress-steps" aria-label="Processing stages">
+                {pending.stages.map((stage) => (
+                  <span key={stage.label} className={`job-progress-step is-${stage.state}`}>
+                    {stage.label}
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
       </div>
     );

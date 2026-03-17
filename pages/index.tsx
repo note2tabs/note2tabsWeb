@@ -435,14 +435,18 @@ export default function HomePage() {
           setCredits(data.credits);
         }
         setStatus("Transcription queued. Opening job status...");
-          sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
-          await router.push(
-            appendEditorId
-              ? `/job/${data.jobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
-              : `/job/${data.jobId}`
-          );
-          return;
+        sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
+        const jobParams = new URLSearchParams();
+        jobParams.set("mode", mode);
+        jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
+        if (appendEditorId) {
+          jobParams.set("appendEditorId", appendEditorId);
         }
+        await router.push(
+          jobParams.toString() ? `/job/${data.jobId}?${jobParams.toString()}` : `/job/${data.jobId}`
+        );
+        return;
+      }
       if (!response.ok) {
         if (data.credits) {
           setCredits(data.credits);
