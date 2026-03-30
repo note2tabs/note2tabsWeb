@@ -50,6 +50,31 @@ function normalizeTabs(value: unknown): string[][] {
 function normalizeTranscriberSegment(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
+  if ("start_time_s" in record || "end_time_s" in record || "pitch_midi" in record) {
+    const startTime = Number(record.start_time_s);
+    const endTime = Number(record.end_time_s);
+    const pitchMidi = Number(record.pitch_midi);
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || !Number.isFinite(pitchMidi)) return null;
+    const rawPitchBend = Array.isArray(record.pitch_bend)
+      ? record.pitch_bend
+          .map((entry) => Number(entry))
+          .filter((entry) => Number.isFinite(entry))
+          .map((entry) => Math.round(entry))
+      : null;
+    const amplitude =
+      record.amplitude === null || record.amplitude === undefined
+        ? null
+        : Number.isFinite(Number(record.amplitude))
+        ? Number(record.amplitude)
+        : null;
+    return {
+      start_time_s: Math.max(0, Number(startTime)),
+      end_time_s: Math.max(Number(startTime), Number(endTime)),
+      pitch_midi: Math.round(Number(pitchMidi)),
+      amplitude,
+      pitch_bend: rawPitchBend,
+    };
+  }
   const midiNumLine = Array.isArray(record.MidiNumLine)
     ? record.MidiNumLine
         .map((entry) => Number(entry))
@@ -108,7 +133,7 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
   if (existing) return existing.id;
 
   const transcriberSegments = normalizeTranscriberSegments(
-    getFirstJobValue(payload, ["transcriberSegments", "segmentGroups", "segments"])
+    getFirstJobValue(payload, ["transcriberSegments", "noteEventGroups", "segmentGroups", "segments"])
   );
   const explicitLabel =
     typeof getFirstJobValue(payload, ["sourceLabel", "source_label", "fileName", "filename", "title"]) === "string"
@@ -173,6 +198,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (contentType?.includes("application/json")) {
     try {
       const payload = JSON.parse(text) as Record<string, unknown>;
+      const artifacts =
+        getFirstJobValue(payload, ["artifacts"]) &&
+        typeof getFirstJobValue(payload, ["artifacts"]) === "object" &&
+        !Array.isArray(getFirstJobValue(payload, ["artifacts"]))
+          ? (getFirstJobValue(payload, ["artifacts"]) as Record<string, unknown>)
+          : null;
+      if (artifacts && artifacts.previewAudio) {
+        payload.audio_preview_url = `/api/jobs/${encodeURIComponent(jobId)}/artifacts/preview_audio`;
+      }
       if (
         upstream.ok &&
         session?.user?.id &&

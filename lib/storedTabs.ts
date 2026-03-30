@@ -1,8 +1,13 @@
 export type StoredTranscriberSegment = {
-  lineStart: number;
-  lineEnd: number;
+  start_time_s?: number;
+  end_time_s?: number;
+  pitch_midi?: number;
+  amplitude?: number | null;
+  pitch_bend?: number[] | null;
+  lineStart?: number;
+  lineEnd?: number;
   midiNum?: number | null;
-  MidiNumLine: number[];
+  MidiNumLine?: number[];
 };
 
 export type StoredTranscriberSegmentGroup = StoredTranscriberSegment[];
@@ -27,6 +32,31 @@ function normalizeTabSegments(value: unknown): string[][] {
 function normalizeTranscriberSegment(value: unknown): StoredTranscriberSegment | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
+  if ("start_time_s" in record || "end_time_s" in record || "pitch_midi" in record) {
+    const startTime = Number(record.start_time_s);
+    const endTime = Number(record.end_time_s);
+    const pitchMidi = Number(record.pitch_midi);
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || !Number.isFinite(pitchMidi)) return null;
+    const rawPitchBend = Array.isArray(record.pitch_bend)
+      ? record.pitch_bend
+          .map((entry) => Number(entry))
+          .filter((entry) => Number.isFinite(entry))
+          .map((entry) => Math.round(entry))
+      : null;
+    const amplitude =
+      record.amplitude === null || record.amplitude === undefined
+        ? null
+        : Number.isFinite(Number(record.amplitude))
+        ? Number(record.amplitude)
+        : null;
+    return {
+      start_time_s: Math.max(0, Number(startTime)),
+      end_time_s: Math.max(Number(startTime), Number(endTime)),
+      pitch_midi: Math.round(Number(pitchMidi)),
+      amplitude,
+      pitch_bend: rawPitchBend,
+    };
+  }
   const lineStart = Number(record.lineStart);
   const lineEnd = Number(record.lineEnd);
   const midiNumLine = Array.isArray(record.MidiNumLine)
@@ -81,7 +111,7 @@ export function normalizeStoredTabPayload(value: unknown): StoredTabPayload {
   return {
     tabs: normalizeTabSegments(record.tabs ?? record.result ?? record.tab_text),
     transcriberSegments: normalizeTranscriberSegments(
-      record.transcriberSegments ?? record.segmentGroups ?? record.segments
+      record.transcriberSegments ?? record.noteEventGroups ?? record.segmentGroups ?? record.segments
     ),
     backendJobId: typeof record.backendJobId === "string" && record.backendJobId.trim() ? record.backendJobId : null,
   };

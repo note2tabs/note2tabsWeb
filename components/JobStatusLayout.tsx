@@ -18,6 +18,11 @@ export type JobResponse = {
   updatedAt?: string | null;
   startedAt?: string | null;
   finishedAt?: string | null;
+  workflowState?: string | null;
+  currentStepKey?: string | null;
+  currentStepLabel?: string | null;
+  currentStepDetail?: string | null;
+  steps?: Array<Record<string, any>> | null;
   attempts?: number | null;
   lastError?: string | null;
   output?: Record<string, any> | null;
@@ -45,6 +50,7 @@ export type PendingJobPresentation = {
   progressPercent: number;
   elapsedLabel: string;
   typicalDurationLabel: string;
+  stepSummary?: string | null;
   attemptLabel?: string | null;
   warningLabel?: string | null;
   stages: PendingJobStage[];
@@ -105,7 +111,7 @@ export default function JobStatusLayout({
             {pending ? (
               <div className="job-progress-stat">
                 <span className="job-progress-value">{pending.progressPercent}%</span>
-                <span className="muted text-small">estimated</span>
+                {pending.stepSummary ? <span className="muted text-small">{pending.stepSummary}</span> : null}
               </div>
             ) : null}
           </div>
@@ -117,13 +123,13 @@ export default function JobStatusLayout({
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={pending.progressPercent}
-                aria-label="Estimated job progress"
+                aria-label="Job progress"
               >
                 <div className="job-progress-fill" style={{ width: `${pending.progressPercent}%` }} />
               </div>
               <div className="job-progress-meta">
                 <span>{pending.elapsedLabel}</span>
-                <span>{pending.typicalDurationLabel}</span>
+                {pending.typicalDurationLabel ? <span>{pending.typicalDurationLabel}</span> : null}
               </div>
               {pending.attemptLabel ? (
                 <p className="muted text-small" style={{ margin: 0 }}>
