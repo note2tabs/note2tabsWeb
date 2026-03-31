@@ -80,7 +80,6 @@ export default function HomePage() {
   const [tabsResult, setTabsResult] = useState<string[][] | null>(null);
   const [transcriberSegments, setTranscriberSegments] = useState<TranscriberSegmentGroup[] | null>(null);
   const [credits, setCredits] = useState<CreditsSummary | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [importBusy, setImportBusy] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -134,10 +133,6 @@ export default function HomePage() {
       });
     }
   }, [session]);
-
-  useEffect(() => {
-    sendEvent("page_view", { path: "/" });
-  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -765,18 +760,6 @@ export default function HomePage() {
                     </>
                   )}
 
-                  {isSignedIn && mode === "FILE" && (
-                    <div className="prompt-footer">
-                      <button
-                        type="button"
-                        className="advanced-toggle"
-                        onClick={() => setShowAdvanced((prev) => !prev)}
-                      >
-                        {showAdvanced ? "Hide advanced" : "Advanced options"}
-                      </button>
-                    </div>
-                  )}
-
                   <label className="checkbox">
                     <input
                       type="checkbox"
@@ -784,20 +767,7 @@ export default function HomePage() {
                       onChange={(event) => setSeparateGuitar(event.target.checked)}
                       disabled={loading}
                     />
-                    <span>Separate guitar only with Demucs before transcription</span>
-                  </label>
-                </div>
-              )}
-
-              {isSignedIn && showAdvanced && mode === "FILE" && (
-                <div className="advanced-grid">
-                  <label>
-                    Approx length (sec)
-                    <input
-                      type="number"
-                      value={fileDuration ?? ""}
-                      onChange={(event) => setFileDuration(parseOptionalNumber(event.target.value))}
-                    />
+                    <span>Does your audio include other instruments?</span>
                   </label>
                 </div>
               )}

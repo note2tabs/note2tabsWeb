@@ -9,6 +9,7 @@ import {
   getDropoffPoints,
   getDeviceBreakdown,
   getErrorStats,
+  getPageViewBreakdown,
   getTopUsers,
   getRecentEvents,
   getUsersActivity,
@@ -41,6 +42,7 @@ type Funnel = Awaited<ReturnType<typeof getConversionFunnel>>;
 type Dropoff = Awaited<ReturnType<typeof getDropoffPoints>>;
 type Devices = Awaited<ReturnType<typeof getDeviceBreakdown>>;
 type Errors = Awaited<ReturnType<typeof getErrorStats>>;
+type PageViews = Awaited<ReturnType<typeof getPageViewBreakdown>>;
 type TopUser = Awaited<ReturnType<typeof getTopUsers>>[number];
 type RecentEvent = Awaited<ReturnType<typeof getRecentEvents>>[number];
 type GteStats = Awaited<ReturnType<typeof getGteEditorStats>>;
@@ -107,6 +109,7 @@ type Props = {
   daily: DailyPoint[];
   funnel: Funnel | null;
   dropoff: Dropoff | null;
+  pageViews: PageViews | null;
   devices: Devices | null;
   errors: Errors | null;
   topUsers: Array<Omit<TopUser, "lastActive"> & { lastActive: string | null }>;
@@ -131,6 +134,7 @@ export default function AnalyticsDashboard(props: Props) {
     daily,
     funnel,
     dropoff,
+    pageViews,
     devices,
     errors,
     topUsers,
@@ -205,7 +209,15 @@ export default function AnalyticsDashboard(props: Props) {
 
             <section className="stack">
               {activeView === "overview" && (
-                <OverviewView summary={summary} daily={daily} funnel={funnel} dropoff={dropoff} devices={devices} errors={errors} />
+                <OverviewView
+                  summary={summary}
+                  daily={daily}
+                  funnel={funnel}
+                  dropoff={dropoff}
+                  pageViews={pageViews}
+                  devices={devices}
+                  errors={errors}
+                />
               )}
 
               {activeView === "gte" && <GteView gteStats={gteStats} />}
@@ -230,6 +242,7 @@ function OverviewView({
   daily,
   funnel,
   dropoff,
+  pageViews,
   devices,
   errors,
 }: {
@@ -237,34 +250,30 @@ function OverviewView({
   daily: Props["daily"];
   funnel: Props["funnel"];
   dropoff: Props["dropoff"];
+  pageViews: Props["pageViews"];
   devices: Props["devices"];
   errors: Props["errors"];
 }) {
-  if (!summary || !funnel || !dropoff || !devices || !errors) {
+  if (!summary || !funnel || !dropoff || !pageViews || !devices || !errors) {
     return <div className="card">Overview data is not available for this role.</div>;
   }
 
   const funnelSteps = [
-    { label: "Visitors", value: funnel.step1_visitors },
+    { label: "Homepage viewed", value: funnel.step1_homepage_viewed },
     {
-      label: "Signup CTA",
-      value: funnel.step2_signup_cta_clicked,
-      pct: pct(funnel.step1_visitors, funnel.step2_signup_cta_clicked),
+      label: "Transcriber viewed",
+      value: funnel.step2_transcriber_viewed,
+      pct: pct(funnel.step1_homepage_viewed, funnel.step2_transcriber_viewed),
     },
     {
-      label: "Signup opened",
-      value: funnel.step3_signup_opened,
-      pct: pct(funnel.step2_signup_cta_clicked, funnel.step3_signup_opened),
+      label: "Transcription started",
+      value: funnel.step3_transcription_started,
+      pct: pct(funnel.step2_transcriber_viewed, funnel.step3_transcription_started),
     },
     {
-      label: "Signup completed",
-      value: funnel.step4_signup_success,
-      pct: pct(funnel.step3_signup_opened, funnel.step4_signup_success),
-    },
-    {
-      label: "First transcription",
-      value: funnel.step5_first_transcription,
-      pct: pct(funnel.step4_signup_success, funnel.step5_first_transcription),
+      label: "Transcription completed",
+      value: funnel.step4_transcription_completed,
+      pct: pct(funnel.step3_transcription_started, funnel.step4_transcription_completed),
     },
   ];
 
@@ -291,7 +300,7 @@ function OverviewView({
         <div className="card stack">
           <SectionHeader title="Conversion funnel" />
           <FunnelBars steps={funnelSteps} />
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-xs text-slate-300">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs text-slate-300">
             {funnelSteps.map((s) => (
               <div key={s.label} className="rounded-lg border border-slate-200 bg-white/60 p-2">
                 <p className="font-semibold">{s.label}</p>
@@ -304,12 +313,79 @@ function OverviewView({
         <div className="card stack">
           <SectionHeader title="Drop-off analysis" />
           <div className="space-y-2 text-sm text-slate-800">
-            <BarItem label="Left after homepage only" value={dropoff.dropoffAfterHomepage} />
-            <BarItem label="Abandoned signup" value={dropoff.dropoffAfterSignupOpen} />
+            <BarItem label="Left after homepage" value={dropoff.dropoffAfterHomepage} />
+            <BarItem label="Viewed transcriber but did not start" value={dropoff.dropoffAfterTranscriberView} />
             <BarItem
               label="Started but never completed transcription"
               value={dropoff.dropoffAfterTranscriptionStart}
             />
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="card stack">
+          <div className="page-header">
+            <SectionHeader title="Most viewed pages" />
+            <p className="muted text-small">{pageViews.trackedSessions} tracked sessions</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead>
+                <tr className="text-left text-slate-600">
+                  <th className="px-2 py-1">Path</th>
+                  <th className="px-2 py-1">Page views</th>
+                  <th className="px-2 py-1">Unique visitors</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageViews.topPages.map((row) => (
+                  <tr key={`top-${row.path}`} className="border-t border-slate-200">
+                    <td className="px-2 py-1">{row.path}</td>
+                    <td className="px-2 py-1">{row.pageViews}</td>
+                    <td className="px-2 py-1">{row.uniqueVisitors}</td>
+                  </tr>
+                ))}
+                {pageViews.topPages.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-2 py-3 text-center text-slate-500">
+                      No page views in range.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="card stack">
+          <SectionHeader title="Common exit pages" />
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead>
+                <tr className="text-left text-slate-600">
+                  <th className="px-2 py-1">Path</th>
+                  <th className="px-2 py-1">Session exits</th>
+                  <th className="px-2 py-1">Exit rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageViews.exitPages.map((row) => (
+                  <tr key={`exit-${row.path}`} className="border-t border-slate-200">
+                    <td className="px-2 py-1">{row.path}</td>
+                    <td className="px-2 py-1">{row.exits}</td>
+                    <td className="px-2 py-1">{row.exitRate.toFixed(1)}%</td>
+                  </tr>
+                ))}
+                {pageViews.exitPages.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-2 py-3 text-center text-slate-500">
+                      No exit pages in range.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -788,6 +864,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   let daily: DailyPoint[] = [];
   let funnel: Funnel | null = null;
   let dropoff: Dropoff | null = null;
+  let pageViews: PageViews | null = null;
   let devices: Devices | null = null;
   let errors: Errors | null = null;
   let topUsers: TopUser[] = [];
@@ -800,12 +877,13 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     const parityFrom = new Date();
     parityFrom.setDate(parityFrom.getDate() - 6);
 
-    [summary, daily, funnel, dropoff, devices, errors, topUsers, recentEvents, usersActivity, gteStats, parity] =
+    [summary, daily, funnel, dropoff, pageViews, devices, errors, topUsers, recentEvents, usersActivity, gteStats, parity] =
       await Promise.all([
         getSummaryStats(from, to),
         getDailyTimeSeries(from, to),
         getConversionFunnel(from, to),
         getDropoffPoints(from, to),
+        getPageViewBreakdown(from, to, 10),
         getDeviceBreakdown(from, to),
         getErrorStats(from, to),
         getTopUsers(from, to, 10),
@@ -830,6 +908,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       daily,
       funnel,
       dropoff,
+      pageViews,
       devices,
       errors,
       topUsers: topUsers.map((u) => ({

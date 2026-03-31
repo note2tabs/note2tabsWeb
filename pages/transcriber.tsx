@@ -77,7 +77,6 @@ export default function TranscriberPage() {
   const [tabsResult, setTabsResult] = useState<string[][] | null>(null);
   const [transcriberSegments, setTranscriberSegments] = useState<TranscriberSegmentGroup[] | null>(null);
   const [credits, setCredits] = useState<CreditsSummary | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [importBusy, setImportBusy] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -129,10 +128,6 @@ export default function TranscriberPage() {
       });
     }
   }, [session]);
-
-  useEffect(() => {
-    sendEvent("page_view", { path: "/transcriber" });
-  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -628,18 +623,6 @@ export default function TranscriberPage() {
                   </div>
                 )}
 
-                {isSignedIn && mode === "FILE" && (
-                  <div className="prompt-footer">
-                    <button
-                      type="button"
-                      className="advanced-toggle"
-                      onClick={() => setShowAdvanced((prev) => !prev)}
-                    >
-                      {showAdvanced ? "Hide advanced" : "Advanced options"}
-                    </button>
-                  </div>
-                )}
-
                 <label className="checkbox">
                     <input
                       type="checkbox"
@@ -647,7 +630,7 @@ export default function TranscriberPage() {
                       onChange={(event) => setSeparateGuitar(event.target.checked)}
                       disabled={loading}
                     />
-                  <span>Separate guitar only with Demucs before transcription</span>
+                  <span>Does your audio include other instruments?</span>
                 </label>
               </div>
 
@@ -684,19 +667,6 @@ export default function TranscriberPage() {
                   <div className="advanced-note">
                     The backend downloads exactly this time window before transcription starts.
                   </div>
-                </div>
-              )}
-
-              {isSignedIn && showAdvanced && mode === "FILE" && (
-                <div className="advanced-grid">
-                  <label>
-                    Approx length (sec)
-                    <input
-                      type="number"
-                      value={fileDuration ?? ""}
-                      onChange={(event) => setFileDuration(parseOptionalNumber(event.target.value))}
-                    />
-                  </label>
                 </div>
               )}
 

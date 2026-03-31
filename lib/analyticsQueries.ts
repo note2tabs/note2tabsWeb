@@ -1,6 +1,10 @@
 import { prisma } from "./prisma";
 import { analyticsFlags } from "./analyticsV2/flags";
-import { CANONICAL_TO_LEGACY_EVENT_NAME, toLegacyName } from "./analyticsV2/canonical";
+import {
+  CANONICAL_TO_LEGACY_EVENT_NAME,
+  toCanonicalName,
+  toLegacyName,
+} from "./analyticsV2/canonical";
 
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -18,8 +22,13 @@ type UnifiedAnalyticsEvent = {
   payload: string | null;
 };
 
+function mapUnifiedEventName(name: string) {
+  const canonical = toCanonicalName(name).name;
+  return CANONICAL_TO_LEGACY_EVENT_NAME[canonical] || canonical;
+}
+
 function mapEventNameFromV2(name: string) {
-  return CANONICAL_TO_LEGACY_EVENT_NAME[name] || name;
+  return mapUnifiedEventName(name);
 }
 
 async function getUnifiedEvents(from: Date, to: Date): Promise<UnifiedAnalyticsEvent[]> {
@@ -39,7 +48,12 @@ async function getUnifiedEvents(from: Date, to: Date): Promise<UnifiedAnalyticsE
         deviceType: true,
         payload: true,
       },
-    });
+    }).then((rows) =>
+      rows.map((row) => ({
+        ...row,
+        event: mapUnifiedEventName(row.event),
+      }))
+    );
   }
 
   const rows = await prisma.analyticsEventV2.findMany({
@@ -52,6 +66,7 @@ async function getUnifiedEvents(from: Date, to: Date): Promise<UnifiedAnalyticsE
       referrer: true,
       ts: true,
       accountId: true,
+      anonId: true,
       sessionId: true,
       uaBrowser: true,
       uaOs: true,
@@ -60,19 +75,23 @@ async function getUnifiedEvents(from: Date, to: Date): Promise<UnifiedAnalyticsE
     },
   });
 
-  return rows.map((row) => ({
-    id: row.id.toString(),
-    event: mapEventNameFromV2(row.name),
-    path: row.path || null,
-    referer: row.referrer || null,
-    createdAt: row.ts,
-    userId: row.accountId || null,
-    sessionId: row.sessionId || null,
-    browser: row.uaBrowser || null,
-    os: row.uaOs || null,
-    deviceType: row.uaDevice || null,
-    payload: row.props ? JSON.stringify(row.props) : null,
-  }));
+  return rows.map((row) => {
+    const props = row.props && typeof row.props === "object" ? (row.props as Record<string, unknown>) : {};
+    const payloadPath = typeof props.path === "string" ? props.path : null;
+    return {
+      id: row.id.toString(),
+      event: mapEventNameFromV2(row.name),
+      path: row.path || payloadPath || null,
+      referer: row.referrer || null,
+      createdAt: row.ts,
+      userId: row.accountId || null,
+      sessionId: row.sessionId || row.anonId || null,
+      browser: row.uaBrowser || null,
+      os: row.uaOs || null,
+      deviceType: row.uaDevice || null,
+      payload: row.props ? JSON.stringify(row.props) : null,
+    };
+  });
 }
 
 function parsePayload(payload?: string | null): Record<string, any> {
@@ -85,6 +104,25 @@ function parsePayload(payload?: string | null): Record<string, any> {
   }
 }
 
+function normalizePath(path: string | null | undefined): string | null {
+  if (!path) return null;
+  const trimmed = path.trim();
+  if (!trimmed) return null;
+  const [withoutQuery = ""] = trimmed.split("?");
+  const [withoutHash = ""] = withoutQuery.split("#");
+  if (!withoutHash) return null;
+  return withoutHash.startsWith("/") ? withoutHash : `/${withoutHash}`;
+}
+
+function isHomepagePath(path: string | null | undefined) {
+  return normalizePath(path) === "/";
+}
+
+function isTranscriberPath(path: string | null | undefined) {
+  const normalized = normalizePath(path);
+  return normalized === "/transcriber" || Boolean(normalized && normalized.startsWith("/transcriber/"));
+}
+
 function percentile(values: number[], p: number) {
   if (!values.length) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -93,17 +131,21 @@ function percentile(values: number[], p: number) {
 }
 
 export async function getSummaryStats(from: Date, to: Date) {
-  const events = await getUnifiedEvents(from, to);
-  const tabJobs = await prisma.tabJob.findMany({
-    where: { createdAt: { gte: from, lte: to } },
-    select: { userId: true },
-  });
+  const [events, tabJobs, totalSignups] = await Promise.all([
+    getUnifiedEvents(from, to),
+    prisma.tabJob.findMany({
+      where: { createdAt: { gte: from, lte: to } },
+      select: { userId: true },
+    }),
+    prisma.user.count({
+      where: { createdAt: { gte: from, lte: to } },
+    }),
+  ]);
 
   const visitorSessions = new Set(
     events.filter((e) => e.event === "page_view" && e.sessionId).map((e) => e.sessionId as string)
   );
   const totalVisitors = visitorSessions.size;
-  const totalSignups = events.filter((e) => e.event === "signup_success").length;
 
   const activeUsers = new Set(tabJobs.map((t) => t.userId).filter(Boolean) as string[]);
   const totalTranscriptions = tabJobs.length;
@@ -126,11 +168,17 @@ export async function getSummaryStats(from: Date, to: Date) {
 }
 
 export async function getDailyTimeSeries(from: Date, to: Date) {
-  const events = await getUnifiedEvents(from, to);
-  const tabJobs = await prisma.tabJob.findMany({
-    where: { createdAt: { gte: from, lte: to } },
-    select: { createdAt: true, userId: true },
-  });
+  const [events, tabJobs, signups] = await Promise.all([
+    getUnifiedEvents(from, to),
+    prisma.tabJob.findMany({
+      where: { createdAt: { gte: from, lte: to } },
+      select: { createdAt: true, userId: true },
+    }),
+    prisma.user.findMany({
+      where: { createdAt: { gte: from, lte: to } },
+      select: { createdAt: true },
+    }),
+  ]);
 
   const days: Record<
     string,
@@ -151,7 +199,12 @@ export async function getDailyTimeSeries(from: Date, to: Date) {
     const key = dayKey(e.createdAt);
     if (!days[key]) return;
     if (e.event === "page_view" && e.sessionId) days[key].visitors.add(e.sessionId);
-    if (e.event === "signup_success") days[key].signups += 1;
+  });
+
+  signups.forEach((signup) => {
+    const key = dayKey(signup.createdAt);
+    if (!days[key]) return;
+    days[key].signups += 1;
   });
 
   tabJobs.forEach((t) => {
@@ -172,36 +225,28 @@ export async function getDailyTimeSeries(from: Date, to: Date) {
 
 export async function getConversionFunnel(from: Date, to: Date) {
   const events = await getUnifiedEvents(from, to);
-  const tabJobs = await prisma.tabJob.findMany({
-    where: { createdAt: { gte: from, lte: to } },
-    select: { userId: true },
-  });
 
-  const step1 = new Set<string>();
-  const step2 = new Set<string>();
-  const step3 = new Set<string>();
-  const step4 = new Set<string>();
-  const step5 = new Set<string>();
+  const homepageViewed = new Set<string>();
+  const transcriberViewed = new Set<string>();
+  const transcriptionStarted = new Set<string>();
+  const transcriptionCompleted = new Set<string>();
 
   events.forEach((e) => {
     const sid = e.sessionId || "";
     if (!sid) return;
-    if (e.event === "page_view" && e.path === "/") step1.add(sid);
-    if (e.event === "cta_signup") step2.add(sid);
-    if (e.event === "signup_opened") step3.add(sid);
-    if (e.event === "signup_success") step4.add(sid);
+    if (e.event === "page_view" && isHomepagePath(e.path)) homepageViewed.add(sid);
+    if (e.event === "page_view" && isTranscriberPath(e.path)) transcriberViewed.add(sid);
+    if (e.event === "transcription_started") transcriptionStarted.add(sid);
+    if (e.event === "transcription_completed") transcriptionCompleted.add(sid);
   });
 
-  tabJobs.forEach((t) => {
-    if (t.userId) step5.add(t.userId);
-  });
+  const reachedTranscriber = new Set<string>([...transcriberViewed, ...transcriptionStarted]);
 
   return {
-    step1_visitors: step1.size,
-    step2_signup_cta_clicked: step2.size,
-    step3_signup_opened: step3.size,
-    step4_signup_success: step4.size,
-    step5_first_transcription: step5.size,
+    step1_homepage_viewed: homepageViewed.size,
+    step2_transcriber_viewed: reachedTranscriber.size,
+    step3_transcription_started: transcriptionStarted.size,
+    step4_transcription_completed: transcriptionCompleted.size,
   };
 }
 
@@ -209,25 +254,99 @@ export async function getDropoffPoints(from: Date, to: Date) {
   const events = await getUnifiedEvents(from, to);
 
   const homepage = new Set<string>();
-  const signupOpened = new Set<string>();
-  const signupCompleted = new Set<string>();
+  const transcriberViewed = new Set<string>();
   const transcribeStarted = new Set<string>();
   const transcribeCompleted = new Set<string>();
 
   events.forEach((e) => {
     const sid = e.sessionId || "";
     if (!sid) return;
-    if (e.event === "page_view" && e.path === "/") homepage.add(sid);
-    if (e.event === "signup_opened") signupOpened.add(sid);
-    if (e.event === "signup_success") signupCompleted.add(sid);
+    if (e.event === "page_view" && isHomepagePath(e.path)) homepage.add(sid);
+    if (e.event === "page_view" && isTranscriberPath(e.path)) transcriberViewed.add(sid);
     if (e.event === "transcription_started") transcribeStarted.add(sid);
     if (e.event === "transcription_completed") transcribeCompleted.add(sid);
   });
 
+  let dropoffAfterHomepage = 0;
+  homepage.forEach((sid) => {
+    if (!transcriberViewed.has(sid) && !transcribeStarted.has(sid)) {
+      dropoffAfterHomepage += 1;
+    }
+  });
+
+  let dropoffAfterTranscriberView = 0;
+  transcriberViewed.forEach((sid) => {
+    if (!transcribeStarted.has(sid)) {
+      dropoffAfterTranscriberView += 1;
+    }
+  });
+
   return {
-    dropoffAfterHomepage: Math.max(homepage.size - signupOpened.size, 0),
-    dropoffAfterSignupOpen: Math.max(signupOpened.size - signupCompleted.size, 0),
+    dropoffAfterHomepage,
+    dropoffAfterTranscriberView,
     dropoffAfterTranscriptionStart: Math.max(transcribeStarted.size - transcribeCompleted.size, 0),
+  };
+}
+
+export async function getPageViewBreakdown(from: Date, to: Date, limit = 10) {
+  const events = (await getUnifiedEvents(from, to))
+    .filter((event) => event.event === "page_view")
+    .slice()
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+  const pathStats = new Map<
+    string,
+    {
+      pageViews: number;
+      uniqueSessions: Set<string>;
+    }
+  >();
+  const sessionLastPath = new Map<string, string>();
+
+  for (const event of events) {
+    const path = normalizePath(event.path);
+    if (!path) continue;
+
+    const entry = pathStats.get(path) || { pageViews: 0, uniqueSessions: new Set<string>() };
+    entry.pageViews += 1;
+    if (event.sessionId) {
+      entry.uniqueSessions.add(event.sessionId);
+      sessionLastPath.set(event.sessionId, path);
+    }
+    pathStats.set(path, entry);
+  }
+
+  const exitCounts: Record<string, number> = {};
+  sessionLastPath.forEach((path) => {
+    exitCounts[path] = (exitCounts[path] || 0) + 1;
+  });
+
+  const rows = Array.from(pathStats.entries()).map(([path, values]) => {
+    const exits = exitCounts[path] || 0;
+    const uniqueVisitors = values.uniqueSessions.size;
+    return {
+      path,
+      pageViews: values.pageViews,
+      uniqueVisitors,
+      exits,
+      exitRate: uniqueVisitors > 0 ? Math.round((exits / uniqueVisitors) * 1000) / 10 : 0,
+    };
+  });
+
+  const topPages = rows
+    .slice()
+    .sort((a, b) => b.pageViews - a.pageViews || b.uniqueVisitors - a.uniqueVisitors || a.path.localeCompare(b.path))
+    .slice(0, limit);
+
+  const exitPages = rows
+    .filter((row) => row.exits > 0)
+    .sort((a, b) => b.exits - a.exits || b.exitRate - a.exitRate || a.path.localeCompare(b.path))
+    .slice(0, limit);
+
+  return {
+    topPages,
+    exitPages,
+    trackedSessions: sessionLastPath.size,
   };
 }
 
@@ -340,14 +459,6 @@ export async function getUsersActivity(from: Date, to: Date, limit = 100) {
     ])
   );
 
-  const signupMap: Record<string, number> = {};
-  const signupEvents = await getUnifiedEvents(from, to);
-  signupEvents.forEach((event) => {
-    if (event.event !== "signup_success" || !event.userId) return;
-    if (!userIds.includes(event.userId)) return;
-    signupMap[event.userId] = (signupMap[event.userId] || 0) + 1;
-  });
-
   return users.map((u) => ({
     id: u.id,
     email: u.email,
@@ -356,7 +467,7 @@ export async function getUsersActivity(from: Date, to: Date, limit = 100) {
     rangeTranscriptions: rangeMap[u.id]?.transcriptions || 0,
     totalTranscriptions: allMap[u.id]?.transcriptions || 0,
     lastActive: rangeMap[u.id]?.lastActive || allMap[u.id]?.lastActive || null,
-    signupEvents: signupMap[u.id] || 0,
+    signupEvents: u.createdAt >= from && u.createdAt <= to ? 1 : 0,
   }));
 }
 
