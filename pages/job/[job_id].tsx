@@ -950,8 +950,8 @@ export default function JobPage() {
 
           {showReviewUi ? (
             <div className="review-shell" aria-busy={reviewBusy}>
-              <section className="review-hero">
-                <div className="review-hero-grid">
+              <div className="review-top-grid">
+                <section className="card review-intro-card">
                   <div className="review-hero-copy">
                     <span className="badge">Sound check</span>
                     <div className="stack" style={{ gap: "8px" }}>
@@ -982,18 +982,20 @@ export default function JobPage() {
                       </div>
                     </div>
                   </div>
+                </section>
 
-                  <div className="review-audio-panel">
-                    <div className="review-audio-shell">
-                      <div className="review-audio-header">
-                        <div>
-                          <p className="review-audio-label">Preview sound</p>
-                          <p className="review-audio-caption">This is the version the tab builder will use next.</p>
-                        </div>
-                        {reviewNoteCount !== null ? (
-                          <span className="review-count-pill">{reviewNoteCount.toLocaleString()} notes</span>
-                        ) : null}
+                <section className="card review-preview-card">
+                  <div className="review-preview-shell">
+                    <div className="review-audio-header">
+                      <div>
+                        <p className="review-audio-label">Preview sound</p>
+                        <p className="review-audio-caption">This is the version the tab builder will use next.</p>
                       </div>
+                      {reviewNoteCount !== null ? (
+                        <span className="review-count-pill">{reviewNoteCount.toLocaleString()} notes</span>
+                      ) : null}
+                    </div>
+                    <div className="review-player-box">
                       {previewAudioUrl ? (
                         <audio key={previewAudioUrl} controls src={previewAudioUrl} className="review-audio-player">
                           Your browser does not support the audio element.
@@ -1012,8 +1014,8 @@ export default function JobPage() {
                       </p>
                     </div>
                   </div>
-                </div>
-              </section>
+                </section>
+              </div>
 
               {reviewBusy ? (
                 <div className="card">
