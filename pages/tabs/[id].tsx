@@ -16,9 +16,10 @@ type Props = {
   createdAt: string;
   tabs: string[][];
   transcriberSegments: StoredTranscriberSegmentGroup[];
+  backendJobId: string | null;
 };
 
-export default function TabDetailPage({ id, sourceLabel, createdAt, tabs, transcriberSegments }: Props) {
+export default function TabDetailPage({ id, sourceLabel, createdAt, tabs, transcriberSegments, backendJobId }: Props) {
   const router = useRouter();
   const [selectedSegments, setSelectedSegments] = useState<Set<number>>(new Set());
   const [editorChoices, setEditorChoices] = useState<EditorListItem[]>([]);
@@ -95,6 +96,11 @@ export default function TabDetailPage({ id, sourceLabel, createdAt, tabs, transc
   };
 
   const joined = selectedTabs.map((segment) => segment.join("\n")).join("\n\n---\n\n");
+  const reviewHref = backendJobId
+    ? appendEditorId
+      ? `/job/${encodeURIComponent(backendJobId)}?review=1&appendEditorId=${encodeURIComponent(appendEditorId)}`
+      : `/job/${encodeURIComponent(backendJobId)}?review=1`
+    : null;
 
   return (
     <main className="page">
@@ -109,6 +115,11 @@ export default function TabDetailPage({ id, sourceLabel, createdAt, tabs, transc
             <Link href="/tabs" className="button-secondary button-small">
               Back to saved tabs
             </Link>
+            {reviewHref ? (
+              <Link href={reviewHref} className="button-secondary button-small">
+                Edit transcription
+              </Link>
+            ) : null}
             <Link href="/account" className="button-secondary button-small">
               Account
             </Link>
@@ -124,6 +135,11 @@ export default function TabDetailPage({ id, sourceLabel, createdAt, tabs, transc
               </div>
               <div className="results-actions">
                 <div className="flex flex-wrap items-center gap-2">
+                  {reviewHref ? (
+                    <Link href={reviewHref} className="button-secondary button-small">
+                      Edit transcription
+                    </Link>
+                  ) : null}
                   <select
                     className="rounded-md border border-slate-200 bg-white px-2 py-2 text-sm"
                     value={editorChoice}
@@ -222,6 +238,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       createdAt: job.createdAt.toISOString(),
       tabs: parsed.tabs,
       transcriberSegments: parsed.transcriberSegments,
+      backendJobId: parsed.backendJobId || null,
     },
   };
 };

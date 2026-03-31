@@ -6,10 +6,15 @@ const GUEST_BASE = "/api/gte-guest";
 const LANE_DELIMITER = "__ed__";
 export type EditorOrCanvasSnapshot = EditorSnapshot | CanvasSnapshot;
 export type TranscriberSegment = {
-  lineStart: number;
-  lineEnd: number;
+  start_time_s?: number;
+  end_time_s?: number;
+  pitch_midi?: number;
+  amplitude?: number | null;
+  pitch_bend?: number[] | null;
+  lineStart?: number;
+  lineEnd?: number;
   midiNum?: number | null;
-  MidiNumLine: number[];
+  MidiNumLine?: number[];
 };
 export type TranscriberSegmentGroup = TranscriberSegment[];
 export type TranscriberImportResponse = {

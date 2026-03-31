@@ -324,6 +324,216 @@ input[type="number"] {
   opacity: 0.72;
 }
 
+.review-shell {
+  display: grid;
+  gap: 24px;
+}
+
+.review-top-grid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+  align-items: stretch;
+}
+
+.review-intro-card,
+.review-preview-card {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+}
+
+.review-intro-card {
+  align-content: start;
+}
+
+.review-preview-card {
+  align-content: start;
+  border: 1px solid rgba(42, 109, 244, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 255, 0.98));
+}
+
+.review-hero-copy {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.review-hero-title {
+  margin: 0;
+  font-size: clamp(1.8rem, 2.4vw, 2.45rem);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+
+.review-hero-lead {
+  margin: 0;
+  max-width: 58ch;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+.review-guide {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.review-guide-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.review-guide-step p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.review-guide-number {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(42, 109, 244, 0.12);
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.review-audio-panel {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.review-preview-shell {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.review-audio-header {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.review-audio-label {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-strong);
+}
+
+.review-audio-caption {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.review-count-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(42, 109, 244, 0.08);
+  border: 1px solid rgba(42, 109, 244, 0.14);
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.review-player-box {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background:
+    linear-gradient(180deg, rgba(244, 248, 255, 0.95), rgba(255, 255, 255, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.review-audio-player {
+  width: 100%;
+  min-height: 76px;
+  border-radius: 18px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.review-callout {
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.review-callout-title {
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+
+.review-controls-section {
+  display: grid;
+  gap: 22px;
+}
+
+.review-controls-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.review-slider-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.review-slider-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 22px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.94));
+}
+
+.review-slider-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.review-slider-input {
+  width: 100%;
+  margin-top: 6px;
+  accent-color: var(--accent-strong);
+}
+
+.review-actions {
+  justify-content: flex-start;
+}
+
 @keyframes job-progress-shimmer {
   0% {
     transform: translateX(-120%);
@@ -2566,6 +2776,15 @@ input[type="number"] {
 
   .hero--landing-funnel .hero-stack {
     min-height: 0;
+  }
+
+  .review-top-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .review-intro-card,
+  .review-preview-card {
+    padding: 20px;
   }
 }
 

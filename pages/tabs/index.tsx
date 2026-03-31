@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
+import { parseStoredTabPayload } from "../../lib/storedTabs";
 
 type TabJob = {
   id: string;
@@ -10,6 +11,7 @@ type TabJob = {
   sourceLabel: string | null;
   createdAt: string;
   gteEditorId?: string | null;
+  backendJobId?: string | null;
 };
 
 type Props = {
@@ -58,6 +60,14 @@ export default function SavedTabsPage({ tabs }: Props) {
                   <Link href={`/tabs/${job.id}`} className="button-secondary button-small">
                     Open import page
                   </Link>
+                  {job.backendJobId ? (
+                    <Link
+                      href={`/job/${encodeURIComponent(job.backendJobId)}?review=1`}
+                      className="button-secondary button-small"
+                    >
+                      Edit transcription
+                    </Link>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -82,14 +92,18 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const tabs = await prisma.tabJob.findMany({
     where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },
-    select: { id: true, sourceType: true, sourceLabel: true, createdAt: true, gteEditorId: true },
+    select: { id: true, sourceType: true, sourceLabel: true, createdAt: true, gteEditorId: true, resultJson: true },
   });
 
   return {
     props: {
       tabs: tabs.map((job) => ({
-        ...job,
+        id: job.id,
+        sourceType: job.sourceType,
+        sourceLabel: job.sourceLabel,
         createdAt: job.createdAt.toISOString(),
+        gteEditorId: job.gteEditorId,
+        backendJobId: parseStoredTabPayload(job.resultJson).backendJobId,
       })),
     },
   };

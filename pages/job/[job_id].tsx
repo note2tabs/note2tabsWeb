@@ -8,7 +8,7 @@ import JobStatusLayout, {
   type PendingJobPresentation,
 } from "../../components/JobStatusLayout";
 import { isLocalNoDbClientMode } from "../../lib/clientDevMode";
-import { buildLaneEditorRef, gteApi } from "../../lib/gteApi";
+import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../../lib/gteGuestDraft";
 import { saveJobToHistory } from "../../lib/history";
 import { normalizeTabSegments, tabSegmentsToStamps, tabsToTabText } from "../../lib/tabTextToStamps";
@@ -20,7 +20,71 @@ const ADS_AVAILABLE = PRIMIS_CHANNEL_ID && PRIMIS_CHANNEL_ID !== "YOUR_PRIMIS_CH
 const PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "running"]);
 
 type JobModeHint = "FILE" | "YOUTUBE";
-type PendingStageKey = "queue" | "download" | "prepare" | "separate" | "transcribe" | "format";
+type PendingStageKey = "queue" | "download" | "prepare" | "separate" | "predict" | "note_events" | "format";
+type ReviewAction = "redo" | "finalize" | null;
+type ReviewParams = {
+  onsetThresh: number;
+  frameThresh: number;
+  minNoteLen: number;
+  minFreq: number;
+  maxFreq: number;
+};
+
+const REVIEW_SLIDERS: Array<{
+  key: keyof ReviewParams;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  description: string;
+  format: (value: number) => string;
+}> = [
+  {
+    key: "onsetThresh",
+    label: "Pick attack sensitivity",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    description: "Higher catches more note starts. Lower is stricter.",
+    format: (value) => value.toFixed(2),
+  },
+  {
+    key: "frameThresh",
+    label: "Note hold sensitivity",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    description: "Higher lets notes ring longer. Lower cuts them off sooner.",
+    format: (value) => value.toFixed(2),
+  },
+  {
+    key: "minNoteLen",
+    label: "Minimum note length",
+    min: 1,
+    max: 32,
+    step: 1,
+    description: "Ignore tiny blips and accidental hits.",
+    format: (value) => `${Math.round(value)} frames`,
+  },
+  {
+    key: "minFreq",
+    label: "Lowest note",
+    min: 40,
+    max: 400,
+    step: 1,
+    description: "Ignore notes below this range.",
+    format: (value) => `${Math.round(value)} Hz`,
+  },
+  {
+    key: "maxFreq",
+    label: "Highest note",
+    min: 500,
+    max: 2000,
+    step: 1,
+    description: "Ignore notes above this range.",
+    format: (value) => `${Math.round(value)} Hz`,
+  },
+];
 
 function getQueryStringValue(value: string | string[] | undefined) {
   if (Array.isArray(value)) return value[0] || null;
@@ -29,6 +93,11 @@ function getQueryStringValue(value: string | string[] | undefined) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function appendQueryParam(url: string, key: string, value: string) {
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
 }
 
 function parseBooleanFlag(value: string | null) {
@@ -60,15 +129,28 @@ function formatDuration(seconds: number) {
   return `${minutes}m ${String(remainder).padStart(2, "0")}s`;
 }
 
+function formatStageLabel(stageKey: PendingStageKey) {
+  if (stageKey === "download") return "Download clip";
+  if (stageKey === "prepare") return "Prepare audio";
+  if (stageKey === "separate") return "Separate guitar";
+  if (stageKey === "predict") return "Run prediction";
+  if (stageKey === "note_events") return "Generate note events";
+  if (stageKey === "format") return "Build tabs";
+  return "Queue";
+}
+
 function buildPendingPresentation(
   job: JobResponse | null,
   nowMs: number,
   modeHint: JobModeHint | null,
   separateGuitarHint: boolean | null
 ): PendingJobPresentation | null {
-  if (!job || !PENDING_JOB_STATUSES.has(job.status)) return null;
+  const workflowState = getWorkflowState(job);
+  const isWorkflowProcessing = workflowState === "processing";
+  if (!job || (!PENDING_JOB_STATUSES.has(job.status) && !isWorkflowProcessing)) return null;
 
   const isQueued = job.status === "queued" || job.status === "pending";
+  const exactStages = normalizeBackendStages(getFirstJobValue(job, ["steps"]));
   const isYoutube = modeHint === "YOUTUBE";
   const separateGuitar = separateGuitarHint ?? false;
   const progressValue = normalizeProgressValue(job.progress);
@@ -76,22 +158,70 @@ function buildPendingPresentation(
   const startedMs = parseIsoToMs(job.startedAt);
   const elapsedSeconds = Math.max(0, Math.round((nowMs - (startedMs ?? createdMs)) / 1000));
   const attempts = Number.isFinite(Number(job.attempts)) ? Math.max(0, Number(job.attempts)) : 0;
+  const attemptLabel =
+    attempts > 1 ? `Worker attempt ${attempts}. The backend may be retrying after an earlier failure.` : null;
+
+  if (exactStages.length > 0) {
+    const activeStageIndex = exactStages.findIndex((stage) => stage.state === "active");
+    const completedCount = exactStages.filter((stage) => stage.state === "complete").length;
+    const currentStepNumber =
+      activeStageIndex >= 0
+        ? activeStageIndex + 1
+        : completedCount >= exactStages.length
+        ? exactStages.length
+        : isQueued
+        ? 1
+        : clamp(completedCount + 1, 1, exactStages.length);
+    const stageBasedProgress =
+      exactStages.length > 0
+        ? activeStageIndex >= 0
+          ? Math.round(((completedCount + 0.5) / exactStages.length) * 100)
+          : completedCount >= exactStages.length
+          ? 100
+          : Math.round((completedCount / exactStages.length) * 100)
+        : 0;
+    const progressPercent = progressValue ?? clamp(stageBasedProgress, isQueued ? 4 : 8, 100);
+    const phaseLabel =
+      (typeof getFirstJobValue(job, ["currentStepLabel"]) === "string"
+        ? (getFirstJobValue(job, ["currentStepLabel"]) as string)
+        : "") || exactStages[activeStageIndex]?.label || (isQueued ? "Queued for processing" : "Processing");
+    const detail =
+      (typeof getFirstJobValue(job, ["currentStepDetail"]) === "string"
+        ? (getFirstJobValue(job, ["currentStepDetail"]) as string)
+        : "") ||
+      (isQueued
+        ? "Your transcription is waiting for an available worker."
+        : "Processing the current transcription step.");
+
+    return {
+      badgeLabel: isQueued ? "Queued" : "Processing",
+      phaseLabel,
+      detail,
+      progressPercent,
+      elapsedLabel: `Elapsed ${formatDuration(elapsedSeconds)}`,
+      typicalDurationLabel: "",
+      attemptLabel,
+      warningLabel: null,
+      stepSummary: `Step ${currentStepNumber} of ${exactStages.length}`,
+      stages: exactStages,
+    };
+  }
 
   const stageKeys: PendingStageKey[] = separateGuitar
     ? isYoutube
-      ? (["download", "separate", "transcribe", "format"] as PendingStageKey[])
-      : (["prepare", "separate", "transcribe", "format"] as PendingStageKey[])
+      ? (["download", "separate", "predict", "note_events", "format"] as PendingStageKey[])
+      : (["prepare", "separate", "predict", "note_events", "format"] as PendingStageKey[])
     : isYoutube
-    ? (["download", "transcribe", "format"] as PendingStageKey[])
-    : (["prepare", "transcribe", "format"] as PendingStageKey[]);
-  const stageThresholds = stageKeys.length === 4 ? [18, 56, 86, 100] : [28, 84, 100];
+    ? (["download", "predict", "note_events", "format"] as PendingStageKey[])
+    : (["prepare", "predict", "note_events", "format"] as PendingStageKey[]);
+  const stageThresholds = stageKeys.length === 5 ? [14, 38, 68, 88, 100] : [18, 58, 86, 100];
   const estimatedDurationSeconds = isYoutube
     ? separateGuitar
-      ? 75
-      : 48
+      ? 90
+      : 55
     : separateGuitar
-    ? 58
-    : 32;
+    ? 70
+    : 40;
 
   let progressPercent = isQueued ? 8 : 12;
   if (progressValue !== null && !isQueued) {
@@ -127,13 +257,17 @@ function buildPendingPresentation(
       phaseLabel: "Separating the guitar stem",
       detail: "Running Demucs so the transcription focuses on the isolated guitar.",
     },
-    transcribe: {
-      phaseLabel: "Transcribing notes and timing",
-      detail: "Analyzing pitch, timing, and note groupings to build the playable tab.",
+    predict: {
+      phaseLabel: "Running the pitch prediction",
+      detail: "Creating the saved prediction file that the review step can reuse.",
+    },
+    note_events: {
+      phaseLabel: "Generating default note events",
+      detail: "Building the first preview from the saved prediction output.",
     },
     format: {
-      phaseLabel: "Finalizing the tab output",
-      detail: "Compiling the detected notes into tab text and saving the finished result.",
+      phaseLabel: "Finalizing the review state",
+      detail: "Saving the preview artifacts and preparing the review screen.",
     },
   } as const;
 
@@ -141,8 +275,6 @@ function buildPendingPresentation(
     !isQueued && elapsedSeconds > estimatedDurationSeconds + 20
       ? "This job is taking longer than usual, but it is still running."
       : null;
-  const attemptLabel =
-    attempts > 1 ? `Worker attempt ${attempts}. The backend may be retrying after an earlier failure.` : null;
 
   return {
     badgeLabel: isQueued ? "Queued" : "Processing",
@@ -152,24 +284,16 @@ function buildPendingPresentation(
     elapsedLabel: `Elapsed ${formatDuration(elapsedSeconds)}`,
     typicalDurationLabel: separateGuitar
       ? isYoutube
-        ? "Typical time: 45-90 seconds"
-        : "Typical time: 35-70 seconds"
+        ? "Typical time: 60-120 seconds"
+        : "Typical time: 45-90 seconds"
       : isYoutube
-      ? "Typical time: 30-50 seconds"
-      : "Typical time: under 30 seconds",
+      ? "Typical time: 35-60 seconds"
+      : "Typical time: 25-45 seconds",
     attemptLabel,
     warningLabel,
+    stepSummary: isQueued ? `Step 1 of ${stageKeys.length}` : `Step ${activeStageIndex + 1} of ${stageKeys.length}`,
     stages: stageKeys.map((stageKey, index) => ({
-      label:
-        stageKey === "download"
-          ? "Download clip"
-          : stageKey === "prepare"
-          ? "Prepare audio"
-          : stageKey === "separate"
-          ? "Separate guitar"
-          : stageKey === "transcribe"
-          ? "Transcribe notes"
-          : "Build tabs",
+      label: formatStageLabel(stageKey),
       state: isQueued
         ? index === 0
           ? "active"
@@ -183,13 +307,142 @@ function buildPendingPresentation(
   };
 }
 
+function defaultReviewParams(): ReviewParams {
+  return {
+    onsetThresh: 0.45,
+    frameThresh: 0.25,
+    minNoteLen: 8,
+    minFreq: 82.41,
+    maxFreq: 1318.51,
+  };
+}
+
+function getReviewBusyCopy(action: ReviewAction) {
+  if (action === "finalize") {
+    return {
+      badge: "Building tabs",
+      title: "Turning your chosen sound into tab options",
+      detail: "Your current version is being prepared into the tab choices you can import next.",
+    };
+  }
+  return {
+    badge: "Updating sound",
+    title: "Refreshing your guitar preview",
+    detail: "A new preview is being built with your current control settings. This can take several seconds.",
+  };
+}
+
+function normalizeBackendStages(value: unknown): PendingJobPresentation["stages"] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((stage) => {
+      if (!stage || typeof stage !== "object" || Array.isArray(stage)) return null;
+      const record = stage as Record<string, unknown>;
+      const label =
+        typeof record.label === "string"
+          ? record.label
+          : typeof record.key === "string"
+          ? String(record.key)
+              .split("_")
+              .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+              .join(" ")
+          : null;
+      if (!label) return null;
+      const rawState =
+        typeof record.status === "string"
+          ? record.status
+          : typeof record.state === "string"
+          ? record.state
+          : "upcoming";
+      const normalizedState =
+        rawState === "complete" || rawState === "done" || rawState === "succeeded"
+          ? "complete"
+          : rawState === "active" || rawState === "running" || rawState === "processing"
+          ? "active"
+          : "upcoming";
+      return {
+        label,
+        state: normalizedState as "complete" | "active" | "upcoming",
+      };
+    })
+    .filter((stage): stage is PendingJobPresentation["stages"][number] => Boolean(stage));
+}
+
+function getWorkflowState(job: JobResponse | null): string | null {
+  return typeof getFirstJobValue(job, ["workflowState"]) === "string"
+    ? (getFirstJobValue(job, ["workflowState"]) as string)
+    : null;
+}
+
+function getReviewInfo(job: JobResponse | null) {
+  const raw = getFirstJobValue(job, ["review"]);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  return raw as Record<string, unknown>;
+}
+
+function getReviewParams(job: JobResponse | null): ReviewParams | null {
+  const review = getReviewInfo(job);
+  const raw =
+    review && review.params && typeof review.params === "object" && !Array.isArray(review.params)
+      ? (review.params as Record<string, unknown>)
+      : getFirstJobValue(job, ["reviewParams", "params"]);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  const onsetThresh = Number(record.onsetThresh);
+  const frameThresh = Number(record.frameThresh);
+  const minNoteLen = Number(record.minNoteLen);
+  const minFreq = Number(record.minFreq);
+  const maxFreq = Number(record.maxFreq);
+  if (
+    !Number.isFinite(onsetThresh) ||
+    !Number.isFinite(frameThresh) ||
+    !Number.isFinite(minNoteLen) ||
+    !Number.isFinite(minFreq) ||
+    !Number.isFinite(maxFreq)
+  ) {
+    return null;
+  }
+  return {
+    onsetThresh,
+    frameThresh,
+    minNoteLen,
+    minFreq,
+    maxFreq,
+  };
+}
+
+function getJobTranscriberGroups(job: JobResponse | null): TranscriberSegmentGroup[] {
+  const value = getFirstJobValue(job, ["transcriberSegments", "noteEventGroups", "segmentGroups", "segments"]);
+  if (!Array.isArray(value)) return [];
+  const directGroup = value.filter(
+    (entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry)
+  );
+  if (directGroup.length > 0) return [directGroup as TranscriberSegmentGroup];
+  return value
+    .map((group) =>
+      Array.isArray(group)
+        ? (group.filter(
+            (entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry)
+          ) as TranscriberSegmentGroup)
+        : []
+    )
+    .filter((group) => group.length > 0);
+}
+
 function getJobSources(job: JobResponse | null) {
   if (!job) return [] as Record<string, unknown>[];
   const direct = job as unknown as Record<string, unknown>;
   const output = direct.output as Record<string, unknown> | undefined;
   const result = direct.result as Record<string, unknown> | undefined;
-  return [direct, output, result, output?.result as Record<string, unknown> | undefined, result?.output as Record<string, unknown> | undefined]
-    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry));
+  return [
+    direct,
+    output,
+    result,
+    output?.result as Record<string, unknown> | undefined,
+    result?.output as Record<string, unknown> | undefined,
+  ].filter(
+    (entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry)
+  );
 }
 
 function getFirstJobValue(job: JobResponse | null, keys: string[]) {
@@ -269,6 +522,21 @@ function normalizeJobForDisplay(job: JobResponse | null): JobResponse | null {
   };
 }
 
+async function readErrorMessage(response: Response) {
+  const text = await response.text();
+  if (!text) {
+    return "Request failed.";
+  }
+  try {
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    if (typeof parsed.detail === "string" && parsed.detail.trim()) return parsed.detail;
+    if (typeof parsed.error === "string" && parsed.error.trim()) return parsed.error;
+  } catch {
+    // Ignore parse failures and fall back to the raw response text.
+  }
+  return text;
+}
+
 export default function JobPage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -283,8 +551,19 @@ export default function JobPage() {
   const [shareUrls, setShareUrls] = useState<{ twitter: string; reddit: string } | null>(null);
   const [importBusy, setImportBusy] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [reviewParams, setReviewParams] = useState<ReviewParams>(defaultReviewParams);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewAction, setReviewAction] = useState<ReviewAction>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [previewReloadToken, setPreviewReloadToken] = useState<string>("0");
   const [progressClock, setProgressClock] = useState(() => Date.now());
   const displayJob = useMemo(() => normalizeJobForDisplay(job), [job]);
+  const workflowState = useMemo(() => getWorkflowState(displayJob), [displayJob]);
+  const reviewInfo = useMemo(() => getReviewInfo(displayJob), [displayJob]);
+  const reviewNoteCount = useMemo(() => {
+    const value = Number(reviewInfo?.noteEventCount);
+    return Number.isFinite(value) ? Math.max(0, Math.round(value)) : null;
+  }, [reviewInfo]);
   const modeHint = useMemo<JobModeHint | null>(() => {
     if (!router.isReady) return null;
     const rawMode = getQueryStringValue(router.query.mode);
@@ -300,22 +579,58 @@ export default function JobPage() {
     if (Array.isArray(value)) return value[0]?.trim() || null;
     return typeof value === "string" && value.trim() ? value.trim() : null;
   }, [router.isReady, router.query.appendEditorId]);
+  const reviewModeRequested = useMemo(() => {
+    if (!router.isReady) return false;
+    return parseBooleanFlag(getQueryStringValue(router.query.review)) ?? false;
+  }, [router.isReady, router.query.review]);
   const isSignedIn = Boolean(session);
   const canOpenGuestEditor = !isSignedIn && isLocalNoDbClientMode;
   const importButtonLabel = canOpenGuestEditor ? "Open in guest editor" : "Import to editor";
-  const canImportToEditor = displayJob?.status === "done" && getJobTabSegments(displayJob).length > 0;
+  const hasWorkflowState = Boolean(workflowState && workflowState.trim());
+  const isWorkflowProcessing = workflowState === "processing";
+  const isReviewReady = displayJob?.status === "done" && workflowState === "review_ready";
+  const isRecoverableReview =
+    displayJob?.status === "done" && workflowState === "processing" && Boolean(displayJob?.audio_preview_url);
+  const isReopenedFinalizedReview =
+    reviewModeRequested &&
+    displayJob?.status === "done" &&
+    workflowState === "finalized" &&
+    (Boolean(displayJob?.audio_preview_url) || Boolean(reviewInfo));
+  const showReviewUi = isReviewReady || isRecoverableReview || isReopenedFinalizedReview;
+  const isFinalizedJob =
+    displayJob?.status === "done" && (workflowState === "finalized" || !hasWorkflowState) && !showReviewUi;
+  const tabSegments = useMemo(() => getJobTabSegments(displayJob), [displayJob]);
+  const transcriberGroups = useMemo(() => getJobTranscriberGroups(displayJob), [displayJob]);
+  const canImportToEditor = isFinalizedJob && (tabSegments.length > 0 || transcriberGroups.length > 0);
   const pendingPresentation = useMemo(
     () => buildPendingPresentation(displayJob, progressClock, modeHint, separateGuitarHint),
     [displayJob, progressClock, modeHint, separateGuitarHint]
   );
+  const reviewBusyCopy = useMemo(() => getReviewBusyCopy(reviewAction), [reviewAction]);
+  const previewAudioUrl = useMemo(() => {
+    if (!displayJob?.audio_preview_url) return null;
+    const versionSeed = [displayJob.updatedAt, displayJob.finishedAt, String(reviewNoteCount ?? ""), previewReloadToken]
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .join(":");
+    return versionSeed ? appendQueryParam(displayJob.audio_preview_url, "reload", versionSeed) : displayJob.audio_preview_url;
+  }, [displayJob?.audio_preview_url, displayJob?.finishedAt, displayJob?.updatedAt, previewReloadToken, reviewNoteCount]);
+
+  useEffect(() => {
+    const next = getReviewParams(displayJob);
+    if (next) {
+      setReviewParams(next);
+    } else if (showReviewUi) {
+      setReviewParams(defaultReviewParams());
+    }
+  }, [displayJob, showReviewUi]);
 
   const fetchJob = async (id: string) => {
     try {
-      const response = await fetch(`/api/jobs/${id}`);
+      const response = await fetch(`/api/jobs/${id}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Failed to fetch");
       const data: JobResponse = await response.json();
       setJob(data);
-      if (data.status === "done" || data.status === "error") {
+      if (data.status === "error") {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
@@ -323,11 +638,11 @@ export default function JobPage() {
       }
     } catch (err) {
       console.error(err);
-      setJob((prev) => ({
+      setJob({
         job_id: id,
         status: "error",
         error_message: "Could not fetch job status.",
-      }));
+      });
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -337,84 +652,88 @@ export default function JobPage() {
 
   useEffect(() => {
     if (!job_id || typeof job_id !== "string") return;
-    fetchJob(job_id);
-    intervalRef.current = setInterval(() => fetchJob(job_id), POLL_INTERVAL);
+    void fetchJob(job_id);
+    const shouldPoll = !showReviewUi && !isFinalizedJob;
+    if (!shouldPoll) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+    intervalRef.current = setInterval(() => {
+      void fetchJob(job_id);
+    }, POLL_INTERVAL);
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
     };
-  }, [job_id]);
+  }, [job_id, showReviewUi, isFinalizedJob]);
 
   useEffect(() => {
-    if (!displayJob || !PENDING_JOB_STATUSES.has(displayJob.status)) return;
+    if (!pendingPresentation) return;
     setProgressClock(Date.now());
     const tick = window.setInterval(() => setProgressClock(Date.now()), 1000);
     return () => window.clearInterval(tick);
-  }, [displayJob?.status, job_id]);
+  }, [pendingPresentation, job_id]);
 
   useEffect(() => {
-    if (displayJob?.status === "done") {
-      if (!hasWatchedAd && ADS_AVAILABLE) setLoadAdScript(true);
-      if (!savedHistory && job_id && typeof job_id === "string") {
-        saveJobToHistory({
-          jobId: job_id,
-          songTitle: displayJob.song_title,
-          artist: displayJob.artist,
-          createdAt: new Date().toISOString(),
-        });
-        setSavedHistory(true);
-      }
+    if (!isFinalizedJob) return;
+    if (!hasWatchedAd && ADS_AVAILABLE) {
+      setLoadAdScript(true);
     }
-  }, [displayJob?.status, hasWatchedAd, savedHistory, job_id, displayJob?.song_title, displayJob?.artist]);
+    if (!savedHistory && job_id && typeof job_id === "string") {
+      saveJobToHistory({
+        jobId: job_id,
+        songTitle: displayJob?.song_title,
+        artist: displayJob?.artist,
+        createdAt: new Date().toISOString(),
+      });
+      setSavedHistory(true);
+    }
+  }, [isFinalizedJob, hasWatchedAd, savedHistory, job_id, displayJob?.song_title, displayJob?.artist]);
 
   useEffect(() => {
     setHasWatchedAd(false);
     setShowFallbackVideo(true);
     setLoadAdScript(false);
     setAdContainerKey(0);
+    setSavedHistory(false);
+    setShareUrls(null);
+    setImportError(null);
+    setReviewError(null);
+    setReviewBusy(false);
+    setReviewAction(null);
+    setPreviewReloadToken("0");
   }, [job_id]);
 
   useEffect(() => {
-    if (displayJob?.status !== "done" || !job_id) return;
+    if (!isFinalizedJob || !job_id) return;
     const resolvedTabId = getFirstJobValue(displayJob, ["tab_job_id", "tabJobId", "tab_id", "tabId"]);
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
     if (typeof resolvedTabId === "string" && resolvedTabId) {
-      router.replace(
+      void router.replace(
         appendEditorId
           ? `/tabs/${resolvedTabId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
           : `/tabs/${resolvedTabId}`
       );
     }
-  }, [displayJob?.status, job_id, displayJob, router, appendEditorId]);
+  }, [isFinalizedJob, job_id, displayJob, router, appendEditorId]);
 
   useEffect(() => {
-    if (displayJob?.status !== "done" || !job_id) return;
+    if (!isFinalizedJob || !job_id) return;
     const base =
-      typeof window !== "undefined"
-        ? window.location.href
-        : `${getAppBaseUrl()}/job/${job_id}`;
+      typeof window !== "undefined" ? window.location.href : `${getAppBaseUrl()}/job/${job_id}`;
     const text = encodeURIComponent("Check out these tabs I generated with Note2Tabs!");
     setShareUrls({
       twitter: `https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent(base)}`,
       reddit: `https://reddit.com/submit?url=${encodeURIComponent(base)}&title=${text}`,
     });
-  }, [displayJob?.status, job_id]);
-
-  useEffect(() => {
-    if (displayJob?.status === "done" && !savedHistory && job_id && typeof job_id === "string") {
-      saveJobToHistory({
-        jobId: job_id,
-        songTitle: displayJob.song_title,
-        artist: displayJob.artist,
-        createdAt: new Date().toISOString(),
-      });
-      setSavedHistory(true);
-    }
-  }, [displayJob?.status, savedHistory, job_id, displayJob?.song_title, displayJob?.artist]);
+  }, [isFinalizedJob, job_id]);
 
   useEffect(() => {
     if (!loadAdScript) return;
@@ -422,7 +741,7 @@ export default function JobPage() {
       setHasWatchedAd(true);
     };
     const handleRetry = () => {
-      setAdContainerKey((k) => k + 1);
+      setAdContainerKey((current) => current + 1);
       setShowFallbackVideo(true);
     };
     document.addEventListener("PrimisOnAdEnded", handleEnd);
@@ -448,25 +767,34 @@ export default function JobPage() {
 
   const handleImportToEditor = async () => {
     if (!displayJob || importBusy) return;
-    const segments = getJobTabSegments(displayJob);
-    if (segments.length === 0) {
-      setImportError("No tabs are available to import into the editor.");
+    if (transcriberGroups.length === 0 && tabSegments.length === 0) {
+      setImportError("No importable tab groups are available for this transcription.");
       return;
     }
     setImportBusy(true);
     setImportError(null);
     try {
-      const { stamps, totalFrames } = tabSegmentsToStamps(segments);
-      if (stamps.length === 0) {
-        throw new Error("No playable tab notes were found in this transcription.");
-      }
       if (canOpenGuestEditor) {
-        const guestLaneEditorId = buildLaneEditorRef(GTE_GUEST_EDITOR_ID, "ed-1");
         await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
+        if (transcriberGroups.length > 0) {
+          const imported = await gteApi.importTranscriberToGuest({
+            editorId: GTE_GUEST_EDITOR_ID,
+            name: displayJob.song_title || "Imported transcription",
+            segmentGroups: transcriberGroups,
+          });
+          await router.push(`/gte/${imported.editorId}?source=job`);
+          return;
+        }
+        const { stamps, totalFrames } = tabSegmentsToStamps(tabSegments);
+        if (stamps.length === 0) {
+          throw new Error("No playable tab notes were found in this transcription.");
+        }
+        const guestLaneEditorId = buildLaneEditorRef(GTE_GUEST_EDITOR_ID, "ed-1");
         await gteApi.importTab(guestLaneEditorId, { stamps, totalFrames });
         await router.push(`/gte/${GTE_GUEST_EDITOR_ID}?source=job`);
         return;
       }
+
       if (!isSignedIn) {
         await signIn(undefined, {
           callbackUrl:
@@ -474,6 +802,27 @@ export default function JobPage() {
               ? window.location.href
               : `${getAppBaseUrl()}/job/${displayJob.job_id}`,
         });
+        return;
+      }
+
+      if (transcriberGroups.length > 0) {
+        const imported = await gteApi.importTranscriberToSaved({
+          target: appendEditorId ? "existing" : "new",
+          editorId: appendEditorId ?? undefined,
+          name: displayJob.song_title || "Imported transcription",
+          segmentGroups: transcriberGroups,
+        });
+        await router.push(`/gte/${imported.editorId}?source=job`);
+        return;
+      }
+
+      const { stamps, totalFrames } = tabSegmentsToStamps(tabSegments);
+      if (stamps.length === 0) {
+        throw new Error("No playable tab notes were found in this transcription.");
+      }
+      if (appendEditorId) {
+        await gteApi.appendImportTab(appendEditorId, { stamps, totalFrames });
+        await router.push(`/gte/${appendEditorId}?source=job`);
         return;
       }
       const created = await gteApi.createEditor(undefined, displayJob.song_title || "Imported transcription");
@@ -486,21 +835,90 @@ export default function JobPage() {
     }
   };
 
-  const handleRestart = () => router.push("/");
+  const handleReviewParamChange = (key: keyof ReviewParams, value: number) => {
+    setReviewParams((current) => ({ ...current, [key]: value }));
+  };
+
+  const handleRedoTranscription = async () => {
+    if (!showReviewUi || typeof job_id !== "string" || reviewBusy) return;
+    setReviewBusy(true);
+    setReviewAction("redo");
+    setReviewError(null);
+    let redoSucceeded = false;
+    try {
+      const response = await fetch(`/api/jobs/${encodeURIComponent(job_id)}/redo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reviewParams),
+      });
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+      redoSucceeded = true;
+    } catch (err: any) {
+      setReviewError(err?.message || "Failed to regenerate note events.");
+    } finally {
+      if (redoSucceeded) {
+        setPreviewReloadToken(String(Date.now()));
+      }
+      setReviewBusy(false);
+      setReviewAction(null);
+      await fetchJob(job_id);
+    }
+  };
+
+  const handleContinue = async () => {
+    if (!showReviewUi || typeof job_id !== "string" || reviewBusy) return;
+    setReviewBusy(true);
+    setReviewAction("finalize");
+    setReviewError(null);
+    let finalizeSucceeded = false;
+    try {
+      const response = await fetch(`/api/jobs/${encodeURIComponent(job_id)}/finalize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+      finalizeSucceeded = true;
+    } catch (err: any) {
+      setReviewError(err?.message || "Failed to finalize tab groups.");
+    } finally {
+      if (finalizeSucceeded && reviewModeRequested) {
+        const nextQuery = { ...router.query };
+        delete nextQuery.review;
+        await router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
+      }
+      setReviewBusy(false);
+      setReviewAction(null);
+      await fetchJob(job_id);
+    }
+  };
+
+  const handleRestart = () => {
+    void router.push("/");
+  };
+
   const handleSkipAd = () => {
     setHasWatchedAd(true);
   };
+
   const handleVideoComplete = () => {
     handleSkipAd();
   };
 
-  const showAdGate = displayJob?.status === "done" && !hasWatchedAd;
-  const title =
-    displayJob?.status === "done" && displayJob?.song_title
-      ? `${displayJob.song_title} - Note2Tabs`
-      : displayJob?.status === "done"
-      ? "Tabs Ready - Note2Tabs"
-      : "Processing - Note2Tabs";
+  const showAdGate = isFinalizedJob && !hasWatchedAd;
+  const title = showReviewUi
+    ? displayJob?.song_title
+      ? `Review ${displayJob.song_title} - Note2Tabs`
+      : "Review transcription - Note2Tabs"
+    : isFinalizedJob && displayJob?.song_title
+    ? `${displayJob.song_title} - Note2Tabs`
+    : isFinalizedJob
+    ? "Tabs Ready - Note2Tabs"
+    : "Processing - Note2Tabs";
 
   return (
     <>
@@ -518,32 +936,213 @@ export default function JobPage() {
         <div className="container stack">
           <div className="page-header">
             <div>
-              <h1 className="page-title">Job status</h1>
-              <p className="page-subtitle">Job ID: {job_id}</p>
+              <h1 className="page-title">{showReviewUi ? "Tune your sound" : "Job status"}</h1>
+              <p className="page-subtitle">
+                {showReviewUi
+                  ? "Listen to the preview, adjust the controls, then continue to tabs."
+                  : `Job ID: ${job_id}`}
+              </p>
             </div>
-            <button type="button" onClick={() => router.push("/")} className="button-ghost button-small">
+            <button type="button" onClick={() => void router.push("/")} className="button-ghost button-small">
               Back
             </button>
           </div>
-          <JobStatusLayout
-            job={displayJob}
-            pendingPresentation={pendingPresentation}
-            onImportToEditor={canImportToEditor ? () => void handleImportToEditor() : null}
-            importBusy={importBusy}
-            importButtonLabel={importButtonLabel}
-            importError={importError}
-            onDownloadTabs={handleDownloadTabs}
-            onRestart={handleRestart}
-            hasWatchedAd={hasWatchedAd}
-            showAdGate={showAdGate}
-            onRetryAd={() => setAdContainerKey((k) => k + 1)}
-            adContainerKey={adContainerKey}
-            onSkipAd={handleSkipAd}
-            showFallbackVideo={showFallbackVideo}
-            enablePrimis={ADS_AVAILABLE}
-            onVideoComplete={handleVideoComplete}
-            shareUrls={hasWatchedAd ? shareUrls : null}
-          />
+
+          {showReviewUi ? (
+            <div className="review-shell" aria-busy={reviewBusy}>
+              <div className="review-top-grid">
+                <section className="card review-intro-card">
+                  <div className="review-hero-copy">
+                    <span className="badge">Sound check</span>
+                    <div className="stack" style={{ gap: "8px" }}>
+                      <h2 className="review-hero-title">{displayJob?.song_title || "Shape your guitar preview"}</h2>
+                      <p className="review-hero-lead">
+                        This page is just for the sound. Play the preview, move the controls until it feels right, then
+                        continue to tabs.
+                      </p>
+                      {isRecoverableReview ? (
+                        <p className="muted text-small" style={{ margin: 0 }}>
+                          The last update did not finish cleanly. Your previous sound is still here, so you can try
+                          again or move on from this version.
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="review-guide">
+                      <div className="review-guide-step">
+                        <span className="review-guide-number">1</span>
+                        <p>Play the sound and listen for missing notes, extra notes, or awkward ringing.</p>
+                      </div>
+                      <div className="review-guide-step">
+                        <span className="review-guide-number">2</span>
+                        <p>Adjust the controls below and press <strong>Update sound</strong> to hear the change.</p>
+                      </div>
+                      <div className="review-guide-step">
+                        <span className="review-guide-number">3</span>
+                        <p>When the preview feels right, press <strong>Continue to tabs</strong>.</p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="card review-preview-card">
+                  <div className="review-preview-shell">
+                    <div className="review-audio-header">
+                      <div>
+                        <p className="review-audio-label">Preview sound</p>
+                        <p className="review-audio-caption">This is the version the tab builder will use next.</p>
+                      </div>
+                      {reviewNoteCount !== null ? (
+                        <span className="review-count-pill">{reviewNoteCount.toLocaleString()} notes</span>
+                      ) : null}
+                    </div>
+                    <div className="review-player-box">
+                      {previewAudioUrl ? (
+                        <audio key={previewAudioUrl} controls src={previewAudioUrl} className="review-audio-player">
+                          Your browser does not support the audio element.
+                        </audio>
+                      ) : (
+                        <p className="muted text-small" style={{ margin: 0 }}>
+                          Preview audio is not available yet.
+                        </p>
+                      )}
+                    </div>
+                    <div className="review-callout">
+                      <p className="review-callout-title">What happens here</p>
+                      <p className="muted text-small" style={{ margin: 0 }}>
+                        <strong>Update sound</strong> makes a fresh preview with your current settings.{" "}
+                        <strong>Continue to tabs</strong> keeps the version you like and moves on to the tab choices.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              {reviewBusy ? (
+                <div className="card">
+                  <div className="job-progress-shell">
+                    <div className="job-progress-header">
+                      <div className="stack" style={{ gap: "8px" }}>
+                        <span className="badge">{reviewBusyCopy.badge}</span>
+                        <p className="job-progress-phase">{reviewBusyCopy.title}</p>
+                        <p className="muted text-small" style={{ margin: 0 }}>
+                          {reviewBusyCopy.detail}
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      className="job-progress-track"
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuetext={reviewBusyCopy.title}
+                      aria-label={reviewBusyCopy.title}
+                    >
+                      <div className="job-progress-fill" style={{ width: "100%" }} />
+                    </div>
+                    <div className="job-progress-meta">
+                      <span>Working on the backend</span>
+                      <span>You can stay on this page while it runs</span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              <section
+                className="card review-controls-section"
+                style={{
+                  opacity: reviewBusy ? 0.72 : 1,
+                  transition: "opacity 0.2s ease",
+                }}
+              >
+                <div className="review-controls-header">
+                  <div className="stack" style={{ gap: "8px" }}>
+                    <span className="badge">Controls</span>
+                    <div>
+                      <h3 className="label" style={{ marginBottom: "6px" }}>
+                        Shape the guitar preview
+                      </h3>
+                      <p className="muted text-small" style={{ margin: 0 }}>
+                        Move these until the sound feels right, then continue to tabs.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="review-slider-grid">
+                  {REVIEW_SLIDERS.map((slider) => (
+                    <div key={slider.key} className="review-slider-card">
+                      <div className="review-slider-header">
+                        <div className="stack" style={{ gap: "4px" }}>
+                          <p style={{ margin: 0, fontWeight: 600 }}>{slider.label}</p>
+                          <p className="muted text-small" style={{ margin: 0 }}>
+                            {slider.description}
+                          </p>
+                        </div>
+                        <span className="badge">{slider.format(reviewParams[slider.key])}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={slider.min}
+                        max={slider.max}
+                        step={slider.step}
+                        value={reviewParams[slider.key]}
+                        disabled={reviewBusy}
+                        onChange={(event) => handleReviewParamChange(slider.key, Number(event.target.value))}
+                        className="review-slider-input"
+                      />
+                      <div className="job-progress-meta" style={{ justifyContent: "space-between" }}>
+                        <span>{slider.format(slider.min)}</span>
+                        <span>{slider.format(slider.max)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {reviewError ? <div className="error">{reviewError}</div> : null}
+
+              <div className="button-row review-actions">
+                <button
+                  type="button"
+                  onClick={() => void handleRedoTranscription()}
+                  className="button-secondary button-small"
+                  disabled={reviewBusy}
+                >
+                  {reviewAction === "redo" ? "Updating..." : "Update sound"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleContinue()}
+                  className="button-primary button-small"
+                  disabled={reviewBusy}
+                >
+                  {reviewAction === "finalize" ? "Building tabs..." : "Continue to tabs"}
+                </button>
+                <button type="button" onClick={handleRestart} className="button-ghost button-small" disabled={reviewBusy}>
+                  Start over
+                </button>
+              </div>
+            </div>
+          ) : (
+            <JobStatusLayout
+              job={displayJob}
+              pendingPresentation={pendingPresentation}
+              onImportToEditor={canImportToEditor ? () => void handleImportToEditor() : null}
+              importBusy={importBusy}
+              importButtonLabel={importButtonLabel}
+              importError={importError}
+              onDownloadTabs={handleDownloadTabs}
+              onRestart={handleRestart}
+              hasWatchedAd={hasWatchedAd}
+              showAdGate={showAdGate}
+              onRetryAd={() => setAdContainerKey((current) => current + 1)}
+              adContainerKey={adContainerKey}
+              onSkipAd={handleSkipAd}
+              showFallbackVideo={showFallbackVideo}
+              enablePrimis={ADS_AVAILABLE}
+              onVideoComplete={handleVideoComplete}
+              shareUrls={hasWatchedAd ? shareUrls : null}
+            />
+          )}
         </div>
       </main>
     </>

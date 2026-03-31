@@ -594,11 +594,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await syncBackendCredits(user.id, refreshedCredits.remaining, backendHeaders);
     }
 
-    let tabs: string[][] = [];
-    let transcriberSegmentGroups: SerializedTranscriberSegmentGroup[] = [];
-    let lastBackendPayload: unknown = null;
     let backendJobId: string | undefined;
-    let sourceLabel = "";
     const cleanupUploadedFile = () => {
       if (uploadedFile?.filepath) {
         void fs.unlink(uploadedFile.filepath).catch(() => {});
@@ -606,9 +602,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     if (mode === "YOUTUBE" && youtubePayload) {
-      if (user?.id) {
-        await syncBackendCredits(user.id, refreshedCredits.remaining, backendHeaders);
-      }
       const fdYt = new FormData();
       fdYt.append("link", youtubePayload.youtubeUrl);
       fdYt.append("start_time", String(youtubePayload.startTime || 0));
@@ -625,28 +618,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(ytRes.status).json({ error: `yt_processor error: ${bodyText}` });
       }
 
-      let data = await fetchJson<unknown>(ytRes);
-      const queuedJob = await waitForBackendJobResult(data, backendHeaders);
-      backendJobId = queuedJob.jobId || undefined;
-      data = queuedJob.payload;
-      if (!queuedJob.completed) {
-        return res.status(202).json({
-          jobId: queuedJob.jobId,
-          status: extractBackendJobStatus(data) || "queued",
-        });
-      }
-      lastBackendPayload = data;
-      const resolvedPayload = extractBackendJobOutput(data);
-      tabs = extractTabsFromPayload(resolvedPayload);
-      transcriberSegmentGroups = extractTranscriberSegmentGroupsFromPayload(resolvedPayload);
-      sourceLabel = youtubePayload.youtubeUrl;
+      const data = await fetchJson<unknown>(ytRes);
+      backendJobId = extractBackendJobId(data) || undefined;
     }
 
     if (mode === "FILE") {
       if (filePayload?.s3Key) {
-        if (user?.id) {
-          await syncBackendCredits(user.id, refreshedCredits.remaining, backendHeaders);
-        }
         const processRes = await fetch(`${API_BASE}/process_audio_s3`, {
           method: "POST",
           headers: {
@@ -663,28 +640,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const bodyText = await processRes.text();
           return res.status(processRes.status).json({ error: `process_audio_s3 error: ${bodyText}` });
         }
-        let data = await fetchJson<unknown>(processRes);
-        const queuedJob = await waitForBackendJobResult(data, backendHeaders);
-        backendJobId = queuedJob.jobId || undefined;
-        data = queuedJob.payload;
-        if (!queuedJob.completed) {
-          cleanupUploadedFile();
-          return res.status(202).json({
-            jobId: queuedJob.jobId,
-            status: extractBackendJobStatus(data) || "queued",
-          });
-        }
-        lastBackendPayload = data;
-        const resolvedPayload = extractBackendJobOutput(data);
-        tabs = extractTabsFromPayload(resolvedPayload);
-        transcriberSegmentGroups = extractTranscriberSegmentGroupsFromPayload(resolvedPayload);
-        sourceLabel = filePayload.fileName || "upload";
+        const data = await fetchJson<unknown>(processRes);
+        backendJobId = extractBackendJobId(data) || undefined;
       } else {
         if (!uploadedFile?.filepath) {
           return res.status(400).json({ error: "File is required." });
-        }
-        if (user?.id) {
-          await syncBackendCredits(user.id, refreshedCredits.remaining, backendHeaders);
         }
         const buffer = await fs.readFile(uploadedFile.filepath);
         const fd = new FormData();
@@ -705,43 +665,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const bodyText = await processRes.text();
           return res.status(processRes.status).json({ error: `process_audio error: ${bodyText}` });
         }
-        let data = await fetchJson<unknown>(processRes);
-        const queuedJob = await waitForBackendJobResult(data, backendHeaders);
-        backendJobId = queuedJob.jobId || undefined;
-        data = queuedJob.payload;
-        if (!queuedJob.completed) {
-          return res.status(202).json({
-            jobId: queuedJob.jobId,
-            status: extractBackendJobStatus(data) || "queued",
-          });
-        }
-        lastBackendPayload = data;
-        const resolvedPayload = extractBackendJobOutput(data);
-        tabs = extractTabsFromPayload(resolvedPayload);
-        transcriberSegmentGroups = extractTranscriberSegmentGroupsFromPayload(resolvedPayload);
-        sourceLabel = uploadedFile.originalFilename || "upload";
+        const data = await fetchJson<unknown>(processRes);
+        backendJobId = extractBackendJobId(data) || undefined;
         cleanupUploadedFile();
       }
     }
 
-    if (!tabs?.length) {
-      const backendError = extractBackendJobError(lastBackendPayload);
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("transcribe backend returned no tab segments", {
-          mode,
-          sourceLabel,
-          jobId: backendJobId,
-          jobStatus: extractBackendJobStatus(lastBackendPayload),
-          payloadType: Array.isArray(lastBackendPayload) ? "array" : typeof lastBackendPayload,
-          payloadKeys:
-            lastBackendPayload && typeof lastBackendPayload === "object" && !Array.isArray(lastBackendPayload)
-              ? Object.keys(lastBackendPayload as Record<string, unknown>)
-              : [],
-        });
-      }
-      return res.status(500).json({
-        error: backendError || "Transcription returned no data.",
-      });
+    if (!backendJobId) {
+      return res.status(502).json({ error: "Backend did not return a job id." });
     }
 
     let updatedTokens = user?.tokensRemaining ?? refreshedCredits.remaining;
@@ -769,39 +700,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    let jobId: string | undefined;
-    if (persistedUser) {
-      try {
-        const job = await prisma.tabJob.create({
-          data: {
-            userId: persistedUser.id,
-            sourceType: mode,
-            sourceLabel,
-            durationSec: durationSec || null,
-            resultJson: serializeStoredTabPayload({
-              tabs,
-              transcriberSegments: transcriberSegmentGroups,
-              backendJobId: backendJobId || null,
-            }),
-          },
-        });
-        jobId = job.id;
-      } catch (error) {
-        if (!allowDevGuestTranscription) {
-          throw error;
-        }
-        persistedUser = null;
-        console.warn("transcribe job persistence skipped in dev", error);
-      }
-    }
-
-    return res.status(200).json({
-      tabs,
-      transcriberSegments: transcriberSegmentGroups.length > 0 ? transcriberSegmentGroups : undefined,
+    return res.status(202).json({
       tokensRemaining: updatedTokens,
       credits: user ? creditsAfter : undefined,
-      jobId: backendJobId || jobId,
-      tabJobId: jobId,
+      jobId: backendJobId,
+      status: "processing",
     });
   } catch (error) {
     console.error("transcribe error", error);
