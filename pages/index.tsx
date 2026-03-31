@@ -709,7 +709,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {((mode === "YOUTUBE" && Boolean(youtubeId)) || (isSignedIn && mode === "FILE")) && (
+              {(mode === "YOUTUBE" || (isSignedIn && mode === "FILE")) && (
                 <div className="prompt-field prompt-field--compact">
                   {mode === "YOUTUBE" && (
                     <>
