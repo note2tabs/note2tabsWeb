@@ -73,6 +73,7 @@ export default function HomePage() {
   const [ytStartTime, setYtStartTime] = useState<number | null>(null);
   const [ytDuration, setYtDuration] = useState<number | null>(null);
   const [fileDuration, setFileDuration] = useState<number | null>(null);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [separateGuitar, setSeparateGuitar] = useState(true);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -713,6 +714,18 @@ export default function HomePage() {
                 <div className="prompt-field prompt-field--compact">
                   {mode === "YOUTUBE" && (
                     <>
+                      <div className="prompt-footer">
+                        <button
+                          type="button"
+                          className="advanced-toggle"
+                          aria-expanded={showAdvancedOptions}
+                          onClick={() => setShowAdvancedOptions((prev) => !prev)}
+                        >
+                          Advanced Options
+                        </button>
+                      </div>
+
+                      {showAdvancedOptions && (
                       <div className="advanced-grid">
                         <label>
                           Start time (sec)
@@ -746,6 +759,7 @@ export default function HomePage() {
                           The backend downloads exactly this time window before transcription starts.
                         </div>
                       </div>
+                      )}
                     </>
                   )}
 

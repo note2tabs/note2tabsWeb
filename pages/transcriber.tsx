@@ -70,6 +70,7 @@ export default function TranscriberPage() {
   const [ytStartTime, setYtStartTime] = useState<number | null>(null);
   const [ytDuration, setYtDuration] = useState<number | null>(null);
   const [fileDuration, setFileDuration] = useState<number | null>(null);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [separateGuitar, setSeparateGuitar] = useState(true);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -622,6 +623,19 @@ export default function TranscriberPage() {
               </div>
 
               {mode === "YOUTUBE" && (
+                <div className="prompt-footer">
+                  <button
+                    type="button"
+                    className="advanced-toggle"
+                    aria-expanded={showAdvancedOptions}
+                    onClick={() => setShowAdvancedOptions((prev) => !prev)}
+                  >
+                    Advanced Options
+                  </button>
+                </div>
+              )}
+
+              {mode === "YOUTUBE" && showAdvancedOptions && (
                 <div className="advanced-grid">
                   <label>
                     Start time (sec)
