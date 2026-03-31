@@ -610,19 +610,6 @@ export default function TranscriberPage() {
                   </label>
                 )}
 
-                {mode === "YOUTUBE" && (
-                  <div className="yt-guide">
-                    <strong>Backend download</strong>
-                    <p>
-                      We download the requested YouTube audio snippet on the backend, then run
-                      transcription on that segment. Max {MAX_YT_SNIPPET_SEC} seconds.
-                    </p>
-                    <span className="yt-note">
-                      Generation uses only the link, start time, and duration you enter below.
-                    </span>
-                  </div>
-                )}
-
                 <label className="checkbox">
                     <input
                       type="checkbox"
