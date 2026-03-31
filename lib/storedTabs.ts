@@ -12,10 +12,39 @@ export type StoredTranscriberSegment = {
 
 export type StoredTranscriberSegmentGroup = StoredTranscriberSegment[];
 
+export type StoredArtifactReference = {
+  storage?: string | null;
+  localPath?: string | null;
+  objectKey?: string | null;
+  gcsKey?: string | null;
+  s3Key?: string | null;
+  fileName?: string | null;
+  contentType?: string | null;
+};
+
+export type StoredReviewParams = {
+  onsetThresh?: number;
+  frameThresh?: number;
+  minNoteLen?: number;
+  minFreq?: number;
+  maxFreq?: number;
+};
+
+export type StoredReviewState = {
+  params?: StoredReviewParams | null;
+  noteEventCount?: number | null;
+  artifacts?: {
+    prediction?: StoredArtifactReference | null;
+    noteEvents?: StoredArtifactReference | null;
+    previewAudio?: StoredArtifactReference | null;
+  } | null;
+};
+
 export type StoredTabPayload = {
   tabs: string[][];
   transcriberSegments: StoredTranscriberSegmentGroup[];
   backendJobId?: string | null;
+  review?: StoredReviewState | null;
 };
 
 function normalizeTabSegments(value: unknown): string[][] {
@@ -99,12 +128,77 @@ function normalizeTranscriberSegments(value: unknown): StoredTranscriberSegmentG
     .filter((group) => group.length > 0);
 }
 
+function normalizeArtifactReference(value: unknown): StoredArtifactReference | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const normalized: StoredArtifactReference = {
+    storage: typeof record.storage === "string" && record.storage.trim() ? record.storage : null,
+    localPath: typeof record.localPath === "string" && record.localPath.trim() ? record.localPath : null,
+    objectKey: typeof record.objectKey === "string" && record.objectKey.trim() ? record.objectKey : null,
+    gcsKey: typeof record.gcsKey === "string" && record.gcsKey.trim() ? record.gcsKey : null,
+    s3Key: typeof record.s3Key === "string" && record.s3Key.trim() ? record.s3Key : null,
+    fileName: typeof record.fileName === "string" && record.fileName.trim() ? record.fileName : null,
+    contentType: typeof record.contentType === "string" && record.contentType.trim() ? record.contentType : null,
+  };
+  if (Object.values(normalized).every((value) => value === null || value === undefined || value === "")) {
+    return null;
+  }
+  return normalized;
+}
+
+function normalizeReviewParams(value: unknown): StoredReviewParams | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const normalized: StoredReviewParams = {};
+  const onsetThresh = Number(record.onsetThresh);
+  const frameThresh = Number(record.frameThresh);
+  const minNoteLen = Number(record.minNoteLen);
+  const minFreq = Number(record.minFreq);
+  const maxFreq = Number(record.maxFreq);
+  if (Number.isFinite(onsetThresh)) normalized.onsetThresh = onsetThresh;
+  if (Number.isFinite(frameThresh)) normalized.frameThresh = frameThresh;
+  if (Number.isFinite(minNoteLen)) normalized.minNoteLen = Math.round(minNoteLen);
+  if (Number.isFinite(minFreq)) normalized.minFreq = minFreq;
+  if (Number.isFinite(maxFreq)) normalized.maxFreq = maxFreq;
+  return Object.keys(normalized).length > 0 ? normalized : null;
+}
+
+function normalizeReviewState(value: unknown): StoredReviewState | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const params = normalizeReviewParams(record.params);
+  const noteEventCount = Number(record.noteEventCount);
+  const artifactsRaw =
+    record.artifacts && typeof record.artifacts === "object" && !Array.isArray(record.artifacts)
+      ? (record.artifacts as Record<string, unknown>)
+      : null;
+  const artifacts = artifactsRaw
+    ? {
+        prediction: normalizeArtifactReference(artifactsRaw.prediction),
+        noteEvents: normalizeArtifactReference(artifactsRaw.noteEvents),
+        previewAudio: normalizeArtifactReference(artifactsRaw.previewAudio),
+      }
+    : null;
+  const hasArtifacts = Boolean(
+    artifacts && (artifacts.prediction || artifacts.noteEvents || artifacts.previewAudio)
+  );
+  if (!params && !Number.isFinite(noteEventCount) && !hasArtifacts) {
+    return null;
+  }
+  return {
+    ...(params ? { params } : {}),
+    ...(Number.isFinite(noteEventCount) ? { noteEventCount: Math.max(0, Math.round(noteEventCount)) } : {}),
+    ...(hasArtifacts ? { artifacts } : {}),
+  };
+}
+
 export function normalizeStoredTabPayload(value: unknown): StoredTabPayload {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {
       tabs: [],
       transcriberSegments: [],
       backendJobId: null,
+      review: null,
     };
   }
   const record = value as Record<string, unknown>;
@@ -114,6 +208,7 @@ export function normalizeStoredTabPayload(value: unknown): StoredTabPayload {
       record.transcriberSegments ?? record.noteEventGroups ?? record.segmentGroups ?? record.segments
     ),
     backendJobId: typeof record.backendJobId === "string" && record.backendJobId.trim() ? record.backendJobId : null,
+    review: normalizeReviewState(record.review),
   };
 }
 
@@ -123,6 +218,7 @@ export function parseStoredTabPayload(resultJson?: string | null): StoredTabPayl
       tabs: [],
       transcriberSegments: [],
       backendJobId: null,
+      review: null,
     };
   }
   try {
@@ -132,14 +228,17 @@ export function parseStoredTabPayload(resultJson?: string | null): StoredTabPayl
       tabs: [],
       transcriberSegments: [],
       backendJobId: null,
+      review: null,
     };
   }
 }
 
 export function serializeStoredTabPayload(payload: StoredTabPayload): string {
+  const normalizedReview = normalizeReviewState(payload.review);
   return JSON.stringify({
     tabs: normalizeTabSegments(payload.tabs),
     ...(payload.transcriberSegments.length > 0 ? { transcriberSegments: payload.transcriberSegments } : {}),
     ...(payload.backendJobId ? { backendJobId: payload.backendJobId } : {}),
+    ...(normalizedReview ? { review: normalizedReview } : {}),
   });
 }

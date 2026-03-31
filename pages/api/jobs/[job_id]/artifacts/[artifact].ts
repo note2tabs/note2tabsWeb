@@ -32,8 +32,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   res.status(upstream.status);
   upstream.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
-    if (lower === "content-encoding" || lower === "transfer-encoding") return;
+    if (
+      lower === "content-encoding" ||
+      lower === "transfer-encoding" ||
+      lower === "cache-control" ||
+      lower === "pragma" ||
+      lower === "expires"
+    ) {
+      return;
+    }
     res.setHeader(key, value);
   });
+  res.setHeader("Cache-Control", "no-store, max-age=0, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   return res.send(buffer);
 }

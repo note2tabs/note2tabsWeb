@@ -41,20 +41,20 @@ const REVIEW_SLIDERS: Array<{
 }> = [
   {
     key: "onsetThresh",
-    label: "Onset threshold",
+    label: "Pick attack sensitivity",
     min: 0,
     max: 1,
     step: 0.01,
-    description: "Raises or lowers how aggressively note starts are detected.",
+    description: "Higher catches more note starts. Lower is stricter.",
     format: (value) => value.toFixed(2),
   },
   {
     key: "frameThresh",
-    label: "Frame threshold",
+    label: "Note hold sensitivity",
     min: 0,
     max: 1,
     step: 0.01,
-    description: "Controls how much sustained activation is required to keep a note alive.",
+    description: "Higher lets notes ring longer. Lower cuts them off sooner.",
     format: (value) => value.toFixed(2),
   },
   {
@@ -63,25 +63,25 @@ const REVIEW_SLIDERS: Array<{
     min: 1,
     max: 32,
     step: 1,
-    description: "Short notes below this frame length are discarded.",
+    description: "Ignore tiny blips and accidental hits.",
     format: (value) => `${Math.round(value)} frames`,
   },
   {
     key: "minFreq",
-    label: "Minimum frequency",
+    label: "Lowest note",
     min: 40,
     max: 400,
     step: 1,
-    description: "Filters out predictions below this frequency floor.",
+    description: "Ignore notes below this range.",
     format: (value) => `${Math.round(value)} Hz`,
   },
   {
     key: "maxFreq",
-    label: "Maximum frequency",
+    label: "Highest note",
     min: 500,
     max: 2000,
     step: 1,
-    description: "Filters out predictions above this frequency ceiling.",
+    description: "Ignore notes above this range.",
     format: (value) => `${Math.round(value)} Hz`,
   },
 ];
@@ -93,6 +93,11 @@ function getQueryStringValue(value: string | string[] | undefined) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function appendQueryParam(url: string, key: string, value: string) {
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
 }
 
 function parseBooleanFlag(value: string | null) {
@@ -140,7 +145,9 @@ function buildPendingPresentation(
   modeHint: JobModeHint | null,
   separateGuitarHint: boolean | null
 ): PendingJobPresentation | null {
-  if (!job || !PENDING_JOB_STATUSES.has(job.status)) return null;
+  const workflowState = getWorkflowState(job);
+  const isWorkflowProcessing = workflowState === "processing";
+  if (!job || (!PENDING_JOB_STATUSES.has(job.status) && !isWorkflowProcessing)) return null;
 
   const isQueued = job.status === "queued" || job.status === "pending";
   const exactStages = normalizeBackendStages(getFirstJobValue(job, ["steps"]));
@@ -307,6 +314,21 @@ function defaultReviewParams(): ReviewParams {
     minNoteLen: 8,
     minFreq: 82.41,
     maxFreq: 1318.51,
+  };
+}
+
+function getReviewBusyCopy(action: ReviewAction) {
+  if (action === "finalize") {
+    return {
+      badge: "Building tabs",
+      title: "Turning your chosen sound into tab options",
+      detail: "Your current version is being prepared into the tab choices you can import next.",
+    };
+  }
+  return {
+    badge: "Updating sound",
+    title: "Refreshing your guitar preview",
+    detail: "A new preview is being built with your current control settings. This can take several seconds.",
   };
 }
 
@@ -533,6 +555,7 @@ export default function JobPage() {
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewAction, setReviewAction] = useState<ReviewAction>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [previewReloadToken, setPreviewReloadToken] = useState<string>("0");
   const [progressClock, setProgressClock] = useState(() => Date.now());
   const displayJob = useMemo(() => normalizeJobForDisplay(job), [job]);
   const workflowState = useMemo(() => getWorkflowState(displayJob), [displayJob]);
@@ -556,11 +579,26 @@ export default function JobPage() {
     if (Array.isArray(value)) return value[0]?.trim() || null;
     return typeof value === "string" && value.trim() ? value.trim() : null;
   }, [router.isReady, router.query.appendEditorId]);
+  const reviewModeRequested = useMemo(() => {
+    if (!router.isReady) return false;
+    return parseBooleanFlag(getQueryStringValue(router.query.review)) ?? false;
+  }, [router.isReady, router.query.review]);
   const isSignedIn = Boolean(session);
   const canOpenGuestEditor = !isSignedIn && isLocalNoDbClientMode;
   const importButtonLabel = canOpenGuestEditor ? "Open in guest editor" : "Import to editor";
+  const hasWorkflowState = Boolean(workflowState && workflowState.trim());
+  const isWorkflowProcessing = workflowState === "processing";
   const isReviewReady = displayJob?.status === "done" && workflowState === "review_ready";
-  const isFinalizedJob = displayJob?.status === "done" && workflowState !== "review_ready";
+  const isRecoverableReview =
+    displayJob?.status === "done" && workflowState === "processing" && Boolean(displayJob?.audio_preview_url);
+  const isReopenedFinalizedReview =
+    reviewModeRequested &&
+    displayJob?.status === "done" &&
+    workflowState === "finalized" &&
+    (Boolean(displayJob?.audio_preview_url) || Boolean(reviewInfo));
+  const showReviewUi = isReviewReady || isRecoverableReview || isReopenedFinalizedReview;
+  const isFinalizedJob =
+    displayJob?.status === "done" && (workflowState === "finalized" || !hasWorkflowState) && !showReviewUi;
   const tabSegments = useMemo(() => getJobTabSegments(displayJob), [displayJob]);
   const transcriberGroups = useMemo(() => getJobTranscriberGroups(displayJob), [displayJob]);
   const canImportToEditor = isFinalizedJob && (tabSegments.length > 0 || transcriberGroups.length > 0);
@@ -568,23 +606,31 @@ export default function JobPage() {
     () => buildPendingPresentation(displayJob, progressClock, modeHint, separateGuitarHint),
     [displayJob, progressClock, modeHint, separateGuitarHint]
   );
+  const reviewBusyCopy = useMemo(() => getReviewBusyCopy(reviewAction), [reviewAction]);
+  const previewAudioUrl = useMemo(() => {
+    if (!displayJob?.audio_preview_url) return null;
+    const versionSeed = [displayJob.updatedAt, displayJob.finishedAt, String(reviewNoteCount ?? ""), previewReloadToken]
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .join(":");
+    return versionSeed ? appendQueryParam(displayJob.audio_preview_url, "reload", versionSeed) : displayJob.audio_preview_url;
+  }, [displayJob?.audio_preview_url, displayJob?.finishedAt, displayJob?.updatedAt, previewReloadToken, reviewNoteCount]);
 
   useEffect(() => {
     const next = getReviewParams(displayJob);
     if (next) {
       setReviewParams(next);
-    } else if (isReviewReady) {
+    } else if (showReviewUi) {
       setReviewParams(defaultReviewParams());
     }
-  }, [displayJob, isReviewReady]);
+  }, [displayJob, showReviewUi]);
 
   const fetchJob = async (id: string) => {
     try {
-      const response = await fetch(`/api/jobs/${id}`);
+      const response = await fetch(`/api/jobs/${id}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Failed to fetch");
       const data: JobResponse = await response.json();
       setJob(data);
-      if (data.status === "done" || data.status === "error") {
+      if (data.status === "error") {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
@@ -607,6 +653,14 @@ export default function JobPage() {
   useEffect(() => {
     if (!job_id || typeof job_id !== "string") return;
     void fetchJob(job_id);
+    const shouldPoll = !showReviewUi && !isFinalizedJob;
+    if (!shouldPoll) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
     intervalRef.current = setInterval(() => {
       void fetchJob(job_id);
     }, POLL_INTERVAL);
@@ -615,14 +669,14 @@ export default function JobPage() {
         clearInterval(intervalRef.current);
       }
     };
-  }, [job_id]);
+  }, [job_id, showReviewUi, isFinalizedJob]);
 
   useEffect(() => {
-    if (!displayJob || !PENDING_JOB_STATUSES.has(displayJob.status)) return;
+    if (!pendingPresentation) return;
     setProgressClock(Date.now());
     const tick = window.setInterval(() => setProgressClock(Date.now()), 1000);
     return () => window.clearInterval(tick);
-  }, [displayJob?.status, job_id]);
+  }, [pendingPresentation, job_id]);
 
   useEffect(() => {
     if (!isFinalizedJob) return;
@@ -651,6 +705,7 @@ export default function JobPage() {
     setReviewError(null);
     setReviewBusy(false);
     setReviewAction(null);
+    setPreviewReloadToken("0");
   }, [job_id]);
 
   useEffect(() => {
@@ -785,10 +840,11 @@ export default function JobPage() {
   };
 
   const handleRedoTranscription = async () => {
-    if (!isReviewReady || typeof job_id !== "string" || reviewBusy) return;
+    if (!showReviewUi || typeof job_id !== "string" || reviewBusy) return;
     setReviewBusy(true);
     setReviewAction("redo");
     setReviewError(null);
+    let redoSucceeded = false;
     try {
       const response = await fetch(`/api/jobs/${encodeURIComponent(job_id)}/redo`, {
         method: "POST",
@@ -798,20 +854,25 @@ export default function JobPage() {
       if (!response.ok) {
         throw new Error(await readErrorMessage(response));
       }
-      await fetchJob(job_id);
+      redoSucceeded = true;
     } catch (err: any) {
       setReviewError(err?.message || "Failed to regenerate note events.");
     } finally {
+      if (redoSucceeded) {
+        setPreviewReloadToken(String(Date.now()));
+      }
       setReviewBusy(false);
       setReviewAction(null);
+      await fetchJob(job_id);
     }
   };
 
   const handleContinue = async () => {
-    if (!isReviewReady || typeof job_id !== "string" || reviewBusy) return;
+    if (!showReviewUi || typeof job_id !== "string" || reviewBusy) return;
     setReviewBusy(true);
     setReviewAction("finalize");
     setReviewError(null);
+    let finalizeSucceeded = false;
     try {
       const response = await fetch(`/api/jobs/${encodeURIComponent(job_id)}/finalize`, {
         method: "POST",
@@ -821,12 +882,18 @@ export default function JobPage() {
       if (!response.ok) {
         throw new Error(await readErrorMessage(response));
       }
-      await fetchJob(job_id);
+      finalizeSucceeded = true;
     } catch (err: any) {
       setReviewError(err?.message || "Failed to finalize tab groups.");
     } finally {
+      if (finalizeSucceeded && reviewModeRequested) {
+        const nextQuery = { ...router.query };
+        delete nextQuery.review;
+        await router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
+      }
       setReviewBusy(false);
       setReviewAction(null);
+      await fetchJob(job_id);
     }
   };
 
@@ -843,7 +910,7 @@ export default function JobPage() {
   };
 
   const showAdGate = isFinalizedJob && !hasWatchedAd;
-  const title = isReviewReady
+  const title = showReviewUi
     ? displayJob?.song_title
       ? `Review ${displayJob.song_title} - Note2Tabs`
       : "Review transcription - Note2Tabs"
@@ -869,10 +936,10 @@ export default function JobPage() {
         <div className="container stack">
           <div className="page-header">
             <div>
-              <h1 className="page-title">{isReviewReady ? "Review transcription" : "Job status"}</h1>
+              <h1 className="page-title">{showReviewUi ? "Tune your sound" : "Job status"}</h1>
               <p className="page-subtitle">
-                {isReviewReady
-                  ? "Listen to the generated preview, tune the transcription controls, then continue."
+                {showReviewUi
+                  ? "Listen to the preview, adjust the controls, then continue to tabs."
                   : `Job ID: ${job_id}`}
               </p>
             </div>
@@ -881,97 +948,164 @@ export default function JobPage() {
             </button>
           </div>
 
-          {isReviewReady ? (
-            <div className="stack">
-              <div className="card">
-                <div className="stack" style={{ gap: "10px" }}>
-                  <span className="badge">Review ready</span>
-                  <div className="stack" style={{ gap: "6px" }}>
-                    <h2 style={{ margin: 0 }}>{displayJob?.song_title || "Preview the transcription"}</h2>
-                    <p className="muted text-small" style={{ margin: 0 }}>
-                      Demucs and the prediction pass are finished. The controls below only regenerate note events and
-                      preview audio from the saved prediction file.
-                    </p>
-                  </div>
-                  {reviewNoteCount !== null ? (
-                    <p className="muted text-small" style={{ margin: 0 }}>
-                      {reviewNoteCount.toLocaleString()} note events in the current preview.
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="stack" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
-                <div className="card stack">
-                  <div>
-                    <h3 className="label">Preview audio</h3>
-                    {displayJob?.audio_preview_url ? (
-                      <audio controls src={displayJob.audio_preview_url} className="card-outline">
-                        Your browser does not support the audio element.
-                      </audio>
-                    ) : (
-                      <p className="muted text-small" style={{ margin: 0 }}>
-                        Preview audio is not available yet.
+          {showReviewUi ? (
+            <div className="review-shell" aria-busy={reviewBusy}>
+              <section className="review-hero">
+                <div className="review-hero-grid">
+                  <div className="review-hero-copy">
+                    <span className="badge">Sound check</span>
+                    <div className="stack" style={{ gap: "8px" }}>
+                      <h2 className="review-hero-title">{displayJob?.song_title || "Shape your guitar preview"}</h2>
+                      <p className="review-hero-lead">
+                        This page is just for the sound. Play the preview, move the controls until it feels right, then
+                        continue to tabs.
                       </p>
-                    )}
-                  </div>
-                  <div className="card-outline" style={{ padding: "16px" }}>
-                    <p style={{ fontWeight: 600, margin: 0 }}>What reruns</p>
-                    <p className="muted text-small" style={{ margin: "8px 0 0" }}>
-                      Redo transcription regenerates note events and preview audio from the saved prediction artifact.
-                      It does not rerun download, separation, or prediction.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="card stack">
-                  <div>
-                    <h3 className="label">Transcription controls</h3>
-                    <p className="muted text-small" style={{ margin: "6px 0 0" }}>
-                      These map directly to the backend note-event settings. Continue when the preview sounds right.
-                    </p>
-                  </div>
-                  <div className="stack" style={{ gap: "14px" }}>
-                    {REVIEW_SLIDERS.map((slider) => (
-                      <div key={slider.key} className="card-outline" style={{ padding: "14px" }}>
-                        <div className="job-progress-header" style={{ alignItems: "baseline", gap: "10px" }}>
-                          <div className="stack" style={{ gap: "4px" }}>
-                            <p style={{ margin: 0, fontWeight: 600 }}>{slider.label}</p>
-                            <p className="muted text-small" style={{ margin: 0 }}>
-                              {slider.description}
-                            </p>
-                          </div>
-                          <span className="badge">{slider.format(reviewParams[slider.key])}</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={slider.min}
-                          max={slider.max}
-                          step={slider.step}
-                          value={reviewParams[slider.key]}
-                          onChange={(event) => handleReviewParamChange(slider.key, Number(event.target.value))}
-                          style={{ width: "100%", marginTop: "14px" }}
-                        />
-                        <div className="job-progress-meta" style={{ justifyContent: "space-between" }}>
-                          <span>{slider.format(slider.min)}</span>
-                          <span>{slider.format(slider.max)}</span>
-                        </div>
+                      {isRecoverableReview ? (
+                        <p className="muted text-small" style={{ margin: 0 }}>
+                          The last update did not finish cleanly. Your previous sound is still here, so you can try
+                          again or move on from this version.
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="review-guide">
+                      <div className="review-guide-step">
+                        <span className="review-guide-number">1</span>
+                        <p>Play the sound and listen for missing notes, extra notes, or awkward ringing.</p>
                       </div>
-                    ))}
+                      <div className="review-guide-step">
+                        <span className="review-guide-number">2</span>
+                        <p>Adjust the controls below and press <strong>Update sound</strong> to hear the change.</p>
+                      </div>
+                      <div className="review-guide-step">
+                        <span className="review-guide-number">3</span>
+                        <p>When the preview feels right, press <strong>Continue to tabs</strong>.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="review-audio-panel">
+                    <div className="review-audio-shell">
+                      <div className="review-audio-header">
+                        <div>
+                          <p className="review-audio-label">Preview sound</p>
+                          <p className="review-audio-caption">This is the version the tab builder will use next.</p>
+                        </div>
+                        {reviewNoteCount !== null ? (
+                          <span className="review-count-pill">{reviewNoteCount.toLocaleString()} notes</span>
+                        ) : null}
+                      </div>
+                      {previewAudioUrl ? (
+                        <audio key={previewAudioUrl} controls src={previewAudioUrl} className="review-audio-player">
+                          Your browser does not support the audio element.
+                        </audio>
+                      ) : (
+                        <p className="muted text-small" style={{ margin: 0 }}>
+                          Preview audio is not available yet.
+                        </p>
+                      )}
+                    </div>
+                    <div className="review-callout">
+                      <p className="review-callout-title">What happens here</p>
+                      <p className="muted text-small" style={{ margin: 0 }}>
+                        <strong>Update sound</strong> makes a fresh preview with your current settings.{" "}
+                        <strong>Continue to tabs</strong> keeps the version you like and moves on to the tab choices.
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </section>
+
+              {reviewBusy ? (
+                <div className="card">
+                  <div className="job-progress-shell">
+                    <div className="job-progress-header">
+                      <div className="stack" style={{ gap: "8px" }}>
+                        <span className="badge">{reviewBusyCopy.badge}</span>
+                        <p className="job-progress-phase">{reviewBusyCopy.title}</p>
+                        <p className="muted text-small" style={{ margin: 0 }}>
+                          {reviewBusyCopy.detail}
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      className="job-progress-track"
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuetext={reviewBusyCopy.title}
+                      aria-label={reviewBusyCopy.title}
+                    >
+                      <div className="job-progress-fill" style={{ width: "100%" }} />
+                    </div>
+                    <div className="job-progress-meta">
+                      <span>Working on the backend</span>
+                      <span>You can stay on this page while it runs</span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              <section
+                className="card review-controls-section"
+                style={{
+                  opacity: reviewBusy ? 0.72 : 1,
+                  transition: "opacity 0.2s ease",
+                }}
+              >
+                <div className="review-controls-header">
+                  <div className="stack" style={{ gap: "8px" }}>
+                    <span className="badge">Controls</span>
+                    <div>
+                      <h3 className="label" style={{ marginBottom: "6px" }}>
+                        Shape the guitar preview
+                      </h3>
+                      <p className="muted text-small" style={{ margin: 0 }}>
+                        Move these until the sound feels right, then continue to tabs.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="review-slider-grid">
+                  {REVIEW_SLIDERS.map((slider) => (
+                    <div key={slider.key} className="review-slider-card">
+                      <div className="review-slider-header">
+                        <div className="stack" style={{ gap: "4px" }}>
+                          <p style={{ margin: 0, fontWeight: 600 }}>{slider.label}</p>
+                          <p className="muted text-small" style={{ margin: 0 }}>
+                            {slider.description}
+                          </p>
+                        </div>
+                        <span className="badge">{slider.format(reviewParams[slider.key])}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={slider.min}
+                        max={slider.max}
+                        step={slider.step}
+                        value={reviewParams[slider.key]}
+                        disabled={reviewBusy}
+                        onChange={(event) => handleReviewParamChange(slider.key, Number(event.target.value))}
+                        className="review-slider-input"
+                      />
+                      <div className="job-progress-meta" style={{ justifyContent: "space-between" }}>
+                        <span>{slider.format(slider.min)}</span>
+                        <span>{slider.format(slider.max)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
 
               {reviewError ? <div className="error">{reviewError}</div> : null}
 
-              <div className="button-row">
+              <div className="button-row review-actions">
                 <button
                   type="button"
                   onClick={() => void handleRedoTranscription()}
                   className="button-secondary button-small"
                   disabled={reviewBusy}
                 >
-                  {reviewAction === "redo" ? "Regenerating..." : "Redo transcription"}
+                  {reviewAction === "redo" ? "Updating..." : "Update sound"}
                 </button>
                 <button
                   type="button"
@@ -979,7 +1113,7 @@ export default function JobPage() {
                   className="button-primary button-small"
                   disabled={reviewBusy}
                 >
-                  {reviewAction === "finalize" ? "Building tabs..." : "Continue"}
+                  {reviewAction === "finalize" ? "Building tabs..." : "Continue to tabs"}
                 </button>
                 <button type="button" onClick={handleRestart} className="button-ghost button-small" disabled={reviewBusy}>
                   Start over
