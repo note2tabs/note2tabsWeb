@@ -314,13 +314,12 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
   });
 
   const tabs = normalizeTabs(getFirstJobValue(payload, ["tabs"]));
-  if (tabs.length === 0) {
-    return existing?.id ?? null;
-  }
-
   const transcriberSegments = normalizeTranscriberSegments(
     getFirstJobValue(payload, ["transcriberSegments", "noteEventGroups", "segmentGroups", "segments"])
   );
+  if (tabs.length === 0 && transcriberSegments.length === 0) {
+    return existing?.id ?? null;
+  }
   const explicitLabel =
     typeof getFirstJobValue(payload, ["sourceLabel", "source_label", "fileName", "filename", "title"]) === "string"
       ? (getFirstJobValue(payload, ["sourceLabel", "source_label", "fileName", "filename", "title"]) as string)
