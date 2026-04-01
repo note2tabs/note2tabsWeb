@@ -303,8 +303,20 @@ function extractStoredReviewState(payload: Record<string, unknown>): StoredRevie
 }
 
 async function persistCompletedJob(jobId: string, sessionUserId: string, payload: Record<string, unknown>) {
+  const existing = await prisma.tabJob.findFirst({
+    where: {
+      userId: sessionUserId,
+      resultJson: {
+        contains: `"backendJobId":"${jobId}"`,
+      },
+    },
+    select: { id: true, sourceLabel: true, sourceType: true, durationSec: true, resultJson: true },
+  });
+
   const tabs = normalizeTabs(getFirstJobValue(payload, ["tabs"]));
-  if (tabs.length === 0) return null;
+  if (tabs.length === 0) {
+    return existing?.id ?? null;
+  }
 
   const transcriberSegments = normalizeTranscriberSegments(
     getFirstJobValue(payload, ["transcriberSegments", "noteEventGroups", "segmentGroups", "segments"])
@@ -332,16 +344,6 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
     transcriberSegments,
     backendJobId: jobId,
     review,
-  });
-
-  const existing = await prisma.tabJob.findFirst({
-    where: {
-      userId: sessionUserId,
-      resultJson: {
-        contains: `"backendJobId":"${jobId}"`,
-      },
-    },
-    select: { id: true, sourceLabel: true, sourceType: true, durationSec: true, resultJson: true },
   });
   if (existing) {
     const parsedExisting = parseStoredTabPayload(existing.resultJson);
@@ -414,7 +416,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const payload = JSON.parse(text) as Record<string, unknown>;
       const artifacts = getObjectValue(payload, ["artifacts"]);
-      if (artifacts && artifacts.previewAudio) {
+      const existingPreviewUrl = getStringValue(payload, ["audio_preview_url", "audioPreviewUrl"]);
+      if (!existingPreviewUrl && artifacts && artifacts.previewAudio) {
         const previewUrl = `/api/jobs/${encodeURIComponent(jobId)}/artifacts/preview_audio`;
         const previewVersion = getPreviewVersionToken(payload);
         payload.audio_preview_url = previewVersion ? appendQueryParam(previewUrl, "v", previewVersion) : previewUrl;
