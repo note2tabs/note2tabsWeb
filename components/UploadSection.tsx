@@ -106,7 +106,15 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
       body: file,
     });
     if (!uploadRes.ok) {
-      throw new Error("Upload failed. Please try again.");
+      const uploadErrorText = await uploadRes.text().catch(() => "");
+      console.warn("signed upload failed; falling back to direct upload", {
+        status: uploadRes.status,
+        fileName: file.name,
+        fileSize: file.size,
+        contentType: file.type || "application/octet-stream",
+        response: uploadErrorText || null,
+      });
+      throw new Error(uploadErrorText || "Upload failed. Please try again.");
     }
     return presignData.key as string;
   };
