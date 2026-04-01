@@ -349,7 +349,7 @@ export default function HomePage() {
     sendEvent("transcribe_start", { mode, ytUrl: youtubeUrl || undefined });
 
     try {
-      let response: Response;
+      let response: Response | null = null;
       if (mode === "FILE" && selectedFile) {
         const postFileDirectly = async () => {
           const fd = new FormData();
@@ -387,28 +387,52 @@ export default function HomePage() {
           } else if (!presignRes.ok || !presignData?.url || !presignData?.key) {
             throw new Error(presignData?.error || "Could not prepare upload.");
           } else {
-            const uploadRes = await fetch(presignData.url, {
-              method: "PUT",
-              headers: { "Content-Type": selectedFile.type || "application/octet-stream" },
-              body: selectedFile,
-            });
-            if (!uploadRes.ok) {
-              throw new Error("Upload failed. Please try again.");
-            } else {
-              setStatus(transcribingStatusLabel);
-              const payload: Record<string, unknown> = {
-                mode: "FILE",
-                s3Key: presignData.key,
-                fileName: selectedFile.name,
-                separateGuitar,
-              };
-              if (fileDuration !== null) payload.duration = fileDuration;
-              if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
-              response = await fetch("/api/transcribe", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
+            let uploadRes: Response | null = null;
+            try {
+              uploadRes = await fetch(presignData.url, {
+                method: "PUT",
+                headers: { "Content-Type": selectedFile.type || "application/octet-stream" },
+                body: selectedFile,
               });
+            } catch (error) {
+              console.warn("signed upload failed; falling back to direct upload", {
+                error: error instanceof Error ? error.message : String(error),
+                fileName: selectedFile.name,
+                fileSize: selectedFile.size,
+                contentType: selectedFile.type || "application/octet-stream",
+              });
+              setStatus("Cloud upload failed. Falling back to direct upload...");
+              response = await postFileDirectly();
+            }
+
+            if (!response) {
+              if (!uploadRes?.ok) {
+                const uploadErrorText = await uploadRes?.text().catch(() => "");
+                console.warn("signed upload failed; falling back to direct upload", {
+                  status: uploadRes?.status ?? null,
+                  fileName: selectedFile.name,
+                  fileSize: selectedFile.size,
+                  contentType: selectedFile.type || "application/octet-stream",
+                  response: uploadErrorText || null,
+                });
+                setStatus("Cloud upload failed. Falling back to direct upload...");
+                response = await postFileDirectly();
+              } else {
+                setStatus(transcribingStatusLabel);
+                const payload: Record<string, unknown> = {
+                  mode: "FILE",
+                  s3Key: presignData.key,
+                  fileName: selectedFile.name,
+                  separateGuitar,
+                };
+                if (fileDuration !== null) payload.duration = fileDuration;
+                if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
+                response = await fetch("/api/transcribe", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(payload),
+                });
+              }
             }
           }
         }
@@ -427,6 +451,10 @@ export default function HomePage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+      }
+
+      if (!response) {
+        throw new Error("Upload failed before transcription could start.");
       }
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
