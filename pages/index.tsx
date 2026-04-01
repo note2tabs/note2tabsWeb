@@ -365,6 +365,7 @@ export default function HomePage() {
         if (isDevelopmentClient) {
           response = await postFileDirectly();
         } else {
+          const uploadStorageError = "Could not upload file to storage. Please try again.";
           const presignRes = await fetch("/api/uploads/presign", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -375,61 +376,35 @@ export default function HomePage() {
             }),
           });
           const presignData = await presignRes.json().catch(() => ({}));
-          const shouldFallbackToDirectUpload =
-            presignRes.status >= 500 || (presignRes.ok && (!presignData?.url || !presignData?.key));
-          if (shouldFallbackToDirectUpload) {
-            setStatus("Upload service unavailable. Falling back to direct upload...");
-            response = await postFileDirectly();
-          } else if (!presignRes.ok || !presignData?.url || !presignData?.key) {
-            throw new Error(presignData?.error || "Could not prepare upload.");
+          if (!presignRes.ok || !presignData?.url || !presignData?.key) {
+            throw new Error(presignData?.error || uploadStorageError);
           } else {
-            let uploadRes: Response | null = null;
             try {
-              uploadRes = await fetch(presignData.url, {
+              const uploadRes = await fetch(presignData.url, {
                 method: "PUT",
                 headers: { "Content-Type": selectedFile.type || "application/octet-stream" },
                 body: selectedFile,
               });
-            } catch (error) {
-              console.warn("signed upload failed; falling back to direct upload", {
-                error: error instanceof Error ? error.message : String(error),
-                fileName: selectedFile.name,
-                fileSize: selectedFile.size,
-                contentType: selectedFile.type || "application/octet-stream",
-              });
-              setStatus("Cloud upload failed. Falling back to direct upload...");
-              response = await postFileDirectly();
-            }
-
-            if (!response) {
-              if (!uploadRes?.ok) {
-                const uploadErrorText = await uploadRes?.text().catch(() => "");
-                console.warn("signed upload failed; falling back to direct upload", {
-                  status: uploadRes?.status ?? null,
-                  fileName: selectedFile.name,
-                  fileSize: selectedFile.size,
-                  contentType: selectedFile.type || "application/octet-stream",
-                  response: uploadErrorText || null,
-                });
-                setStatus("Cloud upload failed. Falling back to direct upload...");
-                response = await postFileDirectly();
-              } else {
-                setStatus(transcribingStatusLabel);
-                const payload: Record<string, unknown> = {
-                  mode: "FILE",
-                  s3Key: presignData.key,
-                  fileName: selectedFile.name,
-                  separateGuitar,
-                };
-                if (fileDuration !== null) payload.duration = fileDuration;
-                if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
-                response = await fetch("/api/transcribe", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(payload),
-                });
+              if (!uploadRes.ok) {
+                throw new Error(uploadStorageError);
               }
+            } catch {
+              throw new Error(uploadStorageError);
             }
+            setStatus(transcribingStatusLabel);
+            const payload: Record<string, unknown> = {
+              mode: "FILE",
+              s3Key: presignData.key,
+              fileName: selectedFile.name,
+              separateGuitar,
+            };
+            if (fileDuration !== null) payload.duration = fileDuration;
+            if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
+            response = await fetch("/api/transcribe", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
           }
         }
       } else {

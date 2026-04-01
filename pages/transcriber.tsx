@@ -5,7 +5,7 @@ import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { sendEvent } from "../lib/analytics";
-import { isLocalNoDbClientMode } from "../lib/clientDevMode";
+import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { copyText } from "../lib/clipboard";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
@@ -25,6 +25,10 @@ type TabsResponse = {
 };
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
+const MAX_FREE_BYTES = 50 * 1024 * 1024;
+const MAX_PREMIUM_BYTES = 500 * 1024 * 1024;
+
+const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 
 const parseOptionalNumber = (value: string): number | null => {
   if (value.trim() === "") return null;
@@ -306,6 +310,16 @@ export default function TranscriberPage() {
       return;
     }
 
+    if (mode === "FILE" && selectedFile) {
+      const maxBytes = isPremiumRole(transcriberSession?.user?.role)
+        ? MAX_PREMIUM_BYTES
+        : MAX_FREE_BYTES;
+      if (selectedFile.size > maxBytes) {
+        setError(`File is too large. Max size is ${formatMb(maxBytes)} for your plan.`);
+        return;
+      }
+    }
+
     if (mode === "FILE" && fileDuration !== null && fileDuration <= 0) {
       setError("Duration must be greater than 0.");
       return;
@@ -332,18 +346,66 @@ export default function TranscriberPage() {
     try {
       let response: Response;
       if (mode === "FILE" && selectedFile) {
-        const fd = new FormData();
-        fd.append("mode", "FILE");
-        if (fileDuration !== null) {
-          fd.append("duration", String(fileDuration));
+        const postFileDirectly = async () => {
+          const fd = new FormData();
+          fd.append("mode", "FILE");
+          if (fileDuration !== null) {
+            fd.append("duration", String(fileDuration));
+          }
+          fd.append("separateGuitar", separateGuitar ? "true" : "false");
+          if (shouldDeferEditorSync) {
+            fd.append("skipAutoEditorSync", "true");
+          }
+          fd.append("file", selectedFile);
+          setStatus(transcribingStatusLabel);
+          return await fetch("/api/transcribe", { method: "POST", body: fd });
+        };
+
+        if (isDevelopmentClient) {
+          response = await postFileDirectly();
+        } else {
+          const uploadStorageError = "Could not upload file to storage. Please try again.";
+          const presignRes = await fetch("/api/uploads/presign", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fileName: selectedFile.name,
+              contentType: selectedFile.type || "application/octet-stream",
+              size: selectedFile.size,
+            }),
+          });
+          const presignData = await presignRes.json().catch(() => ({}));
+          if (!presignRes.ok || !presignData?.url || !presignData?.key) {
+            throw new Error(presignData?.error || uploadStorageError);
+          } else {
+            try {
+              const uploadRes = await fetch(presignData.url, {
+                method: "PUT",
+                headers: { "Content-Type": selectedFile.type || "application/octet-stream" },
+                body: selectedFile,
+              });
+              if (!uploadRes.ok) {
+                throw new Error(uploadStorageError);
+              }
+            } catch {
+              throw new Error(uploadStorageError);
+            }
+            setStatus(transcribingStatusLabel);
+            const payload: Record<string, unknown> = {
+              mode: "FILE",
+              s3Key: presignData.key,
+              fileName: selectedFile.name,
+              separateGuitar,
+            };
+            if (fileDuration !== null) payload.duration = fileDuration;
+            if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
+            response = await fetch("/api/transcribe", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+          }
         }
-        fd.append("separateGuitar", separateGuitar ? "true" : "false");
-        if (shouldDeferEditorSync) {
-          fd.append("skipAutoEditorSync", "true");
-        }
-        fd.append("file", selectedFile);
-        setStatus(transcribingStatusLabel);
-        response = await fetch("/api/transcribe", { method: "POST", body: fd });
       } else {
         setStatus(youtubeTranscribingStatusLabel);
         const payload: Record<string, unknown> = {
