@@ -100,6 +100,23 @@ function appendQueryParam(url: string, key: string, value: string) {
   return `${url}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
 }
 
+function isSignedAssetUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    const params = parsed.searchParams;
+    return (
+      params.has("X-Goog-Algorithm") ||
+      params.has("X-Goog-Signature") ||
+      params.has("GoogleAccessId") ||
+      params.has("X-Amz-Algorithm") ||
+      params.has("X-Amz-Signature") ||
+      params.has("Signature")
+    );
+  } catch {
+    return false;
+  }
+}
+
 function parseBooleanFlag(value: string | null) {
   if (!value) return null;
   const normalized = value.trim().toLowerCase();
@@ -609,6 +626,10 @@ export default function JobPage() {
   const reviewBusyCopy = useMemo(() => getReviewBusyCopy(reviewAction), [reviewAction]);
   const previewAudioUrl = useMemo(() => {
     if (!displayJob?.audio_preview_url) return null;
+    if (isSignedAssetUrl(displayJob.audio_preview_url)) {
+      // Do not append custom query params to signed URLs or the signature becomes invalid.
+      return displayJob.audio_preview_url;
+    }
     const versionSeed = [displayJob.updatedAt, displayJob.finishedAt, String(reviewNoteCount ?? ""), previewReloadToken]
       .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
       .join(":");
