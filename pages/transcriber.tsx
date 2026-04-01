@@ -93,6 +93,7 @@ export default function TranscriberPage() {
   const [selectedSegments, setSelectedSegments] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
+  const convertInFlightRef = useRef(false);
   const disableDbInDev = isLocalNoDbClientMode;
   const transcriberSession = session ?? null;
   const isSignedIn = Boolean(transcriberSession);
@@ -282,6 +283,8 @@ export default function TranscriberPage() {
   };
 
   const handleConvert = async () => {
+    if (convertInFlightRef.current || loading) return;
+
     if (!transcriberSession && !disableDbInDev) {
       setError("Sign in to start transcribing.");
       signIn(undefined, { callbackUrl: "/" });
@@ -335,6 +338,7 @@ export default function TranscriberPage() {
       }
     }
 
+    convertInFlightRef.current = true;
     setError(null);
     setImportError(null);
     setTabsResult(null);
@@ -492,6 +496,7 @@ export default function TranscriberPage() {
       sendEvent("transcribe_error", { mode, error: err?.message || "unknown" });
     } finally {
       setLoading(false);
+      convertInFlightRef.current = false;
     }
   };
 
