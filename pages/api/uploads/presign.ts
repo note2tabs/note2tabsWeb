@@ -84,6 +84,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       userId: session.user.id,
       fileName,
       contentType,
+      size: sizeNum,
       response: rawText || null,
     });
     return res.status(upstream.status).json({ error: errorMessage });
