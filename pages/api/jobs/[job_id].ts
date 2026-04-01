@@ -12,6 +12,18 @@ import {
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
   process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
+const FINAL_JOB_STATUSES = new Set(["done", "completed", "succeeded", "success"]);
+const LARGE_JOB_FIELDS = [
+  "tabs",
+  "tab_text",
+  "tabText",
+  "transcriberSegments",
+  "segmentGroups",
+  "segments",
+  "noteEventGroups",
+  "note_events",
+  "noteEvents",
+];
 
 function getJobSources(job: unknown) {
   if (!job || typeof job !== "object" || Array.isArray(job)) return [] as Record<string, unknown>[];
@@ -39,6 +51,16 @@ function getFirstJobValue(job: unknown, keys: string[]) {
     }
   }
   return null;
+}
+
+function stripLargeJobFields(job: Record<string, unknown>) {
+  for (const source of getJobSources(job)) {
+    for (const key of LARGE_JOB_FIELDS) {
+      if (key in source) {
+        delete source[key];
+      }
+    }
+  }
 }
 
 function normalizeTabs(value: unknown): string[][] {
@@ -333,16 +355,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const previewVersion = getPreviewVersionToken(payload);
         payload.audio_preview_url = previewVersion ? appendQueryParam(previewUrl, "v", previewVersion) : previewUrl;
       }
-      if (
-        upstream.ok &&
-        session?.user?.id &&
-        typeof payload.status === "string" &&
-        ["done", "completed", "succeeded", "success"].includes(payload.status.toLowerCase())
-      ) {
+      const normalizedStatus =
+        typeof payload.status === "string" ? String(payload.status).toLowerCase() : null;
+      if (upstream.ok && session?.user?.id && normalizedStatus && FINAL_JOB_STATUSES.has(normalizedStatus)) {
         const tabJobId = await persistCompletedJob(jobId, session.user.id, payload);
         if (tabJobId) {
           payload.tab_job_id = tabJobId;
           payload.tabJobId = tabJobId;
+          stripLargeJobFields(payload);
         }
       }
       res.status(upstream.status);
