@@ -13,6 +13,8 @@ const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
   process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 const FINAL_JOB_STATUSES = new Set(["done", "completed", "succeeded", "success"]);
+const MAX_JOB_RESPONSE_BYTES = 3_500_000;
+const MAX_UPSTREAM_TEXT_BYTES = 2000;
 const LARGE_JOB_FIELDS = [
   "tabs",
   "tab_text",
@@ -61,6 +63,68 @@ function stripLargeJobFields(job: Record<string, unknown>) {
       }
     }
   }
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function getStringValue(job: Record<string, unknown>, keys: string[]) {
+  const value = getFirstJobValue(job, keys);
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function getFiniteNumberValue(job: Record<string, unknown>, keys: string[]) {
+  const value = Number(getFirstJobValue(job, keys));
+  return Number.isFinite(value) ? value : null;
+}
+
+function getObjectValue(job: Record<string, unknown>, keys: string[]) {
+  const value = getFirstJobValue(job, keys);
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function normalizeStems(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+      const record = entry as Record<string, unknown>;
+      const name = typeof record.name === "string" ? record.name.trim() : "";
+      const url = typeof record.url === "string" ? record.url.trim() : "";
+      if (!name || !url) return null;
+      return { name, url };
+    })
+    .filter((entry): entry is { name: string; url: string } => Boolean(entry));
+}
+
+function trimPayloadToBudget(payload: Record<string, unknown>, maxBytes = MAX_JOB_RESPONSE_BYTES) {
+  const safePayload = { ...payload };
+  const byteLength = () => Buffer.byteLength(JSON.stringify(safePayload), "utf-8");
+  if (byteLength() <= maxBytes) return safePayload;
+
+  const removableFields = [
+    "transcriberSegments",
+    "noteEventGroups",
+    "segmentGroups",
+    "segments",
+    "tabs",
+    "tab_text",
+    "tabText",
+    "steps",
+    "stems",
+    "review",
+    "currentStepDetail",
+  ] as const;
+  for (const key of removableFields) {
+    if (!(key in safePayload)) continue;
+    delete safePayload[key];
+    if (byteLength() <= maxBytes) return safePayload;
+  }
+
+  return safePayload;
 }
 
 function normalizeTabs(value: unknown): string[][] {
@@ -331,9 +395,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const session = await getServerSession(req, res, authOptions);
   if (session?.user?.id) headers["X-User-Id"] = session.user.id;
 
-  const upstream = await fetch(`${API_BASE}/api/v1/jobs/${encodeURIComponent(jobId)}`, {
-    headers,
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${API_BASE}/api/v1/jobs/${encodeURIComponent(jobId)}`, {
+      headers,
+    });
+  } catch {
+    return res.status(502).json({ error: "Unable to reach transcription backend." });
+  }
   const text = await upstream.text();
   const contentType = upstream.headers.get("content-type");
   if (!text) {
@@ -344,42 +413,117 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (contentType?.includes("application/json")) {
     try {
       const payload = JSON.parse(text) as Record<string, unknown>;
-      const artifacts =
-        getFirstJobValue(payload, ["artifacts"]) &&
-        typeof getFirstJobValue(payload, ["artifacts"]) === "object" &&
-        !Array.isArray(getFirstJobValue(payload, ["artifacts"]))
-          ? (getFirstJobValue(payload, ["artifacts"]) as Record<string, unknown>)
-          : null;
+      const artifacts = getObjectValue(payload, ["artifacts"]);
       if (artifacts && artifacts.previewAudio) {
         const previewUrl = `/api/jobs/${encodeURIComponent(jobId)}/artifacts/preview_audio`;
         const previewVersion = getPreviewVersionToken(payload);
         payload.audio_preview_url = previewVersion ? appendQueryParam(previewUrl, "v", previewVersion) : previewUrl;
       }
+
+      let resolvedTabJobId = getStringValue(payload, ["tab_job_id", "tabJobId", "tab_id", "tabId"]);
       const normalizedStatus =
-        typeof payload.status === "string" ? String(payload.status).toLowerCase() : null;
+        typeof getFirstJobValue(payload, ["status"]) === "string"
+          ? String(getFirstJobValue(payload, ["status"])).toLowerCase()
+          : null;
       if (upstream.ok && session?.user?.id && normalizedStatus && FINAL_JOB_STATUSES.has(normalizedStatus)) {
         const tabJobId = await persistCompletedJob(jobId, session.user.id, payload);
         if (tabJobId) {
+          resolvedTabJobId = tabJobId;
           payload.tab_job_id = tabJobId;
           payload.tabJobId = tabJobId;
           stripLargeJobFields(payload);
         }
       }
+
+      const responsePayload: Record<string, unknown> = {
+        job_id: getStringValue(payload, ["job_id", "jobId", "id"]) || jobId,
+        status: getStringValue(payload, ["status"]) || (upstream.ok ? "processing" : "error"),
+      };
+      const stringFieldMap: Array<{ field: string; keys: string[] }> = [
+        { field: "type", keys: ["type"] },
+        { field: "rawStatus", keys: ["rawStatus", "raw_status"] },
+        { field: "createdAt", keys: ["createdAt", "created_at"] },
+        { field: "updatedAt", keys: ["updatedAt", "updated_at"] },
+        { field: "startedAt", keys: ["startedAt", "started_at"] },
+        { field: "finishedAt", keys: ["finishedAt", "finished_at"] },
+        { field: "workflowState", keys: ["workflowState", "workflow_state"] },
+        { field: "currentStepKey", keys: ["currentStepKey", "current_step_key"] },
+        { field: "currentStepLabel", keys: ["currentStepLabel", "current_step_label"] },
+        { field: "currentStepDetail", keys: ["currentStepDetail", "current_step_detail"] },
+        { field: "lastError", keys: ["lastError", "last_error"] },
+        { field: "error_message", keys: ["error_message", "errorMessage", "lastError", "last_error"] },
+        { field: "song_title", keys: ["song_title", "songTitle", "title"] },
+        { field: "artist", keys: ["artist"] },
+        { field: "audio_preview_url", keys: ["audio_preview_url", "audioPreviewUrl"] },
+        { field: "gte_editor_id", keys: ["gte_editor_id", "gteEditorId"] },
+      ];
+      for (const { field, keys } of stringFieldMap) {
+        const value = getStringValue(payload, keys);
+        if (value !== null) {
+          responsePayload[field] = value;
+        }
+      }
+
+      const progress = getFiniteNumberValue(payload, ["progress"]);
+      if (progress !== null) responsePayload.progress = progress;
+      const attempts = getFiniteNumberValue(payload, ["attempts"]);
+      if (attempts !== null) responsePayload.attempts = Math.max(0, Math.round(attempts));
+
+      const steps = getFirstJobValue(payload, ["steps"]);
+      if (Array.isArray(steps)) responsePayload.steps = steps;
+
+      const stems = normalizeStems(getFirstJobValue(payload, ["stems"]));
+      if (stems.length > 0) responsePayload.stems = stems;
+
+      const review = extractStoredReviewState(payload);
+      if (review) {
+        const normalizedReview: Record<string, unknown> = {};
+        if (review.params) normalizedReview.params = review.params;
+        if (isFiniteNumber(review.noteEventCount)) normalizedReview.noteEventCount = review.noteEventCount;
+        if (Object.keys(normalizedReview).length > 0) {
+          responsePayload.review = normalizedReview;
+        }
+      }
+
+      if (resolvedTabJobId) {
+        responsePayload.tab_job_id = resolvedTabJobId;
+        responsePayload.tabJobId = resolvedTabJobId;
+        responsePayload.tab_id = resolvedTabJobId;
+        responsePayload.tabId = resolvedTabJobId;
+      } else {
+        const tabs = normalizeTabs(getFirstJobValue(payload, ["tabs"]));
+        if (tabs.length > 0) responsePayload.tabs = tabs;
+        const tabText = getStringValue(payload, ["tab_text", "tabText"]);
+        if (tabText !== null) responsePayload.tab_text = tabText;
+        const transcriberSegments = normalizeTranscriberSegments(
+          getFirstJobValue(payload, ["transcriberSegments", "noteEventGroups", "segmentGroups", "segments"])
+        );
+        if (transcriberSegments.length > 0) {
+          responsePayload.transcriberSegments = transcriberSegments;
+        }
+      }
+
+      const safeResponsePayload = trimPayloadToBudget(responsePayload);
       res.status(upstream.status);
       res.setHeader("Content-Type", "application/json");
       res.setHeader("Cache-Control", "no-store, max-age=0, must-revalidate");
       res.setHeader("Pragma", "no-cache");
       res.setHeader("Expires", "0");
-      return res.json(payload);
+      return res.json(safeResponsePayload);
     } catch {
-      // Fall back to raw proxying below.
+      // Fall through to controlled error response below.
     }
   }
 
-  res.status(upstream.status);
-  if (contentType) res.setHeader("Content-Type", contentType);
+  const textSnippet = text.slice(0, MAX_UPSTREAM_TEXT_BYTES);
+  res.status(upstream.ok ? 502 : upstream.status);
+  res.setHeader("Content-Type", "application/json");
   res.setHeader("Cache-Control", "no-store, max-age=0, must-revalidate");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
-  return res.send(text);
+  return res.json({
+    error: upstream.ok
+      ? "Invalid response from backend job endpoint."
+      : textSnippet || "Job request failed.",
+  });
 }
