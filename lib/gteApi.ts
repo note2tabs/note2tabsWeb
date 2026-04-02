@@ -114,29 +114,53 @@ const postTranscriberImportSaved = (payload: ImportTranscriberToSavedPayload) =>
     body: JSON.stringify(payload),
   });
 
+const createSavedEditor = (name?: string) =>
+  request<{ editorId: string; snapshot: CanvasSnapshot }>("/editors", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+
 async function importTranscriberToSaved(
   payload: ImportTranscriberToSavedPayload
 ): Promise<TranscriberImportResponse> {
   const groups = Array.isArray(payload.segmentGroups) ? payload.segmentGroups : [];
-  const chunks = chunkTranscriberSegmentGroups(groups);
-  if (chunks.length <= 1) {
-    return postTranscriberImportSaved(payload);
+  if (!groups.length) {
+    throw new Error("segmentGroups is required");
+  }
+  if (payload.target === "existing" && !payload.editorId) {
+    throw new Error("editorId is required when target is existing");
   }
 
-  const initialTarget: "new" | "existing" =
-    payload.target || (payload.editorId ? "existing" : "new");
   let currentEditorId = payload.editorId;
+  if (!currentEditorId) {
+    const created = await createSavedEditor(payload.name);
+    currentEditorId = created.editorId;
+  }
+
+  const chunks = chunkTranscriberSegmentGroups(groups);
+  if (chunks.length <= 1 && currentEditorId) {
+    const response = await postTranscriberImportSaved({
+      segmentGroups: groups,
+      target: "existing",
+      editorId: currentEditorId,
+    });
+    return {
+      ok: true,
+      target: "existing",
+      editorId: currentEditorId,
+      importedEditorIds: response.importedEditorIds,
+    };
+  }
+
   let lastResponse: TranscriberImportResponse | null = null;
   const importedEditorIds: string[] = [];
 
   for (let index = 0; index < chunks.length; index += 1) {
-    const isFirstChunk = index === 0;
-    const target: "new" | "existing" = isFirstChunk ? initialTarget : "existing";
     const response = await postTranscriberImportSaved({
       segmentGroups: chunks[index],
-      target,
-      editorId: target === "existing" ? currentEditorId : payload.editorId,
-      name: isFirstChunk ? payload.name : undefined,
+      target: "existing",
+      editorId: currentEditorId,
     });
     currentEditorId = response.editorId || currentEditorId;
     lastResponse = response;
@@ -151,7 +175,7 @@ async function importTranscriberToSaved(
 
   return {
     ok: true,
-    target: lastResponse.target || initialTarget,
+    target: "existing",
     editorId: currentEditorId,
     importedEditorIds: importedEditorIds.length > 0 ? importedEditorIds : lastResponse.importedEditorIds,
   };

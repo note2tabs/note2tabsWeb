@@ -25,6 +25,19 @@ type UpstreamImportBody = {
   importedEditorIds?: string[];
 };
 
+function getRequestedImportTarget(req: NextApiRequest): string {
+  return typeof (req.body as { target?: unknown } | undefined)?.target === "string"
+    ? String((req.body as { target?: string }).target).trim().toLowerCase()
+    : "";
+}
+
+function getRequestedImportEditorId(req: NextApiRequest): string | undefined {
+  const raw = (req.body as { editorId?: unknown } | undefined)?.editorId;
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  return trimmed || undefined;
+}
+
 function getPath(req: NextApiRequest) {
   return Array.isArray(req.query.path) ? req.query.path.join("/") : "";
 }
@@ -115,6 +128,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     headers,
     body,
   });
+  const isTranscriberImport = method === "POST" && path === "transcriber/import";
+  if (isTranscriberImport && upstream.ok) {
+    const requestedEditorId = getRequestedImportEditorId(req);
+    if (requestedEditorId) {
+      const target = getRequestedImportTarget(req) || "existing";
+      try {
+        await upstream.body?.cancel?.();
+      } catch {
+        // noop
+      }
+      res.status(upstream.status);
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      return res.send(
+        JSON.stringify({
+          ok: true,
+          target,
+          editorId: requestedEditorId,
+        } satisfies UpstreamImportBody)
+      );
+    }
+  }
   const text = await upstream.text();
   let responseText = text;
   res.status(upstream.status);
@@ -150,11 +184,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // ignore analytics parse/logging failures
     }
   }
-  if (upstream.ok && method === "POST" && path === "transcriber/import") {
+  if (upstream.ok && isTranscriberImport) {
     try {
-      const target = typeof (req.body as { target?: unknown } | undefined)?.target === "string"
-        ? String((req.body as { target?: string }).target).trim().toLowerCase()
-        : "";
+      const target = getRequestedImportTarget(req);
       const shouldLogCreate = !target || target === "new";
       const parsed = text ? (JSON.parse(text) as UpstreamImportBody) : {};
       const editorId = typeof parsed.editorId === "string" ? parsed.editorId : undefined;
