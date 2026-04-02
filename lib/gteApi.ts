@@ -4,6 +4,8 @@ import { GTE_GUEST_EDITOR_ID } from "./gteGuestDraft";
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
 const LANE_DELIMITER = "__ed__";
+const TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES = 128_000;
+const TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS = 24;
 export type EditorOrCanvasSnapshot = EditorSnapshot | CanvasSnapshot;
 export type TranscriberSegment = {
   start_time_s?: number;
@@ -23,6 +25,13 @@ export type TranscriberImportResponse = {
   editorId: string;
   importedEditorIds?: string[];
   canvas?: CanvasSnapshot;
+};
+
+type ImportTranscriberToSavedPayload = {
+  segmentGroups: TranscriberSegmentGroup[];
+  target?: "new" | "existing";
+  editorId?: string;
+  name?: string;
 };
 
 export const buildLaneEditorRef = (canvasId: string, laneId: string) =>
@@ -65,6 +74,89 @@ async function requestForEditor<T>(
   return request<T>(path, options, getBaseForEditor(editorId));
 }
 
+function chunkTranscriberSegmentGroups(
+  groups: TranscriberSegmentGroup[],
+  maxBytes: number = TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES,
+  maxGroups: number = TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS
+): TranscriberSegmentGroup[][] {
+  if (groups.length <= 1) return [groups];
+  const chunks: TranscriberSegmentGroup[][] = [];
+  let current: TranscriberSegmentGroup[] = [];
+  let currentBytes = 2; // "[]"
+
+  for (const group of groups) {
+    const serializedGroup = JSON.stringify(group ?? []);
+    const groupBytes = serializedGroup.length;
+    const delimiterBytes = current.length > 0 ? 1 : 0;
+    const nextBytes = currentBytes + delimiterBytes + groupBytes;
+    const shouldFlush =
+      current.length > 0 && (nextBytes > maxBytes || current.length >= maxGroups);
+    if (shouldFlush) {
+      chunks.push(current);
+      current = [];
+      currentBytes = 2;
+    }
+    const delimiterAfterFlush = current.length > 0 ? 1 : 0;
+    current.push(group);
+    currentBytes += delimiterAfterFlush + groupBytes;
+  }
+
+  if (current.length > 0) {
+    chunks.push(current);
+  }
+  return chunks;
+}
+
+const postTranscriberImportSaved = (payload: ImportTranscriberToSavedPayload) =>
+  request<TranscriberImportResponse>("/transcriber/import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+async function importTranscriberToSaved(
+  payload: ImportTranscriberToSavedPayload
+): Promise<TranscriberImportResponse> {
+  const groups = Array.isArray(payload.segmentGroups) ? payload.segmentGroups : [];
+  const chunks = chunkTranscriberSegmentGroups(groups);
+  if (chunks.length <= 1) {
+    return postTranscriberImportSaved(payload);
+  }
+
+  const initialTarget: "new" | "existing" =
+    payload.target || (payload.editorId ? "existing" : "new");
+  let currentEditorId = payload.editorId;
+  let lastResponse: TranscriberImportResponse | null = null;
+  const importedEditorIds: string[] = [];
+
+  for (let index = 0; index < chunks.length; index += 1) {
+    const isFirstChunk = index === 0;
+    const target: "new" | "existing" = isFirstChunk ? initialTarget : "existing";
+    const response = await postTranscriberImportSaved({
+      segmentGroups: chunks[index],
+      target,
+      editorId: target === "existing" ? currentEditorId : payload.editorId,
+      name: isFirstChunk ? payload.name : undefined,
+    });
+    currentEditorId = response.editorId || currentEditorId;
+    lastResponse = response;
+    if (Array.isArray(response.importedEditorIds) && response.importedEditorIds.length > 0) {
+      importedEditorIds.push(...response.importedEditorIds);
+    }
+  }
+
+  if (!lastResponse || !currentEditorId) {
+    throw new Error("Transcriber import failed");
+  }
+
+  return {
+    ok: true,
+    target: lastResponse.target || initialTarget,
+    editorId: currentEditorId,
+    importedEditorIds: importedEditorIds.length > 0 ? importedEditorIds : lastResponse.importedEditorIds,
+  };
+}
+
 export const gteApi = {
   listEditors: () => request<{ editors: EditorListItem[] }>("/editors"),
   createEditor: (editorId?: string, name?: string) =>
@@ -73,17 +165,8 @@ export const gteApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ editorId, name }),
     }),
-  importTranscriberToSaved: (payload: {
-    segmentGroups: TranscriberSegmentGroup[];
-    target?: "new" | "existing";
-    editorId?: string;
-    name?: string;
-  }) =>
-    request<TranscriberImportResponse>("/transcriber/import", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }),
+  importTranscriberToSaved: (payload: ImportTranscriberToSavedPayload) =>
+    importTranscriberToSaved(payload),
   importTranscriberToGuest: (payload: {
     segmentGroups: TranscriberSegmentGroup[];
     editorId?: string;
