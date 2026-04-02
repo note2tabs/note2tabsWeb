@@ -123,11 +123,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  const upstream = await fetch(url, {
-    method,
-    headers,
-    body,
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(url, {
+      method,
+      headers,
+      body,
+    });
+  } catch (error: any) {
+    return res.status(502).json({
+      error: "GTE upstream request failed",
+      detail: error?.message || "fetch_failed",
+      path,
+      method,
+    });
+  }
   const isTranscriberImport = method === "POST" && path === "transcriber/import";
   if (isTranscriberImport && upstream.ok) {
     const requestedEditorId = getRequestedImportEditorId(req);

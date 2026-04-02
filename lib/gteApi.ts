@@ -4,8 +4,9 @@ import { GTE_GUEST_EDITOR_ID } from "./gteGuestDraft";
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
 const LANE_DELIMITER = "__ed__";
-const TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES = 128_000;
-const TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS = 24;
+const TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES = 16_000;
+const TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS = 6;
+const TRANSCRIBER_IMPORT_MAX_SPLIT_DEPTH = 6;
 export type EditorOrCanvasSnapshot = EditorSnapshot | CanvasSnapshot;
 export type TranscriberSegment = {
   start_time_s?: number;
@@ -79,7 +80,6 @@ function chunkTranscriberSegmentGroups(
   maxBytes: number = TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES,
   maxGroups: number = TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS
 ): TranscriberSegmentGroup[][] {
-  if (groups.length <= 1) return [groups];
   const chunks: TranscriberSegmentGroup[][] = [];
   let current: TranscriberSegmentGroup[] = [];
   let currentBytes = 2; // "[]"
@@ -114,6 +114,53 @@ const postTranscriberImportSaved = (payload: ImportTranscriberToSavedPayload) =>
     body: JSON.stringify(payload),
   });
 
+type TranscriberChunkImportResult = {
+  editorId: string;
+  importedEditorIds: string[];
+  response: TranscriberImportResponse;
+};
+
+async function postTranscriberImportChunk(
+  editorId: string,
+  segmentGroups: TranscriberSegmentGroup[]
+): Promise<TranscriberImportResponse> {
+  return postTranscriberImportSaved({
+    segmentGroups,
+    target: "existing",
+    editorId,
+  });
+}
+
+async function importTranscriberChunkWithRetry(
+  editorId: string,
+  segmentGroups: TranscriberSegmentGroup[],
+  depth: number = 0
+): Promise<TranscriberChunkImportResult> {
+  try {
+    const response = await postTranscriberImportChunk(editorId, segmentGroups);
+    return {
+      editorId: response.editorId || editorId,
+      importedEditorIds: Array.isArray(response.importedEditorIds) ? response.importedEditorIds : [],
+      response,
+    };
+  } catch (error) {
+    if (segmentGroups.length <= 1 || depth >= TRANSCRIBER_IMPORT_MAX_SPLIT_DEPTH) {
+      throw error;
+    }
+    const middle = Math.max(1, Math.floor(segmentGroups.length / 2));
+    const left = segmentGroups.slice(0, middle);
+    const right = segmentGroups.slice(middle);
+
+    const leftResult = await importTranscriberChunkWithRetry(editorId, left, depth + 1);
+    const rightResult = await importTranscriberChunkWithRetry(leftResult.editorId, right, depth + 1);
+    return {
+      editorId: rightResult.editorId,
+      importedEditorIds: [...leftResult.importedEditorIds, ...rightResult.importedEditorIds],
+      response: rightResult.response,
+    };
+  }
+}
+
 const createSavedEditor = (name?: string) =>
   request<{ editorId: string; snapshot: CanvasSnapshot }>("/editors", {
     method: "POST",
@@ -139,33 +186,15 @@ async function importTranscriberToSaved(
   }
 
   const chunks = chunkTranscriberSegmentGroups(groups);
-  if (chunks.length <= 1 && currentEditorId) {
-    const response = await postTranscriberImportSaved({
-      segmentGroups: groups,
-      target: "existing",
-      editorId: currentEditorId,
-    });
-    return {
-      ok: true,
-      target: "existing",
-      editorId: currentEditorId,
-      importedEditorIds: response.importedEditorIds,
-    };
-  }
-
   let lastResponse: TranscriberImportResponse | null = null;
   const importedEditorIds: string[] = [];
 
   for (let index = 0; index < chunks.length; index += 1) {
-    const response = await postTranscriberImportSaved({
-      segmentGroups: chunks[index],
-      target: "existing",
-      editorId: currentEditorId,
-    });
-    currentEditorId = response.editorId || currentEditorId;
-    lastResponse = response;
-    if (Array.isArray(response.importedEditorIds) && response.importedEditorIds.length > 0) {
-      importedEditorIds.push(...response.importedEditorIds);
+    const result = await importTranscriberChunkWithRetry(currentEditorId, chunks[index]);
+    currentEditorId = result.editorId || currentEditorId;
+    lastResponse = result.response;
+    if (result.importedEditorIds.length > 0) {
+      importedEditorIds.push(...result.importedEditorIds);
     }
   }
 
