@@ -18,6 +18,13 @@ type SnapshotSaveCacheEntry = {
 
 const snapshotSaveCache = new Map<string, SnapshotSaveCacheEntry>();
 
+type UpstreamImportBody = {
+  ok?: boolean;
+  target?: string;
+  editorId?: string;
+  importedEditorIds?: string[];
+};
+
 function getPath(req: NextApiRequest) {
   return Array.isArray(req.query.path) ? req.query.path.join("/") : "";
 }
@@ -109,6 +116,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     body,
   });
   const text = await upstream.text();
+  let responseText = text;
   res.status(upstream.status);
   const contentType = upstream.headers.get("content-type");
   if (contentType) {
@@ -148,26 +156,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ? String((req.body as { target?: string }).target).trim().toLowerCase()
         : "";
       const shouldLogCreate = !target || target === "new";
-      if (shouldLogCreate) {
-        const parsed = text ? (JSON.parse(text) as { editorId?: string }) : {};
-        const editorId = typeof parsed.editorId === "string" ? parsed.editorId : undefined;
-        if (editorId) {
-          await maybeLogGteAnalyticsEvent({
-            userId: session.user.id,
-            event: "gte_editor_created",
-            path: "/api/gte/transcriber/import",
-            payload: { editorId, source: "gte_transcriber_import" },
-            req,
-            res,
-          });
-        }
+      const parsed = text ? (JSON.parse(text) as UpstreamImportBody) : {};
+      const editorId = typeof parsed.editorId === "string" ? parsed.editorId : undefined;
+      if (shouldLogCreate && editorId) {
+        await maybeLogGteAnalyticsEvent({
+          userId: session.user.id,
+          event: "gte_editor_created",
+          path: "/api/gte/transcriber/import",
+          payload: { editorId, source: "gte_transcriber_import" },
+          req,
+          res,
+        });
+      }
+      if (editorId) {
+        responseText = JSON.stringify({
+          ok: parsed.ok !== false,
+          target: typeof parsed.target === "string" ? parsed.target : target || undefined,
+          editorId,
+          importedEditorIds: Array.isArray(parsed.importedEditorIds) ? parsed.importedEditorIds : undefined,
+        } satisfies UpstreamImportBody);
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
       }
     } catch {
       // ignore analytics parse/logging failures
     }
   }
-  if (!text) {
+  if (!responseText) {
     return res.end();
   }
-  return res.send(text);
+  return res.send(responseText);
 }
