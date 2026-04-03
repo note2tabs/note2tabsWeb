@@ -19,7 +19,6 @@ import {
 } from "../../lib/analyticsQueries";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
-import { createBackendToken } from "../../lib/backendToken";
 
 const TimeSeriesChart = dynamic(
   () => import("../../components/AdminChartsClient").then((m) => m.TimeSeriesChart),
@@ -972,7 +971,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     const sessionUser = session.user;
     const backendBaseUrl = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
     const backendSecret = process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
-    const canFetchThisToThat = Boolean(sessionUser?.id && process.env.BACKEND_JWT_SECRET);
+    const canFetchThisToThat = Boolean(sessionUser?.id);
 
     [summary, daily, funnel, dropoff, pageViews, devices, errors, topUsers, recentEvents, usersActivity, gteStats, parity, thisToThat] =
       await Promise.all([
@@ -991,14 +990,9 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         canFetchThisToThat
           ? (async () => {
               try {
-                const token = createBackendToken({
-                  sub: sessionUser!.id,
-                  email: sessionUser!.email,
-                  role: sessionUser!.role,
-                });
                 const response = await fetch(`${backendBaseUrl.replace(/\/$/, "")}/api/v1/analytics/thistothat`, {
                   headers: {
-                    Authorization: `Bearer ${token}`,
+                    "X-User-Id": sessionUser!.id,
                     ...(backendSecret ? { "x-backend-secret": backendSecret } : {}),
                   },
                 });
