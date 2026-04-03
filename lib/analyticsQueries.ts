@@ -402,7 +402,7 @@ export async function getTopUsers(from: Date, to: Date, limit = 10) {
   const userIds = grouped.map((g) => g.userId).filter(Boolean) as string[];
   const users = await prisma.user.findMany({
     where: { id: { in: userIds } },
-    select: { id: true, email: true, role: true, tokensRemaining: true },
+    select: { id: true, email: true, role: true },
   });
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
   return grouped
@@ -410,7 +410,6 @@ export async function getTopUsers(from: Date, to: Date, limit = 10) {
       userId: g.userId,
       email: g.userId ? userMap[g.userId]?.email || "Unknown" : "Unknown",
       role: g.userId ? userMap[g.userId]?.role || "FREE" : "FREE",
-      tokensRemaining: g.userId ? userMap[g.userId]?.tokensRemaining ?? 0 : 0,
       totalTranscriptions: g._count._all,
       lastActive: g._max.createdAt,
     }))

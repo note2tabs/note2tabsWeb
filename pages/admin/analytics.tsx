@@ -19,6 +19,7 @@ import {
 } from "../../lib/analyticsQueries";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
+import { createBackendToken } from "../../lib/backendToken";
 
 const TimeSeriesChart = dynamic(
   () => import("../../components/AdminChartsClient").then((m) => m.TimeSeriesChart),
@@ -120,6 +121,19 @@ type Props = {
   gteStats: SerializedGteStats | null;
   parity: Parity | null;
   moderation: SerializedModerationSnapshot;
+  thisToThat: {
+    provider: string;
+    configured: boolean;
+    remainingRequests: number | null;
+    quotaLimit: number | null;
+    resetAt: string | null;
+    observedAt: string | null;
+    source: string | null;
+    fieldName: string | null;
+    refreshConsumesRequest: boolean;
+    refreshUsed: boolean;
+    refreshError: string | null;
+  } | null;
 };
 
 export default function AnalyticsDashboard(props: Props) {
@@ -143,6 +157,7 @@ export default function AnalyticsDashboard(props: Props) {
     gteStats,
     parity,
     moderation,
+    thisToThat,
   } = props;
 
   const viewMeta = VIEW_META[activeView];
@@ -217,6 +232,7 @@ export default function AnalyticsDashboard(props: Props) {
                   pageViews={pageViews}
                   devices={devices}
                   errors={errors}
+                  thisToThat={thisToThat}
                 />
               )}
 
@@ -245,6 +261,7 @@ function OverviewView({
   pageViews,
   devices,
   errors,
+  thisToThat,
 }: {
   summary: Props["summary"];
   daily: Props["daily"];
@@ -253,6 +270,7 @@ function OverviewView({
   pageViews: Props["pageViews"];
   devices: Props["devices"];
   errors: Props["errors"];
+  thisToThat: Props["thisToThat"];
 }) {
   if (!summary || !funnel || !dropoff || !pageViews || !devices || !errors) {
     return <div className="card">Overview data is not available for this role.</div>;
@@ -289,6 +307,80 @@ function OverviewView({
         <Card title="Transcriptions" value={summary.totalTranscriptions} />
         <Card title="Success rate" value={`${summary.successRate.toFixed(1)}%`} />
         <Card title="Avg transcriptions / user" value={summary.avgTranscriptionsPerUser.toFixed(2)} />
+      </section>
+
+      <section className="card stack">
+        <div className="page-header">
+          <SectionHeader title="YouTube Downloader Tokens" />
+          <p className="muted text-small">
+            Latest ThisToThat snapshot
+          </p>
+        </div>
+        {thisToThat ? (
+          <>
+            <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+              <Card title="Remaining requests" value={thisToThat.remainingRequests ?? "-"} />
+              <Card title="Quota limit" value={thisToThat.quotaLimit ?? "-"} />
+              <Card
+                title="Used"
+                value={
+                  thisToThat.quotaLimit !== null && thisToThat.remainingRequests !== null
+                    ? Math.max(0, thisToThat.quotaLimit - thisToThat.remainingRequests)
+                    : "-"
+                }
+              />
+              <Card
+                title="Configured"
+                value={thisToThat.configured ? "Yes" : "No"}
+              />
+              <Card
+                title="Last seen"
+                value={thisToThat.observedAt ? new Date(thisToThat.observedAt).toLocaleString() : "-"}
+              />
+            </section>
+
+            <div className="overflow-x-auto">
+              <table className="table">
+                <tbody>
+                  <tr className="border-t border-slate-200">
+                    <td className="px-2 py-1 text-slate-600">Provider</td>
+                    <td className="px-2 py-1">{thisToThat.provider || "thistothat"}</td>
+                  </tr>
+                  <tr className="border-t border-slate-200">
+                    <td className="px-2 py-1 text-slate-600">Reset</td>
+                    <td className="px-2 py-1">
+                      {thisToThat.resetAt ? new Date(thisToThat.resetAt).toLocaleString() : "-"}
+                    </td>
+                  </tr>
+                  <tr className="border-t border-slate-200">
+                    <td className="px-2 py-1 text-slate-600">Observed from</td>
+                    <td className="px-2 py-1">{thisToThat.source || "-"}</td>
+                  </tr>
+                  <tr className="border-t border-slate-200">
+                    <td className="px-2 py-1 text-slate-600">Field</td>
+                    <td className="px-2 py-1">{thisToThat.fieldName || "-"}</td>
+                  </tr>
+                  <tr className="border-t border-slate-200">
+                    <td className="px-2 py-1 text-slate-600">Manual refresh cost</td>
+                    <td className="px-2 py-1">
+                      {thisToThat.refreshConsumesRequest ? "A manual refresh can use 1 request." : "-"}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {thisToThat.refreshError ? (
+              <div className="notice">
+                Snapshot refresh error: {thisToThat.refreshError}
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <p className="muted text-small">
+            ThisToThat usage is not available right now.
+          </p>
+        )}
       </section>
 
       <section className="card stack">
@@ -541,7 +633,6 @@ function UsersView({ topUsers, usersActivity }: { topUsers: Props["topUsers"]; u
                 <tr className="text-left text-slate-600">
                   <th className="px-2 py-1">Email</th>
                   <th className="px-2 py-1">Role</th>
-                  <th className="px-2 py-1">Tokens</th>
                   <th className="px-2 py-1">Total</th>
                   <th className="px-2 py-1">Last active</th>
                 </tr>
@@ -551,7 +642,6 @@ function UsersView({ topUsers, usersActivity }: { topUsers: Props["topUsers"]; u
                   <tr key={u.userId || u.email} className="border-t border-slate-200">
                     <td className="px-2 py-1">{u.email}</td>
                     <td className="px-2 py-1">{u.role}</td>
-                    <td className="px-2 py-1">{u.tokensRemaining}</td>
                     <td className="px-2 py-1">{u.totalTranscriptions}</td>
                     <td className="px-2 py-1 text-slate-600">
                       {u.lastActive ? new Date(u.lastActive).toLocaleString() : "-"}
@@ -560,7 +650,7 @@ function UsersView({ topUsers, usersActivity }: { topUsers: Props["topUsers"]; u
                 ))}
                 {topUsers.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-2 py-3 text-center text-slate-500">
+                    <td colSpan={4} className="px-2 py-3 text-center text-slate-500">
                       No data yet.
                     </td>
                   </tr>
@@ -579,7 +669,6 @@ function UsersView({ topUsers, usersActivity }: { topUsers: Props["topUsers"]; u
                 <tr className="text-left text-slate-600">
                   <th className="px-2 py-1">Email</th>
                   <th className="px-2 py-1">Role</th>
-                  <th className="px-2 py-1">Tokens</th>
                   <th className="px-2 py-1">Signups</th>
                   <th className="px-2 py-1">Transcriptions (range)</th>
                   <th className="px-2 py-1">Transcriptions (total)</th>
@@ -591,7 +680,6 @@ function UsersView({ topUsers, usersActivity }: { topUsers: Props["topUsers"]; u
                 <tr key={u.id} className="border-t border-slate-200">
                   <td className="px-2 py-1">{u.email}</td>
                   <td className="px-2 py-1">{u.role}</td>
-                  <td className="px-2 py-1">{u.tokensRemaining}</td>
                   <td className="px-2 py-1">{u.signupEvents}</td>
                   <td className="px-2 py-1">{u.rangeTranscriptions}</td>
                   <td className="px-2 py-1">{u.totalTranscriptions}</td>
@@ -600,7 +688,7 @@ function UsersView({ topUsers, usersActivity }: { topUsers: Props["topUsers"]; u
               ))}
               {usersActivity.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-2 py-3 text-center text-slate-500">
+                  <td colSpan={6} className="px-2 py-3 text-center text-slate-500">
                     No users yet.
                   </td>
                 </tr>
@@ -876,12 +964,17 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   let usersActivity: Awaited<ReturnType<typeof getUsersActivity>> = [];
   let gteStats: GteStats | null = null;
   let parity: Parity | null = null;
+  let thisToThat: Props["thisToThat"] = null;
 
   if (isAdmin) {
     const parityFrom = new Date();
     parityFrom.setDate(parityFrom.getDate() - 6);
+    const sessionUser = session.user;
+    const backendBaseUrl = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
+    const backendSecret = process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
+    const canFetchThisToThat = Boolean(sessionUser?.id && process.env.BACKEND_JWT_SECRET);
 
-    [summary, daily, funnel, dropoff, pageViews, devices, errors, topUsers, recentEvents, usersActivity, gteStats, parity] =
+    [summary, daily, funnel, dropoff, pageViews, devices, errors, topUsers, recentEvents, usersActivity, gteStats, parity, thisToThat] =
       await Promise.all([
         getSummaryStats(from, to),
         getDailyTimeSeries(from, to),
@@ -895,6 +988,46 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         getUsersActivity(from, to, 100),
         getGteEditorStats(from, to, 25),
         parityEnabled ? getParityMetrics(parityFrom, to) : Promise.resolve(null),
+        canFetchThisToThat
+          ? (async () => {
+              try {
+                const token = createBackendToken({
+                  sub: sessionUser!.id,
+                  email: sessionUser!.email,
+                  role: sessionUser!.role,
+                });
+                const response = await fetch(`${backendBaseUrl.replace(/\/$/, "")}/api/v1/analytics/thistothat`, {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    ...(backendSecret ? { "x-backend-secret": backendSecret } : {}),
+                  },
+                });
+                if (!response.ok) {
+                  return null;
+                }
+                const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+                if (!payload || typeof payload !== "object") {
+                  return null;
+                }
+                return {
+                  provider: typeof payload.provider === "string" ? payload.provider : "thistothat",
+                  configured: Boolean(payload.configured),
+                  remainingRequests:
+                    typeof payload.remainingRequests === "number" ? payload.remainingRequests : null,
+                  quotaLimit: typeof payload.quotaLimit === "number" ? payload.quotaLimit : null,
+                  resetAt: typeof payload.resetAt === "string" ? payload.resetAt : null,
+                  observedAt: typeof payload.observedAt === "string" ? payload.observedAt : null,
+                  source: typeof payload.source === "string" ? payload.source : null,
+                  fieldName: typeof payload.fieldName === "string" ? payload.fieldName : null,
+                  refreshConsumesRequest: Boolean(payload.refreshConsumesRequest),
+                  refreshUsed: Boolean(payload.refreshUsed),
+                  refreshError: typeof payload.refreshError === "string" ? payload.refreshError : null,
+                };
+              } catch {
+                return null;
+              }
+            })()
+          : Promise.resolve(null),
       ]);
   }
 
@@ -938,6 +1071,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
           }
         : null,
       parity,
+      thisToThat,
       moderation: {
         analytics: moderation.analytics.map((row) => ({
           ...row,
