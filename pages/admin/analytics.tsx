@@ -541,6 +541,7 @@ function UsersView({ topUsers, usersActivity }: { topUsers: Props["topUsers"]; u
                 <tr className="text-left text-slate-600">
                   <th className="px-2 py-1">Email</th>
                   <th className="px-2 py-1">Role</th>
+                  <th className="px-2 py-1">Tokens</th>
                   <th className="px-2 py-1">Total</th>
                   <th className="px-2 py-1">Last active</th>
                 </tr>
@@ -550,6 +551,7 @@ function UsersView({ topUsers, usersActivity }: { topUsers: Props["topUsers"]; u
                   <tr key={u.userId || u.email} className="border-t border-slate-200">
                     <td className="px-2 py-1">{u.email}</td>
                     <td className="px-2 py-1">{u.role}</td>
+                    <td className="px-2 py-1">{u.tokensRemaining}</td>
                     <td className="px-2 py-1">{u.totalTranscriptions}</td>
                     <td className="px-2 py-1 text-slate-600">
                       {u.lastActive ? new Date(u.lastActive).toLocaleString() : "-"}
@@ -558,7 +560,7 @@ function UsersView({ topUsers, usersActivity }: { topUsers: Props["topUsers"]; u
                 ))}
                 {topUsers.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-2 py-3 text-center text-slate-500">
+                    <td colSpan={5} className="px-2 py-3 text-center text-slate-500">
                       No data yet.
                     </td>
                   </tr>
@@ -573,21 +575,23 @@ function UsersView({ topUsers, usersActivity }: { topUsers: Props["topUsers"]; u
         <SectionHeader title="All users & activity (last 100 accounts)" />
         <div className="overflow-x-auto">
           <table className="table">
-            <thead>
-              <tr className="text-left text-slate-600">
-                <th className="px-2 py-1">Email</th>
-                <th className="px-2 py-1">Role</th>
-                <th className="px-2 py-1">Signups</th>
-                <th className="px-2 py-1">Transcriptions (range)</th>
-                <th className="px-2 py-1">Transcriptions (total)</th>
-                <th className="px-2 py-1">Last active</th>
-              </tr>
+              <thead>
+                <tr className="text-left text-slate-600">
+                  <th className="px-2 py-1">Email</th>
+                  <th className="px-2 py-1">Role</th>
+                  <th className="px-2 py-1">Tokens</th>
+                  <th className="px-2 py-1">Signups</th>
+                  <th className="px-2 py-1">Transcriptions (range)</th>
+                  <th className="px-2 py-1">Transcriptions (total)</th>
+                  <th className="px-2 py-1">Last active</th>
+                </tr>
             </thead>
             <tbody>
               {usersActivity.map((u) => (
                 <tr key={u.id} className="border-t border-slate-200">
                   <td className="px-2 py-1">{u.email}</td>
                   <td className="px-2 py-1">{u.role}</td>
+                  <td className="px-2 py-1">{u.tokensRemaining}</td>
                   <td className="px-2 py-1">{u.signupEvents}</td>
                   <td className="px-2 py-1">{u.rangeTranscriptions}</td>
                   <td className="px-2 py-1">{u.totalTranscriptions}</td>
@@ -596,7 +600,7 @@ function UsersView({ topUsers, usersActivity }: { topUsers: Props["topUsers"]; u
               ))}
               {usersActivity.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-2 py-3 text-center text-slate-500">
+                  <td colSpan={7} className="px-2 py-3 text-center text-slate-500">
                     No users yet.
                   </td>
                 </tr>
