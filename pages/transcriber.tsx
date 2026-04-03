@@ -432,7 +432,7 @@ export default function TranscriberPage() {
         if (data.credits) {
           setCredits(data.credits);
         }
-        setStatus("Transcription queued. Opening job status...");
+        setStatus("Getting things started. Opening progress screen...");
         sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
         const jobParams = new URLSearchParams();
         jobParams.set("mode", mode);
@@ -598,7 +598,10 @@ export default function TranscriberPage() {
           <div className="hero-glow hero-glow--two" aria-hidden="true" />
           <div className="container hero-stack hero-stack--centered">
             <div className="hero-heading" data-reveal>
-              <h1 className="hero-title">Transcriber</h1>
+              <div className="hero-title-row">
+                <h1 className="hero-title">Transcriber</h1>
+                <span className="badge transcriber-version">v0.0.1</span>
+              </div>
               <p className="hero-subtitle">
                 Upload audio or enter a YouTube segment and get a draft tab you can refine in the editor.
               </p>
@@ -733,7 +736,7 @@ export default function TranscriberPage() {
                     />
                   </label>
                   <div className="advanced-note">
-                    The backend downloads exactly this time window before transcription starts.
+                    We only use this exact time window before transcription starts.
                   </div>
                 </div>
               )}

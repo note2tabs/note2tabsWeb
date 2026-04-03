@@ -278,6 +278,57 @@ input[type="number"] {
   font-size: 0.85rem;
 }
 
+.job-progress-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.job-progress-fact {
+  display: grid;
+  gap: 6px;
+  padding: 14px 15px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 255, 0.94));
+}
+
+.job-progress-fact-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5f6f86;
+}
+
+.job-progress-fact-value {
+  font-size: 0.98rem;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.job-progress-fact-note {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.job-progress-note {
+  display: grid;
+  gap: 6px;
+  padding: 14px 15px;
+  border-radius: 18px;
+  background: rgba(42, 109, 244, 0.08);
+  border: 1px solid rgba(42, 109, 244, 0.14);
+}
+
+.job-progress-note p {
+  margin: 0;
+  color: #27467d;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 .job-progress-warning {
   margin: 0;
   padding: 10px 12px;
@@ -1090,10 +1141,23 @@ input[type="number"] {
   text-align: center;
 }
 
+.hero-title-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .hero-title {
   font-size: clamp(2.4rem, 5.4vw, 4.2rem);
   margin: 0;
   letter-spacing: -0.02em;
+}
+
+.transcriber-version {
+  background: rgba(15, 23, 42, 0.08);
+  color: #334155;
 }
 
 .hero-subtitle {

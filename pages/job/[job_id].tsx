@@ -147,13 +147,13 @@ function formatDuration(seconds: number) {
 }
 
 function formatStageLabel(stageKey: PendingStageKey) {
-  if (stageKey === "download") return "Download clip";
-  if (stageKey === "prepare") return "Prepare audio";
-  if (stageKey === "separate") return "Separate guitar";
-  if (stageKey === "predict") return "Run prediction";
-  if (stageKey === "note_events") return "Generate note events";
-  if (stageKey === "format") return "Build tabs";
-  return "Queue";
+  if (stageKey === "download") return "Get your clip";
+  if (stageKey === "prepare") return "Get audio ready";
+  if (stageKey === "separate") return "Focus on guitar";
+  if (stageKey === "predict") return "Find the notes";
+  if (stageKey === "note_events") return "Build first draft";
+  if (stageKey === "format") return "Get preview ready";
+  return "In line";
 }
 
 function buildPendingPresentation(
@@ -175,8 +175,7 @@ function buildPendingPresentation(
   const startedMs = parseIsoToMs(job.startedAt);
   const elapsedSeconds = Math.max(0, Math.round((nowMs - (startedMs ?? createdMs)) / 1000));
   const attempts = Number.isFinite(Number(job.attempts)) ? Math.max(0, Number(job.attempts)) : 0;
-  const attemptLabel =
-    attempts > 1 ? `Worker attempt ${attempts}. The backend may be retrying after an earlier failure.` : null;
+  const attemptLabel = attempts > 1 ? "Trying again after a hiccup." : null;
 
   if (exactStages.length > 0) {
     const activeStageIndex = exactStages.findIndex((stage) => stage.state === "active");
@@ -201,17 +200,17 @@ function buildPendingPresentation(
     const phaseLabel =
       (typeof getFirstJobValue(job, ["currentStepLabel"]) === "string"
         ? (getFirstJobValue(job, ["currentStepLabel"]) as string)
-        : "") || exactStages[activeStageIndex]?.label || (isQueued ? "Queued for processing" : "Processing");
+        : "") || exactStages[activeStageIndex]?.label || (isQueued ? "Getting started" : "Working on your tabs");
     const detail =
       (typeof getFirstJobValue(job, ["currentStepDetail"]) === "string"
         ? (getFirstJobValue(job, ["currentStepDetail"]) as string)
         : "") ||
       (isQueued
-        ? "Your transcription is waiting for an available worker."
-        : "Processing the current transcription step.");
+        ? "Your transcription is in line and should start shortly."
+        : "Still working through the next step.");
 
     return {
-      badgeLabel: isQueued ? "Queued" : "Processing",
+      badgeLabel: isQueued ? "In line" : "Working",
       phaseLabel,
       detail,
       progressPercent,
@@ -259,42 +258,42 @@ function buildPendingPresentation(
   const activeStage: PendingStageKey = isQueued ? "queue" : stageKeys[activeStageIndex];
   const phaseCopy = {
     queue: {
-      phaseLabel: "Queued for processing",
-      detail: "Your transcription is waiting for an available worker. It should start automatically in a few seconds.",
+      phaseLabel: "Getting started",
+      detail: "Your transcription is in line and should start shortly.",
     },
     download: {
-      phaseLabel: "Downloading the YouTube clip",
-      detail: "Fetching the requested segment with the backend downloader and preparing it for analysis.",
+      phaseLabel: "Getting your clip",
+      detail: "Pulling in the part you picked.",
     },
     prepare: {
-      phaseLabel: "Preparing the audio",
-      detail: "Loading the audio and getting it into the shared transcription pipeline.",
+      phaseLabel: "Getting the audio ready",
+      detail: "Cleaning things up so the notes are easier to hear.",
     },
     separate: {
-      phaseLabel: "Separating the guitar stem",
-      detail: "Running Demucs so the transcription focuses on the isolated guitar.",
+      phaseLabel: "Focusing on the guitar",
+      detail: "Bringing the guitar forward before building the tab.",
     },
     predict: {
-      phaseLabel: "Running the pitch prediction",
-      detail: "Creating the saved prediction file that the review step can reuse.",
+      phaseLabel: "Listening for the notes",
+      detail: "Finding the notes and their timing.",
     },
     note_events: {
-      phaseLabel: "Generating default note events",
-      detail: "Building the first preview from the saved prediction output.",
+      phaseLabel: "Building the first draft",
+      detail: "Turning what we heard into a first pass.",
     },
     format: {
-      phaseLabel: "Finalizing the review state",
-      detail: "Saving the preview artifacts and preparing the review screen.",
+      phaseLabel: "Getting your preview ready",
+      detail: "Putting everything together for the next screen.",
     },
   } as const;
 
   const warningLabel =
     !isQueued && elapsedSeconds > estimatedDurationSeconds + 20
-      ? "This job is taking longer than usual, but it is still running."
+      ? "This is taking longer than usual, but it is still moving."
       : null;
 
   return {
-    badgeLabel: isQueued ? "Queued" : "Processing",
+    badgeLabel: isQueued ? "In line" : "Working",
     phaseLabel: phaseCopy[activeStage].phaseLabel,
     detail: phaseCopy[activeStage].detail,
     progressPercent,
@@ -939,13 +938,13 @@ export default function JobPage() {
     ? `${displayJob.song_title} - Note2Tabs`
     : isFinalizedJob
     ? "Tabs Ready - Note2Tabs"
-    : "Processing - Note2Tabs";
+    : "Preparing Tabs - Note2Tabs";
 
   return (
     <>
       <Head>
         <title>{title}</title>
-        <meta name="description" content="Processing your transcription job on Note2Tabs." />
+        <meta name="description" content="Preparing your tabs on Note2Tabs." />
       </Head>
       {loadAdScript && (
         <Script
@@ -957,11 +956,11 @@ export default function JobPage() {
         <div className="container stack">
           <div className="page-header">
             <div>
-              <h1 className="page-title">{showReviewUi ? "Tune your sound" : "Job status"}</h1>
+              <h1 className="page-title">{showReviewUi ? "Tune your sound" : "Preparing your tabs"}</h1>
               <p className="page-subtitle">
                 {showReviewUi
                   ? "Listen to the preview, adjust the controls, then continue to tabs."
-                  : `Job ID: ${job_id}`}
+                  : "This page updates automatically while we work."}
               </p>
             </div>
             <button type="button" onClick={() => void router.push("/")} className="button-ghost button-small">
@@ -1061,7 +1060,7 @@ export default function JobPage() {
                       <div className="job-progress-fill" style={{ width: "100%" }} />
                     </div>
                     <div className="job-progress-meta">
-                      <span>Working on the backend</span>
+                      <span>Updating your preview</span>
                       <span>You can stay on this page while it runs</span>
                     </div>
                   </div>

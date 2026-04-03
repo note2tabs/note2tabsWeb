@@ -437,7 +437,7 @@ export default function HomePage() {
         if (data.credits) {
           setCredits(data.credits);
         }
-        setStatus("Transcription queued. Opening job status...");
+        setStatus("Getting things started. Opening progress screen...");
         sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
         const jobParams = new URLSearchParams();
         jobParams.set("mode", mode);
@@ -629,7 +629,10 @@ export default function HomePage() {
               </p>
             </section>
             <div className="hero-heading" data-reveal>
-              <h2 className="hero-title">Convert Any Song to Tabs</h2>
+              <div className="hero-title-row">
+                <h2 className="hero-title">Convert Any Song to Tabs</h2>
+                <span className="badge transcriber-version">v0.0.1</span>
+              </div>
               <p className="hero-subtitle">
                 Paste a YouTube link or upload audio, then shape the result in the editor.
               </p>
@@ -764,7 +767,7 @@ export default function HomePage() {
                           />
                         </label>
                         <div className="advanced-note">
-                          The backend downloads exactly this time window before transcription starts.
+                          We only use this exact time window before transcription starts.
                         </div>
                       </div>
                       )}
