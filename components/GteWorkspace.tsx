@@ -114,6 +114,7 @@ const SCALE_TOOL_MODE_STORAGE_KEY = "gte-scale-tool-mode-v1";
 const SCALE_FACTOR_MIN = 0.1;
 const SCALE_FACTOR_MAX = 8;
 const SCALE_FACTOR_DRAG_PIXELS = 240;
+const SINGLE_DRAG_ACTIVATION_DISTANCE_PX = 3;
 const SCALE_TOOL_MODES = ["length", "start", "both"] as const;
 
 const fpsFromSecondsPerBar = (secondsPerBar: number) => {
@@ -781,7 +782,8 @@ export default function GteWorkspace({
   const dragPreviewRef = useRef<DragPreview | null>(dragPreview);
   const multiDragDeltaRef = useRef<number | null>(multiDragDelta);
   const multiDragMovedRef = useRef(false);
-  const noteDragMovedRef = useRef(false);
+  const singleDragMovedRef = useRef(false);
+  const dragStartPointerRef = useRef<{ x: number; y: number } | null>(null);
   const multiDragStartXRef = useRef(0);
   const resizePreviewRef = useRef<number | null>(resizePreviewLength);
   const resizeChordPreviewRef = useRef<number | null>(resizeChordPreviewLength);
@@ -2491,6 +2493,13 @@ export default function GteWorkspace({
     if (!dragging) return;
     const handleMove = (event: globalThis.MouseEvent) => {
       if (!timelineRef.current) return;
+      const dragStartPointer = dragStartPointerRef.current;
+      const hasMoved =
+        !dragStartPointer ||
+        Math.abs(event.clientX - dragStartPointer.x) > SINGLE_DRAG_ACTIVATION_DISTANCE_PX ||
+        Math.abs(event.clientY - dragStartPointer.y) > SINGLE_DRAG_ACTIVATION_DISTANCE_PX;
+      if (!hasMoved) return;
+      singleDragMovedRef.current = true;
       const rect = timelineRef.current.getBoundingClientRect();
       const x = clamp(event.clientX - rect.left, 0, timelineWidth);
       const y = clamp(event.clientY - rect.top, 0, Math.max(0, timelineHeight));
@@ -2525,6 +2534,14 @@ export default function GteWorkspace({
     const handleUp = () => {
       const preview = dragPreviewRef.current;
       if (!preview) {
+        dragStartPointerRef.current = null;
+        singleDragMovedRef.current = false;
+        setDragging(null);
+        setDragPreview(null);
+        return;
+      }
+      if (!singleDragMovedRef.current) {
+        dragStartPointerRef.current = null;
         setDragging(null);
         setDragPreview(null);
         return;
@@ -2544,7 +2561,7 @@ export default function GteWorkspace({
           onRequestGlobalSelectedShift &&
           onRequestGlobalSelectedShift(targetStart - dragging.startTime) !== false
         ) {
-          noteDragMovedRef.current = true;
+          dragStartPointerRef.current = null;
           setDragging(null);
           setDragPreview(null);
           return;
@@ -2585,7 +2602,6 @@ export default function GteWorkspace({
             },
           });
         }
-        noteDragMovedRef.current = didChangeString || didChangeStart;
       } else if (dragging.type === "chord") {
         const safeLength = Math.max(1, Math.round(dragging.length));
         const rawStart = Math.round(preview.startTime ?? dragging.startTime);
@@ -2597,6 +2613,7 @@ export default function GteWorkspace({
             onRequestGlobalSelectedShift &&
             onRequestGlobalSelectedShift(targetStart - dragging.startTime) !== false
           ) {
+            dragStartPointerRef.current = null;
             setDragging(null);
             setDragPreview(null);
             return;
@@ -2620,6 +2637,7 @@ export default function GteWorkspace({
           });
         }
       }
+      dragStartPointerRef.current = null;
       setDragging(null);
       setDragPreview(null);
     };
@@ -3341,6 +3359,8 @@ export default function GteWorkspace({
     const pointerFrame =
       rect ? Math.round((event.clientX - rect.left) / scale) + rowStart : startTime;
     const grabOffsetFrames = pointerFrame - startTime;
+    singleDragMovedRef.current = false;
+    dragStartPointerRef.current = { x: event.clientX, y: event.clientY };
     setSelectedNoteIds([noteId]);
     setSelectedChordIds([]);
     setDraftNote(null);
@@ -3413,6 +3433,8 @@ export default function GteWorkspace({
     const pointerFrame =
       rect ? Math.round((event.clientX - rect.left) / scale) + rowStart : startTime;
     const grabOffsetFrames = pointerFrame - startTime;
+    singleDragMovedRef.current = false;
+    dragStartPointerRef.current = { x: event.clientX, y: event.clientY };
     setSelectedChordIds([chordId]);
     setSelectedNoteIds([]);
     setDraftNote(null);
@@ -6571,11 +6593,11 @@ export default function GteWorkspace({
                             multiDragMovedRef.current = false;
                             return;
                           }
-                          if (noteDragMovedRef.current) {
-                            noteDragMovedRef.current = false;
-                          } else {
-                            playNotePreview([note.tab[0], note.tab[1]]);
+                          if (singleDragMovedRef.current) {
+                            singleDragMovedRef.current = false;
+                            return;
                           }
+                          playNotePreview([note.tab[0], note.tab[1]]);
                           if (selectedNoteIds.length > 1) return;
                           openNoteMenu(note.id, note.tab[1], note.length, event);
                         }}
@@ -6678,6 +6700,10 @@ export default function GteWorkspace({
                           onClick={(event) => {
                             if (multiDragMovedRef.current) {
                               multiDragMovedRef.current = false;
+                              return;
+                            }
+                            if (singleDragMovedRef.current) {
+                              singleDragMovedRef.current = false;
                               return;
                             }
                             if (selectedChordIds.length > 1) return;
