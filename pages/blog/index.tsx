@@ -206,14 +206,40 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
       skip: (page - 1) * BLOG_PAGE_SIZE,
       take: BLOG_PAGE_SIZE,
-      include: {
-        categories: { include: { category: true } },
-        tags: { include: { tag: true } },
-        clusters: { include: { cluster: true } },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        excerpt: true,
+        content: true,
+        coverImageUrl: true,
+        publishedAt: true,
+        categories: {
+          select: {
+            category: {
+              select: { id: true, name: true, slug: true },
+            },
+          },
+        },
+        tags: {
+          select: {
+            tag: {
+              select: { id: true, name: true, slug: true },
+            },
+          },
+        },
+        clusters: {
+          select: {
+            isPillar: true,
+            cluster: {
+              select: { id: true, name: true, slug: true },
+            },
+          },
+        },
       },
     }),
-    prisma.category.findMany({ orderBy: { name: "asc" } }),
-    prisma.tag.findMany({ orderBy: { name: "asc" } }),
+    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, slug: true } }),
+    prisma.tag.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, slug: true } }),
     prisma.post.findMany({
       where: {
         ...getPublishedWhere(),
@@ -221,10 +247,36 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       },
       orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
       take: 3,
-      include: {
-        categories: { include: { category: true } },
-        tags: { include: { tag: true } },
-        clusters: { include: { cluster: true } },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        excerpt: true,
+        content: true,
+        coverImageUrl: true,
+        publishedAt: true,
+        categories: {
+          select: {
+            category: {
+              select: { id: true, name: true, slug: true },
+            },
+          },
+        },
+        tags: {
+          select: {
+            tag: {
+              select: { id: true, name: true, slug: true },
+            },
+          },
+        },
+        clusters: {
+          select: {
+            isPillar: true,
+            cluster: {
+              select: { id: true, name: true, slug: true },
+            },
+          },
+        },
       },
     }),
   ]);
