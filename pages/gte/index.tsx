@@ -101,7 +101,7 @@ export default function GteIndexPage() {
 
   const handleDelete = async (editor: EditorListItem) => {
     if (deletingId) return;
-    const label = editor.name ? `"${editor.name}"` : `Editor ${editor.id.slice(0, 8)}`;
+    const label = editor.name ? `"${editor.name}"` : `Tab ${editor.id.slice(0, 8)}`;
     if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
     setDeletingId(editor.id);
     setError(null);
@@ -160,17 +160,17 @@ export default function GteIndexPage() {
         <div className="page-header">
           <div>
             <h1 className="page-title">Guitar Tab Editor</h1>
-            <p className="page-subtitle">Manage your saved GTE projects.</p>
+            <p className="page-subtitle">Open saved songs, start a new tab, or bring in a draft you made earlier.</p>
           </div>
           <div className="button-row">
             <Link href={`/gte/${GTE_GUEST_EDITOR_ID}`} className="button-secondary button-small">
-              Guest editor
+              Guest mode
             </Link>
             <Link href="/account" className="button-secondary button-small">
               Back to account
             </Link>
             <button type="button" onClick={handleCreate} disabled={creating} className="button-primary button-small">
-              {creating ? "Creating..." : "New editor"}
+              {creating ? "Creating..." : "New tab"}
             </button>
           </div>
         </div>
@@ -187,7 +187,7 @@ export default function GteIndexPage() {
                     Guest draft found{guestDraft.name ? `: ${guestDraft.name}` : ""}
                   </p>
                   <p className="muted text-small" style={{ margin: 0 }}>
-                    Import it into your account to add it to your editor library.
+                    Import it into your account so it shows up in your library.
                   </p>
                 </div>
                 <div className="button-row">
@@ -200,7 +200,7 @@ export default function GteIndexPage() {
                     {guestImporting ? "Importing..." : "Import draft"}
                   </button>
                   <Link href={`/gte/${GTE_GUEST_EDITOR_ID}`} className="button-secondary button-small">
-                    Keep editing guest
+                    Keep editing in guest mode
                   </Link>
                   <button
                     type="button"
@@ -217,7 +217,7 @@ export default function GteIndexPage() {
           {loading && <p className="muted text-small">Loading editors...</p>}
           {error && <div className="error">{error}</div>}
           {!loading && !editors.length && (
-            <p className="muted text-small">No editors yet. Create your first GTE.</p>
+            <p className="muted text-small">No saved tabs yet. Start your first one.</p>
           )}
           <div className="stack" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
             {editors.map((editor) => (
@@ -226,7 +226,7 @@ export default function GteIndexPage() {
                   <div>
                     <h2 style={{ margin: 0, fontSize: "1rem" }}>
                       <Link href={`/gte/${editor.id}`}>
-                        {editor.name ? editor.name : `Editor ${editor.id.slice(0, 8)}`}
+                        {editor.name ? editor.name : `Tab ${editor.id.slice(0, 8)}`}
                       </Link>
                     </h2>
                     <p className="muted text-small" style={{ margin: 0 }}>

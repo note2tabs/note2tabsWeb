@@ -37,13 +37,13 @@ export default function LoginPage() {
       email,
       password,
       fingerprintId,
-      callbackUrl: "/",
+      callbackUrl: nextHref,
     });
     setLoading(false);
     if (res?.error) {
       setError(res.error);
     } else {
-      router.push("/");
+      router.push(res?.url || nextHref);
     }
   };
 
@@ -83,7 +83,7 @@ export default function LoginPage() {
           </form>
           <button
             type="button"
-            onClick={() => signIn("google", { callbackUrl: "/" })}
+            onClick={() => signIn("google", { callbackUrl: nextHref })}
             className="button-secondary"
           >
             Continue with Google

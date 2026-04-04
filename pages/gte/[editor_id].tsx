@@ -1342,9 +1342,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const saveStatus = useMemo(() => {
     if (isGuestMode) {
-      if (savingCanvas) return "Saving guest session...";
-      if (hasPendingCommit) return "Unsaved guest session changes";
-      return "Guest session only";
+      if (savingCanvas) return "Saving in this browser...";
+      if (hasPendingCommit) return "Unsaved changes in this browser";
+      return "Saved in this browser only";
     }
     if (savingCanvas) return "Saving...";
     if (hasPendingCommit) return "Unsaved canvas changes";
@@ -2032,7 +2032,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       <div className="container gte-wide stack pb-16">
         <div className="page-header">
           <div>
-            <h1 className="page-title">GTE Workspace</h1>
+            <h1 className="page-title">Guitar Tab Editor</h1>
             <div className="page-subtitle" style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
               <input
                 type="text"
@@ -2179,7 +2179,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
         {isGuestMode && (
           <div className="notice">
-            Guest mode is local-only. This draft is saved in your browser until you import it into an account.
+            You are working without an account right now. This draft stays in this browser until you save it to your library.
           </div>
         )}
         {loading && <p className="muted text-small">Loading editor...</p>}

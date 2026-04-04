@@ -96,7 +96,7 @@ export default function SignupPage() {
           </form>
           <button
             type="button"
-            onClick={() => signIn("google", { callbackUrl: "/" })}
+            onClick={() => signIn("google", { callbackUrl: nextHref })}
             className="button-secondary"
           >
             Continue with Google

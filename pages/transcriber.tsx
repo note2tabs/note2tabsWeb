@@ -606,7 +606,7 @@ export default function TranscriberPage() {
                 Upload audio or enter a YouTube segment and get a draft tab you can refine in the editor.
               </p>
               <div className="button-row hero-cta-row">
-                <Link href="/gte" className="button-primary">
+                <Link href="/editor" className="button-primary">
                   Open Guitar Tab Editor
                 </Link>
                 <Link href="/" className="button-secondary">

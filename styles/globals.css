@@ -1160,6 +1160,212 @@ input[type="number"] {
   color: #334155;
 }
 
+.editor-version {
+  background: rgba(31, 191, 159, 0.14);
+  color: #0f766e;
+}
+
+.editor-landing-hero {
+  padding-top: 74px;
+  padding-bottom: 86px;
+}
+
+.editor-landing-logo-bg {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  width: min(540px, 56vw);
+  transform: translate(-50%, -50%);
+  opacity: 0.08;
+  filter: blur(7px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.editor-landing-shell {
+  position: relative;
+  z-index: 1;
+}
+
+.editor-landing-kicker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  color: #5b6b82;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.editor-landing-support {
+  margin: 8px auto 0;
+  max-width: 720px;
+  color: #5b6b82;
+  font-size: 0.96rem;
+  line-height: 1.7;
+}
+
+.editor-landing-byline {
+  margin: -6px 0 0;
+  color: #5b6b82;
+  font-size: 0.94rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.editor-landing-hero-actions {
+  margin-top: 22px;
+}
+
+.editor-landing-subtitle {
+  margin-top: 16px;
+}
+
+.editor-landing-feature-list {
+  margin: 0;
+  max-width: 760px;
+  padding-left: 22px;
+  text-align: left;
+  display: grid;
+  gap: 10px;
+  color: #334155;
+  line-height: 1.66;
+}
+
+.editor-landing-feature-box {
+  display: grid;
+  gap: 18px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(240, 248, 255, 0.92));
+}
+
+.editor-landing-feature-box-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.editor-landing-feature-box-copy h2 {
+  margin: 0;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+  font-size: clamp(1.45rem, 2.2vw, 2rem);
+}
+
+.editor-landing-feature-box-copy p:last-child {
+  margin: 0;
+  color: #52627a;
+  line-height: 1.7;
+}
+
+.editor-landing-error {
+  margin: 16px auto 0;
+  max-width: 560px;
+  text-align: left;
+}
+
+.editor-landing-sections {
+  gap: 22px;
+}
+
+.editor-landing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.editor-landing-card {
+  display: grid;
+  gap: 10px;
+  min-height: 100%;
+  border-color: rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 250, 255, 0.92));
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.06);
+}
+
+.editor-landing-card--soft {
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.editor-landing-card-label,
+.editor-landing-section-label {
+  margin: 0;
+  color: #167a70;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.editor-landing-card h2,
+.editor-landing-card h3,
+.editor-landing-story h2,
+.editor-landing-cta h2,
+.editor-landing-heading {
+  margin: 0;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+}
+
+.editor-landing-card h2,
+.editor-landing-story h2,
+.editor-landing-cta h2 {
+  font-size: clamp(1.35rem, 2vw, 1.9rem);
+}
+
+.editor-landing-card h3 {
+  font-size: 1.16rem;
+}
+
+.editor-landing-card p,
+.editor-landing-story p,
+.editor-landing-cta p {
+  margin: 0;
+  color: #52627a;
+  line-height: 1.72;
+}
+
+.editor-landing-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.editor-landing-story {
+  display: grid;
+  gap: 14px;
+}
+
+.editor-landing-story--contrast {
+  background: linear-gradient(180deg, rgba(239, 247, 255, 0.82), rgba(255, 255, 255, 0.95));
+}
+
+.editor-landing-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 12px;
+  color: #334155;
+  line-height: 1.68;
+}
+
+.editor-landing-questions {
+  display: grid;
+  gap: 18px;
+}
+
+.editor-landing-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(236, 252, 248, 0.92));
+}
+
 .hero-subtitle {
   margin: 14px auto 0;
   max-width: 760px;
@@ -3324,6 +3530,34 @@ input[type="number"] {
 }
 
 @media (max-width: 720px) {
+  .editor-landing-hero {
+    padding-top: 54px;
+    padding-bottom: 62px;
+  }
+
+  .editor-landing-logo-bg {
+    width: min(360px, 72vw);
+    top: 54%;
+    opacity: 0.07;
+  }
+
+  .editor-landing-grid,
+  .editor-landing-split {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-landing-cta {
+    align-items: flex-start;
+  }
+
+  .editor-landing-kicker {
+    letter-spacing: 0.1em;
+  }
+
+  .editor-landing-hero-actions {
+    justify-content: center;
+  }
+
   .nav-links {
     display: none;
     position: absolute;

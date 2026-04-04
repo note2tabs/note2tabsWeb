@@ -16,7 +16,6 @@ export default function NavBar() {
   const { data: session } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const isReadingArticle = router.pathname === "/blog/[slug]";
-  const editorHref = session?.user?.id ? "/gte" : "/gte/local";
   const role = session?.user?.role || "";
   const isAdmin = role === "ADMIN";
   const isModerator = role === "MODERATOR" || role === "MOD";
@@ -39,8 +38,11 @@ export default function NavBar() {
         <nav
           className={`nav-links ${menuOpen ? "open" : ""}${isReadingArticle ? " nav-links--reading" : ""}`}
         >
-          <Link href={editorHref} className="nav-pill">
+          <Link href="/editor" className="nav-pill">
             Editor
+          </Link>
+          <Link href="/transcriber" className="nav-pill">
+            Transcriber
           </Link>
           <a href="/#how">How it works</a>
           <a href="/#pricing">Pricing</a>

@@ -136,8 +136,8 @@ export default function AccountPage({ user, stripeReady, credits }: Props) {
             <button type="button" onClick={handleUpgrade} className="button-primary" disabled={busy}>
               {stripeReady ? "Upgrade to Premium" : "Premium (coming soon)"}
             </button>
-            <Link href="/gte" className="button-secondary">
-              Open GTE editor
+            <Link href="/editor" className="button-secondary">
+              Open editor
             </Link>
             {isAdminOrMod && (
               <Link href={analyticsHref} className="button-secondary">
