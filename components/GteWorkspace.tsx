@@ -203,6 +203,9 @@ const buildDefaultCutRegions = (draft: EditorSnapshot): CutWithCoord[] => {
   return [[[0, totalFrames], clampTabCoordInSnapshot(draft, DEFAULT_CUT_COORD)]];
 };
 
+const isSameTabCoord = (left: TabCoord, right: TabCoord) =>
+  left[0] === right[0] && left[1] === right[1];
+
 const normalizeCutRegions = (draft: EditorSnapshot, regions: CutWithCoord[]): CutWithCoord[] => {
   const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(draft.totalFrames || FIXED_FRAMES_PER_BAR));
   const normalized = regions
@@ -218,6 +221,23 @@ const normalizeCutRegions = (draft: EditorSnapshot, regions: CutWithCoord[]): Cu
 
 const getCutRegions = (draft: EditorSnapshot) =>
   normalizeCutRegions(draft, Array.isArray(draft.cutPositionsWithCoords) ? draft.cutPositionsWithCoords : []);
+
+const mergeRedundantCutRegions = (draft: EditorSnapshot, regions: CutWithCoord[]): CutWithCoord[] => {
+  const merged: CutWithCoord[] = [];
+  normalizeCutRegions(draft, regions).forEach(([region, coord]) => {
+    const start = Math.round(region[0]);
+    const end = Math.round(region[1]);
+    const safeCoord = clampTabCoordInSnapshot(draft, coord);
+    if (end <= start) return;
+    const last = merged[merged.length - 1];
+    if (last && isSameTabCoord(last[1], safeCoord)) {
+      last[0][1] = Math.max(Math.round(last[0][1]), end);
+      return;
+    }
+    merged.push([[start, end], cloneTabCoord(safeCoord)]);
+  });
+  return merged.length ? merged : buildDefaultCutRegions(draft);
+};
 
 const setCutRegionsInSnapshot = (draft: EditorSnapshot, regions: CutWithCoord[]) => {
   draft.cutPositionsWithCoords = normalizeCutRegions(draft, regions);
@@ -311,6 +331,10 @@ const generateCutsInSnapshot = (draft: EditorSnapshot) => {
     next.push([[start, end], coord]);
   }
   setCutRegionsInSnapshot(draft, next);
+};
+
+const mergeRedundantCutRegionsInSnapshot = (draft: EditorSnapshot) => {
+  draft.cutPositionsWithCoords = mergeRedundantCutRegions(draft, draft.cutPositionsWithCoords);
 };
 
 const getTabMidi = (snapshot: EditorSnapshot, tab: TabCoord) => {
@@ -1053,6 +1077,24 @@ export default function GteWorkspace({
     () => snapshot.notes.find((note) => note.id === selectedNoteIds[0]) || null,
     [snapshot.notes, selectedNoteIds]
   );
+  const fallbackNoteAlternates = useMemo(() => {
+    if (!selectedNote?.optimals?.length) return null;
+    const seen = new Set<string>();
+    const possibleTabs = selectedNote.optimals
+      .filter((tab) => isTabCoordValidForSnapshot(snapshot, tab))
+      .filter((tab) => {
+        const key = `${tab[0]}:${tab[1]}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((tab) => cloneTabCoord(tab));
+    if (!possibleTabs.length) return null;
+    return {
+      possibleTabs,
+      blockedTabs: [] as TabCoord[],
+    };
+  }, [selectedNote, snapshot.tabRef]);
 
   const activeChordIds = useMemo(
     () => selectedChordIds.filter((id) => snapshot.chords.some((chord) => chord.id === id)),
@@ -1072,6 +1114,19 @@ export default function GteWorkspace({
         )
         .filter((item): item is { index: number; time: number } => Boolean(item)),
     [segmentEdits]
+  );
+  const hasRedundantCutRegions = useMemo(() => {
+    const regions = getCutRegions(snapshot);
+    for (let index = 1; index < regions.length; index += 1) {
+      if (isSameTabCoord(regions[index - 1][1], regions[index][1])) {
+        return true;
+      }
+    }
+    return false;
+  }, [snapshot]);
+  const mergedCutRegionsPayload = useMemo(
+    () => mergeRedundantCutRegions(snapshot, snapshot.cutPositionsWithCoords),
+    [snapshot]
   );
 
   const chordizeCandidateCount = useMemo(() => {
@@ -1221,22 +1276,34 @@ export default function GteWorkspace({
   );
 
   useEffect(() => {
-    if (selectedNoteIds.length === 1) {
-      const selectedId = selectedNoteIds[0];
-      const resolvedId =
-        selectedId < 0 ? noteIdMapRef.current.get(selectedId) ?? selectedId : selectedId;
-      if (resolvedId < 0) {
-        setNoteAlternates(null);
-        return;
-      }
-      void gteApi
-        .getNoteOptimals(editorId, resolvedId)
-        .then((data) => setNoteAlternates(data))
-        .catch(() => setNoteAlternates(null));
-    } else {
+    if (selectedNoteIds.length !== 1) {
       setNoteAlternates(null);
+      return;
     }
-  }, [editorId, selectedNoteIds]);
+    let cancelled = false;
+    const selectedId = selectedNoteIds[0];
+    const resolvedId =
+      selectedId < 0 ? noteIdMapRef.current.get(selectedId) ?? selectedId : selectedId;
+    setNoteAlternates(fallbackNoteAlternates);
+    if (resolvedId < 0) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    void gteApi
+      .getNoteOptimals(editorId, resolvedId)
+      .then((data) => {
+        if (cancelled) return;
+        setNoteAlternates(data);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setNoteAlternates(fallbackNoteAlternates);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editorId, fallbackNoteAlternates, selectedNoteIds]);
 
   useEffect(() => {
     if (!selectedNote || selectedNote.id !== noteMenuNoteId) {
@@ -4423,6 +4490,20 @@ export default function GteWorkspace({
     });
   };
 
+  const handleMergeRedundantCutRegions = () => {
+    if (!hasRedundantCutRegions) return;
+    const payload: CutWithCoord[] = mergedCutRegionsPayload.map((region) => [
+      [region[0][0], region[0][1]],
+      [region[1][0], region[1][1]],
+    ]);
+    void runMutation(() => gteApi.applyManualCuts(editorId, payload), {
+      localApply: (draft) => {
+        mergeRedundantCutRegionsInSnapshot(draft);
+      },
+    });
+    setSelectedCutBoundaryIndex(null);
+  };
+
   const handleAddBar = () => {
     void runMutation(() => gteApi.addBars(editorId, 1), {
       localApply: (draft) => {
@@ -5363,16 +5444,6 @@ export default function GteWorkspace({
 
   return (
     <div className={workspaceClass} onMouseDownCapture={() => onFocusWorkspace?.()}>
-      {showToolbarUi && !toolbarOpen && (
-        <button
-          type="button"
-          onClick={() => setToolbarOpen(true)}
-          className="fixed bottom-4 left-1/2 z-[9997] -translate-x-1/2 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-        >
-          Toolbar
-        </button>
-      )}
-
       {toolbarOpen && showToolbarUi && (
         <div
           ref={toolbarRef}
@@ -5585,6 +5656,21 @@ export default function GteWorkspace({
                 </button>
                 <button
                 type="button"
+                onClick={handleMergeRedundantCutRegions}
+                disabled={!hasRedundantCutRegions}
+                  title="Merge adjacent cut regions with the same coord"
+                  className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                >
+                  <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">No shortcut</span>
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
+                    <path d="M4 8h10v3H4z" />
+                    <path d="M4 13h10v3H4z" />
+                    <path d="M16 6l4 6-4 6v-4h-4v-4h4z" />
+                  </svg>
+                  <span className="text-[9px] leading-none">Clean</span>
+                </button>
+                <button
+                type="button"
                 onClick={toggleCutTool}
                   title="Cut tool - Shortcut: K"
                   className={`group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md ${
@@ -5731,112 +5817,127 @@ export default function GteWorkspace({
         </div>
       )}
       {showToolbarUi && (
-      <div className="fixed right-4 bottom-16 z-[9996] flex items-center gap-1 rounded-full border border-slate-200 bg-white/90 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
-        <button
-          type="button"
-          onClick={requestUndo}
-          disabled={effectiveUndoCount === 0 || busy}
-          className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-          title="Undo (Ctrl/Cmd+Z)"
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-            <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={requestRedo}
-          disabled={effectiveRedoCount === 0 || busy}
-          className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-          title="Redo (Ctrl/Cmd+Shift+Z)"
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-            <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
-          </svg>
-        </button>
-        <span className="mx-1 whitespace-nowrap text-[10px] text-slate-500">
-          {!allowBackend
-            ? hasUnsavedChanges
-              ? "Saving local draft..."
-              : "Local draft saved"
-            : isAutosaving
-              ? "Saving..."
-              : hasUnsavedChanges
-                ? "Unsaved changes"
-                : lastSavedAt
-                  ? `Saved ${new Date(lastSavedAt).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}`
-                  : "Saved"}
-        </span>
-        <button
-          type="button"
-          onClick={skipToStart}
-          className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
-          title="Go to start"
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-            <rect x="4" y="5" width="2" height="14" />
-            <polygon points="18,5 8,12 18,19" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={skipBackwardBar}
-          className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
-          title="Previous bar"
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-            <polygon points="17,5 7,12 17,19" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            togglePlayback();
-          }}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
-          title={effectiveIsPlaying ? "Pause" : "Play"}
-        >
-          {effectiveIsPlaying ? (
-            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-              <rect x="6" y="5" width="4" height="14" />
-              <rect x="14" y="5" width="4" height="14" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-              <polygon points="8,5 19,12 8,19" />
-            </svg>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={skipForwardBar}
-          className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
-          title="Next bar"
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-            <polygon points="7,5 17,12 7,19" />
-          </svg>
-        </button>
-        <div className="flex items-center gap-1 px-1">
-          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
-            <path d="M4 10v4h4l5 4V6L8 10H4z" />
-            <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
-          </svg>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={effectivePlaybackVolume}
-            onChange={(event) => setEffectivePlaybackVolume(Number(event.target.value))}
-            className="w-20 accent-slate-700"
-            title="Volume"
-          />
+        <div className="fixed right-4 bottom-16 z-[9997] flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setToolbarOpen((prev) => !prev)}
+            aria-pressed={toolbarOpen}
+            title={toolbarOpen ? "Hide toolbar" : "Show toolbar"}
+            className={`flex h-9 items-center justify-center rounded-full border px-3 text-[11px] font-semibold shadow-sm backdrop-blur transition ${
+              toolbarOpen
+                ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
+                : "border-slate-200 bg-white/90 text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            Toolbar
+          </button>
+          <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/90 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
+            <button
+              type="button"
+              onClick={requestUndo}
+              disabled={effectiveUndoCount === 0 || busy}
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Undo (Ctrl/Cmd+Z)"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={requestRedo}
+              disabled={effectiveRedoCount === 0 || busy}
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Redo (Ctrl/Cmd+Shift+Z)"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
+              </svg>
+            </button>
+            <span className="mx-1 whitespace-nowrap text-[10px] text-slate-500">
+              {!allowBackend
+                ? hasUnsavedChanges
+                  ? "Saving local draft..."
+                  : "Local draft saved"
+                : isAutosaving
+                  ? "Saving..."
+                  : hasUnsavedChanges
+                    ? "Unsaved changes"
+                    : lastSavedAt
+                      ? `Saved ${new Date(lastSavedAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}`
+                      : "Saved"}
+            </span>
+            <button
+              type="button"
+              onClick={skipToStart}
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+              title="Go to start"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                <rect x="4" y="5" width="2" height="14" />
+                <polygon points="18,5 8,12 18,19" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={skipBackwardBar}
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+              title="Previous bar"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                <polygon points="17,5 7,12 17,19" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                togglePlayback();
+              }}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
+              title={effectiveIsPlaying ? "Pause" : "Play"}
+            >
+              {effectiveIsPlaying ? (
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                  <rect x="6" y="5" width="4" height="14" />
+                  <rect x="14" y="5" width="4" height="14" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                  <polygon points="8,5 19,12 8,19" />
+                </svg>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={skipForwardBar}
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+              title="Next bar"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                <polygon points="7,5 17,12 7,19" />
+              </svg>
+            </button>
+            <div className="flex items-center gap-1 px-1">
+              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
+                <path d="M4 10v4h4l5 4V6L8 10H4z" />
+                <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
+              </svg>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={effectivePlaybackVolume}
+                onChange={(event) => setEffectivePlaybackVolume(Number(event.target.value))}
+                className="w-20 accent-slate-700"
+                title="Volume"
+              />
+            </div>
+          </div>
         </div>
-      </div>
       )}
       <div className={`flex flex-wrap items-center ${embedded ? "gap-2" : "gap-3"}`}>
         {!embedded && (
