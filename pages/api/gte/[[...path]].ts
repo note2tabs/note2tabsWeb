@@ -1,6 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
+import {
+  getGteEditorRefFromPath,
+  hydrateTrackInstrumentsFromStore,
+  persistTrackInstrumentsFromSnapshot,
+} from "../../../lib/gteTrackInstrumentStore";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -101,6 +106,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const method = req.method || "GET";
   const path = getPath(req);
+  const editorRef = getGteEditorRefFromPath(path);
   const isSnapshotSave = isSnapshotSaveRequest(method, path);
   const cacheKey = `${session.user.id}:${path}`;
   let body: string | undefined;
@@ -166,12 +172,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (contentType) {
     res.setHeader("Content-Type", contentType);
   }
+  if (upstream.ok && isSnapshotSave) {
+    await persistTrackInstrumentsFromSnapshot(
+      session.user.id,
+      editorRef,
+      (req.body as { snapshot?: unknown } | undefined)?.snapshot
+    );
+  }
+
+  if (upstream.ok && editorRef && responseText) {
+    try {
+      const parsed = JSON.parse(responseText) as unknown;
+      const hydrated = await hydrateTrackInstrumentsFromStore(session.user.id, editorRef, parsed);
+      responseText = JSON.stringify(hydrated);
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+    } catch {
+      // Keep proxy responses untouched when upstream did not return JSON.
+    }
+  }
+
   if (isSnapshotSave && body && upstream.ok) {
     snapshotSaveCache.set(cacheKey, {
       body,
       status: upstream.status,
-      text,
-      contentType: contentType || undefined,
+      text: responseText,
+      contentType: "application/json; charset=utf-8",
       updatedAtMs: Date.now(),
     });
     pruneSnapshotSaveCache();

@@ -1,4 +1,5 @@
 import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
+import { DEFAULT_TRACK_INSTRUMENT_ID, normalizeTrackInstrumentId } from "./gteSoundfonts";
 
 export const GTE_GUEST_EDITOR_ID = "local";
 export const GTE_GUEST_DRAFT_STORAGE_KEY = "note2tabs:gte:guest-draft:v1";
@@ -135,6 +136,7 @@ export const createGuestSnapshot = (editorId: string = GTE_GUEST_EDITOR_ID): Edi
   return {
     id: editorId,
     name: "Untitled",
+    instrumentId: DEFAULT_TRACK_INSTRUMENT_ID,
     schemaVersion: 1,
     version: 1,
     updatedAt: new Date().toISOString(),
@@ -235,6 +237,7 @@ export const normalizeGuestSnapshot = (
     ...raw,
     id,
     name,
+    instrumentId: normalizeTrackInstrumentId(raw.instrumentId),
     updatedAt: typeof raw.updatedAt === "string" && raw.updatedAt ? raw.updatedAt : base.updatedAt,
     framesPerMessure: FIXED_FRAMES_PER_BAR,
     fps,

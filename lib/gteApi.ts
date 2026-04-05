@@ -245,6 +245,12 @@ export const gteApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ snapshot }),
     }),
+  setTrackInstrument: (editorId: string, laneId: string, instrumentId: string) =>
+    request<{ ok: true }>("/track-instrument", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ editorId, laneId, instrumentId }),
+    }, AUTH_BASE),
   commitEditor: (editorId: string, options?: { keepalive?: boolean }) =>
     requestForEditor<{ ok: true; snapshot: CanvasSnapshot }>(editorId, `/editors/${editorId}/commit`, {
       method: "POST",

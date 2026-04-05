@@ -25,6 +25,7 @@ export type CutWithCoord = [CutRegion, TabCoord];
 export type EditorSnapshot = {
   id: string;
   name?: string;
+  instrumentId?: string;
   schemaVersion?: number;
   version?: number;
   updatedAt?: string;

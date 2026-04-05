@@ -58,6 +58,7 @@ model User {
   sessions        Session[]
   tabs            TabJob[]
   posts           Post[]
+  gteTrackInstruments GteTrackInstrument[]
 }
 
 model TabJob {
@@ -199,6 +200,21 @@ model AnalyticsGteSession {
   @@index([accountId, startedAt])
   @@index([anonId, startedAt])
   @@index([fingerprintHash, startedAt])
+}
+
+model GteTrackInstrument {
+  id           String   @id @default(cuid())
+  userId       String
+  editorId     String
+  laneId       String
+  instrumentId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, editorId, laneId])
+  @@index([editorId, laneId])
+  @@index([userId, updatedAt])
 }
 
 model AnalyticsDailyKpi {

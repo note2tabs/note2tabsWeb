@@ -9,6 +9,11 @@ import {
   type UIEvent as ReactUiEvent,
 } from "react";
 import { gteApi } from "../lib/gteApi";
+import {
+  prepareTrackInstrument,
+  schedulePreparedTrackNote,
+  warmTrackInstrument,
+} from "../lib/gteSoundfonts";
 import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
@@ -769,6 +774,8 @@ export default function GteWorkspace({
   const masterGainRef = useRef<GainNode | null>(null);
   const previewAudioRef = useRef<AudioContext | null>(null);
   const previewGainRef = useRef<GainNode | null>(null);
+  const playbackStartRequestRef = useRef(0);
+  const playbackStartPendingRef = useRef(false);
   const playheadFrameRef = useRef(0);
   const playheadStartTimeRef = useRef<number | null>(null);
   const playheadStartFrameRef = useRef(0);
@@ -984,6 +991,10 @@ export default function GteWorkspace({
       previewGainRef.current.gain.setTargetAtTime(effectivePlaybackVolume, now, 0.02);
     }
   }, [effectivePlaybackVolume]);
+
+  useEffect(() => {
+    void warmTrackInstrument(snapshot.instrumentId);
+  }, [snapshot.instrumentId]);
 
   useEffect(() => {
     if (useExternalPlayback) return;
@@ -4775,33 +4786,24 @@ export default function GteWorkspace({
     return { ctx, master };
   }
 
-  function playNotePreview(tab: TabCoord, midiOverride?: number) {
+  async function playNotePreview(tab: TabCoord, midiOverride?: number) {
     if (effectivePlaybackVolume <= 0) return;
     const midi = getMidiFromTab(tab, midiOverride);
     if (!Number.isFinite(midi) || midi <= 0) return;
 
+    const instrument = await prepareTrackInstrument(snapshot.instrumentId);
     const { ctx, master } = ensurePreviewAudio();
     void ctx.resume();
 
-    const now = ctx.currentTime;
-    const duration = 0.16;
-    const frequency = 440 * Math.pow(2, (midi - 69) / 12);
-
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(frequency, now);
-
-    const amp = ctx.createGain();
-    const peak = 0.6;
-    amp.gain.setValueAtTime(0, now);
-    amp.gain.linearRampToValueAtTime(peak, now + 0.01);
-    amp.gain.linearRampToValueAtTime(0, now + duration);
-
-    osc.connect(amp);
-    amp.connect(master);
-
-    osc.start(now);
-    osc.stop(now + duration + 0.02);
+    schedulePreparedTrackNote({
+      ctx,
+      destination: master,
+      instrument,
+      midi,
+      gain: 0.6,
+      startTime: ctx.currentTime + 0.005,
+      duration: 0.16,
+    });
   }
 
   const stopAudio = () => {
@@ -4812,15 +4814,7 @@ export default function GteWorkspace({
     masterGainRef.current = null;
   };
 
-  const schedulePlayback = (startFrame: number) => {
-    const ctx = new AudioContext();
-    void ctx.resume();
-    const latencySec =
-      (Number.isFinite(ctx.baseLatency) ? ctx.baseLatency : 0) +
-      (Number.isFinite((ctx as AudioContext).outputLatency)
-        ? (ctx as AudioContext).outputLatency
-        : 0);
-    const base = ctx.currentTime + latencySec;
+  const schedulePlayback = async (startFrame: number) => {
     let endFrame = Math.max(startFrame, timelineEnd);
     const events: Array<{
       start: number;
@@ -4868,6 +4862,16 @@ export default function GteWorkspace({
       });
     });
 
+    const instrument = await prepareTrackInstrument(snapshot.instrumentId);
+    const ctx = new AudioContext();
+    void ctx.resume();
+    const latencySec =
+      (Number.isFinite(ctx.baseLatency) ? ctx.baseLatency : 0) +
+      (Number.isFinite((ctx as AudioContext).outputLatency)
+        ? (ctx as AudioContext).outputLatency
+        : 0);
+    const base = ctx.currentTime + latencySec;
+
     const master = ctx.createGain();
     master.gain.value = effectivePlaybackVolume;
     master.connect(ctx.destination);
@@ -4881,25 +4885,15 @@ export default function GteWorkspace({
       stringIndex?: number;
     }) => {
       if (!Number.isFinite(evt.midi) || evt.midi <= 0) return;
-      const startAt = base + evt.start;
-      const duration = Math.max(0.05, evt.duration);
-      const stopAt = startAt + duration;
-      const frequency = 440 * Math.pow(2, (evt.midi - 69) / 12);
-
-      const osc = ctx.createOscillator();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(frequency, startAt);
-      const amp = ctx.createGain();
-      amp.gain.setValueAtTime(0, startAt);
-      amp.gain.linearRampToValueAtTime(evt.gain, startAt + 0.01);
-      amp.gain.setValueAtTime(evt.gain, Math.max(startAt + 0.01, stopAt - 0.01));
-      amp.gain.linearRampToValueAtTime(0, stopAt);
-
-      osc.connect(amp);
-      amp.connect(master);
-
-      osc.start(startAt);
-      osc.stop(stopAt + 0.02);
+      schedulePreparedTrackNote({
+        ctx,
+        destination: master,
+        instrument,
+        midi: evt.midi,
+        gain: evt.gain,
+        startTime: base + evt.start,
+        duration: Math.max(0.05, evt.duration),
+      });
     };
 
     events.forEach((evt) => schedulePluck(evt));
@@ -4907,6 +4901,8 @@ export default function GteWorkspace({
   };
 
   const stopPlayback = () => {
+    playbackStartRequestRef.current += 1;
+    playbackStartPendingRef.current = false;
     if (playheadRafRef.current !== null) {
       window.cancelAnimationFrame(playheadRafRef.current);
       playheadRafRef.current = null;
@@ -4918,15 +4914,25 @@ export default function GteWorkspace({
     setIsPlaying(false);
   };
 
-  const startPlayback = (startFrameOverride?: number) => {
-    if (isPlaying) return;
+  const startPlayback = async (startFrameOverride?: number) => {
+    if (isPlaying || playbackStartPendingRef.current) return;
+    playbackStartPendingRef.current = true;
+    const requestId = playbackStartRequestRef.current + 1;
+    playbackStartRequestRef.current = requestId;
     const startFrame = clamp(
       Math.round(startFrameOverride ?? playheadFrameRef.current),
       0,
       timelineEnd
     );
     stopAudio();
-    const scheduled = schedulePlayback(startFrame);
+    const scheduled = await schedulePlayback(startFrame);
+    playbackStartPendingRef.current = false;
+    if (playbackStartRequestRef.current !== requestId) {
+      if (scheduled?.ctx) {
+        void scheduled.ctx.close();
+      }
+      return;
+    }
     if (scheduled?.ctx) {
       audioRef.current = scheduled.ctx;
     }
@@ -4965,7 +4971,7 @@ export default function GteWorkspace({
       stopPlayback();
     } else {
       const atTimelineEnd = Math.round(playheadFrameRef.current) >= timelineEnd;
-      startPlayback(atTimelineEnd ? 0 : undefined);
+      void startPlayback(atTimelineEnd ? 0 : undefined);
     }
   }, [isPlaying, onGlobalPlaybackToggle, timelineEnd]);
 

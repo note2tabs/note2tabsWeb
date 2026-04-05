@@ -14,6 +14,16 @@ import { useSession } from "next-auth/react";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
 import { buildLaneEditorRef, gteApi } from "../../lib/gteApi";
+import {
+  DEFAULT_TRACK_INSTRUMENT_ID,
+  getBuiltinTrackInstrumentOptions,
+  loadTrackInstrumentOptions,
+  normalizeTrackInstrumentId,
+  prepareTrackInstrument,
+  schedulePreparedTrackNote,
+  type TrackInstrumentOption,
+  warmTrackInstrument,
+} from "../../lib/gteSoundfonts";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import GteWorkspace from "../../components/GteWorkspace";
 import {
@@ -88,6 +98,7 @@ const normalizeLane = (
     ...lane,
     id: laneId,
     name: lane.name || `Editor ${index + 1}`,
+    instrumentId: normalizeTrackInstrumentId(lane.instrumentId),
     framesPerMessure: FIXED_FRAMES_PER_BAR,
     secondsPerBar: safeSeconds,
     fps: fpsFromSecondsPerBar(safeSeconds),
@@ -631,6 +642,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   } | null>(null);
   const [trackDragLaneId, setTrackDragLaneId] = useState<string | null>(null);
   const [trackDropIndex, setTrackDropIndex] = useState<number | null>(null);
+  const [trackInstrumentOptions, setTrackInstrumentOptions] = useState<TrackInstrumentOption[]>(
+    getBuiltinTrackInstrumentOptions()
+  );
   const globalPlaybackFrameRef = useRef(0);
   const [canvasUndoCount, setCanvasUndoCount] = useState(0);
   const [canvasRedoCount, setCanvasRedoCount] = useState(0);
@@ -642,11 +656,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const globalPlaybackAudioRef = useRef<AudioContext | null>(null);
   const globalPlaybackMasterGainRef = useRef<GainNode | null>(null);
   const globalPlaybackRafRef = useRef<number | null>(null);
+  const globalPlaybackStartRequestRef = useRef(0);
+  const globalPlaybackStartPendingRef = useRef(false);
   const globalPlaybackStartTimeRef = useRef<number | null>(null);
   const globalPlaybackStartFrameRef = useRef(0);
   const globalPlaybackEndFrameRef = useRef<number | null>(null);
   const globalPlaybackAudioStartRef = useRef<number | null>(null);
   const previousTrackMuteByIdRef = useRef<Record<string, boolean> | null>(null);
+  const previousTrackInstrumentSignatureRef = useRef<string | null>(null);
   const canvasUndoRef = useRef<CanvasSnapshot[]>([]);
   const canvasRedoRef = useRef<CanvasSnapshot[]>([]);
   const trackSectionRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -842,6 +859,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setActiveLaneId(canvas.editors[0]?.id || null);
     }
   }, [canvas?.name, canvas?.secondsPerBar, canvas?.editors, activeLaneId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadTrackInstrumentOptions().then((options) => {
+      if (cancelled) return;
+      setTrackInstrumentOptions(options);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!canvas) return;
+    canvas.editors.forEach((lane) => {
+      void warmTrackInstrument(lane.instrumentId);
+    });
+  }, [canvas?.editors]);
 
   const handleMainMouseDownCapture = useCallback((event: ReactMouseEvent<HTMLElement>) => {
     const target = event.target;
@@ -1087,7 +1122,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       );
       const nextEditors = prev.editors.map((lane, index) =>
         lane.id === laneId
-          ? normalizeLane(nextLaneSnapshot, laneId, secondsPerBar, index)
+          ? normalizeLane(
+              {
+                ...nextLaneSnapshot,
+                instrumentId:
+                  normalizeTrackInstrumentId(nextLaneSnapshot.instrumentId) !== DEFAULT_TRACK_INSTRUMENT_ID ||
+                  normalizeTrackInstrumentId(lane.instrumentId) === DEFAULT_TRACK_INSTRUMENT_ID
+                    ? nextLaneSnapshot.instrumentId
+                    : lane.instrumentId,
+              },
+              laneId,
+              secondsPerBar,
+              index
+            )
           : normalizeLane(lane, lane.id || `ed-${index + 1}`, secondsPerBar, index)
       );
       const nextCanvas = {
@@ -1105,6 +1152,52 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setHasPendingCommit(true);
     }
   };
+
+  const handleLaneInstrumentChange = useCallback(
+    (laneId: string, instrumentId: string) => {
+      const normalizedInstrumentId = normalizeTrackInstrumentId(instrumentId);
+      let didChange = false;
+      setCanvas((prev) => {
+        if (!prev) return prev;
+        const secondsPerBar = Math.max(0.1, toNumber(prev.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
+        const nextEditors = prev.editors.map((lane, index) => {
+          const normalizedLane = normalizeLane(
+            lane,
+            lane.id || `ed-${index + 1}`,
+            secondsPerBar,
+            index
+          );
+          if (normalizedLane.id !== laneId) return normalizedLane;
+          if (normalizedLane.instrumentId === normalizedInstrumentId) return normalizedLane;
+          didChange = true;
+          return normalizeLane(
+            { ...normalizedLane, instrumentId: normalizedInstrumentId },
+            laneId,
+            secondsPerBar,
+            index
+          );
+        });
+        if (!didChange) return prev;
+        const nextCanvas = {
+          ...prev,
+          updatedAt: new Date().toISOString(),
+          editors: nextEditors,
+        };
+        recordCanvasHistory(prev, nextCanvas);
+        return nextCanvas;
+      });
+      if (!didChange) return;
+      setHasPendingCommit(true);
+      setActiveLaneId(laneId);
+      void warmTrackInstrument(normalizedInstrumentId);
+      if (!isGuestMode) {
+        void gteApi.setTrackInstrument(editorId, laneId, normalizedInstrumentId).catch((err: any) => {
+          setSaveError(err?.message || "Could not save track sound.");
+        });
+      }
+    },
+    [editorId, isGuestMode, recordCanvasHistory]
+  );
 
   const clearBarSelectionState = useCallback((exemptEditorRef: string | null = null) => {
     setBarSelection(null);
@@ -1736,6 +1829,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, []);
 
   const stopGlobalPlayback = useCallback(() => {
+    globalPlaybackStartRequestRef.current += 1;
+    globalPlaybackStartPendingRef.current = false;
     if (globalPlaybackRafRef.current !== null) {
       window.cancelAnimationFrame(globalPlaybackRafRef.current);
       globalPlaybackRafRef.current = null;
@@ -1753,7 +1848,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [editorId, stopGlobalPlayback]);
 
   const scheduleGlobalPlayback = useCallback(
-    (startFrame: number) => {
+    async (startFrame: number) => {
       if (!canvas) return null;
 
       const getMidiFromTab = (lane: EditorSnapshot, tab: [number, number], fallback?: number) => {
@@ -1771,18 +1866,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         return 0;
       };
 
-      const ctx = new AudioContext();
-      void ctx.resume();
-      const latencySec =
-        (Number.isFinite(ctx.baseLatency) ? ctx.baseLatency : 0) +
-        (Number.isFinite((ctx as AudioContext).outputLatency)
-          ? (ctx as AudioContext).outputLatency
-          : 0);
-      const base = ctx.currentTime + latencySec;
       let endFrame = Math.max(startFrame, canvasTimelineEnd);
-      const events: Array<{ start: number; duration: number; midi: number; gain: number }> = [];
+      const events: Array<{
+        start: number;
+        duration: number;
+        midi: number;
+        gain: number;
+        instrumentId: string;
+      }> = [];
 
-      const pushEvent = (eventStart: number, eventLength: number, midi: number, gain: number) => {
+      const pushEvent = (
+        eventStart: number,
+        eventLength: number,
+        midi: number,
+        gain: number,
+        instrumentId: string
+      ) => {
         const roundedStart = Math.round(eventStart);
         const roundedEnd = Math.round(eventStart + eventLength);
         if (roundedEnd <= startFrame) return;
@@ -1795,26 +1894,47 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           duration: durationFrames / globalPlaybackFps,
           midi,
           gain,
+          instrumentId,
         });
       };
 
       canvas.editors.forEach((lane, index) => {
         const laneId = lane.id || `ed-${index + 1}`;
         if (trackMuteById[laneId]) return;
+        const instrumentId = normalizeTrackInstrumentId(lane.instrumentId);
 
         lane.notes.forEach((note) => {
           const midi =
             Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(lane, note.tab);
-          pushEvent(note.startTime, note.length, midi, 0.55);
+          pushEvent(note.startTime, note.length, midi, 0.55, instrumentId);
         });
 
         lane.chords.forEach((chord) => {
           chord.currentTabs.forEach((tab, tabIndex) => {
             const midi = getMidiFromTab(lane, tab, chord.originalMidi?.[tabIndex]);
-            pushEvent(chord.startTime, chord.length, midi, 0.48);
+            pushEvent(chord.startTime, chord.length, midi, 0.48, instrumentId);
           });
         });
       });
+
+      const preparedEntries = await Promise.all(
+        [...new Set(events.map((event) => event.instrumentId))].map(async (instrumentId) => {
+          const instrument = await prepareTrackInstrument(instrumentId);
+          return [instrumentId, instrument] as const;
+        })
+      );
+      const preparedByInstrumentId = new Map<string, Awaited<ReturnType<typeof prepareTrackInstrument>>>(
+        preparedEntries
+      );
+
+      const ctx = new AudioContext();
+      void ctx.resume();
+      const latencySec =
+        (Number.isFinite(ctx.baseLatency) ? ctx.baseLatency : 0) +
+        (Number.isFinite((ctx as AudioContext).outputLatency)
+          ? (ctx as AudioContext).outputLatency
+          : 0);
+      const base = ctx.currentTime + latencySec;
 
       const master = ctx.createGain();
       master.gain.value = globalPlaybackVolume;
@@ -1823,23 +1943,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
       events.forEach((evt) => {
         if (!Number.isFinite(evt.midi) || evt.midi <= 0) return;
-        const startAt = base + evt.start;
-        const duration = Math.max(0.05, evt.duration);
-        const stopAt = startAt + duration;
-        const frequency = 440 * Math.pow(2, (evt.midi - 69) / 12);
-
-        const osc = ctx.createOscillator();
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(frequency, startAt);
-        const amp = ctx.createGain();
-        amp.gain.setValueAtTime(0, startAt);
-        amp.gain.linearRampToValueAtTime(evt.gain, startAt + 0.01);
-        amp.gain.setValueAtTime(evt.gain, Math.max(startAt + 0.01, stopAt - 0.01));
-        amp.gain.linearRampToValueAtTime(0, stopAt);
-        osc.connect(amp);
-        amp.connect(master);
-        osc.start(startAt);
-        osc.stop(stopAt + 0.02);
+        const instrument = preparedByInstrumentId.get(evt.instrumentId);
+        if (!instrument) return;
+        schedulePreparedTrackNote({
+          ctx,
+          destination: master,
+          instrument,
+          midi: evt.midi,
+          gain: evt.gain,
+          startTime: base + evt.start,
+          duration: Math.max(0.05, evt.duration),
+        });
       });
 
       return { ctx, endFrame, startTimeSec: base };
@@ -1847,9 +1961,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [canvas, canvasTimelineEnd, globalPlaybackFps, globalPlaybackVolume, trackMuteById]
   );
 
-  const startGlobalPlayback = useCallback((startFrameOverride?: number) => {
+  const startGlobalPlayback = useCallback(async (startFrameOverride?: number) => {
     if (!canvas) return;
-    if (globalPlaybackRafRef.current !== null) return;
+    if (globalPlaybackRafRef.current !== null || globalPlaybackStartPendingRef.current) return;
+    globalPlaybackStartPendingRef.current = true;
+    const requestId = globalPlaybackStartRequestRef.current + 1;
+    globalPlaybackStartRequestRef.current = requestId;
     const startFrame = Math.max(
       0,
       Math.min(
@@ -1858,7 +1975,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       )
     );
     stopGlobalPlaybackAudio();
-    const scheduled = scheduleGlobalPlayback(startFrame);
+    const scheduled = await scheduleGlobalPlayback(startFrame);
+    globalPlaybackStartPendingRef.current = false;
+    if (globalPlaybackStartRequestRef.current !== requestId) {
+      if (scheduled?.ctx) {
+        void scheduled.ctx.close();
+      }
+      return;
+    }
     if (!scheduled?.ctx) {
       setGlobalPlaybackIsPlaying(false);
       return;
@@ -1906,7 +2030,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       return;
     }
     const atTimelineEnd = Math.round(globalPlaybackFrameRef.current) >= canvasTimelineEnd;
-    startGlobalPlayback(atTimelineEnd ? 0 : undefined);
+    void startGlobalPlayback(atTimelineEnd ? 0 : undefined);
   }, [canvasTimelineEnd, globalPlaybackIsPlaying, startGlobalPlayback, stopGlobalPlayback]);
 
   useEffect(() => {
@@ -1984,10 +2108,36 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     stopGlobalPlayback();
     setGlobalPlaybackFrame(resumeFrame);
     const timer = window.setTimeout(() => {
-      startGlobalPlayback();
+      void startGlobalPlayback();
     }, 0);
     return () => window.clearTimeout(timer);
   }, [globalPlaybackIsPlaying, startGlobalPlayback, stopGlobalPlayback, trackMuteById]);
+
+  const trackInstrumentSignature = useMemo(() => {
+    if (!canvas) return "";
+    return canvas.editors
+      .map((lane, index) => {
+        const laneId = lane.id || `ed-${index + 1}`;
+        return `${laneId}:${normalizeTrackInstrumentId(lane.instrumentId)}`;
+      })
+      .join("|");
+  }, [canvas]);
+
+  useEffect(() => {
+    const previousTrackInstrumentSignature = previousTrackInstrumentSignatureRef.current;
+    previousTrackInstrumentSignatureRef.current = trackInstrumentSignature;
+    if (!previousTrackInstrumentSignature || previousTrackInstrumentSignature === trackInstrumentSignature) {
+      return;
+    }
+    if (!globalPlaybackIsPlaying) return;
+    const resumeFrame = Math.max(0, Math.round(globalPlaybackFrameRef.current));
+    stopGlobalPlayback();
+    setGlobalPlaybackFrame(resumeFrame);
+    const timer = window.setTimeout(() => {
+      void startGlobalPlayback();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [globalPlaybackIsPlaying, startGlobalPlayback, stopGlobalPlayback, trackInstrumentSignature]);
 
   useEffect(() => {
     if (!globalPlaybackAudioRef.current || !globalPlaybackMasterGainRef.current) return;
@@ -2272,6 +2422,31 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         </svg>
                       )}
                     </button>
+                  </div>
+                  <div
+                    className="absolute top-1 left-12 z-20"
+                    data-track-reorder-block="true"
+                  >
+                    <select
+                      value={
+                        trackInstrumentOptions.some(
+                          (option) => option.id === normalizeTrackInstrumentId(lane.instrumentId)
+                        )
+                          ? normalizeTrackInstrumentId(lane.instrumentId)
+                          : DEFAULT_TRACK_INSTRUMENT_ID
+                      }
+                      onChange={(event) => handleLaneInstrumentChange(laneId, event.target.value)}
+                      onClick={(event) => event.stopPropagation()}
+                      className="h-8 max-w-[220px] rounded-md border border-slate-200 bg-white px-2 text-[11px] text-slate-700 shadow-sm"
+                      title="Track sound"
+                      aria-label="Track sound"
+                    >
+                      {trackInstrumentOptions.map((option) => (
+                        <option key={`${laneId}-instrument-${option.id}`} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   {canvas.editors.length > 1 && (
                     <div className="absolute top-1 right-1 z-20">
