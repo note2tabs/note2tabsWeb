@@ -26,7 +26,7 @@ type TabsResponse = {
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
 const MAX_FREE_BYTES = 50 * 1024 * 1024;
-const MAX_PREMIUM_BYTES = 500 * 1024 * 1024;
+const MAX_PREMIUM_BYTES = 200 * 1024 * 1024;
 
 const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 

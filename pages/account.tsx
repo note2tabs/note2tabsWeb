@@ -27,7 +27,8 @@ type Props = {
 
 export default function AccountPage({ user, stripeReady, credits }: Props) {
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [upgradeBusy, setUpgradeBusy] = useState(false);
+  const [portalBusy, setPortalBusy] = useState(false);
   const isAdminOrMod = user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const isAdmin = user.role === "ADMIN";
   const analyticsHref = isAdmin
@@ -50,16 +51,36 @@ export default function AccountPage({ user, stripeReady, credits }: Props) {
       setError("Stripe not configured yet. Coming soon.");
       return;
     }
-    setBusy(true);
+    setUpgradeBusy(true);
     setError(null);
     const res = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
     const data = await res.json();
-    setBusy(false);
+    setUpgradeBusy(false);
     if (!res.ok || !data?.url) {
       setError(data?.error || "Could not start checkout.");
       return;
     }
     window.location.href = data.url;
+  };
+
+  const handleManageSubscription = async () => {
+    if (!stripeReady) {
+      setError("Stripe not configured yet. Subscription management is unavailable.");
+      return;
+    }
+    setPortalBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/stripe/create-portal-session", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.url) {
+        setError(data?.error || "Could not open subscription management.");
+        return;
+      }
+      window.location.href = data.url;
+    } finally {
+      setPortalBusy(false);
+    }
   };
 
   return (
@@ -133,9 +154,21 @@ export default function AccountPage({ user, stripeReady, credits }: Props) {
           </div>
 
           <div className="button-row">
-            <button type="button" onClick={handleUpgrade} className="button-primary" disabled={busy}>
-              {stripeReady ? "Upgrade to Premium" : "Premium (coming soon)"}
-            </button>
+            {!isPremium && (
+              <button type="button" onClick={handleUpgrade} className="button-primary" disabled={upgradeBusy}>
+                {stripeReady ? "Upgrade to Premium" : "Premium (coming soon)"}
+              </button>
+            )}
+            {isPremium && (
+              <button
+                type="button"
+                onClick={handleManageSubscription}
+                className="button-secondary"
+                disabled={portalBusy}
+              >
+                {portalBusy ? "Opening..." : "Manage subscription"}
+              </button>
+            )}
             <Link href="/editor" className="button-secondary">
               Open editor
             </Link>
@@ -157,6 +190,9 @@ export default function AccountPage({ user, stripeReady, credits }: Props) {
                 ? `Credits used. More credits arrive on ${resetLabel}.`
                 : `Monthly credits used. Upgrade to Premium or wait until ${resetLabel}.`}
             </div>
+          )}
+          {isPremium && (
+            <p className="footnote">You can cancel your Premium subscription anytime from Manage subscription.</p>
           )}
           {error && <div className="error">{error}</div>}
         </section>

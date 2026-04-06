@@ -28,7 +28,7 @@ export default function PricingPage() {
               <div>
                 <h1 className="page-title">Pricing</h1>
                 <p className="page-subtitle">
-                  Simple monthly pricing for guitar tabs, transcription, and editing in one place.
+                  Compare Free and Premium plans for credits, speed, ads, and upload limits.
                 </p>
               </div>
               <Link href="/#pricing" className="button-secondary button-small">
@@ -41,7 +41,7 @@ export default function PricingPage() {
                 <div className="pricing-header">
                   <div>
                     <h3>Free</h3>
-                    <p className="muted text-small">Try the basics and preview the workflow.</p>
+                    <p className="muted text-small">Core features with lower limits.</p>
                   </div>
                   <div className="pricing-price">
                     <span className="pricing-amount">$0</span>
@@ -49,17 +49,19 @@ export default function PricingPage() {
                   </div>
                 </div>
                 <ul className="pricing-list">
-                  <li>Limited monthly credits</li>
-                  <li>Audio and YouTube inputs</li>
-                  <li>Tab editor preview</li>
+                  <li>Ads enabled</li>
+                  <li>10 credits per month</li>
+                  <li>Standard speed</li>
+                  <li>Upload size 50 MB</li>
                 </ul>
               </div>
 
-              <div className="pricing-card">
+              <div className="pricing-card pricing-card--premium pricing-card--trial">
+                <span className="pricing-trial-ribbon">7 days free trial</span>
                 <div className="pricing-header">
                   <div>
                     <h3>Premium</h3>
-                    <p className="muted text-small">Unlimited monthly transcriptions and new features.</p>
+                    <p className="muted text-small">Higher limits with faster processing.</p>
                   </div>
                   <div className="pricing-price">
                     <span className="pricing-amount">$5.99</span>
@@ -67,9 +69,10 @@ export default function PricingPage() {
                   </div>
                 </div>
                 <ul className="pricing-list">
-                  <li>Unlimited monthly transcriptions</li>
                   <li>No ads</li>
-                  <li>More features coming soon</li>
+                  <li>50 credits per month (with rollover)</li>
+                  <li>Extra speed</li>
+                  <li>Upload size 200 MB</li>
                 </ul>
               </div>
             </div>

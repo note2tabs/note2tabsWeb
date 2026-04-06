@@ -25,7 +25,7 @@ type TabsResponse = {
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
 const MAX_FREE_BYTES = 50 * 1024 * 1024;
-const MAX_PREMIUM_BYTES = 500 * 1024 * 1024;
+const MAX_PREMIUM_BYTES = 200 * 1024 * 1024;
 
 const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 
@@ -601,14 +601,19 @@ export default function HomePage() {
       event.preventDefault();
     }
   };
-  const creditsUsageLabel = displayedCredits
-    ? `${displayedCredits.remaining}/${displayedCredits.limit}`
-    : transcriberSession || disableDbInDev
-    ? "-"
+  const creditsSummaryLabel = isSignedIn
+    ? displayedCredits
+      ? String(displayedCredits.remaining)
+      : "0"
     : "10";
-  const creditsResetLabel = displayedCredits ? new Date(displayedCredits.resetAt).toLocaleDateString() : "";
+  const creditsResetDate = isSignedIn && displayedCredits ? new Date(displayedCredits.resetAt) : null;
+  const creditsResetLabel =
+    creditsResetDate && !Number.isNaN(creditsResetDate.getTime()) ? creditsResetDate.toLocaleDateString() : "";
+  const creditsDaysUntilReset =
+    creditsResetDate && !Number.isNaN(creditsResetDate.getTime())
+      ? Math.max(0, Math.ceil((creditsResetDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      : null;
   const showCreditsEmpty = displayedCredits && displayedCredits.remaining === 0;
-  const resetLabelText = isPremiumRole(transcriberSession?.user?.role) ? "Next credits" : "Resets";
 
   return (
     <>
@@ -643,17 +648,23 @@ export default function HomePage() {
               data-reveal
               onKeyDown={preventEnterSubmit}
             >
-              {displayedCredits && (
-                <div className="prompt-top prompt-top--solo">
-                  <div className="prompt-balance">
-                    <span>Credits</span>
-                    <strong>{creditsUsageLabel}</strong>
-                    <span className="prompt-reset">
-                      {resetLabelText} {creditsResetLabel}
-                    </span>
-                  </div>
-                </div>
-              )}
+              <div className="prompt-meta-row">
+                <span className="funnel-external-label">{mode === "YOUTUBE" ? "YouTube URL" : ""}</span>
+                {(displayedCredits || !isSignedIn) && (
+                  <p className="hero-credits-inline">
+                    Credits: <strong>{creditsSummaryLabel}</strong>
+                    {isSignedIn && creditsDaysUntilReset !== null && (
+                      <span className="hero-credits-next">
+                        {creditsDaysUntilReset === 0
+                          ? "• Next credits today"
+                          : `• Next credits in ${creditsDaysUntilReset} day${
+                              creditsDaysUntilReset === 1 ? "" : "s"
+                            }`}
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
 
               <div className="funnel-panel">
                 <div className="funnel-row">
@@ -681,7 +692,7 @@ export default function HomePage() {
                         type="url"
                         value={youtubeUrl}
                         onChange={(event) => setYoutubeUrl(event.target.value)}
-                        placeholder="Paste YouTube link"
+                        placeholder="https://www.youtube.com/..."
                       />
                     )}
                     <input
@@ -721,7 +732,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {(mode === "YOUTUBE" || (isSignedIn && mode === "FILE")) && (
+              {(mode === "YOUTUBE" || mode === "FILE") && (
                 <div className="prompt-field prompt-field--compact">
                   {mode === "YOUTUBE" && (
                     <>
@@ -785,10 +796,6 @@ export default function HomePage() {
                   </label>
                 </div>
               )}
-
-              <div className="disclaimer">
-                The transcriber is still a work in progress. Expect occasional errors while we improve it.
-              </div>
 
               {status && <div className="status">{status}</div>}
               {error && <div className="error">{error}</div>}
@@ -970,18 +977,20 @@ export default function HomePage() {
                   </div>
                 </div>
                 <ul className="pricing-list">
+                  <li>Ads enabled</li>
                   <li>10 credits per month</li>
                   <li>Standard speed</li>
-                  <li>Basic export</li>
+                  <li>Upload size 50 MB</li>
                 </ul>
               </div>
               <button
                 type="button"
-                className="pricing-card"
+                className="pricing-card pricing-card--premium pricing-card--trial"
                 data-reveal
                 onClick={handlePricingClick}
                 disabled={pricingBusy}
               >
+                <span className="pricing-trial-ribbon">7 days free trial</span>
                 <div className="pricing-header">
                   <span className="pill">Premium</span>
                   <div className="pricing-price">
@@ -990,9 +999,10 @@ export default function HomePage() {
                   </div>
                 </div>
                 <ul className="pricing-list">
-                  <li>50 credits per month (roll over)</li>
                   <li>No ads</li>
-                  <li>More features coming soon</li>
+                  <li>50 credits per month (with rollover)</li>
+                  <li>Extra speed</li>
+                  <li>Upload size 200 MB</li>
                 </ul>
               </button>
             </div>

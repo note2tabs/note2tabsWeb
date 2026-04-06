@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { useSession, signIn, signOut } from "next-auth/react";
 
@@ -15,6 +15,8 @@ export default function NavBar() {
   const router = useRouter();
   const { data: session } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const isReadingArticle = router.pathname === "/blog/[slug]";
   const role = session?.user?.role || "";
   const isAdmin = role === "ADMIN";
@@ -27,6 +29,32 @@ export default function NavBar() {
     session?.user?.email?.[0]?.toUpperCase() ||
     session?.user?.name?.[0]?.toUpperCase() ||
     "N";
+
+  useEffect(() => {
+    setMenuOpen(false);
+    setProfileMenuOpen(false);
+  }, [router.asPath]);
+
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    const handleDocumentClick = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (profileMenuRef.current && target && !profileMenuRef.current.contains(target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleDocumentClick);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleDocumentClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [profileMenuOpen]);
 
   return (
     <header className={`nav-shell${isReadingArticle ? " nav-shell--reading" : ""}`}>
@@ -56,34 +84,65 @@ export default function NavBar() {
               </Link>
             </>
           )}
-          {session && (
-            <>
-              <Link href="/account">Account</Link>
-              <Link href="/tabs">Saved tabs</Link>
-              <Link href="/settings">Settings</Link>
-              {(isAdmin || isModerator) && <Link href={analyticsHref}>{analyticsLabel}</Link>}
-              <button
-                type="button"
-                onClick={async () => {
-                  await signOut({ redirect: false });
-                  window.location.href = "/";
-                }}
-              >
-                Sign out
-              </button>
-            </>
-          )}
         </nav>
         <div className="nav-actions">
           {session && (
-            <div className="nav-chip" title={roleLabel(session.user?.role)}>
-              {initial}
+            <div className="nav-profile" ref={profileMenuRef}>
+              <button
+                type="button"
+                className={`nav-profile-toggle${profileMenuOpen ? " open" : ""}`}
+                aria-label="Open account menu"
+                aria-haspopup="menu"
+                aria-expanded={profileMenuOpen}
+                aria-controls="nav-profile-menu"
+                onClick={() => {
+                  setProfileMenuOpen((prev) => !prev);
+                  setMenuOpen(false);
+                }}
+                title={roleLabel(session.user?.role)}
+              >
+                <div className="nav-chip">{initial}</div>
+              </button>
+              <div
+                id="nav-profile-menu"
+                className={`nav-profile-menu${profileMenuOpen ? " open" : ""}`}
+                role="menu"
+              >
+                <Link href="/account" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
+                  Account
+                </Link>
+                <Link href="/settings" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
+                  Settings
+                </Link>
+                <Link href="/tabs" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
+                  Saved tabs
+                </Link>
+                {(isAdmin || isModerator) && (
+                  <Link href={analyticsHref} role="menuitem" onClick={() => setProfileMenuOpen(false)}>
+                    {analyticsLabel}
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={async () => {
+                    setProfileMenuOpen(false);
+                    await signOut({ redirect: false });
+                    window.location.href = "/";
+                  }}
+                >
+                  Sign out
+                </button>
+              </div>
             </div>
           )}
           <button
             className="menu-toggle"
             type="button"
-            onClick={() => setMenuOpen((prev) => !prev)}
+            onClick={() => {
+              setMenuOpen((prev) => !prev);
+              setProfileMenuOpen(false);
+            }}
             aria-label="Toggle menu"
           >
             Menu

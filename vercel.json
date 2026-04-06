@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/inactive-signup-reminder",
+      "schedule": "0 * * * *"
+    }
+  ]
+}

@@ -4,8 +4,6 @@ import { authOptions } from "../auth/[...nextauth]";
 import { stripeClient } from "../../../lib/stripe";
 import { getAppBaseUrl } from "../../../lib/urls";
 
-const PREMIUM_TRIAL_DAYS = 7;
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
@@ -17,27 +15,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: "Not authenticated" });
   }
 
-  if (!stripeClient || !process.env.STRIPE_PRICE_PREMIUM_MONTHLY) {
+  if (!stripeClient) {
     return res.status(503).json({ error: "Stripe not configured yet." });
   }
 
   try {
-    const baseUrl = getAppBaseUrl(req);
-    const checkout = await stripeClient.checkout.sessions.create({
-      customer_email: session.user.email,
-      mode: "subscription",
-      payment_method_collection: "always",
-      line_items: [{ price: process.env.STRIPE_PRICE_PREMIUM_MONTHLY, quantity: 1 }],
-      subscription_data: {
-        trial_period_days: PREMIUM_TRIAL_DAYS,
-      },
-      success_url: `${baseUrl}/account?upgrade=success`,
-      cancel_url: `${baseUrl}/account?upgrade=cancel`,
-      metadata: { userId: session.user.id },
+    const customers = await stripeClient.customers.list({
+      email: session.user.email,
+      limit: 10,
     });
-    return res.status(200).json({ url: checkout.url });
+    const customer = customers.data.find((entry) => entry && !("deleted" in entry));
+    if (!customer) {
+      return res.status(404).json({
+        error: "No active subscription customer was found for this account.",
+      });
+    }
+
+    const baseUrl = getAppBaseUrl(req);
+    const portal = await stripeClient.billingPortal.sessions.create({
+      customer: customer.id,
+      return_url: `${baseUrl}/account`,
+    });
+
+    return res.status(200).json({ url: portal.url });
   } catch (error) {
-    console.error("stripe checkout error", error);
-    return res.status(500).json({ error: "Could not create checkout session." });
+    console.error("stripe portal error", error);
+    return res.status(500).json({ error: "Could not open subscription management." });
   }
 }

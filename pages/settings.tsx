@@ -20,12 +20,18 @@ type Props = {
 export default function SettingsPage({ user }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deleteFlowOpen, setDeleteFlowOpen] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
+  const [deleteOriginReason, setDeleteOriginReason] = useState("");
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
   const [verifyBusy, setVerifyBusy] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [consentBusy, setConsentBusy] = useState(false);
   const [consentMessage, setConsentMessage] = useState<string | null>(null);
   const [consentState, setConsentState] = useState<"granted" | "denied" | "missing">("missing");
   const verifyHref = `/auth/verify-email?email=${encodeURIComponent(user.email)}`;
+  const canContinueDeleteFlow = deleteOriginReason.trim().length >= 8;
+  const canFinalizeDelete = deleteConfirmationText.trim().toLowerCase() === "delete";
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -69,20 +75,23 @@ export default function SettingsPage({ user }: Props) {
   };
 
   const handleDelete = async () => {
-    const confirmed = window.confirm(
-      "Delete your account permanently? This will remove your saved tabs and cannot be undone."
-    );
-    if (!confirmed) return;
-    setBusy(true);
-    setError(null);
-    const res = await fetch("/api/account/delete", { method: "DELETE" });
-    const data = await res.json();
-    setBusy(false);
-    if (!res.ok) {
-      setError(data?.error || "Could not delete account.");
+    if (!canFinalizeDelete) {
+      setError('Type "delete" to confirm permanent account deletion.');
       return;
     }
-    await handleSignOut();
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/account/delete", { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.error || "Could not delete account.");
+        return;
+      }
+      await handleSignOut();
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleConsentUpdate = async (state: "granted" | "denied") => {
@@ -229,11 +238,125 @@ export default function SettingsPage({ user }: Props) {
           <p className="muted text-small">
             Delete account permanently (GDPR). This removes tabs, sessions, and account data.
           </p>
-          <div className="button-row">
-            <button type="button" onClick={handleDelete} className="button-danger" disabled={busy}>
-              {busy ? "Deleting..." : "Delete account"}
-            </button>
-          </div>
+          {!deleteFlowOpen && (
+            <div className="button-row">
+              <button
+                type="button"
+                className="button-ghost button-small settings-delete-toggle"
+                onClick={() => {
+                  setDeleteFlowOpen(true);
+                  setDeleteStep(1);
+                  setDeleteConfirmationText("");
+                  setError(null);
+                }}
+              >
+                I need to delete my account
+              </button>
+            </div>
+          )}
+          {deleteFlowOpen && (
+            <div className="card-outline stack delete-flow">
+              {deleteStep === 1 && (
+                <>
+                  <p className="muted text-small">
+                    Before removing your account, what made you sign up in the first place?
+                  </p>
+                  <label className="form-group">
+                    <span className="label">Why did you create your Note2Tabs account?</span>
+                    <textarea
+                      className="form-textarea"
+                      rows={3}
+                      value={deleteOriginReason}
+                      onChange={(event) => setDeleteOriginReason(event.target.value)}
+                      placeholder="Example: I wanted faster tab writing and to keep my song edits in one place."
+                    />
+                  </label>
+                  <div className="delete-alternatives">
+                    <p className="muted text-small">
+                      You started this account to save progress and keep your workflow in one place. Before deleting,
+                      you can also:
+                    </p>
+                    <div className="button-row">
+                      <Link href="/tabs" className="button-secondary button-small">
+                        Review saved tabs
+                      </Link>
+                      <Link href="/reset-password" className="button-secondary button-small">
+                        Reset password
+                      </Link>
+                      <button type="button" onClick={handleSignOut} className="button-secondary button-small">
+                        Log out instead
+                      </button>
+                    </div>
+                  </div>
+                  <div className="button-row">
+                    <button
+                      type="button"
+                      className="button-secondary button-small"
+                      onClick={() => {
+                        setDeleteFlowOpen(false);
+                        setDeleteStep(1);
+                        setDeleteOriginReason("");
+                        setDeleteConfirmationText("");
+                        setError(null);
+                      }}
+                    >
+                      Keep my account
+                    </button>
+                    <button
+                      type="button"
+                      className="button-secondary button-small"
+                      onClick={() => {
+                        setDeleteStep(2);
+                        setError(null);
+                      }}
+                      disabled={!canContinueDeleteFlow}
+                    >
+                      Continue to final step
+                    </button>
+                  </div>
+                </>
+              )}
+              {deleteStep === 2 && (
+                <>
+                  <p className="muted text-small">
+                    Final confirmation: type <strong>delete</strong> to permanently remove your account and data.
+                  </p>
+                  <label className="form-group">
+                    <span className="label">Type delete to confirm</span>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={deleteConfirmationText}
+                      onChange={(event) => setDeleteConfirmationText(event.target.value)}
+                      placeholder="delete"
+                      autoComplete="off"
+                    />
+                  </label>
+                  <div className="button-row">
+                    <button
+                      type="button"
+                      className="button-secondary button-small"
+                      onClick={() => {
+                        setDeleteStep(1);
+                        setDeleteConfirmationText("");
+                        setError(null);
+                      }}
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete()}
+                      className="button-secondary button-small button-delete-final"
+                      disabled={busy || !canFinalizeDelete}
+                    >
+                      {busy ? "Deleting..." : "Delete account permanently"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {error && <div className="error">{error}</div>}
         </section>
       </div>
