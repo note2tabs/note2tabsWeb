@@ -105,26 +105,22 @@ export default function JobStatusLayout({
     const workingOnLabel = job?.song_title
       ? `${job.song_title}${job.artist ? ` - ${job.artist}` : ""}`
       : "Your track";
-    const currentStepLabel = currentStage?.label || pending?.phaseLabel || "Getting things ready";
+    const currentStepLabel = currentStage?.label || pending?.phaseLabel || "Preparing";
     const nextStepLabel =
-      nextStage?.label || (pending?.progressPercent && pending.progressPercent >= 92 ? "Almost there" : "More to go");
-    const autoUpdateLabel =
+      nextStage?.label || (pending?.progressPercent && pending.progressPercent >= 92 ? "Almost there" : "Next step");
+    const updateLabel =
       pending?.badgeLabel === "In line"
-        ? "This page will update automatically as soon as your turn starts."
-        : "This page updates automatically every few seconds.";
-    const finishLabel =
-      pending?.badgeLabel === "In line"
-        ? "You can stay here while we get things started."
-        : "When it is ready, the next screen will open automatically.";
+        ? "Queue status updates automatically."
+        : "Updates every few seconds. The next screen opens when ready.";
     return (
       <div className="card">
         <div className="job-progress-shell">
           <div className="job-progress-header">
             <div className="stack" style={{ gap: "8px" }}>
               <span className="badge">{pending?.badgeLabel || "Working"}</span>
-              <p className="job-progress-phase">{pending?.phaseLabel || "Getting your tabs ready"}</p>
+              <p className="job-progress-phase">{pending?.phaseLabel || "Preparing tabs"}</p>
               <p className="muted text-small" style={{ margin: 0 }}>
-                {pending?.detail || "Getting your transcription ready. This usually takes less than a minute."}
+                {pending?.detail || "This usually takes under a minute."}
               </p>
             </div>
             {pending ? (
@@ -154,22 +150,21 @@ export default function JobStatusLayout({
                 <div className="job-progress-fact">
                   <span className="job-progress-fact-label">Working on</span>
                   <strong className="job-progress-fact-value">{workingOnLabel}</strong>
-                  <span className="job-progress-fact-note">We will keep this page updated for you.</span>
                 </div>
                 <div className="job-progress-fact">
                   <span className="job-progress-fact-label">Current step</span>
                   <strong className="job-progress-fact-value">{currentStepLabel}</strong>
-                  <span className="job-progress-fact-note">{pending.stepSummary || "We are moving through this now."}</span>
                 </div>
                 <div className="job-progress-fact">
                   <span className="job-progress-fact-label">Up next</span>
                   <strong className="job-progress-fact-value">{nextStepLabel}</strong>
-                  <span className="job-progress-fact-note">{pending.typicalDurationLabel || "We will take you forward automatically."}</span>
+                  {pending.typicalDurationLabel ? (
+                    <span className="job-progress-fact-note">{pending.typicalDurationLabel}</span>
+                  ) : null}
                 </div>
               </div>
               <div className="job-progress-note">
-                <p>{autoUpdateLabel}</p>
-                <p>{finishLabel}</p>
+                <p>{updateLabel}</p>
               </div>
               {pending.attemptLabel ? (
                 <p className="muted text-small" style={{ margin: 0 }}>

@@ -39,35 +39,35 @@ export default function SavedTabsPage({ tabs }: Props) {
 
         <section className="card stack">
           <div className="page-header">
-            <h2 className="section-title" style={{ margin: 0 }}>
+            <h2 className="section-title section-title--tight">
               History
             </h2>
             <span className="muted text-small">{tabs.length} jobs</span>
           </div>
           {tabs.length === 0 && <p className="muted text-small">No transcriptions yet.</p>}
-          <div className="stack">
+          <div className="tabs-list">
             {tabs.map((job) => (
               <div key={job.id} className="card-outline">
-                <div className="page-header" style={{ gap: "12px" }}>
-                  <Link href={`/tabs/${job.id}`} className="stack" style={{ gap: "4px" }}>
-                    <p style={{ margin: 0, fontWeight: 600 }}>
-                      {job.sourceLabel || "Unknown source"}
-                    </p>
-                    <p className="muted text-small" style={{ margin: 0 }}>
+                <div className="tabs-row">
+                  <Link href={`/tabs/${job.id}`} className="tabs-row-main">
+                    <p className="tabs-row-main-title">{job.sourceLabel || "Unknown source"}</p>
+                    <p className="muted text-small tabs-row-main-meta">
                       {job.sourceType} - {new Date(job.createdAt).toLocaleString()}
                     </p>
                   </Link>
-                  <Link href={`/tabs/${job.id}`} className="button-secondary button-small">
-                    Open import page
-                  </Link>
-                  {job.backendJobId ? (
-                    <Link
-                      href={`/job/${encodeURIComponent(job.backendJobId)}?review=1`}
-                      className="button-secondary button-small"
-                    >
-                      Edit transcription
+                  <div className="button-row">
+                    <Link href={`/tabs/${job.id}`} className="button-secondary button-small">
+                      Open import page
                     </Link>
-                  ) : null}
+                    {job.backendJobId ? (
+                      <Link
+                        href={`/job/${encodeURIComponent(job.backendJobId)}?review=1`}
+                        className="button-secondary button-small"
+                      >
+                        Edit transcription
+                      </Link>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             ))}

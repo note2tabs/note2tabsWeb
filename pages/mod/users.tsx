@@ -62,7 +62,7 @@ export default function UsersAdminPage({ users, canEdit }: Props) {
         {error && <div className="error">{error}</div>}
 
         <section className="card">
-          <div className="card-outline" style={{ overflowX: "auto" }}>
+          <div className="card-outline table-scroll">
             <table className="table">
               <thead>
                 <tr>
@@ -106,7 +106,7 @@ export default function UsersAdminPage({ users, canEdit }: Props) {
                 ))}
                 {list.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="muted text-small" style={{ textAlign: "center" }}>
+                    <td colSpan={5} className="muted text-small table-empty-cell">
                       No users found.
                     </td>
                   </tr>

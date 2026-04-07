@@ -33,8 +33,8 @@ export default function RequestResetPage() {
   return (
     <main className="page page-tight">
       <div className="container">
-        <div className="card auth-card stack">
-          <div className="stack" style={{ gap: "6px", textAlign: "center" }}>
+        <div className="card auth-card auth-card--expanded stack">
+          <div className="auth-card-header">
             <h1 className="page-title">Reset your password</h1>
             <p className="page-subtitle">
               Enter your email and we will send a reset link plus a reset code.
@@ -57,7 +57,7 @@ export default function RequestResetPage() {
               {loading ? "Sending..." : "Send reset link"}
             </button>
           </form>
-          <div className="button-row" style={{ justifyContent: "center" }}>
+          <div className="auth-links-row auth-links-row--center">
             <Link href="/auth/login" className="button-link">
               Back to login
             </Link>

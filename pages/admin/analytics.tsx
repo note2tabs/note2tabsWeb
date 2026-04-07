@@ -178,12 +178,12 @@ export default function AnalyticsDashboard(props: Props) {
       <Head>
         <title>Analytics Hub - Note2Tabs</title>
       </Head>
-      <main className="page">
-        <div className="container stack">
+      <main className="page analytics-page">
+        <div className="container stack analytics-shell">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-semibold">Analytics Hub</h1>
-              <p className="text-sm text-slate-600">{viewMeta.description}</p>
+              <h1 className="text-2xl font-semibold analytics-title">Analytics Hub</h1>
+              <p className="text-sm text-slate-600 analytics-subtitle">{viewMeta.description}</p>
               <p className="text-xs text-slate-500">
                 Range: {from} {"->"} {to}
               </p>

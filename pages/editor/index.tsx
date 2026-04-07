@@ -10,38 +10,53 @@ const LIBRARY_PATH = "/gte";
 
 const editorHighlights = [
   {
-    title: "A smart editor made to make music easier",
-    body: "Start from scratch or shape a rough draft with tools that help you get to a cleaner, more playable tab faster.",
+    title: "Start from blank or import a draft",
+    body: "Open a clean tab instantly, or continue from a transcription draft when you already have material.",
   },
   {
-    title: "Optimize fingerings as you go",
-    body: "Try cleaner ways to play tricky parts and compare different fingerings until the line feels natural in your hands.",
+    title: "Refine fingerings with control",
+    body: "Compare options for notes and chords, then keep the shape that is most playable for your hand.",
   },
   {
-    title: "Generate cuts and shape segments",
-    body: "Split a song into useful sections automatically, then adjust cut points and segments by hand until the structure feels right.",
+    title: "Shape structure quickly",
+    body: "Generate cuts, split sections, and adjust boundaries until the song layout feels right.",
   },
 ] as const;
 
-const editorFeatureBullets = [
-  "Smart tools that make it easier to turn rough ideas into playable music",
-  "Optimize single-note fingerings and compare different chord shapes",
-  "Generate cuts automatically and fine-tune cut segments by hand",
-  "Write from scratch, clean up drafts, and keep songs organized in one library",
+const controlChecklist = [
+  "Timing and note placement",
+  "Chord shapes and voicing choices",
+  "Single-note fingering alternatives",
+  "Section cuts and segment boundaries",
+  "Saved versions in your library",
 ] as const;
 
-const editorQuestions = [
+const reliabilityBullets = [
+  "Browser-based editor with no install",
+  "Saved library for ongoing songs",
+  "Works as a standalone workflow or after transcription",
+  "Designed for repeat editing sessions",
+] as const;
+
+const editorSeoHighlights = [
+  "Build tabs from scratch or clean up a rough draft",
+  "Compare note and chord fingerings for better playability",
+  "Generate song cuts and refine segment boundaries",
+  "Keep songs organized in a saved tab library",
+] as const;
+
+const editorSeoQuestions = [
   {
     title: "What does the guitar tab editor do?",
-    body: "It gives you a clean place to write, edit, and organize guitar tabs online. You can build a tab from a blank page, clean up one you already started, test better fingerings, and shape the song into clear sections.",
+    body: "It gives you a clean place to write, edit, and organize guitar tabs online. You can start from a blank tab, refine transcribed drafts, and shape timing and structure in one workflow.",
   },
   {
-    title: "Why is it different from the transcriber?",
-    body: "The transcriber helps you get a first draft from audio. The editor is where you shape that draft into something clear, playable, and worth keeping by adjusting timing, improving fingerings, picking better chord shapes, and organizing the song into segments.",
+    title: "Why use this after the transcriber?",
+    body: "The transcriber gives you a first pass. The editor is where you make decisions about playability, fingering, and section layout before saving the final version.",
   },
   {
     title: "Can I change how notes and chords are played?",
-    body: "Yes. You can compare different ways to play single notes and full chords, then keep the fingering that feels best for you.",
+    body: "Yes. You can test alternatives for single notes and full chords, then keep the fingering that feels best for your hands and style.",
   },
 ] as const;
 
@@ -80,19 +95,19 @@ export default function EditorLandingPage() {
         <meta
           key="description"
           name="description"
-          content="Create, edit, and organize guitar tabs online with a smart guitar tab editor. Optimize fingerings, choose different note and chord shapes, generate cuts, shape segments, refine drafts, and keep your song library in one place."
+          content="Edit guitar tabs online with precise controls for timing, fingerings, chord shapes, and section structure."
         />
         <meta key="og:title" property="og:title" content="Online Guitar Tab Editor | Note2Tabs" />
         <meta
           key="og:description"
           property="og:description"
-          content="Create guitar tabs from scratch with a smart editor, optimize fingerings, generate cuts, shape segments, and keep your saved songs organized in one place."
+          content="Use the Note2Tabs editor to refine tabs, optimize fingerings, and organize songs in one library."
         />
         <meta key="twitter:title" name="twitter:title" content="Online Guitar Tab Editor | Note2Tabs" />
         <meta
           key="twitter:description"
           name="twitter:description"
-          content="Create guitar tabs online with a smart editor, optimize fingerings, shape segments, and keep your saved songs in one library."
+          content="A browser-based guitar tab editor with precise controls and saved song library."
         />
       </Head>
 
@@ -103,10 +118,10 @@ export default function EditorLandingPage() {
         <div className="container hero-stack hero-stack--centered editor-landing-shell">
           <div className="hero-heading">
             <div className="hero-title-row">
-              <h1 className="hero-title">Guitar Editor Canvas</h1>
+              <h1 className="hero-title">Guitar Tab Editor</h1>
               <span className="badge editor-version">v{EDITOR_VERSION}</span>
             </div>
-            <p className="editor-landing-byline">a smart tab-editor by Note2Tabs</p>
+            <p className="editor-landing-byline">precision editing by Note2Tabs</p>
             <div className="button-row hero-cta-row editor-landing-hero-actions">
               <button type="button" onClick={() => void handleCreate()} className="button-primary" disabled={creating}>
                 {status === "loading"
@@ -122,13 +137,13 @@ export default function EditorLandingPage() {
               </Link>
             </div>
             <p className="hero-subtitle editor-landing-subtitle">
-              A smart guitar tab editor made to make music easier. Build a tab, optimize fingerings, try better note
-              and chord shapes, and generate cuts that help organize the song fast.
+              Use it after transcription or start from blank. Edit timing, fingerings, chord shapes, and section
+              structure in one workspace.
             </p>
             <p className="editor-landing-support">
               {isSignedIn
-                ? "Jump back into saved songs or open a blank tab right away."
-                : "You can start without signing in and save it to your library later."}
+                ? "Continue existing songs or open a new tab immediately."
+                : "You can start in guest mode first and move to your library later."}
             </p>
             {error && <div className="error editor-landing-error">{error}</div>}
           </div>
@@ -137,10 +152,33 @@ export default function EditorLandingPage() {
 
       <main className="page">
         <div className="container stack editor-landing-sections">
+          <section className="seo-intro seo-crawler-only" aria-label="Guitar tab editor overview">
+            <h2 className="seo-title">Online guitar tab editor for drafting and refinement</h2>
+            <p className="seo-copy">
+              Note2Tabs includes a browser-based guitar tab editor designed for full revision work. Use it to clean up
+              rough transcriptions, write tabs from scratch, and keep songs organized in one library.
+            </p>
+            <p className="seo-copy">
+              Core editing capabilities include timing adjustments, fingering alternatives, chord voicing choices, and
+              section cuts for clearer song structure.
+            </p>
+            <ul>
+              {editorSeoHighlights.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+            {editorSeoQuestions.map((item) => (
+              <article key={item.title}>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </article>
+            ))}
+          </section>
+
           <section className="editor-landing-grid" aria-label="Editor highlights">
             {editorHighlights.map((item) => (
               <article key={item.title} className="card-outline editor-landing-card">
-                <p className="editor-landing-card-label">Built for real tab work</p>
+                <p className="editor-landing-card-label">Core workflow</p>
                 <h2>{item.title}</h2>
                 <p>{item.body}</p>
               </article>
@@ -149,79 +187,52 @@ export default function EditorLandingPage() {
 
           <section className="editor-landing-split">
             <article className="card editor-landing-story">
-              <p className="editor-landing-section-label">What it does</p>
-              <h2>A smart editor built to make guitar tab work easier</h2>
+              <p className="editor-landing-section-label">When to use it</p>
+              <h2>Use the editor when the draft needs decisions</h2>
               <p>
-                The Note2Tabs guitar tab editor is the place for hands-on work. Use it when you want full control
-                over notes, chords, timing, and song structure without making the process feel heavy or slow. It is
-                built to make music easier to shape, whether you are writing tabs by hand or cleaning up a rough draft.
+                The transcriber gives you a starting point. The editor is where you decide what is playable, what to
+                keep, and what to rewrite. It is built for real revision work, not just quick previews.
               </p>
-              <p>
-                If you already used the transcriber, this is the next step. You can tighten the timing, optimize how
-                a phrase is played, choose different fingerings for single notes and full chords, and use generate
-                cuts to break the song into useful segments. From there, you can move cut points and shape those
-                segments until the arrangement feels right. If you did not use the transcriber, that is fine too. The
-                editor stands on its own as a clean online tab maker for guitar players who want to build and organize
-                tabs in one place.
-              </p>
+              <ul className="editor-landing-list">
+                <li>Fix awkward positions before practice.</li>
+                <li>Test multiple fingerings for difficult passages.</li>
+                <li>Split long songs into practical sections.</li>
+                <li>Save versions so progress is not lost.</li>
+              </ul>
             </article>
 
             <article className="card-outline editor-landing-story editor-landing-story--contrast">
-              <p className="editor-landing-section-label">Why it feels different</p>
-              <h2>Made for better fingerings, cleaner sections, and more playable tabs</h2>
+              <p className="editor-landing-section-label">What you can control</p>
+              <h2>Detailed control without a heavy interface</h2>
               <ul className="editor-landing-list">
-                <li>The transcriber gives you a starting point. The editor helps you make it playable.</li>
-                <li>You can use optimize to test easier, smoother, or more natural fingerings as you edit.</li>
-                <li>You can choose different ways to play a single note or a full chord instead of settling for the first version.</li>
-                <li>You can generate cuts, split the song into segments, and adjust those sections until the structure makes sense.</li>
-                <li>Your library keeps saved songs together so you can revisit older ideas without losing them.</li>
+                {controlChecklist.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
               </ul>
             </article>
           </section>
 
-          <section className="card editor-landing-feature-box" aria-label="Editor features">
+          <section className="card editor-landing-feature-box" aria-label="Reliability">
             <div className="editor-landing-feature-box-copy">
-              <p className="editor-landing-section-label">Key features</p>
-              <h2>What you can do in the editor</h2>
+              <p className="editor-landing-section-label">Reliability</p>
+              <h2>Built for repeat sessions</h2>
               <p>
-                The editor is built to help you move from rough idea to playable song without fighting the workflow.
+                This is a working editor designed for daily use. You can come back to songs, continue edits, and keep
+                your tab workflow in one place.
               </p>
             </div>
             <ul className="editor-landing-feature-list">
-              {editorFeatureBullets.map((item) => (
+              {reliabilityBullets.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
           </section>
 
-          <section className="editor-landing-questions">
-            <div className="page-header">
-              <div>
-                <p className="editor-landing-section-label">Common questions</p>
-                <h2 className="page-title editor-landing-heading">A clearer way to use the editor</h2>
-                <p className="page-subtitle">
-                  Short answers for what the editor is for, how it fits the rest of Note2Tabs, and how to get started.
-                </p>
-              </div>
-            </div>
-            <div className="editor-landing-grid">
-              {editorQuestions.map((item) => (
-                <article key={item.title} className="card-outline editor-landing-card editor-landing-card--soft">
-                  <h3>{item.title}</h3>
-                  <p>{item.body}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-
           <section className="card editor-landing-cta">
             <div>
-              <p className="editor-landing-section-label">Ready to start?</p>
-              <h2>Open your library or start a blank tab</h2>
-              <p>
-                Use your library for saved songs, or start fresh and shape the tab your own way from the very first
-                note.
-              </p>
+              <p className="editor-landing-section-label">Start now</p>
+              <h2>Open your library or create a new tab</h2>
+              <p>Choose a saved song or begin from the first note.</p>
             </div>
             <div className="button-row">
               <button type="button" onClick={() => void handleCreate()} className="button-primary" disabled={creating}>

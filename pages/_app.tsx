@@ -54,14 +54,6 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         <meta name="twitter:title" content={siteTitle} />
         <meta name="twitter:description" content={siteDescription} />
         <meta name="twitter:image" content={`${baseUrl}/logo01black.png`} />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/sf-pro-display" />
-        <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/sf-pro-text" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap"
-        />
       </Head>
       <div className="app-shell">
         <NavBar />

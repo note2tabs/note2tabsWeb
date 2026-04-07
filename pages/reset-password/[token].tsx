@@ -68,16 +68,16 @@ export default function ResetPasswordTokenPage() {
   return (
     <main className="page page-tight">
       <div className="container">
-        <div className="card auth-card stack">
-          <h1 className="page-title" style={{ textAlign: "center" }}>
-            Set a new password
-          </h1>
+        <div className="card auth-card auth-card--expanded stack">
+          <div className="auth-card-header">
+            <h1 className="page-title">Set a new password</h1>
+          </div>
           {!ready || validating ? (
-            <p className="page-subtitle" style={{ textAlign: "center" }}>
-              {ready ? "Checking reset link..." : "Loading token..."}
-            </p>
+            <div className="auth-card-header">
+              <p className="page-subtitle">{ready ? "Checking reset link..." : "Loading token..."}</p>
+            </div>
           ) : tokenError ? (
-            <div className="stack" style={{ textAlign: "center" }}>
+            <div className="auth-card-header stack">
               <div className="error">{tokenError}</div>
               <Link href="/reset-password" className="button-secondary">
                 Request a new reset email
@@ -125,7 +125,7 @@ export default function ResetPasswordTokenPage() {
                 {submitting ? "Saving..." : "Update password"}
               </button>
               {message && (
-                <div className="button-row" style={{ justifyContent: "center" }}>
+                <div className="auth-links-row auth-links-row--center">
                   <Link href="/auth/login" className="button-link">
                     Go to login
                   </Link>

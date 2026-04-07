@@ -181,12 +181,12 @@ export default function GteIndexPage() {
               className="notice"
               style={highlightGuestImport ? { borderColor: "#16a34a", boxShadow: "0 0 0 1px #16a34a" } : undefined}
             >
-              <div className="page-header" style={{ gap: "10px" }}>
+              <div className="page-header">
                 <div>
-                  <p style={{ margin: 0, fontWeight: 600 }}>
+                  <p className="tabs-row-main-title">
                     Guest draft found{guestDraft.name ? `: ${guestDraft.name}` : ""}
                   </p>
-                  <p className="muted text-small" style={{ margin: 0 }}>
+                  <p className="muted text-small tabs-row-main-meta">
                     Import it into your account so it shows up in your library.
                   </p>
                 </div>
@@ -219,21 +219,21 @@ export default function GteIndexPage() {
           {!loading && !editors.length && (
             <p className="muted text-small">No saved tabs yet. Start your first one.</p>
           )}
-          <div className="stack" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+          <div className="gte-library-grid">
             {editors.map((editor) => (
               <div key={editor.id} className="card-outline">
-                <div className="page-header" style={{ gap: "12px" }}>
+                <div className="gte-library-card-head">
                   <div>
-                    <h2 style={{ margin: 0, fontSize: "1rem" }}>
+                    <h2 className="gte-library-card-title">
                       <Link href={`/gte/${editor.id}`}>
                         {editor.name ? editor.name : `Tab ${editor.id.slice(0, 8)}`}
                       </Link>
                     </h2>
-                    <p className="muted text-small" style={{ margin: 0 }}>
+                    <p className="muted text-small tabs-row-main-meta">
                       {editor.id.slice(0, 8)}
                     </p>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div className="button-row">
                     <span className="muted text-small">v{editor.version || 1}</span>
                     <button
                       type="button"
@@ -245,7 +245,7 @@ export default function GteIndexPage() {
                     </button>
                   </div>
                 </div>
-                <div className="muted text-small" style={{ marginTop: "8px" }}>
+                <div className="muted text-small gte-library-meta">
                   <p>Notes: {editor.noteCount ?? 0} - Chords: {editor.chordCount ?? 0}</p>
                   <p>Frames: {editor.totalFrames ?? 0} - Bar size: {editor.framesPerMessure ?? 0}</p>
                   {editor.updatedAt && <p>Updated: {new Date(editor.updatedAt).toLocaleString()}</p>}

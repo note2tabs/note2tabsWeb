@@ -20,7 +20,7 @@ export default function FooterBar() {
           <button
             type="button"
             onClick={openCookieSettings}
-            style={{ background: "none", border: 0, padding: 0, cursor: "pointer", color: "inherit" }}
+            className="footer-link-button"
           >
             Cookie settings
           </button>

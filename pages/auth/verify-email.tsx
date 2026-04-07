@@ -93,8 +93,8 @@ export default function VerifyEmailPage() {
   return (
     <main className="page page-tight">
       <div className="container">
-        <div className="card auth-card stack">
-          <div className="stack" style={{ gap: "6px", textAlign: "center" }}>
+        <div className="card auth-card auth-card--expanded stack">
+          <div className="auth-card-header">
             <h1 className="page-title">Verify your email</h1>
             <p className="page-subtitle">
               Email verification is required before you can use the transcriber.
@@ -116,7 +116,7 @@ export default function VerifyEmailPage() {
             </div>
           )}
 
-          <div className="button-row" style={{ justifyContent: "center" }}>
+          <div className="auth-links-row auth-links-row--center">
             <button type="button" className="button-secondary" onClick={() => void handleResend()} disabled={resendBusy}>
               {resendBusy ? "Sending..." : "Resend verification email"}
             </button>

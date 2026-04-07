@@ -145,7 +145,7 @@ export default function SettingsPage({ user }: Props) {
         </div>
 
         <section className="card stack">
-          <h2 className="section-title" style={{ margin: 0 }}>
+          <h2 className="section-title section-title--tight">
             Profile
           </h2>
           <p className="muted text-small">Email: {user.email}</p>
@@ -164,7 +164,7 @@ export default function SettingsPage({ user }: Props) {
         </section>
 
         <section className="card stack">
-          <h2 className="section-title" style={{ margin: 0 }}>
+          <h2 className="section-title section-title--tight">
             Security
           </h2>
           <div className="button-row">
@@ -179,7 +179,7 @@ export default function SettingsPage({ user }: Props) {
 
         {!user.isEmailVerified && (
           <section className="card stack">
-            <h2 className="section-title" style={{ margin: 0 }}>
+            <h2 className="section-title section-title--tight">
               Email verification
             </h2>
             <p className="muted text-small">
@@ -203,7 +203,7 @@ export default function SettingsPage({ user }: Props) {
         )}
 
         <section className="card stack" id="privacy-controls">
-          <h2 className="section-title" style={{ margin: 0 }}>
+          <h2 className="section-title section-title--tight">
             Privacy controls
           </h2>
           <p className="muted text-small">
@@ -232,7 +232,7 @@ export default function SettingsPage({ user }: Props) {
         </section>
 
         <section className="card stack">
-          <h2 className="section-title" style={{ margin: 0 }}>
+          <h2 className="section-title section-title--tight">
             Danger zone
           </h2>
           <p className="muted text-small">

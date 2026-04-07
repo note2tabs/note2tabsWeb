@@ -1,20 +1,32 @@
 export default function ContactPage() {
   return (
-    <main className="page">
-      <div className="container stack">
-        <div>
-          <h1 className="page-title">Contact</h1>
+    <main className="page legal-page">
+      <div className="legal-shell">
+        <header className="legal-header">
+          <p className="legal-kicker">Contact</p>
+          <h1 className="page-title">Get in touch with Note2Tabs</h1>
           <p className="page-subtitle">
-            For any questions or feedback, contact us at <strong>note2tabs@gmail.com</strong>. We would love to hear from you!
+            Product questions, feedback, bug reports, or account issues. We read every message.
           </p>
-          <p className="page-subtitle">
-          </p>
-        </div>
-        <div className="card stack">
+        </header>
+
+        <section className="legal-prose">
+          <h2>Email</h2>
           <p>
-            We respond to emails at <strong>note2tabs@gmail.com</strong>.
+            Reach us at <strong>note2tabs@gmail.com</strong>.
           </p>
-        </div>
+          <p>
+            Including your account email and a short description of the issue helps us respond faster.
+          </p>
+
+          <h2>Support scope</h2>
+          <ul>
+            <li>Billing and subscription questions</li>
+            <li>Transcription workflow issues</li>
+            <li>Editor and saved-tab problems</li>
+            <li>General feedback and feature requests</li>
+          </ul>
+        </section>
       </div>
     </main>
   );

@@ -71,7 +71,7 @@ export default function HomePage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [ytStartTime, setYtStartTime] = useState<number | null>(null);
-  const [ytDuration, setYtDuration] = useState<number | null>(null);
+  const [ytEndTime, setYtEndTime] = useState<number | null>(null);
   const [fileDuration, setFileDuration] = useState<number | null>(null);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [separateGuitar, setSeparateGuitar] = useState(true);
@@ -119,9 +119,10 @@ export default function HomePage() {
   }, [router.isReady, router.query.appendEditorId]);
   const youtubeId = useMemo(() => parseYouTubeId(youtubeUrl), [youtubeUrl]);
   const resolvedYtDuration = useMemo(() => {
-    if (ytDuration === null) return 0;
-    return Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, ytDuration));
-  }, [ytDuration]);
+    if (ytStartTime === null || ytEndTime === null) return 0;
+    const rawDuration = ytEndTime - ytStartTime;
+    return Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, rawDuration));
+  }, [ytStartTime, ytEndTime]);
   const shouldDeferEditorSync = Boolean(appendEditorId);
 
   useEffect(() => {
@@ -180,7 +181,7 @@ export default function HomePage() {
   useEffect(() => {
     if (mode !== "YOUTUBE") return;
     setYtStartTime((prev) => (prev === null ? 0 : prev));
-    setYtDuration((prev) => (prev === null ? MAX_YT_SNIPPET_SEC : prev));
+    setYtEndTime((prev) => (prev === null ? MAX_YT_SNIPPET_SEC : prev));
   }, [mode]);
 
   const creditsRequested = useMemo(() => {
@@ -193,13 +194,13 @@ export default function HomePage() {
   const canSubmit = useMemo(() => {
     if (isSignedIn && !isEmailVerified) return false;
     if (mode === "FILE") return Boolean(selectedFile) && !loading;
-    return youtubeValid && ytStartTime !== null && ytDuration !== null && !loading;
+    return youtubeValid && ytStartTime !== null && ytEndTime !== null && !loading;
   }, [
     mode,
     selectedFile,
     youtubeValid,
     ytStartTime,
-    ytDuration,
+    ytEndTime,
     loading,
     isSignedIn,
     isEmailVerified,
@@ -305,12 +306,21 @@ export default function HomePage() {
       setError("Please paste a valid YouTube link.");
       return;
     }
-    if (mode === "YOUTUBE" && (ytStartTime === null || ytDuration === null)) {
-      setError("Start time and duration are required for YouTube download.");
+    if (mode === "YOUTUBE" && (ytStartTime === null || ytEndTime === null)) {
+      setError("Start time and end time are required for YouTube download.");
       return;
     }
-    if (mode === "YOUTUBE" && ytDuration !== null && ytDuration > MAX_YT_SNIPPET_SEC) {
-      setError(`Duration must be ${MAX_YT_SNIPPET_SEC} seconds or less.`);
+    if (mode === "YOUTUBE" && ytStartTime !== null && ytEndTime !== null && ytEndTime <= ytStartTime) {
+      setError("End time must be greater than start time.");
+      return;
+    }
+    if (
+      mode === "YOUTUBE" &&
+      ytStartTime !== null &&
+      ytEndTime !== null &&
+      ytEndTime - ytStartTime > MAX_YT_SNIPPET_SEC
+    ) {
+      setError(`Time window must be ${MAX_YT_SNIPPET_SEC} seconds or less.`);
       return;
     }
 
@@ -333,8 +343,8 @@ export default function HomePage() {
         setError("Start time must be 0 or greater.");
         return;
       }
-      if (ytDuration !== null && ytDuration <= 0) {
-        setError("Duration must be greater than 0.");
+      if (ytEndTime !== null && ytEndTime <= 0) {
+        setError("End time must be greater than 0.");
         return;
       }
     }
@@ -760,26 +770,18 @@ export default function HomePage() {
                           />
                         </label>
                         <label>
-                          Duration (sec, max 30)
+                          End time (sec)
                           <input
                             type="number"
-                            min={1}
-                            max={MAX_YT_SNIPPET_SEC}
-                            value={ytDuration ?? ""}
+                            min={ytStartTime !== null ? ytStartTime + 1 : 1}
+                            value={ytEndTime ?? ""}
                             onChange={(event) => {
                               const next = parseOptionalNumber(event.target.value);
-                              if (next === null) {
-                                setYtDuration(null);
-                                return;
-                              }
-                              setYtDuration(Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, next)));
+                              setYtEndTime(next);
                             }}
                             required
                           />
                         </label>
-                        <div className="advanced-note">
-                          We only use this exact time window before transcription starts.
-                        </div>
                       </div>
                       )}
                     </>
@@ -836,9 +838,9 @@ export default function HomePage() {
                 </div>
                 <div className="results-actions">
                   {isSignedIn && (
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="button-row">
                       <select
-                        className="rounded-md border border-slate-200 bg-white px-2 py-2 text-sm"
+                        className="form-select button-small"
                         value={editorChoice}
                         onChange={(event) => setEditorChoice(event.target.value)}
                         disabled={editorLoading}

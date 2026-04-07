@@ -50,8 +50,8 @@ export default function LoginPage() {
   return (
     <main className="page page-tight">
       <div className="container">
-        <div className="card auth-card stack">
-          <div className="stack" style={{ gap: "6px", textAlign: "center" }}>
+        <div className="card auth-card auth-card--expanded stack">
+          <div className="auth-card-header">
             <h1 className="page-title">Log in</h1>
             <p className="page-subtitle">Welcome back to Note2Tabs.</p>
           </div>
@@ -81,6 +81,9 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Log in"}
             </button>
           </form>
+          <div className="auth-card-divider" aria-hidden="true">
+            <span>or</span>
+          </div>
           <button
             type="button"
             onClick={() => signIn("google", { callbackUrl: nextHref })}
@@ -88,7 +91,7 @@ export default function LoginPage() {
           >
             Continue with Google
           </button>
-          <div className="button-row" style={{ justifyContent: "space-between" }}>
+          <div className="auth-links-row auth-links-row--between">
             <Link href={signupHref} className="button-link">
               Need an account? Sign up
             </Link>

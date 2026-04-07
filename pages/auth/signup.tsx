@@ -53,8 +53,8 @@ export default function SignupPage() {
   return (
     <main className="page page-tight">
       <div className="container">
-        <div className="card auth-card stack">
-          <div className="stack" style={{ gap: "6px", textAlign: "center" }}>
+        <div className="card auth-card auth-card--expanded stack">
+          <div className="auth-card-header">
             <h1 className="page-title">Create your account</h1>
             <p className="page-subtitle">Get started with Note2Tabs.</p>
           </div>
@@ -94,6 +94,9 @@ export default function SignupPage() {
               {loading ? "Creating account..." : "Sign up"}
             </button>
           </form>
+          <div className="auth-card-divider" aria-hidden="true">
+            <span>or</span>
+          </div>
           <button
             type="button"
             onClick={() => signIn("google", { callbackUrl: nextHref })}
@@ -101,7 +104,7 @@ export default function SignupPage() {
           >
             Continue with Google
           </button>
-          <div className="button-row" style={{ justifyContent: "center" }}>
+          <div className="auth-links-row auth-links-row--center">
             <Link href={loginHref} className="button-link">
               Already have an account? Log in
             </Link>

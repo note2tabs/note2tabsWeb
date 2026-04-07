@@ -98,10 +98,8 @@ export default function AccountPage({ user, stripeReady, credits }: Props) {
 
         <section className="card stack">
           <div className="stack">
-            <div>
-              <p className="page-title" style={{ fontSize: "1.4rem" }}>
-                {user.email}
-              </p>
+            <div className="account-meta">
+              <p className="account-email">{user.email}</p>
               <p className="muted text-small">
                 {isPremium
                   ? `Plan: ${user.role} - 50 credits/month (roll over)`
@@ -127,7 +125,7 @@ export default function AccountPage({ user, stripeReady, credits }: Props) {
           {!user.isEmailVerified && (
             <div className="notice">
               Please verify your email before using the transcriber.
-              <div className="button-row" style={{ marginTop: 8 }}>
+              <div className="button-row">
                 <Link href={verifyHref} className="button-link">
                   Open verification page
                 </Link>

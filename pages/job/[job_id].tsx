@@ -337,14 +337,14 @@ function getReviewBusyCopy(action: ReviewAction) {
   if (action === "finalize") {
     return {
       badge: "Building tabs",
-      title: "Turning your chosen sound into tab options",
-      detail: "Your current version is being prepared into the tab choices you can import next.",
+      title: "Building tabs from your selected sound",
+      detail: "Preparing the tab options now.",
     };
   }
   return {
     badge: "Updating sound",
-    title: "Refreshing your guitar preview",
-    detail: "A new preview is being built with your current control settings. This can take several seconds.",
+    title: "Refreshing your preview",
+    detail: "Generating a new preview with your current settings.",
   };
 }
 
@@ -959,8 +959,8 @@ export default function JobPage() {
               <h1 className="page-title">{showReviewUi ? "Tune your sound" : "Preparing your tabs"}</h1>
               <p className="page-subtitle">
                 {showReviewUi
-                  ? "Listen to the preview, adjust the controls, then continue to tabs."
-                  : "This page updates automatically while we work."}
+                  ? "Play the preview, tweak controls, then continue."
+                  : "Live updates while your tabs are processing."}
               </p>
             </div>
             <button type="button" onClick={() => void router.push("/")} className="button-ghost button-small">
@@ -977,8 +977,7 @@ export default function JobPage() {
                     <div className="stack" style={{ gap: "8px" }}>
                       <h2 className="review-hero-title">{displayJob?.song_title || "Shape your guitar preview"}</h2>
                       <p className="review-hero-lead">
-                        This page is just for the sound. Play the preview, move the controls until it feels right, then
-                        continue to tabs.
+                        Focus on the sound, then continue once it feels right.
                       </p>
                       {isRecoverableReview ? (
                         <p className="muted text-small" style={{ margin: 0 }}>
@@ -990,15 +989,15 @@ export default function JobPage() {
                     <div className="review-guide">
                       <div className="review-guide-step">
                         <span className="review-guide-number">1</span>
-                        <p>Play the sound and listen for missing notes, extra notes, or awkward ringing.</p>
+                        <p>Play the preview and note anything off.</p>
                       </div>
                       <div className="review-guide-step">
                         <span className="review-guide-number">2</span>
-                        <p>Adjust the controls below and press <strong>Update sound</strong> to hear the change.</p>
+                        <p>Adjust controls, then press <strong>Update sound</strong>.</p>
                       </div>
                       <div className="review-guide-step">
                         <span className="review-guide-number">3</span>
-                        <p>When the preview feels right, press <strong>Continue to tabs</strong>.</p>
+                        <p>Press <strong>Continue to tabs</strong> when satisfied.</p>
                       </div>
                     </div>
                   </div>
@@ -1025,13 +1024,6 @@ export default function JobPage() {
                           Preview audio is not available yet.
                         </p>
                       )}
-                    </div>
-                    <div className="review-callout">
-                      <p className="review-callout-title">What happens here</p>
-                      <p className="muted text-small" style={{ margin: 0 }}>
-                        <strong>Update sound</strong> makes a fresh preview with your current settings.{" "}
-                        <strong>Continue to tabs</strong> keeps the version you like and moves on to the tab choices.
-                      </p>
                     </div>
                   </div>
                 </section>
@@ -1061,7 +1053,7 @@ export default function JobPage() {
                     </div>
                     <div className="job-progress-meta">
                       <span>Updating your preview</span>
-                      <span>You can stay on this page while it runs</span>
+                      <span>Runs in background</span>
                     </div>
                   </div>
                 </div>
@@ -1082,7 +1074,7 @@ export default function JobPage() {
                         Shape the guitar preview
                       </h3>
                       <p className="muted text-small" style={{ margin: 0 }}>
-                        Move these until the sound feels right, then continue to tabs.
+                        Adjust as needed, then continue.
                       </p>
                     </div>
                   </div>

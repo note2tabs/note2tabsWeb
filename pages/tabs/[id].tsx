@@ -106,7 +106,7 @@ export default function TabDetailPage({ id, sourceLabel, createdAt, tabs, transc
     <main className="page">
       <div className="container stack">
         <div className="page-header">
-          <div className="stack" style={{ gap: "6px" }}>
+          <div className="stack stack-tight">
             <h1 className="page-title">Import saved tabs</h1>
             <p className="muted text-small">{sourceLabel}</p>
             <p className="muted text-small">{new Date(createdAt).toLocaleString()}</p>
@@ -127,21 +127,21 @@ export default function TabDetailPage({ id, sourceLabel, createdAt, tabs, transc
         </div>
 
         <section className="results" id="results">
-          <div className="container results-shell" style={{ paddingInline: 0 }}>
+          <div className="container results-shell saved-tabs-results-shell">
             <div className="results-header">
               <div>
                 <h2>Your tabs are ready</h2>
                 <p>Pick the tab blocks you want to import or copy.</p>
               </div>
               <div className="results-actions">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="button-row">
                   {reviewHref ? (
                     <Link href={reviewHref} className="button-secondary button-small">
                       Edit transcription
                     </Link>
                   ) : null}
                   <select
-                    className="rounded-md border border-slate-200 bg-white px-2 py-2 text-sm"
+                    className="form-select button-small"
                     value={editorChoice}
                     onChange={(event) => setEditorChoice(event.target.value)}
                     disabled={editorLoading}

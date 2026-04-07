@@ -42,6 +42,8 @@ export default function BlogPostPage({ post, toc, readingMinutes, relatedPosts }
   const ogImage = post.coverImageUrl || `${baseUrl}/api/og?title=${encodeURIComponent(title)}`;
   const published = post.publishedAt || post.publishAt || undefined;
   const displayDate = post.publishedAt ?? post.publishAt;
+  const hasTaxonomy = post.categories.length > 0 || post.tags.length > 0 || post.clusters.length > 0;
+  const showAside = toc.length > 0 || hasTaxonomy;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -106,11 +108,76 @@ export default function BlogPostPage({ post, toc, readingMinutes, relatedPosts }
           </figure>
         )}
 
-        <article className="post-content">
-          <div className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
-        </article>
+        <div className={showAside ? "post-layout" : undefined}>
+          <article className="post-content">
+            <div className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
+          </article>
+          {showAside && (
+            <aside className="post-aside">
+              {toc.length > 0 && (
+                <nav className="toc" aria-label="Table of contents">
+                  <h3>On this page</h3>
+                  <ul>
+                    {toc.map((item) => (
+                      <li
+                        key={item.id}
+                        className={
+                          item.level >= 4 ? "toc-level-4" : item.level >= 3 ? "toc-level-3" : undefined
+                        }
+                      >
+                        <a href={`#${item.id}`}>{item.text}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+              )}
 
-        {(post.categories.length > 0 || post.tags.length > 0 || post.clusters.length > 0) && (
+              {hasTaxonomy && (
+                <section className="post-taxonomy">
+                  {post.categories.length > 0 && (
+                    <>
+                      <h4>Categories</h4>
+                      <div className="tag-row">
+                        {post.categories.map((cat) => (
+                          <Link key={cat.id} href={`/blog/category/${cat.slug}`}>
+                            {cat.name}
+                          </Link>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {post.tags.length > 0 && (
+                    <>
+                      <h4>Tags</h4>
+                      <div className="tag-row">
+                        {post.tags.map((tag) => (
+                          <Link key={tag.id} href={`/blog/tag/${tag.slug}`}>
+                            {tag.name}
+                          </Link>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {post.clusters.length > 0 && (
+                    <>
+                      <h4>Topic clusters</h4>
+                      <div className="tag-row">
+                        {post.clusters.map((cluster) => (
+                          <Link key={cluster.id} href={`/blog/cluster/${cluster.slug}`}>
+                            {cluster.name}
+                            {cluster.isPillar ? " (pillar)" : ""}
+                          </Link>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </section>
+              )}
+            </aside>
+          )}
+        </div>
+
+        {hasTaxonomy && (
           <section className="post-taxonomy post-taxonomy--inline">
             {post.categories.length > 0 && (
               <>

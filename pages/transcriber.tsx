@@ -72,7 +72,7 @@ export default function TranscriberPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [ytStartTime, setYtStartTime] = useState<number | null>(null);
-  const [ytDuration, setYtDuration] = useState<number | null>(null);
+  const [ytEndTime, setYtEndTime] = useState<number | null>(null);
   const [fileDuration, setFileDuration] = useState<number | null>(null);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [separateGuitar, setSeparateGuitar] = useState(true);
@@ -118,9 +118,10 @@ export default function TranscriberPage() {
   }, [router.isReady, router.query.appendEditorId]);
   const youtubeId = useMemo(() => parseYouTubeId(youtubeUrl), [youtubeUrl]);
   const resolvedYtDuration = useMemo(() => {
-    if (ytDuration === null) return 0;
-    return Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, ytDuration));
-  }, [ytDuration]);
+    if (ytStartTime === null || ytEndTime === null) return 0;
+    const rawDuration = ytEndTime - ytStartTime;
+    return Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, rawDuration));
+  }, [ytStartTime, ytEndTime]);
   const shouldDeferEditorSync = Boolean(appendEditorId);
 
   useEffect(() => {
@@ -179,7 +180,7 @@ export default function TranscriberPage() {
   useEffect(() => {
     if (mode !== "YOUTUBE") return;
     setYtStartTime((prev) => (prev === null ? 0 : prev));
-    setYtDuration((prev) => (prev === null ? MAX_YT_SNIPPET_SEC : prev));
+    setYtEndTime((prev) => (prev === null ? MAX_YT_SNIPPET_SEC : prev));
   }, [mode]);
 
   const creditsRequested = useMemo(() => {
@@ -192,13 +193,13 @@ export default function TranscriberPage() {
   const canSubmit = useMemo(() => {
     if (isSignedIn && !isEmailVerified) return false;
     if (mode === "FILE") return Boolean(selectedFile) && !loading;
-    return youtubeValid && ytStartTime !== null && ytDuration !== null && !loading;
+    return youtubeValid && ytStartTime !== null && ytEndTime !== null && !loading;
   }, [
     mode,
     selectedFile,
     youtubeValid,
     ytStartTime,
-    ytDuration,
+    ytEndTime,
     loading,
     isSignedIn,
     isEmailVerified,
@@ -304,12 +305,21 @@ export default function TranscriberPage() {
       setError("Please paste a valid YouTube link.");
       return;
     }
-    if (mode === "YOUTUBE" && (ytStartTime === null || ytDuration === null)) {
-      setError("Start time and duration are required for YouTube download.");
+    if (mode === "YOUTUBE" && (ytStartTime === null || ytEndTime === null)) {
+      setError("Start time and end time are required for YouTube download.");
       return;
     }
-    if (mode === "YOUTUBE" && ytDuration !== null && ytDuration > MAX_YT_SNIPPET_SEC) {
-      setError(`Duration must be ${MAX_YT_SNIPPET_SEC} seconds or less.`);
+    if (mode === "YOUTUBE" && ytStartTime !== null && ytEndTime !== null && ytEndTime <= ytStartTime) {
+      setError("End time must be greater than start time.");
+      return;
+    }
+    if (
+      mode === "YOUTUBE" &&
+      ytStartTime !== null &&
+      ytEndTime !== null &&
+      ytEndTime - ytStartTime > MAX_YT_SNIPPET_SEC
+    ) {
+      setError(`Time window must be ${MAX_YT_SNIPPET_SEC} seconds or less.`);
       return;
     }
 
@@ -332,8 +342,8 @@ export default function TranscriberPage() {
         setError("Start time must be 0 or greater.");
         return;
       }
-      if (ytDuration !== null && ytDuration <= 0) {
-        setError("Duration must be greater than 0.");
+      if (ytEndTime !== null && ytEndTime <= 0) {
+        setError("End time must be greater than 0.");
         return;
       }
     }
@@ -343,7 +353,7 @@ export default function TranscriberPage() {
     setImportError(null);
     setTabsResult(null);
     setTranscriberSegments(null);
-    setStatus(mode === "FILE" ? transcribingStatusLabel : "Preparing YouTube download...");
+    setStatus(mode === "FILE" ? transcribingStatusLabel : "Preparing YouTube...");
     setLoading(true);
     sendEvent("transcribe_start", { mode, ytUrl: youtubeUrl || undefined });
 
@@ -432,7 +442,7 @@ export default function TranscriberPage() {
         if (data.credits) {
           setCredits(data.credits);
         }
-        setStatus("Getting things started. Opening progress screen...");
+        setStatus("Opening progress screen...");
         sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
         const jobParams = new URLSearchParams();
         jobParams.set("mode", mode);
@@ -470,7 +480,7 @@ export default function TranscriberPage() {
       }
       sendEvent("transcribe_success", { mode, jobId: data.jobId });
       if (transcriberSession && data.tabJobId) {
-        setStatus("Tabs ready. Opening import page...");
+        setStatus("Tabs ready. Opening import...");
         await router.push(
           appendEditorId
             ? `/tabs/${data.tabJobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
@@ -481,7 +491,7 @@ export default function TranscriberPage() {
       if (!transcriberSession) {
         if (disableDbInDev) {
           setTabsResult(nextTabs);
-          setStatus("Tabs ready. Select tab blocks below.");
+          setStatus("Tabs ready. Select blocks below.");
           return;
         }
         setTabsResult(nextTabs);
@@ -489,7 +499,7 @@ export default function TranscriberPage() {
         return;
       }
       setTabsResult(nextTabs);
-      setStatus("Tabs ready. Import into your editor below.");
+      setStatus("Tabs ready. Import below.");
       return;
     } catch (err: any) {
       setError(err?.message || "Something went wrong. Please try again.");
@@ -614,7 +624,7 @@ export default function TranscriberPage() {
                 </Link>
               </div>
               <p className="muted text-small">
-                Max {MAX_YT_SNIPPET_SEC} seconds per download. Choose a start time and duration.
+                Up to {MAX_YT_SNIPPET_SEC} seconds per YouTube clip.
               </p>
             </div>
             <form className="prompt-shell" data-reveal onKeyDown={preventEnterSubmit}>
@@ -676,7 +686,7 @@ export default function TranscriberPage() {
                       type="url"
                       value={youtubeUrl}
                       onChange={(event) => setYoutubeUrl(event.target.value)}
-                      placeholder="https://youtube.com/..."
+                      placeholder="https://www.youtube.com/..."
                     />
                   </label>
                 )}
@@ -718,26 +728,17 @@ export default function TranscriberPage() {
                     />
                   </label>
                   <label>
-                    Duration (sec, max 30)
+                    End time (sec)
                     <input
                       type="number"
-                      min={1}
-                      max={MAX_YT_SNIPPET_SEC}
-                      value={ytDuration ?? ""}
+                      min={ytStartTime !== null ? ytStartTime + 1 : 1}
+                      value={ytEndTime ?? ""}
                       onChange={(event) => {
-                        const next = parseOptionalNumber(event.target.value);
-                        if (next === null) {
-                          setYtDuration(null);
-                          return;
-                        }
-                        setYtDuration(Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, next)));
+                        setYtEndTime(parseOptionalNumber(event.target.value));
                       }}
                       required
                     />
                   </label>
-                  <div className="advanced-note">
-                    We only use this exact time window before transcription starts.
-                  </div>
                 </div>
               )}
 
@@ -750,10 +751,6 @@ export default function TranscriberPage() {
                 >
                   {submitLabel}
                 </button>
-              </div>
-
-              <div className="disclaimer">
-                The transcriber is still a work in progress. Expect occasional errors while we improve it.
               </div>
 
               {status && <div className="status">{status}</div>}
@@ -776,8 +773,8 @@ export default function TranscriberPage() {
               {isSignedIn && (
                 <p className="footnote">
                   {isPremiumRole(transcriberSession?.user?.role)
-                    ? "Premium credits roll over. 50 credits added monthly."
-                    : `This job uses about ${creditsRequested} credit${
+                    ? "Premium: 50 credits monthly, with rollover."
+                    : `Uses about ${creditsRequested} credit${
                         creditsRequested > 1 ? "s" : ""
                       } from your 10 monthly credits.`}
                 </p>
@@ -793,13 +790,13 @@ export default function TranscriberPage() {
               <div className="results-header">
                 <div>
                   <h2>Your tabs are ready</h2>
-                  <p>Pick the tab blocks you want to import or copy.</p>
+                  <p>Pick blocks to import or copy.</p>
                 </div>
                 <div className="results-actions">
                   {isSignedIn && (
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="button-row">
                       <select
-                        className="rounded-md border border-slate-200 bg-white px-2 py-2 text-sm"
+                        className="form-select button-small"
                         value={editorChoice}
                         onChange={(event) => setEditorChoice(event.target.value)}
                         disabled={editorLoading}
