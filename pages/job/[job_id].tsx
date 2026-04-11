@@ -125,6 +125,13 @@ function parseBooleanFlag(value: string | null) {
   return null;
 }
 
+function parseBooleanValue(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") return parseBooleanFlag(value);
+  return null;
+}
+
 function parseIsoToMs(value: string | null | undefined) {
   if (!value) return null;
   const parsed = Date.parse(value);
@@ -568,11 +575,13 @@ export default function JobPage() {
   const [importBusy, setImportBusy] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [reviewParams, setReviewParams] = useState<ReviewParams>(defaultReviewParams);
+  const [reviewMultipleGuitars, setReviewMultipleGuitars] = useState(true);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewAction, setReviewAction] = useState<ReviewAction>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [previewReloadToken, setPreviewReloadToken] = useState<string>("0");
   const [progressClock, setProgressClock] = useState(() => Date.now());
+  const reviewMultipleGuitarsInitRef = useRef<string | null>(null);
   const displayJob = useMemo(() => normalizeJobForDisplay(job), [job]);
   const workflowState = useMemo(() => getWorkflowState(displayJob), [displayJob]);
   const reviewInfo = useMemo(() => getReviewInfo(displayJob), [displayJob]);
@@ -643,6 +652,14 @@ export default function JobPage() {
       setReviewParams(defaultReviewParams());
     }
   }, [displayJob, showReviewUi]);
+
+  useEffect(() => {
+    if (!showReviewUi || typeof job_id !== "string") return;
+    if (reviewMultipleGuitarsInitRef.current === job_id) return;
+    const stored = parseBooleanValue(getFirstJobValue(displayJob, ["multipleGuitars", "multiple_guitars"]));
+    setReviewMultipleGuitars(stored ?? true);
+    reviewMultipleGuitarsInitRef.current = job_id;
+  }, [displayJob, job_id, showReviewUi]);
 
   const fetchJob = async (id: string) => {
     try {
@@ -725,7 +742,9 @@ export default function JobPage() {
     setReviewError(null);
     setReviewBusy(false);
     setReviewAction(null);
+    setReviewMultipleGuitars(true);
     setPreviewReloadToken("0");
+    reviewMultipleGuitarsInitRef.current = null;
   }, [job_id]);
 
   useEffect(() => {
@@ -897,7 +916,7 @@ export default function JobPage() {
       const response = await fetch(`/api/jobs/${encodeURIComponent(job_id)}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ multipleGuitars: reviewMultipleGuitars }),
       });
       if (!response.ok) {
         throw new Error(await readErrorMessage(response));
@@ -1107,6 +1126,24 @@ export default function JobPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+                <div className="review-track-toggle">
+                  <div className="stack" style={{ gap: "6px" }}>
+                    <p style={{ margin: 0, fontWeight: 600 }}>Track split</p>
+                    <p className="muted text-small" style={{ margin: 0 }}>
+                      This only affects <strong>Continue to tabs</strong>. Leave it on to use the track separator
+                      model for separate guitar tracks.
+                    </p>
+                  </div>
+                  <label className="checkbox">
+                    <input
+                      type="checkbox"
+                      checked={reviewMultipleGuitars}
+                      onChange={(event) => setReviewMultipleGuitars(event.target.checked)}
+                      disabled={reviewBusy}
+                    />
+                    <span>There is more than one guitar playing</span>
+                  </label>
                 </div>
               </section>
 

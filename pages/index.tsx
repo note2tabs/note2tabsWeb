@@ -75,7 +75,6 @@ export default function HomePage() {
   const [fileDuration, setFileDuration] = useState<number | null>(null);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [separateGuitar, setSeparateGuitar] = useState(true);
-  const [multipleGuitars, setMultipleGuitars] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -369,7 +368,6 @@ export default function HomePage() {
             fd.append("duration", String(fileDuration));
           }
           fd.append("separateGuitar", separateGuitar ? "true" : "false");
-          fd.append("multipleGuitars", multipleGuitars ? "true" : "false");
           if (shouldDeferEditorSync) {
             fd.append("skipAutoEditorSync", "true");
           }
@@ -413,7 +411,6 @@ export default function HomePage() {
               s3Key: presignData.key,
               fileName: selectedFile.name,
               separateGuitar,
-              multipleGuitars,
             };
             if (fileDuration !== null) payload.duration = fileDuration;
             if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
@@ -432,7 +429,6 @@ export default function HomePage() {
           startTime: Math.max(0, ytStartTime ?? 0),
           duration: resolvedYtDuration,
           separateGuitar,
-          multipleGuitars,
         };
         if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
         response = await fetch("/api/transcribe", {
@@ -800,15 +796,6 @@ export default function HomePage() {
                         disabled={loading}
                       />
                       <span>Does your audio include other instruments?</span>
-                    </label>
-                    <label className="checkbox">
-                      <input
-                        type="checkbox"
-                        checked={multipleGuitars}
-                        onChange={(event) => setMultipleGuitars(event.target.checked)}
-                        disabled={loading}
-                      />
-                      <span>Are there more than one guitar playing?</span>
                     </label>
                   </div>
                 </div>
