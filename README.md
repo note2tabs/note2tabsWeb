@@ -18,3 +18,17 @@ Upload a song or paste a YouTube link, get guitar tabs fast, and refine them wit
 
 ## Links
 - Product: https://note2tabs.com
+
+## Multi-guitar transcription option
+
+The transcriber now exposes two separate audio-prep choices:
+
+- `Does your audio include other instruments?`
+  This controls the backend Demucs guitar-stem separation step.
+- `Are there more than one guitar playing?`
+  This controls the backend symbolic note-event separator.
+
+The second option is for splitting one flat note-event list into two guitar groups after Basic Pitch has already produced note events.
+It is not an audio stem separator.
+
+For this to work in a deployed environment, the backend worker must be configured with the new track-separator model path and related env vars documented in the backend repo README.

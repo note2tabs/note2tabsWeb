@@ -76,6 +76,7 @@ export default function TranscriberPage() {
   const [fileDuration, setFileDuration] = useState<number | null>(null);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [separateGuitar, setSeparateGuitar] = useState(true);
+  const [multipleGuitars, setMultipleGuitars] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -367,6 +368,7 @@ export default function TranscriberPage() {
             fd.append("duration", String(fileDuration));
           }
           fd.append("separateGuitar", separateGuitar ? "true" : "false");
+          fd.append("multipleGuitars", multipleGuitars ? "true" : "false");
           if (shouldDeferEditorSync) {
             fd.append("skipAutoEditorSync", "true");
           }
@@ -410,6 +412,7 @@ export default function TranscriberPage() {
               s3Key: presignData.key,
               fileName: selectedFile.name,
               separateGuitar,
+              multipleGuitars,
             };
             if (fileDuration !== null) payload.duration = fileDuration;
             if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
@@ -428,6 +431,7 @@ export default function TranscriberPage() {
           startTime: Math.max(0, ytStartTime ?? 0),
           duration: resolvedYtDuration,
           separateGuitar,
+          multipleGuitars,
         };
         if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
         response = await fetch("/api/transcribe", {
@@ -691,15 +695,26 @@ export default function TranscriberPage() {
                   </label>
                 )}
 
-                <label className="checkbox">
+                <div className="transcriber-checkbox-row">
+                  <label className="checkbox">
                     <input
                       type="checkbox"
                       checked={separateGuitar}
                       onChange={(event) => setSeparateGuitar(event.target.checked)}
                       disabled={loading}
                     />
-                  <span>Does your audio include other instruments?</span>
-                </label>
+                    <span>Does your audio include other instruments?</span>
+                  </label>
+                  <label className="checkbox">
+                    <input
+                      type="checkbox"
+                      checked={multipleGuitars}
+                      onChange={(event) => setMultipleGuitars(event.target.checked)}
+                      disabled={loading}
+                    />
+                    <span>Are there more than one guitar playing?</span>
+                  </label>
+                </div>
               </div>
 
               {mode === "YOUTUBE" && (
