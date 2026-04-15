@@ -1,5 +1,4 @@
 import NextAuth, { type NextAuthOptions } from "next-auth";
-import type { Provider } from "next-auth/providers";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -10,7 +9,7 @@ import { isLocalNoDbServerMode } from "../../../lib/serverDevMode";
 import { parseCookieHeader } from "../../../lib/analyticsV2/cookies";
 import { linkIdentityToUser } from "../../../lib/analyticsV2/identity";
 
-const providers: Provider[] = [
+const providers: NextAuthOptions["providers"] = [
   CredentialsProvider({
     name: "Credentials",
     credentials: {
