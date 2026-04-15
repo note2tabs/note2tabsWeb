@@ -28,6 +28,7 @@ type Props = {
   onFocusWorkspace?: () => void;
   globalSnapToGridEnabled?: boolean;
   onGlobalSnapToGridEnabledChange?: (enabled: boolean) => void;
+  sharedTimeSignature?: number;
   sharedViewportBarCount?: number;
   sharedTimelineScrollRatio?: number;
   onSharedTimelineScrollRatioChange?: (next: number) => void;
@@ -647,6 +648,7 @@ export default function GteWorkspace({
   onFocusWorkspace,
   globalSnapToGridEnabled,
   onGlobalSnapToGridEnabledChange,
+  sharedTimeSignature,
   sharedViewportBarCount,
   sharedTimelineScrollRatio,
   onSharedTimelineScrollRatioChange,
@@ -1231,6 +1233,15 @@ export default function GteWorkspace({
   }, [snapshot.secondsPerBar, snapshot.fps]);
 
   useEffect(() => {
+    if (sharedTimeSignature !== undefined && sharedTimeSignature !== null) {
+      const next = Number(sharedTimeSignature);
+      if (Number.isFinite(next) && next >= 1) {
+        const clamped = Math.max(1, Math.min(64, Math.round(next)));
+        setTimeSignature(clamped);
+        setTimeSignatureInput(String(clamped));
+      }
+      return;
+    }
     if (snapshot.timeSignature !== undefined && snapshot.timeSignature !== null) {
       const next = Number(snapshot.timeSignature);
       if (Number.isFinite(next) && next >= 1) {
@@ -1239,7 +1250,7 @@ export default function GteWorkspace({
         setTimeSignatureInput(String(clamped));
       }
     }
-  }, [snapshot.timeSignature]);
+  }, [sharedTimeSignature, snapshot.timeSignature]);
 
   useEffect(() => {
     const container = timelineOuterRef.current;
@@ -5990,6 +6001,7 @@ export default function GteWorkspace({
           />
         </div>
         )}
+        {!embedded && (
         <div className="flex items-center gap-2 text-xs text-slate-600">
           <span>Beats/bar</span>
           <div className="flex items-center gap-1">
@@ -6041,48 +6053,6 @@ export default function GteWorkspace({
             </div>
           </div>
         </div>
-        {embedded && (
-          <div className="hide-scrollbar min-w-0 flex-1 overflow-x-auto">
-            <div className="flex min-w-max items-center gap-1 text-[11px] text-slate-700">
-              {Array.from({ length: barCount }).map((_, idx) => (
-                <div
-                  key={`bar-chip-inline-${idx}`}
-                  draggable
-                  onDragStart={() => setDragBarIndex(idx)}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={() => handleBarReorderDrop(idx)}
-                  onDragEnd={() => setDragBarIndex(null)}
-                  className={`flex items-center gap-1 rounded-md border px-1.5 py-0.5 ${
-                    dragBarIndex === idx ? "border-blue-400 bg-blue-500/20" : "border-slate-200 bg-white"
-                  }`}
-                >
-                  <span>Bar {idx + 1}</span>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      handleRemoveBar(idx);
-                    }}
-                    onMouseDown={(event) => event.stopPropagation()}
-                    className="rounded px-1 text-[10px] text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                    title="Delete bar"
-                    disabled={barCount <= 1}
-                  >
-                    x
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={handleAddBar}
-                className="rounded-md border border-dashed border-slate-300 px-1.5 py-0.5 text-[11px] text-slate-600 hover:bg-slate-100"
-                title="Add bar"
-              >
-                +
-              </button>
-            </div>
-          </div>
         )}
         {!embedded && (
           <button
@@ -6144,50 +6114,6 @@ export default function GteWorkspace({
             </button>
           </div>
           <TabViewer tabText={tabPreviewText} songTitle={snapshot.name || "note2tabs"} />
-        </div>
-      )}
-
-      {!embedded && (
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-700">
-        {Array.from({ length: barCount }).map((_, idx) => (
-          <div
-            key={`bar-chip-${idx}`}
-            draggable
-            onDragStart={() => setDragBarIndex(idx)}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={() => handleBarReorderDrop(idx)}
-            onDragEnd={() => setDragBarIndex(null)}
-            className={`flex items-center gap-1 rounded-md border px-1.5 ${embedded ? "py-0.5" : "py-1"} ${
-              dragBarIndex === idx ? "border-blue-400 bg-blue-500/20" : "border-slate-200 bg-white"
-            }`}
-          >
-            <span>Bar {idx + 1}</span>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                handleRemoveBar(idx);
-              }}
-              onMouseDown={(event) => event.stopPropagation()}
-              className="rounded px-1 text-[10px] text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-              title="Delete bar"
-              disabled={barCount <= 1}
-            >
-              x
-            </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={handleAddBar}
-          className={`rounded-md border border-dashed border-slate-300 text-[11px] text-slate-600 hover:bg-slate-100 ${
-            embedded ? "px-1.5 py-0.5" : "px-2 py-1"
-          }`}
-          title="Add bar"
-        >
-          +
-        </button>
         </div>
       )}
 

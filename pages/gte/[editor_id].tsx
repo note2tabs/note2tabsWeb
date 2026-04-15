@@ -176,6 +176,12 @@ const getLaneBarCount = (lane: EditorSnapshot) =>
     )
   );
 
+const normalizeTimeSignature = (value: unknown) => {
+  const next = Number(value);
+  if (!Number.isFinite(next)) return null;
+  return Math.max(1, Math.min(64, Math.round(next)));
+};
+
 const normalizeBarIndices = (lane: EditorSnapshot, barIndices: number[]) => {
   const barCount = getLaneBarCount(lane);
   return Array.from(
@@ -607,6 +613,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [secondsDraft, setSecondsDraft] = useState(String(DEFAULT_SECONDS_PER_BAR));
   const [secondsSaving, setSecondsSaving] = useState(false);
   const [secondsError, setSecondsError] = useState<string | null>(null);
+  const [timeSignatureDraft, setTimeSignatureDraft] = useState("8");
+  const [timeSignatureSaving, setTimeSignatureSaving] = useState(false);
+  const [timeSignatureError, setTimeSignatureError] = useState<string | null>(null);
   const [activeLaneId, setActiveLaneId] = useState<string | null>(null);
   const [savingCanvas, setSavingCanvas] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -855,6 +864,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!canvas) return;
     setNameDraft(canvas.name || "Untitled");
     setSecondsDraft(String(Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR))));
+    setTimeSignatureDraft(String(normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8));
     if (activeLaneId && !canvas.editors.some((lane) => lane.id === activeLaneId)) {
       setActiveLaneId(canvas.editors[0]?.id || null);
     }
@@ -1034,13 +1044,69 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
   };
 
+  const commitTimeSignature = async (rawValue: string | number = timeSignatureDraft) => {
+    if (!canvas) return;
+    const normalized = normalizeTimeSignature(rawValue);
+    if (!normalized) {
+      setTimeSignatureDraft(String(normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8));
+      return;
+    }
+    setTimeSignatureDraft(String(normalized));
+    const current = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
+    const allTracksMatch = canvas.editors.every((lane) => (normalizeTimeSignature(lane.timeSignature) ?? 8) === normalized);
+    if (normalized === current && allTracksMatch) return;
+
+    setTimeSignatureSaving(true);
+    setTimeSignatureError(null);
+    try {
+      const secondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
+      const nextCanvas = normalizeCanvas(
+        {
+          ...canvas,
+          updatedAt: new Date().toISOString(),
+          editors: canvas.editors.map((lane, index) =>
+            normalizeLane(
+              {
+                ...lane,
+                timeSignature: normalized,
+              },
+              lane.id || `ed-${index + 1}`,
+              secondsPerBar,
+              index
+            )
+          ),
+        },
+        editorId
+      );
+      const res = await gteApi.applySnapshot(editorId, nextCanvas);
+      applyCanvasUpdate(normalizeCanvas((res as any).canvas ?? (res as any).snapshot ?? nextCanvas, editorId), {
+        markDirty: !isGuestMode,
+      });
+    } catch (err: any) {
+      setTimeSignatureError(err?.message || "Could not update beats per bar.");
+    } finally {
+      setTimeSignatureSaving(false);
+    }
+  };
+
   const handleAddLane = async () => {
     if (!canvas || addingLane) return;
     setAddingLane(true);
     setError(null);
     try {
       const res = await gteApi.addCanvasEditor(editorId);
-      const nextCanvas = normalizeCanvas(res.canvas, editorId);
+      const currentTimeSignature = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
+      const nextCanvas = normalizeCanvas(
+        {
+          ...res.canvas,
+          editors: res.canvas.editors.map((lane) => ({
+            ...lane,
+            timeSignature: currentTimeSignature,
+          })),
+        },
+        editorId
+      );
+      await gteApi.applySnapshot(editorId, nextCanvas);
       applyCanvasUpdate(nextCanvas, { markDirty: !isGuestMode });
       setActiveLaneId(res.editor?.id || nextCanvas.editors[nextCanvas.editors.length - 1]?.id || null);
     } catch (err: any) {
@@ -1120,11 +1186,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         0.1,
         toNumber(prev.secondsPerBar, toNumber(nextLaneSnapshot.secondsPerBar, DEFAULT_SECONDS_PER_BAR))
       );
+      const sharedTimeSignature = normalizeTimeSignature(prev.editors[0]?.timeSignature) ?? 8;
       const nextEditors = prev.editors.map((lane, index) =>
         lane.id === laneId
           ? normalizeLane(
               {
                 ...nextLaneSnapshot,
+                timeSignature: sharedTimeSignature,
                 instrumentId:
                   normalizeTrackInstrumentId(nextLaneSnapshot.instrumentId) !== DEFAULT_TRACK_INSTRUMENT_ID ||
                   normalizeTrackInstrumentId(lane.instrumentId) === DEFAULT_TRACK_INSTRUMENT_ID
@@ -1135,7 +1203,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               secondsPerBar,
               index
             )
-          : normalizeLane(lane, lane.id || `ed-${index + 1}`, secondsPerBar, index)
+          : normalizeLane(
+              { ...lane, timeSignature: sharedTimeSignature },
+              lane.id || `ed-${index + 1}`,
+              secondsPerBar,
+              index
+            )
       );
       const nextCanvas = {
         ...prev,
@@ -2224,6 +2297,29 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                 />
               </label>
+              <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                Beats/bar
+                <input
+                  type="number"
+                  step={1}
+                  min={1}
+                  max={64}
+                  value={timeSignatureDraft}
+                  onChange={(event) => setTimeSignatureDraft(event.target.value)}
+                  onBlur={() => void commitTimeSignature()}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void commitTimeSignature();
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      setTimeSignatureDraft(String(normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8));
+                    }
+                  }}
+                  className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
+                />
+              </label>
               <label
                 className="text-small muted"
                 style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
@@ -2270,6 +2366,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               {(nameSaving || secondsSaving) && !isGuestMode && <span className="muted text-small">Saving draft...</span>}
               {(nameError || secondsError) && <span className="error text-small">{nameError || secondsError}</span>}
               <span className="muted text-small">{saveStatus}</span>
+              {(timeSignatureSaving || timeSignatureError) && (
+                <span className={timeSignatureError ? "error text-small" : "muted text-small"}>
+                  {timeSignatureError || "Saving beats..."}
+                </span>
+              )}
             </div>
           </div>
           <div className="button-row">
@@ -2342,6 +2443,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               const laneEditorRef = buildLaneEditorRef(editorId, laneId);
               const isActive = laneId === activeLaneId;
               const isTrackMuted = Boolean(trackMuteById[laneId]);
+              const laneBarCount = getLaneBarCount(lane);
                 return (
                   <section
                     key={laneId}
@@ -2448,8 +2550,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       ))}
                     </select>
                   </div>
-                  {canvas.editors.length > 1 && (
-                    <div className="absolute top-1 right-1 z-20">
+                  <div
+                    className="absolute top-3 right-4 z-20 flex items-center gap-2"
+                    data-track-reorder-block="true"
+                  >
+                    <span className="text-[11px] font-semibold text-slate-600">
+                      Bars: {laneBarCount}
+                    </span>
+                    {canvas.editors.length > 1 && (
                       <button
                         type="button"
                         onClick={() => requestDeleteTrack(laneId)}
@@ -2458,8 +2566,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       >
                         {deletingLaneId === laneId ? "..." : "Remove track"}
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                   <GteWorkspace
                     editorId={laneEditorRef}
                     snapshot={lane}
@@ -2472,6 +2580,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     onFocusWorkspace={() => setActiveLaneId(laneId)}
                     globalSnapToGridEnabled={globalSnapToGridEnabled}
                     onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
+                    sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                     sharedViewportBarCount={sharedViewportBarCount}
                     sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                     onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
