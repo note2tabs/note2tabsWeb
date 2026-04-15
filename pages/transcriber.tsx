@@ -691,15 +691,17 @@ export default function TranscriberPage() {
                   </label>
                 )}
 
-                <label className="checkbox">
+                <div className="transcriber-checkbox-row">
+                  <label className="checkbox">
                     <input
                       type="checkbox"
                       checked={separateGuitar}
                       onChange={(event) => setSeparateGuitar(event.target.checked)}
                       disabled={loading}
                     />
-                  <span>Does your audio include other instruments?</span>
-                </label>
+                    <span>Does your audio include other instruments?</span>
+                  </label>
+                </div>
               </div>
 
               {mode === "YOUTUBE" && (

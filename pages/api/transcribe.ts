@@ -30,6 +30,7 @@ type YouTubePayload = {
   startTime: number;
   duration: number;
   separateGuitar?: boolean;
+  multipleGuitars?: boolean;
   skipAutoEditorSync?: boolean;
 };
 
@@ -39,6 +40,7 @@ type FilePayload = {
   s3Key?: string;
   fileName?: string;
   separateGuitar?: boolean;
+  multipleGuitars?: boolean;
   skipAutoEditorSync?: boolean;
 };
 
@@ -70,6 +72,13 @@ function parseBooleanLike(value: unknown): boolean {
     return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
   }
   return false;
+}
+
+function parseOptionalBooleanLike(value: unknown): boolean | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === "string" && value.trim() === "") return undefined;
+  if (Array.isArray(value) && value.length === 0) return undefined;
+  return parseBooleanLike(value);
 }
 
 async function readJsonBody(req: NextApiRequest) {
@@ -528,6 +537,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             fields.separateGuitar === "true" ||
             fields.separate_guitar === "true" ||
             fields.separateGuitar === true,
+          multipleGuitars: parseOptionalBooleanLike(fields.multipleGuitars ?? fields.multiple_guitars),
           skipAutoEditorSync: parseBooleanLike(fields.skipAutoEditorSync),
         };
         skipAutoEditorSync = Boolean(youtubePayload.skipAutoEditorSync);
@@ -536,6 +546,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           mode: "FILE",
           duration: Number(fields.duration || fields.durationSec || 0) || undefined,
           separateGuitar: parseBooleanLike(fields.separateGuitar ?? fields.separate_guitar),
+          multipleGuitars: parseOptionalBooleanLike(fields.multipleGuitars ?? fields.multiple_guitars),
           skipAutoEditorSync: parseBooleanLike(fields.skipAutoEditorSync),
         };
         skipAutoEditorSync = Boolean(filePayload.skipAutoEditorSync);
@@ -550,6 +561,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             (body as { separateGuitar?: unknown; separate_guitar?: unknown }).separateGuitar ??
               (body as { separate_guitar?: unknown }).separate_guitar
           ),
+          multipleGuitars: parseOptionalBooleanLike(
+            (body as { multipleGuitars?: unknown; multiple_guitars?: unknown }).multipleGuitars ??
+              (body as { multiple_guitars?: unknown }).multiple_guitars
+          ),
         };
       }
       if (mode === "FILE") {
@@ -558,6 +573,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           separateGuitar: parseBooleanLike(
             (body as { separateGuitar?: unknown; separate_guitar?: unknown }).separateGuitar ??
               (body as { separate_guitar?: unknown }).separate_guitar
+          ),
+          multipleGuitars: parseOptionalBooleanLike(
+            (body as { multipleGuitars?: unknown; multiple_guitars?: unknown }).multipleGuitars ??
+              (body as { multiple_guitars?: unknown }).multiple_guitars
           ),
         };
       }
@@ -607,6 +626,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       fdYt.append("start_time", String(youtubePayload.startTime || 0));
       fdYt.append("duration", String(youtubePayload.duration || 0));
       fdYt.append("separate_guitar", youtubePayload.separateGuitar ? "true" : "false");
+      if (youtubePayload.multipleGuitars !== undefined) {
+        fdYt.append("multiple_guitars", youtubePayload.multipleGuitars ? "true" : "false");
+      }
 
       const ytRes = await fetch(`${API_BASE}/yt_processor`, {
         method: "POST",
@@ -634,6 +656,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             s3Key: filePayload.s3Key,
             fileName: filePayload.fileName,
             separate_guitar: Boolean(filePayload.separateGuitar),
+            multiple_guitars: filePayload.multipleGuitars,
           }),
         });
         if (!processRes.ok) {
@@ -656,6 +679,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           uploadedFile.originalFilename || "upload"
         );
         fd.append("separate_guitar", filePayload?.separateGuitar ? "true" : "false");
+        if (filePayload?.multipleGuitars !== undefined) {
+          fd.append("multiple_guitars", filePayload.multipleGuitars ? "true" : "false");
+        }
         const processRes = await fetch(`${API_BASE}/process_audio/`, {
           method: "POST",
           headers: backendHeaders,

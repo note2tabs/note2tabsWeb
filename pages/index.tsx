@@ -787,15 +787,17 @@ export default function HomePage() {
                     </>
                   )}
 
-                  <label className="checkbox">
-                    <input
-                      type="checkbox"
-                      checked={separateGuitar}
-                      onChange={(event) => setSeparateGuitar(event.target.checked)}
-                      disabled={loading}
-                    />
-                    <span>Does your audio include other instruments?</span>
-                  </label>
+                  <div className="transcriber-checkbox-row">
+                    <label className="checkbox">
+                      <input
+                        type="checkbox"
+                        checked={separateGuitar}
+                        onChange={(event) => setSeparateGuitar(event.target.checked)}
+                        disabled={loading}
+                      />
+                      <span>Does your audio include other instruments?</span>
+                    </label>
+                  </div>
                 </div>
               )}
 
