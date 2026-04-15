@@ -117,6 +117,12 @@ export default function HomePage() {
     }
     return typeof value === "string" && value.trim() ? value.trim() : null;
   }, [router.isReady, router.query.appendEditorId]);
+  const editorChoicesForSelect = useMemo(() => {
+    if (!appendEditorId || editorChoices.some((editor) => editor.id === appendEditorId)) {
+      return editorChoices;
+    }
+    return [{ id: appendEditorId, name: "Current editor" }, ...editorChoices];
+  }, [appendEditorId, editorChoices]);
   const youtubeId = useMemo(() => parseYouTubeId(youtubeUrl), [youtubeUrl]);
   const resolvedYtDuration = useMemo(() => {
     if (ytStartTime === null || ytEndTime === null) return 0;
@@ -153,6 +159,12 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    if (appendEditorId) {
+      setEditorChoice(appendEditorId);
+    }
+  }, [appendEditorId]);
+
+  useEffect(() => {
     if (!tabsResult || !isSignedIn) return;
     setEditorLoading(true);
     gteApi
@@ -164,7 +176,7 @@ export default function HomePage() {
           updatedAt: editor.updatedAt,
         }));
         setEditorChoices(editors);
-        if (appendEditorId && editors.some((editor) => editor.id === appendEditorId)) {
+        if (appendEditorId) {
           setEditorChoice(appendEditorId);
         } else {
           setEditorChoice("new");
@@ -611,11 +623,7 @@ export default function HomePage() {
       event.preventDefault();
     }
   };
-  const creditsSummaryLabel = isSignedIn
-    ? displayedCredits
-      ? String(displayedCredits.remaining)
-      : "0"
-    : "10";
+  const creditsSummaryLabel = displayedCredits ? String(displayedCredits.remaining) : "0";
   const creditsResetDate = isSignedIn && displayedCredits ? new Date(displayedCredits.resetAt) : null;
   const creditsResetLabel =
     creditsResetDate && !Number.isNaN(creditsResetDate.getTime()) ? creditsResetDate.toLocaleDateString() : "";
@@ -646,7 +654,7 @@ export default function HomePage() {
             <div className="hero-heading" data-reveal>
               <div className="hero-title-row">
                 <h2 className="hero-title">Convert Any Song to Tabs</h2>
-                <span className="badge transcriber-version">v0.0.1</span>
+                <span className="badge transcriber-version">v0.1.3</span>
               </div>
               <p className="hero-subtitle">
                 Paste a YouTube link or upload audio, then shape the result in the editor.
@@ -660,7 +668,7 @@ export default function HomePage() {
             >
               <div className="prompt-meta-row">
                 <span className="funnel-external-label">{mode === "YOUTUBE" ? "YouTube URL" : ""}</span>
-                {(displayedCredits || !isSignedIn) && (
+                {isSignedIn && displayedCredits && (
                   <p className="hero-credits-inline">
                     Credits: <strong>{creditsSummaryLabel}</strong>
                     {isSignedIn && creditsDaysUntilReset !== null && (
@@ -848,9 +856,9 @@ export default function HomePage() {
                         disabled={editorLoading}
                       >
                         <option value="new">New editor</option>
-                        {editorChoices.map((editor) => (
+                        {editorChoicesForSelect.map((editor) => (
                           <option key={editor.id} value={editor.id}>
-                            {editor.name ? editor.name : `${editor.id.slice(0, 8)}...`}
+                            {editor.name || "Untitled"}
                           </option>
                         ))}
                       </select>

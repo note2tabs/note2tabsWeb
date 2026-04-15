@@ -116,6 +116,12 @@ export default function TranscriberPage() {
     }
     return typeof value === "string" && value.trim() ? value.trim() : null;
   }, [router.isReady, router.query.appendEditorId]);
+  const editorChoicesForSelect = useMemo(() => {
+    if (!appendEditorId || editorChoices.some((editor) => editor.id === appendEditorId)) {
+      return editorChoices;
+    }
+    return [{ id: appendEditorId, name: "Current editor" }, ...editorChoices];
+  }, [appendEditorId, editorChoices]);
   const youtubeId = useMemo(() => parseYouTubeId(youtubeUrl), [youtubeUrl]);
   const resolvedYtDuration = useMemo(() => {
     if (ytStartTime === null || ytEndTime === null) return 0;
@@ -152,6 +158,12 @@ export default function TranscriberPage() {
   }, []);
 
   useEffect(() => {
+    if (appendEditorId) {
+      setEditorChoice(appendEditorId);
+    }
+  }, [appendEditorId]);
+
+  useEffect(() => {
     if (!tabsResult || !isSignedIn) return;
     setEditorLoading(true);
     gteApi
@@ -163,7 +175,7 @@ export default function TranscriberPage() {
           updatedAt: editor.updatedAt,
         }));
         setEditorChoices(editors);
-        if (appendEditorId && editors.some((editor) => editor.id === appendEditorId)) {
+        if (appendEditorId) {
           setEditorChoice(appendEditorId);
         } else {
           setEditorChoice("new");
@@ -610,7 +622,7 @@ export default function TranscriberPage() {
             <div className="hero-heading" data-reveal>
               <div className="hero-title-row">
                 <h1 className="hero-title">Transcriber</h1>
-                <span className="badge transcriber-version">v0.0.1</span>
+                <span className="badge transcriber-version">v0.1.3</span>
               </div>
               <p className="hero-subtitle">
                 Upload audio or enter a YouTube segment and get a draft tab you can refine in the editor.
@@ -804,9 +816,9 @@ export default function TranscriberPage() {
                         disabled={editorLoading}
                       >
                         <option value="new">New editor</option>
-                        {editorChoices.map((editor) => (
+                        {editorChoicesForSelect.map((editor) => (
                           <option key={editor.id} value={editor.id}>
-                            {editor.name ? editor.name : `${editor.id.slice(0, 8)}...`}
+                            {editor.name || "Untitled"}
                           </option>
                         ))}
                       </select>

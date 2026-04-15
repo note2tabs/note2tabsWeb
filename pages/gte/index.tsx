@@ -101,7 +101,7 @@ export default function GteIndexPage() {
 
   const handleDelete = async (editor: EditorListItem) => {
     if (deletingId) return;
-    const label = editor.name ? `"${editor.name}"` : `Tab ${editor.id.slice(0, 8)}`;
+    const label = `"${editor.name || "Untitled"}"`;
     if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
     setDeletingId(editor.id);
     setError(null);
@@ -127,11 +127,12 @@ export default function GteIndexPage() {
     setError(null);
     try {
       const created = await gteApi.createEditor(undefined, draft.name || "Untitled");
+      const uniqueName = created.snapshot?.name || draft.name || "Untitled";
       const payload = {
         id: created.editorId,
-        name: draft.name || "Untitled",
+        name: uniqueName,
         secondsPerBar: draft.secondsPerBar,
-        editors: [{ ...draft, id: "ed-1", name: draft.name || "Editor 1" }],
+        editors: [{ ...draft, id: "ed-1", name: uniqueName || "Editor 1" }],
       };
       await gteApi.applySnapshot(created.editorId, payload as any);
       await gteApi.commitEditor(created.editorId);
@@ -163,12 +164,6 @@ export default function GteIndexPage() {
             <p className="page-subtitle">Open saved songs, start a new tab, or bring in a draft you made earlier.</p>
           </div>
           <div className="button-row">
-            <Link href={`/gte/${GTE_GUEST_EDITOR_ID}`} className="button-secondary button-small">
-              Guest mode
-            </Link>
-            <Link href="/account" className="button-secondary button-small">
-              Back to account
-            </Link>
             <button type="button" onClick={handleCreate} disabled={creating} className="button-primary button-small">
               {creating ? "Creating..." : "New tab"}
             </button>
@@ -221,20 +216,16 @@ export default function GteIndexPage() {
           )}
           <div className="gte-library-grid">
             {editors.map((editor) => (
-              <div key={editor.id} className="card-outline">
+              <div key={editor.id} className="card-outline gte-library-row">
                 <div className="gte-library-card-head">
                   <div>
                     <h2 className="gte-library-card-title">
                       <Link href={`/gte/${editor.id}`}>
-                        {editor.name ? editor.name : `Tab ${editor.id.slice(0, 8)}`}
+                        {editor.name || "Untitled"}
                       </Link>
                     </h2>
-                    <p className="muted text-small tabs-row-main-meta">
-                      {editor.id.slice(0, 8)}
-                    </p>
                   </div>
                   <div className="button-row">
-                    <span className="muted text-small">v{editor.version || 1}</span>
                     <button
                       type="button"
                       className="button-secondary button-small"
@@ -247,7 +238,6 @@ export default function GteIndexPage() {
                 </div>
                 <div className="muted text-small gte-library-meta">
                   <p>Notes: {editor.noteCount ?? 0} - Chords: {editor.chordCount ?? 0}</p>
-                  <p>Frames: {editor.totalFrames ?? 0} - Bar size: {editor.framesPerMessure ?? 0}</p>
                   {editor.updatedAt && <p>Updated: {new Date(editor.updatedAt).toLocaleString()}</p>}
                 </div>
               </div>

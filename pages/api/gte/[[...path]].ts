@@ -30,6 +30,74 @@ type UpstreamImportBody = {
   importedEditorIds?: string[];
 };
 
+type GteEditorListItem = {
+  id?: string;
+  name?: string;
+};
+
+type GteEditorListResponse = {
+  editors?: GteEditorListItem[];
+};
+
+const AUTO_NAME_SUFFIX_RE = /^(.*?)(\d{2,})$/;
+
+function normalizeEditorName(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : "Untitled";
+}
+
+function editorNameKey(value: string) {
+  return value.trim().toLocaleLowerCase();
+}
+
+function buildUniqueEditorName(
+  requestedName: unknown,
+  editors: GteEditorListItem[],
+  excludedEditorId?: string
+) {
+  const desiredName = normalizeEditorName(requestedName);
+  const existingNames = new Set(
+    editors
+      .filter((editor) => !excludedEditorId || editor.id !== excludedEditorId)
+      .map((editor) => editorNameKey(normalizeEditorName(editor.name)))
+  );
+
+  if (!existingNames.has(editorNameKey(desiredName))) {
+    return desiredName;
+  }
+
+  const suffixMatch = desiredName.match(AUTO_NAME_SUFFIX_RE);
+  const baseName = suffixMatch && suffixMatch[1] ? suffixMatch[1] : desiredName;
+  let suffixNumber = suffixMatch ? Math.max(2, Number.parseInt(suffixMatch[2], 10) + 1) : 2;
+  let candidate = `${baseName}${String(suffixNumber).padStart(2, "0")}`;
+
+  while (existingNames.has(editorNameKey(candidate))) {
+    suffixNumber += 1;
+    candidate = `${baseName}${String(suffixNumber).padStart(2, "0")}`;
+  }
+
+  return candidate;
+}
+
+async function getExistingEditors(headers: Record<string, string>) {
+  const response = await fetch(`${API_BASE}/gte/editors`, { method: "GET", headers });
+  if (!response.ok) {
+    throw new Error(`Could not load existing editors (${response.status})`);
+  }
+  const data = (await response.json()) as GteEditorListResponse;
+  return Array.isArray(data.editors) ? data.editors : [];
+}
+
+async function withUniqueEditorName(input: {
+  body: unknown;
+  headers: Record<string, string>;
+  excludedEditorId?: string;
+}) {
+  const body = input.body && typeof input.body === "object" ? { ...(input.body as Record<string, unknown>) } : {};
+  const editors = await getExistingEditors(input.headers);
+  body.name = buildUniqueEditorName(body.name, editors, input.excludedEditorId);
+  return body;
+}
+
 function getRequestedImportTarget(req: NextApiRequest): string {
   return typeof (req.body as { target?: unknown } | undefined)?.target === "string"
     ? String((req.body as { target?: string }).target).trim().toLowerCase()
@@ -49,6 +117,12 @@ function getPath(req: NextApiRequest) {
 
 function isSnapshotSaveRequest(method: string, path: string) {
   return method === "POST" && /(^|\/)editors\/[^/]+\/snapshot$/.test(path);
+}
+
+function getRenameEditorId(method: string, path: string) {
+  if (method !== "POST") return undefined;
+  const match = path.match(/^editors\/([^/]+)\/name$/);
+  return match ? decodeURIComponent(match[1]) : undefined;
 }
 
 function pruneSnapshotSaveCache() {
@@ -108,11 +182,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const path = getPath(req);
   const editorRef = getGteEditorRefFromPath(path);
   const isSnapshotSave = isSnapshotSaveRequest(method, path);
+  const isTranscriberImport = method === "POST" && path === "transcriber/import";
   const cacheKey = `${session.user.id}:${path}`;
   let body: string | undefined;
   if (!["GET", "HEAD"].includes(method)) {
     headers["Content-Type"] = "application/json";
-    body = JSON.stringify(req.body ?? {});
+    let requestBody = req.body ?? {};
+    const renameEditorId = getRenameEditorId(method, path);
+    const importTarget = isTranscriberImport ? getRequestedImportTarget(req) : "";
+    const importEditorId = isTranscriberImport ? getRequestedImportEditorId(req) : undefined;
+    const shouldUniquifyName =
+      (method === "POST" && path === "editors") ||
+      Boolean(renameEditorId) ||
+      (isTranscriberImport && !importEditorId && (!importTarget || importTarget === "new"));
+
+    if (shouldUniquifyName) {
+      try {
+        requestBody = await withUniqueEditorName({
+          body: requestBody,
+          headers,
+          excludedEditorId: renameEditorId,
+        });
+      } catch (error: any) {
+        return res.status(502).json({
+          error: "Could not validate editor name",
+          detail: error?.message || "editor_name_validation_failed",
+        });
+      }
+    }
+
+    body = JSON.stringify(requestBody);
   }
 
   if (isSnapshotSave && body) {
@@ -144,7 +243,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       method,
     });
   }
-  const isTranscriberImport = method === "POST" && path === "transcriber/import";
   if (isTranscriberImport && upstream.ok) {
     const requestedEditorId = getRequestedImportEditorId(req);
     if (requestedEditorId) {

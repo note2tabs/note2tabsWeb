@@ -9,7 +9,7 @@ export default function Header() {
           <span className="logo-text">Note2Tabs</span>
         </Link>
         <nav className="nav-links">
-          <Link href="/editor" className="nav-pill">
+          <Link href="/gte" className="nav-pill">
             Editor
           </Link>
           <Link href="/transcriber" className="nav-pill">

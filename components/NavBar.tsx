@@ -66,7 +66,7 @@ export default function NavBar() {
         <nav
           className={`nav-links ${menuOpen ? "open" : ""}${isReadingArticle ? " nav-links--reading" : ""}`}
         >
-          <Link href="/editor" className="nav-pill">
+          <Link href="/gte" className="nav-pill">
             Editor
           </Link>
           <Link href="/transcriber" className="nav-pill">

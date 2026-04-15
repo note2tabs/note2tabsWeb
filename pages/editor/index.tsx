@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { gteApi } from "../../lib/gteApi";
 
-const EDITOR_VERSION = "1.2.1";
 const LIBRARY_PATH = "/gte";
 
 const editorHighlights = [
@@ -119,7 +118,6 @@ export default function EditorLandingPage() {
           <div className="hero-heading">
             <div className="hero-title-row">
               <h1 className="hero-title">Guitar Tab Editor</h1>
-              <span className="badge editor-version">v{EDITOR_VERSION}</span>
             </div>
             <p className="editor-landing-byline">precision editing by Note2Tabs</p>
             <div className="button-row hero-cta-row editor-landing-hero-actions">

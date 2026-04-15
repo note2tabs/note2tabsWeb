@@ -6124,8 +6124,7 @@ export default function GteWorkspace({
         {!embedded && <div className="text-xs text-slate-600">Scale: {scale}px/frame (auto)</div>}
         {!embedded && (
           <div className="text-xs text-slate-500">
-              FPS: {fps} - Beats/bar: {timeSignature} - Frames per bar: {framesPerMeasure} - Total
-              frames: {computedTotalFrames}
+              FPS: {fps} - Beats/bar: {timeSignature}
             </div>
         )}
       </div>

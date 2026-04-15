@@ -149,7 +149,7 @@ export default function TabDetailPage({ id, sourceLabel, createdAt, tabs, transc
                     <option value="new">New editor</option>
                     {editorChoices.map((editor) => (
                       <option key={editor.id} value={editor.id}>
-                        {editor.name ? editor.name : `${editor.id.slice(0, 8)}...`}
+                        {editor.name || "Untitled"}
                       </option>
                     ))}
                   </select>
