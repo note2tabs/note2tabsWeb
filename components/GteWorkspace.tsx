@@ -128,6 +128,30 @@ const fpsFromSecondsPerBar = (secondsPerBar: number) => {
   return Math.max(1, Math.round(FIXED_FRAMES_PER_BAR / safeSeconds));
 };
 
+const normalizeBpm = (value: unknown) => {
+  const next = Number(value);
+  if (!Number.isFinite(next) || next <= 0) return null;
+  return Math.max(1, next);
+};
+
+const secondsPerBarToBpm = (secondsPerBar: number, beatsPerBar: number) => {
+  const safeSeconds = Math.max(0.1, secondsPerBar);
+  const safeBeats = Math.max(1, Math.min(64, Math.round(beatsPerBar)));
+  return (60 / safeSeconds) * safeBeats;
+};
+
+const bpmToSecondsPerBar = (bpm: unknown, beatsPerBar: number) => {
+  const normalizedBpm = normalizeBpm(bpm);
+  if (!normalizedBpm) return null;
+  const safeBeats = Math.max(1, Math.min(64, Math.round(beatsPerBar)));
+  return Math.max(0.1, (60 / normalizedBpm) * safeBeats);
+};
+
+const formatBpm = (value: number) => {
+  const rounded = Math.round(value * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+};
+
 const isScaleToolMode = (value: unknown): value is ScaleToolMode =>
   typeof value === "string" && SCALE_TOOL_MODES.includes(value as ScaleToolMode);
 
@@ -687,7 +711,7 @@ export default function GteWorkspace({
 }: Props) {
   const [baseScale, setBaseScale] = useState(4);
   const [secondsPerBar, setSecondsPerBar] = useState(2);
-  const [secondsPerBarInput, setSecondsPerBarInput] = useState("2");
+  const [bpmInput, setBpmInput] = useState(formatBpm(secondsPerBarToBpm(2, 8)));
   const [timeSignature, setTimeSignature] = useState(8);
   const [timeSignatureInput, setTimeSignatureInput] = useState("8");
   const [localSnapToGridEnabled, setLocalSnapToGridEnabled] = useState(true);
@@ -1220,7 +1244,6 @@ export default function GteWorkspace({
       const next = Number(snapshot.secondsPerBar);
       if (Number.isFinite(next) && next > 0) {
         setSecondsPerBar(next);
-        setSecondsPerBarInput(String(next));
         return;
       }
     }
@@ -1229,8 +1252,11 @@ export default function GteWorkspace({
     if (!Number.isFinite(inferred) || inferred <= 0) return;
     const normalized = Math.round(inferred * 1000) / 1000;
     setSecondsPerBar(normalized);
-    setSecondsPerBarInput(String(normalized));
   }, [snapshot.secondsPerBar, snapshot.fps]);
+
+  useEffect(() => {
+    setBpmInput(formatBpm(secondsPerBarToBpm(secondsPerBar, timeSignature)));
+  }, [secondsPerBar, timeSignature]);
 
   useEffect(() => {
     if (sharedTimeSignature !== undefined && sharedTimeSignature !== null) {
@@ -5959,42 +5985,44 @@ export default function GteWorkspace({
       <div className={`flex flex-wrap items-center ${embedded ? "gap-2" : "gap-3"}`}>
         {!embedded && (
         <div className="flex items-center gap-2 text-xs text-slate-600">
-          <span>Seconds/bar</span>
+          <span>BPM</span>
           <input
             type="number"
-            min={0.5}
-            step={0.1}
+            min={1}
+            step={1}
             inputMode="decimal"
-            value={secondsPerBarInput}
-            onChange={(e) => setSecondsPerBarInput(e.target.value)}
+            value={bpmInput}
+            onChange={(e) => setBpmInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key !== "Enter") return;
               e.preventDefault();
-              const next = Number(secondsPerBarInput);
-              if (Number.isFinite(next) && next > 0) {
+              const next = bpmToSecondsPerBar(bpmInput, timeSignature);
+              const normalizedBpm = normalizeBpm(bpmInput);
+              if (next && normalizedBpm) {
                 setSecondsPerBar(next);
-                setSecondsPerBarInput(String(next));
+                setBpmInput(formatBpm(normalizedBpm));
                 void runMutation(() => gteApi.setSecondsPerBar(editorId, next), {
                   localApply: (draft) => {
                     setSecondsPerBarInSnapshot(draft, next);
                   },
                 });
               } else {
-                setSecondsPerBarInput(String(secondsPerBar));
+                setBpmInput(formatBpm(secondsPerBarToBpm(secondsPerBar, timeSignature)));
               }
             }}
             onBlur={() => {
-              const next = Number(secondsPerBarInput);
-              if (Number.isFinite(next) && next > 0) {
+              const next = bpmToSecondsPerBar(bpmInput, timeSignature);
+              const normalizedBpm = normalizeBpm(bpmInput);
+              if (next && normalizedBpm) {
                 setSecondsPerBar(next);
-                setSecondsPerBarInput(String(next));
+                setBpmInput(formatBpm(normalizedBpm));
                 void runMutation(() => gteApi.setSecondsPerBar(editorId, next), {
                   localApply: (draft) => {
                     setSecondsPerBarInSnapshot(draft, next);
                   },
                 });
               } else {
-                setSecondsPerBarInput(String(secondsPerBar));
+                setBpmInput(formatBpm(secondsPerBarToBpm(secondsPerBar, timeSignature)));
               }
             }}
             className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"

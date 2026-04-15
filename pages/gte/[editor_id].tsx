@@ -92,7 +92,7 @@ const normalizeLane = (
   secondsPerBar: number,
   index: number
 ): EditorSnapshot => {
-  const safeSeconds = Math.max(0.1, toNumber(lane.secondsPerBar, secondsPerBar));
+  const safeSeconds = Math.max(0.1, toNumber(secondsPerBar, toNumber(lane.secondsPerBar, DEFAULT_SECONDS_PER_BAR)));
   const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)));
   return {
     ...lane,
@@ -180,6 +180,30 @@ const normalizeTimeSignature = (value: unknown) => {
   const next = Number(value);
   if (!Number.isFinite(next)) return null;
   return Math.max(1, Math.min(64, Math.round(next)));
+};
+
+const normalizeBpm = (value: unknown) => {
+  const next = Number(value);
+  if (!Number.isFinite(next) || next <= 0) return null;
+  return Math.max(1, next);
+};
+
+const secondsPerBarToBpm = (secondsPerBar: unknown, beatsPerBar: unknown) => {
+  const seconds = Math.max(0.1, toNumber(secondsPerBar, DEFAULT_SECONDS_PER_BAR));
+  const beats = normalizeTimeSignature(beatsPerBar) ?? 8;
+  return (60 / seconds) * beats;
+};
+
+const bpmToSecondsPerBar = (bpm: unknown, beatsPerBar: unknown) => {
+  const normalizedBpm = normalizeBpm(bpm);
+  const beats = normalizeTimeSignature(beatsPerBar) ?? 8;
+  if (!normalizedBpm) return null;
+  return Math.max(0.1, (60 / normalizedBpm) * beats);
+};
+
+const formatBpm = (value: number) => {
+  const rounded = Math.round(value * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded);
 };
 
 const normalizeBarIndices = (lane: EditorSnapshot, barIndices: number[]) => {
@@ -610,9 +634,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [nameDraft, setNameDraft] = useState("");
   const [nameSaving, setNameSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
-  const [secondsDraft, setSecondsDraft] = useState(String(DEFAULT_SECONDS_PER_BAR));
-  const [secondsSaving, setSecondsSaving] = useState(false);
-  const [secondsError, setSecondsError] = useState<string | null>(null);
+  const [bpmDraft, setBpmDraft] = useState(formatBpm(secondsPerBarToBpm(DEFAULT_SECONDS_PER_BAR, 8)));
+  const [bpmSaving, setBpmSaving] = useState(false);
+  const [bpmError, setBpmError] = useState<string | null>(null);
   const [timeSignatureDraft, setTimeSignatureDraft] = useState("8");
   const [timeSignatureSaving, setTimeSignatureSaving] = useState(false);
   const [timeSignatureError, setTimeSignatureError] = useState<string | null>(null);
@@ -863,8 +887,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   useEffect(() => {
     if (!canvas) return;
     setNameDraft(canvas.name || "Untitled");
-    setSecondsDraft(String(Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR))));
-    setTimeSignatureDraft(String(normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8));
+    const beatsPerBar = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
+    setBpmDraft(formatBpm(secondsPerBarToBpm(canvas.secondsPerBar, beatsPerBar)));
+    setTimeSignatureDraft(String(beatsPerBar));
     if (activeLaneId && !canvas.editors.some((lane) => lane.id === activeLaneId)) {
       setActiveLaneId(canvas.editors[0]?.id || null);
     }
@@ -1021,26 +1046,37 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
   };
 
-  const commitSecondsPerBar = async () => {
+  const commitBpm = async () => {
     if (!canvas) return;
-    const next = Number(secondsDraft);
-    if (!Number.isFinite(next) || next <= 0) {
-      setSecondsError("Seconds/bar must be greater than 0.");
-      setSecondsDraft(String(canvas.secondsPerBar || DEFAULT_SECONDS_PER_BAR));
+    const nextBpm = normalizeBpm(bpmDraft);
+    const beatsPerBar = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
+    if (!nextBpm) {
+      setBpmError("BPM must be greater than 0.");
+      setBpmDraft(formatBpm(secondsPerBarToBpm(canvas.secondsPerBar, beatsPerBar)));
       return;
     }
-    const normalized = Math.max(0.1, next);
+    const normalized = bpmToSecondsPerBar(nextBpm, beatsPerBar);
+    if (!normalized) return;
+    setBpmDraft(formatBpm(nextBpm));
     if (Math.abs(normalized - (canvas.secondsPerBar || DEFAULT_SECONDS_PER_BAR)) < 0.0001) return;
-    setSecondsSaving(true);
-    setSecondsError(null);
+    setBpmSaving(true);
+    setBpmError(null);
     try {
       const res = await gteApi.setSecondsPerBar(editorId, normalized);
-      const nextCanvas = normalizeCanvas((res as any).canvas ?? canvas, editorId);
+      const fallbackCanvas = {
+        ...canvas,
+        secondsPerBar: normalized,
+        editors: canvas.editors.map((lane) => ({
+          ...lane,
+          secondsPerBar: normalized,
+        })),
+      };
+      const nextCanvas = normalizeCanvas((res as any).canvas ?? fallbackCanvas, editorId);
       applyCanvasUpdate(nextCanvas, { markDirty: !isGuestMode });
     } catch (err: any) {
-      setSecondsError(err?.message || "Could not update seconds per bar.");
+      setBpmError(err?.message || "Could not update BPM.");
     } finally {
-      setSecondsSaving(false);
+      setBpmSaving(false);
     }
   };
 
@@ -1054,20 +1090,26 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setTimeSignatureDraft(String(normalized));
     const current = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
     const allTracksMatch = canvas.editors.every((lane) => (normalizeTimeSignature(lane.timeSignature) ?? 8) === normalized);
-    if (normalized === current && allTracksMatch) return;
+    const currentBpm = normalizeBpm(bpmDraft) ?? secondsPerBarToBpm(canvas.secondsPerBar, current);
+    const secondsPerBar = bpmToSecondsPerBar(currentBpm, normalized);
+    if (!secondsPerBar) return;
+    setBpmDraft(formatBpm(currentBpm));
+    const secondsAlreadyMatch = Math.abs(secondsPerBar - (canvas.secondsPerBar || DEFAULT_SECONDS_PER_BAR)) < 0.0001;
+    if (normalized === current && allTracksMatch && secondsAlreadyMatch) return;
 
     setTimeSignatureSaving(true);
     setTimeSignatureError(null);
     try {
-      const secondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
       const nextCanvas = normalizeCanvas(
         {
           ...canvas,
           updatedAt: new Date().toISOString(),
+          secondsPerBar,
           editors: canvas.editors.map((lane, index) =>
             normalizeLane(
               {
                 ...lane,
+                secondsPerBar,
                 timeSignature: normalized,
               },
               lane.id || `ed-${index + 1}`,
@@ -1096,11 +1138,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     try {
       const res = await gteApi.addCanvasEditor(editorId);
       const currentTimeSignature = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
+      const currentSecondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
       const nextCanvas = normalizeCanvas(
         {
           ...res.canvas,
+          secondsPerBar: currentSecondsPerBar,
           editors: res.canvas.editors.map((lane) => ({
             ...lane,
+            secondsPerBar: currentSecondsPerBar,
             timeSignature: currentTimeSignature,
           })),
         },
@@ -1192,6 +1237,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           ? normalizeLane(
               {
                 ...nextLaneSnapshot,
+                secondsPerBar,
                 timeSignature: sharedTimeSignature,
                 instrumentId:
                   normalizeTrackInstrumentId(nextLaneSnapshot.instrumentId) !== DEFAULT_TRACK_INSTRUMENT_ID ||
@@ -1204,7 +1250,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               index
             )
           : normalizeLane(
-              { ...lane, timeSignature: sharedTimeSignature },
+              { ...lane, secondsPerBar, timeSignature: sharedTimeSignature },
               lane.id || `ed-${index + 1}`,
               secondsPerBar,
               index
@@ -2254,7 +2300,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     <main className="page page-tight" onMouseDownCapture={handleMainMouseDownCapture}>
       <div className="container gte-wide stack pb-16">
         <div className="page-header">
-          <div>
+          <div style={{ flex: "1 1 0", minWidth: 0 }}>
             <h1 className="page-title">Guitar Tab Editor</h1>
             <div className="page-subtitle" style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
               <input
@@ -2276,49 +2322,88 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 placeholder="Untitled"
               />
               <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                Seconds/bar
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0.1"
-                  value={secondsDraft}
-                  onChange={(event) => setSecondsDraft(event.target.value)}
-                  onBlur={() => void commitSecondsPerBar()}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void commitSecondsPerBar();
-                    }
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      setSecondsDraft(String(canvas?.secondsPerBar || DEFAULT_SECONDS_PER_BAR));
-                    }
-                  }}
-                  className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
-                />
-              </label>
-              <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                Beats/bar
+                BPM
                 <input
                   type="number"
                   step={1}
                   min={1}
-                  max={64}
-                  value={timeSignatureDraft}
-                  onChange={(event) => setTimeSignatureDraft(event.target.value)}
-                  onBlur={() => void commitTimeSignature()}
+                  value={bpmDraft}
+                  onChange={(event) => setBpmDraft(event.target.value)}
+                  onBlur={() => void commitBpm()}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
-                      void commitTimeSignature();
+                      void commitBpm();
                     }
                     if (event.key === "Escape") {
                       event.preventDefault();
-                      setTimeSignatureDraft(String(normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8));
+                      setBpmDraft(
+                        formatBpm(
+                          secondsPerBarToBpm(
+                            canvas?.secondsPerBar,
+                            normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
+                          )
+                        )
+                      );
                     }
                   }}
                   className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                 />
+              </label>
+              <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                Beats/bar
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                  <input
+                    type="number"
+                    step={1}
+                    min={1}
+                    max={64}
+                    value={timeSignatureDraft}
+                    onChange={(event) => setTimeSignatureDraft(event.target.value)}
+                    onBlur={() => void commitTimeSignature()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void commitTimeSignature();
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        setTimeSignatureDraft(String(normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8));
+                      }
+                    }}
+                    className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
+                  />
+                  <span style={{ display: "inline-flex", flexDirection: "column", gap: "2px" }}>
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        const current = normalizeTimeSignature(timeSignatureDraft) ?? normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
+                        void commitTimeSignature(current + 1);
+                      }}
+                      className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
+                      title="Increase beats per bar"
+                      aria-label="Increase beats per bar"
+                      disabled={(normalizeTimeSignature(timeSignatureDraft) ?? 8) >= 64}
+                    >
+                      &#9650;
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        const current = normalizeTimeSignature(timeSignatureDraft) ?? normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
+                        void commitTimeSignature(current - 1);
+                      }}
+                      className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
+                      title="Decrease beats per bar"
+                      aria-label="Decrease beats per bar"
+                      disabled={(normalizeTimeSignature(timeSignatureDraft) ?? 8) <= 1}
+                    >
+                      &#9660;
+                    </button>
+                  </span>
+                </span>
               </label>
               <label
                 className="text-small muted"
@@ -2363,17 +2448,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               >
                 Generate tabs
               </button>
-              {(nameSaving || secondsSaving) && !isGuestMode && <span className="muted text-small">Saving draft...</span>}
-              {(nameError || secondsError) && <span className="error text-small">{nameError || secondsError}</span>}
-              <span className="muted text-small">{saveStatus}</span>
+            </div>
+            <div
+              className="text-small"
+              style={{ minHeight: "1.25rem", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}
+            >
+              <span className="muted">{saveStatus}</span>
+              {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
+              {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
               {(timeSignatureSaving || timeSignatureError) && (
-                <span className={timeSignatureError ? "error text-small" : "muted text-small"}>
+                <span className={timeSignatureError ? "error" : "muted"}>
                   {timeSignatureError || "Saving beats..."}
                 </span>
               )}
             </div>
           </div>
-          <div className="button-row">
+          <div className="button-row" style={{ flex: "0 0 auto", alignSelf: "flex-start" }}>
             {isGuestMode ? (
               <>
                 <Link href="/" className="button-secondary button-small">
