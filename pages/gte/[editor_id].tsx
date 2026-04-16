@@ -207,6 +207,12 @@ const formatBpm = (value: number) => {
   return Number.isInteger(rounded) ? String(rounded) : String(rounded);
 };
 
+const normalizeTrackVolume = (value: unknown) => {
+  const next = Number(value);
+  if (!Number.isFinite(next)) return 1;
+  return Math.max(0, Math.min(1, next));
+};
+
 const normalizeBarIndices = (lane: EditorSnapshot, barIndices: number[]) => {
   const barCount = getLaneBarCount(lane);
   return Array.from(
@@ -650,6 +656,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [addingLane, setAddingLane] = useState(false);
   const [deletingLaneId, setDeletingLaneId] = useState<string | null>(null);
   const [confirmDeleteTrackId, setConfirmDeleteTrackId] = useState<string | null>(null);
+  const [openTrackMenuId, setOpenTrackMenuId] = useState<string | null>(null);
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
   const [sharedTimelineScrollRatio, setSharedTimelineScrollRatio] = useState(0);
@@ -657,6 +664,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [globalPlaybackIsPlaying, setGlobalPlaybackIsPlaying] = useState(false);
   const [globalPlaybackVolume, setGlobalPlaybackVolume] = useState(0.6);
   const [trackMuteById, setTrackMuteById] = useState<Record<string, boolean>>({});
+  const [trackVolumeById, setTrackVolumeById] = useState<Record<string, number>>({});
+  const [isolatedTrackId, setIsolatedTrackId] = useState<string | null>(null);
   const [laneSelectionById, setLaneSelectionById] = useState<
     Record<string, { noteCount: number; chordCount: number; noteIds: number[]; chordIds: number[] }>
   >({});
@@ -702,7 +711,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const globalPlaybackStartFrameRef = useRef(0);
   const globalPlaybackEndFrameRef = useRef<number | null>(null);
   const globalPlaybackAudioStartRef = useRef<number | null>(null);
-  const previousTrackMuteByIdRef = useRef<Record<string, boolean> | null>(null);
+  const previousTrackPlaybackStateSignatureRef = useRef<string | null>(null);
   const previousTrackInstrumentSignatureRef = useRef<string | null>(null);
   const canvasUndoRef = useRef<CanvasSnapshot[]>([]);
   const canvasRedoRef = useRef<CanvasSnapshot[]>([]);
@@ -1734,6 +1743,32 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [canvas]);
 
   useEffect(() => {
+    if (!canvas) return;
+    setTrackVolumeById((prev) => {
+      const next: Record<string, number> = {};
+      canvas.editors.forEach((lane, index) => {
+        const laneId = lane.id || `ed-${index + 1}`;
+        next[laneId] = normalizeTrackVolume(prev[laneId] ?? 1);
+      });
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      if (prevKeys.length !== nextKeys.length) {
+        return next;
+      }
+      for (const key of nextKeys) {
+        if (Math.abs((prev[key] ?? 1) - next[key]) > 0.0001) {
+          return next;
+        }
+      }
+      return prev;
+    });
+    setIsolatedTrackId((prev) => {
+      if (!prev) return prev;
+      return canvas.editors.some((lane, index) => (lane.id || `ed-${index + 1}`) === prev) ? prev : null;
+    });
+  }, [canvas]);
+
+  useEffect(() => {
     if (!canvas) {
       setLaneSelectionById({});
       return;
@@ -2091,19 +2126,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
       canvas.editors.forEach((lane, index) => {
         const laneId = lane.id || `ed-${index + 1}`;
+        if (isolatedTrackId && laneId !== isolatedTrackId) return;
         if (trackMuteById[laneId]) return;
+        const laneVolume = normalizeTrackVolume(trackVolumeById[laneId] ?? 1);
+        if (laneVolume <= 0) return;
         const instrumentId = normalizeTrackInstrumentId(lane.instrumentId);
 
         lane.notes.forEach((note) => {
           const midi =
             Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(lane, note.tab);
-          pushEvent(note.startTime, note.length, midi, 0.55, instrumentId);
+          pushEvent(note.startTime, note.length, midi, 0.55 * laneVolume, instrumentId);
         });
 
         lane.chords.forEach((chord) => {
           chord.currentTabs.forEach((tab, tabIndex) => {
             const midi = getMidiFromTab(lane, tab, chord.originalMidi?.[tabIndex]);
-            pushEvent(chord.startTime, chord.length, midi, 0.48, instrumentId);
+            pushEvent(chord.startTime, chord.length, midi, 0.48 * laneVolume, instrumentId);
           });
         });
       });
@@ -2149,7 +2187,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
       return { ctx, endFrame, startTimeSec: base };
     },
-    [canvas, canvasTimelineEnd, globalPlaybackFps, globalPlaybackVolume, trackMuteById]
+    [canvas, canvasTimelineEnd, globalPlaybackFps, globalPlaybackVolume, isolatedTrackId, trackMuteById, trackVolumeById]
   );
 
   const startGlobalPlayback = useCallback(async (startFrameOverride?: number) => {
@@ -2290,10 +2328,39 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setTrackMuteById((prev) => ({ ...prev, [trackId]: !prev[trackId] }));
   }, []);
 
+  const handleTrackVolumeChange = useCallback((trackId: string, nextVolume: number) => {
+    setTrackVolumeById((prev) => ({
+      ...prev,
+      [trackId]: normalizeTrackVolume(nextVolume),
+    }));
+  }, []);
+
+  const toggleTrackIsolation = useCallback((trackId: string) => {
+    setIsolatedTrackId((prev) => (prev === trackId ? null : trackId));
+  }, []);
+
+  const trackPlaybackStateSignature = useMemo(() => {
+    if (!canvas) return "";
+    return [
+      `iso:${isolatedTrackId ?? ""}`,
+      ...canvas.editors.map((lane, index) => {
+        const laneId = lane.id || `ed-${index + 1}`;
+        return `${laneId}:${trackMuteById[laneId] ? 1 : 0}:${Math.round(
+          normalizeTrackVolume(trackVolumeById[laneId] ?? 1) * 1000
+        )}`;
+      }),
+    ].join("|");
+  }, [canvas, isolatedTrackId, trackMuteById, trackVolumeById]);
+
   useEffect(() => {
-    const previousTrackMuteById = previousTrackMuteByIdRef.current;
-    previousTrackMuteByIdRef.current = trackMuteById;
-    if (!previousTrackMuteById || previousTrackMuteById === trackMuteById) return;
+    const previousTrackPlaybackStateSignature = previousTrackPlaybackStateSignatureRef.current;
+    previousTrackPlaybackStateSignatureRef.current = trackPlaybackStateSignature;
+    if (
+      !previousTrackPlaybackStateSignature ||
+      previousTrackPlaybackStateSignature === trackPlaybackStateSignature
+    ) {
+      return;
+    }
     if (!globalPlaybackIsPlaying) return;
     const resumeFrame = Math.max(0, Math.round(globalPlaybackFrameRef.current));
     stopGlobalPlayback();
@@ -2302,7 +2369,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       void startGlobalPlayback();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [globalPlaybackIsPlaying, startGlobalPlayback, stopGlobalPlayback, trackMuteById]);
+  }, [globalPlaybackIsPlaying, startGlobalPlayback, stopGlobalPlayback, trackPlaybackStateSignature]);
 
   const trackInstrumentSignature = useMemo(() => {
     if (!canvas) return "";
@@ -2335,6 +2402,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     const now = globalPlaybackAudioRef.current.currentTime;
     globalPlaybackMasterGainRef.current.gain.setTargetAtTime(globalPlaybackVolume, now, 0.02);
   }, [globalPlaybackVolume]);
+
+  useEffect(() => {
+    if (!openTrackMenuId) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-track-menu='true']")) return;
+      setOpenTrackMenuId(null);
+    };
+    window.addEventListener("mousedown", handlePointerDown, true);
+    return () => window.removeEventListener("mousedown", handlePointerDown, true);
+  }, [openTrackMenuId]);
 
   useEffect(() => {
     return () => {
@@ -2727,6 +2805,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               const laneEditorRef = buildLaneEditorRef(editorId, laneId);
               const isActive = laneId === activeLaneId;
               const isTrackMuted = Boolean(trackMuteById[laneId]);
+              const isTrackIsolated = isolatedTrackId === laneId;
+              const trackVolume = normalizeTrackVolume(trackVolumeById[laneId] ?? 1);
               const laneBarCount = getLaneBarCount(lane);
                 return (
                   <section
@@ -2780,151 +2860,222 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     {trackDragLaneId !== null && trackDropIndex === index + 1 && (
                       <div className="pointer-events-none absolute -bottom-1 left-4 right-4 z-30 h-1 rounded-full bg-sky-400 shadow-sm" />
                     )}
-                    <div className="absolute top-1 left-1 z-20">
-                      <button
-                        type="button"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        toggleTrackMute(laneId);
-                      }}
-                      className={`rounded-md border px-2 py-1 text-[11px] ${
-                        isTrackMuted
-                          ? "border-amber-300 bg-amber-50 text-amber-700"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                      }`}
-                      title={isTrackMuted ? "Unmute track" : "Mute track"}
-                      aria-label={isTrackMuted ? "Unmute track" : "Mute track"}
-                    >
-                      {isTrackMuted ? (
-                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
-                          <path d="M4 10v4h4l5 4V6L8 10H4z" />
-                          <path d="M16 9.4l1.4-1.4L20 10.6l2.6-2.6L24 9.4 21.4 12l2.6 2.6-1.4 1.4-2.6-2.6-2.6 2.6-1.4-1.4 2.6-2.6-2.6-2.6z" />
-                        </svg>
-                      ) : (
-                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
-                          <path d="M4 10v4h4l5 4V6L8 10H4z" />
-                          <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
-                        </svg>
-                      )}
-                    </button>
-                  </div>
-                  <div
-                    className="absolute top-1 left-12 z-20"
-                    data-track-reorder-block="true"
-                  >
-                    <select
-                      value={
-                        trackInstrumentOptions.some(
-                          (option) => option.id === normalizeTrackInstrumentId(lane.instrumentId)
-                        )
-                          ? normalizeTrackInstrumentId(lane.instrumentId)
-                          : DEFAULT_TRACK_INSTRUMENT_ID
-                      }
-                      onChange={(event) => handleLaneInstrumentChange(laneId, event.target.value)}
-                      onClick={(event) => event.stopPropagation()}
-                      className="h-8 max-w-[220px] rounded-md border border-slate-200 bg-white px-2 text-[11px] text-slate-700 shadow-sm"
-                      title="Track sound"
-                      aria-label="Track sound"
-                    >
-                      {trackInstrumentOptions.map((option) => (
-                        <option key={`${laneId}-instrument-${option.id}`} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div
-                    className="absolute top-3 right-4 z-20 flex items-center gap-2"
-                    data-track-reorder-block="true"
-                  >
-                    <span className="text-[11px] font-semibold text-slate-600">
-                      Bars: {laneBarCount}
-                    </span>
-                    {canvas.editors.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => requestDeleteTrack(laneId)}
-                        className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-50"
-                        disabled={deletingLaneId === laneId}
+                    <div className="flex flex-col gap-3 lg:flex-row">
+                      <aside
+                        className="w-full shrink-0 rounded-xl border border-slate-200 bg-white/90 p-2 shadow-sm lg:w-28"
+                        data-track-reorder-block="true"
                       >
-                        {deletingLaneId === laneId ? "..." : "Remove track"}
-                      </button>
-                    )}
-                  </div>
-                  <GteWorkspace
-                    editorId={laneEditorRef}
-                    snapshot={lane}
-                    onSnapshotChange={(nextSnapshot, options) =>
-                      handleLaneSnapshotChange(laneId, nextSnapshot, options)
-                    }
-                    allowBackend
-                    embedded
-                    isActive={isActive}
-                    onFocusWorkspace={() => setActiveLaneId(laneId)}
-                    globalSnapToGridEnabled={globalSnapToGridEnabled}
-                    onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
-                    sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
-                    sharedViewportBarCount={sharedViewportBarCount}
-                    sharedTimelineScrollRatio={sharedTimelineScrollRatio}
-                    onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
-                    timelineZoomFactor={timelineZoomPercent / 100}
-                    historyUndoCount={canvasUndoCount}
-                    historyRedoCount={canvasRedoCount}
-                    onRequestUndo={handleCanvasUndo}
-                    onRequestRedo={handleCanvasRedo}
-                    globalPlaybackFrame={globalPlaybackFrame}
-                    globalPlaybackIsPlaying={globalPlaybackIsPlaying}
-                    globalPlaybackVolume={globalPlaybackVolume}
-                    globalPlaybackTimelineEnd={canvasTimelineEnd}
-                    onGlobalPlaybackToggle={toggleGlobalPlayback}
-                    onGlobalPlaybackFrameChange={seekGlobalPlayback}
-                    onGlobalPlaybackVolumeChange={handleGlobalPlaybackVolumeChange}
-                    onGlobalPlaybackSkipToStart={skipGlobalPlaybackToStart}
-                    onGlobalPlaybackSkipBackwardBar={skipGlobalPlaybackBackwardBar}
-                    onGlobalPlaybackSkipForwardBar={skipGlobalPlaybackForwardBar}
-                    showToolbarWhenInactive={activeLaneId === null && index === 0}
-                    multiTrackSelectionActive={multiTrackSelectionActive}
-                    onSelectionStateChange={(selection) =>
-                      handleLaneSelectionStateChange(laneId, selection)
-                    }
-                    onRequestGlobalSelectedShift={(deltaFrames) =>
-                      handleGlobalSelectedShift(laneId, deltaFrames)
-                    }
-                    selectionClearEpoch={selectionClearEpoch}
-                    selectionClearExemptEditorId={selectionClearExemptEditorId}
-                    barSelectionClearEpoch={barSelectionClearEpoch}
-                    barSelectionClearExemptEditorId={barSelectionClearExemptEditorId}
-                    onBarSelectionStateChange={(barIndices) =>
-                      handleBarSelectionStateChange(laneId, barIndices)
-                    }
-                    onRequestSelectedBarsCopy={(barIndices) =>
-                      void handleCopySelectedBars(laneId, barIndices)
-                    }
-                    onRequestSelectedBarsPaste={(insertIndex) =>
-                      void handlePasteBars(laneId, insertIndex)
-                    }
-                    onRequestSelectedBarsDelete={(barIndices) =>
-                      void handleDeleteSelectedBars(laneId, barIndices)
-                    }
-                    barClipboardAvailable={Boolean(barClipboard)}
-                    activeBarDrag={barDragState}
-                    onBarDragStart={(barIndices) => {
-                      const nextBarIndices =
-                        barSelection?.laneId === laneId ? barSelection.barIndices : barIndices;
-                      setBarDragState({ sourceLaneId: laneId, barIndices: [...nextBarIndices] });
-                    }}
-                    onBarDragEnd={() => setBarDragState(null)}
-                    onRequestBarDrop={(insertIndex) => {
-                      if (!barDragState) return;
-                      void handleMoveSelectedBars(
-                        barDragState.sourceLaneId,
-                        barDragState.barIndices,
-                        laneId,
-                        insertIndex
-                      );
-                    }}
-                  />
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Track
+                          </span>
+                          <span className="text-[11px] font-semibold text-slate-600">
+                            Bars: {laneBarCount}
+                          </span>
+                        </div>
+                        <div className="mt-2 min-w-0">
+                          <select
+                            value={
+                              trackInstrumentOptions.some(
+                                (option) => option.id === normalizeTrackInstrumentId(lane.instrumentId)
+                              )
+                                ? normalizeTrackInstrumentId(lane.instrumentId)
+                                : DEFAULT_TRACK_INSTRUMENT_ID
+                            }
+                            onChange={(event) => handleLaneInstrumentChange(laneId, event.target.value)}
+                            onClick={(event) => event.stopPropagation()}
+                            className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 shadow-sm"
+                            title="Track sound"
+                            aria-label="Track sound"
+                          >
+                            {trackInstrumentOptions.map((option) => (
+                              <option key={`${laneId}-instrument-${option.id}`} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="mt-2 flex items-start justify-center gap-2">
+                          <div className="flex flex-col items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                toggleTrackMute(laneId);
+                              }}
+                              className={`flex h-8 w-8 items-center justify-center rounded-md border transition ${
+                                isTrackMuted
+                                  ? "border-amber-300 bg-amber-50 text-amber-700"
+                                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                              }`}
+                              title={isTrackMuted ? "Unmute track" : "Mute track"}
+                              aria-label={isTrackMuted ? "Unmute track" : "Mute track"}
+                            >
+                              {isTrackMuted ? (
+                                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
+                                  <path d="M4 10v4h4l5 4V6L8 10H4z" />
+                                  <path d="M16 9.4l1.4-1.4L20 10.6l2.6-2.6L24 9.4 21.4 12l2.6 2.6-1.4 1.4-2.6-2.6-2.6 2.6-1.4-1.4 2.6-2.6-2.6-2.6z" />
+                                </svg>
+                              ) : (
+                                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
+                                  <path d="M4 10v4h4l5 4V6L8 10H4z" />
+                                  <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
+                                </svg>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                toggleTrackIsolation(laneId);
+                              }}
+                              className={`flex h-8 w-8 items-center justify-center rounded-md border transition ${
+                                isTrackIsolated
+                                  ? "border-sky-500 bg-sky-500 text-white hover:bg-sky-400"
+                                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                              }`}
+                              title={isTrackIsolated ? "Stop isolating track" : "Isolate track"}
+                              aria-label={isTrackIsolated ? "Stop isolating track" : "Isolate track"}
+                            >
+                              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
+                                <path d="M5 7a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7zm10 3h4v4h-4v-4zM9 7H7v10h2V7zM19 7h-2v2h2V7zm0 8h-2v2h2v-2z" />
+                              </svg>
+                            </button>
+                          </div>
+                          <div className="flex items-start justify-center gap-1">
+                            <input
+                              type="range"
+                              min={0}
+                              max={1}
+                              step={0.01}
+                              value={trackVolume}
+                              onChange={(event) => handleTrackVolumeChange(laneId, Number(event.target.value))}
+                              onClick={(event) => event.stopPropagation()}
+                              className="h-20 w-3 accent-slate-700 [writing-mode:bt-lr]"
+                              style={{ writingMode: "vertical-lr", direction: "rtl" }}
+                              title="Track volume"
+                              aria-label="Track volume"
+                            />
+                            <div className="pt-1 text-[10px] font-medium text-slate-500">
+                              {Math.round(trackVolume * 100)}%
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-2 flex justify-center" data-track-menu="true">
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setOpenTrackMenuId((prev) => (prev === laneId ? null : laneId));
+                              }}
+                              className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                              title="Track options"
+                              aria-label="Track options"
+                            >
+                              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                                <circle cx="12" cy="5" r="1.8" />
+                                <circle cx="12" cy="12" r="1.8" />
+                                <circle cx="12" cy="19" r="1.8" />
+                              </svg>
+                            </button>
+                            {openTrackMenuId === laneId && (
+                              <div className="absolute left-1/2 top-8 z-30 min-w-[120px] -translate-x-1/2 rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenTrackMenuId(null);
+                                    requestDeleteTrack(laneId);
+                                  }}
+                                  className="block w-full px-3 py-1.5 text-left text-[10px] font-medium text-rose-600 hover:bg-rose-50"
+                                  disabled={deletingLaneId === laneId}
+                                >
+                                  {deletingLaneId === laneId ? "..." : "Remove track"}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </aside>
+                      <div className="min-w-0 flex-1">
+                        <GteWorkspace
+                          editorId={laneEditorRef}
+                          snapshot={lane}
+                          onSnapshotChange={(nextSnapshot, options) =>
+                            handleLaneSnapshotChange(laneId, nextSnapshot, options)
+                          }
+                          allowBackend
+                          embedded
+                          isActive={isActive}
+                          onFocusWorkspace={() => setActiveLaneId(laneId)}
+                          globalSnapToGridEnabled={globalSnapToGridEnabled}
+                          onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
+                          sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
+                          sharedViewportBarCount={sharedViewportBarCount}
+                          sharedTimelineScrollRatio={sharedTimelineScrollRatio}
+                          onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
+                          timelineZoomFactor={timelineZoomPercent / 100}
+                          historyUndoCount={canvasUndoCount}
+                          historyRedoCount={canvasRedoCount}
+                          onRequestUndo={handleCanvasUndo}
+                          onRequestRedo={handleCanvasRedo}
+                          globalPlaybackFrame={globalPlaybackFrame}
+                          globalPlaybackIsPlaying={globalPlaybackIsPlaying}
+                          globalPlaybackVolume={globalPlaybackVolume}
+                          globalPlaybackTimelineEnd={canvasTimelineEnd}
+                          onGlobalPlaybackToggle={toggleGlobalPlayback}
+                          onGlobalPlaybackFrameChange={seekGlobalPlayback}
+                          onGlobalPlaybackVolumeChange={handleGlobalPlaybackVolumeChange}
+                          onGlobalPlaybackSkipToStart={skipGlobalPlaybackToStart}
+                          onGlobalPlaybackSkipBackwardBar={skipGlobalPlaybackBackwardBar}
+                          onGlobalPlaybackSkipForwardBar={skipGlobalPlaybackForwardBar}
+                          showToolbarWhenInactive={activeLaneId === null && index === 0}
+                          multiTrackSelectionActive={multiTrackSelectionActive}
+                          onSelectionStateChange={(selection) =>
+                            handleLaneSelectionStateChange(laneId, selection)
+                          }
+                          onRequestGlobalSelectedShift={(deltaFrames) =>
+                            handleGlobalSelectedShift(laneId, deltaFrames)
+                          }
+                          selectionClearEpoch={selectionClearEpoch}
+                          selectionClearExemptEditorId={selectionClearExemptEditorId}
+                          barSelectionClearEpoch={barSelectionClearEpoch}
+                          barSelectionClearExemptEditorId={barSelectionClearExemptEditorId}
+                          onBarSelectionStateChange={(barIndices) =>
+                            handleBarSelectionStateChange(laneId, barIndices)
+                          }
+                          onRequestSelectedBarsCopy={(barIndices) =>
+                            void handleCopySelectedBars(laneId, barIndices)
+                          }
+                          onRequestSelectedBarsPaste={(insertIndex) =>
+                            void handlePasteBars(laneId, insertIndex)
+                          }
+                          onRequestSelectedBarsDelete={(barIndices) =>
+                            void handleDeleteSelectedBars(laneId, barIndices)
+                          }
+                          barClipboardAvailable={Boolean(barClipboard)}
+                          activeBarDrag={barDragState}
+                          onBarDragStart={(barIndices) => {
+                            const nextBarIndices =
+                              barSelection?.laneId === laneId ? barSelection.barIndices : barIndices;
+                            setBarDragState({ sourceLaneId: laneId, barIndices: [...nextBarIndices] });
+                          }}
+                          onBarDragEnd={() => setBarDragState(null)}
+                          onRequestBarDrop={(insertIndex) => {
+                            if (!barDragState) return;
+                            void handleMoveSelectedBars(
+                              barDragState.sourceLaneId,
+                              barDragState.barIndices,
+                              laneId,
+                              insertIndex
+                            );
+                          }}
+                        />
+                      </div>
+                    </div>
                   {trackDragLaneId === laneId && (
                     <div className="pointer-events-none absolute inset-0 z-10 rounded-xl border border-sky-300 bg-sky-100/20" />
                   )}
