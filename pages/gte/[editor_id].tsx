@@ -635,6 +635,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [nameDraft, setNameDraft] = useState("");
   const [nameSaving, setNameSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [nameEditing, setNameEditing] = useState(false);
   const [bpmDraft, setBpmDraft] = useState(formatBpm(secondsPerBarToBpm(DEFAULT_SECONDS_PER_BAR, 8)));
   const [bpmSaving, setBpmSaving] = useState(false);
   const [bpmError, setBpmError] = useState<string | null>(null);
@@ -679,6 +680,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [trackInstrumentOptions, setTrackInstrumentOptions] = useState<TrackInstrumentOption[]>(
     getBuiltinTrackInstrumentOptions()
   );
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
   const globalPlaybackFrameRef = useRef(0);
   const bpmCommitTimerRef = useRef<number | null>(null);
   const queuedBpmValueRef = useRef<string | number | null>(null);
@@ -891,7 +893,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   useEffect(() => {
     if (!canvas) return;
-    setNameDraft(canvas.name || "Untitled");
+    if (!nameEditing) {
+      setNameDraft(canvas.name || "Untitled");
+    }
     const beatsPerBar = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
     if (queuedBpmValueRef.current === null) {
       setBpmDraft(formatBpm(secondsPerBarToBpm(canvas.secondsPerBar, beatsPerBar)));
@@ -902,7 +906,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (activeLaneId && !canvas.editors.some((lane) => lane.id === activeLaneId)) {
       setActiveLaneId(canvas.editors[0]?.id || null);
     }
-  }, [canvas?.name, canvas?.secondsPerBar, canvas?.editors, activeLaneId]);
+  }, [canvas?.name, canvas?.secondsPerBar, canvas?.editors, activeLaneId, nameEditing]);
+
+  useEffect(() => {
+    if (!nameEditing || !nameInputRef.current) return;
+    nameInputRef.current.focus();
+    nameInputRef.current.select();
+  }, [nameEditing]);
 
   useEffect(() => {
     return () => {
@@ -1045,11 +1055,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [recordCanvasHistory]
   );
 
-  const commitName = async () => {
+  const commitName = async (rawValue: string = nameDraft, options?: { exitEdit?: boolean }) => {
     if (!canvas) return;
-    const trimmed = nameDraft.trim();
+    const trimmed = rawValue.trim();
     const normalizedName = trimmed || "Untitled";
-    if (normalizedName === (canvas.name || "Untitled")) return;
+    setNameDraft(normalizedName);
+    if (normalizedName === (canvas.name || "Untitled")) {
+      if (options?.exitEdit) {
+        setNameEditing(false);
+      }
+      return;
+    }
     setNameSaving(true);
     setNameError(null);
     try {
@@ -1059,6 +1075,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         editorId
       );
       applyCanvasUpdate(nextCanvas, { markDirty: !isGuestMode });
+      setNameDraft(nextCanvas.name || normalizedName);
+      if (options?.exitEdit) {
+        setNameEditing(false);
+      }
     } catch (err: any) {
       setNameError(err?.message || "Could not update name.");
     } finally {
@@ -2353,26 +2373,75 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       <div className="container gte-wide stack pb-16">
         <div className="page-header">
           <div style={{ flex: "1 1 0", minWidth: 0 }}>
-            <h1 className="page-title">Guitar Tab Editor</h1>
-            <div className="page-subtitle" style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-              <input
-                type="text"
-                value={nameDraft}
-                onChange={(event) => setNameDraft(event.target.value)}
-                onBlur={() => void commitName()}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void commitName();
-                  }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    setNameDraft(canvas?.name || "Untitled");
-                  }
+            <div
+              className="page-title"
+              style={{ display: "flex", alignItems: "baseline", gap: "14px", flexWrap: "wrap" }}
+            >
+              <span>GTE</span>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  minWidth: 0,
+                  maxWidth: "100%",
                 }}
-                className="w-64 max-w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
-                placeholder="Untitled"
-              />
+              >
+                {nameEditing ? (
+                  <input
+                    ref={nameInputRef}
+                    type="text"
+                    value={nameDraft}
+                    onChange={(event) => setNameDraft(event.target.value)}
+                    onBlur={() => void commitName(nameDraft, { exitEdit: true })}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void commitName(nameDraft, { exitEdit: true });
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        setNameDraft(canvas?.name || "Untitled");
+                        setNameEditing(false);
+                      }
+                    }}
+                    className="min-w-0 max-w-full bg-transparent p-0 text-[1.15rem] font-medium text-slate-700 outline-none"
+                    style={{ border: "none", boxShadow: "none" }}
+                    placeholder="Untitled"
+                  />
+                ) : (
+                  <span
+                    style={{
+                      fontSize: "1.15rem",
+                      lineHeight: 1.3,
+                      fontWeight: 500,
+                      color: "#334155",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      maxWidth: "min(32rem, 100%)",
+                    }}
+                  >
+                    {canvas?.name || "Untitled"}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setNameEditing(true)}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                  title="Rename editor"
+                  aria-label="Rename editor"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <path d="M3 17.25V21h3.75l11-11.03-3.75-3.75L3 17.25zm14.71-9.04a1.003 1.003 0 0 0 0-1.42l-2.5-2.5a1.003 1.003 0 0 0-1.42 0l-1.29 1.29 3.75 3.75 1.46-1.12z" />
+                  </svg>
+                </button>
+              </span>
+            </div>
+            <div
+              className="page-subtitle"
+              style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}
+            >
               <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
                 BPM
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>

@@ -5875,124 +5875,126 @@ export default function GteWorkspace({
         </div>
       )}
       {showToolbarUi && (
-        <div className="fixed right-4 bottom-16 z-[9997] flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setToolbarOpen((prev) => !prev)}
-            aria-pressed={toolbarOpen}
-            title={toolbarOpen ? "Hide toolbar" : "Show toolbar"}
-            className={`flex h-9 items-center justify-center rounded-full border px-3 text-[11px] font-semibold shadow-sm backdrop-blur transition ${
-              toolbarOpen
-                ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
-                : "border-slate-200 bg-white/90 text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            Toolbar
-          </button>
-          <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/90 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
+        <div className="fixed bottom-16 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2 pointer-events-none">
+          <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
             <button
               type="button"
-              onClick={requestUndo}
-              disabled={effectiveUndoCount === 0 || busy}
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-              title="Undo (Ctrl/Cmd+Z)"
+              onClick={() => setToolbarOpen((prev) => !prev)}
+              aria-pressed={toolbarOpen}
+              title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
+              className={`pointer-events-auto flex h-12 items-center justify-center rounded-full border px-5 text-sm font-semibold shadow-md backdrop-blur transition md:absolute md:left-0 ${
+                toolbarOpen
+                  ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
+                  : "border-sky-300 bg-sky-100/95 text-sky-900 hover:bg-sky-50"
+              }`}
             >
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
-              </svg>
+              Toolbar (T)
             </button>
-            <button
-              type="button"
-              onClick={requestRedo}
-              disabled={effectiveRedoCount === 0 || busy}
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-              title="Redo (Ctrl/Cmd+Shift+Z)"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
-              </svg>
-            </button>
-            <span className="mx-1 whitespace-nowrap text-[10px] text-slate-500">
-              {!allowBackend
-                ? hasUnsavedChanges
-                  ? "Saving local draft..."
-                  : "Local draft saved"
-                : isAutosaving
-                  ? "Saving..."
-                  : hasUnsavedChanges
-                    ? "Unsaved changes"
-                    : lastSavedAt
-                      ? `Saved ${new Date(lastSavedAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}`
-                      : "Saved"}
-            </span>
-            <button
-              type="button"
-              onClick={skipToStart}
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
-              title="Go to start"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                <rect x="4" y="5" width="2" height="14" />
-                <polygon points="18,5 8,12 18,19" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={skipBackwardBar}
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
-              title="Previous bar"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                <polygon points="17,5 7,12 17,19" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                togglePlayback();
-              }}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
-              title={effectiveIsPlaying ? "Pause" : "Play"}
-            >
-              {effectiveIsPlaying ? (
+            <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
+              <button
+                type="button"
+                onClick={requestUndo}
+                disabled={effectiveUndoCount === 0 || busy}
+                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Undo (Ctrl/Cmd+Z)"
+              >
                 <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                  <rect x="6" y="5" width="4" height="14" />
-                  <rect x="14" y="5" width="4" height="14" />
+                  <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
                 </svg>
-              ) : (
+              </button>
+              <button
+                type="button"
+                onClick={requestRedo}
+                disabled={effectiveRedoCount === 0 || busy}
+                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Redo (Ctrl/Cmd+Shift+Z)"
+              >
                 <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                  <polygon points="8,5 19,12 8,19" />
+                  <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
                 </svg>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={skipForwardBar}
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
-              title="Next bar"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                <polygon points="7,5 17,12 7,19" />
-              </svg>
-            </button>
-            <div className="flex items-center gap-1 px-1">
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
-                <path d="M4 10v4h4l5 4V6L8 10H4z" />
-                <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
-              </svg>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={effectivePlaybackVolume}
-                onChange={(event) => setEffectivePlaybackVolume(Number(event.target.value))}
-                className="w-20 accent-slate-700"
-                title="Volume"
-              />
+              </button>
+              <span className="mx-1 whitespace-nowrap text-[10px] text-slate-500">
+                {!allowBackend
+                  ? hasUnsavedChanges
+                    ? "Saving local draft..."
+                    : "Local draft saved"
+                  : isAutosaving
+                    ? "Saving..."
+                    : hasUnsavedChanges
+                      ? "Unsaved changes"
+                      : lastSavedAt
+                        ? `Saved ${new Date(lastSavedAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}`
+                        : "Saved"}
+              </span>
+              <button
+                type="button"
+                onClick={skipToStart}
+                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                title="Go to start"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                  <rect x="4" y="5" width="2" height="14" />
+                  <polygon points="18,5 8,12 18,19" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={skipBackwardBar}
+                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                title="Previous bar"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                  <polygon points="17,5 7,12 17,19" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  togglePlayback();
+                }}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
+                title={effectiveIsPlaying ? "Pause" : "Play"}
+              >
+                {effectiveIsPlaying ? (
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <rect x="6" y="5" width="4" height="14" />
+                    <rect x="14" y="5" width="4" height="14" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <polygon points="8,5 19,12 8,19" />
+                  </svg>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={skipForwardBar}
+                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                title="Next bar"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                  <polygon points="7,5 17,12 7,19" />
+                </svg>
+              </button>
+              <div className="flex items-center gap-1 px-1">
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
+                  <path d="M4 10v4h4l5 4V6L8 10H4z" />
+                  <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
+                </svg>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={effectivePlaybackVolume}
+                  onChange={(event) => setEffectivePlaybackVolume(Number(event.target.value))}
+                  className="w-20 accent-slate-700"
+                  title="Volume"
+                />
+              </div>
             </div>
           </div>
         </div>
