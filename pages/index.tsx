@@ -637,8 +637,6 @@ export default function HomePage() {
     <>
       <main className="page page-home">
         <section className="hero hero--landing-funnel" id="hero">
-          <div className="hero-glow hero-glow--one" aria-hidden="true" />
-          <div className="hero-glow hero-glow--two" aria-hidden="true" />
           <div className="container hero-stack hero-stack--centered">
             <section className="seo-intro seo-crawler-only" aria-label="Note2Tabs overview" data-reveal>
               <h1 className="seo-title">Note2Tabs – Guitar tab generator and editor</h1>

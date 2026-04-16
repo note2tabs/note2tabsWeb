@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 :root {
-  --bg: #f6f7fb;
-  --surface: #ffffff;
-  --surface-alt: #eef2f7;
+  --bg: #fbf8f1;
+  --surface: #fffdf8;
+  --surface-alt: #f4efe4;
   --text: #0b0f1a;
   --muted: #415065;
   --accent: #2a6df4;
@@ -31,8 +31,7 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   color: var(--text);
-  background: radial-gradient(1200px 600px at 50% -10%, rgba(42, 109, 244, 0.18), transparent 60%),
-    var(--bg);
+  background: var(--bg);
   min-height: 100vh;
 }
 
@@ -114,9 +113,7 @@ input[type="number"] {
 
 .page-tight {
   padding: 70px 0;
-  background:
-    radial-gradient(900px 360px at 50% -6%, rgba(42, 109, 244, 0.1), transparent 64%),
-    transparent;
+  background: transparent;
 }
 
 .page-header {
@@ -192,8 +189,7 @@ input[type="number"] {
   border-radius: 24px;
   border: 1px solid rgba(15, 23, 42, 0.1);
   box-shadow: 0 20px 44px rgba(15, 23, 42, 0.1);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 252, 255, 0.96));
+  background: var(--surface);
 }
 
 .auth-card--expanded {
@@ -900,14 +896,14 @@ input[type="number"] {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(255, 255, 255, 0.56);
-  backdrop-filter: blur(10px) saturate(120%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+  background: var(--surface);
+  backdrop-filter: none;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .nav-shell--reading {
-  background: rgba(255, 255, 255, 0.5);
-  border-bottom-color: rgba(255, 255, 255, 0.3);
+  background: var(--surface);
+  border-bottom-color: rgba(15, 23, 42, 0.08);
 }
 
 .nav {
@@ -1219,35 +1215,21 @@ input[type="number"] {
   position: relative;
   padding: 80px 0 92px;
   overflow: hidden;
-  background:
-    radial-gradient(880px 420px at 10% 6%, rgba(42, 109, 244, 0.16), transparent 64%),
-    radial-gradient(860px 440px at 88% 12%, rgba(31, 191, 159, 0.12), transparent 65%),
-    linear-gradient(180deg, #f3f5fb 0%, #f8fbff 56%, #f7fbff 100%);
+  background: var(--bg);
 }
 
 .hero--landing-funnel {
   min-height: calc(100dvh - 64px);
   padding: 34px 0 40px;
-  background:
-    radial-gradient(
-      120% 94% at 50% -8%,
-      rgba(255, 255, 255, 0.99) 0%,
-      rgba(248, 255, 250, 0.95) 48%,
-      rgba(208, 247, 226, 0.52) 73%,
-      rgba(148, 234, 186, 0.43) 89%,
-      rgba(110, 220, 165, 0.44) 100%
-    ),
-    radial-gradient(
-      85% 72% at 50% 114%,
-      rgba(78, 210, 142, 0.44) 0%,
-      rgba(136, 234, 176, 0.31) 56%,
-      rgba(230, 253, 240, 0.18) 86%,
-      rgba(255, 255, 255, 0) 100%
-    );
+  background: var(--bg);
 }
 
 .hero--landing-funnel .hero-glow {
   display: none;
+}
+
+.page-home {
+  background: var(--bg);
 }
 
 .hero--landing-funnel .hero-stack {
@@ -1266,13 +1248,13 @@ input[type="number"] {
 .hero-glow--one {
   top: -180px;
   left: -80px;
-  background: radial-gradient(circle, rgba(42, 109, 244, 0.4), transparent 70%);
+  background: none;
 }
 
 .hero-glow--two {
   bottom: -200px;
   right: -120px;
-  background: radial-gradient(circle, rgba(31, 191, 159, 0.45), transparent 70%);
+  background: none;
 }
 
 .hero-stack {
@@ -1354,8 +1336,8 @@ input[type="number"] {
   top: 56%;
   width: min(540px, 56vw);
   transform: translate(-50%, -50%);
-  opacity: 0.08;
-  filter: blur(7px);
+  opacity: 0;
+  filter: none;
   pointer-events: none;
   user-select: none;
 }
@@ -1418,7 +1400,7 @@ input[type="number"] {
 .editor-landing-feature-box {
   display: grid;
   gap: 18px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(240, 248, 255, 0.92));
+  background: var(--surface);
 }
 
 .editor-landing-feature-box-copy {
@@ -1460,7 +1442,7 @@ input[type="number"] {
   gap: 10px;
   min-height: 100%;
   border-color: rgba(15, 23, 42, 0.08);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 250, 255, 0.92));
+  background: var(--surface);
   box-shadow: 0 16px 30px rgba(15, 23, 42, 0.06);
 }
 
@@ -1518,7 +1500,7 @@ input[type="number"] {
 }
 
 .editor-landing-story--contrast {
-  background: linear-gradient(180deg, rgba(239, 247, 255, 0.82), rgba(255, 255, 255, 0.95));
+  background: var(--surface);
 }
 
 .editor-landing-list {
@@ -1541,7 +1523,7 @@ input[type="number"] {
   justify-content: space-between;
   gap: 20px;
   flex-wrap: wrap;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(236, 252, 248, 0.92));
+  background: var(--surface);
 }
 
 .hero-subtitle {
@@ -1561,7 +1543,7 @@ input[type="number"] {
   padding: 14px 20px;
   border-radius: 16px;
   border: 1px solid rgba(59, 130, 246, 0.18);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(226, 242, 255, 0.72));
+  background: var(--surface);
   box-shadow: 0 16px 34px rgba(59, 130, 246, 0.12);
 }
 
@@ -1572,7 +1554,7 @@ input[type="number"] {
   display: grid;
   place-items: center;
   color: #fff;
-  background: linear-gradient(135deg, #0ea5e9, #3b82f6);
+  background: #2a6df4;
 }
 
 .hero--landing-funnel .hero-title {
@@ -1643,15 +1625,13 @@ input[type="number"] {
 
 .blog-page {
   padding-top: 54px;
-  background:
-    radial-gradient(1000px 420px at 10% -12%, rgba(42, 109, 244, 0.14), transparent 62%),
-    radial-gradient(1000px 420px at 95% -12%, rgba(31, 191, 159, 0.14), transparent 62%);
+  background: var(--bg);
 }
 
 .blog-hero {
   border-radius: 24px;
   border: 1px solid rgba(15, 23, 42, 0.1);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(243, 248, 255, 0.9));
+  background: var(--surface);
   box-shadow: 0 18px 36px rgba(15, 23, 42, 0.08);
   padding: 22px;
   display: grid;
