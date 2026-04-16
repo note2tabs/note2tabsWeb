@@ -4082,10 +4082,13 @@ export default function GteWorkspace({
 
   const handleDeleteNote = () => {
     if (!selectedNote) return;
-    void runMutation(() => gteApi.deleteNote(editorId, selectedNote.id), {
-      localApply: (draft) => {
+    enqueueOptimisticMutation({
+      label: "delete-note",
+      apply: (draft) => {
         removeNoteFromSnapshot(draft, selectedNote.id);
+        return draft;
       },
+      commit: () => gteApi.deleteNote(editorId, selectedNote.id),
     });
     setSelectedNoteIds([]);
   };
@@ -4167,10 +4170,13 @@ export default function GteWorkspace({
 
   const handleDeleteChord = () => {
     if (!selectedChord) return;
-    void runMutation(() => gteApi.deleteChord(editorId, selectedChord.id), {
-      localApply: (draft) => {
+    enqueueOptimisticMutation({
+      label: "delete-chord",
+      apply: (draft) => {
         removeChordFromSnapshot(draft, selectedChord.id);
+        return draft;
       },
+      commit: () => gteApi.deleteChord(editorId, selectedChord.id),
     });
     setSelectedChordIds([]);
   };
@@ -4389,10 +4395,13 @@ export default function GteWorkspace({
     if (!selectedChord || chordNoteMenuIndex === null) return;
     const nextTabs = selectedChord.currentTabs.filter((_, idx) => idx !== chordNoteMenuIndex);
     if (nextTabs.length === 0) {
-      void runMutation(() => gteApi.deleteChord(editorId, selectedChord.id), {
-        localApply: (draft) => {
+      enqueueOptimisticMutation({
+        label: "delete-chord",
+        apply: (draft) => {
           removeChordFromSnapshot(draft, selectedChord.id);
+          return draft;
         },
+        commit: () => gteApi.deleteChord(editorId, selectedChord.id),
       });
       setSelectedChordIds([]);
       exitChordEdit();
@@ -5367,29 +5376,35 @@ export default function GteWorkspace({
       }
       if (selectedNoteIds.length > 0) {
         const noteIdsToDelete = [...selectedNoteIds];
-        void runMutation(async () => {
-          let last = null as Awaited<ReturnType<typeof gteApi.deleteNote>> | null;
-          for (const id of noteIdsToDelete) {
-            last = await gteApi.deleteNote(editorId, id);
-          }
-          return last ?? {};
-        }, {
-          localApply: (draft) => {
+        enqueueOptimisticMutation({
+          label: "delete-selected-notes",
+          apply: (draft) => {
             noteIdsToDelete.forEach((id) => removeNoteFromSnapshot(draft, id));
+            return draft;
+          },
+          commit: async () => {
+            let last = null as Awaited<ReturnType<typeof gteApi.deleteNote>> | null;
+            for (const id of noteIdsToDelete) {
+              last = await gteApi.deleteNote(editorId, id);
+            }
+            return last ?? {};
           },
         });
         setSelectedNoteIds([]);
       } else if (activeChordIds.length > 0) {
         const chordIdsToDelete = [...activeChordIds];
-        void runMutation(async () => {
-          let last = null as Awaited<ReturnType<typeof gteApi.deleteChord>> | null;
-          for (const id of chordIdsToDelete) {
-            last = await gteApi.deleteChord(editorId, id);
-          }
-          return last ?? {};
-        }, {
-          localApply: (draft) => {
+        enqueueOptimisticMutation({
+          label: "delete-selected-chords",
+          apply: (draft) => {
             chordIdsToDelete.forEach((id) => removeChordFromSnapshot(draft, id));
+            return draft;
+          },
+          commit: async () => {
+            let last = null as Awaited<ReturnType<typeof gteApi.deleteChord>> | null;
+            for (const id of chordIdsToDelete) {
+              last = await gteApi.deleteChord(editorId, id);
+            }
+            return last ?? {};
           },
         });
         setSelectedChordIds([]);
@@ -6930,16 +6945,12 @@ export default function GteWorkspace({
                       <button
                           type="button"
                           onClick={() => {
-                            void runMutation(() => gteApi.deleteNote(editorId, selectedNote.id), {
-                              localApply: (draft) => {
-                                removeNoteFromSnapshot(draft, selectedNote.id);
-                              },
-                            });
+                            handleDeleteNote();
                             setSelectedNoteIds([]);
                             setNoteMenuAnchor(null);
                             setNoteMenuNoteId(null);
-                          setNoteMenuDraft(null);
-                        }}
+                            setNoteMenuDraft(null);
+                          }}
                         className="mt-3 w-full rounded-md bg-rose-500/80 px-2 py-1 text-xs font-semibold text-white"
                       >
                         Delete note
@@ -7058,12 +7069,7 @@ export default function GteWorkspace({
                         <button
                           type="button"
                           onClick={() => {
-                            void runMutation(() => gteApi.deleteChord(editorId, selectedChord.id), {
-                              localApply: (draft) => {
-                                removeChordFromSnapshot(draft, selectedChord.id);
-                              },
-                            });
-                            setSelectedChordIds([]);
+                            handleDeleteChord();
                             setChordMenuAnchor(null);
                             setChordMenuChordId(null);
                             setChordMenuDraft(null);

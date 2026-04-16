@@ -45,6 +45,7 @@ const STANDARD_TUNING_MIDI = [64, 59, 55, 50, 45, 40];
 const TIMELINE_ZOOM_MIN = 10;
 const TIMELINE_ZOOM_MAX = 250;
 const TIMELINE_ZOOM_DEFAULT = 100;
+const CONTROL_COMMIT_DEBOUNCE_MS = 350;
 
 const toNumber = (value: unknown, fallback: number) => {
   const parsed = Number(value);
@@ -679,6 +680,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     getBuiltinTrackInstrumentOptions()
   );
   const globalPlaybackFrameRef = useRef(0);
+  const bpmCommitTimerRef = useRef<number | null>(null);
+  const queuedBpmValueRef = useRef<string | number | null>(null);
+  const timeSignatureCommitTimerRef = useRef<number | null>(null);
+  const queuedTimeSignatureValueRef = useRef<string | number | null>(null);
   const [canvasUndoCount, setCanvasUndoCount] = useState(0);
   const [canvasRedoCount, setCanvasRedoCount] = useState(0);
   const telemetrySessionRef = useRef<string | null>(null);
@@ -888,12 +893,27 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!canvas) return;
     setNameDraft(canvas.name || "Untitled");
     const beatsPerBar = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
-    setBpmDraft(formatBpm(secondsPerBarToBpm(canvas.secondsPerBar, beatsPerBar)));
-    setTimeSignatureDraft(String(beatsPerBar));
+    if (queuedBpmValueRef.current === null) {
+      setBpmDraft(formatBpm(secondsPerBarToBpm(canvas.secondsPerBar, beatsPerBar)));
+    }
+    if (queuedTimeSignatureValueRef.current === null) {
+      setTimeSignatureDraft(String(beatsPerBar));
+    }
     if (activeLaneId && !canvas.editors.some((lane) => lane.id === activeLaneId)) {
       setActiveLaneId(canvas.editors[0]?.id || null);
     }
   }, [canvas?.name, canvas?.secondsPerBar, canvas?.editors, activeLaneId]);
+
+  useEffect(() => {
+    return () => {
+      if (bpmCommitTimerRef.current !== null) {
+        window.clearTimeout(bpmCommitTimerRef.current);
+      }
+      if (timeSignatureCommitTimerRef.current !== null) {
+        window.clearTimeout(timeSignatureCommitTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1046,9 +1066,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
   };
 
-  const commitBpm = async () => {
+  const commitBpm = async (rawValue: string | number = bpmDraft) => {
     if (!canvas) return;
-    const nextBpm = normalizeBpm(bpmDraft);
+    queuedBpmValueRef.current = null;
+    if (bpmCommitTimerRef.current !== null) {
+      window.clearTimeout(bpmCommitTimerRef.current);
+      bpmCommitTimerRef.current = null;
+    }
+    const nextBpm = normalizeBpm(rawValue);
     const beatsPerBar = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
     if (!nextBpm) {
       setBpmError("BPM must be greater than 0.");
@@ -1080,8 +1105,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
   };
 
+  const scheduleBpmCommit = (rawValue: string | number) => {
+    queuedBpmValueRef.current = rawValue;
+    if (bpmCommitTimerRef.current !== null) {
+      window.clearTimeout(bpmCommitTimerRef.current);
+    }
+    bpmCommitTimerRef.current = window.setTimeout(() => {
+      bpmCommitTimerRef.current = null;
+      void commitBpm(rawValue);
+    }, CONTROL_COMMIT_DEBOUNCE_MS);
+  };
+
   const commitTimeSignature = async (rawValue: string | number = timeSignatureDraft) => {
     if (!canvas) return;
+    queuedTimeSignatureValueRef.current = null;
+    if (timeSignatureCommitTimerRef.current !== null) {
+      window.clearTimeout(timeSignatureCommitTimerRef.current);
+      timeSignatureCommitTimerRef.current = null;
+    }
     const normalized = normalizeTimeSignature(rawValue);
     if (!normalized) {
       setTimeSignatureDraft(String(normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8));
@@ -1129,6 +1170,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     } finally {
       setTimeSignatureSaving(false);
     }
+  };
+
+  const scheduleTimeSignatureCommit = (rawValue: string | number) => {
+    queuedTimeSignatureValueRef.current = rawValue;
+    if (timeSignatureCommitTimerRef.current !== null) {
+      window.clearTimeout(timeSignatureCommitTimerRef.current);
+    }
+    timeSignatureCommitTimerRef.current = window.setTimeout(() => {
+      timeSignatureCommitTimerRef.current = null;
+      void commitTimeSignature(rawValue);
+    }, CONTROL_COMMIT_DEBOUNCE_MS);
   };
 
   const handleAddLane = async () => {
@@ -2323,64 +2375,135 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               />
               <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
                 BPM
-                <input
-                  type="number"
-                  step={1}
-                  min={1}
-                  value={bpmDraft}
-                  onChange={(event) => setBpmDraft(event.target.value)}
-                  onBlur={() => void commitBpm()}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void commitBpm();
-                    }
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      setBpmDraft(
-                        formatBpm(
-                          secondsPerBarToBpm(
-                            canvas?.secondsPerBar,
-                            normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    <input
+                      type="number"
+                      step={1}
+                      min={1}
+                      value={bpmDraft}
+                      onChange={(event) => {
+                        if (bpmCommitTimerRef.current !== null) {
+                          window.clearTimeout(bpmCommitTimerRef.current);
+                          bpmCommitTimerRef.current = null;
+                        }
+                        queuedBpmValueRef.current = null;
+                        setBpmDraft(event.target.value);
+                      }}
+                      onBlur={() => void commitBpm()}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void commitBpm();
+                        }
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          if (bpmCommitTimerRef.current !== null) {
+                            window.clearTimeout(bpmCommitTimerRef.current);
+                            bpmCommitTimerRef.current = null;
+                          }
+                          queuedBpmValueRef.current = null;
+                          setBpmDraft(
+                            formatBpm(
+                              secondsPerBarToBpm(
+                              canvas?.secondsPerBar,
+                              normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
+                            )
                           )
-                        )
-                      );
-                    }
-                  }}
-                  className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
-                />
+                        );
+                      }
+                    }}
+                    className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
+                  />
+                  <span style={{ display: "inline-flex", flexDirection: "column", gap: "2px" }}>
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          const current =
+                            normalizeBpm(bpmDraft) ??
+                            secondsPerBarToBpm(
+                              canvas?.secondsPerBar,
+                              normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
+                            );
+                          const next = current + 1;
+                          setBpmDraft(formatBpm(next));
+                          scheduleBpmCommit(next);
+                        }}
+                      className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
+                      title="Increase BPM"
+                      aria-label="Increase BPM"
+                    >
+                      &#9650;
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          const current =
+                            normalizeBpm(bpmDraft) ??
+                            secondsPerBarToBpm(
+                              canvas?.secondsPerBar,
+                              normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
+                            );
+                          const next = Math.max(1, current - 1);
+                          setBpmDraft(formatBpm(next));
+                          scheduleBpmCommit(next);
+                        }}
+                      className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
+                      title="Decrease BPM"
+                      aria-label="Decrease BPM"
+                      disabled={(normalizeBpm(bpmDraft) ?? 1) <= 1}
+                    >
+                      &#9660;
+                    </button>
+                  </span>
+                </span>
               </label>
               <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
                 Beats/bar
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                  <input
-                    type="number"
-                    step={1}
-                    min={1}
-                    max={64}
-                    value={timeSignatureDraft}
-                    onChange={(event) => setTimeSignatureDraft(event.target.value)}
-                    onBlur={() => void commitTimeSignature()}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        void commitTimeSignature();
-                      }
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        setTimeSignatureDraft(String(normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8));
-                      }
-                    }}
+                    <input
+                      type="number"
+                      step={1}
+                      min={1}
+                      max={64}
+                      value={timeSignatureDraft}
+                      onChange={(event) => {
+                        if (timeSignatureCommitTimerRef.current !== null) {
+                          window.clearTimeout(timeSignatureCommitTimerRef.current);
+                          timeSignatureCommitTimerRef.current = null;
+                        }
+                        queuedTimeSignatureValueRef.current = null;
+                        setTimeSignatureDraft(event.target.value);
+                      }}
+                      onBlur={() => void commitTimeSignature()}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void commitTimeSignature();
+                        }
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          if (timeSignatureCommitTimerRef.current !== null) {
+                            window.clearTimeout(timeSignatureCommitTimerRef.current);
+                            timeSignatureCommitTimerRef.current = null;
+                          }
+                          queuedTimeSignatureValueRef.current = null;
+                          setTimeSignatureDraft(String(normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8));
+                        }
+                      }}
                     className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                   />
                   <span style={{ display: "inline-flex", flexDirection: "column", gap: "2px" }}>
                     <button
                       type="button"
                       onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => {
-                        const current = normalizeTimeSignature(timeSignatureDraft) ?? normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
-                        void commitTimeSignature(current + 1);
-                      }}
+                        onClick={() => {
+                          const current = normalizeTimeSignature(timeSignatureDraft) ?? normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
+                          const next = current + 1;
+                          setTimeSignatureDraft(String(Math.min(64, next)));
+                          scheduleTimeSignatureCommit(next);
+                        }}
                       className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
                       title="Increase beats per bar"
                       aria-label="Increase beats per bar"
@@ -2391,10 +2514,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     <button
                       type="button"
                       onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => {
-                        const current = normalizeTimeSignature(timeSignatureDraft) ?? normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
-                        void commitTimeSignature(current - 1);
-                      }}
+                        onClick={() => {
+                          const current = normalizeTimeSignature(timeSignatureDraft) ?? normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
+                          const next = Math.max(1, current - 1);
+                          setTimeSignatureDraft(String(next));
+                          scheduleTimeSignatureCommit(next);
+                        }}
                       className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
                       title="Decrease beats per bar"
                       aria-label="Decrease beats per bar"
