@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "../../../lib/prisma";
+import { buildUniqueTabJobLabel, deriveTabJobBaseLabel } from "../../../lib/tabJobNames";
 import {
   parseStoredTabPayload,
   serializeStoredTabPayload,
@@ -330,12 +331,30 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
       : "";
   const artist =
     typeof getFirstJobValue(payload, ["artist"]) === "string" ? (getFirstJobValue(payload, ["artist"]) as string) : "";
-  const sourceLabel = explicitLabel || [artist, songTitle].filter(Boolean).join(" - ") || `Transcription ${jobId}`;
   const durationValue = Number(getFirstJobValue(payload, ["durationSec", "duration", "duration_sec"]));
   const sourceType =
     typeof getFirstJobValue(payload, ["sourceType", "source_type"]) === "string"
       ? String(getFirstJobValue(payload, ["sourceType", "source_type"]))
       : "TRANSCRIBE";
+  const baseSourceLabel = deriveTabJobBaseLabel({
+    sourceType,
+    explicitLabel,
+    songTitle,
+    artist,
+    jobId,
+  });
+  const siblingLabels = await prisma.tabJob.findMany({
+    where: {
+      userId: sessionUserId,
+      ...(existing ? { NOT: { id: existing.id } } : {}),
+    },
+    select: { sourceLabel: true },
+  });
+  const sourceLabel = buildUniqueTabJobLabel(
+    baseSourceLabel,
+    siblingLabels.map((item) => item.sourceLabel || "").filter(Boolean),
+    existing?.sourceLabel || null
+  );
   const review = extractStoredReviewState(payload);
   const normalizedDuration = Number.isFinite(durationValue) ? Math.max(1, Math.round(durationValue)) : null;
   const serializedPayload = serializeStoredTabPayload({

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "../../../lib/prisma";
 import { normalizeStoredTabPayload } from "../../../lib/storedTabs";
+import { buildUniqueTabJobLabel } from "../../../lib/tabJobNames";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -42,10 +43,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: "Tab not found" });
     }
 
+    const siblings = await prisma.tabJob.findMany({
+      where: {
+        userId: session.user.id,
+        NOT: { id },
+      },
+      select: { sourceLabel: true },
+    });
+    const nextSourceLabel = buildUniqueTabJobLabel(
+      typeof sourceLabel === "string" && sourceLabel.trim() ? sourceLabel : job.sourceLabel || "Untitled",
+      siblings.map((item) => item.sourceLabel || "").filter(Boolean),
+      job.sourceLabel || null
+    );
+
     const updated = await prisma.tabJob.update({
       where: { id },
       data: {
-        sourceLabel: sourceLabel || job.sourceLabel,
+        sourceLabel: nextSourceLabel,
         resultJson,
       },
     });
