@@ -2940,7 +2940,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               aria-label={isTrackIsolated ? "Stop isolating track" : "Isolate track"}
                             >
                               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
-                                <path d="M5 7a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7zm10 3h4v4h-4v-4zM9 7H7v10h2V7zM19 7h-2v2h2V7zm0 8h-2v2h2v-2z" />
+                                <path d="M12 4a8 8 0 0 0-8 8v5a3 3 0 0 0 3 3h2v-7H6v-1a6 6 0 0 1 12 0v1h-3v7h2a3 3 0 0 0 3-3v-5a8 8 0 0 0-8-8z" />
                               </svg>
                             </button>
                           </div>
