@@ -6,6 +6,7 @@ import {
   useState,
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
+  type TouchEvent as ReactTouchEvent,
   type UIEvent as ReactUiEvent,
 } from "react";
 import { gteApi } from "../lib/gteApi";
@@ -69,6 +70,7 @@ type Props = {
   onBarDragStart?: (barIndices: number[]) => void;
   onBarDragEnd?: () => void;
   onRequestBarDrop?: (insertIndex: number) => void | Promise<void>;
+  mobileViewport?: boolean;
 };
 
 type ContextMenuState =
@@ -103,6 +105,7 @@ const CUT_BOUNDARY_OVERHANG = 12;
 const MAX_HISTORY = 16;
 const AUTOSAVE_DEBOUNCE_MS = 2500;
 const AUTOSAVE_INTERVAL_MS = 20000;
+const TOUCH_DRAG_HOLD_MS = 110;
 const TARGET_VISIBLE_BARS = 2.5;
 const MIN_TIMELINE_ZOOM = 0.1;
 const MAX_TIMELINE_ZOOM = 2.5;
@@ -662,6 +665,14 @@ type FloatingPanelDragState = {
   height: number;
 };
 
+type DragPointerEventLike = {
+  clientX: number;
+  clientY: number;
+  shiftKey?: boolean;
+  preventDefault: () => void;
+  stopPropagation: () => void;
+};
+
 export default function GteWorkspace({
   editorId,
   snapshot,
@@ -708,6 +719,7 @@ export default function GteWorkspace({
   onBarDragStart,
   onBarDragEnd,
   onRequestBarDrop,
+  mobileViewport = false,
 }: Props) {
   const [baseScale, setBaseScale] = useState(4);
   const [secondsPerBar, setSecondsPerBar] = useState(2);
@@ -816,6 +828,8 @@ export default function GteWorkspace({
   const undoRef = useRef<EditorSnapshot[]>([]);
   const redoRef = useRef<EditorSnapshot[]>([]);
   const snapshotRef = useRef<EditorSnapshot>(snapshot);
+  const selectedNoteIdsRef = useRef<number[]>([]);
+  const selectedChordIdsRef = useRef<number[]>([]);
   const pendingMutationsRef = useRef<OptimisticMutation[]>([]);
   const mutationSeqRef = useRef(0);
   const mutationProcessingRef = useRef(false);
@@ -841,6 +855,9 @@ export default function GteWorkspace({
   const multiDragMovedRef = useRef(false);
   const singleDragMovedRef = useRef(false);
   const dragStartPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const touchHoldTimerRef = useRef<number | null>(null);
+  const touchHoldTriggeredRef = useRef(false);
+  const touchHoldPointRef = useRef<{ x: number; y: number } | null>(null);
   const multiDragStartXRef = useRef(0);
   const resizePreviewRef = useRef<number | null>(resizePreviewLength);
   const resizeChordPreviewRef = useRef<number | null>(resizeChordPreviewLength);
@@ -898,6 +915,7 @@ export default function GteWorkspace({
   );
   const showFloatingUi = !embedded || isActive;
   const showToolbarUi = showFloatingUi || showToolbarWhenInactive;
+  const compactEmbeddedMobile = embedded && mobileViewport;
   const selectedBarIndexSet = useMemo(() => new Set(selectedBarIndices), [selectedBarIndices]);
   const useExternalPlayback =
     globalPlaybackFrame !== undefined &&
@@ -969,6 +987,14 @@ export default function GteWorkspace({
   useEffect(() => {
     snapshotRef.current = snapshot;
   }, [snapshot]);
+
+  useEffect(() => {
+    selectedNoteIdsRef.current = selectedNoteIds;
+  }, [selectedNoteIds]);
+
+  useEffect(() => {
+    selectedChordIdsRef.current = selectedChordIds;
+  }, [selectedChordIds]);
 
   useEffect(() => {
     if (!hasUnsavedChanges) {
@@ -1142,7 +1168,6 @@ export default function GteWorkspace({
     const activeId = activeChordIds[0];
     return snapshot.chords.find((chord) => chord.id === activeId) || null;
   }, [snapshot.chords, activeChordIds]);
-
   const cutBoundaries = useMemo(
     () =>
       segmentEdits
@@ -1230,7 +1255,7 @@ export default function GteWorkspace({
 
   useEffect(() => {
     if (draftNote) {
-      if (!draftHasFocusedRef.current) {
+      if (!draftHasFocusedRef.current && !mobileViewport) {
         requestAnimationFrame(() => draftFretRef.current?.focus());
         draftHasFocusedRef.current = true;
       }
@@ -1354,12 +1379,12 @@ export default function GteWorkspace({
   }, [editorId, fallbackNoteAlternates, selectedNoteIds]);
 
   useEffect(() => {
-    if (!selectedNote || selectedNote.id !== noteMenuNoteId) {
+    if (selectedNoteIds.length !== 1 || !selectedNote || selectedNote.id !== noteMenuNoteId) {
       setNoteMenuAnchor(null);
       setNoteMenuNoteId(null);
       setNoteMenuDraft(null);
     }
-  }, [selectedNote, noteMenuNoteId]);
+  }, [selectedNote, selectedNoteIds.length, noteMenuNoteId]);
 
   useEffect(() => {
     if (editingChordId !== null) {
@@ -1373,12 +1398,12 @@ export default function GteWorkspace({
   }, [editingChordId]);
 
   useEffect(() => {
-    if (!selectedChord || selectedChord.id !== chordMenuChordId) {
+    if (activeChordIds.length !== 1 || !selectedChord || selectedChord.id !== chordMenuChordId) {
       setChordMenuAnchor(null);
       setChordMenuChordId(null);
       setChordMenuDraft(null);
     }
-  }, [selectedChord, chordMenuChordId]);
+  }, [activeChordIds.length, selectedChord, chordMenuChordId]);
 
   useEffect(() => {
     const activeId = activeChordIds[0];
@@ -2606,18 +2631,18 @@ export default function GteWorkspace({
 
   useEffect(() => {
     if (!dragging) return;
-    const handleMove = (event: globalThis.MouseEvent) => {
+    const handleMove = (clientX: number, clientY: number) => {
       if (!timelineRef.current) return;
       const dragStartPointer = dragStartPointerRef.current;
       const hasMoved =
         !dragStartPointer ||
-        Math.abs(event.clientX - dragStartPointer.x) > SINGLE_DRAG_ACTIVATION_DISTANCE_PX ||
-        Math.abs(event.clientY - dragStartPointer.y) > SINGLE_DRAG_ACTIVATION_DISTANCE_PX;
+        Math.abs(clientX - dragStartPointer.x) > SINGLE_DRAG_ACTIVATION_DISTANCE_PX ||
+        Math.abs(clientY - dragStartPointer.y) > SINGLE_DRAG_ACTIVATION_DISTANCE_PX;
       if (!hasMoved) return;
       singleDragMovedRef.current = true;
       const rect = timelineRef.current.getBoundingClientRect();
-      const x = clamp(event.clientX - rect.left, 0, timelineWidth);
-      const y = clamp(event.clientY - rect.top, 0, Math.max(0, timelineHeight));
+      const x = clamp(clientX - rect.left, 0, timelineWidth);
+      const y = clamp(clientY - rect.top, 0, Math.max(0, timelineHeight));
       const rowIndex = clamp(Math.floor(y / rowStride), 0, rows - 1);
       const rowStart = rowIndex * rowFrames;
       const safeLength = Math.max(1, Math.round(dragging.length));
@@ -2645,6 +2670,15 @@ export default function GteWorkspace({
         dragPreviewRef.current = next;
         setDragPreview(next);
       }
+    };
+    const handleMouseMove = (event: globalThis.MouseEvent) => {
+      handleMove(event.clientX, event.clientY);
+    };
+    const handleTouchMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch) return;
+      event.preventDefault();
+      handleMove(touch.clientX, touch.clientY);
     };
     const handleUp = () => {
       const preview = dragPreviewRef.current;
@@ -2756,11 +2790,17 @@ export default function GteWorkspace({
       setDragging(null);
       setDragPreview(null);
     };
-    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleUp);
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchend", handleUp);
+    window.addEventListener("touchcancel", handleUp);
     return () => {
-      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleUp);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleUp);
+      window.removeEventListener("touchcancel", handleUp);
     };
     }, [
       dragging,
@@ -2789,11 +2829,11 @@ export default function GteWorkspace({
     const shouldGridSnapStarts =
       snapToGridEnabled && (multiDrag.notes.length > 0 || multiDrag.chords.length > 0);
 
-    const handleMove = (event: globalThis.MouseEvent) => {
+    const handleMove = (clientX: number, clientY: number) => {
       if (!timelineRef.current) return;
       const rect = timelineRef.current.getBoundingClientRect();
-      const x = clamp(event.clientX - rect.left, 0, timelineWidth);
-      const y = clamp(event.clientY - rect.top, 0, Math.max(0, timelineHeight));
+      const x = clamp(clientX - rect.left, 0, timelineWidth);
+      const y = clamp(clientY - rect.top, 0, Math.max(0, timelineHeight));
       const rowIndex = clamp(Math.floor(y / rowStride), 0, rows - 1);
       const rowStart = rowIndex * rowFrames;
       const rawStart = Math.round(x / scale) - multiDrag.anchorGrabOffsetFrames + rowStart;
@@ -2802,7 +2842,7 @@ export default function GteWorkspace({
         excludeChordIds: multiDrag.chords.map((chord) => chord.id),
       });
 
-      if (Math.abs(event.clientX - multiDragStartXRef.current) > 3) {
+      if (Math.abs(clientX - multiDragStartXRef.current) > 3) {
         multiDragMovedRef.current = true;
       }
 
@@ -2829,84 +2869,100 @@ export default function GteWorkspace({
       setMultiDragDelta(delta);
     };
 
-      const handleUp = () => {
-        const delta = multiDragDeltaRef.current ?? 0;
-        if (delta !== 0) {
-          if (
-            multiTrackSelectionActive &&
-            onRequestGlobalSelectedShift &&
-            onRequestGlobalSelectedShift(delta) !== false
-          ) {
-            setMultiDrag(null);
-            setMultiDragDelta(null);
-            return;
-          }
-          enqueueOptimisticMutation({
-            label: "multi-drag",
-            apply: (draft) => {
-              multiDrag.notes.forEach((note) => {
-                const noteId = resolveNoteId(note.id);
-                const target = draft.notes.find((item) => item.id === noteId);
-                if (target) {
-                  const rawStart = note.startTime + delta;
-                  const maxStart = Math.max(0, timelineEnd - note.length);
-                  const snappedStart = shouldGridSnapStarts ? snapStartTimeToGrid(rawStart) : rawStart;
-                  target.startTime = clamp(snappedStart, 0, maxStart);
-                }
-              });
-              multiDrag.chords.forEach((chord) => {
-                const chordId = resolveChordId(chord.id);
-                const target = draft.chords.find((item) => item.id === chordId);
-                if (target) {
-                  const rawStart = chord.startTime + delta;
-                  const maxStart = Math.max(0, timelineEnd - chord.length);
-                  const snappedStart = snapStartTimeToGrid(rawStart);
-                  target.startTime = clamp(snappedStart, 0, maxStart);
-                }
-              });
-              return draft;
-            },
-            commit: async () => {
-              let last: { snapshot?: EditorSnapshot } | null = null;
-              for (const note of multiDrag.notes) {
+    const handleMouseMove = (event: globalThis.MouseEvent) => {
+      handleMove(event.clientX, event.clientY);
+    };
+    const handleTouchMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch) return;
+      event.preventDefault();
+      handleMove(touch.clientX, touch.clientY);
+    };
+
+    const handleUp = () => {
+      const delta = multiDragDeltaRef.current ?? 0;
+      if (delta !== 0) {
+        if (
+          multiTrackSelectionActive &&
+          onRequestGlobalSelectedShift &&
+          onRequestGlobalSelectedShift(delta) !== false
+        ) {
+          setMultiDrag(null);
+          setMultiDragDelta(null);
+          return;
+        }
+        enqueueOptimisticMutation({
+          label: "multi-drag",
+          apply: (draft) => {
+            multiDrag.notes.forEach((note) => {
+              const noteId = resolveNoteId(note.id);
+              const target = draft.notes.find((item) => item.id === noteId);
+              if (target) {
                 const rawStart = note.startTime + delta;
                 const maxStart = Math.max(0, timelineEnd - note.length);
                 const snappedStart = shouldGridSnapStarts ? snapStartTimeToGrid(rawStart) : rawStart;
-                const nextStart = clamp(snappedStart, 0, maxStart);
-                last = await gteApi.setNoteStartTime(
-                  editorId,
-                  resolveNoteId(note.id),
-                  nextStart,
-                  snapToGridEnabled
-                );
+                target.startTime = clamp(snappedStart, 0, maxStart);
               }
-              for (const chord of multiDrag.chords) {
+            });
+            multiDrag.chords.forEach((chord) => {
+              const chordId = resolveChordId(chord.id);
+              const target = draft.chords.find((item) => item.id === chordId);
+              if (target) {
                 const rawStart = chord.startTime + delta;
                 const maxStart = Math.max(0, timelineEnd - chord.length);
                 const snappedStart = snapStartTimeToGrid(rawStart);
-                const nextStart = clamp(snappedStart, 0, maxStart);
-                last = await gteApi.setChordStartTime(
-                  editorId,
-                  resolveChordId(chord.id),
-                  nextStart,
-                  snapToGridEnabled
-                );
+                target.startTime = clamp(snappedStart, 0, maxStart);
               }
-              return last ?? {};
-            },
-          });
-        }
-        setMultiDrag(null);
-        setMultiDragDelta(null);
-      };
-
-    window.addEventListener("mousemove", handleMove);
-    window.addEventListener("mouseup", handleUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMove);
-      window.removeEventListener("mouseup", handleUp);
+            });
+            return draft;
+          },
+          commit: async () => {
+            let last: { snapshot?: EditorSnapshot } | null = null;
+            for (const note of multiDrag.notes) {
+              const rawStart = note.startTime + delta;
+              const maxStart = Math.max(0, timelineEnd - note.length);
+              const snappedStart = shouldGridSnapStarts ? snapStartTimeToGrid(rawStart) : rawStart;
+              const nextStart = clamp(snappedStart, 0, maxStart);
+              last = await gteApi.setNoteStartTime(
+                editorId,
+                resolveNoteId(note.id),
+                nextStart,
+                snapToGridEnabled
+              );
+            }
+            for (const chord of multiDrag.chords) {
+              const rawStart = chord.startTime + delta;
+              const maxStart = Math.max(0, timelineEnd - chord.length);
+              const snappedStart = snapStartTimeToGrid(rawStart);
+              const nextStart = clamp(snappedStart, 0, maxStart);
+              last = await gteApi.setChordStartTime(
+                editorId,
+                resolveChordId(chord.id),
+                nextStart,
+                snapToGridEnabled
+              );
+            }
+            return last ?? {};
+          },
+        });
+      }
+      setMultiDrag(null);
+      setMultiDragDelta(null);
     };
-    }, [
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleUp);
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchend", handleUp);
+    window.addEventListener("touchcancel", handleUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleUp);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleUp);
+      window.removeEventListener("touchcancel", handleUp);
+    };
+  }, [
       multiDrag,
       editorId,
       enqueueOptimisticMutation,
@@ -3380,6 +3436,19 @@ export default function GteWorkspace({
       return;
     }
     setSelectedCutBoundaryIndex(null);
+    if (mobileViewport && !event.shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
+      setSelectedNoteIds([]);
+      setSelectedChordIds([]);
+      setNoteMenuAnchor(null);
+      setNoteMenuNoteId(null);
+      setNoteMenuDraft(null);
+      setChordMenuAnchor(null);
+      setChordMenuChordId(null);
+      setChordMenuDraft(null);
+      setDraftNote(null);
+      setDraftNoteAnchor(null);
+      return;
+    }
     if (!event.shiftKey) {
       setSelectedNoteIds([]);
       setSelectedChordIds([]);
@@ -3408,17 +3477,67 @@ export default function GteWorkspace({
     setContextMenu({ x: event.clientX, y: event.clientY, kind: "timeline", targetFrame });
   };
 
+  const clearTouchHold = useCallback(() => {
+    if (touchHoldTimerRef.current !== null) {
+      window.clearTimeout(touchHoldTimerRef.current);
+      touchHoldTimerRef.current = null;
+    }
+    touchHoldPointRef.current = null;
+  }, []);
+
+  const scheduleTouchHold = useCallback(
+    (event: ReactTouchEvent, onHold: (pointer: DragPointerEventLike) => void) => {
+      if (!mobileViewport) return;
+      const touch = event.touches[0];
+      if (!touch) return;
+      clearTouchHold();
+      touchHoldTriggeredRef.current = false;
+      touchHoldPointRef.current = { x: touch.clientX, y: touch.clientY };
+      touchHoldTimerRef.current = window.setTimeout(() => {
+        touchHoldTimerRef.current = null;
+        touchHoldTriggeredRef.current = true;
+        onHold({
+          clientX: touch.clientX,
+          clientY: touch.clientY,
+          shiftKey: false,
+          preventDefault: () => {},
+          stopPropagation: () => {},
+        });
+      }, TOUCH_DRAG_HOLD_MS);
+    },
+    [clearTouchHold, mobileViewport]
+  );
+
+  const cancelTouchHoldOnMove = useCallback(
+    (event: ReactTouchEvent) => {
+      const touch = event.touches[0];
+      const origin = touchHoldPointRef.current;
+      if (!touch || !origin || touchHoldTimerRef.current === null) return;
+      if (Math.abs(touch.clientX - origin.x) > 8 || Math.abs(touch.clientY - origin.y) > 8) {
+        clearTouchHold();
+      }
+    },
+    [clearTouchHold]
+  );
+
+  useEffect(() => {
+    return () => {
+      clearTouchHold();
+    };
+  }, [clearTouchHold]);
+
   const startNoteDrag = (
     noteId: number,
     stringIndex: number,
     fret: number,
     startTime: number,
     length: number,
-    event: ReactMouseEvent
+    event: DragPointerEventLike
   ) => {
     event.preventDefault();
     event.stopPropagation();
-    if (sliceToolActive && !event.shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
+    const shiftKey = Boolean(event.shiftKey);
+    if (sliceToolActive && !shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
       multiDragMovedRef.current = true;
       const target = getPointerFrame(event.clientX, event.clientY);
       if (target) {
@@ -3426,7 +3545,7 @@ export default function GteWorkspace({
       }
       return;
     }
-    if (event.shiftKey) {
+    if (shiftKey) {
       setSelectedNoteIds((prev) => (prev.includes(noteId) ? prev : [...prev, noteId]));
       setDraftNote(null);
       setDraftNoteAnchor(null);
@@ -3489,18 +3608,19 @@ export default function GteWorkspace({
     chordId: number,
     startTime: number,
     length: number,
-    event: ReactMouseEvent
+    event: DragPointerEventLike
   ) => {
     event.preventDefault();
     event.stopPropagation();
-    if (sliceToolActive && !event.shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
+    const shiftKey = Boolean(event.shiftKey);
+    if (sliceToolActive && !shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
       const target = getPointerFrame(event.clientX, event.clientY);
       if (target) {
         handleSliceAtTime(target.time);
       }
       return;
     }
-    if (event.shiftKey) {
+    if (shiftKey) {
       setSelectedChordIds((prev) => (prev.includes(chordId) ? prev : [...prev, chordId]));
       setDraftNote(null);
       setDraftNoteAnchor(null);
@@ -3664,6 +3784,34 @@ export default function GteWorkspace({
       setBusy(false);
     }
   };
+
+  const appendDraftFretDigit = useCallback((digit: string) => {
+    setDraftNote((prev) => {
+      if (!prev) return prev;
+      const current = prev.fret === null ? "" : String(prev.fret);
+      const nextText = `${current}${digit}`.replace(/^0+(?=\d)/, "");
+      const nextValue = nextText === "" ? null : Number(nextText);
+      if (nextValue === null) {
+        return { ...prev, fret: null };
+      }
+      if (!Number.isInteger(nextValue) || nextValue < 0 || nextValue > maxFret) {
+        return prev;
+      }
+      return { ...prev, fret: nextValue };
+    });
+  }, [maxFret]);
+
+  const backspaceDraftFretDigit = useCallback(() => {
+    setDraftNote((prev) => {
+      if (!prev) return prev;
+      const current = prev.fret === null ? "" : String(prev.fret);
+      const nextText = current.slice(0, -1);
+      return {
+        ...prev,
+        fret: nextText ? Number(nextText) : null,
+      };
+    });
+  }, []);
 
   const handleAddNote = () => {
     if (!draftNote) return;
@@ -5440,10 +5588,9 @@ export default function GteWorkspace({
   ]);
 
   useEffect(() => {
-    const handleMouseDown = (event: globalThis.MouseEvent) => {
-      const target = event.target as HTMLElement | null;
+    const handlePointerStart = (target: HTMLElement | null, shiftKey: boolean) => {
       if (!target) return;
-      if (event.shiftKey && target.closest("[data-gte-track='true']")) return;
+      if (shiftKey && target.closest("[data-gte-track='true']")) return;
       if (!target.closest("[data-cut-edit]")) {
         cancelSegmentEditIfActive();
       }
@@ -5451,6 +5598,7 @@ export default function GteWorkspace({
         if (chordNoteMenuRef.current && chordNoteMenuRef.current.contains(target)) return;
         if (chordEditPanelRef.current && chordEditPanelRef.current.contains(target)) return;
         if (toolbarRef.current && toolbarRef.current.contains(target)) return;
+        if (target.closest("[data-gte-floating-ui='true']")) return;
         if (timelineRef.current && timelineRef.current.contains(target)) {
           setChordNoteMenuAnchor(null);
           setChordNoteMenuIndex(null);
@@ -5463,6 +5611,7 @@ export default function GteWorkspace({
         setContextMenu(null);
       }
       if (target.closest("button, a, input, textarea, select")) return;
+      if (target.closest("[data-gte-floating-ui='true']")) return;
       if (draftPopupRef.current && draftPopupRef.current.contains(target)) return;
       if (noteMenuRef.current && noteMenuRef.current.contains(target)) return;
       if (chordMenuRef.current && chordMenuRef.current.contains(target)) return;
@@ -5479,287 +5628,325 @@ export default function GteWorkspace({
       setChordMenuChordId(null);
       setChordMenuDraft(null);
     };
+
+    const handleMouseDown = (event: globalThis.MouseEvent) => {
+      handlePointerStart(event.target as HTMLElement | null, event.shiftKey);
+    };
+
+    const handleTouchStart = (event: globalThis.TouchEvent) => {
+      handlePointerStart(event.target as HTMLElement | null, false);
+    };
+
     window.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
     return () => {
       window.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("touchstart", handleTouchStart);
     };
-  }, [cancelSegmentEditIfActive, contextMenu]);
+  }, [cancelSegmentEditIfActive, contextMenu, editingChordId]);
 
   const workspaceClass = embedded
-    ? `w-full min-w-0 max-w-full overflow-x-hidden rounded-xl border bg-white p-2 space-y-2 transition-[border-color,box-shadow] ${
+    ? `relative w-full min-w-0 max-w-full overflow-x-hidden border bg-white space-y-2 transition-[border-color,box-shadow] ${
+        compactEmbeddedMobile ? "rounded-lg p-1.5" : "rounded-xl p-2"
+      } ${
         isActive
           ? "border-sky-300 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.22),0_1px_2px_rgba(15,23,42,0.04)]"
           : "border-slate-200 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
       }`
-    : "min-w-0 rounded-2xl border border-slate-200 bg-white p-5 space-y-5 -ml-3 w-[calc(100%+0.75rem)]";
+    : "relative min-w-0 rounded-2xl border border-slate-200 bg-white p-5 space-y-5 -ml-3 w-[calc(100%+0.75rem)]";
 
-  return (
-    <div className={workspaceClass} onMouseDownCapture={() => onFocusWorkspace?.()}>
-      {toolbarOpen && showToolbarUi && (
-        <div
-          ref={toolbarRef}
-          className="fixed bottom-5 left-1/2 z-[9998] w-[min(980px,calc(100vw-1.5rem))] -translate-x-1/2 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 shadow-lg backdrop-blur"
-          onMouseDown={(event) => event.stopPropagation()}
+  const showMobileInlineNoteSettings =
+    mobileViewport &&
+    isActive &&
+    Boolean(selectedNote && noteMenuNoteId === selectedNote.id && noteMenuDraft && selectedNoteIds.length === 1);
+  const showMobileInlineToolbar = mobileViewport && isActive && showToolbarUi;
+
+  const renderToolbarPanel = (inlineMobile: boolean) => (
+    <div
+      ref={toolbarRef}
+      data-gte-floating-ui="true"
+      className={
+        inlineMobile
+          ? "rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg"
+          : "fixed bottom-5 left-1/2 z-[9998] w-[min(980px,calc(100vw-1.5rem))] -translate-x-1/2 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 shadow-lg backdrop-blur"
+      }
+      onMouseDown={(event) => event.stopPropagation()}
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[11px] font-semibold text-slate-700">Toolbar</span>
+        <button
+          type="button"
+          onClick={() => setToolbarOpen(false)}
+          className="rounded px-2 py-0.5 text-[11px] text-slate-500 hover:bg-slate-100 hover:text-slate-700"
         >
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-700">Toolbar</span>
+          x
+        </button>
+      </div>
+      <div className={mobileViewport ? "flex items-start gap-2 overflow-x-auto pb-1" : "flex flex-wrap items-start gap-2"}>
+        <div className={`${mobileViewport ? "shrink-0" : "min-w-0 flex-1"} rounded-md border border-slate-200 bg-white p-1.5`}>
+          <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+            Notes & chords
+          </div>
+          <div className="flex flex-wrap gap-1">
             <button
               type="button"
-              onClick={() => setToolbarOpen(false)}
-              className="rounded px-2 py-0.5 text-[11px] text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+              onClick={() => {
+                void handleMakeChord();
+              }}
+              disabled={chordizeCandidateCount < 2 || selectionActionsLocked}
+              title={
+                selectionActionsLocked
+                  ? "Disabled while notes/chords are selected in multiple tracks"
+                  : "Make Chord - Shortcut: C"
+              }
+              className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md bg-blue-600 text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              x
+              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">C</span>
+              <img
+                src={STREAMLINE_TOOLBAR_ICONS.chordize}
+                alt=""
+                aria-hidden="true"
+                className="h-3.5 w-3.5 brightness-0 invert"
+              />
+              <span className="text-[9px] leading-none">Make Chord</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (activeChordIds.length) {
+                  const chordIds = [...activeChordIds];
+                  void runMutation(async () => {
+                    const latestSnapshot = await disbandChordIds(chordIds);
+                    return latestSnapshot ? { snapshot: latestSnapshot } : {};
+                  }, {
+                    localApply: (draft) => {
+                      chordIds.forEach((chordId) => disbandChordInSnapshot(draft, chordId));
+                    },
+                  });
+                  setSelectedChordIds([]);
+                }
+              }}
+              disabled={activeChordIds.length === 0 || selectionActionsLocked}
+              title={
+                selectionActionsLocked
+                  ? "Disabled while notes/chords are selected in multiple tracks"
+                  : "Disband - Shortcut: L"
+              }
+              className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+            >
+              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">L</span>
+              <img
+                src={STREAMLINE_TOOLBAR_ICONS.disband}
+                alt=""
+                aria-hidden="true"
+                className="h-3.5 w-3.5"
+              />
+              <span className="text-[9px] leading-none">Disband</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void handleAssignOptimals();
+              }}
+              disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
+              title={
+                selectionActionsLocked
+                  ? "Disabled while notes/chords are selected in multiple tracks"
+                  : "Optimize - Shortcut: O"
+              }
+              className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+            >
+              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">O</span>
+              <img
+                src={STREAMLINE_TOOLBAR_ICONS.optimize}
+                alt=""
+                aria-hidden="true"
+                className="h-3.5 w-3.5"
+              />
+              <span className="text-[9px] leading-none">Optimize</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void handleJoinSelectedNotes();
+              }}
+              disabled={selectedNoteIds.length < 2 || selectionActionsLocked}
+              title={
+                selectionActionsLocked
+                  ? "Disabled while notes/chords are selected in multiple tracks"
+                  : "Join - Shortcut: J"
+              }
+              className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+            >
+              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">J</span>
+              <img
+                src={STREAMLINE_TOOLBAR_ICONS.join}
+                alt=""
+                aria-hidden="true"
+                className="h-3.5 w-3.5"
+              />
+              <span className="text-[9px] leading-none">Join</span>
+            </button>
+            <div className="group relative flex w-[106px] flex-col gap-1">
+              <select
+                value={scaleToolMode}
+                onChange={(event) => {
+                  const nextMode = event.target.value;
+                  if (!isScaleToolMode(nextMode)) return;
+                  setScaleToolMode(nextMode);
+                  if (scaleToolActive) {
+                    applyScalePreview(scaleFactor, { mode: nextMode, syncInput: false });
+                  }
+                }}
+                className="h-5 rounded border border-slate-200 bg-white px-1 text-[10px] text-slate-700"
+                title="Scale mode - Shortcut: H"
+              >
+                <option value="length">Length scaling</option>
+                <option value="start">Start-time scaling</option>
+                <option value="both">Start + length</option>
+              </select>
+              <button
+                type="button"
+                onClick={toggleScaleTool}
+                disabled={!scaleToolActive && selectedNoteIds.length + selectedChordIds.length === 0}
+                title="Scale - Shortcut: S"
+                className={`relative flex h-[27px] w-full items-center justify-center gap-1 rounded-md text-[9px] font-semibold ${
+                  scaleToolActive
+                    ? "bg-amber-500 text-white"
+                    : "border border-slate-200 text-slate-700 hover:bg-slate-100"
+                } disabled:cursor-not-allowed disabled:text-slate-400`}
+              >
+                <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">S</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  className={`h-3.5 w-3.5 ${scaleToolActive ? "fill-white" : "fill-current"}`}
+                  aria-hidden="true"
+                >
+                  <path d="M3 10h18v4H3z" />
+                  <path d="M7 6l-4 6 4 6z" />
+                  <path d="M17 6l4 6-4 6z" />
+                </svg>
+                <span className="leading-none">Scale</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={toggleSliceTool}
+              title="Slice - Shortcut: Shift+S"
+              className={`group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md ${
+                sliceToolActive
+                  ? "bg-indigo-600 text-white"
+                  : "border border-slate-200 text-slate-700 hover:bg-slate-100"
+              }`}
+            >
+              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">Shift+S</span>
+              <img
+                src={STREAMLINE_TOOLBAR_ICONS.slice}
+                alt=""
+                aria-hidden="true"
+                className={`h-3.5 w-3.5 ${sliceToolActive ? "brightness-0 invert" : ""}`}
+              />
+              <span className="text-[9px] leading-none">Slice</span>
             </button>
           </div>
-            <div className="flex flex-wrap items-start gap-2">
-              <div className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white p-1.5">
-                <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-                  Notes & chords
-                </div>
-                <div className="flex flex-wrap gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleMakeChord();
-                  }}
-                  disabled={chordizeCandidateCount < 2 || selectionActionsLocked}
-                  title={
-                    selectionActionsLocked
-                      ? "Disabled while notes/chords are selected in multiple tracks"
-                      : "Make Chord - Shortcut: C"
-                  }
-                  className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md bg-blue-600 text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">C</span>
-                  <img
-                    src={STREAMLINE_TOOLBAR_ICONS.chordize}
-                    alt=""
-                    aria-hidden="true"
-                    className="h-3.5 w-3.5 brightness-0 invert"
-                  />
-                  <span className="text-[9px] leading-none">Make Chord</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (activeChordIds.length) {
-                      const chordIds = [...activeChordIds];
-                    void runMutation(async () => {
-                      const latestSnapshot = await disbandChordIds(chordIds);
-                      return latestSnapshot ? { snapshot: latestSnapshot } : {};
-                    }, {
-                      localApply: (draft) => {
-                        chordIds.forEach((chordId) => disbandChordInSnapshot(draft, chordId));
-                      },
-                      });
-                      setSelectedChordIds([]);
-                    }
-                  }}
-                  disabled={activeChordIds.length === 0 || selectionActionsLocked}
-                  title={
-                    selectionActionsLocked
-                      ? "Disabled while notes/chords are selected in multiple tracks"
-                      : "Disband - Shortcut: L"
-                  }
-                  className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-                >
-                  <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">L</span>
-                  <img
-                    src={STREAMLINE_TOOLBAR_ICONS.disband}
-                    alt=""
-                    aria-hidden="true"
-                    className="h-3.5 w-3.5"
-                  />
-                  <span className="text-[9px] leading-none">Disband</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleAssignOptimals();
-                  }}
-                  disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
-                  title={
-                    selectionActionsLocked
-                      ? "Disabled while notes/chords are selected in multiple tracks"
-                      : "Optimize - Shortcut: O"
-                  }
-                  className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-                >
-                  <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">O</span>
-                  <img
-                    src={STREAMLINE_TOOLBAR_ICONS.optimize}
-                    alt=""
-                    aria-hidden="true"
-                    className="h-3.5 w-3.5"
-                  />
-                  <span className="text-[9px] leading-none">Optimize</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleJoinSelectedNotes();
-                  }}
-                  disabled={selectedNoteIds.length < 2 || selectionActionsLocked}
-                  title={
-                    selectionActionsLocked
-                      ? "Disabled while notes/chords are selected in multiple tracks"
-                      : "Join - Shortcut: J"
-                  }
-                  className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-                >
-                  <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">J</span>
-                  <img
-                    src={STREAMLINE_TOOLBAR_ICONS.join}
-                    alt=""
-                    aria-hidden="true"
-                    className="h-3.5 w-3.5"
-                  />
-                  <span className="text-[9px] leading-none">Join</span>
-                </button>
-                <div className="group relative flex w-[106px] flex-col gap-1">
-                  <select
-                    value={scaleToolMode}
-                    onChange={(event) => {
-                      const nextMode = event.target.value;
-                      if (!isScaleToolMode(nextMode)) return;
-                      setScaleToolMode(nextMode);
-                      if (scaleToolActive) {
-                        applyScalePreview(scaleFactor, { mode: nextMode, syncInput: false });
-                      }
-                    }}
-                    className="h-5 rounded border border-slate-200 bg-white px-1 text-[10px] text-slate-700"
-                    title="Scale mode - Shortcut: H"
-                  >
-                    <option value="length">Length scaling</option>
-                    <option value="start">Start-time scaling</option>
-                    <option value="both">Start + length</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={toggleScaleTool}
-                    disabled={!scaleToolActive && selectedNoteIds.length + selectedChordIds.length === 0}
-                    title="Scale - Shortcut: S"
-                    className={`relative flex h-[27px] w-full items-center justify-center gap-1 rounded-md text-[9px] font-semibold ${
-                      scaleToolActive
-                        ? "bg-amber-500 text-white"
-                        : "border border-slate-200 text-slate-700 hover:bg-slate-100"
-                    } disabled:cursor-not-allowed disabled:text-slate-400`}
-                  >
-                    <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">S</span>
-                    <svg
-                      viewBox="0 0 24 24"
-                      className={`h-3.5 w-3.5 ${scaleToolActive ? "fill-white" : "fill-current"}`}
-                      aria-hidden="true"
-                    >
-                      <path d="M3 10h18v4H3z" />
-                      <path d="M7 6l-4 6 4 6z" />
-                      <path d="M17 6l4 6-4 6z" />
-                    </svg>
-                    <span className="leading-none">Scale</span>
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleSliceTool}
-                  title="Slice - Shortcut: Shift+S"
-                  className={`group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md ${
-                    sliceToolActive
-                      ? "bg-indigo-600 text-white"
-                      : "border border-slate-200 text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">Shift+S</span>
-                  <img
-                    src={STREAMLINE_TOOLBAR_ICONS.slice}
-                    alt=""
-                    aria-hidden="true"
-                    className={`h-3.5 w-3.5 ${sliceToolActive ? "brightness-0 invert" : ""}`}
-                  />
-                  <span className="text-[9px] leading-none">Slice</span>
-                </button>
-                </div>
-              </div>
-              <div className="rounded-md border border-slate-200 bg-white p-1.5">
-                <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-                  Cut segments
-                </div>
-                <div className="flex flex-wrap gap-1">
-                <button
-                type="button"
-                onClick={() => {
-                  const ok = window.confirm(
-                    "Generate cut-segments from all notes? This will replace the current cut segments."
-                  );
-                  if (!ok) return;
-                  handleGenerateCuts();
-                }}
-                  title="Generate cuts"
-                  className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100"
-                >
-                  <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">No shortcut</span>
-                  <img
-                    src={STREAMLINE_TOOLBAR_ICONS.generate}
-                    alt=""
-                    aria-hidden="true"
-                    className="h-3.5 w-3.5"
-                  />
-                  <span className="text-[9px] leading-none">Generate</span>
-                </button>
-                <button
-                type="button"
-                onClick={handleMergeRedundantCutRegions}
-                disabled={!hasRedundantCutRegions}
-                  title="Merge adjacent cut regions with the same coord"
-                  className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-                >
-                  <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">No shortcut</span>
-                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
-                    <path d="M4 8h10v3H4z" />
-                    <path d="M4 13h10v3H4z" />
-                    <path d="M16 6l4 6-4 6v-4h-4v-4h4z" />
-                  </svg>
-                  <span className="text-[9px] leading-none">Clean</span>
-                </button>
-                <button
-                type="button"
-                onClick={toggleCutTool}
-                  title="Cut tool - Shortcut: K"
-                  className={`group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md ${
-                    cutToolActive
-                      ? "bg-sky-600 text-white"
-                      : "border border-slate-200 text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">K</span>
-                  <img
-                    src={STREAMLINE_TOOLBAR_ICONS.cut}
-                    alt=""
-                    aria-hidden="true"
-                    className={`h-3.5 w-3.5 ${cutToolActive ? "brightness-0 invert" : ""}`}
-                  />
-                  <span className="text-[9px] leading-none">Cut</span>
-                </button>
-                <button
-                type="button"
-                onClick={handleMergeCutBoundary}
-                disabled={selectedCutBoundaryIndex === null}
-                  title="Merge selected boundary"
-                  className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-                >
-                  <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">No shortcut</span>
-                  <img
-                    src={STREAMLINE_TOOLBAR_ICONS.merge}
-                    alt=""
-                    aria-hidden="true"
-                    className="h-3.5 w-3.5"
-                  />
-                  <span className="text-[9px] leading-none">Merge</span>
-                </button>
-                </div>
-              </div>
-            </div>
+        </div>
+        <div className={`${mobileViewport ? "shrink-0" : ""} rounded-md border border-slate-200 bg-white p-1.5`}>
+          <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+            Cut segments
           </div>
-      )}
+          <div className="flex flex-wrap gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                const ok = window.confirm(
+                  "Generate cut-segments from all notes? This will replace the current cut segments."
+                );
+                if (!ok) return;
+                handleGenerateCuts();
+              }}
+              title="Generate cuts"
+              className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100"
+            >
+              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">No shortcut</span>
+              <img
+                src={STREAMLINE_TOOLBAR_ICONS.generate}
+                alt=""
+                aria-hidden="true"
+                className="h-3.5 w-3.5"
+              />
+              <span className="text-[9px] leading-none">Generate</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleMergeRedundantCutRegions}
+              disabled={!hasRedundantCutRegions}
+              title="Merge adjacent cut regions with the same coord"
+              className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+            >
+              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">No shortcut</span>
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
+                <path d="M4 8h10v3H4z" />
+                <path d="M4 13h10v3H4z" />
+                <path d="M16 6l4 6-4 6v-4h-4v-4h4z" />
+              </svg>
+              <span className="text-[9px] leading-none">Clean</span>
+            </button>
+            <button
+              type="button"
+              onClick={toggleCutTool}
+              title="Cut tool - Shortcut: K"
+              className={`group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md ${
+                cutToolActive
+                  ? "bg-sky-600 text-white"
+                  : "border border-slate-200 text-slate-700 hover:bg-slate-100"
+              }`}
+            >
+              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">K</span>
+              <img
+                src={STREAMLINE_TOOLBAR_ICONS.cut}
+                alt=""
+                aria-hidden="true"
+                className={`h-3.5 w-3.5 ${cutToolActive ? "brightness-0 invert" : ""}`}
+              />
+              <span className="text-[9px] leading-none">Cut</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleMergeCutBoundary}
+              disabled={selectedCutBoundaryIndex === null}
+              title="Merge selected boundary"
+              className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+            >
+              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">No shortcut</span>
+              <img
+                src={STREAMLINE_TOOLBAR_ICONS.merge}
+                alt=""
+                aria-hidden="true"
+                className="h-3.5 w-3.5"
+              />
+              <span className="text-[9px] leading-none">Merge</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      className={workspaceClass}
+      onMouseDownCapture={(event) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest("[data-gte-floating-ui='true']")) return;
+        onFocusWorkspace?.();
+      }}
+      onTouchStartCapture={(event) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest("[data-gte-floating-ui='true']")) return;
+        onFocusWorkspace?.();
+      }}
+    >
+      {toolbarOpen && showToolbarUi && !mobileViewport && renderToolbarPanel(false)}
       {scaleToolActive && scaleHudPosition && (
         <div
           ref={scaleHudRef}
@@ -5868,22 +6055,34 @@ export default function GteWorkspace({
         </div>
       )}
       {showToolbarUi && (
-        <div className="fixed bottom-16 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2 pointer-events-none">
+        <div
+          data-gte-floating-ui="true"
+          className="fixed bottom-16 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2 pointer-events-none"
+        >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
-            <button
-              type="button"
-              onClick={() => setToolbarOpen((prev) => !prev)}
-              aria-pressed={toolbarOpen}
-              title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
-              className={`pointer-events-auto flex h-12 items-center justify-center rounded-full border px-5 text-sm font-semibold shadow-md backdrop-blur transition md:absolute md:left-0 ${
-                toolbarOpen
-                  ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
-                  : "border-sky-300 bg-sky-100/95 text-sky-900 hover:bg-sky-50"
+            {!mobileViewport && (
+              <button
+                type="button"
+                onClick={() => setToolbarOpen((prev) => !prev)}
+                aria-pressed={toolbarOpen}
+                title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
+                className={`pointer-events-auto flex h-12 items-center justify-center rounded-full border px-5 text-sm font-semibold shadow-md backdrop-blur transition ${
+                  mobileViewport ? "" : "md:absolute md:left-0"
+                } ${
+                  toolbarOpen
+                    ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
+                    : "border-sky-300 bg-sky-100/95 text-sky-900 hover:bg-sky-50"
+                }`}
+              >
+                Toolbar (T)
+              </button>
+            )}
+            <div
+              data-gte-floating-ui="true"
+              className={`pointer-events-auto flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur ${
+                mobileViewport ? "w-full justify-center" : ""
               }`}
             >
-              Toolbar (T)
-            </button>
-            <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
               <button
                 type="button"
                 onClick={requestUndo}
@@ -6158,8 +6357,8 @@ export default function GteWorkspace({
       {error && <div className="error">{error}</div>}
 
       <div className={`min-w-0 ${embedded ? "space-y-2" : "space-y-4"}`}>
-        <div className={`flex min-w-0 items-start ${embedded ? "gap-2" : "gap-4"}`}>
-          <div className="flex flex-col gap-0 pt-5 text-xs text-slate-600">
+        <div className={`flex min-w-0 items-start ${compactEmbeddedMobile ? "gap-1.5" : embedded ? "gap-2" : "gap-4"}`}>
+          <div className={`flex flex-col gap-0 ${compactEmbeddedMobile ? "pt-4 text-[10px]" : "pt-5 text-xs"} text-slate-600`}>
             {Array.from({ length: rows }).map((_, rowIdx) => (
               <div
                 key={`labels-${rowIdx}`}
@@ -6182,8 +6381,8 @@ export default function GteWorkspace({
             <div
               ref={timelineOuterRef}
               className={`min-w-0 overflow-y-hidden ${
-                embedded ? "overflow-x-hidden" : "overflow-x-auto"
-              } ${embedded ? "hide-scrollbar" : ""}`}
+                embedded && !mobileViewport ? "overflow-x-hidden" : "overflow-x-auto"
+              } ${embedded && !mobileViewport ? "hide-scrollbar" : ""}`}
               onScroll={handleTimelineOuterScroll}
             >
               <div className="relative pt-5" style={{ width: timelineChromeWidth }}>
@@ -6648,7 +6847,12 @@ export default function GteWorkspace({
                       <button
                         key={`note-${note.id}-seg-${segment.rowIndex}-${idx}`}
                         type="button"
-                        onMouseDown={(event) =>
+                        onMouseDown={(event) => {
+                          if (mobileViewport) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            return;
+                          }
                           startNoteDrag(
                             note.id,
                             note.tab[0],
@@ -6656,9 +6860,38 @@ export default function GteWorkspace({
                             note.startTime,
                             note.length,
                             event
-                          )
-                        }
+                          );
+                        }}
+                        onTouchStart={(event) => {
+                          event.stopPropagation();
+                          scheduleTouchHold(event, (pointer) =>
+                            startNoteDrag(
+                              note.id,
+                              note.tab[0],
+                              note.tab[1],
+                              note.startTime,
+                              note.length,
+                              pointer
+                            )
+                          );
+                        }}
+                        onTouchMove={(event) => {
+                          event.stopPropagation();
+                          cancelTouchHoldOnMove(event);
+                        }}
+                        onTouchEnd={(event) => {
+                          event.stopPropagation();
+                          clearTouchHold();
+                        }}
+                        onTouchCancel={(event) => {
+                          event.stopPropagation();
+                          clearTouchHold();
+                        }}
                         onClick={(event) => {
+                          if (touchHoldTriggeredRef.current) {
+                            touchHoldTriggeredRef.current = false;
+                            return;
+                          }
                           if (multiDragMovedRef.current) {
                             multiDragMovedRef.current = false;
                             return;
@@ -6668,6 +6901,25 @@ export default function GteWorkspace({
                             return;
                           }
                           playNotePreview([note.tab[0], note.tab[1]]);
+                          if (mobileViewport) {
+                            const previousSelected = selectedNoteIdsRef.current;
+                            const alreadySelected = previousSelected.includes(note.id);
+                            const nextSelected = alreadySelected
+                              ? previousSelected
+                              : [...previousSelected, note.id];
+                            setSelectedNoteIds(nextSelected);
+                            if (selectedChordIdsRef.current.length) {
+                              setSelectedChordIds([]);
+                            }
+                            if (alreadySelected && nextSelected.length === 1) {
+                              openNoteMenu(note.id, note.tab[1], note.length, event);
+                            } else {
+                              setNoteMenuAnchor(null);
+                              setNoteMenuNoteId(null);
+                              setNoteMenuDraft(null);
+                            }
+                            return;
+                          }
                           if (selectedNoteIds.length > 1) return;
                           openNoteMenu(note.id, note.tab[1], note.length, event);
                         }}
@@ -6681,10 +6933,11 @@ export default function GteWorkspace({
                             : "bg-emerald-400"
                         } ${editingChordId !== null ? "opacity-30 pointer-events-none" : ""}`}
                         style={{
-                          top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + 4,
+                          top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + (mobileViewport ? 1 : 4),
                           left: segment.inRowStart * scale,
                           width: Math.max(10, segment.length * scale),
-                          height: ROW_HEIGHT - 8,
+                          height: mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 8,
+                          touchAction: mobileViewport ? "none" : undefined,
                         }}
                       >
                         {idx === 0 ? note.tab[1] : null}
@@ -6747,6 +7000,11 @@ export default function GteWorkspace({
                           key={`chord-${chord.id}-${idx}-seg-${segment.rowIndex}-${segIdx}`}
                           type="button"
                           onMouseDown={(event) => {
+                            if (mobileViewport) {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              return;
+                            }
                             if (editingChordId !== null) {
                               event.preventDefault();
                               event.stopPropagation();
@@ -6763,17 +7021,59 @@ export default function GteWorkspace({
                             }
                             startChordDrag(chord.id, chord.startTime, chord.length, event);
                           }}
+                          onTouchStart={(event) => {
+                            event.stopPropagation();
+                            if (editingChordId !== null) return;
+                            scheduleTouchHold(event, (pointer) =>
+                              startChordDrag(chord.id, chord.startTime, chord.length, pointer)
+                            );
+                          }}
+                          onTouchMove={(event) => {
+                            event.stopPropagation();
+                            cancelTouchHoldOnMove(event);
+                          }}
+                          onTouchEnd={(event) => {
+                            event.stopPropagation();
+                            clearTouchHold();
+                          }}
+                          onTouchCancel={(event) => {
+                            event.stopPropagation();
+                            clearTouchHold();
+                          }}
                           onDoubleClick={(event) => {
                             if (editingChordId !== null) return;
                             openChordEdit(chord.id, event);
                           }}
                           onClick={(event) => {
+                            if (touchHoldTriggeredRef.current) {
+                              touchHoldTriggeredRef.current = false;
+                              return;
+                            }
                             if (multiDragMovedRef.current) {
                               multiDragMovedRef.current = false;
                               return;
                             }
                             if (singleDragMovedRef.current) {
                               singleDragMovedRef.current = false;
+                              return;
+                            }
+                            if (mobileViewport) {
+                              const previousSelected = selectedChordIdsRef.current;
+                              const alreadySelected = previousSelected.includes(chord.id);
+                              const nextSelected = alreadySelected
+                                ? previousSelected
+                                : [...previousSelected, chord.id];
+                              setSelectedChordIds(nextSelected);
+                              if (selectedNoteIdsRef.current.length) {
+                                setSelectedNoteIds([]);
+                              }
+                              if (alreadySelected && nextSelected.length === 1) {
+                                openChordMenu(chord.id, chord.length, event);
+                              } else {
+                                setChordMenuAnchor(null);
+                                setChordMenuChordId(null);
+                                setChordMenuDraft(null);
+                              }
                               return;
                             }
                             if (selectedChordIds.length > 1) return;
@@ -6793,10 +7093,11 @@ export default function GteWorkspace({
                             selectedChordIds.includes(chord.id) ? "bg-blue-400" : "bg-blue-300"
                           } ${isDimmed ? "opacity-30 pointer-events-none" : ""}`}
                           style={{
-                            top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + 4,
+                            top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + (mobileViewport ? 1 : 4),
                             left: segment.inRowStart * scale,
                             width: Math.max(10, segment.length * scale),
-                            height: ROW_HEIGHT - 8,
+                            height: mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 8,
+                            touchAction: mobileViewport ? "none" : undefined,
                           }}
                         >
                           {tab[1]}
@@ -6830,7 +7131,8 @@ export default function GteWorkspace({
                 {selectedNote &&
                   noteMenuAnchor &&
                   noteMenuNoteId === selectedNote.id &&
-                  noteMenuDraft && (
+                  noteMenuDraft &&
+                  !mobileViewport && (
                     <div
                       ref={noteMenuRef}
                       className="fixed z-[9999] w-56 rounded-md border border-slate-200 bg-white p-2 shadow-md"
@@ -7180,7 +7482,74 @@ export default function GteWorkspace({
                     </div>
                   )}
 
-                {draftNote && draftNoteAnchor && (
+                {draftNote && mobileViewport && (
+                  <div
+                    ref={draftPopupRef}
+                    className="fixed bottom-28 left-1/2 z-[9999] w-[min(calc(100vw-2rem),15rem)] -translate-x-1/2 rounded-xl border border-slate-200 bg-white px-2.5 py-2.5 shadow-xl"
+                    onClick={(event) => event.stopPropagation()}
+                    onMouseDown={(event) => {
+                      event.stopPropagation();
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Add note
+                        </div>
+                        <div className="mt-1 text-sm text-slate-700">
+                          String {STRING_LABELS[draftNote.stringIndex]} at {draftNote.startTime}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDraftNote(null);
+                          setDraftNoteAnchor(null);
+                        }}
+                        className="rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-600"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center">
+                      <div className="text-[10px] uppercase tracking-wide text-slate-500">Fret</div>
+                      <div className="mt-1 text-2xl font-semibold text-slate-900">
+                        {draftNote.fret === null ? "--" : draftNote.fret}
+                      </div>
+                    </div>
+                    <div className="mt-2 grid grid-cols-3 gap-1.5">
+                      {["1", "2", "3", "4", "5", "6", "7", "8", "9", "Clear", "0", "Del"].map((key) => (
+                        <button
+                          key={`draft-key-${key}`}
+                          type="button"
+                          onClick={() => {
+                            if (key === "Clear") {
+                              setDraftNote((prev) => (prev ? { ...prev, fret: null } : prev));
+                              return;
+                            }
+                            if (key === "Del") {
+                              backspaceDraftFretDigit();
+                              return;
+                            }
+                            appendDraftFretDigit(key);
+                          }}
+                          className="flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-800"
+                        >
+                          {key}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddNote}
+                      disabled={draftNote.fret === null}
+                      className="mt-2 w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      Add note
+                    </button>
+                  </div>
+                )}
+                {draftNote && draftNoteAnchor && !mobileViewport && (
                   <div
                     ref={draftPopupRef}
                     className="fixed z-[9999] rounded-md border border-slate-200 bg-white px-2 py-2 shadow-md"
@@ -7286,8 +7655,83 @@ export default function GteWorkspace({
             </div>
           </div>
         </div>
-
-
+        {showMobileInlineNoteSettings && selectedNote && noteMenuDraft && (
+          <div
+            ref={noteMenuRef}
+            className="rounded-xl border border-slate-200 bg-white p-3 shadow-lg"
+            onMouseDown={(event) => event.stopPropagation()}
+            data-gte-floating-ui="true"
+          >
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Note settings
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <label className="block text-[10px] text-slate-500">
+                Fret
+                <input
+                  type="number"
+                  min={0}
+                  max={maxFret}
+                  className="mt-1 w-full rounded border border-slate-200 px-2 py-2 text-xs"
+                  value={noteMenuDraft.fret}
+                  onChange={(event) =>
+                    setNoteMenuDraft((prev) =>
+                      prev ? { ...prev, fret: event.target.value } : prev
+                    )
+                  }
+                  onBlur={() => commitNoteMenuFret()}
+                />
+              </label>
+              <label className="block text-[10px] text-slate-500">
+                Length
+                <input
+                  type="number"
+                  min={1}
+                  max={MAX_EVENT_LENGTH_FRAMES}
+                  className="mt-1 w-full rounded border border-slate-200 px-2 py-2 text-xs"
+                  value={noteMenuDraft.length}
+                  onChange={(event) =>
+                    setNoteMenuDraft((prev) =>
+                      prev ? { ...prev, length: event.target.value } : prev
+                    )
+                  }
+                  onBlur={() => commitNoteMenuLength()}
+                />
+              </label>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                handleDeleteNote();
+                setSelectedNoteIds([]);
+                setNoteMenuAnchor(null);
+                setNoteMenuNoteId(null);
+                setNoteMenuDraft(null);
+              }}
+              className="mt-3 w-full rounded-lg bg-rose-500/80 px-3 py-2 text-xs font-semibold text-white"
+            >
+              Delete note
+            </button>
+          </div>
+        )}
+        {showMobileInlineToolbar && (
+          <div className="space-y-2" data-gte-floating-ui="true">
+            <button
+              type="button"
+              onClick={() => setToolbarOpen((prev) => !prev)}
+              aria-pressed={toolbarOpen}
+              title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
+              className={`flex h-11 w-full items-center justify-center rounded-xl border px-4 text-sm font-semibold shadow-sm transition ${
+                toolbarOpen
+                  ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              Toolbar (T)
+            </button>
+            {toolbarOpen && renderToolbarPanel(true)}
+          </div>
+        )}
       </div>
     </div>
   );

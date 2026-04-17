@@ -46,6 +46,7 @@ const TIMELINE_ZOOM_MIN = 10;
 const TIMELINE_ZOOM_MAX = 250;
 const TIMELINE_ZOOM_DEFAULT = 100;
 const CONTROL_COMMIT_DEBOUNCE_MS = 350;
+const MOBILE_EDITOR_BREAKPOINT_PX = 768;
 
 const toNumber = (value: unknown, fallback: number) => {
   const parsed = Number(value);
@@ -649,6 +650,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [timeSignatureSaving, setTimeSignatureSaving] = useState(false);
   const [timeSignatureError, setTimeSignatureError] = useState<string | null>(null);
   const [activeLaneId, setActiveLaneId] = useState<string | null>(null);
+  const [mobileEditLaneId, setMobileEditLaneId] = useState<string | null>(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
   const [savingCanvas, setSavingCanvas] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [hasPendingCommit, setHasPendingCommit] = useState(false);
@@ -915,7 +919,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (activeLaneId && !canvas.editors.some((lane) => lane.id === activeLaneId)) {
       setActiveLaneId(canvas.editors[0]?.id || null);
     }
-  }, [canvas?.name, canvas?.secondsPerBar, canvas?.editors, activeLaneId, nameEditing]);
+    if (mobileEditLaneId && !canvas.editors.some((lane) => lane.id === mobileEditLaneId)) {
+      setMobileEditLaneId(null);
+    }
+  }, [canvas?.name, canvas?.secondsPerBar, canvas?.editors, activeLaneId, mobileEditLaneId, nameEditing]);
 
   useEffect(() => {
     if (!nameEditing || !nameInputRef.current) return;
@@ -932,6 +939,28 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         window.clearTimeout(timeSignatureCommitTimerRef.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_EDITOR_BREAKPOINT_PX - 1}px)`);
+    const applyViewport = (matches: boolean) => {
+      setIsMobileViewport(matches);
+      setMobileControlsOpen((prev) => (matches ? prev : false));
+      if (!matches) {
+        setMobileEditLaneId(null);
+      }
+    };
+    applyViewport(mediaQuery.matches);
+    const handleChange = (event: MediaQueryListEvent) => {
+      applyViewport(event.matches);
+    };
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
   }, []);
 
   useEffect(() => {
@@ -955,10 +984,20 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const handleMainMouseDownCapture = useCallback((event: ReactMouseEvent<HTMLElement>) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
+    if (isMobileViewport && mobileEditLaneId) return;
     if (target.closest("[data-gte-track='true']")) return;
     if (target.closest("button, a, input, textarea, select, label, [role='button']")) return;
     setActiveLaneId(null);
-  }, []);
+  }, [isMobileViewport, mobileEditLaneId]);
+
+  const activateLaneForEditing = useCallback((laneId: string) => {
+    setActiveLaneId(laneId);
+    setMobileEditLaneId((prev) => (isMobileViewport ? laneId : prev));
+    if (!isMobileViewport) return;
+    window.requestAnimationFrame(() => {
+      trackSectionRefs.current[laneId]?.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+  }, [isMobileViewport]);
 
   const commitCanvasToBackend = useCallback(
     async (options?: { force?: boolean; keepalive?: boolean }) => {
@@ -1670,6 +1709,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     () => Math.max(4000, sharedViewportBarCount * FIXED_FRAMES_PER_BAR * 3),
     [sharedViewportBarCount]
   );
+
+  const mobileControlsSummary = `${bpmDraft} BPM - ${timeSignatureDraft}/bar - Snap ${
+    globalSnapToGridEnabled ? "On" : "Off"
+  }`;
 
   useEffect(() => {
     const scrollbar = globalTimelineScrollbarRef.current;
@@ -2449,7 +2492,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   return (
     <main className="page page-tight" onMouseDownCapture={handleMainMouseDownCapture}>
       <div className="container gte-wide stack pb-16">
-        <div className="page-header">
+        <div className="page-header" style={isMobileViewport ? { position: "relative", paddingRight: 152 } : undefined}>
           <div style={{ flex: "1 1 0", minWidth: 0 }}>
             <div
               className="page-title"
@@ -2489,15 +2532,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 ) : (
                   <span
                     style={{
-                      paddingLeft: 10,
-                      fontSize: "2.00rem",
+                      paddingLeft: isMobileViewport ? 0 : 10,
+                      fontSize: isMobileViewport ? "1.35rem" : "2.00rem",
                       lineHeight: 1.3,
                       fontWeight: 500,
                       color: "#334155",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
-                      maxWidth: "min(32rem, 100%)",
+                      maxWidth: isMobileViewport ? "100%" : "min(32rem, 100%)",
                     }}
                   >
                     {canvas?.name || "Untitled"}
@@ -2516,6 +2559,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </button>
               </span>
             </div>
+            {!isMobileViewport && (
+            <>
             <div
               className="page-subtitle"
               style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}
@@ -2734,38 +2779,369 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </span>
               )}
             </div>
+            </>
+            )}
+            {isMobileViewport && (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setMobileControlsOpen((prev) => !prev)}
+                  className="flex w-full items-center justify-between gap-3 text-left"
+                  aria-expanded={mobileControlsOpen}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Project settings
+                    </span>
+                    <span className="block truncate text-sm text-slate-700">{mobileControlsSummary}</span>
+                  </span>
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600">
+                    <svg
+                      viewBox="0 0 24 24"
+                      className={`h-4 w-4 transition-transform ${mobileControlsOpen ? "rotate-180" : ""}`}
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M6 9l6 6 6-6"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.9}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                </button>
+                {mobileControlsOpen && (
+                  <div className="mt-3 space-y-3">
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      <label className="min-w-[172px] rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-medium text-slate-600">
+                        <span className="mb-1 block">BPM</span>
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step={1}
+                            min={1}
+                            value={bpmDraft}
+                            onChange={(event) => {
+                              if (bpmCommitTimerRef.current !== null) {
+                                window.clearTimeout(bpmCommitTimerRef.current);
+                                bpmCommitTimerRef.current = null;
+                              }
+                              queuedBpmValueRef.current = null;
+                              setBpmDraft(event.target.value);
+                            }}
+                            onBlur={() => void commitBpm()}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                void commitBpm();
+                              }
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                if (bpmCommitTimerRef.current !== null) {
+                                  window.clearTimeout(bpmCommitTimerRef.current);
+                                  bpmCommitTimerRef.current = null;
+                                }
+                                queuedBpmValueRef.current = null;
+                                setBpmDraft(
+                                  formatBpm(
+                                    secondsPerBarToBpm(
+                                      canvas?.secondsPerBar,
+                                      normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
+                                    )
+                                  )
+                                );
+                              }
+                            }}
+                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                          />
+                          <span className="inline-flex flex-col gap-1">
+                            <button
+                              type="button"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => {
+                                const current =
+                                  normalizeBpm(bpmDraft) ??
+                                  secondsPerBarToBpm(
+                                    canvas?.secondsPerBar,
+                                    normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
+                                  );
+                                const next = current + 1;
+                                setBpmDraft(formatBpm(next));
+                                scheduleBpmCommit(next);
+                              }}
+                              className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] leading-none text-slate-600"
+                              title="Increase BPM"
+                              aria-label="Increase BPM"
+                            >
+                              &#9650;
+                            </button>
+                            <button
+                              type="button"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => {
+                                const current =
+                                  normalizeBpm(bpmDraft) ??
+                                  secondsPerBarToBpm(
+                                    canvas?.secondsPerBar,
+                                    normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
+                                  );
+                                const next = Math.max(1, current - 1);
+                                setBpmDraft(formatBpm(next));
+                                scheduleBpmCommit(next);
+                              }}
+                              className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] leading-none text-slate-600"
+                              title="Decrease BPM"
+                              aria-label="Decrease BPM"
+                              disabled={(normalizeBpm(bpmDraft) ?? 1) <= 1}
+                            >
+                              &#9660;
+                            </button>
+                          </span>
+                        </span>
+                      </label>
+                      <label className="min-w-[172px] rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-medium text-slate-600">
+                        <span className="mb-1 block">Beats/bar</span>
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step={1}
+                            min={1}
+                            max={64}
+                            value={timeSignatureDraft}
+                            onChange={(event) => {
+                              if (timeSignatureCommitTimerRef.current !== null) {
+                                window.clearTimeout(timeSignatureCommitTimerRef.current);
+                                timeSignatureCommitTimerRef.current = null;
+                              }
+                              queuedTimeSignatureValueRef.current = null;
+                              setTimeSignatureDraft(event.target.value);
+                            }}
+                            onBlur={() => void commitTimeSignature()}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                void commitTimeSignature();
+                              }
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                if (timeSignatureCommitTimerRef.current !== null) {
+                                  window.clearTimeout(timeSignatureCommitTimerRef.current);
+                                  timeSignatureCommitTimerRef.current = null;
+                                }
+                                queuedTimeSignatureValueRef.current = null;
+                                setTimeSignatureDraft(String(normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8));
+                              }
+                            }}
+                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                          />
+                          <span className="inline-flex flex-col gap-1">
+                            <button
+                              type="button"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => {
+                                const current =
+                                  normalizeTimeSignature(timeSignatureDraft) ??
+                                  normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ??
+                                  8;
+                                const next = current + 1;
+                                setTimeSignatureDraft(String(Math.min(64, next)));
+                                scheduleTimeSignatureCommit(next);
+                              }}
+                              className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] leading-none text-slate-600"
+                              title="Increase beats per bar"
+                              aria-label="Increase beats per bar"
+                              disabled={(normalizeTimeSignature(timeSignatureDraft) ?? 8) >= 64}
+                            >
+                              &#9650;
+                            </button>
+                            <button
+                              type="button"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => {
+                                const current =
+                                  normalizeTimeSignature(timeSignatureDraft) ??
+                                  normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ??
+                                  8;
+                                const next = Math.max(1, current - 1);
+                                setTimeSignatureDraft(String(next));
+                                scheduleTimeSignatureCommit(next);
+                              }}
+                              className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] leading-none text-slate-600"
+                              title="Decrease beats per bar"
+                              aria-label="Decrease beats per bar"
+                              disabled={(normalizeTimeSignature(timeSignatureDraft) ?? 8) <= 1}
+                            >
+                              &#9660;
+                            </button>
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setGlobalSnapToGridEnabled((prev) => !prev)}
+                        className={`rounded-md border px-3 py-2 text-xs font-semibold ${
+                          globalSnapToGridEnabled
+                            ? "border-emerald-300 bg-emerald-100 text-emerald-800"
+                            : "border-slate-200 bg-white text-slate-600"
+                        }`}
+                        title="Global snap to grid for all tracks. shortcut 'G'"
+                      >
+                        Snap to grid: {globalSnapToGridEnabled ? "On" : "Off"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void router.push(transcriberHref)}
+                        className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        title="Open the standalone transcriber"
+                      >
+                        Generate tabs
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="mt-3 flex min-h-[1.25rem] flex-wrap items-center gap-3 text-xs">
+                  <span className="muted">{saveStatus}</span>
+                  {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
+                  {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
+                  {(timeSignatureSaving || timeSignatureError) && (
+                    <span className={timeSignatureError ? "error" : "muted"}>
+                      {timeSignatureError || "Saving beats..."}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+            {isMobileViewport && (
+              <div className="mt-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Time scale
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step={10}
+                    min={TIMELINE_ZOOM_MIN}
+                    max={TIMELINE_ZOOM_MAX}
+                    value={timelineZoomPercent}
+                    onChange={(event) => {
+                      const next = Number(event.target.value);
+                      if (!Number.isFinite(next)) return;
+                      setTimelineZoomPercent(
+                        Math.max(
+                          TIMELINE_ZOOM_MIN,
+                          Math.min(TIMELINE_ZOOM_MAX, Math.round(next / 10) * 10)
+                        )
+                      );
+                    }}
+                    className="w-20 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                    title="Scale editor width in time direction"
+                  />
+                  <span className="text-sm text-slate-500">%</span>
+                  <span className="inline-flex flex-col gap-1">
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() =>
+                        setTimelineZoomPercent((prev) =>
+                          Math.min(TIMELINE_ZOOM_MAX, Math.max(TIMELINE_ZOOM_MIN, prev + 10))
+                        )
+                      }
+                      className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] leading-none text-slate-600"
+                      title="Increase time scale"
+                      aria-label="Increase time scale"
+                    >
+                      &#9650;
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() =>
+                        setTimelineZoomPercent((prev) =>
+                          Math.max(TIMELINE_ZOOM_MIN, Math.min(TIMELINE_ZOOM_MAX, prev - 10))
+                        )
+                      }
+                      className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] leading-none text-slate-600"
+                      title="Decrease time scale"
+                      aria-label="Decrease time scale"
+                    >
+                      &#9660;
+                    </button>
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="button-row" style={{ flex: "0 0 auto", alignSelf: "flex-start" }}>
+          <div
+            className="button-row"
+            style={
+              isMobileViewport
+                ? {
+                    flex: "0 0 auto",
+                    alignSelf: "flex-start",
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    gap: 6,
+                  }
+                : { flex: "0 0 auto", alignSelf: "flex-start" }
+            }
+          >
             {isGuestMode ? (
               <>
-                <Link href="/" className="button-secondary button-small">
-                  Back home
+                <Link
+                  href="/"
+                  className={`button-secondary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
+                  style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
+                >
+                  {isMobileViewport ? "Home" : "Back home"}
                 </Link>
                 {session?.user?.id ? (
                   <button
                     type="button"
                     onClick={() => void router.push(saveToAccountPath)}
-                    className="button-primary button-small"
+                    className={`button-primary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
+                    style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
                   >
-                    Save draft to account
+                    {isMobileViewport ? "Save" : "Save draft to account"}
                   </button>
                 ) : (
                   <>
-                    <Link href={loginSaveHref} className="button-secondary button-small">
-                      Log in to save
+                    <Link
+                      href={loginSaveHref}
+                      className={`button-secondary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
+                      style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
+                    >
+                      {isMobileViewport ? "Log in" : "Log in to save"}
                     </Link>
-                    <Link href={signupSaveHref} className="button-primary button-small">
-                      Create account
+                    <Link
+                      href={signupSaveHref}
+                      className={`button-primary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
+                      style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
+                    >
+                      {isMobileViewport ? "Sign up" : "Create account"}
                     </Link>
                   </>
                 )}
               </>
             ) : (
               <>
-                <button type="button" onClick={() => router.push("/gte")} className="button-secondary button-small">
-                  Back to editors
+                <button
+                  type="button"
+                  onClick={() => router.push("/gte")}
+                  className={`button-secondary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
+                  style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
+                >
+                  {isMobileViewport ? "Editors" : "Back to editors"}
                 </button>
-                <Link href="/account" className="button-secondary button-small">
+                <Link
+                  href="/account"
+                  className={`button-secondary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
+                  style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
+                >
                   Account
                 </Link>
               </>
@@ -2773,11 +3149,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             <button
               type="button"
               onClick={() => void commitCanvasToBackend({ force: true })}
-              className="button-save button-small"
+              className={`button-save button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
               disabled={savingCanvas || isGuestMode}
               aria-label={savingCanvas ? "Saving..." : "Save now"}
               title={savingCanvas ? "Saving..." : "Save now"}
-              style={{ paddingInline: 10, minWidth: 40 }}
+              style={isMobileViewport ? { paddingInline: 8, minWidth: 32, minHeight: 32 } : { paddingInline: 10, minWidth: 40 }}
             >
               <img
                 src="/icons/save-now.png"
@@ -2802,12 +3178,23 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           <div className="stack min-w-0 overflow-x-hidden space-y-2">
             {canvas.editors.map((lane, index) => {
               const laneId = lane.id || `ed-${index + 1}`;
+              if (isMobileViewport && mobileEditLaneId && laneId !== mobileEditLaneId) {
+                return null;
+              }
               const laneEditorRef = buildLaneEditorRef(editorId, laneId);
               const isActive = laneId === activeLaneId;
               const isTrackMuted = Boolean(trackMuteById[laneId]);
               const isTrackIsolated = isolatedTrackId === laneId;
               const trackVolume = normalizeTrackVolume(trackVolumeById[laneId] ?? 1);
               const laneBarCount = getLaneBarCount(lane);
+              const instrumentValue = trackInstrumentOptions.some(
+                (option) => option.id === normalizeTrackInstrumentId(lane.instrumentId)
+              )
+                ? normalizeTrackInstrumentId(lane.instrumentId)
+                : DEFAULT_TRACK_INSTRUMENT_ID;
+              const instrumentLabel =
+                trackInstrumentOptions.find((option) => option.id === instrumentValue)?.label || "Built-in synth";
+              const mobileEditing = isMobileViewport && mobileEditLaneId === laneId;
                 return (
                   <section
                     key={laneId}
@@ -2816,7 +3203,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     }}
                     data-gte-track="true"
                     data-gte-track-lane-id={laneId}
-                    className="relative w-full min-w-0 max-w-full"
+                    className={`relative w-full min-w-0 max-w-full ${
+                      isMobileViewport ? "rounded-lg" : ""
+                    } ${
+                      mobileEditing ? "sticky top-0 z-20 pb-2" : ""
+                    }`}
+                    style={mobileEditing ? { backgroundColor: "var(--bg)" } : undefined}
                     onMouseDownCapture={(event) => {
                       const target = event.target as HTMLElement | null;
                       const clickedBarSelector = Boolean(
@@ -2860,6 +3252,226 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     {trackDragLaneId !== null && trackDropIndex === index + 1 && (
                       <div className="pointer-events-none absolute -bottom-1 left-4 right-4 z-30 h-1 rounded-full bg-sky-400 shadow-sm" />
                     )}
+                    {isMobileViewport ? (
+                      <div className="space-y-1.5">
+                        <div
+                          className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 shadow-sm ${
+                            mobileEditing ? "border-sky-300 bg-sky-50/80" : "border-slate-200 bg-white"
+                          }`}
+                          data-track-reorder-block="true"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => activateLaneForEditing(laneId)}
+                            className="min-w-0 flex-1 text-left"
+                          >
+                            <span className="block truncate text-sm font-semibold text-slate-800">
+                              Track {index + 1}
+                            </span>
+                            <span className="mt-0.5 block truncate text-[11px] text-slate-500">
+                              {instrumentLabel} - Bars: {laneBarCount}
+                            </span>
+                          </button>
+                          {mobileEditing ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMobileEditLaneId(null);
+                                setActiveLaneId(null);
+                              }}
+                              className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600"
+                            >
+                              Done
+                            </button>
+                          ) : (
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500">
+                              View
+                            </span>
+                          )}
+                          <div className="relative" data-track-menu="true">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setOpenTrackMenuId((prev) => (prev === laneId ? null : laneId));
+                              }}
+                              className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600"
+                              title="Track options"
+                              aria-label="Track options"
+                            >
+                              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                                <circle cx="12" cy="5" r="1.8" />
+                                <circle cx="12" cy="12" r="1.8" />
+                                <circle cx="12" cy="19" r="1.8" />
+                              </svg>
+                            </button>
+                            {openTrackMenuId === laneId && (
+                              <div className="absolute right-0 top-10 z-30 w-60 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+                                <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                  Sound
+                                  <select
+                                    value={instrumentValue}
+                                    onChange={(event) => handleLaneInstrumentChange(laneId, event.target.value)}
+                                    className="mt-2 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
+                                  >
+                                    {trackInstrumentOptions.map((option) => (
+                                      <option key={`${laneId}-mobile-instrument-${option.id}`} value={option.id}>
+                                        {option.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <div className="mt-3 flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleTrackMute(laneId)}
+                                    className={`flex-1 rounded-md border px-2 py-2 text-xs font-semibold ${
+                                      isTrackMuted
+                                        ? "border-amber-300 bg-amber-50 text-amber-700"
+                                        : "border-slate-200 bg-white text-slate-600"
+                                    }`}
+                                  >
+                                    {isTrackMuted ? "Muted" : "Mute"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleTrackIsolation(laneId)}
+                                    className={`flex-1 rounded-md border px-2 py-2 text-xs font-semibold ${
+                                      isTrackIsolated
+                                        ? "border-sky-500 bg-sky-500 text-white"
+                                        : "border-slate-200 bg-white text-slate-600"
+                                    }`}
+                                  >
+                                    {isTrackIsolated ? "Isolated" : "Isolate"}
+                                  </button>
+                                </div>
+                                <label className="mt-3 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                  Volume
+                                  <div className="mt-2 flex items-center gap-3">
+                                    <input
+                                      type="range"
+                                      min={0}
+                                      max={1}
+                                      step={0.01}
+                                      value={trackVolume}
+                                      onChange={(event) => handleTrackVolumeChange(laneId, Number(event.target.value))}
+                                      className="flex-1 accent-slate-700"
+                                    />
+                                    <span className="w-10 text-right text-xs text-slate-500">
+                                      {Math.round(trackVolume * 100)}%
+                                    </span>
+                                  </div>
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenTrackMenuId(null);
+                                    requestDeleteTrack(laneId);
+                                  }}
+                                  className="mt-3 block w-full rounded-md bg-rose-50 px-3 py-2 text-left text-xs font-semibold text-rose-600"
+                                  disabled={deletingLaneId === laneId}
+                                >
+                                  {deletingLaneId === laneId ? "Removing..." : "Remove track"}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="relative">
+                          {!mobileEditing && (
+                            <button
+                              type="button"
+                              onClick={() => activateLaneForEditing(laneId)}
+                              className="absolute inset-0 z-20 rounded-lg bg-white/0"
+                              aria-label={`Edit track ${index + 1}`}
+                            >
+                              <span className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
+                                Tap to edit
+                              </span>
+                            </button>
+                          )}
+                          <div className={mobileEditing ? "" : "max-h-[198px] overflow-hidden rounded-lg"}>
+                            <GteWorkspace
+                              editorId={laneEditorRef}
+                              snapshot={lane}
+                              onSnapshotChange={(nextSnapshot, options) =>
+                                handleLaneSnapshotChange(laneId, nextSnapshot, options)
+                              }
+                              allowBackend
+                              embedded
+                              isActive={isMobileViewport ? mobileEditing : isActive}
+                              mobileViewport={isMobileViewport}
+                              onFocusWorkspace={() => activateLaneForEditing(laneId)}
+                              globalSnapToGridEnabled={globalSnapToGridEnabled}
+                              onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
+                              sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
+                              sharedViewportBarCount={sharedViewportBarCount}
+                              sharedTimelineScrollRatio={sharedTimelineScrollRatio}
+                              onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
+                              timelineZoomFactor={timelineZoomPercent / 100}
+                              historyUndoCount={canvasUndoCount}
+                              historyRedoCount={canvasRedoCount}
+                              onRequestUndo={handleCanvasUndo}
+                              onRequestRedo={handleCanvasRedo}
+                              globalPlaybackFrame={globalPlaybackFrame}
+                              globalPlaybackIsPlaying={globalPlaybackIsPlaying}
+                              globalPlaybackVolume={globalPlaybackVolume}
+                              globalPlaybackTimelineEnd={canvasTimelineEnd}
+                              onGlobalPlaybackToggle={toggleGlobalPlayback}
+                              onGlobalPlaybackFrameChange={seekGlobalPlayback}
+                              onGlobalPlaybackVolumeChange={handleGlobalPlaybackVolumeChange}
+                              onGlobalPlaybackSkipToStart={skipGlobalPlaybackToStart}
+                              onGlobalPlaybackSkipBackwardBar={skipGlobalPlaybackBackwardBar}
+                              onGlobalPlaybackSkipForwardBar={skipGlobalPlaybackForwardBar}
+                              showToolbarWhenInactive={
+                                isMobileViewport ? index === 0 && !mobileEditLaneId : index === 0 && activeLaneId === null
+                              }
+                              multiTrackSelectionActive={multiTrackSelectionActive}
+                              onSelectionStateChange={(selection) =>
+                                handleLaneSelectionStateChange(laneId, selection)
+                              }
+                              onRequestGlobalSelectedShift={(deltaFrames) =>
+                                handleGlobalSelectedShift(laneId, deltaFrames)
+                              }
+                              selectionClearEpoch={selectionClearEpoch}
+                              selectionClearExemptEditorId={selectionClearExemptEditorId}
+                              barSelectionClearEpoch={barSelectionClearEpoch}
+                              barSelectionClearExemptEditorId={barSelectionClearExemptEditorId}
+                              onBarSelectionStateChange={(barIndices) =>
+                                handleBarSelectionStateChange(laneId, barIndices)
+                              }
+                              onRequestSelectedBarsCopy={(barIndices) =>
+                                void handleCopySelectedBars(laneId, barIndices)
+                              }
+                              onRequestSelectedBarsPaste={(insertIndex) =>
+                                void handlePasteBars(laneId, insertIndex)
+                              }
+                              onRequestSelectedBarsDelete={(barIndices) =>
+                                void handleDeleteSelectedBars(laneId, barIndices)
+                              }
+                              barClipboardAvailable={Boolean(barClipboard)}
+                              activeBarDrag={barDragState}
+                              onBarDragStart={(barIndices) => {
+                                const nextBarIndices =
+                                  barSelection?.laneId === laneId ? barSelection.barIndices : barIndices;
+                                setBarDragState({ sourceLaneId: laneId, barIndices: [...nextBarIndices] });
+                              }}
+                              onBarDragEnd={() => setBarDragState(null)}
+                              onRequestBarDrop={(insertIndex) => {
+                                if (!barDragState) return;
+                                void handleMoveSelectedBars(
+                                  barDragState.sourceLaneId,
+                                  barDragState.barIndices,
+                                  laneId,
+                                  insertIndex
+                                );
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
                     <div className="flex flex-col gap-3 lg:flex-row">
                       <aside
                         className="w-full shrink-0 rounded-xl border border-slate-200 bg-white/90 p-2 shadow-sm lg:w-28"
@@ -2875,13 +3487,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         </div>
                         <div className="mt-2 min-w-0">
                           <select
-                            value={
-                              trackInstrumentOptions.some(
-                                (option) => option.id === normalizeTrackInstrumentId(lane.instrumentId)
-                              )
-                                ? normalizeTrackInstrumentId(lane.instrumentId)
-                                : DEFAULT_TRACK_INSTRUMENT_ID
-                            }
+                            value={instrumentValue}
                             onChange={(event) => handleLaneInstrumentChange(laneId, event.target.value)}
                             onClick={(event) => event.stopPropagation()}
                             className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 shadow-sm"
@@ -3010,7 +3616,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           allowBackend
                           embedded
                           isActive={isActive}
-                          onFocusWorkspace={() => setActiveLaneId(laneId)}
+                          mobileViewport={isMobileViewport}
+                          onFocusWorkspace={() => activateLaneForEditing(laneId)}
                           globalSnapToGridEnabled={globalSnapToGridEnabled}
                           onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
                           sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
@@ -3032,7 +3639,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onGlobalPlaybackSkipToStart={skipGlobalPlaybackToStart}
                           onGlobalPlaybackSkipBackwardBar={skipGlobalPlaybackBackwardBar}
                           onGlobalPlaybackSkipForwardBar={skipGlobalPlaybackForwardBar}
-                          showToolbarWhenInactive={activeLaneId === null && index === 0}
+                          showToolbarWhenInactive={
+                            isMobileViewport ? index === 0 && !mobileEditLaneId : activeLaneId === null && index === 0
+                          }
                           multiTrackSelectionActive={multiTrackSelectionActive}
                           onSelectionStateChange={(selection) =>
                             handleLaneSelectionStateChange(laneId, selection)
@@ -3076,28 +3685,31 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         />
                       </div>
                     </div>
+                    )}
                   {trackDragLaneId === laneId && (
                     <div className="pointer-events-none absolute inset-0 z-10 rounded-xl border border-sky-300 bg-sky-100/20" />
                   )}
                 </section>
               );
             })}
-            <div className="flex justify-center pt-1">
-              <button
-                type="button"
-                onClick={() => void handleAddLane()}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
-                disabled={addingLane}
-                title={addingLane ? "Adding track..." : "Add track"}
-                aria-label={addingLane ? "Adding track" : "Add track"}
-              >
-                +
-              </button>
-            </div>
+            {(!isMobileViewport || !mobileEditLaneId) && (
+              <div className="flex justify-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => void handleAddLane()}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled={addingLane}
+                  title={addingLane ? "Adding track..." : "Add track"}
+                  aria-label={addingLane ? "Adding track" : "Add track"}
+                >
+                  +
+                </button>
+              </div>
+            )}
           </div>
         )}
 
-        {canvas && (
+        {canvas && !isMobileViewport && (
           <div className="pointer-events-none fixed bottom-2 left-0 right-0 z-[130] px-4">
             <div className="pointer-events-auto mx-auto w-full max-w-[1700px] rounded-md border border-slate-200 bg-white/95 px-2 py-1 shadow-sm backdrop-blur">
               <div
