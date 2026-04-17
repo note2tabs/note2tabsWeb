@@ -706,7 +706,8 @@ input[type="number"] {
   padding: 12px 22px;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  transition: transform 0.16s ease, box-shadow 0.2s ease, filter 0.2s ease, background-color 0.2s ease,
+    border-color 0.2s ease, color 0.2s ease;
 }
 
 .button-small {
@@ -715,15 +716,20 @@ input[type="number"] {
 }
 
 .button-primary {
-  background: linear-gradient(135deg, var(--accent), var(--teal));
+  background: #111111;
   color: #fff;
-  box-shadow: 0 16px 32px rgba(42, 109, 244, 0.28);
+  box-shadow: 0 10px 22px rgba(17, 17, 17, 0.16);
 }
 
 .button-primary:hover {
-  filter: brightness(1.05);
-  box-shadow: 0 20px 40px rgba(42, 109, 244, 0.35);
+  background: #2a2a2a;
+  box-shadow: 0 14px 28px rgba(17, 17, 17, 0.2);
   transform: translateY(-1px);
+}
+
+.button-primary:active {
+  transform: translateY(1px) scale(0.97);
+  box-shadow: 0 6px 14px rgba(17, 17, 17, 0.12);
 }
 
 .button-primary:disabled {
