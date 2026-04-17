@@ -2923,6 +2923,50 @@ input[type="number"] {
   align-items: center;
 }
 
+.editor-actions-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 132px;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: var(--surface);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+  z-index: 20;
+}
+
+.editor-actions-menu-item {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.editor-actions-menu-item:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.editor-actions-menu-item:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.editor-actions-menu-item--danger {
+  color: #b91c1c;
+}
+
+.editor-actions-menu-item--danger:hover {
+  background: #fff5f5;
+}
+
 .editor-note {
   font-size: 0.85rem;
 }

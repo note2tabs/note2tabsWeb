@@ -14,6 +14,8 @@ export default function GteIndexPage() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [guestDraft, setGuestDraft] = useState<EditorSnapshot | null>(null);
   const [guestImporting, setGuestImporting] = useState(false);
   const router = useRouter();
@@ -87,6 +89,17 @@ export default function GteIndexPage() {
     return () => window.removeEventListener("focus", refresh);
   }, [loadGuestDraft]);
 
+  useEffect(() => {
+    if (!openMenuId) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-editor-row-menu='true']")) return;
+      setOpenMenuId(null);
+    };
+    window.addEventListener("mousedown", handlePointerDown, true);
+    return () => window.removeEventListener("mousedown", handlePointerDown, true);
+  }, [openMenuId]);
+
   const handleCreate = async () => {
     setCreating(true);
     setError(null);
@@ -104,6 +117,7 @@ export default function GteIndexPage() {
     const label = `"${editor.name || "Untitled"}"`;
     if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
     setDeletingId(editor.id);
+    setOpenMenuId(null);
     setError(null);
     try {
       await gteApi.deleteEditor(editor.id);
@@ -112,6 +126,43 @@ export default function GteIndexPage() {
       setError(err?.message || "Could not delete editor.");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleRename = async (editor: EditorListItem) => {
+    if (renamingId) return;
+    const currentName = editor.name || "Untitled";
+    const nextName = window.prompt("Rename tab", currentName);
+    if (nextName === null) return;
+    const trimmed = nextName.trim();
+    const normalizedName = trimmed || "Untitled";
+    if (normalizedName === currentName) {
+      setOpenMenuId(null);
+      return;
+    }
+    setRenamingId(editor.id);
+    setOpenMenuId(null);
+    setError(null);
+    try {
+      const res = await gteApi.setEditorName(editor.id, normalizedName);
+      const updatedName =
+        (res as any)?.canvas?.name ||
+        (res as any)?.snapshot?.name ||
+        normalizedName;
+      setEditors((prev) =>
+        prev.map((item) =>
+          item.id === editor.id
+            ? {
+                ...item,
+                name: updatedName,
+              }
+            : item
+        )
+      );
+    } catch (err: any) {
+      setError(err?.message || "Could not rename editor.");
+    } finally {
+      setRenamingId(null);
     }
   };
 
@@ -225,15 +276,36 @@ export default function GteIndexPage() {
                       </Link>
                     </h2>
                   </div>
-                  <div className="button-row">
+                  <div className="button-row" data-editor-row-menu="true" style={{ position: "relative" }}>
                     <button
                       type="button"
                       className="button-secondary button-small"
-                      onClick={() => void handleDelete(editor)}
-                      disabled={deletingId === editor.id}
+                      onClick={() => setOpenMenuId((prev) => (prev === editor.id ? null : editor.id))}
+                      aria-label="Editor options"
+                      title="Editor options"
                     >
-                      {deletingId === editor.id ? "Deleting..." : "Delete"}
+                      ...
                     </button>
+                    {openMenuId === editor.id && (
+                      <div className="editor-actions-menu">
+                        <button
+                          type="button"
+                          className="editor-actions-menu-item"
+                          onClick={() => void handleRename(editor)}
+                          disabled={renamingId === editor.id || deletingId === editor.id}
+                        >
+                          {renamingId === editor.id ? "Renaming..." : "Rename"}
+                        </button>
+                        <button
+                          type="button"
+                          className="editor-actions-menu-item editor-actions-menu-item--danger"
+                          onClick={() => void handleDelete(editor)}
+                          disabled={deletingId === editor.id || renamingId === editor.id}
+                        >
+                          {deletingId === editor.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="muted text-small gte-library-meta">
