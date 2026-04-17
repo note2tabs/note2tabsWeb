@@ -16,6 +16,8 @@ export default function GteIndexPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [renameDialog, setRenameDialog] = useState<{ id: string; name: string } | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<EditorListItem | null>(null);
   const [guestDraft, setGuestDraft] = useState<EditorSnapshot | null>(null);
   const [guestImporting, setGuestImporting] = useState(false);
   const router = useRouter();
@@ -114,14 +116,13 @@ export default function GteIndexPage() {
 
   const handleDelete = async (editor: EditorListItem) => {
     if (deletingId) return;
-    const label = `"${editor.name || "Untitled"}"`;
-    if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
     setDeletingId(editor.id);
     setOpenMenuId(null);
     setError(null);
     try {
       await gteApi.deleteEditor(editor.id);
       setEditors((prev) => prev.filter((item) => item.id !== editor.id));
+      setDeleteDialog((prev) => (prev?.id === editor.id ? null : prev));
     } catch (err: any) {
       setError(err?.message || "Could not delete editor.");
     } finally {
@@ -129,29 +130,29 @@ export default function GteIndexPage() {
     }
   };
 
-  const handleRename = async (editor: EditorListItem) => {
+  const handleRename = async (editorId: string, rawName: string) => {
     if (renamingId) return;
-    const currentName = editor.name || "Untitled";
-    const nextName = window.prompt("Rename tab", currentName);
-    if (nextName === null) return;
-    const trimmed = nextName.trim();
+    const currentEditor = editors.find((item) => item.id === editorId);
+    const currentName = currentEditor?.name || "Untitled";
+    const trimmed = rawName.trim();
     const normalizedName = trimmed || "Untitled";
     if (normalizedName === currentName) {
+      setRenameDialog(null);
       setOpenMenuId(null);
       return;
     }
-    setRenamingId(editor.id);
+    setRenamingId(editorId);
     setOpenMenuId(null);
     setError(null);
     try {
-      const res = await gteApi.setEditorName(editor.id, normalizedName);
+      const res = await gteApi.setEditorName(editorId, normalizedName);
       const updatedName =
         (res as any)?.canvas?.name ||
         (res as any)?.snapshot?.name ||
         normalizedName;
       setEditors((prev) =>
         prev.map((item) =>
-          item.id === editor.id
+          item.id === editorId
             ? {
                 ...item,
                 name: updatedName,
@@ -159,6 +160,7 @@ export default function GteIndexPage() {
             : item
         )
       );
+      setRenameDialog(null);
     } catch (err: any) {
       setError(err?.message || "Could not rename editor.");
     } finally {
@@ -269,14 +271,18 @@ export default function GteIndexPage() {
             {editors.map((editor) => (
               <div key={editor.id} className="card-outline gte-library-row">
                 <div className="gte-library-card-head">
-                  <div>
-                    <h2 className="gte-library-card-title">
-                      <Link href={`/gte/${editor.id}`}>
-                        {editor.name || "Untitled"}
-                      </Link>
-                    </h2>
-                  </div>
-                  <div className="button-row" data-editor-row-menu="true" style={{ position: "relative" }}>
+                  <h2 className="gte-library-card-title">
+                    <Link href={`/gte/${editor.id}`}>
+                      {editor.name || "Untitled"}
+                    </Link>
+                  </h2>
+                </div>
+                <div className="muted text-small gte-library-meta">
+                  <p>Notes: {editor.noteCount ?? 0} - Chords: {editor.chordCount ?? 0}</p>
+                  {editor.updatedAt && <p>Updated: {new Date(editor.updatedAt).toLocaleString()}</p>}
+                </div>
+                <div className="gte-library-row-menu" data-editor-row-menu="true">
+                  <div style={{ position: "relative" }}>
                     <button
                       type="button"
                       className="button-secondary button-small"
@@ -291,32 +297,111 @@ export default function GteIndexPage() {
                         <button
                           type="button"
                           className="editor-actions-menu-item"
-                          onClick={() => void handleRename(editor)}
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            setRenameDialog({ id: editor.id, name: editor.name || "Untitled" });
+                          }}
                           disabled={renamingId === editor.id || deletingId === editor.id}
                         >
-                          {renamingId === editor.id ? "Renaming..." : "Rename"}
+                          Rename
                         </button>
                         <button
                           type="button"
                           className="editor-actions-menu-item editor-actions-menu-item--danger"
-                          onClick={() => void handleDelete(editor)}
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            setDeleteDialog(editor);
+                          }}
                           disabled={deletingId === editor.id || renamingId === editor.id}
                         >
-                          {deletingId === editor.id ? "Deleting..." : "Delete"}
+                          Delete
                         </button>
                       </div>
                     )}
                   </div>
-                </div>
-                <div className="muted text-small gte-library-meta">
-                  <p>Notes: {editor.noteCount ?? 0} - Chords: {editor.chordCount ?? 0}</p>
-                  {editor.updatedAt && <p>Updated: {new Date(editor.updatedAt).toLocaleString()}</p>}
                 </div>
               </div>
             ))}
           </div>
         </section>
       </div>
+      {renameDialog && (
+        <div className="dialog-scrim" onMouseDown={() => !renamingId && setRenameDialog(null)}>
+          <div className="dialog-card" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="stack-tight">
+              <h2 className="page-title" style={{ fontSize: "1.25rem" }}>Rename tab</h2>
+              <p className="muted text-small">Choose a new name for this editor.</p>
+            </div>
+            <div className="stack-tight">
+              <input
+                type="text"
+                value={renameDialog.name}
+                onChange={(event) =>
+                  setRenameDialog((prev) => (prev ? { ...prev, name: event.target.value } : prev))
+                }
+                className="form-input"
+                autoFocus
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void handleRename(renameDialog.id, renameDialog.name);
+                  } else if (event.key === "Escape" && !renamingId) {
+                    setRenameDialog(null);
+                  }
+                }}
+              />
+            </div>
+            <div className="button-row" style={{ justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={() => setRenameDialog(null)}
+                disabled={Boolean(renamingId)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button-primary button-small"
+                onClick={() => void handleRename(renameDialog.id, renameDialog.name)}
+                disabled={Boolean(renamingId)}
+              >
+                {renamingId ? "Renaming..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deleteDialog && (
+        <div className="dialog-scrim" onMouseDown={() => !deletingId && setDeleteDialog(null)}>
+          <div className="dialog-card" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="stack-tight">
+              <h2 className="page-title" style={{ fontSize: "1.25rem" }}>Delete tab?</h2>
+              <p className="muted text-small">
+                Delete "{deleteDialog.name || "Untitled"}"? This cannot be undone.
+              </p>
+            </div>
+            <div className="button-row" style={{ justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={() => setDeleteDialog(null)}
+                disabled={Boolean(deletingId)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button-secondary button-small button-delete-final"
+                onClick={() => void handleDelete(deleteDialog)}
+                disabled={Boolean(deletingId)}
+              >
+                {deletingId ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

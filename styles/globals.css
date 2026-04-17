@@ -2802,7 +2802,7 @@ input[type="number"] {
 
 .gte-library-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 16px;
 }
@@ -2810,9 +2810,10 @@ input[type="number"] {
 .gte-library-card-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 10px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .gte-library-card-title {
@@ -2831,6 +2832,11 @@ input[type="number"] {
 
 .gte-library-meta p {
   margin: 0;
+}
+
+.gte-library-row-menu {
+  justify-self: end;
+  align-self: center;
 }
 
 .analytics-page {
@@ -2965,6 +2971,43 @@ input[type="number"] {
 
 .editor-actions-menu-item--danger:hover {
   background: #fff5f5;
+}
+
+.dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.2);
+}
+
+.dialog-card {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: var(--surface);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+}
+
+@media (max-width: 720px) {
+  .gte-library-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .gte-library-meta {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  .gte-library-row-menu {
+    grid-column: 2;
+    grid-row: 1;
+  }
 }
 
 .editor-note {
