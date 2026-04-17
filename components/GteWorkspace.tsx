@@ -5375,37 +5375,29 @@ export default function GteWorkspace({
         return;
       }
       if (selectedNoteIds.length > 0) {
-        const noteIdsToDelete = [...selectedNoteIds];
+        const noteIdsToDelete = Array.from(new Set(selectedNoteIds));
+        const deleteSelectedNotesFromSnapshot = (draft: EditorSnapshot) => {
+          noteIdsToDelete.forEach((id) => removeNoteFromSnapshot(draft, id));
+          return draft;
+        };
+        const nextSnapshot = deleteSelectedNotesFromSnapshot(cloneSnapshot(snapshotRef.current));
         enqueueOptimisticMutation({
           label: "delete-selected-notes",
-          apply: (draft) => {
-            noteIdsToDelete.forEach((id) => removeNoteFromSnapshot(draft, id));
-            return draft;
-          },
-          commit: async () => {
-            let last = null as Awaited<ReturnType<typeof gteApi.deleteNote>> | null;
-            for (const id of noteIdsToDelete) {
-              last = await gteApi.deleteNote(editorId, id);
-            }
-            return last ?? {};
-          },
+          apply: deleteSelectedNotesFromSnapshot,
+          commit: async () => gteApi.applySnapshot(editorId, nextSnapshot),
         });
         setSelectedNoteIds([]);
       } else if (activeChordIds.length > 0) {
-        const chordIdsToDelete = [...activeChordIds];
+        const chordIdsToDelete = Array.from(new Set(activeChordIds));
+        const deleteSelectedChordsFromSnapshot = (draft: EditorSnapshot) => {
+          chordIdsToDelete.forEach((id) => removeChordFromSnapshot(draft, id));
+          return draft;
+        };
+        const nextSnapshot = deleteSelectedChordsFromSnapshot(cloneSnapshot(snapshotRef.current));
         enqueueOptimisticMutation({
           label: "delete-selected-chords",
-          apply: (draft) => {
-            chordIdsToDelete.forEach((id) => removeChordFromSnapshot(draft, id));
-            return draft;
-          },
-          commit: async () => {
-            let last = null as Awaited<ReturnType<typeof gteApi.deleteChord>> | null;
-            for (const id of chordIdsToDelete) {
-              last = await gteApi.deleteChord(editorId, id);
-            }
-            return last ?? {};
-          },
+          apply: deleteSelectedChordsFromSnapshot,
+          commit: async () => gteApi.applySnapshot(editorId, nextSnapshot),
         });
         setSelectedChordIds([]);
       }
@@ -5435,6 +5427,7 @@ export default function GteWorkspace({
     handleScaleFactorInputChange,
     setSnapToGridEnabled,
     scaleToolActive,
+    cloneSnapshot,
     barClipboardAvailable,
     handleCopySelectedBars,
     handleDeleteSelectedBars,
