@@ -6875,18 +6875,9 @@ export default function GteWorkspace({
                             )
                           );
                         }}
-                        onTouchMove={(event) => {
-                          event.stopPropagation();
-                          cancelTouchHoldOnMove(event);
-                        }}
-                        onTouchEnd={(event) => {
-                          event.stopPropagation();
-                          clearTouchHold();
-                        }}
-                        onTouchCancel={(event) => {
-                          event.stopPropagation();
-                          clearTouchHold();
-                        }}
+                        onTouchMove={cancelTouchHoldOnMove}
+                        onTouchEnd={() => clearTouchHold()}
+                        onTouchCancel={() => clearTouchHold()}
                         onClick={(event) => {
                           if (touchHoldTriggeredRef.current) {
                             touchHoldTriggeredRef.current = false;
@@ -7028,18 +7019,9 @@ export default function GteWorkspace({
                               startChordDrag(chord.id, chord.startTime, chord.length, pointer)
                             );
                           }}
-                          onTouchMove={(event) => {
-                            event.stopPropagation();
-                            cancelTouchHoldOnMove(event);
-                          }}
-                          onTouchEnd={(event) => {
-                            event.stopPropagation();
-                            clearTouchHold();
-                          }}
-                          onTouchCancel={(event) => {
-                            event.stopPropagation();
-                            clearTouchHold();
-                          }}
+                          onTouchMove={cancelTouchHoldOnMove}
+                          onTouchEnd={() => clearTouchHold()}
+                          onTouchCancel={() => clearTouchHold()}
                           onDoubleClick={(event) => {
                             if (editingChordId !== null) return;
                             openChordEdit(chord.id, event);
