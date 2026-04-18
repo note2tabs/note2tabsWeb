@@ -159,6 +159,54 @@ const applyLaneMutation = (canvas: CanvasSnapshot, laneId: string, mutate: (lane
   return { canvas: nextCanvas, snapshot: nextCanvas.editors[laneIndex] };
 };
 
+const replaceLaneSnapshot = (
+  canvas: CanvasSnapshot,
+  laneId: string,
+  snapshot: unknown
+) => {
+  const { laneIndex, lane } = requireLane(canvas, laneId);
+  const nextEditors = [...canvas.editors];
+  nextEditors[laneIndex] = normalizeLane(
+    snapshot,
+    laneId,
+    toNumber((snapshot as { secondsPerBar?: unknown } | null)?.secondsPerBar, toNumber(lane.secondsPerBar, DEFAULT_SECONDS_PER_BAR)),
+    laneIndex
+  );
+  const nextCanvas = normalizeCanvas(touchCanvas({ ...canvas, editors: nextEditors }), canvas.id);
+  return { canvas: nextCanvas, snapshot: nextCanvas.editors[laneIndex] };
+};
+
+const ensureUpstreamGuestCanvas = async (sessionId: string, canvas: CanvasSnapshot) => {
+  const guestUserId = `guest-${sessionId}`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-User-Id": guestUserId,
+    ...(BACKEND_SECRET ? { "X-Backend-Secret": BACKEND_SECRET } : {}),
+  };
+
+  await fetch(`${API_BASE}/gte/editors`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ editorId: canvas.id, name: canvas.name || "Untitled" }),
+  }).catch(() => {});
+
+  const snapshotResponse = await fetch(
+    `${API_BASE}/gte/editors/${encodeURIComponent(canvas.id)}/snapshot`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ snapshot: canvas }),
+    }
+  );
+
+  if (!snapshotResponse.ok) {
+    const text = await snapshotResponse.text();
+    throw new Error(text || "Could not sync guest editor to backend.");
+  }
+
+  return { guestUserId, headers };
+};
+
 const getTabMidi = (lane: EditorSnapshot, tab: TabCoord) => {
   const fromRef = lane.tabRef?.[tab[0]]?.[tab[1]];
   if (fromRef !== undefined && fromRef !== null && Number.isFinite(Number(fromRef))) return Number(fromRef);
@@ -811,9 +859,38 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
     if (rest[0] === "cuts" && laneId) {
       if (rest[1] === "generate" && method === "POST") {
-        const result = applyLaneMutation(canvas, laneId, (lane) => generateCuts(lane));
-        canvas = persistCanvas(sessionId, result.canvas);
-        return res.status(200).json({ ok: true, snapshot: result.snapshot });
+        return ensureUpstreamGuestCanvas(sessionId, canvas)
+          .then(({ headers }) =>
+            fetch(`${API_BASE}/gte/editors/${encodeURIComponent(editorRef)}/cuts/generate`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify(body ?? {}),
+            })
+          )
+          .then(async (upstream) => {
+            const text = await upstream.text();
+            if (!upstream.ok) {
+              return res.status(upstream.status).json({ error: text || "Guest cut generation failed." });
+            }
+
+            let parsed: Record<string, any> = {};
+            try {
+              parsed = text ? (JSON.parse(text) as Record<string, any>) : {};
+            } catch {
+              return res.status(502).json({ error: "Invalid guest cut generation response." });
+            }
+
+            if (!parsed.snapshot || typeof parsed.snapshot !== "object") {
+              return res.status(502).json({ error: "Guest cut generation returned no snapshot." });
+            }
+
+            const result = replaceLaneSnapshot(canvas, laneId, parsed.snapshot);
+            canvas = persistCanvas(sessionId, result.canvas);
+            return res.status(200).json({ ...parsed, snapshot: result.snapshot });
+          })
+          .catch((error: any) => {
+            return res.status(500).json({ error: error?.message || "Guest cut generation failed." });
+          });
       }
       if (rest[1] === "apply_manual" && method === "POST") {
         const result = applyLaneMutation(canvas, laneId, (lane) => applyManualCuts(lane, Array.isArray(body.cutPositionsWithCoords) ? body.cutPositionsWithCoords : []));
