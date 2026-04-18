@@ -4,8 +4,10 @@ import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { gteApi } from "../../lib/gteApi";
+import { GTE_GUEST_EDITOR_ID } from "../../lib/gteGuestDraft";
 
 const LIBRARY_PATH = "/gte";
+const GUEST_EDITOR_PATH = `/gte/${GTE_GUEST_EDITOR_ID}`;
 
 const editorHighlights = [
   {
@@ -66,14 +68,14 @@ export default function EditorLandingPage() {
   const [error, setError] = useState<string | null>(null);
 
   const isSignedIn = Boolean(session?.user?.id);
-  const libraryHref = isSignedIn ? LIBRARY_PATH : `/auth/login?next=${encodeURIComponent(LIBRARY_PATH)}`;
+  const libraryHref = isSignedIn ? LIBRARY_PATH : GUEST_EDITOR_PATH;
 
   const handleCreate = async () => {
     if (creating || status === "loading") return;
     setError(null);
 
     if (!isSignedIn) {
-      await router.push("/gte/local");
+      await router.push(GUEST_EDITOR_PATH);
       return;
     }
 

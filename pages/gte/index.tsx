@@ -411,7 +411,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (!session?.user?.id) {
     return {
       redirect: {
-        destination: "/auth/login",
+        destination: `/gte/${GTE_GUEST_EDITOR_ID}`,
         permanent: false,
       },
     };
