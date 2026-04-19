@@ -653,6 +653,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [mobileEditLaneId, setMobileEditLaneId] = useState<string | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [savingCanvas, setSavingCanvas] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [hasPendingCommit, setHasPendingCommit] = useState(false);
@@ -661,6 +662,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [deletingLaneId, setDeletingLaneId] = useState<string | null>(null);
   const [confirmDeleteTrackId, setConfirmDeleteTrackId] = useState<string | null>(null);
   const [openTrackMenuId, setOpenTrackMenuId] = useState<string | null>(null);
+  const [openMobileBarMenuLaneId, setOpenMobileBarMenuLaneId] = useState<string | null>(null);
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
   const [sharedTimelineScrollRatio, setSharedTimelineScrollRatio] = useState(0);
@@ -947,6 +949,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     const applyViewport = (matches: boolean) => {
       setIsMobileViewport(matches);
       setMobileControlsOpen((prev) => (matches ? prev : false));
+      setMobileNavOpen((prev) => (matches ? prev : false));
       if (!matches) {
         setMobileEditLaneId(null);
       }
@@ -992,11 +995,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const activateLaneForEditing = useCallback((laneId: string) => {
     setActiveLaneId(laneId);
+    setOpenMobileBarMenuLaneId(null);
     setMobileEditLaneId((prev) => (isMobileViewport ? laneId : prev));
-    if (!isMobileViewport) return;
-    window.requestAnimationFrame(() => {
-      trackSectionRefs.current[laneId]?.scrollIntoView({ block: "start", behavior: "smooth" });
-    });
   }, [isMobileViewport]);
 
   const commitCanvasToBackend = useCallback(
@@ -1441,9 +1441,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const clearBarSelectionState = useCallback((exemptEditorRef: string | null = null) => {
     setBarSelection(null);
     setBarDragState(null);
+    setOpenMobileBarMenuLaneId(null);
     setBarSelectionClearExemptEditorId(exemptEditorRef);
     setBarSelectionClearEpoch((prev) => prev + 1);
   }, []);
+
+  const exitMobileEditMode = useCallback(() => {
+    setMobileEditLaneId(null);
+    setActiveLaneId(null);
+    setOpenTrackMenuId(null);
+    setMobileNavOpen(false);
+    setMobileControlsOpen(false);
+    clearBarSelectionState();
+  }, [clearBarSelectionState]);
 
   const applyCanvasBarUpdate = useCallback(
     (nextCanvas: CanvasSnapshot) => {
@@ -1452,24 +1462,35 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [applyCanvasUpdate, editorId]
   );
 
-  const handleBarSelectionStateChange = useCallback((laneId: string, barIndices: number[]) => {
-    setBarSelection((prev) => {
-      if (!barIndices.length) {
-        return prev?.laneId === laneId ? null : prev;
+  const handleBarSelectionStateChange = useCallback(
+    (laneId: string, barIndices: number[]) => {
+      if (barIndices.length && barSelection?.laneId && barSelection.laneId !== laneId) {
+        setBarSelectionClearExemptEditorId(buildLaneEditorRef(editorId, laneId));
+        setBarSelectionClearEpoch((prev) => prev + 1);
+        setOpenMobileBarMenuLaneId(null);
       }
-      if (
-        prev?.laneId === laneId &&
-        prev.barIndices.length === barIndices.length &&
-        prev.barIndices.every((value, index) => value === barIndices[index])
-      ) {
-        return prev;
+      if (!barIndices.length && openMobileBarMenuLaneId === laneId) {
+        setOpenMobileBarMenuLaneId(null);
       }
-      return {
-        laneId,
-        barIndices: [...barIndices],
-      };
-    });
-  }, []);
+      setBarSelection((prev) => {
+        if (!barIndices.length) {
+          return prev?.laneId === laneId ? null : prev;
+        }
+        if (
+          prev?.laneId === laneId &&
+          prev.barIndices.length === barIndices.length &&
+          prev.barIndices.every((value, index) => value === barIndices[index])
+        ) {
+          return prev;
+        }
+        return {
+          laneId,
+          barIndices: [...barIndices],
+        };
+      });
+    },
+    [barSelection?.laneId, editorId, openMobileBarMenuLaneId]
+  );
 
   const handleCopySelectedBars = useCallback(
     async (laneId: string, barIndices: number[]) => {
@@ -1591,6 +1612,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [applyCanvasBarUpdate, canvas, clearBarSelectionState, editorId, isGuestMode]
   );
 
+  useEffect(() => {
+    if (!openMobileBarMenuLaneId) return;
+    if (!barSelection || barSelection.laneId !== openMobileBarMenuLaneId || barSelection.barIndices.length === 0) {
+      setOpenMobileBarMenuLaneId(null);
+    }
+  }, [barSelection, openMobileBarMenuLaneId]);
+
   const handleCanvasUndo = useCallback(() => {
     if (!canvas) return;
     if (deletingLaneId || addingLane || savingCanvas) return;
@@ -1710,9 +1738,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [sharedViewportBarCount]
   );
 
-  const mobileControlsSummary = `${bpmDraft} BPM - ${timeSignatureDraft}/bar - Snap ${
-    globalSnapToGridEnabled ? "On" : "Off"
-  }`;
+  const mobileControlsSummary = `${nameDraft || "Untitled"} - ${bpmDraft} BPM - ${timeSignatureDraft}/bar`;
+  const isMobileCanvasMode = isMobileViewport && mobileEditLaneId === null;
+  const isMobileEditMode = isMobileViewport && mobileEditLaneId !== null;
 
   useEffect(() => {
     const scrollbar = globalTimelineScrollbarRef.current;
@@ -2447,15 +2475,31 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [globalPlaybackVolume]);
 
   useEffect(() => {
-    if (!openTrackMenuId) return;
+    if (!openTrackMenuId && !openMobileBarMenuLaneId) return;
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-track-menu='true'], [data-mobile-bar-menu='true']")) return;
+      setOpenTrackMenuId(null);
+      setOpenMobileBarMenuLaneId(null);
+    };
+    window.addEventListener("mousedown", handlePointerDown, true);
+    window.addEventListener("touchstart", handlePointerDown, true);
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown, true);
+      window.removeEventListener("touchstart", handlePointerDown, true);
+    };
+  }, [openMobileBarMenuLaneId, openTrackMenuId]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target?.closest("[data-track-menu='true']")) return;
-      setOpenTrackMenuId(null);
+      if (target?.closest("[data-mobile-nav='true']")) return;
+      setMobileNavOpen(false);
     };
     window.addEventListener("mousedown", handlePointerDown, true);
     return () => window.removeEventListener("mousedown", handlePointerDown, true);
-  }, [openTrackMenuId]);
+  }, [mobileNavOpen]);
 
   useEffect(() => {
     return () => {
@@ -2489,9 +2533,395 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     handleSharedTimelineScrollRatioChange,
   ]);
 
+  const mobileHistoryBusy = Boolean(deletingLaneId || addingLane || savingCanvas);
+  const renderMobileHistoryControls = () => (
+    <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={handleCanvasUndo}
+        disabled={canvasUndoCount === 0 || mobileHistoryBusy}
+        className="flex h-11 w-11 items-center justify-center text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+        title="Undo"
+        aria-label="Undo"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+          <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
+        </svg>
+      </button>
+      <div className="h-6 w-px bg-slate-200" />
+      <button
+        type="button"
+        onClick={handleCanvasRedo}
+        disabled={canvasRedoCount === 0 || mobileHistoryBusy}
+        className="flex h-11 w-11 items-center justify-center text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+        title="Redo"
+        aria-label="Redo"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+          <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
+        </svg>
+      </button>
+    </div>
+  );
+
   return (
-    <main className="page page-tight" onMouseDownCapture={handleMainMouseDownCapture}>
-      <div className="container gte-wide stack pb-16">
+    <main
+      className={`page page-tight ${
+        isMobileEditMode ? "h-[100dvh] overflow-hidden overscroll-none py-3" : ""
+      }`}
+      onMouseDownCapture={handleMainMouseDownCapture}
+    >
+      <div
+        className={`container gte-wide ${
+          isMobileEditMode
+            ? "flex h-full min-h-0 flex-col gap-3 overflow-hidden overscroll-none pb-0"
+            : `stack ${isMobileCanvasMode ? "pb-24" : "pb-16"}`
+        }`}
+      >
+        {isMobileCanvasMode && (
+          <div className="space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="relative" data-mobile-nav="true">
+                  <button
+                    type="button"
+                    onClick={() => setMobileNavOpen((prev) => !prev)}
+                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm"
+                    aria-expanded={mobileNavOpen}
+                    aria-label="Open menu"
+                  >
+                    <span className="flex flex-col gap-1">
+                      <span className="block h-0.5 w-5 rounded-full bg-current" />
+                      <span className="block h-0.5 w-5 rounded-full bg-current" />
+                      <span className="block h-0.5 w-5 rounded-full bg-current" />
+                    </span>
+                  </button>
+                  {mobileNavOpen && (
+                    <div className="absolute left-0 top-12 z-40 w-64 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Menu
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {isGuestMode ? (
+                          <>
+                            <Link href="/" className="block rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                              Home
+                            </Link>
+                            {session?.user?.id ? (
+                              <button
+                                type="button"
+                                onClick={() => void router.push(saveToAccountPath)}
+                                className="block w-full rounded-xl bg-slate-900 px-3 py-2 text-left text-sm font-semibold text-white"
+                              >
+                                Save draft to account
+                              </button>
+                            ) : (
+                              <>
+                                <Link
+                                  href={loginSaveHref}
+                                  className="block rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
+                                >
+                                  Log in to save
+                                </Link>
+                                <Link
+                                  href={signupSaveHref}
+                                  className="block rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
+                                >
+                                  Create account
+                                </Link>
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => void router.push("/gte")}
+                              className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm text-slate-700"
+                            >
+                              Back to editors
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void commitCanvasToBackend({ force: true })}
+                          className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400"
+                          disabled={savingCanvas || isGuestMode}
+                        >
+                          {savingCanvas ? "Saving..." : "Save now"}
+                        </button>
+                      </div>
+                      <div className="mt-3 text-xs text-slate-500">{saveStatus}</div>
+                      {isGuestMode && (
+                        <div className="mt-2 text-xs text-slate-500">
+                          This draft stays in this browser until you save it to your account.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {renderMobileHistoryControls()}
+              </div>
+              <button
+                type="button"
+                onClick={() => void router.push(transcriberHref)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm"
+                title="Open the standalone transcriber"
+              >
+                Generate tabs
+              </button>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setMobileControlsOpen((prev) => !prev)}
+                className="flex w-full items-center justify-between gap-3 text-left"
+                aria-expanded={mobileControlsOpen}
+              >
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Project settings
+                  </span>
+                  <span className="block truncate text-sm text-slate-700">{mobileControlsSummary}</span>
+                </span>
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className={`h-4 w-4 transition-transform ${mobileControlsOpen ? "rotate-180" : ""}`}
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M6 9l6 6 6-6"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.9}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+              </button>
+              {mobileControlsOpen && (
+                <div className="mt-3 grid gap-3">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Name
+                    <input
+                      type="text"
+                      value={nameDraft}
+                      onChange={(event) => setNameDraft(event.target.value)}
+                      onBlur={() => void commitName(nameDraft)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") return;
+                        event.preventDefault();
+                        void commitName(nameDraft);
+                      }}
+                      className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700"
+                      placeholder="Untitled"
+                    />
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      BPM
+                      <span className="mt-2 flex items-center gap-2">
+                        <input
+                          type="number"
+                          step={1}
+                          min={1}
+                          value={bpmDraft}
+                          onChange={(event) => {
+                            if (bpmCommitTimerRef.current !== null) {
+                              window.clearTimeout(bpmCommitTimerRef.current);
+                              bpmCommitTimerRef.current = null;
+                            }
+                            queuedBpmValueRef.current = null;
+                            setBpmDraft(event.target.value);
+                          }}
+                          onBlur={() => void commitBpm()}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter") return;
+                            event.preventDefault();
+                            void commitBpm();
+                          }}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
+                        />
+                        <span className="inline-flex flex-col gap-1">
+                          <button
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => {
+                              const current =
+                                normalizeBpm(bpmDraft) ??
+                                secondsPerBarToBpm(
+                                  canvas?.secondsPerBar,
+                                  normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
+                                );
+                              const next = current + 1;
+                              setBpmDraft(formatBpm(next));
+                              scheduleBpmCommit(next);
+                            }}
+                            className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
+                            aria-label="Increase BPM"
+                          >
+                            &#9650;
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => {
+                              const current =
+                                normalizeBpm(bpmDraft) ??
+                                secondsPerBarToBpm(
+                                  canvas?.secondsPerBar,
+                                  normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
+                                );
+                              const next = Math.max(1, current - 1);
+                              setBpmDraft(formatBpm(next));
+                              scheduleBpmCommit(next);
+                            }}
+                            className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
+                            aria-label="Decrease BPM"
+                          >
+                            &#9660;
+                          </button>
+                        </span>
+                      </span>
+                    </label>
+                    <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Beats/bar
+                      <span className="mt-2 flex items-center gap-2">
+                        <input
+                          type="number"
+                          step={1}
+                          min={1}
+                          max={64}
+                          value={timeSignatureDraft}
+                          onChange={(event) => {
+                            if (timeSignatureCommitTimerRef.current !== null) {
+                              window.clearTimeout(timeSignatureCommitTimerRef.current);
+                              timeSignatureCommitTimerRef.current = null;
+                            }
+                            queuedTimeSignatureValueRef.current = null;
+                            setTimeSignatureDraft(event.target.value);
+                          }}
+                          onBlur={() => void commitTimeSignature()}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter") return;
+                            event.preventDefault();
+                            void commitTimeSignature();
+                          }}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
+                        />
+                        <span className="inline-flex flex-col gap-1">
+                          <button
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => {
+                              const current =
+                                normalizeTimeSignature(timeSignatureDraft) ??
+                                normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ??
+                                8;
+                              const next = current + 1;
+                              setTimeSignatureDraft(String(Math.min(64, next)));
+                              scheduleTimeSignatureCommit(next);
+                            }}
+                            className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
+                            aria-label="Increase beats per bar"
+                          >
+                            &#9650;
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => {
+                              const current =
+                                normalizeTimeSignature(timeSignatureDraft) ??
+                                normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ??
+                                8;
+                              const next = Math.max(1, current - 1);
+                              setTimeSignatureDraft(String(next));
+                              scheduleTimeSignatureCommit(next);
+                            }}
+                            className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
+                            aria-label="Decrease beats per bar"
+                          >
+                            &#9660;
+                          </button>
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                  <div className="flex min-h-[1.25rem] flex-wrap items-center gap-3 text-xs">
+                    <span className="muted">{saveStatus}</span>
+                    {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
+                    {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
+                    {(timeSignatureSaving || timeSignatureError) && (
+                      <span className={timeSignatureError ? "error" : "muted"}>
+                        {timeSignatureError || "Saving beats..."}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        {isMobileEditMode && (
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={exitMobileEditMode}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+            >
+              Back
+            </button>
+            {renderMobileHistoryControls()}
+            <button
+              type="button"
+              onClick={() => setGlobalSnapToGridEnabled((prev) => !prev)}
+              className={`rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm ${
+                globalSnapToGridEnabled
+                  ? "border-emerald-300 bg-emerald-100 text-emerald-800"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              Snap {globalSnapToGridEnabled ? "On" : "Off"}
+            </button>
+            <div className="ml-auto flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
+              <span className="text-slate-500">Time</span>
+              <span className="font-semibold text-slate-700">{timelineZoomPercent}%</span>
+              <span className="inline-flex flex-col gap-1">
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() =>
+                    setTimelineZoomPercent((prev) =>
+                      Math.min(TIMELINE_ZOOM_MAX, Math.max(TIMELINE_ZOOM_MIN, prev + 10))
+                    )
+                  }
+                  className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
+                  aria-label="Increase time scale"
+                >
+                  &#9650;
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() =>
+                    setTimelineZoomPercent((prev) =>
+                      Math.max(TIMELINE_ZOOM_MIN, Math.min(TIMELINE_ZOOM_MAX, prev - 10))
+                    )
+                  }
+                  className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
+                  aria-label="Decrease time scale"
+                >
+                  &#9660;
+                </button>
+              </span>
+            </div>
+          </div>
+        )}
+        {!isMobileViewport && (
         <div className="page-header" style={isMobileViewport ? { position: "relative", paddingRight: 152 } : undefined}>
           <div style={{ flex: "1 1 0", minWidth: 0 }}>
             <div
@@ -3137,13 +3567,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 >
                   {isMobileViewport ? "Editors" : "Back to editors"}
                 </button>
-                <Link
-                  href="/account"
-                  className={`button-secondary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
-                  style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
-                >
-                  Account
-                </Link>
               </>
             )}
             <button
@@ -3165,8 +3588,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             </button>
           </div>
         </div>
+        )}
 
-        {isGuestMode && (
+        {isGuestMode && !isMobileEditMode && (
           <div className="notice">
             You are working without an account right now. This draft stays in this browser until you save it to your library.
           </div>
@@ -3175,7 +3599,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         {error && <div className="error">{error}</div>}
         {saveError && <div className="error">{saveError}</div>}
         {canvas && (
-          <div className="stack min-w-0 overflow-x-hidden space-y-2">
+          <div
+            className={`stack min-w-0 overflow-x-hidden ${
+              isMobileEditMode ? "flex-1 min-h-0 space-y-0" : "space-y-2"
+            }`}
+          >
             {canvas.editors.map((lane, index) => {
               const laneId = lane.id || `ed-${index + 1}`;
               if (isMobileViewport && mobileEditLaneId && laneId !== mobileEditLaneId) {
@@ -3195,6 +3623,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               const instrumentLabel =
                 trackInstrumentOptions.find((option) => option.id === instrumentValue)?.label || "Built-in synth";
               const mobileEditing = isMobileViewport && mobileEditLaneId === laneId;
+              const mobileSelectedBars =
+                isMobileViewport && barSelection?.laneId === laneId ? barSelection.barIndices : [];
+              const mobileBarPasteIndex = mobileSelectedBars.length
+                ? Math.max(...mobileSelectedBars) + 1
+                : laneBarCount;
                 return (
                   <section
                     key={laneId}
@@ -3204,11 +3637,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     data-gte-track="true"
                     data-gte-track-lane-id={laneId}
                     className={`relative w-full min-w-0 max-w-full ${
-                      isMobileViewport ? "rounded-lg" : ""
-                    } ${
-                      mobileEditing ? "sticky top-0 z-20 pb-2" : ""
+                      isMobileEditMode
+                        ? "flex min-h-0 flex-1 flex-col"
+                        : isMobileViewport
+                        ? "rounded-lg"
+                        : ""
                     }`}
-                    style={mobileEditing ? { backgroundColor: "var(--bg)" } : undefined}
+                    style={mobileEditing ? { backgroundColor: "var(--bg)", minHeight: 0 } : undefined}
                     onMouseDownCapture={(event) => {
                       const target = event.target as HTMLElement | null;
                       const clickedBarSelector = Boolean(
@@ -3228,6 +3663,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         setSelectionClearEpoch((prev) => prev + 1);
                       }
                       setActiveLaneId(laneId);
+                      if (isMobileViewport) {
+                        setPendingTrackReorder(null);
+                        return;
+                      }
                       if (event.button !== 0) {
                         setPendingTrackReorder(null);
                         return;
@@ -3245,6 +3684,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         startY: event.clientY,
                       });
                     }}
+                    onTouchStartCapture={(event) => {
+                      const target = event.target as HTMLElement | null;
+                      const clickedBarSelector = Boolean(target?.closest("[data-bar-select='true']"));
+                      if (activeLaneId !== laneId) {
+                        setBarSelectionClearExemptEditorId(clickedBarSelector ? laneEditorRef : null);
+                        setBarSelectionClearEpoch((prev) => prev + 1);
+                        setOpenMobileBarMenuLaneId(null);
+                      }
+                      if (activeLaneId !== laneId) {
+                        setSelectionClearExemptEditorId(laneEditorRef);
+                        setSelectionClearEpoch((prev) => prev + 1);
+                      }
+                      setActiveLaneId(laneId);
+                      setPendingTrackReorder(null);
+                    }}
                   >
                     {trackDragLaneId !== null && trackDropIndex === index && (
                       <div className="pointer-events-none absolute -top-1 left-4 right-4 z-30 h-1 rounded-full bg-sky-400 shadow-sm" />
@@ -3253,145 +3707,75 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       <div className="pointer-events-none absolute -bottom-1 left-4 right-4 z-30 h-1 rounded-full bg-sky-400 shadow-sm" />
                     )}
                     {isMobileViewport ? (
-                      <div className="space-y-1.5">
-                        <div
-                          className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 shadow-sm ${
-                            mobileEditing ? "border-sky-300 bg-sky-50/80" : "border-slate-200 bg-white"
-                          }`}
-                          data-track-reorder-block="true"
-                        >
-                          <button
-                            type="button"
-                            onClick={() => activateLaneForEditing(laneId)}
-                            className="min-w-0 flex-1 text-left"
-                          >
-                            <span className="block truncate text-sm font-semibold text-slate-800">
-                              Track {index + 1}
-                            </span>
-                            <span className="mt-0.5 block truncate text-[11px] text-slate-500">
-                              {instrumentLabel} - Bars: {laneBarCount}
-                            </span>
-                          </button>
-                          {mobileEditing ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setMobileEditLaneId(null);
-                                setActiveLaneId(null);
-                              }}
-                              className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600"
-                            >
-                              Done
-                            </button>
-                          ) : (
-                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500">
-                              View
-                            </span>
-                          )}
-                          <div className="relative" data-track-menu="true">
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                setOpenTrackMenuId((prev) => (prev === laneId ? null : laneId));
-                              }}
-                              className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600"
-                              title="Track options"
-                              aria-label="Track options"
-                            >
-                              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                                <circle cx="12" cy="5" r="1.8" />
-                                <circle cx="12" cy="12" r="1.8" />
-                                <circle cx="12" cy="19" r="1.8" />
-                              </svg>
-                            </button>
-                            {openTrackMenuId === laneId && (
-                              <div className="absolute right-0 top-10 z-30 w-60 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
-                                <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                  Sound
-                                  <select
-                                    value={instrumentValue}
-                                    onChange={(event) => handleLaneInstrumentChange(laneId, event.target.value)}
-                                    className="mt-2 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
-                                  >
-                                    {trackInstrumentOptions.map((option) => (
-                                      <option key={`${laneId}-mobile-instrument-${option.id}`} value={option.id}>
-                                        {option.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
-                                <div className="mt-3 flex gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleTrackMute(laneId)}
-                                    className={`flex-1 rounded-md border px-2 py-2 text-xs font-semibold ${
-                                      isTrackMuted
-                                        ? "border-amber-300 bg-amber-50 text-amber-700"
-                                        : "border-slate-200 bg-white text-slate-600"
-                                    }`}
-                                  >
-                                    {isTrackMuted ? "Muted" : "Mute"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleTrackIsolation(laneId)}
-                                    className={`flex-1 rounded-md border px-2 py-2 text-xs font-semibold ${
-                                      isTrackIsolated
-                                        ? "border-sky-500 bg-sky-500 text-white"
-                                        : "border-slate-200 bg-white text-slate-600"
-                                    }`}
-                                  >
-                                    {isTrackIsolated ? "Isolated" : "Isolate"}
-                                  </button>
-                                </div>
-                                <label className="mt-3 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                  Volume
-                                  <div className="mt-2 flex items-center gap-3">
-                                    <input
-                                      type="range"
-                                      min={0}
-                                      max={1}
-                                      step={0.01}
-                                      value={trackVolume}
-                                      onChange={(event) => handleTrackVolumeChange(laneId, Number(event.target.value))}
-                                      className="flex-1 accent-slate-700"
-                                    />
-                                    <span className="w-10 text-right text-xs text-slate-500">
-                                      {Math.round(trackVolume * 100)}%
-                                    </span>
-                                  </div>
-                                </label>
+                      mobileEditing ? (
+                        <div className="flex min-h-0 flex-1 flex-col justify-center">
+                          {mobileSelectedBars.length > 0 && (
+                            <div className="mb-2 flex justify-end">
+                              <div
+                                className="relative"
+                                data-mobile-bar-menu="true"
+                                data-mobile-bar-menu-editor={laneEditorRef}
+                              >
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
                                     setOpenTrackMenuId(null);
-                                    requestDeleteTrack(laneId);
+                                    setOpenMobileBarMenuLaneId((prev) => (prev === laneId ? null : laneId));
                                   }}
-                                  className="mt-3 block w-full rounded-md bg-rose-50 px-3 py-2 text-left text-xs font-semibold text-rose-600"
-                                  disabled={deletingLaneId === laneId}
+                                  className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm"
+                                  title="Bar actions"
+                                  aria-label="Bar actions"
                                 >
-                                  {deletingLaneId === laneId ? "Removing..." : "Remove track"}
+                                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                                    <circle cx="12" cy="5" r="1.8" />
+                                    <circle cx="12" cy="12" r="1.8" />
+                                    <circle cx="12" cy="19" r="1.8" />
+                                  </svg>
                                 </button>
+                                {openMobileBarMenuLaneId === laneId && (
+                                  <div className="absolute right-0 top-11 z-40 w-40 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                                    <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                      {mobileSelectedBars.length} selected
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        void handleCopySelectedBars(laneId, mobileSelectedBars);
+                                        setOpenMobileBarMenuLaneId(null);
+                                      }}
+                                      className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                    >
+                                      Copy
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        void handlePasteBars(laneId, mobileBarPasteIndex);
+                                        setOpenMobileBarMenuLaneId(null);
+                                      }}
+                                      disabled={!barClipboard}
+                                      className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+                                    >
+                                      Paste
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        void handleDeleteSelectedBars(laneId, mobileSelectedBars);
+                                        setOpenMobileBarMenuLaneId(null);
+                                      }}
+                                      className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="relative">
-                          {!mobileEditing && (
-                            <button
-                              type="button"
-                              onClick={() => activateLaneForEditing(laneId)}
-                              className="absolute inset-0 z-20 rounded-lg bg-white/0"
-                              aria-label={`Edit track ${index + 1}`}
-                            >
-                              <span className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                                Tap to edit
-                              </span>
-                            </button>
+                            </div>
                           )}
-                          <div className={mobileEditing ? "" : "max-h-[198px] overflow-hidden rounded-lg"}>
+                          <div className="min-h-0 overflow-hidden rounded-2xl">
                             <GteWorkspace
                               editorId={laneEditorRef}
                               snapshot={lane}
@@ -3400,9 +3784,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               }
                               allowBackend
                               embedded
-                              isActive={isMobileViewport ? mobileEditing : isActive}
-                              mobileViewport={isMobileViewport}
-                              onFocusWorkspace={() => activateLaneForEditing(laneId)}
+                              isActive
+                              mobileViewport
+                              mobileMode="edit"
+                              onFocusWorkspace={() => setActiveLaneId(laneId)}
                               globalSnapToGridEnabled={globalSnapToGridEnabled}
                               onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
@@ -3424,9 +3809,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onGlobalPlaybackSkipToStart={skipGlobalPlaybackToStart}
                               onGlobalPlaybackSkipBackwardBar={skipGlobalPlaybackBackwardBar}
                               onGlobalPlaybackSkipForwardBar={skipGlobalPlaybackForwardBar}
-                              showToolbarWhenInactive={
-                                isMobileViewport ? index === 0 && !mobileEditLaneId : index === 0 && activeLaneId === null
-                              }
+                              showToolbarWhenInactive={false}
                               multiTrackSelectionActive={multiTrackSelectionActive}
                               onSelectionStateChange={(selection) =>
                                 handleLaneSelectionStateChange(laneId, selection)
@@ -3451,26 +3834,250 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                 void handleDeleteSelectedBars(laneId, barIndices)
                               }
                               barClipboardAvailable={Boolean(barClipboard)}
-                              activeBarDrag={barDragState}
-                              onBarDragStart={(barIndices) => {
-                                const nextBarIndices =
-                                  barSelection?.laneId === laneId ? barSelection.barIndices : barIndices;
-                                setBarDragState({ sourceLaneId: laneId, barIndices: [...nextBarIndices] });
-                              }}
-                              onBarDragEnd={() => setBarDragState(null)}
-                              onRequestBarDrop={(insertIndex) => {
-                                if (!barDragState) return;
-                                void handleMoveSelectedBars(
-                                  barDragState.sourceLaneId,
-                                  barDragState.barIndices,
-                                  laneId,
-                                  insertIndex
-                                );
-                              }}
                             />
                           </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div
+                            className={`flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-sm ${
+                              isActive ? "border-sky-300 bg-sky-50/80" : "border-slate-200 bg-white"
+                            }`}
+                            data-track-reorder-block="true"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <div className="truncate text-sm font-semibold text-slate-800">Track {index + 1}</div>
+                                {mobileSelectedBars.length > 0 && (
+                                  <div
+                                    className="relative shrink-0"
+                                    data-mobile-bar-menu="true"
+                                    data-mobile-bar-menu-editor={laneEditorRef}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        setOpenTrackMenuId(null);
+                                        setOpenMobileBarMenuLaneId((prev) => (prev === laneId ? null : laneId));
+                                      }}
+                                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm"
+                                      title="Bar actions"
+                                      aria-label="Bar actions"
+                                    >
+                                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
+                                        <circle cx="12" cy="5" r="1.8" />
+                                        <circle cx="12" cy="12" r="1.8" />
+                                        <circle cx="12" cy="19" r="1.8" />
+                                      </svg>
+                                    </button>
+                                    {openMobileBarMenuLaneId === laneId && (
+                                      <div className="absolute left-0 top-8 z-40 w-40 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                                        <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                          {mobileSelectedBars.length} selected
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            void handleCopySelectedBars(laneId, mobileSelectedBars);
+                                            setOpenMobileBarMenuLaneId(null);
+                                          }}
+                                          className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                        >
+                                          Copy
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            void handlePasteBars(laneId, mobileBarPasteIndex);
+                                            setOpenMobileBarMenuLaneId(null);
+                                          }}
+                                          disabled={!barClipboard}
+                                          className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+                                        >
+                                          Paste
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            void handleDeleteSelectedBars(laneId, mobileSelectedBars);
+                                            setOpenMobileBarMenuLaneId(null);
+                                          }}
+                                          className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="mt-0.5 truncate text-[11px] text-slate-500">
+                                {instrumentLabel} - Bars: {laneBarCount}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => activateLaneForEditing(laneId)}
+                              className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+                            >
+                              Edit
+                            </button>
+                            <div className="relative" data-track-menu="true">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setOpenMobileBarMenuLaneId(null);
+                                  setOpenTrackMenuId((prev) => (prev === laneId ? null : laneId));
+                                }}
+                                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600"
+                                title="Track options"
+                                aria-label="Track options"
+                              >
+                                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                                  <circle cx="12" cy="5" r="1.8" />
+                                  <circle cx="12" cy="12" r="1.8" />
+                                  <circle cx="12" cy="19" r="1.8" />
+                                </svg>
+                              </button>
+                              {openTrackMenuId === laneId && (
+                                <div className="absolute right-0 top-11 z-30 w-60 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+                                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                    Sound
+                                    <select
+                                      value={instrumentValue}
+                                      onChange={(event) => handleLaneInstrumentChange(laneId, event.target.value)}
+                                      className="mt-2 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
+                                    >
+                                      {trackInstrumentOptions.map((option) => (
+                                        <option key={`${laneId}-mobile-instrument-${option.id}`} value={option.id}>
+                                          {option.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  <div className="mt-3 flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleTrackMute(laneId)}
+                                      className={`flex-1 rounded-md border px-2 py-2 text-xs font-semibold ${
+                                        isTrackMuted
+                                          ? "border-amber-300 bg-amber-50 text-amber-700"
+                                          : "border-slate-200 bg-white text-slate-600"
+                                      }`}
+                                    >
+                                      {isTrackMuted ? "Muted" : "Mute"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleTrackIsolation(laneId)}
+                                      className={`flex-1 rounded-md border px-2 py-2 text-xs font-semibold ${
+                                        isTrackIsolated
+                                          ? "border-sky-500 bg-sky-500 text-white"
+                                          : "border-slate-200 bg-white text-slate-600"
+                                      }`}
+                                    >
+                                      {isTrackIsolated ? "Isolated" : "Isolate"}
+                                    </button>
+                                  </div>
+                                  <label className="mt-3 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                    Volume
+                                    <div className="mt-2 flex items-center gap-3">
+                                      <input
+                                        type="range"
+                                        min={0}
+                                        max={1}
+                                        step={0.01}
+                                        value={trackVolume}
+                                        onChange={(event) => handleTrackVolumeChange(laneId, Number(event.target.value))}
+                                        className="flex-1 accent-slate-700"
+                                      />
+                                      <span className="w-10 text-right text-xs text-slate-500">
+                                        {Math.round(trackVolume * 100)}%
+                                      </span>
+                                    </div>
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenTrackMenuId(null);
+                                      requestDeleteTrack(laneId);
+                                    }}
+                                    className="mt-3 block w-full rounded-md bg-rose-50 px-3 py-2 text-left text-xs font-semibold text-rose-600"
+                                    disabled={deletingLaneId === laneId}
+                                  >
+                                    {deletingLaneId === laneId ? "Removing..." : "Remove track"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="max-h-[220px] overflow-hidden rounded-2xl">
+                            <GteWorkspace
+                              editorId={laneEditorRef}
+                              snapshot={lane}
+                              onSnapshotChange={(nextSnapshot, options) =>
+                                handleLaneSnapshotChange(laneId, nextSnapshot, options)
+                              }
+                              allowBackend
+                              embedded
+                              isActive={isActive}
+                              mobileViewport
+                              mobileMode="canvas"
+                              onFocusWorkspace={() => setActiveLaneId(laneId)}
+                              globalSnapToGridEnabled={globalSnapToGridEnabled}
+                              onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
+                              sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
+                              sharedViewportBarCount={sharedViewportBarCount}
+                              sharedTimelineScrollRatio={sharedTimelineScrollRatio}
+                              onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
+                              timelineZoomFactor={timelineZoomPercent / 100}
+                              historyUndoCount={canvasUndoCount}
+                              historyRedoCount={canvasRedoCount}
+                              onRequestUndo={handleCanvasUndo}
+                              onRequestRedo={handleCanvasRedo}
+                              globalPlaybackFrame={globalPlaybackFrame}
+                              globalPlaybackIsPlaying={globalPlaybackIsPlaying}
+                              globalPlaybackVolume={globalPlaybackVolume}
+                              globalPlaybackTimelineEnd={canvasTimelineEnd}
+                              onGlobalPlaybackToggle={toggleGlobalPlayback}
+                              onGlobalPlaybackFrameChange={seekGlobalPlayback}
+                              onGlobalPlaybackVolumeChange={handleGlobalPlaybackVolumeChange}
+                              onGlobalPlaybackSkipToStart={skipGlobalPlaybackToStart}
+                              onGlobalPlaybackSkipBackwardBar={skipGlobalPlaybackBackwardBar}
+                              onGlobalPlaybackSkipForwardBar={skipGlobalPlaybackForwardBar}
+                              showToolbarWhenInactive={index === 0 && activeLaneId === null}
+                              multiTrackSelectionActive={multiTrackSelectionActive}
+                              onSelectionStateChange={(selection) =>
+                                handleLaneSelectionStateChange(laneId, selection)
+                              }
+                              onRequestGlobalSelectedShift={(deltaFrames) =>
+                                handleGlobalSelectedShift(laneId, deltaFrames)
+                              }
+                              selectionClearEpoch={selectionClearEpoch}
+                              selectionClearExemptEditorId={selectionClearExemptEditorId}
+                              barSelectionClearEpoch={barSelectionClearEpoch}
+                              barSelectionClearExemptEditorId={barSelectionClearExemptEditorId}
+                              onBarSelectionStateChange={(barIndices) =>
+                                handleBarSelectionStateChange(laneId, barIndices)
+                              }
+                              onRequestSelectedBarsCopy={(barIndices) =>
+                                void handleCopySelectedBars(laneId, barIndices)
+                              }
+                              onRequestSelectedBarsPaste={(insertIndex) =>
+                                void handlePasteBars(laneId, insertIndex)
+                              }
+                              onRequestSelectedBarsDelete={(barIndices) =>
+                                void handleDeleteSelectedBars(laneId, barIndices)
+                              }
+                              barClipboardAvailable={Boolean(barClipboard)}
+                            />
+                          </div>
+                        </div>
+                      )
                     ) : (
                     <div className="flex flex-col gap-3 lg:flex-row">
                       <aside
@@ -3670,6 +4277,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onBarDragStart={(barIndices) => {
                             const nextBarIndices =
                               barSelection?.laneId === laneId ? barSelection.barIndices : barIndices;
+                            setOpenMobileBarMenuLaneId(null);
                             setBarDragState({ sourceLaneId: laneId, barIndices: [...nextBarIndices] });
                           }}
                           onBarDragEnd={() => setBarDragState(null)}

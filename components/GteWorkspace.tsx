@@ -71,6 +71,7 @@ type Props = {
   onBarDragEnd?: () => void;
   onRequestBarDrop?: (insertIndex: number) => void | Promise<void>;
   mobileViewport?: boolean;
+  mobileMode?: "canvas" | "edit";
 };
 
 type ContextMenuState =
@@ -720,6 +721,7 @@ export default function GteWorkspace({
   onBarDragEnd,
   onRequestBarDrop,
   mobileViewport = false,
+  mobileMode,
 }: Props) {
   const [baseScale, setBaseScale] = useState(4);
   const [secondsPerBar, setSecondsPerBar] = useState(2);
@@ -894,6 +896,9 @@ export default function GteWorkspace({
   const barsPerRow = Math.max(1, barCount);
   const rowFrames = framesPerMeasure * barsPerRow;
   const rows = 1;
+  const isMobileCanvasMode = mobileViewport && mobileMode === "canvas";
+  const isMobileEditMode = mobileViewport && mobileMode === "edit";
+  const showPlayingCoordinates = !isMobileCanvasMode;
   const normalizedTimelineZoomFactor =
     timelineZoomFactor !== undefined && Number.isFinite(timelineZoomFactor)
       ? Math.max(MIN_TIMELINE_ZOOM, Math.min(MAX_TIMELINE_ZOOM, timelineZoomFactor))
@@ -903,7 +908,8 @@ export default function GteWorkspace({
   const viewportTimelineWidth = Math.max(1, viewportTotalFrames) * scale;
   const timelineChromeWidth = viewportTimelineWidth + 40;
   const rowHeight = ROW_HEIGHT * 6;
-  const rowBlockHeight = rowHeight + CUT_SEGMENT_OFFSET + CUT_SEGMENT_HEIGHT;
+  const coordinateBandHeight = showPlayingCoordinates ? CUT_SEGMENT_OFFSET + CUT_SEGMENT_HEIGHT : 0;
+  const rowBlockHeight = rowHeight + coordinateBandHeight;
   const rowStride = rowBlockHeight + ROW_GAP;
   const timelineHeight = rowBlockHeight;
   const timelineEnd = barCount * framesPerMeasure;
@@ -914,7 +920,8 @@ export default function GteWorkspace({
     [snapshot]
   );
   const showFloatingUi = !embedded || isActive;
-  const showToolbarUi = showFloatingUi || showToolbarWhenInactive;
+  const showPlaybackUi = showFloatingUi || showToolbarWhenInactive;
+  const showToolbarUi = showPlaybackUi && !isMobileCanvasMode;
   const compactEmbeddedMobile = embedded && mobileViewport;
   const selectedBarIndexSet = useMemo(() => new Set(selectedBarIndices), [selectedBarIndices]);
   const useExternalPlayback =
@@ -1168,6 +1175,7 @@ export default function GteWorkspace({
     const activeId = activeChordIds[0];
     return snapshot.chords.find((chord) => chord.id === activeId) || null;
   }, [snapshot.chords, activeChordIds]);
+
   const cutBoundaries = useMemo(
     () =>
       segmentEdits
@@ -3427,6 +3435,20 @@ export default function GteWorkspace({
     if (event.button !== 0) return;
     event.preventDefault();
     setContextMenu(null);
+    if (isMobileCanvasMode) {
+      setSelectedCutBoundaryIndex(null);
+      setSelectedNoteIds([]);
+      setSelectedChordIds([]);
+      setNoteMenuAnchor(null);
+      setNoteMenuNoteId(null);
+      setNoteMenuDraft(null);
+      setChordMenuAnchor(null);
+      setChordMenuChordId(null);
+      setChordMenuDraft(null);
+      setDraftNote(null);
+      setDraftNoteAnchor(null);
+      return;
+    }
     if (sliceToolActive && !event.shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
       multiDragMovedRef.current = true;
       const target = getPointerFrame(event.clientX, event.clientY);
@@ -4370,8 +4392,12 @@ export default function GteWorkspace({
 
   const openNoteMenu = (noteId: number, fret: number, length: number, event: ReactMouseEvent) => {
     if (event.shiftKey || editingChordId !== null) return;
-    const { x, y } = getSideMenuAnchor(event, 224, 220);
-    setNoteMenuAnchor({ x, y });
+    if (isMobileEditMode) {
+      setNoteMenuAnchor(null);
+    } else {
+      const { x, y } = getSideMenuAnchor(event, 224, 220);
+      setNoteMenuAnchor({ x, y });
+    }
     setNoteMenuNoteId(noteId);
     setNoteMenuDraft({ fret: String(fret), length: String(length) });
   };
@@ -4420,52 +4446,114 @@ export default function GteWorkspace({
     setChordNoteMenuDraft({ fret: String(fret), length: String(length) });
   };
 
+  const commitNoteMenuFretValue = useCallback(
+    (fretValue: number) => {
+      if (!selectedNote) return;
+      if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) {
+        setError("Invalid fret.");
+        return;
+      }
+      if (selectedNote.tab[1] === fretValue) return;
+      const nextTab: TabCoord = [selectedNote.tab[0], fretValue];
+      playNotePreview(nextTab);
+      enqueueOptimisticMutation({
+        label: "note-menu-fret",
+        apply: (draft) => {
+          const noteId = resolveNoteId(selectedNote.id);
+          const note = draft.notes.find((item) => item.id === noteId);
+          if (!note) return draft;
+          note.tab = [nextTab[0], nextTab[1]];
+          note.midiNum = 0;
+          return draft;
+        },
+        commit: () => gteApi.assignNoteTab(editorId, resolveNoteId(selectedNote.id), nextTab),
+      });
+    },
+    [editorId, enqueueOptimisticMutation, maxFret, selectedNote]
+  );
+
   const commitNoteMenuFret = () => {
-    if (!selectedNote || !noteMenuDraft) return;
+    if (!noteMenuDraft) return;
     const fretValue = Number(noteMenuDraft.fret);
     if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) {
       setError("Invalid fret.");
       return;
     }
-    if (selectedNote.tab[1] === fretValue) return;
-    const nextTab: TabCoord = [selectedNote.tab[0], fretValue];
-    playNotePreview(nextTab);
-    enqueueOptimisticMutation({
-      label: "note-menu-fret",
-      apply: (draft) => {
-        const noteId = resolveNoteId(selectedNote.id);
-        const note = draft.notes.find((item) => item.id === noteId);
-        if (!note) return draft;
-        note.tab = [nextTab[0], nextTab[1]];
-        note.midiNum = 0;
-        return draft;
-      },
-      commit: () => gteApi.assignNoteTab(editorId, resolveNoteId(selectedNote.id), nextTab),
-    });
+    commitNoteMenuFretValue(fretValue);
   };
 
+  const commitNoteMenuLengthValue = useCallback(
+    (rawLength: number) => {
+      if (!selectedNote) return;
+      if (!Number.isInteger(rawLength) || rawLength < 1) {
+        setError(`Invalid length. Use 1-${MAX_EVENT_LENGTH_FRAMES}.`);
+        return;
+      }
+      const lengthValue = allowBackend ? clampEventLength(rawLength) : snapLengthToGrid(rawLength);
+      if (selectedNote.length === lengthValue) return;
+      enqueueOptimisticMutation({
+        label: "note-menu-length",
+        apply: (draft) => {
+          const noteId = resolveNoteId(selectedNote.id);
+          const note = draft.notes.find((item) => item.id === noteId);
+          if (!note) return draft;
+          note.length = lengthValue;
+          return draft;
+        },
+        commit: () =>
+          gteApi.setNoteLength(editorId, resolveNoteId(selectedNote.id), lengthValue, snapToGridEnabled),
+      });
+    },
+    [allowBackend, editorId, enqueueOptimisticMutation, selectedNote, snapLengthToGrid, snapToGridEnabled]
+  );
+
   const commitNoteMenuLength = () => {
-    if (!selectedNote || !noteMenuDraft) return;
+    if (!noteMenuDraft) return;
     const rawLength = Number(noteMenuDraft.length);
     if (!Number.isInteger(rawLength) || rawLength < 1) {
       setError(`Invalid length. Use 1-${MAX_EVENT_LENGTH_FRAMES}.`);
       return;
     }
-    const lengthValue = allowBackend ? clampEventLength(rawLength) : snapLengthToGrid(rawLength);
-    if (selectedNote.length === lengthValue) return;
-    enqueueOptimisticMutation({
-      label: "note-menu-length",
-      apply: (draft) => {
-        const noteId = resolveNoteId(selectedNote.id);
-        const note = draft.notes.find((item) => item.id === noteId);
-        if (!note) return draft;
-        note.length = lengthValue;
-        return draft;
-      },
-      commit: () =>
-        gteApi.setNoteLength(editorId, resolveNoteId(selectedNote.id), lengthValue, snapToGridEnabled),
-    });
+    commitNoteMenuLengthValue(rawLength);
   };
+
+  const setMobileNoteFieldValue = useCallback(
+    (field: "fret" | "length", value: number) => {
+      setNoteMenuDraft((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          [field]: String(value),
+        };
+      });
+    },
+    []
+  );
+
+  const adjustMobileNoteField = useCallback(
+    (field: "fret" | "length", delta: number) => {
+      const fallbackValue =
+        field === "fret" ? selectedNote?.tab[1] ?? 0 : selectedNote?.length ?? lastAddedNoteLengthRef.current;
+      const currentValue = Number(noteMenuDraft?.[field] ?? fallbackValue);
+      const min = field === "fret" ? 0 : 1;
+      const max = field === "fret" ? maxFret : MAX_EVENT_LENGTH_FRAMES;
+      const nextValue = Math.max(min, Math.min(max, (Number.isFinite(currentValue) ? currentValue : fallbackValue) + delta));
+      setMobileNoteFieldValue(field, nextValue);
+      if (field === "fret") {
+        commitNoteMenuFretValue(nextValue);
+      } else {
+        commitNoteMenuLengthValue(nextValue);
+      }
+    },
+    [
+      commitNoteMenuFretValue,
+      commitNoteMenuLengthValue,
+      maxFret,
+      noteMenuDraft,
+      selectedNote,
+      setMobileNoteFieldValue,
+    ]
+  );
 
   const commitChordMenuLength = () => {
     if (!selectedChord || !chordMenuDraft) return;
@@ -4618,11 +4706,35 @@ export default function GteWorkspace({
     cancelSegmentEdit();
   };
 
+  const adjustSegmentCoordinateDraft = useCallback(
+    (field: "stringIndex" | "fret", delta: number) => {
+      setSegmentCoordDraft((prev) => {
+        if (!prev) return prev;
+        const min = 0;
+        const max = field === "stringIndex" ? 5 : maxFret;
+        const fallback = field === "stringIndex" ? 0 : 0;
+        const currentValue = Number(prev[field]);
+        const baseValue = Number.isFinite(currentValue) ? currentValue : fallback;
+        return {
+          ...prev,
+          [field]: String(Math.max(min, Math.min(max, Math.round(baseValue + delta)))),
+        };
+      });
+    },
+    [maxFret]
+  );
+
   const cancelSegmentEditIfActive = useCallback(() => {
     if (editingSegmentIndex !== null) {
       cancelSegmentEdit();
     }
   }, [editingSegmentIndex, cancelSegmentEdit]);
+
+  const commitSegmentEditIfActive = useCallback(() => {
+    if (editingSegmentIndex !== null) {
+      commitSegmentEdit();
+    }
+  }, [editingSegmentIndex, commitSegmentEdit]);
 
   const handleApplySegments = () => {
     if (segmentEdits.some((seg) => seg.stringIndex === null || seg.fret === null)) {
@@ -4750,26 +4862,36 @@ export default function GteWorkspace({
   );
 
   const handleBarSelection = useCallback(
-        (index: number, event: ReactMouseEvent<HTMLButtonElement>) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const rect = event.currentTarget.getBoundingClientRect();
-        const pointerX = Number.isFinite(event.clientX) ? event.clientX - rect.left : rect.width;
-        const insertIndex = pointerX < rect.width / 2 ? index : index + 1;
-        setLastBarInsertIndex(insertIndex);
-        setSelectedNoteIds([]);
-        setSelectedChordIds([]);
-        setNoteMenuAnchor(null);
-        setNoteMenuNoteId(null);
-        setNoteMenuDraft(null);
-        setChordMenuAnchor(null);
-        setChordMenuChordId(null);
-        setChordMenuDraft(null);
-        setContextMenu(null);
-        const additive = (event.ctrlKey || event.metaKey) && isActive;
-        const rangeSelect = event.shiftKey && isActive;
-        if (rangeSelect && barSelectionAnchor !== null) {
-          const start = Math.min(barSelectionAnchor, index);
+    (index: number, event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const pointerX = Number.isFinite(event.clientX) ? event.clientX - rect.left : rect.width;
+      const insertIndex = pointerX < rect.width / 2 ? index : index + 1;
+      setLastBarInsertIndex(insertIndex);
+      setSelectedNoteIds([]);
+      setSelectedChordIds([]);
+      setNoteMenuAnchor(null);
+      setNoteMenuNoteId(null);
+      setNoteMenuDraft(null);
+      setChordMenuAnchor(null);
+      setChordMenuChordId(null);
+      setChordMenuDraft(null);
+      setContextMenu(null);
+
+      if (mobileViewport) {
+        const nextSelection = selectedBarIndexSet.has(index)
+          ? selectedBarIndices.filter((value) => value !== index)
+          : [...selectedBarIndices, index].sort((left, right) => left - right);
+        setSelectedBarIndices(nextSelection);
+        setBarSelectionAnchor(nextSelection.length ? index : null);
+        return;
+      }
+
+      const additive = (event.ctrlKey || event.metaKey) && isActive;
+      const rangeSelect = event.shiftKey && isActive;
+      if (rangeSelect && barSelectionAnchor !== null) {
+        const start = Math.min(barSelectionAnchor, index);
         const end = Math.max(barSelectionAnchor, index);
         const nextRange = Array.from({ length: end - start + 1 }, (_, offset) => start + offset);
         setSelectedBarIndices(nextRange);
@@ -4778,16 +4900,16 @@ export default function GteWorkspace({
       if (additive) {
         setSelectedBarIndices((prev) => {
           if (prev.includes(index)) return prev;
-          return [...prev, index].sort((a, b) => a - b);
+          return [...prev, index].sort((left, right) => left - right);
         });
         setBarSelectionAnchor(index);
         return;
       }
       setSelectedBarIndices([index]);
       setBarSelectionAnchor(index);
-      },
-      [barSelectionAnchor, isActive]
-    );
+    },
+    [barSelectionAnchor, isActive, mobileViewport, selectedBarIndexSet, selectedBarIndices]
+  );
 
   const handleBarContextMenu = useCallback(
     (index: number, event: ReactMouseEvent<HTMLButtonElement>) => {
@@ -5208,6 +5330,8 @@ export default function GteWorkspace({
       if (!target) return;
       const barSelector = target.closest<HTMLElement>("[data-bar-select='true']");
       if (barSelector?.dataset.barSelectEditor === editorId) return;
+      const barMenu = target.closest<HTMLElement>("[data-mobile-bar-menu='true']");
+      if (barMenu?.dataset.mobileBarMenuEditor === editorId) return;
       setSelectedBarIndices([]);
       setBarSelectionAnchor(null);
       setLastBarInsertIndex(null);
@@ -5222,6 +5346,29 @@ export default function GteWorkspace({
     if (activeBarDrag) return;
     setBarDropIndex(null);
   }, [activeBarDrag]);
+
+  useEffect(() => {
+    if (!isMobileCanvasMode) return;
+    setToolbarOpen(false);
+    setSliceToolActive(false);
+    setCutToolActive(false);
+    setScaleToolActive(false);
+    setDraftNote(null);
+    setDraftNoteAnchor(null);
+    setNoteMenuAnchor(null);
+    setNoteMenuNoteId(null);
+    setNoteMenuDraft(null);
+    setChordMenuAnchor(null);
+    setChordMenuChordId(null);
+    setChordMenuDraft(null);
+    setEditingChordId(null);
+    setEditingChordAnchor(null);
+    setChordNoteMenuAnchor(null);
+    setChordNoteMenuIndex(null);
+    setChordNoteMenuDraft(null);
+    setSelectedNoteIds([]);
+    setSelectedChordIds([]);
+  }, [isMobileCanvasMode]);
 
   const [noteForm, setNoteForm] = useState<NoteFormState>({
     stringIndex: null,
@@ -5592,7 +5739,7 @@ export default function GteWorkspace({
       if (!target) return;
       if (shiftKey && target.closest("[data-gte-track='true']")) return;
       if (!target.closest("[data-cut-edit]")) {
-        cancelSegmentEditIfActive();
+        commitSegmentEditIfActive();
       }
       if (editingChordId !== null) {
         if (chordNoteMenuRef.current && chordNoteMenuRef.current.contains(target)) return;
@@ -5643,11 +5790,13 @@ export default function GteWorkspace({
       window.removeEventListener("mousedown", handleMouseDown);
       window.removeEventListener("touchstart", handleTouchStart);
     };
-  }, [cancelSegmentEditIfActive, contextMenu, editingChordId]);
+  }, [commitSegmentEditIfActive, contextMenu, editingChordId]);
 
   const workspaceClass = embedded
-    ? `relative w-full min-w-0 max-w-full overflow-x-hidden border bg-white space-y-2 transition-[border-color,box-shadow] ${
-        compactEmbeddedMobile ? "rounded-lg p-1.5" : "rounded-xl p-2"
+    ? `relative w-full min-w-0 max-w-full overflow-x-hidden border bg-white transition-[border-color,box-shadow] ${
+        isMobileEditMode
+          ? "flex h-full min-h-0 flex-col p-1.5"
+          : `${compactEmbeddedMobile ? "rounded-lg p-1.5" : "rounded-xl p-2"} space-y-2`
       } ${
         isActive
           ? "border-sky-300 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.22),0_1px_2px_rgba(15,23,42,0.04)]"
@@ -5655,11 +5804,27 @@ export default function GteWorkspace({
       }`
     : "relative min-w-0 rounded-2xl border border-slate-200 bg-white p-5 space-y-5 -ml-3 w-[calc(100%+0.75rem)]";
 
+  const showMobileEditRail = isMobileEditMode && isActive;
   const showMobileInlineNoteSettings =
-    mobileViewport &&
+    isMobileEditMode &&
     isActive &&
     Boolean(selectedNote && noteMenuNoteId === selectedNote.id && noteMenuDraft && selectedNoteIds.length === 1);
-  const showMobileInlineToolbar = mobileViewport && isActive && showToolbarUi;
+  const showMobileInlineToolbar = isMobileEditMode && isActive && showToolbarUi;
+  const mobileNoteFingeringOptions = useMemo(
+    () => [
+      ...(noteAlternates?.possibleTabs || []).map((tab) => ({
+        key: `open-${tab[0]}-${tab[1]}`,
+        label: `${STRING_LABELS[tab[0]]}${tab[1]}`,
+        value: `${tab[0]}:${tab[1]}`,
+      })),
+      ...(noteAlternates?.blockedTabs || []).map((tab) => ({
+        key: `blocked-${tab[0]}-${tab[1]}`,
+        label: `${STRING_LABELS[tab[0]]}${tab[1]} blocked`,
+        value: `${tab[0]}:${tab[1]}`,
+      })),
+    ],
+    [noteAlternates]
+  );
 
   const renderToolbarPanel = (inlineMobile: boolean) => (
     <div
@@ -5667,7 +5832,7 @@ export default function GteWorkspace({
       data-gte-floating-ui="true"
       className={
         inlineMobile
-          ? "rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg"
+          ? "h-full min-h-0 w-full min-w-0 overflow-y-auto rounded-xl border border-slate-200 bg-white px-2 py-2 shadow-lg"
           : "fixed bottom-5 left-1/2 z-[9998] w-[min(980px,calc(100vw-1.5rem))] -translate-x-1/2 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 shadow-lg backdrop-blur"
       }
       onMouseDown={(event) => event.stopPropagation()}
@@ -6054,10 +6219,12 @@ export default function GteWorkspace({
           )}
         </div>
       )}
-      {showToolbarUi && (
+      {showPlaybackUi && (
         <div
           data-gte-floating-ui="true"
-          className="fixed bottom-16 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2 pointer-events-none"
+          className={`fixed left-1/2 z-[9997] -translate-x-1/2 px-2 pointer-events-none ${
+            mobileViewport ? "bottom-3 w-[min(calc(100vw-1.25rem),28rem)]" : "bottom-16 w-[min(calc(100vw-2rem),64rem)]"
+          }`}
         >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
             {!mobileViewport && (
@@ -6077,117 +6244,189 @@ export default function GteWorkspace({
                 Toolbar (T)
               </button>
             )}
-            <div
-              data-gte-floating-ui="true"
-              className={`pointer-events-auto flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur ${
-                mobileViewport ? "w-full justify-center" : ""
-              }`}
-            >
-              <button
-                type="button"
-                onClick={requestUndo}
-                disabled={effectiveUndoCount === 0 || busy}
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                title="Undo (Ctrl/Cmd+Z)"
+            {mobileViewport ? (
+              <div
+                data-gte-floating-ui="true"
+                className="pointer-events-auto flex w-full items-center justify-between gap-1 rounded-2xl border border-slate-200 bg-white/96 px-2 py-2 text-slate-700 shadow-lg backdrop-blur"
               >
-                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                  <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={requestRedo}
-                disabled={effectiveRedoCount === 0 || busy}
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                title="Redo (Ctrl/Cmd+Shift+Z)"
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                  <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
-                </svg>
-              </button>
-              <span className="mx-1 whitespace-nowrap text-[10px] text-slate-500">
-                {!allowBackend
-                  ? hasUnsavedChanges
-                    ? "Saving local draft..."
-                    : "Local draft saved"
-                  : isAutosaving
-                    ? "Saving..."
-                    : hasUnsavedChanges
-                      ? "Unsaved changes"
-                      : lastSavedAt
-                        ? `Saved ${new Date(lastSavedAt).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}`
-                        : "Saved"}
-              </span>
-              <button
-                type="button"
-                onClick={skipToStart}
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
-                title="Go to start"
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                  <rect x="4" y="5" width="2" height="14" />
-                  <polygon points="18,5 8,12 18,19" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={skipBackwardBar}
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
-                title="Previous bar"
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                  <polygon points="17,5 7,12 17,19" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  togglePlayback();
-                }}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
-                title={effectiveIsPlaying ? "Pause" : "Play"}
-              >
-                {effectiveIsPlaying ? (
+                <button
+                  type="button"
+                  onClick={skipToStart}
+                  className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Go to start"
+                >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                    <rect x="6" y="5" width="4" height="14" />
-                    <rect x="14" y="5" width="4" height="14" />
+                    <rect x="4" y="5" width="2" height="14" />
+                    <polygon points="18,5 8,12 18,19" />
                   </svg>
-                ) : (
+                </button>
+                <button
+                  type="button"
+                  onClick={skipBackwardBar}
+                  className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Previous bar"
+                >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                    <polygon points="8,5 19,12 8,19" />
+                    <polygon points="17,5 7,12 17,19" />
                   </svg>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={skipForwardBar}
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
-                title="Next bar"
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                  <polygon points="7,5 17,12 7,19" />
-                </svg>
-              </button>
-              <div className="flex items-center gap-1 px-1">
-                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
-                  <path d="M4 10v4h4l5 4V6L8 10H4z" />
-                  <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
-                </svg>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={effectivePlaybackVolume}
-                  onChange={(event) => setEffectivePlaybackVolume(Number(event.target.value))}
-                  className="w-20 accent-slate-700"
-                  title="Volume"
-                />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    togglePlayback();
+                  }}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
+                  title={effectiveIsPlaying ? "Pause" : "Play"}
+                >
+                  {effectiveIsPlaying ? (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                      <rect x="6" y="5" width="4" height="14" />
+                      <rect x="14" y="5" width="4" height="14" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                      <polygon points="8,5 19,12 8,19" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={skipForwardBar}
+                  className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Next bar"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <polygon points="7,5 17,12 7,19" />
+                  </svg>
+                </button>
+                <div className="flex min-w-0 flex-1 items-center gap-2 pl-1">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 fill-current text-slate-500" aria-hidden="true">
+                    <path d="M4 10v4h4l5 4V6L8 10H4z" />
+                    <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
+                  </svg>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={effectivePlaybackVolume}
+                    onChange={(event) => setEffectivePlaybackVolume(Number(event.target.value))}
+                    className="w-full min-w-0 accent-slate-700"
+                    title="Volume"
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div
+                data-gte-floating-ui="true"
+                className="pointer-events-auto flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur"
+              >
+                <button
+                  type="button"
+                  onClick={requestUndo}
+                  disabled={effectiveUndoCount === 0 || busy}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Undo (Ctrl/Cmd+Z)"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={requestRedo}
+                  disabled={effectiveRedoCount === 0 || busy}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Redo (Ctrl/Cmd+Shift+Z)"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
+                  </svg>
+                </button>
+                <span className="mx-1 whitespace-nowrap text-[10px] text-slate-500">
+                  {!allowBackend
+                    ? hasUnsavedChanges
+                      ? "Saving local draft..."
+                      : "Local draft saved"
+                    : isAutosaving
+                      ? "Saving..."
+                      : hasUnsavedChanges
+                        ? "Unsaved changes"
+                        : lastSavedAt
+                          ? `Saved ${new Date(lastSavedAt).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}`
+                          : "Saved"}
+                </span>
+                <button
+                  type="button"
+                  onClick={skipToStart}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Go to start"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <rect x="4" y="5" width="2" height="14" />
+                    <polygon points="18,5 8,12 18,19" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={skipBackwardBar}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Previous bar"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <polygon points="17,5 7,12 17,19" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    togglePlayback();
+                  }}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
+                  title={effectiveIsPlaying ? "Pause" : "Play"}
+                >
+                  {effectiveIsPlaying ? (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                      <rect x="6" y="5" width="4" height="14" />
+                      <rect x="14" y="5" width="4" height="14" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                      <polygon points="8,5 19,12 8,19" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={skipForwardBar}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Next bar"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <polygon points="7,5 17,12 7,19" />
+                  </svg>
+                </button>
+                <div className="flex items-center gap-1 px-1">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
+                    <path d="M4 10v4h4l5 4V6L8 10H4z" />
+                    <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
+                  </svg>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={effectivePlaybackVolume}
+                    onChange={(event) => setEffectivePlaybackVolume(Number(event.target.value))}
+                    className="w-20 accent-slate-700"
+                    title="Volume"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -6356,9 +6595,25 @@ export default function GteWorkspace({
 
       {error && <div className="error">{error}</div>}
 
-      <div className={`min-w-0 ${embedded ? "space-y-2" : "space-y-4"}`}>
-        <div className={`flex min-w-0 items-start ${compactEmbeddedMobile ? "gap-1.5" : embedded ? "gap-2" : "gap-4"}`}>
-          <div className={`flex flex-col gap-0 ${compactEmbeddedMobile ? "pt-4 text-[10px]" : "pt-5 text-xs"} text-slate-600`}>
+      <div
+        className={`min-w-0 ${
+          isMobileEditMode
+            ? "flex h-full min-h-0 flex-col"
+            : embedded
+            ? "space-y-2"
+            : "space-y-4"
+        }`}
+      >
+        <div
+          className={`flex min-w-0 ${
+            isMobileEditMode ? "min-h-0 flex-1 items-center" : "items-start"
+          } ${compactEmbeddedMobile ? "gap-1.5" : embedded ? "gap-2" : "gap-4"}`}
+        >
+          <div
+            className={`flex flex-col gap-0 ${
+              isMobileEditMode ? "pt-0 text-[10px]" : compactEmbeddedMobile ? "pt-4 text-[10px]" : "pt-5 text-xs"
+            } text-slate-600`}
+          >
             {Array.from({ length: rows }).map((_, rowIdx) => (
               <div
                 key={`labels-${rowIdx}`}
@@ -6377,7 +6632,7 @@ export default function GteWorkspace({
               </div>
             ))}
           </div>
-          <div className="min-w-0 flex-1 overflow-y-visible">
+          <div className={`min-w-0 flex-1 ${isMobileEditMode ? "min-h-0 overflow-hidden" : "overflow-y-visible"}`}>
             <div
               ref={timelineOuterRef}
               className={`min-w-0 overflow-y-hidden ${
@@ -6397,12 +6652,19 @@ export default function GteWorkspace({
                         type="button"
                         data-bar-select="true"
                         data-bar-select-editor={editorId}
+                        data-bar-index={barIndex}
                         onMouseDown={(event) => {
                           event.stopPropagation();
                         }}
-                        onClick={(event) => handleBarSelection(barIndex, event)}
+                        onClick={(event) => {
+                          if (touchHoldTriggeredRef.current) {
+                            touchHoldTriggeredRef.current = false;
+                            return;
+                          }
+                          handleBarSelection(barIndex, event);
+                        }}
                         onContextMenu={(event) => handleBarContextMenu(barIndex, event)}
-                        draggable={selected}
+                        draggable={selected && !mobileViewport}
                         onDragStart={(event) => handleSelectedBarDragStart(barIndex, event)}
                         onDragEnd={handleSelectedBarDragEnd}
                         className={`absolute top-0 z-20 flex items-center px-2 text-[10px] ${
@@ -6437,6 +6699,11 @@ export default function GteWorkspace({
                         aria-hidden={!dragEnabled}
                         tabIndex={-1}
                         onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          if (!dragEnabled || !mobileViewport) return;
+                          setBarDropIndex(insertIndex);
+                          void onRequestBarDrop?.(insertIndex);
+                        }}
                         onDragOver={(event) => handleBarDropTargetDragOver(insertIndex, event)}
                         onDragEnter={(event) => handleBarDropTargetDragOver(insertIndex, event)}
                         onDrop={(event) => handleBarDropTargetDrop(insertIndex, event)}
@@ -6451,7 +6718,7 @@ export default function GteWorkspace({
                         style={{
                           left,
                           height: 20 + timelineHeight,
-                          opacity: dragEnabled ? (isActiveDrop ? 0.95 : 0.5) : 0,
+                          opacity: dragEnabled ? (isActiveDrop ? 0.95 : mobileViewport ? 0.32 : 0.5) : 0,
                         }}
                         title={dragEnabled ? `Insert bars at ${insertIndex + 1}` : undefined}
                       />
@@ -6635,7 +6902,7 @@ export default function GteWorkspace({
                   );
                 })()}
 
-                {cutBoundaries.map((boundary) => {
+                {showPlayingCoordinates && cutBoundaries.map((boundary) => {
                   if (framesPerMeasure <= 0) return null;
                   const rowIndex = Math.floor(boundary.time / rowFrames);
                   if (rowIndex < 0 || rowIndex >= rows) return null;
@@ -6677,7 +6944,7 @@ export default function GteWorkspace({
                   );
                 })}
 
-                {segmentEdits.map((segment, segIndex) => {
+                {showPlayingCoordinates && segmentEdits.map((segment, segIndex) => {
                   if (framesPerMeasure <= 0) return null;
                   const startRow = Math.floor(segment.start / rowFrames);
                   const endRow = Math.floor((Math.max(segment.end - 1, segment.start)) / rowFrames);
@@ -6694,6 +6961,8 @@ export default function GteWorkspace({
                     const left = (segStart - rowStart) * scale;
                     const width = Math.max(CUT_SEGMENT_MIN_WIDTH, (segEnd - segStart) * scale);
                     const top = rowIdx * rowStride + rowHeight + CUT_SEGMENT_OFFSET;
+                    const editorLeft = Math.max(0, Math.min(timelineChromeWidth - 152, left));
+                    const editorTop = Math.max(0, top - 42);
                     const stringLabel =
                       segment.stringIndex !== null && STRING_LABELS[segment.stringIndex]
                         ? STRING_LABELS[segment.stringIndex]
@@ -6711,101 +6980,136 @@ export default function GteWorkspace({
                           event.stopPropagation();
                         }}
                       >
-                        {isEditing ? (
-                          <div
-                            className="flex items-center gap-1"
-                            data-cut-edit
-                            onBlur={(event) => {
-                              if (event.currentTarget.contains(event.relatedTarget as Node)) return;
-                              commitSegmentEdit();
-                            }}
-                          >
-                            <select
-                              className="h-5 rounded border border-slate-200 bg-white px-1 text-[10px]"
-                              value={segmentCoordDraft?.stringIndex ?? ""}
-                              onChange={(event) =>
-                                setSegmentCoordDraft((prev) =>
-                                  prev ? { ...prev, stringIndex: event.target.value } : prev
-                                )
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  commitSegmentEdit();
-                                }
-                                if (event.key === "Escape") {
-                                  event.preventDefault();
-                                  cancelSegmentEdit();
-                                }
-                              }}
-                            >
-                              <option value="">String</option>
-                              {STRING_LABELS.map((label, idx) => (
-                                <option key={`seg-${segIndex}-string-${idx}`} value={idx}>
-                                  {label}
-                                </option>
-                              ))}
-                            </select>
-                            <input
-                              type="number"
-                              min={0}
-                              max={maxFret}
-                              className="h-5 w-12 rounded border border-slate-200 bg-white px-1 text-[10px]"
-                              value={segmentCoordDraft?.fret ?? ""}
-                              onChange={(event) =>
-                                setSegmentCoordDraft((prev) =>
-                                  prev ? { ...prev, fret: event.target.value } : prev
-                                )
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  commitSegmentEdit();
-                                }
-                                if (event.key === "Escape") {
-                                  event.preventDefault();
-                                  cancelSegmentEdit();
-                                }
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            className={`flex h-full w-full items-center justify-center rounded text-[10px] font-semibold text-slate-700 hover:text-slate-900 ${
-                              cutToolActive ? "cursor-crosshair" : "cursor-pointer"
-                            }`}
-                            title="Playing coordinates"
-                            aria-label="Playing coordinates"
-                            onClick={(event) => {
-                              if (cutToolActive) {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                if (!timelineRef.current) return;
-                                if (segEnd - segStart <= 1) return;
-                                const rect = timelineRef.current.getBoundingClientRect();
-                                const clickX = clamp(event.clientX - rect.left, 0, timelineWidth);
-                                const relativeX = clamp(clickX - left, 0, width);
-                                const ratio = width > 0 ? relativeX / width : 0;
-                                const rawTime = segStart + Math.round((segEnd - segStart) * ratio);
-                                const cutTime = clamp(rawTime, segStart + 1, segEnd - 1);
-                                if (cutTime <= segStart || cutTime >= segEnd) return;
-                                void runMutation(() => gteApi.insertCutAt(editorId, cutTime), {
-                                  localApply: (draft) => {
-                                    insertCutAtInSnapshot(draft, cutTime);
-                                  },
-                                });
-                                return;
-                              }
-                              startSegmentEdit(segIndex, segment);
-                            }}
-                          >
-                            {stringLabel}
-                            {fretLabel}
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          className={`flex h-full w-full items-center justify-center rounded text-[10px] font-semibold text-slate-700 hover:text-slate-900 ${
+                            cutToolActive ? "cursor-crosshair" : "cursor-pointer"
+                          }`}
+                          title="Playing coordinates"
+                          aria-label="Playing coordinates"
+                          onClick={(event) => {
+                            if (cutToolActive) {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              if (!timelineRef.current) return;
+                              if (segEnd - segStart <= 1) return;
+                              const rect = timelineRef.current.getBoundingClientRect();
+                              const clickX = clamp(event.clientX - rect.left, 0, timelineWidth);
+                              const relativeX = clamp(clickX - left, 0, width);
+                              const ratio = width > 0 ? relativeX / width : 0;
+                              const rawTime = segStart + Math.round((segEnd - segStart) * ratio);
+                              const cutTime = clamp(rawTime, segStart + 1, segEnd - 1);
+                              if (cutTime <= segStart || cutTime >= segEnd) return;
+                              void runMutation(() => gteApi.insertCutAt(editorId, cutTime), {
+                                localApply: (draft) => {
+                                  insertCutAtInSnapshot(draft, cutTime);
+                                },
+                              });
+                              return;
+                            }
+                            startSegmentEdit(segIndex, segment);
+                          }}
+                        >
+                          {stringLabel}
+                          {fretLabel}
+                        </button>
                       </div>
                     );
+                    if (isEditing) {
+                      pieces.push(
+                        <div
+                          key={`cut-${segIndex}-row-${rowIdx}-editor`}
+                          className="absolute z-30 w-[9.25rem] rounded-lg border border-sky-300 bg-white/98 p-1.5 shadow-md"
+                          style={{ top: editorTop, left: editorLeft }}
+                          data-cut-edit
+                          onMouseDown={(event) => {
+                            event.stopPropagation();
+                          }}
+                          onBlur={(event) => {
+                            if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+                            commitSegmentEdit();
+                          }}
+                        >
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {(
+                              [
+                                { field: "stringIndex", label: "String", value: segmentCoordDraft?.stringIndex ?? "", max: 5 },
+                                { field: "fret", label: "Fret", value: segmentCoordDraft?.fret ?? "", max: maxFret },
+                              ] as const
+                            ).map(({ field, label, value, max }) => {
+                              const parsedValue = Number(value);
+                              const stringDisplay =
+                                Number.isInteger(parsedValue) && STRING_LABELS[parsedValue]
+                                  ? STRING_LABELS[parsedValue]
+                                  : "?";
+                              return (
+                                <div
+                                  key={`seg-${segIndex}-${field}-editor`}
+                                  className="flex items-stretch gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 py-1"
+                                >
+                                  <div className="flex min-w-0 flex-1 flex-col justify-center">
+                                    <span className="text-[8px] font-semibold uppercase tracking-wide text-slate-400">
+                                      {label}
+                                    </span>
+                                    {field === "stringIndex" ? (
+                                      <div className="mt-0.5 h-5 text-[11px] font-semibold leading-5 text-slate-700">
+                                        {stringDisplay}
+                                      </div>
+                                    ) : (
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={max}
+                                        inputMode="numeric"
+                                        enterKeyHint="done"
+                                        className="mt-0.5 h-5 w-full border-0 bg-transparent p-0 text-[11px] font-semibold text-slate-700 outline-none"
+                                        value={value}
+                                        onChange={(event) =>
+                                          setSegmentCoordDraft((prev) =>
+                                            prev ? { ...prev, [field]: event.target.value } : prev
+                                          )
+                                        }
+                                        onFocus={(event) => event.currentTarget.select()}
+                                        onKeyDown={(event) => {
+                                          if (event.key === "Enter") {
+                                            event.preventDefault();
+                                            commitSegmentEdit();
+                                          }
+                                          if (event.key === "Escape") {
+                                            event.preventDefault();
+                                            cancelSegmentEdit();
+                                          }
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                  <div className="flex flex-col gap-0.5">
+                                    <button
+                                      type="button"
+                                      onMouseDown={(event) => event.preventDefault()}
+                                      onClick={() => adjustSegmentCoordinateDraft(field, 1)}
+                                      className="flex h-3 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] text-slate-600"
+                                      aria-label={`Increase ${label.toLowerCase()}`}
+                                    >
+                                      &#9650;
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onMouseDown={(event) => event.preventDefault()}
+                                      onClick={() => adjustSegmentCoordinateDraft(field, -1)}
+                                      className="flex h-3 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] text-slate-600"
+                                      aria-label={`Decrease ${label.toLowerCase()}`}
+                                    >
+                                      &#9660;
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    }
                   }
                   return pieces;
                 })}
@@ -6863,6 +7167,7 @@ export default function GteWorkspace({
                           );
                         }}
                         onTouchStart={(event) => {
+                          if (isMobileCanvasMode) return;
                           event.stopPropagation();
                           scheduleTouchHold(event, (pointer) =>
                             startNoteDrag(
@@ -6891,18 +7196,21 @@ export default function GteWorkspace({
                             singleDragMovedRef.current = false;
                             return;
                           }
+                          if (isMobileCanvasMode) {
+                            return;
+                          }
                           playNotePreview([note.tab[0], note.tab[1]]);
                           if (mobileViewport) {
                             const previousSelected = selectedNoteIdsRef.current;
                             const alreadySelected = previousSelected.includes(note.id);
                             const nextSelected = alreadySelected
-                              ? previousSelected
+                              ? previousSelected.filter((value) => value !== note.id)
                               : [...previousSelected, note.id];
                             setSelectedNoteIds(nextSelected);
                             if (selectedChordIdsRef.current.length) {
                               setSelectedChordIds([]);
                             }
-                            if (alreadySelected && nextSelected.length === 1) {
+                            if (nextSelected.length === 1 && nextSelected[0] === note.id) {
                               openNoteMenu(note.id, note.tab[1], note.length, event);
                             } else {
                               setNoteMenuAnchor(null);
@@ -6922,7 +7230,13 @@ export default function GteWorkspace({
                             : conflictInfo.noteConflicts.has(note.id)
                             ? "bg-red-400/80"
                             : "bg-emerald-400"
-                        } ${editingChordId !== null ? "opacity-30 pointer-events-none" : ""}`}
+                        } ${
+                          editingChordId !== null
+                            ? "opacity-30 pointer-events-none"
+                            : isMobileCanvasMode
+                            ? "pointer-events-none"
+                            : ""
+                        }`}
                         style={{
                           top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + (mobileViewport ? 1 : 4),
                           left: segment.inRowStart * scale,
@@ -7013,6 +7327,7 @@ export default function GteWorkspace({
                             startChordDrag(chord.id, chord.startTime, chord.length, event);
                           }}
                           onTouchStart={(event) => {
+                            if (isMobileCanvasMode) return;
                             event.stopPropagation();
                             if (editingChordId !== null) return;
                             scheduleTouchHold(event, (pointer) =>
@@ -7039,17 +7354,20 @@ export default function GteWorkspace({
                               singleDragMovedRef.current = false;
                               return;
                             }
+                            if (isMobileCanvasMode) {
+                              return;
+                            }
                             if (mobileViewport) {
                               const previousSelected = selectedChordIdsRef.current;
                               const alreadySelected = previousSelected.includes(chord.id);
                               const nextSelected = alreadySelected
-                                ? previousSelected
+                                ? previousSelected.filter((value) => value !== chord.id)
                                 : [...previousSelected, chord.id];
                               setSelectedChordIds(nextSelected);
                               if (selectedNoteIdsRef.current.length) {
                                 setSelectedNoteIds([]);
                               }
-                              if (alreadySelected && nextSelected.length === 1) {
+                              if (nextSelected.length === 1 && nextSelected[0] === chord.id) {
                                 openChordMenu(chord.id, chord.length, event);
                               } else {
                                 setChordMenuAnchor(null);
@@ -7073,7 +7391,13 @@ export default function GteWorkspace({
                             scaleToolActive ? "cursor-ew-resize" : "cursor-grab"
                           } ${
                             selectedChordIds.includes(chord.id) ? "bg-blue-400" : "bg-blue-300"
-                          } ${isDimmed ? "opacity-30 pointer-events-none" : ""}`}
+                          } ${
+                            isDimmed
+                              ? "opacity-30 pointer-events-none"
+                              : isMobileCanvasMode
+                              ? "pointer-events-none"
+                              : ""
+                          }`}
                           style={{
                             top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + (mobileViewport ? 1 : 4),
                             left: segment.inRowStart * scale,
@@ -7637,81 +7961,159 @@ export default function GteWorkspace({
             </div>
           </div>
         </div>
-        {showMobileInlineNoteSettings && selectedNote && noteMenuDraft && (
-          <div
-            ref={noteMenuRef}
-            className="rounded-xl border border-slate-200 bg-white p-3 shadow-lg"
-            onMouseDown={(event) => event.stopPropagation()}
-            data-gte-floating-ui="true"
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              Note settings
+        {showMobileEditRail && (
+          <div className="mt-2 shrink-0" data-gte-floating-ui="true">
+            <div className="flex h-[13rem] items-stretch gap-2 pb-[5rem]">
+              <div
+                ref={showMobileInlineNoteSettings ? noteMenuRef : null}
+                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white p-2.5 shadow-lg"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                {showMobileInlineNoteSettings && selectedNote && noteMenuDraft ? (
+                  <div className="flex h-full min-h-0 flex-col">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        Note settings
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleDeleteNote();
+                          setSelectedNoteIds([]);
+                          setNoteMenuAnchor(null);
+                          setNoteMenuNoteId(null);
+                          setNoteMenuDraft(null);
+                        }}
+                        className="rounded-md bg-rose-500/90 px-2 py-1 text-[10px] font-semibold text-white"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      {(["fret", "length"] as const).map((field) => {
+                        const label = field === "fret" ? "Fret" : "Length";
+                        const value = field === "fret" ? noteMenuDraft.fret : noteMenuDraft.length;
+                        const commitField = field === "fret" ? commitNoteMenuFret : commitNoteMenuLength;
+                        return (
+                          <div key={field} className="rounded-lg border border-slate-200 bg-slate-50 p-1.5">
+                            <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                              {label}
+                            </div>
+                            <div className="mt-1 flex items-stretch gap-1.5">
+                              <input
+                                type="number"
+                                min={field === "fret" ? 0 : 1}
+                                max={field === "fret" ? maxFret : MAX_EVENT_LENGTH_FRAMES}
+                                inputMode="numeric"
+                                enterKeyHint="done"
+                                value={value}
+                                onChange={(event) =>
+                                  setNoteMenuDraft((prev) =>
+                                    prev ? { ...prev, [field]: event.target.value } : prev
+                                  )
+                                }
+                                onFocus={(event) => event.currentTarget.select()}
+                                onKeyDown={(event) => {
+                                  if (event.key !== "Enter") return;
+                                  event.preventDefault();
+                                  commitField();
+                                }}
+                                onBlur={() => commitField()}
+                                className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[16px] font-semibold text-slate-900 outline-none"
+                              />
+                              <div className="flex flex-col gap-1">
+                                <button
+                                  type="button"
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => adjustMobileNoteField(field, 1)}
+                                  className="flex h-[18px] w-6 items-center justify-center rounded border border-slate-200 bg-white text-[9px] text-slate-600"
+                                  aria-label={`Increase ${label.toLowerCase()}`}
+                                >
+                                  &#9650;
+                                </button>
+                                <button
+                                  type="button"
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => adjustMobileNoteField(field, -1)}
+                                  className="flex h-[18px] w-6 items-center justify-center rounded border border-slate-200 bg-white text-[9px] text-slate-600"
+                                  aria-label={`Decrease ${label.toLowerCase()}`}
+                                >
+                                  &#9660;
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <label className="mt-2 block text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                      Fingering
+                      <select
+                        key={`mobile-note-fingering-${selectedNote.id}`}
+                        defaultValue=""
+                        disabled={mobileNoteFingeringOptions.length === 0}
+                        onChange={(event) => {
+                          const rawValue = event.currentTarget.value;
+                          if (!rawValue) return;
+                          const [stringValue, fretValue] = rawValue.split(":").map(Number);
+                          if (Number.isInteger(stringValue) && Number.isInteger(fretValue)) {
+                            handleAssignAlt([stringValue, fretValue]);
+                          }
+                          event.currentTarget.value = "";
+                        }}
+                        className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-[13px] text-slate-700 disabled:bg-slate-100 disabled:text-slate-400"
+                      >
+                        <option value="">
+                          {mobileNoteFingeringOptions.length ? "Choose fingering" : "No other fingerings"}
+                        </option>
+                        {mobileNoteFingeringOptions.map((option) => (
+                          <option key={option.key} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="flex h-full flex-col justify-center">
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                      Note settings
+                    </div>
+                    <div className="mt-1 text-[11px] leading-4 text-slate-500">
+                      Select one note to edit fret, length, or fingering.
+                    </div>
+                  </div>
+                )}
+              </div>
+              {showMobileInlineToolbar && (
+                <div className={`${toolbarOpen ? "w-[min(10.5rem,42vw)]" : "w-[5.25rem]"} shrink-0 transition-[width] duration-150`}>
+                  <div className="flex h-full min-h-0 flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setToolbarOpen((prev) => !prev)}
+                      aria-pressed={toolbarOpen}
+                      title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
+                      className={`flex h-10 w-full items-center justify-center rounded-xl border px-2 text-xs font-semibold shadow-sm transition ${
+                        toolbarOpen
+                          ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      Toolbar
+                    </button>
+                    <div className="min-h-0 flex-1">
+                      {toolbarOpen ? (
+                        renderToolbarPanel(true)
+                      ) : (
+                        <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/75 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                          Hidden
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <label className="block text-[10px] text-slate-500">
-                Fret
-                <input
-                  type="number"
-                  min={0}
-                  max={maxFret}
-                  className="mt-1 w-full rounded border border-slate-200 px-2 py-2 text-xs"
-                  value={noteMenuDraft.fret}
-                  onChange={(event) =>
-                    setNoteMenuDraft((prev) =>
-                      prev ? { ...prev, fret: event.target.value } : prev
-                    )
-                  }
-                  onBlur={() => commitNoteMenuFret()}
-                />
-              </label>
-              <label className="block text-[10px] text-slate-500">
-                Length
-                <input
-                  type="number"
-                  min={1}
-                  max={MAX_EVENT_LENGTH_FRAMES}
-                  className="mt-1 w-full rounded border border-slate-200 px-2 py-2 text-xs"
-                  value={noteMenuDraft.length}
-                  onChange={(event) =>
-                    setNoteMenuDraft((prev) =>
-                      prev ? { ...prev, length: event.target.value } : prev
-                    )
-                  }
-                  onBlur={() => commitNoteMenuLength()}
-                />
-              </label>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                handleDeleteNote();
-                setSelectedNoteIds([]);
-                setNoteMenuAnchor(null);
-                setNoteMenuNoteId(null);
-                setNoteMenuDraft(null);
-              }}
-              className="mt-3 w-full rounded-lg bg-rose-500/80 px-3 py-2 text-xs font-semibold text-white"
-            >
-              Delete note
-            </button>
-          </div>
-        )}
-        {showMobileInlineToolbar && (
-          <div className="space-y-2" data-gte-floating-ui="true">
-            <button
-              type="button"
-              onClick={() => setToolbarOpen((prev) => !prev)}
-              aria-pressed={toolbarOpen}
-              title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
-              className={`flex h-11 w-full items-center justify-center rounded-xl border px-4 text-sm font-semibold shadow-sm transition ${
-                toolbarOpen
-                  ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
-                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              Toolbar (T)
-            </button>
-            {toolbarOpen && renderToolbarPanel(true)}
           </div>
         )}
       </div>
