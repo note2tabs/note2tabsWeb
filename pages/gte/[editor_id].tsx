@@ -2641,12 +2641,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             >
                               Back to editors
                             </button>
-                            <Link
-                              href="/account"
-                              className="block rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
-                            >
-                              Account
-                            </Link>
                           </>
                         )}
                         <button
@@ -3573,13 +3567,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 >
                   {isMobileViewport ? "Editors" : "Back to editors"}
                 </button>
-                <Link
-                  href="/account"
-                  className={`button-secondary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
-                  style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
-                >
-                  Account
-                </Link>
               </>
             )}
             <button
