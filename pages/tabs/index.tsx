@@ -24,13 +24,10 @@ export default function SavedTabsPage({ tabs }: Props) {
       <div className="container stack">
         <div className="page-header">
           <div>
-            <h1 className="page-title">Saved tabs</h1>
+            <h1 className="page-title">Transcriptions</h1>
             <p className="page-subtitle">Your transcription history.</p>
           </div>
           <div className="button-row">
-            <Link href="/account" className="button-ghost button-small">
-              Account
-            </Link>
             <Link href="/settings" className="button-ghost button-small">
               Settings
             </Link>
@@ -42,7 +39,7 @@ export default function SavedTabsPage({ tabs }: Props) {
             <h2 className="section-title section-title--tight">
               History
             </h2>
-            <span className="muted text-small">{tabs.length} jobs</span>
+            <span className="muted text-small">{tabs.length} transcriptions</span>
           </div>
           {tabs.length === 0 && <p className="muted text-small">No transcriptions yet.</p>}
           <div className="tabs-list">

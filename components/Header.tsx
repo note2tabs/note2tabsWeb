@@ -16,7 +16,7 @@ export default function Header() {
             Transcriber
           </Link>
           <Link href="/">Home</Link>
-          <Link href="/account">Account</Link>
+          <Link href="/settings">Settings</Link>
         </nav>
       </div>
     </header>

@@ -30,15 +30,35 @@ const MAX_PREMIUM_BYTES = 200 * 1024 * 1024;
 
 const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 
-const parseOptionalNumber = (value: string): number | null => {
-  if (value.trim() === "") return null;
-  const parsed = Number(value);
-  return Number.isNaN(parsed) ? null : parsed;
-};
-
 const MAX_YT_SNIPPET_SEC = 30;
+const MAX_YT_START_SEC = 9 * 60;
+const MAX_YT_END_SEC = 10 * 60;
 
 const isYouTubeId = (value: string) => /^[a-zA-Z0-9_-]{11}$/.test(value);
+
+const formatTimestamp = (totalSeconds: number) => {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+};
+
+const parseTimestampInput = (value: string): number | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (!/^\d+(?::\d{1,2})?$/.test(trimmed)) return null;
+  if (!trimmed.includes(":")) {
+    const seconds = Number(trimmed);
+    return Number.isNaN(seconds) ? null : seconds;
+  }
+  const [minutesPart, secondsPart] = trimmed.split(":");
+  const minutes = Number(minutesPart);
+  const seconds = Number(secondsPart);
+  if (Number.isNaN(minutes) || Number.isNaN(seconds) || seconds > 59) {
+    return null;
+  }
+  return minutes * 60 + seconds;
+};
 
 const parseYouTubeId = (value: string): string | null => {
   const trimmed = value.trim();
@@ -73,8 +93,9 @@ export default function TranscriberPage() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [ytStartTime, setYtStartTime] = useState<number | null>(null);
   const [ytEndTime, setYtEndTime] = useState<number | null>(null);
+  const [ytStartInput, setYtStartInput] = useState("0:00");
+  const [ytEndInput, setYtEndInput] = useState(formatTimestamp(MAX_YT_SNIPPET_SEC));
   const [fileDuration, setFileDuration] = useState<number | null>(null);
-  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [separateGuitar, setSeparateGuitar] = useState(true);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -127,6 +148,14 @@ export default function TranscriberPage() {
     if (ytStartTime === null || ytEndTime === null) return 0;
     const rawDuration = ytEndTime - ytStartTime;
     return Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, rawDuration));
+  }, [ytStartTime, ytEndTime]);
+  const youtubeTimeRangeValid = useMemo(() => {
+    if (ytStartTime === null || ytEndTime === null) return false;
+    if (ytStartTime < 0 || ytStartTime > MAX_YT_START_SEC) return false;
+    if (ytEndTime <= 0 || ytEndTime > MAX_YT_END_SEC) return false;
+    if (ytEndTime <= ytStartTime) return false;
+    if (ytEndTime - ytStartTime > MAX_YT_SNIPPET_SEC) return false;
+    return true;
   }, [ytStartTime, ytEndTime]);
   const shouldDeferEditorSync = Boolean(appendEditorId);
 
@@ -191,9 +220,66 @@ export default function TranscriberPage() {
 
   useEffect(() => {
     if (mode !== "YOUTUBE") return;
-    setYtStartTime((prev) => (prev === null ? 0 : prev));
-    setYtEndTime((prev) => (prev === null ? MAX_YT_SNIPPET_SEC : prev));
+    if (ytStartTime === null) {
+      setYtStartTime(0);
+      setYtStartInput("0:00");
+    }
+    if (ytEndTime === null) {
+      setYtEndTime(MAX_YT_SNIPPET_SEC);
+      setYtEndInput(formatTimestamp(MAX_YT_SNIPPET_SEC));
+    }
   }, [mode]);
+
+  const handleYtStartInputChange = (value: string) => {
+    setYtStartInput(value);
+    setError(null);
+    const parsed = parseTimestampInput(value);
+    if (parsed === null) {
+      setYtStartTime(null);
+      return;
+    }
+    setYtStartTime(parsed);
+  };
+
+  const handleYtEndInputChange = (value: string) => {
+    setYtEndInput(value);
+    setError(null);
+    const parsed = parseTimestampInput(value);
+    if (parsed === null) {
+      setYtEndTime(null);
+      return;
+    }
+    setYtEndTime(parsed);
+  };
+
+  const handleYtStartInputBlur = () => {
+    if (ytStartTime === null) {
+      setYtStartInput("");
+      return;
+    }
+    const nextStart = Math.min(MAX_YT_START_SEC, Math.max(0, ytStartTime));
+    setYtStartTime(nextStart);
+    setYtStartInput(formatTimestamp(nextStart));
+    if (ytEndTime === null) return;
+    const nextEnd = Math.min(
+      Math.min(MAX_YT_END_SEC, nextStart + MAX_YT_SNIPPET_SEC),
+      Math.max(nextStart + 1, ytEndTime)
+    );
+    setYtEndTime(nextEnd);
+    setYtEndInput(formatTimestamp(nextEnd));
+  };
+
+  const handleYtEndInputBlur = () => {
+    if (ytEndTime === null) {
+      setYtEndInput("");
+      return;
+    }
+    const minEnd = ytStartTime !== null ? ytStartTime + 1 : 1;
+    const maxEnd = ytStartTime !== null ? Math.min(MAX_YT_END_SEC, ytStartTime + MAX_YT_SNIPPET_SEC) : MAX_YT_END_SEC;
+    const nextEnd = Math.min(maxEnd, Math.max(minEnd, ytEndTime));
+    setYtEndTime(nextEnd);
+    setYtEndInput(formatTimestamp(nextEnd));
+  };
 
   const creditsRequested = useMemo(() => {
     const duration = mode === "FILE" ? fileDuration ?? 0 : resolvedYtDuration;
@@ -205,13 +291,12 @@ export default function TranscriberPage() {
   const canSubmit = useMemo(() => {
     if (isSignedIn && !isEmailVerified) return false;
     if (mode === "FILE") return Boolean(selectedFile) && !loading;
-    return youtubeValid && ytStartTime !== null && ytEndTime !== null && !loading;
+    return youtubeValid && youtubeTimeRangeValid && !loading;
   }, [
     mode,
     selectedFile,
     youtubeValid,
-    ytStartTime,
-    ytEndTime,
+    youtubeTimeRangeValid,
     loading,
     isSignedIn,
     isEmailVerified,
@@ -322,7 +407,7 @@ export default function TranscriberPage() {
       return;
     }
     if (mode === "YOUTUBE" && ytStartTime !== null && ytEndTime !== null && ytEndTime <= ytStartTime) {
-      setError("End time must be greater than start time.");
+      setError("End time must be after start time.");
       return;
     }
     if (
@@ -354,8 +439,16 @@ export default function TranscriberPage() {
         setError("Start time must be 0 or greater.");
         return;
       }
+      if (ytStartTime !== null && ytStartTime > MAX_YT_START_SEC) {
+        setError("Start time must be 9:00 or earlier.");
+        return;
+      }
       if (ytEndTime !== null && ytEndTime <= 0) {
         setError("End time must be greater than 0.");
+        return;
+      }
+      if (ytEndTime !== null && ytEndTime > MAX_YT_END_SEC) {
+        setError("End time must be 10:00 or earlier.");
         return;
       }
     }
@@ -717,42 +810,36 @@ export default function TranscriberPage() {
               </div>
 
               {mode === "YOUTUBE" && (
-                <div className="prompt-footer">
-                  <button
-                    type="button"
-                    className="advanced-toggle"
-                    aria-expanded={showAdvancedOptions}
-                    onClick={() => setShowAdvancedOptions((prev) => !prev)}
-                  >
-                    Advanced Options
-                  </button>
-                </div>
-              )}
-
-              {mode === "YOUTUBE" && showAdvancedOptions && (
                 <div className="advanced-grid">
                   <label>
-                    Start time (sec)
+                    Start time (mm:ss)
                     <input
-                      type="number"
-                      min={0}
-                      value={ytStartTime ?? ""}
-                      onChange={(event) => setYtStartTime(parseOptionalNumber(event.target.value))}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9:]*"
+                      autoComplete="off"
+                      placeholder="0:00"
+                      value={ytStartInput}
+                      onChange={(event) => handleYtStartInputChange(event.target.value)}
+                      onBlur={handleYtStartInputBlur}
                       required
                     />
                   </label>
                   <label>
-                    End time (sec)
+                    End time (mm:ss)
                     <input
-                      type="number"
-                      min={ytStartTime !== null ? ytStartTime + 1 : 1}
-                      value={ytEndTime ?? ""}
-                      onChange={(event) => {
-                        setYtEndTime(parseOptionalNumber(event.target.value));
-                      }}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9:]*"
+                      autoComplete="off"
+                      placeholder="0:30"
+                      value={ytEndInput}
+                      onChange={(event) => handleYtEndInputChange(event.target.value)}
+                      onBlur={handleYtEndInputBlur}
                       required
                     />
                   </label>
+                  <p className="advanced-note">Use minutes and seconds. The clip can be up to 0:30 long.</p>
                 </div>
               )}
 
@@ -856,16 +943,16 @@ export default function TranscriberPage() {
                     Copy tabs
                   </button>
                   {isSignedIn ? (
-                    <Link href="/account" className="button-secondary">
-                      Open account
+                    <Link href="/settings" className="button-secondary">
+                      Open settings
                     </Link>
                   ) : disableDbInDev ? (
                     <Link href={`/gte/${GTE_GUEST_EDITOR_ID}`} className="button-secondary">
                       Open guest editor
                     </Link>
                   ) : (
-                    <Link href="/account" className="button-secondary">
-                      Open account
+                    <Link href="/settings" className="button-secondary">
+                      Open settings
                     </Link>
                   )}
                 </div>

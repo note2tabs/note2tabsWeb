@@ -29,12 +29,12 @@ const controlChecklist = [
   "Chord shapes and voicing choices",
   "Single-note fingering alternatives",
   "Section cuts and segment boundaries",
-  "Saved versions in your library",
+  "Transcriptions in your library",
 ] as const;
 
 const reliabilityBullets = [
   "Browser-based editor with no install",
-  "Saved library for ongoing songs",
+  "Transcription library for ongoing songs",
   "Works as a standalone workflow or after transcription",
   "Designed for repeat editing sessions",
 ] as const;
@@ -43,7 +43,7 @@ const editorSeoHighlights = [
   "Build tabs from scratch or clean up a rough draft",
   "Compare note and chord fingerings for better playability",
   "Generate song cuts and refine segment boundaries",
-  "Keep songs organized in a saved tab library",
+  "Keep songs organized in a transcription library",
 ] as const;
 
 const editorSeoQuestions = [
@@ -108,7 +108,7 @@ export default function EditorLandingPage() {
         <meta
           key="twitter:description"
           name="twitter:description"
-          content="A browser-based guitar tab editor with precise controls and saved song library."
+          content="A browser-based guitar tab editor with precise controls and a transcription library."
         />
       </Head>
 
@@ -232,7 +232,7 @@ export default function EditorLandingPage() {
             <div>
               <p className="editor-landing-section-label">Start now</p>
               <h2>Open your library or create a new tab</h2>
-              <p>Choose a saved song or begin from the first note.</p>
+              <p>Choose a transcription or begin from the first note.</p>
             </div>
             <div className="button-row">
               <button type="button" onClick={() => void handleCreate()} className="button-primary" disabled={creating}>

@@ -91,7 +91,7 @@ export default function NavBar() {
               <button
                 type="button"
                 className={`nav-profile-toggle${profileMenuOpen ? " open" : ""}`}
-                aria-label="Open account menu"
+                aria-label="Open settings menu"
                 aria-haspopup="menu"
                 aria-expanded={profileMenuOpen}
                 aria-controls="nav-profile-menu"
@@ -108,14 +108,11 @@ export default function NavBar() {
                 className={`nav-profile-menu${profileMenuOpen ? " open" : ""}`}
                 role="menu"
               >
-                <Link href="/account" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
-                  Account
-                </Link>
                 <Link href="/settings" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
                   Settings
                 </Link>
                 <Link href="/tabs" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
-                  Saved tabs
+                  Transcriptions
                 </Link>
                 {(isAdmin || isModerator) && (
                   <Link href={analyticsHref} role="menuitem" onClick={() => setProfileMenuOpen(false)}>

@@ -34,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const baseUrl = getAppBaseUrl(req);
     const portal = await stripeClient.billingPortal.sessions.create({
       customer: customer.id,
-      return_url: `${baseUrl}/account`,
+      return_url: `${baseUrl}/settings`,
     });
 
     return res.status(200).json({ url: portal.url });

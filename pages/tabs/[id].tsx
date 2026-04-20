@@ -79,7 +79,7 @@ export default function TabDetailPage({ id, sourceLabel, createdAt, tabs, transc
     try {
       const selectedTranscriberGroups = getSelectedTranscriberGroups();
       if (!selectedTranscriberGroups) {
-        throw new Error("This saved transcription is missing transcriber segment data.");
+        throw new Error("This transcription is missing transcriber segment data.");
       }
       const imported = await gteApi.importTranscriberToSaved({
         target: !editorChoice || editorChoice === "new" ? "new" : "existing",
@@ -107,21 +107,21 @@ export default function TabDetailPage({ id, sourceLabel, createdAt, tabs, transc
       <div className="container stack">
         <div className="page-header">
           <div className="stack stack-tight">
-            <h1 className="page-title">Import saved tabs</h1>
+            <h1 className="page-title">Import transcription</h1>
             <p className="muted text-small">{sourceLabel}</p>
             <p className="muted text-small">{new Date(createdAt).toLocaleString()}</p>
           </div>
           <div className="button-row">
             <Link href="/tabs" className="button-secondary button-small">
-              Back to saved tabs
+              Back to transcriptions
             </Link>
             {reviewHref ? (
               <Link href={reviewHref} className="button-secondary button-small">
                 Edit transcription
               </Link>
             ) : null}
-            <Link href="/account" className="button-secondary button-small">
-              Account
+            <Link href="/settings" className="button-secondary button-small">
+              Settings
             </Link>
           </div>
         </div>
