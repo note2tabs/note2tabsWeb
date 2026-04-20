@@ -1033,27 +1033,21 @@ export default function HomePage() {
               <article className="how-step">
                 <span className="how-step-index">1</span>
                 <h3>Transcribe</h3>
-                <p>Upload audio or paste a YouTube link to generate draft tabs quickly.</p>
+                <p>Upload music or paste a youtube link to start transcribing</p>
               </article>
 
-              <div className="how-arrow how-arrow--1" aria-hidden="true">
-                <span className="how-arrow-head" />
-              </div>
 
               <article className="how-step">
                 <span className="how-step-index">2</span>
-                <h3>Edit your style</h3>
-                <p>Edit the tablature to match your preferred playing style and technique.</p>
+                <h3>Fine-Tune</h3>
+                <p>Tune the transcription settings until the notes sound right</p>
               </article>
 
-              <div className="how-arrow how-arrow--2" aria-hidden="true">
-                <span className="how-arrow-head" />
-              </div>
 
               <article className="how-step">
                 <span className="how-step-index">3</span>
-                <h3>Play guitar</h3>
-                <p>Press play, grab your guitar, and start playing the song.</p>
+                <h3>Tabs</h3>
+                <p>You can edit the tabs or optimize the guitar fingerings to your liking, using the editor.</p>
               </article>
             </div>
           </div>

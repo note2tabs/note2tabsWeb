@@ -3814,7 +3814,7 @@ input[type="number"] {
 .how-flow {
   margin-top: 18px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 90px minmax(0, 1fr) 90px minmax(0, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
   align-items: stretch;
 }
@@ -3852,63 +3852,6 @@ input[type="number"] {
   color: var(--muted);
   line-height: 1.55;
   font-size: 0.92rem;
-}
-
-.how-arrow {
-  align-self: center;
-  position: relative;
-  height: 3px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.16);
-}
-
-.how-arrow::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #2a6df4, #1fbf9f);
-  transform-origin: left center;
-  transform: scaleX(0);
-}
-
-.how-arrow-head {
-  position: absolute;
-  right: -1px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0;
-  height: 0;
-  border-top: 8px solid transparent;
-  border-bottom: 8px solid transparent;
-  border-left: 12px solid rgba(15, 23, 42, 0.25);
-}
-
-.how-flow.visible .how-arrow--1::after {
-  animation: howArrowGrowX 0.75s ease forwards 0.2s;
-}
-
-.how-flow.visible .how-arrow--2::after {
-  animation: howArrowGrowX 0.75s ease forwards 1.05s;
-}
-
-.how-flow.visible .how-arrow--1 .how-arrow-head {
-  border-left-color: #1fbf9f;
-  transition: border-left-color 0.18s ease 0.82s;
-}
-
-.how-flow.visible .how-arrow--2 .how-arrow-head {
-  border-left-color: #1fbf9f;
-  transition: border-left-color 0.18s ease 1.65s;
-}
-
-@keyframes howArrowGrowX {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
 }
 
 .section-title {
@@ -3958,50 +3901,6 @@ input[type="number"] {
     gap: 14px;
   }
 
-  .how-arrow {
-    width: 3px;
-    height: 48px;
-    justify-self: center;
-  }
-
-  .how-arrow::after {
-    transform-origin: center top;
-    transform: scaleY(0);
-  }
-
-  .how-arrow-head {
-    right: 50%;
-    top: auto;
-    bottom: -2px;
-    transform: translateX(50%);
-    border-top: 12px solid rgba(15, 23, 42, 0.25);
-    border-bottom: none;
-    border-left: 8px solid transparent;
-    border-right: 8px solid transparent;
-  }
-
-  .how-flow.visible .how-arrow--1::after {
-    animation: howArrowGrowY 0.65s ease forwards 0.2s;
-  }
-
-  .how-flow.visible .how-arrow--2::after {
-    animation: howArrowGrowY 0.65s ease forwards 1.05s;
-  }
-
-  .how-flow.visible .how-arrow--1 .how-arrow-head,
-  .how-flow.visible .how-arrow--2 .how-arrow-head {
-    border-left-color: transparent;
-    border-top-color: #1fbf9f;
-  }
-}
-
-@keyframes howArrowGrowY {
-  from {
-    transform: scaleY(0);
-  }
-  to {
-    transform: scaleY(1);
-  }
 }
 
 .icon {
