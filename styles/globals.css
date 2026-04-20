@@ -3463,7 +3463,8 @@ input[type="number"] {
   color: var(--muted);
 }
 
-.advanced-grid input[type="number"] {
+.advanced-grid input[type="number"],
+.advanced-grid input[type="text"] {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 10px 12px;

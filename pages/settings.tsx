@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth/next";
 import { signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { authOptions } from "./api/auth/[...nextauth]";
+import { buildCreditsSummary, getCreditWindow } from "../lib/credits";
 import { prisma } from "../lib/prisma";
 import { generateFingerprint } from "../lib/fingerprint";
 
@@ -15,9 +16,17 @@ type Props = {
     createdAt: string;
     isEmailVerified: boolean;
   };
+  stripeReady: boolean;
+  credits: {
+    used: number;
+    limit: number;
+    remaining: number;
+    resetAt: string;
+    unlimited: boolean;
+  };
 };
 
-export default function SettingsPage({ user }: Props) {
+export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteFlowOpen, setDeleteFlowOpen] = useState(false);
@@ -29,9 +38,20 @@ export default function SettingsPage({ user }: Props) {
   const [consentBusy, setConsentBusy] = useState(false);
   const [consentMessage, setConsentMessage] = useState<string | null>(null);
   const [consentState, setConsentState] = useState<"granted" | "denied" | "missing">("missing");
+  const [upgradeBusy, setUpgradeBusy] = useState(false);
+  const [portalBusy, setPortalBusy] = useState(false);
   const verifyHref = `/auth/verify-email?email=${encodeURIComponent(user.email)}`;
   const canContinueDeleteFlow = deleteOriginReason.trim().length >= 8;
   const canFinalizeDelete = deleteConfirmationText.trim().toLowerCase() === "delete";
+  const isAdminOrMod = user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
+  const isAdmin = user.role === "ADMIN";
+  const analyticsHref = isAdmin
+    ? "/admin/analytics?view=overview&range=30d"
+    : "/admin/analytics?view=moderation&range=30d";
+  const isPremium =
+    user.role === "PREMIUM" || user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
+  const resetLabel = new Date(credits.resetAt).toLocaleDateString();
+  const creditsUsedLabel = `${credits.used} / ${credits.limit}`;
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -51,6 +71,43 @@ export default function SettingsPage({ user }: Props) {
   const handleSignOut = async () => {
     await signOut({ redirect: false });
     window.location.href = "/";
+  };
+
+  const handleUpgrade = async () => {
+    if (!stripeReady) {
+      setError("Stripe not configured yet. Coming soon.");
+      return;
+    }
+    setUpgradeBusy(true);
+    setError(null);
+    const res = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    setUpgradeBusy(false);
+    if (!res.ok || !data?.url) {
+      setError(data?.error || "Could not start checkout.");
+      return;
+    }
+    window.location.href = data.url;
+  };
+
+  const handleManageSubscription = async () => {
+    if (!stripeReady) {
+      setError("Stripe not configured yet. Subscription management is unavailable.");
+      return;
+    }
+    setPortalBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/stripe/create-portal-session", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.url) {
+        setError(data?.error || "Could not open subscription management.");
+        return;
+      }
+      window.location.href = data.url;
+    } finally {
+      setPortalBusy(false);
+    }
   };
 
   const handleResendVerification = async () => {
@@ -137,10 +194,10 @@ export default function SettingsPage({ user }: Props) {
         <div className="page-header">
           <div>
             <h1 className="page-title">Settings</h1>
-            <p className="page-subtitle">Manage security, verification, and account actions.</p>
+            <p className="page-subtitle">Manage your profile, credits, security, and account actions.</p>
           </div>
-          <Link href="/account" className="button-ghost button-small">
-            Back to account
+          <Link href="/" className="button-ghost button-small">
+            Back to app
           </Link>
         </div>
 
@@ -154,13 +211,73 @@ export default function SettingsPage({ user }: Props) {
           <p className="muted text-small">Created: {new Date(user.createdAt).toLocaleDateString()}</p>
           <p className="muted text-small">Email verified: {user.isEmailVerified ? "Yes" : "No"}</p>
           <div className="button-row">
-            <Link href="/account" className="button-secondary button-small">
-              Account overview
-            </Link>
             <Link href="/tabs" className="button-secondary button-small">
-              Saved tabs
+              Transcriptions
+            </Link>
+            <Link href="/editor" className="button-secondary button-small">
+              Open editor
             </Link>
           </div>
+        </section>
+
+        <section className="card stack">
+          <h2 className="section-title section-title--tight">
+            Plan and credits
+          </h2>
+          <p className="muted text-small">
+            {isPremium ? `Plan: ${user.role} - 50 credits/month (roll over)` : "Plan: Free - 10 credits/month"}
+          </p>
+          <div className="account-credits">
+            <div className="stat-card">
+              <span className="stat-label">Credits used</span>
+              <span className="stat-value">{creditsUsedLabel}</span>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">Next credits</span>
+              <span className="stat-value">{resetLabel}</span>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">Remaining</span>
+              <span className="stat-value">{credits.remaining}</span>
+            </div>
+          </div>
+          <div className="button-row">
+            {!isPremium && (
+              <button type="button" onClick={handleUpgrade} className="button-primary" disabled={upgradeBusy}>
+                {stripeReady ? "Upgrade to Premium" : "Premium (coming soon)"}
+              </button>
+            )}
+            {isPremium && (
+              <button
+                type="button"
+                onClick={handleManageSubscription}
+                className="button-secondary"
+                disabled={portalBusy}
+              >
+                {portalBusy ? "Opening..." : "Manage subscription"}
+              </button>
+            )}
+            {isAdminOrMod && (
+              <Link href={analyticsHref} className="button-secondary">
+                Open analytics hub
+              </Link>
+            )}
+            {isAdmin && (
+              <Link href="/admin/blog" className="button-secondary">
+                Open blog CMS
+              </Link>
+            )}
+          </div>
+          {credits.remaining === 0 && (
+            <div className="notice">
+              {isPremium
+                ? `Credits used. More credits arrive on ${resetLabel}.`
+                : `Monthly credits used. Upgrade to Premium or wait until ${resetLabel}.`}
+            </div>
+          )}
+          {isPremium && (
+            <p className="footnote">You can cancel your Premium subscription anytime from Manage subscription.</p>
+          )}
         </section>
 
         <section className="card stack">
@@ -278,7 +395,7 @@ export default function SettingsPage({ user }: Props) {
                     </p>
                     <div className="button-row">
                       <Link href="/tabs" className="button-secondary button-small">
-                        Review saved tabs
+                        Review transcriptions
                       </Link>
                       <Link href="/reset-password" className="button-secondary button-small">
                         Reset password
@@ -387,6 +504,33 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     },
   });
 
+  const stripeReady = Boolean(
+    process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_PREMIUM_MONTHLY
+  );
+  const role = user?.role || "FREE";
+  const isPremium = role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
+  const creditWindow = isPremium
+    ? getCreditWindow({ userCreatedAt: user?.createdAt })
+    : getCreditWindow();
+  const creditJobs = await prisma.tabJob.findMany({
+    where: isPremium
+      ? { userId: session.user.id }
+      : {
+          userId: session.user.id,
+          createdAt: {
+            gte: creditWindow.start,
+            lt: creditWindow.resetAt,
+          },
+        },
+    select: { durationSec: true },
+  });
+  const credits = buildCreditsSummary({
+    durations: creditJobs.map((job) => job.durationSec),
+    resetAt: creditWindow.resetAt,
+    isPremium,
+    userCreatedAt: user?.createdAt,
+  });
+
   return {
     props: {
       user: user
@@ -404,6 +548,8 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
             createdAt: new Date().toISOString(),
             isEmailVerified: Boolean(session.user.isEmailVerified),
           },
+      stripeReady,
+      credits,
     },
   };
 };

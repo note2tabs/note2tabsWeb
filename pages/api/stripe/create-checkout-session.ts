@@ -31,8 +31,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       subscription_data: {
         trial_period_days: PREMIUM_TRIAL_DAYS,
       },
-      success_url: `${baseUrl}/account?upgrade=success`,
-      cancel_url: `${baseUrl}/account?upgrade=cancel`,
+      success_url: `${baseUrl}/settings?upgrade=success`,
+      cancel_url: `${baseUrl}/settings?upgrade=cancel`,
       metadata: { userId: session.user.id },
     });
     return res.status(200).json({ url: checkout.url });

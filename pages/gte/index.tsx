@@ -214,7 +214,7 @@ export default function GteIndexPage() {
         <div className="page-header">
           <div>
             <h1 className="page-title">Guitar Tab Editor</h1>
-            <p className="page-subtitle">Open saved songs, start a new tab, or bring in a draft you made earlier.</p>
+            <p className="page-subtitle">Open transcriptions, start a new tab, or bring in a draft you made earlier.</p>
           </div>
           <div className="button-row">
             <button type="button" onClick={handleCreate} disabled={creating} className="button-primary button-small">
@@ -265,7 +265,7 @@ export default function GteIndexPage() {
           {loading && <p className="muted text-small">Loading editors...</p>}
           {error && <div className="error">{error}</div>}
           {!loading && !editors.length && (
-            <p className="muted text-small">No saved tabs yet. Start your first one.</p>
+            <p className="muted text-small">No transcriptions yet. Start your first one.</p>
           )}
           <div className="gte-library-grid">
             {editors.map((editor) => (
