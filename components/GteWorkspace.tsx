@@ -4555,6 +4555,18 @@ export default function GteWorkspace({
     ]
   );
 
+  const adjustDesktopNoteMenuFret = useCallback(
+    (delta: number) => {
+      const fallbackValue = selectedNote?.tab[1] ?? 0;
+      const currentValue = Number(noteMenuDraft?.fret ?? fallbackValue);
+      const baseValue = Number.isFinite(currentValue) ? currentValue : fallbackValue;
+      const nextValue = Math.max(0, Math.min(maxFret, baseValue + delta));
+      setNoteMenuDraft((prev) => (prev ? { ...prev, fret: String(nextValue) } : prev));
+      commitNoteMenuFretValue(nextValue);
+    },
+    [commitNoteMenuFretValue, maxFret, noteMenuDraft, selectedNote]
+  );
+
   const commitChordMenuLength = () => {
     if (!selectedChord || !chordMenuDraft) return;
     const rawLength = Number(chordMenuDraft.length);
@@ -7460,31 +7472,51 @@ export default function GteWorkspace({
                       <div className="mt-2 space-y-2">
                         <label className="block text-[10px] text-slate-500">
                           Fret
-                          <input
-                            type="number"
-                            min={0}
-                            max={maxFret}
-                            className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                            value={noteMenuDraft.fret}
-                            onChange={(event) =>
-                              setNoteMenuDraft((prev) =>
-                                prev ? { ...prev, fret: event.target.value } : prev
-                              )
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                commitNoteMenuFret();
+                          <div className="mt-1 flex items-stretch gap-1">
+                            <input
+                              type="number"
+                              min={0}
+                              max={maxFret}
+                              className="w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                              value={noteMenuDraft.fret}
+                              onChange={(event) =>
+                                setNoteMenuDraft((prev) =>
+                                  prev ? { ...prev, fret: event.target.value } : prev
+                                )
                               }
-                              if (event.key === "Escape") {
-                                event.preventDefault();
-                                setNoteMenuAnchor(null);
-                                setNoteMenuNoteId(null);
-                                setNoteMenuDraft(null);
-                              }
-                            }}
-                            onBlur={() => commitNoteMenuFret()}
-                          />
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  commitNoteMenuFret();
+                                }
+                                if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  setNoteMenuAnchor(null);
+                                  setNoteMenuNoteId(null);
+                                  setNoteMenuDraft(null);
+                                }
+                              }}
+                              onBlur={() => commitNoteMenuFret()}
+                            />
+                            <div className="flex w-7 flex-col gap-1">
+                              <button
+                                type="button"
+                                className="flex h-[18px] items-center justify-center rounded border border-slate-200 bg-slate-50 text-[10px] text-slate-700"
+                                onClick={() => adjustDesktopNoteMenuFret(1)}
+                                aria-label="Increase fret"
+                              >
+                                &uarr;
+                              </button>
+                              <button
+                                type="button"
+                                className="flex h-[18px] items-center justify-center rounded border border-slate-200 bg-slate-50 text-[10px] text-slate-700"
+                                onClick={() => adjustDesktopNoteMenuFret(-1)}
+                                aria-label="Decrease fret"
+                              >
+                                &darr;
+                              </button>
+                            </div>
+                          </div>
                         </label>
                         <label className="block text-[10px] text-slate-500">
                           Length
