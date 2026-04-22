@@ -352,7 +352,7 @@ input[type="number"] {
   padding: 14px 15px;
   border-radius: 18px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 255, 0.94));
+  background: var(--surface);
 }
 
 .job-progress-fact-label {
@@ -380,13 +380,13 @@ input[type="number"] {
   gap: 6px;
   padding: 14px 15px;
   border-radius: 18px;
-  background: rgba(42, 109, 244, 0.08);
-  border: 1px solid rgba(42, 109, 244, 0.14);
+  background: var(--surface);
+  border: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .job-progress-note p {
   margin: 0;
-  color: #27467d;
+  color: var(--text);
   font-size: 0.9rem;
   line-height: 1.5;
 }
@@ -582,7 +582,7 @@ input[type="number"] {
   padding: 18px;
   border-radius: 24px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(248, 250, 252, 0.94);
+  background: var(--surface);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
@@ -598,7 +598,7 @@ input[type="number"] {
   padding: 16px 18px;
   border-radius: 22px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(248, 250, 252, 0.9);
+  background: var(--surface);
 }
 
 .review-callout-title {
@@ -641,7 +641,7 @@ input[type="number"] {
   padding: 18px 20px;
   border-radius: 18px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(247, 248, 250, 0.96);
+  background: var(--surface);
 }
 
 .review-update-panel {
