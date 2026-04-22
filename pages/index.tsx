@@ -745,7 +745,6 @@ export default function HomePage() {
             <div className="hero-heading" data-reveal>
               <div className="hero-title-row">
                 <h2 className="hero-title">Convert Any Song to Tabs</h2>
-                <span className="badge transcriber-version">v0.1.3</span>
               </div>
               <p className="hero-subtitle">
                 Paste a YouTube link or upload audio, then shape the result in the editor.

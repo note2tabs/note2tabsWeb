@@ -715,7 +715,6 @@ export default function TranscriberPage() {
             <div className="hero-heading" data-reveal>
               <div className="hero-title-row">
                 <h1 className="hero-title">Transcriber</h1>
-                <span className="badge transcriber-version">v0.1.3</span>
               </div>
               <p className="hero-subtitle">
                 Upload audio or enter a YouTube segment and get a draft tab you can refine in the editor.
