@@ -41,11 +41,11 @@ const REVIEW_SLIDERS: Array<{
 }> = [
   {
     key: "onsetThresh",
-    label: "Pick attack sensitivity",
+    label: "Note Start Sensitivity",
     min: 0,
     max: 1,
     step: 0.01,
-    description: "Higher catches more note starts. Lower is stricter.",
+    description: "Higher creates more notes, lower creates less.",
     format: (value) => value.toFixed(2),
   },
   {
@@ -63,7 +63,7 @@ const REVIEW_SLIDERS: Array<{
     min: 1,
     max: 32,
     step: 1,
-    description: "Ignore tiny blips and accidental hits.",
+    description: "Minimum length that a note has to have to be registered",
     format: (value) => `${Math.round(value)} frames`,
   },
   {
@@ -93,6 +93,21 @@ function getQueryStringValue(value: string | string[] | undefined) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function toDisplayOnsetThresh(value: number) {
+  return clamp(1 - value, 0, 1);
+}
+
+function toBackendOnsetThresh(value: number) {
+  return clamp(1 - value, 0, 1);
+}
+
+function toBackendReviewParams(params: ReviewParams): ReviewParams {
+  return {
+    ...params,
+    onsetThresh: toBackendOnsetThresh(params.onsetThresh),
+  };
 }
 
 function appendQueryParam(url: string, key: string, value: string) {
@@ -332,7 +347,7 @@ function buildPendingPresentation(
 
 function defaultReviewParams(): ReviewParams {
   return {
-    onsetThresh: 0.45,
+    onsetThresh: toDisplayOnsetThresh(0.45),
     frameThresh: 0.25,
     minNoteLen: 8,
     minFreq: 82.41,
@@ -426,7 +441,7 @@ function getReviewParams(job: JobResponse | null): ReviewParams | null {
     return null;
   }
   return {
-    onsetThresh,
+    onsetThresh: toDisplayOnsetThresh(onsetThresh),
     frameThresh,
     minNoteLen,
     minFreq,
@@ -888,7 +903,7 @@ export default function JobPage() {
       const response = await fetch(`/api/jobs/${encodeURIComponent(job_id)}/redo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(reviewParams),
+        body: JSON.stringify(toBackendReviewParams(reviewParams)),
       });
       if (!response.ok) {
         throw new Error(await readErrorMessage(response));
@@ -992,11 +1007,10 @@ export default function JobPage() {
               <div className="review-top-grid">
                 <section className="card review-intro-card">
                   <div className="review-hero-copy">
-                    <span className="badge">Sound check</span>
                     <div className="stack" style={{ gap: "8px" }}>
-                      <h2 className="review-hero-title">{displayJob?.song_title || "Shape your guitar preview"}</h2>
+                      <h2 className="review-hero-title">{displayJob?.song_title || "Adjust your transcription"}</h2>
                       <p className="review-hero-lead">
-                        Focus on the sound, then continue once it feels right.
+                        Listen to the preview sound, then continue once it sounds right.
                       </p>
                       {isRecoverableReview ? (
                         <p className="muted text-small" style={{ margin: 0 }}>
@@ -1008,7 +1022,7 @@ export default function JobPage() {
                     <div className="review-guide">
                       <div className="review-guide-step">
                         <span className="review-guide-number">1</span>
-                        <p>Play the preview and note anything off.</p>
+                        <p>Play the preview and listen to your transcription</p>
                       </div>
                       <div className="review-guide-step">
                         <span className="review-guide-number">2</span>
@@ -1016,18 +1030,18 @@ export default function JobPage() {
                       </div>
                       <div className="review-guide-step">
                         <span className="review-guide-number">3</span>
-                        <p>Press <strong>Continue to tabs</strong> when satisfied.</p>
+                        <p>Press <strong>Continue to tabs</strong> when everything sounds right.</p>
                       </div>
                     </div>
                   </div>
                 </section>
 
-                <section className="card review-preview-card">
+                <section className="sound-review-preview-card">
                   <div className="review-preview-shell">
                     <div className="review-audio-header">
                       <div>
                         <p className="review-audio-label">Preview sound</p>
-                        <p className="review-audio-caption">This is the version the tab builder will use next.</p>
+                        <p className="review-audio-caption">This is the preview sound which will be converted to tabs.</p>
                       </div>
                       {reviewNoteCount !== null ? (
                         <span className="review-count-pill">{reviewNoteCount.toLocaleString()} notes</span>
@@ -1090,7 +1104,7 @@ export default function JobPage() {
                     <span className="badge">Controls</span>
                     <div>
                       <h3 className="label" style={{ marginBottom: "6px" }}>
-                        Shape the guitar preview
+                        Adjust the transcription
                       </h3>
                       <p className="muted text-small" style={{ margin: 0 }}>
                         Adjust as needed, then continue.
@@ -1098,41 +1112,63 @@ export default function JobPage() {
                     </div>
                   </div>
                 </div>
-                <div className="review-slider-grid">
-                  {REVIEW_SLIDERS.map((slider) => (
-                    <div key={slider.key} className="review-slider-card">
-                      <div className="review-slider-header">
-                        <div className="stack" style={{ gap: "4px" }}>
-                          <p style={{ margin: 0, fontWeight: 600 }}>{slider.label}</p>
-                          <p className="muted text-small" style={{ margin: 0 }}>
-                            {slider.description}
-                          </p>
+                <div className="review-controls-body">
+                  <div className="review-slider-grid">
+                    {REVIEW_SLIDERS.map((slider) => (
+                      <div key={slider.key} className="review-slider-card">
+                        <div className="review-slider-header">
+                          <div className="stack" style={{ gap: "4px" }}>
+                            <p style={{ margin: 0, fontWeight: 600 }}>{slider.label}</p>
+                            <p className="muted text-small" style={{ margin: 0 }}>
+                              {slider.description}
+                            </p>
+                          </div>
+                          <span className="badge">{slider.format(reviewParams[slider.key])}</span>
                         </div>
-                        <span className="badge">{slider.format(reviewParams[slider.key])}</span>
+                        <input
+                          type="range"
+                          min={slider.min}
+                          max={slider.max}
+                          step={slider.step}
+                          value={reviewParams[slider.key]}
+                          disabled={reviewBusy}
+                          onChange={(event) => handleReviewParamChange(slider.key, Number(event.target.value))}
+                          className="review-slider-input"
+                        />
+                        <div className="job-progress-meta" style={{ justifyContent: "space-between" }}>
+                          <span>{slider.format(slider.min)}</span>
+                          <span>{slider.format(slider.max)}</span>
+                        </div>
                       </div>
-                      <input
-                        type="range"
-                        min={slider.min}
-                        max={slider.max}
-                        step={slider.step}
-                        value={reviewParams[slider.key]}
-                        disabled={reviewBusy}
-                        onChange={(event) => handleReviewParamChange(slider.key, Number(event.target.value))}
-                        className="review-slider-input"
-                      />
-                      <div className="job-progress-meta" style={{ justifyContent: "space-between" }}>
-                        <span>{slider.format(slider.min)}</span>
-                        <span>{slider.format(slider.max)}</span>
-                      </div>
+                    ))}
+                  </div>
+                  <aside className="review-update-panel">
+                    <div className="stack" style={{ gap: "4px" }}>
+                      <p className="review-update-title">Apply these changes</p>
+                      <p className="muted text-small" style={{ margin: 0 }}>
+                        Regenerate the preview with the current transcription settings.
+                      </p>
                     </div>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => void handleRedoTranscription()}
+                      className="button-secondary review-update-button"
+                      disabled={reviewBusy}
+                    >
+                      {reviewAction === "redo" ? "Updating..." : "Update sound"}
+                    </button>
+                  </aside>
                 </div>
+              </section>
+
+              {reviewError ? <div className="error">{reviewError}</div> : null}
+
+              <div className="review-bottom-actions">
                 <div className="review-track-toggle">
                   <div className="stack" style={{ gap: "6px" }}>
-                    <p style={{ margin: 0, fontWeight: 600 }}>Track split</p>
+                    <p style={{ margin: 0, fontWeight: 600 }}>Track separation</p>
                     <p className="muted text-small" style={{ margin: 0 }}>
-                      This only affects <strong>Continue to tabs</strong>. Leave it on to use the track separator
-                      model for separate guitar tracks.
+                      Split the generated notes into 2 separate tracks
                     </p>
                   </div>
                   <label className="checkbox">
@@ -1145,19 +1181,7 @@ export default function JobPage() {
                     <span>There is more than one guitar playing</span>
                   </label>
                 </div>
-              </section>
-
-              {reviewError ? <div className="error">{reviewError}</div> : null}
-
-              <div className="button-row review-actions">
-                <button
-                  type="button"
-                  onClick={() => void handleRedoTranscription()}
-                  className="button-secondary button-small"
-                  disabled={reviewBusy}
-                >
-                  {reviewAction === "redo" ? "Updating..." : "Update sound"}
-                </button>
+                <div className="button-row review-actions">
                 <button
                   type="button"
                   onClick={() => void handleContinue()}
@@ -1169,6 +1193,7 @@ export default function JobPage() {
                 <button type="button" onClick={handleRestart} className="button-ghost button-small" disabled={reviewBusy}>
                   Start over
                 </button>
+                </div>
               </div>
             </div>
           ) : (
