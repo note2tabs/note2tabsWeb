@@ -727,9 +727,6 @@ export default function TranscriberPage() {
                   Back to home
                 </Link>
               </div>
-              <p className="muted text-small">
-                Up to {MAX_YT_SNIPPET_SEC} seconds per YouTube clip.
-              </p>
             </div>
             <form className="prompt-shell" data-reveal onKeyDown={preventEnterSubmit}>
               {displayedCredits && (
@@ -811,7 +808,7 @@ export default function TranscriberPage() {
               {mode === "YOUTUBE" && (
                 <div className="advanced-grid">
                   <label>
-                    Start time (mm:ss)
+                    Start time
                     <input
                       type="text"
                       inputMode="numeric"
@@ -825,7 +822,7 @@ export default function TranscriberPage() {
                     />
                   </label>
                   <label>
-                    End time (mm:ss)
+                    End time
                     <input
                       type="text"
                       inputMode="numeric"
@@ -838,7 +835,7 @@ export default function TranscriberPage() {
                       required
                     />
                   </label>
-                  <p className="advanced-note">Use minutes and seconds. The clip can be up to 0:30 long.</p>
+                  <p className="advanced-note">Max length is 30 s.</p>
                 </div>
               )}
 

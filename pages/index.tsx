@@ -843,37 +843,37 @@ export default function HomePage() {
               {(mode === "YOUTUBE" || mode === "FILE") && (
                 <div className="prompt-field prompt-field--compact">
                   {mode === "YOUTUBE" && (
-                      <div className="advanced-grid">
-                        <label>
-                          Start time (mm:ss)
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9:]*"
-                            autoComplete="off"
-                            placeholder="0:00"
-                            value={ytStartInput}
-                            onChange={(event) => handleYtStartInputChange(event.target.value)}
-                            onBlur={handleYtStartInputBlur}
-                            required
-                          />
-                        </label>
-                        <label>
-                          End time (mm:ss)
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9:]*"
-                            autoComplete="off"
-                            placeholder="0:30"
-                            value={ytEndInput}
-                            onChange={(event) => handleYtEndInputChange(event.target.value)}
-                            onBlur={handleYtEndInputBlur}
-                            required
-                          />
-                        </label>
-                        <p className="advanced-note">Use minutes and seconds. The clip can be up to 0:30 long.</p>
-                      </div>
+                    <div className="advanced-grid">
+                      <label>
+                        Start time
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9:]*"
+                          autoComplete="off"
+                          placeholder="0:00"
+                          value={ytStartInput}
+                          onChange={(event) => handleYtStartInputChange(event.target.value)}
+                          onBlur={handleYtStartInputBlur}
+                          required
+                        />
+                      </label>
+                      <label>
+                        End time
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9:]*"
+                          autoComplete="off"
+                          placeholder="0:30"
+                          value={ytEndInput}
+                          onChange={(event) => handleYtEndInputChange(event.target.value)}
+                          onBlur={handleYtEndInputBlur}
+                          required
+                        />
+                      </label>
+                      <p className="advanced-note">Max length is 30 s.</p>
+                    </div>
                   )}
 
                   <div className="transcriber-checkbox-row">
