@@ -71,6 +71,7 @@ export default function FooterBar() {
 
           <section className="footer-section">
             <h3>Resources</h3>
+            <Link href="/about">About us</Link>
             <Link href="/blog">Blog</Link>
             <Link href="/blog/tag/tutorial">Tutorials</Link>
           </section>
