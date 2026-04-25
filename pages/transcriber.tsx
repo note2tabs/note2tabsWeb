@@ -281,11 +281,6 @@ export default function TranscriberPage() {
     setYtEndInput(formatTimestamp(nextEnd));
   };
 
-  const creditsRequested = useMemo(() => {
-    const duration = mode === "FILE" ? fileDuration ?? 0 : resolvedYtDuration;
-    return Math.max(1, Math.ceil(duration / 30));
-  }, [mode, fileDuration, resolvedYtDuration]);
-
   const youtubeValid = useMemo(() => Boolean(youtubeId), [youtubeId]);
 
   const canSubmit = useMemo(() => {
@@ -866,15 +861,6 @@ export default function TranscriberPage() {
                     ? `Credits used. Next credits arrive on ${creditsResetLabel}.`
                     : `Monthly credits used. Upgrade to Premium or wait until ${creditsResetLabel}.`}
                 </div>
-              )}
-              {isSignedIn && (
-                <p className="footnote">
-                  {isPremiumRole(transcriberSession?.user?.role)
-                    ? "Premium: 50 credits monthly, with rollover."
-                    : `Uses about ${creditsRequested} credit${
-                        creditsRequested > 1 ? "s" : ""
-                      } from your 10 monthly credits.`}
-                </p>
               )}
             </form>
 

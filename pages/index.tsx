@@ -282,11 +282,6 @@ export default function HomePage() {
     setYtEndInput(formatTimestamp(nextEnd));
   };
 
-  const creditsRequested = useMemo(() => {
-    const duration = mode === "FILE" ? fileDuration ?? 0 : resolvedYtDuration;
-    return Math.max(1, Math.ceil(duration / 30));
-  }, [mode, fileDuration, resolvedYtDuration]);
-
   const youtubeValid = useMemo(() => Boolean(youtubeId), [youtubeId]);
 
   const canSubmit = useMemo(() => {
@@ -940,13 +935,6 @@ export default function HomePage() {
                     ? `Credits used. Next credits arrive on ${creditsResetLabel}.`
                     : `Monthly credits used. Upgrade to Premium or wait until ${creditsResetLabel}.`}
                 </div>
-              )}
-              {isSignedIn && (
-                <p className="footnote">
-                  {isPremiumRole(transcriberSession?.user?.role)
-                    ? "Premium credits roll over. 50 credits added monthly."
-                    : `This job uses about ${creditsRequested} credit${creditsRequested > 1 ? "s" : ""} from your 10 monthly credits.`}
-                </p>
               )}
             </form>
 
