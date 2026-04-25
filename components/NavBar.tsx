@@ -16,8 +16,10 @@ export default function NavBar() {
   const { data: session } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const isReadingArticle = router.pathname === "/blog/[slug]";
+  const isHome = router.pathname === "/";
   const role = session?.user?.role || "";
   const isAdmin = role === "ADMIN";
   const isModerator = role === "MODERATOR" || role === "MOD";
@@ -34,6 +36,14 @@ export default function NavBar() {
     setMenuOpen(false);
     setProfileMenuOpen(false);
   }, [router.asPath]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateScrollState = () => setIsScrolled(window.scrollY > 0);
+    updateScrollState();
+    window.addEventListener("scroll", updateScrollState, { passive: true });
+    return () => window.removeEventListener("scroll", updateScrollState);
+  }, []);
 
   useEffect(() => {
     if (!profileMenuOpen) return;
@@ -57,7 +67,9 @@ export default function NavBar() {
   }, [profileMenuOpen]);
 
   return (
-    <header className={`nav-shell${isReadingArticle ? " nav-shell--reading" : ""}`}>
+    <header
+      className={`nav-shell${isReadingArticle ? " nav-shell--reading" : ""}${isHome ? " nav-shell--home" : ""}${isHome && !isScrolled ? " nav-shell--blend" : ""}`}
+    >
       <div className="container nav">
         <Link href="/" className="logo">
           <img src="/logo01black.png" alt="Note2Tabs logo" className="logo-mark" />
@@ -69,10 +81,9 @@ export default function NavBar() {
           <Link href="/gte" className="nav-pill">
             Editor
           </Link>
-          <Link href="/transcriber" className="nav-pill">
+          <Link href="/#hero" className="nav-pill">
             Transcriber
           </Link>
-          <a href="/#how">How it works</a>
           <a href="/#pricing">Pricing</a>
           {!session && (
             <>

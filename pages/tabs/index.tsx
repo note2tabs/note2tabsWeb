@@ -27,11 +27,6 @@ export default function SavedTabsPage({ tabs }: Props) {
             <h1 className="page-title">Transcriptions</h1>
             <p className="page-subtitle">Your transcription history.</p>
           </div>
-          <div className="button-row">
-            <Link href="/settings" className="button-ghost button-small">
-              Settings
-            </Link>
-          </div>
         </div>
 
         <section className="card stack">

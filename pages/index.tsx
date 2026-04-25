@@ -95,7 +95,6 @@ export default function HomePage() {
   const [ytStartInput, setYtStartInput] = useState("0:00");
   const [ytEndInput, setYtEndInput] = useState(formatTimestamp(MAX_YT_SNIPPET_SEC));
   const [fileDuration, setFileDuration] = useState<number | null>(null);
-  const [separateGuitar, setSeparateGuitar] = useState(true);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +112,7 @@ export default function HomePage() {
   const [selectedSegments, setSelectedSegments] = useState<Set<number>>(new Set());
   const [pricingBusy, setPricingBusy] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
+  const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
   const convertInFlightRef = useRef(false);
@@ -309,12 +309,12 @@ export default function HomePage() {
     : mode === "YOUTUBE"
     ? "Download & generate tabs"
     : "Generate tabs";
-  const transcribingStatusLabel = separateGuitar
-    ? "Separating guitar and transcribing audio..."
-    : "Transcribing audio...";
-  const youtubeTranscribingStatusLabel = separateGuitar
-    ? "Downloading YouTube audio, separating guitar, and transcribing..."
-    : "Downloading YouTube audio and transcribing...";
+  const buildTranscribingStatusLabel = (separateGuitar: boolean) =>
+    separateGuitar ? "Separating guitar and transcribing audio..." : "Transcribing audio...";
+  const buildYoutubeTranscribingStatusLabel = (separateGuitar: boolean) =>
+    separateGuitar
+      ? "Downloading YouTube audio, separating guitar, and transcribing..."
+      : "Downloading YouTube audio and transcribing...";
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
@@ -323,6 +323,7 @@ export default function HomePage() {
     setError(null);
     setImportError(null);
     setTabsResult(null);
+    setShowInstrumentPrompt(false);
   };
 
   const onDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
@@ -350,6 +351,7 @@ export default function HomePage() {
       setError(null);
       setImportError(null);
       setTabsResult(null);
+      setShowInstrumentPrompt(false);
     }
   };
 
@@ -381,35 +383,33 @@ export default function HomePage() {
     return groups.length > 0 ? groups : null;
   };
 
-  const handleConvert = async () => {
-    if (convertInFlightRef.current || loading) return;
-
+  const validateConvertInputs = () => {
     if (!transcriberSession && !disableDbInDev) {
       setError("Sign in to start transcribing.");
       signIn(undefined, { callbackUrl: "/" });
-      return;
+      return false;
     }
     if (transcriberSession && !isEmailVerified) {
       setError("Please verify your email before using the transcriber.");
-      return;
+      return false;
     }
 
     if (mode === "FILE" && !selectedFile) {
       setError("Please select an audio file to transcribe.");
-      return;
+      return false;
     }
 
     if (mode === "YOUTUBE" && !youtubeValid) {
       setError("Please paste a valid YouTube link.");
-      return;
+      return false;
     }
     if (mode === "YOUTUBE" && (ytStartTime === null || ytEndTime === null)) {
       setError("Start time and end time are required for YouTube download.");
-      return;
+      return false;
     }
     if (mode === "YOUTUBE" && ytStartTime !== null && ytEndTime !== null && ytEndTime <= ytStartTime) {
       setError("End time must be after start time.");
-      return;
+      return false;
     }
     if (
       mode === "YOUTUBE" &&
@@ -418,7 +418,7 @@ export default function HomePage() {
       ytEndTime - ytStartTime > MAX_YT_SNIPPET_SEC
     ) {
       setError(`Time window must be ${MAX_YT_SNIPPET_SEC} seconds or less.`);
-      return;
+      return false;
     }
 
     if (mode === "FILE" && selectedFile) {
@@ -427,34 +427,42 @@ export default function HomePage() {
         : MAX_FREE_BYTES;
       if (selectedFile.size > maxBytes) {
         setError(`File is too large. Max size is ${formatMb(maxBytes)} for your plan.`);
-        return;
+        return false;
       }
     }
 
     if (mode === "FILE" && fileDuration !== null && fileDuration <= 0) {
       setError("Duration must be greater than 0.");
-      return;
+      return false;
     }
     if (mode === "YOUTUBE") {
       if (ytStartTime !== null && ytStartTime < 0) {
         setError("Start time must be 0 or greater.");
-        return;
+        return false;
       }
       if (ytStartTime !== null && ytStartTime > MAX_YT_START_SEC) {
         setError("Start time must be 9:00 or earlier.");
-        return;
+        return false;
       }
       if (ytEndTime !== null && ytEndTime <= 0) {
         setError("End time must be greater than 0.");
-        return;
+        return false;
       }
       if (ytEndTime !== null && ytEndTime > MAX_YT_END_SEC) {
         setError("End time must be 10:00 or earlier.");
-        return;
+        return false;
       }
     }
+    return true;
+  };
+
+  const startConvert = async (separateGuitar: boolean) => {
+    if (convertInFlightRef.current || loading) return;
+    const transcribingStatusLabel = buildTranscribingStatusLabel(separateGuitar);
+    const youtubeTranscribingStatusLabel = buildYoutubeTranscribingStatusLabel(separateGuitar);
 
     convertInFlightRef.current = true;
+    setShowInstrumentPrompt(false);
     setError(null);
     setImportError(null);
     setTabsResult(null);
@@ -620,6 +628,17 @@ export default function HomePage() {
     }
   };
 
+  const handleConvert = () => {
+    if (convertInFlightRef.current || loading) return;
+    if (!validateConvertInputs()) return;
+    setError(null);
+    setShowInstrumentPrompt(true);
+  };
+
+  const handleInstrumentChoice = (includesOtherInstruments: boolean) => {
+    void startConvert(includesOtherInstruments);
+  };
+
   const handleImportToEditor = async () => {
     if (!tabsResult || importBusy) return;
     setImportBusy(true);
@@ -746,9 +765,6 @@ export default function HomePage() {
               <div className="hero-title-row">
                 <h2 className="hero-title">Convert Any Song to Tabs</h2>
               </div>
-              <p className="hero-subtitle">
-                Paste a YouTube link or upload audio, then shape the result in the editor.
-              </p>
             </div>
             <form
               id="transcriber-start"
@@ -774,120 +790,138 @@ export default function HomePage() {
                 )}
               </div>
 
-              <div className="funnel-panel">
-                <div className="funnel-row">
-                  <div
-                    className={`funnel-input ${mode === "FILE" ? "is-file" : "is-url"} ${
-                      dragActive ? "active" : ""
-                    }`}
-                    onClick={mode === "FILE" ? () => fileInputRef.current?.click() : undefined}
-                    onDrop={mode === "FILE" ? onDrop : undefined}
-                    onDragOver={mode === "FILE" ? onDragOver : undefined}
-                    onDragEnter={mode === "FILE" ? onDragEnter : undefined}
-                    onDragLeave={mode === "FILE" ? onDragLeave : undefined}
-                  >
-                    <span className="funnel-icon" aria-hidden="true">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M8 5.5v13l10-6.5-10-6.5z" />
-                      </svg>
-                    </span>
-                    {mode === "FILE" ? (
-                      <span className="funnel-file-label">
-                        {selectedFile ? selectedFile.name : "Upload audio file or drop it here"}
-                      </span>
-                    ) : (
-                      <input
-                        type="url"
-                        value={youtubeUrl}
-                        onChange={(event) => setYoutubeUrl(event.target.value)}
-                        placeholder="https://www.youtube.com/..."
-                      />
-                    )}
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="audio/*"
-                      hidden
-                      onChange={onFileChange}
-                    />
-                  </div>
-                </div>
-                <div className="funnel-toolbar">
-                  <div className="mode-switch mode-switch--hero" role="tablist" aria-label="Input mode">
+              {showInstrumentPrompt ? (
+                <div className="instrument-prompt">
+                  <p className="instrument-question">Does your audio include other instruments?</p>
+                  <div className="button-row instrument-choice-row">
                     <button
                       type="button"
-                      className={mode === "FILE" ? "active" : ""}
-                      onClick={() => setMode("FILE")}
+                      className="button-secondary instrument-choice-button"
+                      onClick={() => handleInstrumentChoice(true)}
+                      disabled={loading}
                     >
-                      Audio file
+                      Yes
                     </button>
                     <button
                       type="button"
-                      className={mode === "YOUTUBE" ? "active" : ""}
-                      onClick={() => setMode("YOUTUBE")}
+                      className="button-secondary instrument-choice-button"
+                      onClick={() => handleInstrumentChoice(false)}
+                      disabled={loading}
                     >
-                      YouTube link
+                      No
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    className="button-primary funnel-submit"
-                    disabled={!canSubmit}
-                    onClick={() => void handleConvert()}
-                  >
-                    {loading ? submitLabel : "Convert to Tabs"}
-                  </button>
                 </div>
-              </div>
+              ) : (
+                <>
+                  <div className="funnel-panel">
+                    <div className="funnel-row">
+                      <div
+                        className={`funnel-input ${mode === "FILE" ? "is-file" : "is-url"} ${
+                          dragActive ? "active" : ""
+                        }`}
+                        onClick={mode === "FILE" ? () => fileInputRef.current?.click() : undefined}
+                        onDrop={mode === "FILE" ? onDrop : undefined}
+                        onDragOver={mode === "FILE" ? onDragOver : undefined}
+                        onDragEnter={mode === "FILE" ? onDragEnter : undefined}
+                        onDragLeave={mode === "FILE" ? onDragLeave : undefined}
+                      >
+                        <span className="funnel-icon" aria-hidden="true">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M8 5.5v13l10-6.5-10-6.5z" />
+                          </svg>
+                        </span>
+                        {mode === "FILE" ? (
+                          <span className="funnel-file-label">
+                            {selectedFile ? selectedFile.name : "Upload audio file or drop it here"}
+                          </span>
+                        ) : (
+                          <input
+                            type="url"
+                            value={youtubeUrl}
+                            onChange={(event) => setYoutubeUrl(event.target.value)}
+                            placeholder="https://www.youtube.com/..."
+                          />
+                        )}
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="audio/*"
+                          hidden
+                          onChange={onFileChange}
+                        />
+                      </div>
+                    </div>
+                    <div className="funnel-toolbar">
+                      <div className="mode-switch mode-switch--hero" role="tablist" aria-label="Input mode">
+                        <button
+                          type="button"
+                          className={mode === "FILE" ? "active" : ""}
+                          onClick={() => {
+                            setMode("FILE");
+                            setShowInstrumentPrompt(false);
+                          }}
+                        >
+                          Audio file
+                        </button>
+                        <button
+                          type="button"
+                          className={mode === "YOUTUBE" ? "active" : ""}
+                          onClick={() => {
+                            setMode("YOUTUBE");
+                            setShowInstrumentPrompt(false);
+                          }}
+                        >
+                          YouTube link
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className="button-primary funnel-submit"
+                        disabled={!canSubmit}
+                        onClick={() => void handleConvert()}
+                      >
+                        {loading ? submitLabel : "Convert to Tabs"}
+                      </button>
+                    </div>
+                  </div>
 
-              {(mode === "YOUTUBE" || mode === "FILE") && (
-                <div className="prompt-field prompt-field--compact">
                   {mode === "YOUTUBE" && (
-                    <div className="advanced-grid">
-                      <label>
-                        Start time
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9:]*"
-                          autoComplete="off"
-                          placeholder="0:00"
-                          value={ytStartInput}
-                          onChange={(event) => handleYtStartInputChange(event.target.value)}
-                          onBlur={handleYtStartInputBlur}
-                          required
-                        />
-                      </label>
-                      <label>
-                        End time
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9:]*"
-                          autoComplete="off"
-                          placeholder="0:30"
-                          value={ytEndInput}
-                          onChange={(event) => handleYtEndInputChange(event.target.value)}
-                          onBlur={handleYtEndInputBlur}
-                          required
-                        />
-                      </label>
-                      <p className="advanced-note">Max length is 30 s.</p>
+                    <div className="prompt-field prompt-field--compact">
+                      <div className="advanced-grid">
+                        <label>
+                          Start time
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9:]*"
+                            autoComplete="off"
+                            placeholder="0:00"
+                            value={ytStartInput}
+                            onChange={(event) => handleYtStartInputChange(event.target.value)}
+                            onBlur={handleYtStartInputBlur}
+                            required
+                          />
+                        </label>
+                        <label>
+                          End time
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9:]*"
+                            autoComplete="off"
+                            placeholder="0:30"
+                            value={ytEndInput}
+                            onChange={(event) => handleYtEndInputChange(event.target.value)}
+                            onBlur={handleYtEndInputBlur}
+                            required
+                          />
+                        </label>
+                        <p className="advanced-note">Max length is 30 s.</p>
+                      </div>
                     </div>
                   )}
-
-                  <div className="transcriber-checkbox-row">
-                    <label className="checkbox">
-                      <input
-                        type="checkbox"
-                        checked={separateGuitar}
-                        onChange={(event) => setSeparateGuitar(event.target.checked)}
-                        disabled={loading}
-                      />
-                      <span>Does your audio include other instruments?</span>
-                    </label>
-                  </div>
-                </div>
+                </>
               )}
 
               {status && <div className="status">{status}</div>}
@@ -1064,10 +1098,10 @@ export default function HomePage() {
                   </div>
                 </div>
                 <ul className="pricing-list">
-                  <li>Ads enabled</li>
                   <li>10 credits per month</li>
+                  <li>Upload size: 50 MB</li>
+                  <li>Youtube length: 30s</li>
                   <li>Standard speed</li>
-                  <li>Upload size 50 MB</li>
                 </ul>
               </div>
               <button
@@ -1086,10 +1120,10 @@ export default function HomePage() {
                   </div>
                 </div>
                 <ul className="pricing-list">
-                  <li>No ads</li>
                   <li>50 credits per month (with rollover)</li>
+                  <li>Upload size: 200 MB</li>
+                  <li>Youtube length: unlimited</li>
                   <li>Extra speed</li>
-                  <li>Upload size 200 MB</li>
                 </ul>
               </button>
             </div>
@@ -1101,15 +1135,9 @@ export default function HomePage() {
           <div className="container">
             <div className="bottom-transcriber-shell">
               <h2 className="bottom-transcriber-title">Ready to convert audio to tabs?</h2>
-              <p className="bottom-transcriber-subtitle">
-                Start a fresh transcription and jump straight into your playable tab workflow.
-              </p>
               <div className="bottom-transcriber-actions">
-                <Link href="#transcriber-start" className="button-primary">
+                <Link href="#hero" className="button-primary">
                   Start transcribing
-                </Link>
-                <Link href="/transcriber" className="button-secondary">
-                  Open full transcriber
                 </Link>
               </div>
             </div>
