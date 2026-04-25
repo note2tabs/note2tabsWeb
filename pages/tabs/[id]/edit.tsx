@@ -11,7 +11,7 @@ export default function EditTabRedirect({ error }: Props) {
     return (
       <main className="page">
         <div className="container stack">
-          <h1 className="page-title">Could not open import page</h1>
+          <h1 className="page-title">Could not reopen transcription</h1>
           <p className="page-subtitle">{error}</p>
         </div>
       </main>
@@ -21,7 +21,7 @@ export default function EditTabRedirect({ error }: Props) {
     <main className="page">
       <div className="container stack">
         <h1 className="page-title">Redirecting...</h1>
-        <p className="page-subtitle">Opening your saved-tab import page.</p>
+        <p className="page-subtitle">Opening your transcription review.</p>
       </div>
     </main>
   );

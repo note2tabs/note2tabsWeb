@@ -44,6 +44,7 @@ export type StoredTabPayload = {
   tabs: string[][];
   transcriberSegments: StoredTranscriberSegmentGroup[];
   backendJobId?: string | null;
+  multipleGuitars?: boolean | null;
   review?: StoredReviewState | null;
 };
 
@@ -198,16 +199,34 @@ export function normalizeStoredTabPayload(value: unknown): StoredTabPayload {
       tabs: [],
       transcriberSegments: [],
       backendJobId: null,
+      multipleGuitars: null,
       review: null,
     };
   }
   const record = value as Record<string, unknown>;
+  const multipleGuitarsRaw =
+    record.multipleGuitars !== undefined && record.multipleGuitars !== null
+      ? record.multipleGuitars
+      : record.multiple_guitars;
+  const multipleGuitars =
+    typeof multipleGuitarsRaw === "boolean"
+      ? multipleGuitarsRaw
+      : typeof multipleGuitarsRaw === "number"
+      ? multipleGuitarsRaw !== 0
+      : typeof multipleGuitarsRaw === "string"
+      ? ["1", "true", "yes", "on"].includes(multipleGuitarsRaw.trim().toLowerCase())
+        ? true
+        : ["0", "false", "no", "off"].includes(multipleGuitarsRaw.trim().toLowerCase())
+        ? false
+        : null
+      : null;
   return {
     tabs: normalizeTabSegments(record.tabs ?? record.result ?? record.tab_text),
     transcriberSegments: normalizeTranscriberSegments(
       record.transcriberSegments ?? record.noteEventGroups ?? record.segmentGroups ?? record.segments
     ),
     backendJobId: typeof record.backendJobId === "string" && record.backendJobId.trim() ? record.backendJobId : null,
+    ...(multipleGuitars !== null ? { multipleGuitars } : {}),
     review: normalizeReviewState(record.review),
   };
 }
@@ -218,6 +237,7 @@ export function parseStoredTabPayload(resultJson?: string | null): StoredTabPayl
       tabs: [],
       transcriberSegments: [],
       backendJobId: null,
+      multipleGuitars: null,
       review: null,
     };
   }
@@ -228,6 +248,7 @@ export function parseStoredTabPayload(resultJson?: string | null): StoredTabPayl
       tabs: [],
       transcriberSegments: [],
       backendJobId: null,
+      multipleGuitars: null,
       review: null,
     };
   }
@@ -239,6 +260,7 @@ export function serializeStoredTabPayload(payload: StoredTabPayload): string {
     tabs: normalizeTabSegments(payload.tabs),
     ...(payload.transcriberSegments.length > 0 ? { transcriberSegments: payload.transcriberSegments } : {}),
     ...(payload.backendJobId ? { backendJobId: payload.backendJobId } : {}),
+    ...(typeof payload.multipleGuitars === "boolean" ? { multipleGuitars: payload.multipleGuitars } : {}),
     ...(normalizedReview ? { review: normalizedReview } : {}),
   });
 }

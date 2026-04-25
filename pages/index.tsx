@@ -593,7 +593,7 @@ export default function HomePage() {
         }
         sendEvent("transcribe_success", { mode, jobId: data.jobId });
         if (transcriberSession && data.tabJobId) {
-          setStatus("Tabs ready. Opening import page...");
+          setStatus("Tabs ready. Opening transcription...");
           await router.push(
             appendEditorId
               ? `/tabs/${data.tabJobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
