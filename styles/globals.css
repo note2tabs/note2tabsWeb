@@ -685,6 +685,16 @@ input[type="number"] {
   gap: 16px;
 }
 
+.review-editor-target {
+  display: grid;
+  gap: 8px;
+  max-width: 320px;
+}
+
+.review-editor-target .form-select {
+  min-width: 240px;
+}
+
 .review-slider-card {
   display: grid;
   gap: 14px;
@@ -3551,6 +3561,15 @@ input[type="number"] {
 
   .review-track-toggle {
     align-items: flex-start;
+  }
+
+  .review-editor-target {
+    max-width: 100%;
+  }
+
+  .review-editor-target .form-select {
+    width: 100%;
+    min-width: 0;
   }
 }
 

@@ -356,11 +356,25 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
     existing?.sourceLabel || null
   );
   const review = extractStoredReviewState(payload);
+  const multipleGuitarsValue = getFirstJobValue(payload, ["multipleGuitars", "multiple_guitars"]);
+  const multipleGuitars =
+    typeof multipleGuitarsValue === "boolean"
+      ? multipleGuitarsValue
+      : typeof multipleGuitarsValue === "number"
+      ? multipleGuitarsValue !== 0
+      : typeof multipleGuitarsValue === "string"
+      ? ["1", "true", "yes", "on"].includes(multipleGuitarsValue.trim().toLowerCase())
+        ? true
+        : ["0", "false", "no", "off"].includes(multipleGuitarsValue.trim().toLowerCase())
+        ? false
+        : null
+      : null;
   const normalizedDuration = Number.isFinite(durationValue) ? Math.max(1, Math.round(durationValue)) : null;
   const serializedPayload = serializeStoredTabPayload({
     tabs,
     transcriberSegments,
     backendJobId: jobId,
+    ...(multipleGuitars !== null ? { multipleGuitars } : {}),
     review,
   });
   if (existing) {
@@ -511,6 +525,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         responsePayload.tabJobId = resolvedTabJobId;
         responsePayload.tab_id = resolvedTabJobId;
         responsePayload.tabId = resolvedTabJobId;
+        if (session?.user?.id) {
+          const savedTab = await prisma.tabJob.findFirst({
+            where: { id: resolvedTabJobId, userId: session.user.id },
+            select: { resultJson: true },
+          });
+          if (savedTab) {
+            const parsedSavedTab = parseStoredTabPayload(savedTab.resultJson);
+            if (typeof parsedSavedTab.multipleGuitars === "boolean") {
+              responsePayload.multipleGuitars = parsedSavedTab.multipleGuitars;
+            }
+          }
+        }
       } else {
         const tabs = normalizeTabs(getFirstJobValue(payload, ["tabs"]));
         if (tabs.length > 0) responsePayload.tabs = tabs;
@@ -521,6 +547,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         );
         if (transcriberSegments.length > 0) {
           responsePayload.transcriberSegments = transcriberSegments;
+        }
+        const multipleGuitarsValue = getFirstJobValue(payload, ["multipleGuitars", "multiple_guitars"]);
+        if (typeof multipleGuitarsValue === "boolean") {
+          responsePayload.multipleGuitars = multipleGuitarsValue;
         }
       }
 

@@ -13,8 +13,11 @@ import { GTE_GUEST_EDITOR_ID } from "../../lib/gteGuestDraft";
 import { saveJobToHistory } from "../../lib/history";
 import { normalizeTabSegments, tabSegmentsToStamps, tabsToTabText } from "../../lib/tabTextToStamps";
 import { getAppBaseUrl } from "../../lib/urls";
+import type { EditorListItem } from "../../types/gte";
 
 const POLL_INTERVAL = 3000;
+const FINALIZE_IMPORT_TIMEOUT_MS = 60_000;
+const FINALIZE_IMPORT_POLL_MS = 1200;
 const PRIMIS_CHANNEL_ID = "YOUR_PRIMIS_CHANNEL_ID";
 const ADS_AVAILABLE = PRIMIS_CHANNEL_ID && PRIMIS_CHANNEL_ID !== "YOUR_PRIMIS_CHANNEL_ID";
 const PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "running"]);
@@ -28,6 +31,15 @@ type ReviewParams = {
   minNoteLen: number;
   minFreq: number;
   maxFreq: number;
+};
+
+type StoredTabPayloadResponse = {
+  id: string;
+  sourceLabel: string;
+  createdAt: string;
+  tabs: string[][];
+  transcriberSegments: TranscriberSegmentGroup[];
+  backendJobId?: string | null;
 };
 
 const REVIEW_SLIDERS: Array<{
@@ -355,6 +367,11 @@ function defaultReviewParams(): ReviewParams {
   };
 }
 
+function areReviewParamsEqual(left: ReviewParams, right: ReviewParams) {
+  const keys: Array<keyof ReviewParams> = ["onsetThresh", "frameThresh", "minNoteLen", "minFreq", "maxFreq"];
+  return keys.every((key) => Math.abs(left[key] - right[key]) < 0.0001);
+}
+
 function getReviewBusyCopy(action: ReviewAction) {
   if (action === "finalize") {
     return {
@@ -575,6 +592,14 @@ async function readErrorMessage(response: Response) {
   return text;
 }
 
+async function fetchStoredTabPayload(tabId: string): Promise<StoredTabPayloadResponse> {
+  const response = await fetch(`/api/tabs/${encodeURIComponent(tabId)}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+  return (await response.json()) as StoredTabPayloadResponse;
+}
+
 export default function JobPage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -589,6 +614,9 @@ export default function JobPage() {
   const [shareUrls, setShareUrls] = useState<{ twitter: string; reddit: string } | null>(null);
   const [importBusy, setImportBusy] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [editorChoices, setEditorChoices] = useState<EditorListItem[]>([]);
+  const [editorChoice, setEditorChoice] = useState<string>("new");
+  const [editorLoading, setEditorLoading] = useState(false);
   const [reviewParams, setReviewParams] = useState<ReviewParams>(defaultReviewParams);
   const [reviewMultipleGuitars, setReviewMultipleGuitars] = useState(true);
   const [reviewBusy, setReviewBusy] = useState(false);
@@ -619,6 +647,12 @@ export default function JobPage() {
     if (Array.isArray(value)) return value[0]?.trim() || null;
     return typeof value === "string" && value.trim() ? value.trim() : null;
   }, [router.isReady, router.query.appendEditorId]);
+  const editorChoicesForSelect = useMemo(() => {
+    if (!appendEditorId || editorChoices.some((editor) => editor.id === appendEditorId)) {
+      return editorChoices;
+    }
+    return [{ id: appendEditorId, name: "Current editor" }, ...editorChoices];
+  }, [appendEditorId, editorChoices]);
   const reviewModeRequested = useMemo(() => {
     if (!router.isReady) return false;
     return parseBooleanFlag(getQueryStringValue(router.query.review)) ?? false;
@@ -647,6 +681,21 @@ export default function JobPage() {
     [displayJob, progressClock, modeHint, separateGuitarHint]
   );
   const reviewBusyCopy = useMemo(() => getReviewBusyCopy(reviewAction), [reviewAction]);
+  const loadedReviewParams = useMemo(
+    () => getReviewParams(displayJob) ?? defaultReviewParams(),
+    [displayJob]
+  );
+  const loadedMultipleGuitars = useMemo(
+    () => parseBooleanValue(getFirstJobValue(displayJob, ["multipleGuitars", "multiple_guitars"])),
+    [displayJob]
+  );
+  const hasReviewChanges = useMemo(
+    () =>
+      !areReviewParamsEqual(reviewParams, loadedReviewParams) ||
+      loadedMultipleGuitars === null ||
+      reviewMultipleGuitars !== loadedMultipleGuitars,
+    [reviewMultipleGuitars, loadedMultipleGuitars, reviewParams, loadedReviewParams]
+  );
   const previewAudioUrl = useMemo(() => {
     if (!displayJob?.audio_preview_url) return null;
     if (isSignedAssetUrl(displayJob.audio_preview_url)) {
@@ -676,7 +725,38 @@ export default function JobPage() {
     reviewMultipleGuitarsInitRef.current = job_id;
   }, [displayJob, job_id, showReviewUi]);
 
-  const fetchJob = async (id: string) => {
+  useEffect(() => {
+    if (!showReviewUi || !isSignedIn) return;
+    let cancelled = false;
+    setEditorLoading(true);
+    gteApi
+      .listEditors()
+      .then((data) => {
+        if (cancelled) return;
+        const editors = data.editors || [];
+        setEditorChoices(editors);
+        setEditorChoice((previous) => {
+          if (appendEditorId) return appendEditorId;
+          if (previous !== "new" && editors.some((editor) => editor.id === previous)) return previous;
+          return "new";
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setEditorChoices([]);
+        setEditorChoice(appendEditorId || "new");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setEditorLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showReviewUi, isSignedIn, appendEditorId]);
+
+  const fetchJob = async (id: string): Promise<JobResponse | null> => {
     try {
       const response = await fetch(`/api/jobs/${id}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Failed to fetch");
@@ -688,17 +768,20 @@ export default function JobPage() {
           intervalRef.current = null;
         }
       }
+      return data;
     } catch (err) {
       console.error(err);
-      setJob({
+      const fallback: JobResponse = {
         job_id: id,
         status: "error",
         error_message: "Could not fetch job status.",
-      });
+      };
+      setJob(fallback);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      return fallback;
     }
   };
 
@@ -754,29 +837,16 @@ export default function JobPage() {
     setSavedHistory(false);
     setShareUrls(null);
     setImportError(null);
+    setEditorChoices([]);
+    setEditorChoice(appendEditorId || "new");
+    setEditorLoading(false);
     setReviewError(null);
     setReviewBusy(false);
     setReviewAction(null);
     setReviewMultipleGuitars(true);
     setPreviewReloadToken("0");
     reviewMultipleGuitarsInitRef.current = null;
-  }, [job_id]);
-
-  useEffect(() => {
-    if (!isFinalizedJob || !job_id) return;
-    const resolvedTabId = getFirstJobValue(displayJob, ["tab_job_id", "tabJobId", "tab_id", "tabId"]);
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (typeof resolvedTabId === "string" && resolvedTabId) {
-      void router.replace(
-        appendEditorId
-          ? `/tabs/${resolvedTabId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
-          : `/tabs/${resolvedTabId}`
-      );
-    }
-  }, [isFinalizedJob, job_id, displayJob, router, appendEditorId]);
+  }, [job_id, appendEditorId]);
 
   useEffect(() => {
     if (!isFinalizedJob || !job_id) return;
@@ -819,69 +889,97 @@ export default function JobPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleImportToEditor = async () => {
-    if (!displayJob || importBusy) return;
-    if (transcriberGroups.length === 0 && tabSegments.length === 0) {
-      setImportError("No importable tab groups are available for this transcription.");
-      return;
+  const importJobToEditor = async (
+    jobToImport: JobResponse | null,
+    targetEditorChoice: string
+  ): Promise<boolean> => {
+    if (!jobToImport) {
+      throw new Error("No importable tab groups are available for this transcription.");
     }
-    setImportBusy(true);
-    setImportError(null);
-    try {
-      if (canOpenGuestEditor) {
-        await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
-        if (transcriberGroups.length > 0) {
-          const imported = await gteApi.importTranscriberToGuest({
-            editorId: GTE_GUEST_EDITOR_ID,
-            name: displayJob.song_title || "Imported transcription",
-            segmentGroups: transcriberGroups,
-          });
-          await router.push(`/gte/${imported.editorId}?source=job`);
-          return;
-        }
-        const { stamps, totalFrames } = tabSegmentsToStamps(tabSegments);
-        if (stamps.length === 0) {
-          throw new Error("No playable tab notes were found in this transcription.");
-        }
-        const guestLaneEditorId = buildLaneEditorRef(GTE_GUEST_EDITOR_ID, "ed-1");
-        await gteApi.importTab(guestLaneEditorId, { stamps, totalFrames });
-        await router.push(`/gte/${GTE_GUEST_EDITOR_ID}?source=job`);
-        return;
-      }
 
-      if (!isSignedIn) {
-        await signIn(undefined, {
-          callbackUrl:
-            typeof window !== "undefined"
-              ? window.location.href
-              : `${getAppBaseUrl()}/job/${displayJob.job_id}`,
-        });
-        return;
+    let importSourceLabel = jobToImport.song_title || "Imported transcription";
+    let resolvedTranscriberGroups = getJobTranscriberGroups(jobToImport);
+    let resolvedTabSegments = getJobTabSegments(jobToImport);
+    const tabJobId = getFirstJobValue(jobToImport, ["tab_job_id", "tabJobId", "tab_id", "tabId"]);
+    if ((resolvedTranscriberGroups.length === 0 || resolvedTabSegments.length === 0) && typeof tabJobId === "string" && tabJobId) {
+      const storedTab = await fetchStoredTabPayload(tabJobId);
+      resolvedTranscriberGroups =
+        resolvedTranscriberGroups.length > 0 ? resolvedTranscriberGroups : storedTab.transcriberSegments;
+      resolvedTabSegments = resolvedTabSegments.length > 0 ? resolvedTabSegments : storedTab.tabs;
+      if (storedTab.sourceLabel) {
+        importSourceLabel = storedTab.sourceLabel;
       }
+    }
+    if (resolvedTranscriberGroups.length === 0 && resolvedTabSegments.length === 0) {
+      throw new Error("No importable tab groups are available for this transcription.");
+    }
 
-      if (transcriberGroups.length > 0) {
-        const imported = await gteApi.importTranscriberToSaved({
-          target: appendEditorId ? "existing" : "new",
-          editorId: appendEditorId ?? undefined,
-          name: displayJob.song_title || "Imported transcription",
-          segmentGroups: transcriberGroups,
+    if (canOpenGuestEditor) {
+      await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
+      if (resolvedTranscriberGroups.length > 0) {
+        const imported = await gteApi.importTranscriberToGuest({
+          editorId: GTE_GUEST_EDITOR_ID,
+          name: importSourceLabel,
+          segmentGroups: resolvedTranscriberGroups,
         });
         await router.push(`/gte/${imported.editorId}?source=job`);
-        return;
+        return true;
       }
 
-      const { stamps, totalFrames } = tabSegmentsToStamps(tabSegments);
+      const { stamps, totalFrames } = tabSegmentsToStamps(resolvedTabSegments);
       if (stamps.length === 0) {
         throw new Error("No playable tab notes were found in this transcription.");
       }
-      if (appendEditorId) {
-        await gteApi.appendImportTab(appendEditorId, { stamps, totalFrames });
-        await router.push(`/gte/${appendEditorId}?source=job`);
-        return;
-      }
-      const created = await gteApi.createEditor(undefined, displayJob.song_title || "Imported transcription");
-      await gteApi.appendImportTab(created.editorId, { stamps, totalFrames });
-      await router.push(`/gte/${created.editorId}?source=job`);
+      const guestLaneEditorId = buildLaneEditorRef(GTE_GUEST_EDITOR_ID, "ed-1");
+      await gteApi.importTab(guestLaneEditorId, { stamps, totalFrames });
+      await router.push(`/gte/${GTE_GUEST_EDITOR_ID}?source=job`);
+      return true;
+    }
+
+    if (!isSignedIn) {
+      await signIn(undefined, {
+        callbackUrl:
+          typeof window !== "undefined"
+            ? window.location.href
+            : `${getAppBaseUrl()}/job/${jobToImport.job_id}`,
+      });
+      return false;
+    }
+
+    const targetEditorId = targetEditorChoice && targetEditorChoice !== "new" ? targetEditorChoice : null;
+    if (resolvedTranscriberGroups.length > 0) {
+      const imported = await gteApi.importTranscriberToSaved({
+        target: targetEditorId ? "existing" : "new",
+        editorId: targetEditorId ?? undefined,
+        name: importSourceLabel,
+        segmentGroups: resolvedTranscriberGroups,
+      });
+      await router.push(`/gte/${imported.editorId}?source=job`);
+      return true;
+    }
+
+    const { stamps, totalFrames } = tabSegmentsToStamps(resolvedTabSegments);
+    if (stamps.length === 0) {
+      throw new Error("No playable tab notes were found in this transcription.");
+    }
+    if (targetEditorId) {
+      await gteApi.appendImportTab(targetEditorId, { stamps, totalFrames });
+      await router.push(`/gte/${targetEditorId}?source=job`);
+      return true;
+    }
+
+    const created = await gteApi.createEditor(undefined, importSourceLabel);
+    await gteApi.appendImportTab(created.editorId, { stamps, totalFrames });
+    await router.push(`/gte/${created.editorId}?source=job`);
+    return true;
+  };
+
+  const handleImportToEditor = async () => {
+    if (importBusy) return;
+    setImportBusy(true);
+    setImportError(null);
+    try {
+      await importJobToEditor(displayJob, editorChoice);
     } catch (err: any) {
       setImportError(err?.message || "Failed to import tabs into the editor.");
     } finally {
@@ -927,7 +1025,14 @@ export default function JobPage() {
     setReviewAction("finalize");
     setReviewError(null);
     let finalizeSucceeded = false;
+    let importedSuccessfully = false;
+    const targetEditorChoice = editorChoice;
     try {
+      if (isReopenedFinalizedReview && !hasReviewChanges) {
+        importedSuccessfully = await importJobToEditor(displayJob, targetEditorChoice);
+        return;
+      }
+
       const response = await fetch(`/api/jobs/${encodeURIComponent(job_id)}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -937,17 +1042,42 @@ export default function JobPage() {
         throw new Error(await readErrorMessage(response));
       }
       finalizeSucceeded = true;
+
+      const deadline = Date.now() + FINALIZE_IMPORT_TIMEOUT_MS;
+      let finalizedJobForImport: JobResponse | null = null;
+      while (Date.now() < deadline) {
+        const latestJob = await fetchJob(job_id);
+        const normalizedLatest = normalizeJobForDisplay(latestJob);
+        const latestWorkflowState = getWorkflowState(normalizedLatest);
+        const hasLatestWorkflowState = Boolean(latestWorkflowState && latestWorkflowState.trim());
+        const isLatestFinalized =
+          normalizedLatest?.status === "done" &&
+          (latestWorkflowState === "finalized" || !hasLatestWorkflowState);
+        if (isLatestFinalized) {
+          finalizedJobForImport = normalizedLatest;
+          break;
+        }
+        if (normalizedLatest?.status === "error" || normalizedLatest?.status === "failed") {
+          throw new Error(normalizedLatest.error_message || "Transcription failed during finalization.");
+        }
+        await new Promise<void>((resolve) => {
+          setTimeout(() => resolve(), FINALIZE_IMPORT_POLL_MS);
+        });
+      }
+
+      if (!finalizedJobForImport) {
+        throw new Error("Tabs are still finalizing. Please try again in a moment.");
+      }
+
+      importedSuccessfully = await importJobToEditor(finalizedJobForImport, targetEditorChoice);
     } catch (err: any) {
       setReviewError(err?.message || "Failed to finalize tab groups.");
     } finally {
-      if (finalizeSucceeded && reviewModeRequested) {
-        const nextQuery = { ...router.query };
-        delete nextQuery.review;
-        await router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
-      }
       setReviewBusy(false);
       setReviewAction(null);
-      await fetchJob(job_id);
+      if (!importedSuccessfully || !finalizeSucceeded) {
+        await fetchJob(job_id);
+      }
     }
   };
 
@@ -1030,7 +1160,7 @@ export default function JobPage() {
                       </div>
                       <div className="review-guide-step">
                         <span className="review-guide-number">3</span>
-                        <p>Press <strong>Continue to tabs</strong> when everything sounds right.</p>
+                        <p>Pick an editor, then press <strong>Continue to tabs</strong> to import all tab groups.</p>
                       </div>
                     </div>
                   </div>
@@ -1181,12 +1311,36 @@ export default function JobPage() {
                     <span>There is more than one guitar playing</span>
                   </label>
                 </div>
+                {isSignedIn ? (
+                  <div className="review-editor-target">
+                    <p className="label" style={{ margin: 0 }}>
+                      Import to guitar tab editor
+                    </p>
+                    <select
+                      className="form-select"
+                      value={editorChoice}
+                      onChange={(event) => setEditorChoice(event.target.value)}
+                      disabled={reviewBusy || editorLoading}
+                    >
+                      <option value="new">New editor</option>
+                      {editorChoicesForSelect.map((editor) => (
+                        <option key={editor.id} value={editor.id}>
+                          {editor.name || "Untitled"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : canOpenGuestEditor ? (
+                  <p className="muted text-small" style={{ margin: 0 }}>
+                    Tabs will be opened in the guest editor.
+                  </p>
+                ) : null}
                 <div className="button-row review-actions">
                 <button
                   type="button"
                   onClick={() => void handleContinue()}
                   className="button-primary button-small"
-                  disabled={reviewBusy}
+                  disabled={reviewBusy || editorLoading}
                 >
                   {reviewAction === "finalize" ? "Building tabs..." : "Continue to tabs"}
                 </button>

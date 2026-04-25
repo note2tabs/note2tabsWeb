@@ -43,31 +43,37 @@ export default function SavedTabsPage({ tabs }: Props) {
           </div>
           {tabs.length === 0 && <p className="muted text-small">No transcriptions yet.</p>}
           <div className="tabs-list">
-            {tabs.map((job) => (
-              <div key={job.id} className="card-outline">
-                <div className="tabs-row">
-                  <Link href={`/tabs/${job.id}`} className="tabs-row-main">
-                    <p className="tabs-row-main-title">{job.sourceLabel || "Unknown source"}</p>
-                    <p className="muted text-small tabs-row-main-meta">
-                      {job.sourceType} - {new Date(job.createdAt).toLocaleString()}
-                    </p>
-                  </Link>
-                  <div className="button-row">
-                    <Link href={`/tabs/${job.id}`} className="button-secondary button-small">
-                      Open import page
-                    </Link>
-                    {job.backendJobId ? (
-                      <Link
-                        href={`/job/${encodeURIComponent(job.backendJobId)}?review=1`}
-                        className="button-secondary button-small"
-                      >
-                        Edit transcription
+            {tabs.map((job) => {
+              const reviewHref = job.backendJobId ? `/job/${encodeURIComponent(job.backendJobId)}?review=1` : null;
+              return (
+                <div key={job.id} className="card-outline">
+                  <div className="tabs-row">
+                    {reviewHref ? (
+                      <Link href={reviewHref} className="tabs-row-main">
+                        <p className="tabs-row-main-title">{job.sourceLabel || "Unknown source"}</p>
+                        <p className="muted text-small tabs-row-main-meta">
+                          {job.sourceType} - {new Date(job.createdAt).toLocaleString()}
+                        </p>
                       </Link>
+                    ) : (
+                      <div className="tabs-row-main">
+                        <p className="tabs-row-main-title">{job.sourceLabel || "Unknown source"}</p>
+                        <p className="muted text-small tabs-row-main-meta">
+                          {job.sourceType} - {new Date(job.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                    {reviewHref ? (
+                      <div className="button-row">
+                        <Link href={reviewHref} className="button-secondary button-small">
+                          Edit transcription
+                        </Link>
+                      </div>
                     ) : null}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       </div>
