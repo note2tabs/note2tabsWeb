@@ -913,6 +913,289 @@ input[type="number"] {
   color: var(--accent-strong);
 }
 
+.settingsPage {
+  padding-top: 92px;
+}
+
+.settingsShell {
+  width: min(100% - 32px, 1040px);
+  display: grid;
+  gap: 22px;
+}
+
+.settingsHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.settingsEyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b6458;
+  font-weight: 700;
+}
+
+.settingsTitle {
+  margin: 6px 0 0;
+  font-size: clamp(2rem, 4vw, 2.45rem);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+}
+
+.settingsSubtitle {
+  margin: 12px 0 0;
+  color: #5f6772;
+  font-size: 0.94rem;
+}
+
+.settingsPanel {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 0;
+  border-radius: 24px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: #fffdf8;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.settingsSidebar {
+  background: linear-gradient(180deg, rgba(247, 242, 232, 0.56), rgba(247, 242, 232, 0.38));
+  border-right: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 22px 14px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.settingsSidebarLabel {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #5e584f;
+  padding: 0 8px;
+}
+
+.settingsNav {
+  display: grid;
+  gap: 6px;
+}
+
+.settingsNavItem {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #333a46;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.93rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.settingsNavItem:hover {
+  background: rgba(189, 170, 133, 0.12);
+  border-color: rgba(129, 115, 88, 0.14);
+  color: #181f2a;
+}
+
+.settingsNavItemActive {
+  background: rgba(211, 187, 146, 0.24);
+  border-color: rgba(144, 123, 85, 0.22);
+  color: #161d29;
+  font-weight: 600;
+}
+
+.settingsContent {
+  padding: 26px 28px;
+  display: grid;
+  gap: 14px;
+}
+
+.settingsSection {
+  display: grid;
+  gap: 14px;
+}
+
+.settingsSectionTitle {
+  margin: 0;
+  font-size: clamp(1.4rem, 2.1vw, 1.75rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+}
+
+.settingsSectionIntro {
+  margin: 0;
+  color: #616b77;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.settingsRows {
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.settingsRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 12px 0;
+}
+
+.settingsRowMain {
+  display: grid;
+  gap: 4px;
+}
+
+.settingsRowLabel {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #161d29;
+  font-weight: 600;
+}
+
+.settingsRowDescription {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #616b77;
+  line-height: 1.45;
+  max-width: 52ch;
+}
+
+.settingsRowValue {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  text-align: right;
+  font-size: 0.9rem;
+  color: #1c2534;
+}
+
+.settingsActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.settingsButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.16s ease;
+}
+
+.settingsButtonPrimary {
+  background: #161616;
+  color: #fff;
+  border-color: #161616;
+}
+
+.settingsButtonPrimary:hover {
+  background: #2c2c2c;
+  border-color: #2c2c2c;
+  transform: translateY(-1px);
+}
+
+.settingsButtonSecondary {
+  background: #fff;
+  color: #111827;
+  border-color: rgba(15, 23, 42, 0.14);
+}
+
+.settingsButtonSecondary:hover {
+  background: rgba(248, 243, 235, 0.85);
+  border-color: rgba(15, 23, 42, 0.22);
+}
+
+.settingsButtonDanger {
+  background: #fff;
+  color: #8d2a2a;
+  border-color: rgba(148, 50, 50, 0.32);
+}
+
+.settingsButtonDanger:hover {
+  background: rgba(255, 245, 245, 0.84);
+  border-color: rgba(148, 50, 50, 0.45);
+}
+
+.settingsButton:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.settingsSectionDanger .delete-flow {
+  margin-top: 2px;
+}
+
+@media (max-width: 980px) {
+  .settingsPanel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settingsSidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    padding: 16px 14px 14px;
+    gap: 10px;
+  }
+
+  .settingsNav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+  .settingsNavItem {
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .settingsPage {
+    padding-top: 82px;
+  }
+
+  .settingsContent {
+    padding: 18px 16px 20px;
+  }
+
+  .settingsRow {
+    display: grid;
+    gap: 10px;
+  }
+
+  .settingsRowValue {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .settingsActions {
+    justify-content: flex-start;
+  }
+}
+
 .status,
 .error {
   margin-top: 16px;

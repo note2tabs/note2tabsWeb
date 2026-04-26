@@ -91,6 +91,15 @@ export function calculateCreditsUsed(durations: Array<number | null | undefined>
   return durations.reduce<number>((total, duration) => total + durationToCredits(duration), 0);
 }
 
+export function calculateCreditsUsedFromDurationCounts(
+  durationCounts: Array<{ durationSec: number | null | undefined; count: number }>
+) {
+  return durationCounts.reduce<number>(
+    (total, item) => total + Math.max(0, Math.round(item.count)) * durationToCredits(item.durationSec),
+    0
+  );
+}
+
 export function buildDevCreditsSummary(): CreditsSummary {
   return {
     used: 0,
@@ -108,19 +117,24 @@ const countMonthlyGrants = (createdAt: Date, now: Date) => {
 };
 
 type BuildCreditsOptions = {
-  durations: Array<number | null | undefined>;
+  durations?: Array<number | null | undefined>;
+  usedCredits?: number;
   resetAt: Date;
   isPremium: boolean;
   userCreatedAt?: Date;
 };
 
 export function buildCreditsSummary({
-  durations,
+  durations = [],
+  usedCredits,
   resetAt,
   isPremium,
   userCreatedAt,
 }: BuildCreditsOptions): CreditsSummary {
-  const used = calculateCreditsUsed(durations);
+  const used =
+    typeof usedCredits === "number" && Number.isFinite(usedCredits)
+      ? Math.max(0, Math.round(usedCredits))
+      : calculateCreditsUsed(durations);
   if (!isPremium) {
     const limit = FREE_MONTHLY_CREDITS;
     const remaining = Math.max(0, limit - used);

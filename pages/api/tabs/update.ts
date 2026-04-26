@@ -38,6 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const job = await prisma.tabJob.findFirst({
       where: { id, userId: session.user.id },
+      select: { id: true, sourceLabel: true },
     });
     if (!job) {
       return res.status(404).json({ error: "Tab not found" });
@@ -62,6 +63,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         sourceLabel: nextSourceLabel,
         resultJson,
       },
+      select: { id: true, sourceLabel: true, resultJson: true },
     });
 
     return res.status(200).json({

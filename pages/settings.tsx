@@ -2,9 +2,9 @@ import { GetServerSideProps } from "next";
 import Link from "next/link";
 import { getServerSession } from "next-auth/next";
 import { signOut } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { authOptions } from "./api/auth/[...nextauth]";
-import { buildCreditsSummary, getCreditWindow } from "../lib/credits";
+import { buildCreditsSummary, calculateCreditsUsedFromDurationCounts, getCreditWindow } from "../lib/credits";
 import { prisma } from "../lib/prisma";
 import { generateFingerprint } from "../lib/fingerprint";
 
@@ -26,7 +26,42 @@ type Props = {
   };
 };
 
+type SettingsSection = "account" | "plan" | "security" | "privacy" | "danger";
+
+const settingsSections: Array<{ id: SettingsSection; label: string }> = [
+  { id: "account", label: "Account" },
+  { id: "plan", label: "Plan and credits" },
+  { id: "security", label: "Security" },
+  { id: "privacy", label: "Privacy" },
+  { id: "danger", label: "Danger zone" },
+];
+
+type SettingRowProps = {
+  label: string;
+  description?: string;
+  value?: ReactNode;
+  children?: ReactNode;
+};
+
+function SettingRow({ label, description, value, children }: SettingRowProps) {
+  return (
+    <div className="settingsRow">
+      <div className="settingsRowMain">
+        <p className="settingsRowLabel">{label}</p>
+        {description && <p className="settingsRowDescription">{description}</p>}
+      </div>
+      {(value || children) && (
+        <div className="settingsRowValue">
+          {value}
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage({ user, stripeReady, credits }: Props) {
+  const [selectedSection, setSelectedSection] = useState<SettingsSection>("account");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteFlowOpen, setDeleteFlowOpen] = useState(false);
@@ -67,6 +102,32 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     }
     setConsentState("granted");
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const applyHashSection = () => {
+      if (window.location.hash === "#privacy-controls") {
+        setSelectedSection("privacy");
+      }
+    };
+
+    applyHashSection();
+    window.addEventListener("hashchange", applyHashSection);
+    return () => window.removeEventListener("hashchange", applyHashSection);
+  }, []);
+
+  const handleSelectSection = (section: SettingsSection) => {
+    setSelectedSection(section);
+    if (typeof window === "undefined") return;
+    if (section === "privacy") {
+      history.replaceState(null, "", `${window.location.pathname}#privacy-controls`);
+      return;
+    }
+    if (window.location.hash === "#privacy-controls") {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  };
 
   const handleSignOut = async () => {
     await signOut({ redirect: false });
@@ -188,62 +249,74 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     }
   };
 
-  return (
-    <main className="page">
-      <div className="container stack">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Settings</h1>
-            <p className="page-subtitle">Manage your profile, credits, security, and account actions.</p>
-          </div>
-          <Link href="/" className="button-ghost button-small">
-            Back to app
-          </Link>
-        </div>
-
-        <section className="card stack">
-          <h2 className="section-title section-title--tight">
-            Profile
-          </h2>
-          <p className="muted text-small">Email: {user.email}</p>
-          <p className="muted text-small">Name: {user.name || "Not set"}</p>
-          <p className="muted text-small">Role: {user.role}</p>
-          <p className="muted text-small">Created: {new Date(user.createdAt).toLocaleDateString()}</p>
-          <p className="muted text-small">Email verified: {user.isEmailVerified ? "Yes" : "No"}</p>
-          <div className="button-row">
-            <Link href="/tabs" className="button-secondary button-small">
+  const renderAccountSection = () => (
+    <section className="settingsSection" aria-labelledby="settings-account-title">
+      <h2 id="settings-account-title" className="settingsSectionTitle">
+        Account
+      </h2>
+      <div className="settingsRows">
+        <SettingRow label="Email" value={user.email} />
+        <SettingRow label="Name" value={user.name || "Not set"} />
+        <SettingRow label="Role" value={user.role} />
+        <SettingRow label="Created" value={new Date(user.createdAt).toLocaleDateString()} />
+        <SettingRow label="Email verified" value={user.isEmailVerified ? "Yes" : "No"} />
+        <SettingRow label="Actions">
+          <div className="settingsActions">
+            <Link href="/tabs" className="settingsButton settingsButtonSecondary">
               Transcriptions
             </Link>
-            <Link href="/editor" className="button-secondary button-small">
+            <Link href="/editor" className="settingsButton settingsButtonSecondary">
               Open editor
             </Link>
           </div>
-        </section>
+        </SettingRow>
+        {!user.isEmailVerified && (
+          <SettingRow
+            label="Email verification"
+            description="Verification is required before using the transcriber."
+          >
+            <div className="settingsActions">
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                className="settingsButton settingsButtonSecondary"
+                disabled={verifyBusy}
+              >
+                {verifyBusy ? "Sending..." : "Resend verification email"}
+              </button>
+              <Link href={verifyHref} className="settingsButton settingsButtonSecondary">
+                Open verification page
+              </Link>
+            </div>
+          </SettingRow>
+        )}
+      </div>
+      {verifyMessage && <div className="notice">{verifyMessage}</div>}
+    </section>
+  );
 
-        <section className="card stack">
-          <h2 className="section-title section-title--tight">
-            Plan and credits
-          </h2>
-          <p className="muted text-small">
-            {isPremium ? `Plan: ${user.role} - 50 credits/month (roll over)` : "Plan: Free - 10 credits/month"}
-          </p>
-          <div className="account-credits">
-            <div className="stat-card">
-              <span className="stat-label">Credits used</span>
-              <span className="stat-value">{creditsUsedLabel}</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-label">Next credits</span>
-              <span className="stat-value">{resetLabel}</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-label">Remaining</span>
-              <span className="stat-value">{credits.remaining}</span>
-            </div>
-          </div>
-          <div className="button-row">
+  const renderPlanSection = () => (
+    <section className="settingsSection" aria-labelledby="settings-plan-title">
+      <h2 id="settings-plan-title" className="settingsSectionTitle">
+        Plan and credits
+      </h2>
+      <div className="settingsRows">
+        <SettingRow
+          label="Plan"
+          value={isPremium ? `${user.role} - 50 credits/month (roll over)` : "Free - 10 credits/month"}
+        />
+        <SettingRow label="Credits used" value={creditsUsedLabel} />
+        <SettingRow label="Remaining" value={credits.remaining} />
+        <SettingRow label="Next credits" value={resetLabel} />
+        <SettingRow label="Actions">
+          <div className="settingsActions">
             {!isPremium && (
-              <button type="button" onClick={handleUpgrade} className="button-primary" disabled={upgradeBusy}>
+              <button
+                type="button"
+                onClick={handleUpgrade}
+                className="settingsButton settingsButtonPrimary"
+                disabled={upgradeBusy}
+              >
                 {stripeReady ? "Upgrade to Premium" : "Premium (coming soon)"}
               </button>
             )}
@@ -251,87 +324,78 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
               <button
                 type="button"
                 onClick={handleManageSubscription}
-                className="button-secondary"
+                className="settingsButton settingsButtonSecondary"
                 disabled={portalBusy}
               >
                 {portalBusy ? "Opening..." : "Manage subscription"}
               </button>
             )}
             {isAdminOrMod && (
-              <Link href={analyticsHref} className="button-secondary">
+              <Link href={analyticsHref} className="settingsButton settingsButtonSecondary">
                 Open analytics hub
               </Link>
             )}
             {isAdmin && (
-              <Link href="/admin/blog" className="button-secondary">
+              <Link href="/admin/blog" className="settingsButton settingsButtonSecondary">
                 Open blog CMS
               </Link>
             )}
           </div>
-          {credits.remaining === 0 && (
-            <div className="notice">
-              {isPremium
-                ? `Credits used. More credits arrive on ${resetLabel}.`
-                : `Monthly credits used. Upgrade to Premium or wait until ${resetLabel}.`}
-            </div>
-          )}
-          {isPremium && (
-            <p className="footnote">You can cancel your Premium subscription anytime from Manage subscription.</p>
-          )}
-        </section>
+        </SettingRow>
+      </div>
+      {credits.remaining === 0 && (
+        <div className="notice">
+          {isPremium
+            ? `Credits used. More credits arrive on ${resetLabel}.`
+            : `Monthly credits used. Upgrade to Premium or wait until ${resetLabel}.`}
+        </div>
+      )}
+      {isPremium && (
+        <p className="footnote">You can cancel your Premium subscription anytime from Manage subscription.</p>
+      )}
+    </section>
+  );
 
-        <section className="card stack">
-          <h2 className="section-title section-title--tight">
-            Security
-          </h2>
-          <div className="button-row">
-            <Link href="/reset-password" className="button-secondary">
+  const renderSecuritySection = () => (
+    <section className="settingsSection" aria-labelledby="settings-security-title">
+      <h2 id="settings-security-title" className="settingsSectionTitle">
+        Security
+      </h2>
+      <div className="settingsRows">
+        <SettingRow label="Change password" value="Update your login password.">
+          <div className="settingsActions">
+            <Link href="/reset-password" className="settingsButton settingsButtonSecondary">
               Change password
             </Link>
-            <button type="button" onClick={handleSignOut} className="button-secondary">
+          </div>
+        </SettingRow>
+        <SettingRow label="Log out" value="Sign out of your current session.">
+          <div className="settingsActions">
+            <button type="button" onClick={handleSignOut} className="settingsButton settingsButtonSecondary">
               Log out
             </button>
           </div>
-        </section>
+        </SettingRow>
+      </div>
+    </section>
+  );
 
-        {!user.isEmailVerified && (
-          <section className="card stack">
-            <h2 className="section-title section-title--tight">
-              Email verification
-            </h2>
-            <p className="muted text-small">
-              Verification is required before using the transcriber.
-            </p>
-            <div className="button-row">
-              <button
-                type="button"
-                onClick={handleResendVerification}
-                className="button-secondary"
-                disabled={verifyBusy}
-              >
-                {verifyBusy ? "Sending..." : "Resend verification email"}
-              </button>
-              <Link href={verifyHref} className="button-link">
-                Open verification page
-              </Link>
-            </div>
-            {verifyMessage && <div className="notice">{verifyMessage}</div>}
-          </section>
-        )}
-
-        <section className="card stack" id="privacy-controls">
-          <h2 className="section-title section-title--tight">
-            Privacy controls
-          </h2>
-          <p className="muted text-small">
-            Analytics are enabled by default unless you deny them. Current state:{" "}
-            <strong>{consentState === "missing" ? "granted (default)" : consentState}</strong>.
-          </p>
-          <div className="button-row">
+  const renderPrivacySection = () => (
+    <section className="settingsSection" id="privacy-controls" aria-labelledby="settings-privacy-title">
+      <h2 id="settings-privacy-title" className="settingsSectionTitle">
+        Privacy
+      </h2>
+      <div className="settingsRows">
+        <SettingRow
+          label="Analytics"
+          description="Analytics help improve Note2Tabs. You can turn them off anytime."
+          value={consentState === "missing" ? "granted (default)" : consentState}
+        >
+          <div className="settingsActions">
             <button
               type="button"
               onClick={() => void handleConsentUpdate("granted")}
-              className="button-secondary"
+              className="settingsButton settingsButtonSecondary"
               disabled={consentBusy}
             >
               {consentBusy && consentState !== "granted" ? "Saving..." : "Enable analytics"}
@@ -339,142 +403,193 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             <button
               type="button"
               onClick={() => void handleConsentUpdate("denied")}
-              className="button-secondary"
+              className="settingsButton settingsButtonSecondary"
               disabled={consentBusy}
             >
               {consentBusy && consentState !== "denied" ? "Saving..." : "Deny analytics"}
             </button>
           </div>
-          {consentMessage && <div className="notice">{consentMessage}</div>}
-        </section>
+        </SettingRow>
+      </div>
+      {consentMessage && <div className="notice">{consentMessage}</div>}
+    </section>
+  );
 
-        <section className="card stack">
-          <h2 className="section-title section-title--tight">
-            Danger zone
-          </h2>
-          <p className="muted text-small">
-            Delete account permanently (GDPR). This removes tabs, sessions, and account data.
-          </p>
-          {!deleteFlowOpen && (
-            <div className="button-row">
-              <button
-                type="button"
-                className="button-ghost button-small settings-delete-toggle"
-                onClick={() => {
-                  setDeleteFlowOpen(true);
-                  setDeleteStep(1);
-                  setDeleteConfirmationText("");
-                  setError(null);
-                }}
-              >
-                I need to delete my account
-              </button>
-            </div>
+  const renderDangerSection = () => (
+    <section className="settingsSection settingsSectionDanger" aria-labelledby="settings-danger-title">
+      <h2 id="settings-danger-title" className="settingsSectionTitle">
+        Danger zone
+      </h2>
+      <p className="settingsSectionIntro">
+        Delete your account permanently. This removes tabs, sessions, and account data.
+      </p>
+      {!deleteFlowOpen && (
+        <div className="settingsActions">
+          <button
+            type="button"
+            className="settingsButton settingsButtonDanger"
+            onClick={() => {
+              setDeleteFlowOpen(true);
+              setDeleteStep(1);
+              setDeleteConfirmationText("");
+              setError(null);
+            }}
+          >
+            Delete account
+          </button>
+        </div>
+      )}
+      {deleteFlowOpen && (
+        <div className="card-outline stack delete-flow">
+          {deleteStep === 1 && (
+            <>
+              <p className="muted text-small">
+                Before removing your account, what made you sign up in the first place?
+              </p>
+              <label className="form-group">
+                <span className="label">Why did you create your Note2Tabs account?</span>
+                <textarea
+                  className="form-textarea"
+                  rows={3}
+                  value={deleteOriginReason}
+                  onChange={(event) => setDeleteOriginReason(event.target.value)}
+                  placeholder="Example: I wanted faster tab writing and to keep my song edits in one place."
+                />
+              </label>
+              <div className="delete-alternatives">
+                <p className="muted text-small">
+                  You started this account to save progress and keep your workflow in one place. Before deleting, you
+                  can also:
+                </p>
+                <div className="button-row">
+                  <Link href="/tabs" className="button-secondary button-small">
+                    Review transcriptions
+                  </Link>
+                  <Link href="/reset-password" className="button-secondary button-small">
+                    Reset password
+                  </Link>
+                  <button type="button" onClick={handleSignOut} className="button-secondary button-small">
+                    Log out instead
+                  </button>
+                </div>
+              </div>
+              <div className="button-row">
+                <button
+                  type="button"
+                  className="button-secondary button-small"
+                  onClick={() => {
+                    setDeleteFlowOpen(false);
+                    setDeleteStep(1);
+                    setDeleteOriginReason("");
+                    setDeleteConfirmationText("");
+                    setError(null);
+                  }}
+                >
+                  Keep my account
+                </button>
+                <button
+                  type="button"
+                  className="button-secondary button-small"
+                  onClick={() => {
+                    setDeleteStep(2);
+                    setError(null);
+                  }}
+                  disabled={!canContinueDeleteFlow}
+                >
+                  Continue to final step
+                </button>
+              </div>
+            </>
           )}
-          {deleteFlowOpen && (
-            <div className="card-outline stack delete-flow">
-              {deleteStep === 1 && (
-                <>
-                  <p className="muted text-small">
-                    Before removing your account, what made you sign up in the first place?
-                  </p>
-                  <label className="form-group">
-                    <span className="label">Why did you create your Note2Tabs account?</span>
-                    <textarea
-                      className="form-textarea"
-                      rows={3}
-                      value={deleteOriginReason}
-                      onChange={(event) => setDeleteOriginReason(event.target.value)}
-                      placeholder="Example: I wanted faster tab writing and to keep my song edits in one place."
-                    />
-                  </label>
-                  <div className="delete-alternatives">
-                    <p className="muted text-small">
-                      You started this account to save progress and keep your workflow in one place. Before deleting,
-                      you can also:
-                    </p>
-                    <div className="button-row">
-                      <Link href="/tabs" className="button-secondary button-small">
-                        Review transcriptions
-                      </Link>
-                      <Link href="/reset-password" className="button-secondary button-small">
-                        Reset password
-                      </Link>
-                      <button type="button" onClick={handleSignOut} className="button-secondary button-small">
-                        Log out instead
-                      </button>
-                    </div>
-                  </div>
-                  <div className="button-row">
-                    <button
-                      type="button"
-                      className="button-secondary button-small"
-                      onClick={() => {
-                        setDeleteFlowOpen(false);
-                        setDeleteStep(1);
-                        setDeleteOriginReason("");
-                        setDeleteConfirmationText("");
-                        setError(null);
-                      }}
-                    >
-                      Keep my account
-                    </button>
-                    <button
-                      type="button"
-                      className="button-secondary button-small"
-                      onClick={() => {
-                        setDeleteStep(2);
-                        setError(null);
-                      }}
-                      disabled={!canContinueDeleteFlow}
-                    >
-                      Continue to final step
-                    </button>
-                  </div>
-                </>
-              )}
-              {deleteStep === 2 && (
-                <>
-                  <p className="muted text-small">
-                    Final confirmation: type <strong>delete</strong> to permanently remove your account and data.
-                  </p>
-                  <label className="form-group">
-                    <span className="label">Type delete to confirm</span>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={deleteConfirmationText}
-                      onChange={(event) => setDeleteConfirmationText(event.target.value)}
-                      placeholder="delete"
-                      autoComplete="off"
-                    />
-                  </label>
-                  <div className="button-row">
-                    <button
-                      type="button"
-                      className="button-secondary button-small"
-                      onClick={() => {
-                        setDeleteStep(1);
-                        setDeleteConfirmationText("");
-                        setError(null);
-                      }}
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDelete()}
-                      className="button-secondary button-small button-delete-final"
-                      disabled={busy || !canFinalizeDelete}
-                    >
-                      {busy ? "Deleting..." : "Delete account permanently"}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+          {deleteStep === 2 && (
+            <>
+              <p className="muted text-small">
+                Final confirmation: type <strong>delete</strong> to permanently remove your account and data.
+              </p>
+              <label className="form-group">
+                <span className="label">Type delete to confirm</span>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={deleteConfirmationText}
+                  onChange={(event) => setDeleteConfirmationText(event.target.value)}
+                  placeholder="delete"
+                  autoComplete="off"
+                />
+              </label>
+              <div className="button-row">
+                <button
+                  type="button"
+                  className="button-secondary button-small"
+                  onClick={() => {
+                    setDeleteStep(1);
+                    setDeleteConfirmationText("");
+                    setError(null);
+                  }}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete()}
+                  className="button-secondary button-small button-delete-final"
+                  disabled={busy || !canFinalizeDelete}
+                >
+                  {busy ? "Deleting..." : "Delete account permanently"}
+                </button>
+              </div>
+            </>
           )}
-          {error && <div className="error">{error}</div>}
+        </div>
+      )}
+    </section>
+  );
+
+  return (
+    <main className="page settingsPage">
+      <div className="container settingsShell">
+        <header className="settingsHeader">
+          <div>
+            <p className="settingsEyebrow">Settings</p>
+            <h1 className="settingsTitle">Settings</h1>
+            <p className="settingsSubtitle">Manage your account, credits, privacy, and saved work.</p>
+          </div>
+          <Link href="/" className="button-ghost button-small">
+            Back to app
+          </Link>
+        </header>
+
+        <section className="settingsPanel" aria-label="Settings panel">
+          <aside className="settingsSidebar" aria-label="Settings sections">
+            <p className="settingsSidebarLabel">Settings</p>
+            <nav className="settingsNav" role="tablist" aria-label="Settings tabs">
+              {settingsSections.map((section) => {
+                const isActive = selectedSection === section.id;
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    aria-controls={`settings-panel-${section.id}`}
+                    className={`settingsNavItem${isActive ? " settingsNavItemActive" : ""}`}
+                    onClick={() => handleSelectSection(section.id)}
+                  >
+                    {section.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+
+          <div className="settingsContent" role="tabpanel" id={`settings-panel-${selectedSection}`}>
+            {selectedSection === "account" && renderAccountSection()}
+            {selectedSection === "plan" && renderPlanSection()}
+            {selectedSection === "security" && renderSecuritySection()}
+            {selectedSection === "privacy" && renderPrivacySection()}
+            {selectedSection === "danger" && renderDangerSection()}
+            {error && <div className="error">{error}</div>}
+          </div>
         </section>
       </div>
     </main>
@@ -512,7 +627,8 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const creditWindow = isPremium
     ? getCreditWindow({ userCreatedAt: user?.createdAt })
     : getCreditWindow();
-  const creditJobs = await prisma.tabJob.findMany({
+  const creditDurationCounts = await prisma.tabJob.groupBy({
+    by: ["durationSec"],
     where: isPremium
       ? { userId: session.user.id }
       : {
@@ -522,10 +638,15 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
             lt: creditWindow.resetAt,
           },
         },
-    select: { durationSec: true },
+    _count: { _all: true },
   });
   const credits = buildCreditsSummary({
-    durations: creditJobs.map((job) => job.durationSec),
+    usedCredits: calculateCreditsUsedFromDurationCounts(
+      creditDurationCounts.map((item) => ({
+        durationSec: item.durationSec,
+        count: item._count._all,
+      }))
+    ),
     resetAt: creditWindow.resetAt,
     isPremium,
     userCreatedAt: user?.createdAt,

@@ -98,10 +98,14 @@ export default function BlogClusterPage({ cluster, pillarPost, supportingPosts }
 
 export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (ctx) => {
   const slug = ctx.params?.slug as string;
-  const cluster = await prisma.topicCluster.findUnique({ where: { slug } });
+  const cluster = await prisma.topicCluster.findUnique({
+    where: { slug },
+    select: { id: true, name: true, slug: true, description: true },
+  });
   if (!cluster) {
     return { notFound: true };
   }
+  ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
 
   const postsRaw = await prisma.post.findMany({
     where: {
@@ -109,7 +113,18 @@ export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (c
       clusters: { some: { clusterId: cluster.id } },
     },
     orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
-    include: { clusters: true },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      excerpt: true,
+      content: true,
+      coverImageUrl: true,
+      publishedAt: true,
+      clusters: {
+        select: { clusterId: true, isPillar: true },
+      },
+    },
   });
 
   const pillar = postsRaw.find((post) =>

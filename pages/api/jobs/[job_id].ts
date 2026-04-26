@@ -214,6 +214,55 @@ function appendQueryParam(url: string, key: string, value: string) {
   return `${url}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
 }
 
+function shouldLogTransferMetrics() {
+  return process.env.NOTE2TABS_TRANSFER_LOGS === "true";
+}
+
+function logJobTransferMetric(metric: {
+  upstreamStatus: number;
+  upstreamBytes: number;
+  responseBytes: number;
+  durationMs: number;
+  fetchedFullOutput: boolean;
+  persistedTab: boolean;
+}) {
+  if (!shouldLogTransferMetrics()) return;
+  console.info("note2tabs.transfer.job_status", {
+    route: "/api/jobs/[job_id]",
+    upstreamStatus: metric.upstreamStatus,
+    upstreamBytes: metric.upstreamBytes,
+    responseBytes: metric.responseBytes,
+    durationMs: metric.durationMs,
+    fetchedFullOutput: metric.fetchedFullOutput,
+    persistedTab: metric.persistedTab,
+  });
+}
+
+async function fetchBackendJob(jobId: string, headers: Record<string, string>, includeOutput: boolean) {
+  const startedAt = Date.now();
+  const baseUrl = `${API_BASE}/api/v1/jobs/${encodeURIComponent(jobId)}`;
+  const url = includeOutput ? appendQueryParam(baseUrl, "include_output", "true") : baseUrl;
+  const upstream = await fetch(url, { headers });
+  const text = await upstream.text();
+  return {
+    upstream,
+    text,
+    contentType: upstream.headers.get("content-type"),
+    bytes: Buffer.byteLength(text, "utf-8"),
+    durationMs: Date.now() - startedAt,
+  };
+}
+
+function addPreviewUrl(payload: Record<string, unknown>, jobId: string) {
+  const artifacts = getObjectValue(payload, ["artifacts"]);
+  const existingPreviewUrl = getStringValue(payload, ["audio_preview_url", "audioPreviewUrl"]);
+  if (!existingPreviewUrl && artifacts && artifacts.previewAudio) {
+    const previewUrl = `/api/jobs/${encodeURIComponent(jobId)}/artifacts/preview_audio`;
+    const previewVersion = getPreviewVersionToken(payload);
+    payload.audio_preview_url = previewVersion ? appendQueryParam(previewUrl, "v", previewVersion) : previewUrl;
+  }
+}
+
 function getPreviewVersionToken(payload: Record<string, unknown>) {
   const updatedAtValue = getFirstJobValue(payload, ["updatedAt", "updated_at", "finishedAt", "finished_at"]);
   const updatedAt = typeof updatedAtValue === "string" ? updatedAtValue.trim() : "";
@@ -303,7 +352,33 @@ function extractStoredReviewState(payload: Record<string, unknown>): StoredRevie
   };
 }
 
+function hasPersistableJobResult(payload: Record<string, unknown>) {
+  return (
+    normalizeTabs(getFirstJobValue(payload, ["tabs"])).length > 0 ||
+    normalizeTranscriberSegments(
+      getFirstJobValue(payload, ["transcriberSegments", "noteEventGroups", "segmentGroups", "segments"])
+    ).length > 0
+  );
+}
+
 async function persistCompletedJob(jobId: string, sessionUserId: string, payload: Record<string, unknown>) {
+  const tabs = normalizeTabs(getFirstJobValue(payload, ["tabs"]));
+  const transcriberSegments = normalizeTranscriberSegments(
+    getFirstJobValue(payload, ["transcriberSegments", "noteEventGroups", "segmentGroups", "segments"])
+  );
+  if (tabs.length === 0 && transcriberSegments.length === 0) {
+    const existing = await prisma.tabJob.findFirst({
+      where: {
+        userId: sessionUserId,
+        resultJson: {
+          contains: `"backendJobId":"${jobId}"`,
+        },
+      },
+      select: { id: true },
+    });
+    return existing?.id ?? null;
+  }
+
   const existing = await prisma.tabJob.findFirst({
     where: {
       userId: sessionUserId,
@@ -313,14 +388,6 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
     },
     select: { id: true, sourceLabel: true, sourceType: true, durationSec: true, resultJson: true },
   });
-
-  const tabs = normalizeTabs(getFirstJobValue(payload, ["tabs"]));
-  const transcriberSegments = normalizeTranscriberSegments(
-    getFirstJobValue(payload, ["transcriberSegments", "noteEventGroups", "segmentGroups", "segments"])
-  );
-  if (tabs.length === 0 && transcriberSegments.length === 0) {
-    return existing?.id ?? null;
-  }
   const explicitLabel =
     typeof getFirstJobValue(payload, ["sourceLabel", "source_label", "fileName", "filename", "title"]) === "string"
       ? (getFirstJobValue(payload, ["sourceLabel", "source_label", "fileName", "filename", "title"]) as string)
@@ -423,22 +490,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!jobId) {
     return res.status(400).json({ error: "Missing job id" });
   }
+  const includeOutputRaw = Array.isArray(req.query.include_output)
+    ? req.query.include_output[0]
+    : req.query.include_output;
+  const clientRequestedFullOutput = includeOutputRaw === "true" || includeOutputRaw === "1";
 
   const headers: Record<string, string> = {};
   if (BACKEND_SECRET) headers["X-Backend-Secret"] = BACKEND_SECRET;
   const session = await getServerSession(req, res, authOptions);
   if (session?.user?.id) headers["X-User-Id"] = session.user.id;
 
-  let upstream: Response;
+  const requestStartedAt = Date.now();
+  let fetched;
   try {
-    upstream = await fetch(`${API_BASE}/api/v1/jobs/${encodeURIComponent(jobId)}`, {
-      headers,
-    });
+    fetched = await fetchBackendJob(jobId, headers, clientRequestedFullOutput);
   } catch {
     return res.status(502).json({ error: "Unable to reach transcription backend." });
   }
-  const text = await upstream.text();
-  const contentType = upstream.headers.get("content-type");
+  let upstream = fetched.upstream;
+  const text = fetched.text;
+  const contentType = fetched.contentType;
+  let upstreamBytes = fetched.bytes;
+  let fetchedFullOutput = clientRequestedFullOutput;
+  let persistedTab = false;
   if (!text) {
     res.status(upstream.status);
     return res.end();
@@ -447,13 +521,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (contentType?.includes("application/json")) {
     try {
       const payload = JSON.parse(text) as Record<string, unknown>;
-      const artifacts = getObjectValue(payload, ["artifacts"]);
-      const existingPreviewUrl = getStringValue(payload, ["audio_preview_url", "audioPreviewUrl"]);
-      if (!existingPreviewUrl && artifacts && artifacts.previewAudio) {
-        const previewUrl = `/api/jobs/${encodeURIComponent(jobId)}/artifacts/preview_audio`;
-        const previewVersion = getPreviewVersionToken(payload);
-        payload.audio_preview_url = previewVersion ? appendQueryParam(previewUrl, "v", previewVersion) : previewUrl;
-      }
+      addPreviewUrl(payload, jobId);
 
       let resolvedTabJobId = getStringValue(payload, ["tab_job_id", "tabJobId", "tab_id", "tabId"]);
       const normalizedStatus =
@@ -461,12 +529,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? String(getFirstJobValue(payload, ["status"])).toLowerCase()
           : null;
       if (upstream.ok && session?.user?.id && normalizedStatus && FINAL_JOB_STATUSES.has(normalizedStatus)) {
-        const tabJobId = await persistCompletedJob(jobId, session.user.id, payload);
+        let tabJobId = await persistCompletedJob(jobId, session.user.id, payload);
+        if (!tabJobId && !hasPersistableJobResult(payload) && !fetchedFullOutput) {
+          try {
+            const fullFetch = await fetchBackendJob(jobId, headers, true);
+            upstreamBytes += fullFetch.bytes;
+            fetchedFullOutput = true;
+            if (fullFetch.upstream.ok && fullFetch.contentType?.includes("application/json") && fullFetch.text) {
+              const fullPayload = JSON.parse(fullFetch.text) as Record<string, unknown>;
+              addPreviewUrl(fullPayload, jobId);
+              tabJobId = await persistCompletedJob(jobId, session.user.id, fullPayload);
+              if (tabJobId) {
+                Object.keys(payload).forEach((key) => delete payload[key]);
+                Object.assign(payload, fullPayload);
+                upstream = fullFetch.upstream;
+              }
+            }
+          } catch (error) {
+            console.warn("Job status full-result fetch failed", error);
+          }
+        }
         if (tabJobId) {
+          persistedTab = true;
           resolvedTabJobId = tabJobId;
           payload.tab_job_id = tabJobId;
           payload.tabJobId = tabJobId;
           stripLargeJobFields(payload);
+        }
+      } else if (
+        upstream.ok &&
+        normalizedStatus &&
+        FINAL_JOB_STATUSES.has(normalizedStatus) &&
+        !hasPersistableJobResult(payload) &&
+        !fetchedFullOutput
+      ) {
+        try {
+          const fullFetch = await fetchBackendJob(jobId, headers, true);
+          upstreamBytes += fullFetch.bytes;
+          fetchedFullOutput = true;
+          if (fullFetch.upstream.ok && fullFetch.contentType?.includes("application/json") && fullFetch.text) {
+            const fullPayload = JSON.parse(fullFetch.text) as Record<string, unknown>;
+            addPreviewUrl(fullPayload, jobId);
+            Object.keys(payload).forEach((key) => delete payload[key]);
+            Object.assign(payload, fullPayload);
+            upstream = fullFetch.upstream;
+          }
+        } catch (error) {
+          console.warn("Job status unauthenticated full-result fetch failed", error);
         }
       }
 
@@ -525,7 +634,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         responsePayload.tabJobId = resolvedTabJobId;
         responsePayload.tab_id = resolvedTabJobId;
         responsePayload.tabId = resolvedTabJobId;
-        if (session?.user?.id) {
+        const multipleGuitarsValue = getFirstJobValue(payload, ["multipleGuitars", "multiple_guitars"]);
+        if (typeof multipleGuitarsValue === "boolean") {
+          responsePayload.multipleGuitars = multipleGuitarsValue;
+        } else if (session?.user?.id) {
           const savedTab = await prisma.tabJob.findFirst({
             where: { id: resolvedTabJobId, userId: session.user.id },
             select: { resultJson: true },
@@ -560,6 +672,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.setHeader("Cache-Control", "no-store, max-age=0, must-revalidate");
       res.setHeader("Pragma", "no-cache");
       res.setHeader("Expires", "0");
+      logJobTransferMetric({
+        upstreamStatus: upstream.status,
+        upstreamBytes,
+        responseBytes: Buffer.byteLength(JSON.stringify(safeResponsePayload), "utf-8"),
+        durationMs: Date.now() - requestStartedAt,
+        fetchedFullOutput,
+        persistedTab,
+      });
       return res.json(safeResponsePayload);
     } catch {
       // Fall through to controlled error response below.

@@ -949,8 +949,6 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const from = new Date();
   from.setDate(to.getDate() - (days - 1));
 
-  const moderationPromise = getModerationSnapshot(50);
-
   let summary: Awaited<ReturnType<typeof getSummaryStats>> | null = null;
   let daily: DailyPoint[] = [];
   let funnel: Funnel | null = null;
@@ -963,18 +961,21 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   let usersActivity: Awaited<ReturnType<typeof getUsersActivity>> = [];
   let gteStats: GteStats | null = null;
   let parity: Parity | null = null;
+  let moderation: ModerationSnapshot = {
+    analytics: [],
+    consents: [],
+    stats: { totalEvents: 0, totalConsents: 0, eventsByType: {} },
+  };
   let thisToThat: Props["thisToThat"] = null;
 
   if (isAdmin) {
-    const parityFrom = new Date();
-    parityFrom.setDate(parityFrom.getDate() - 6);
     const sessionUser = session.user;
     const backendBaseUrl = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
     const backendSecret = process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
     const canFetchThisToThat = Boolean(sessionUser?.id);
 
-    [summary, daily, funnel, dropoff, pageViews, devices, errors, topUsers, recentEvents, usersActivity, gteStats, parity, thisToThat] =
-      await Promise.all([
+    if (activeView === "overview") {
+      [summary, daily, funnel, dropoff, pageViews, devices, errors, thisToThat] = await Promise.all([
         getSummaryStats(from, to),
         getDailyTimeSeries(from, to),
         getConversionFunnel(from, to),
@@ -982,11 +983,6 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         getPageViewBreakdown(from, to, 10),
         getDeviceBreakdown(from, to),
         getErrorStats(from, to),
-        getTopUsers(from, to, 10),
-        getRecentEvents(from, to, 50),
-        getUsersActivity(from, to, 100),
-        getGteEditorStats(from, to, 25),
-        parityEnabled ? getParityMetrics(parityFrom, to) : Promise.resolve(null),
         canFetchThisToThat
           ? (async () => {
               try {
@@ -1023,9 +1019,25 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
             })()
           : Promise.resolve(null),
       ]);
+    } else if (activeView === "gte") {
+      gteStats = await getGteEditorStats(from, to, 25);
+    } else if (activeView === "users") {
+      [topUsers, usersActivity] = await Promise.all([
+        getTopUsers(from, to, 10),
+        getUsersActivity(from, to, 100),
+      ]);
+    } else if (activeView === "events") {
+      recentEvents = await getRecentEvents(from, to, 50);
+    } else if (activeView === "moderation") {
+      moderation = await getModerationSnapshot(50);
+    } else if (activeView === "parity" && parityEnabled) {
+      const parityFrom = new Date();
+      parityFrom.setDate(parityFrom.getDate() - 6);
+      parity = await getParityMetrics(parityFrom, to);
+    }
+  } else if (activeView === "moderation") {
+    moderation = await getModerationSnapshot(50);
   }
-
-  const moderation = await moderationPromise;
 
   return {
     props: {
