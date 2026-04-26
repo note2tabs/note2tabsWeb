@@ -61,6 +61,7 @@ export default function FooterBar() {
           <section className="footer-section">
             <h3>Contact</h3>
             <a href="mailto:note2tabs@gmail.com">note2tabs@gmail.com</a>
+            <Link href="/feedback">Send feedback</Link>
           </section>
 
           <section className="footer-section">

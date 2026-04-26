@@ -488,6 +488,44 @@ export async function getRecentEvents(from: Date, to: Date, limit = 50) {
   }));
 }
 
+export async function getRecentFeedback(from: Date, to: Date, limit = 50) {
+  const feedbackEvents = (await getUnifiedEvents(from, to))
+    .filter((event) => event.event === "user_feedback_submitted")
+    .slice()
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, limit);
+
+  const userIds = feedbackEvents.map((event) => event.userId).filter(Boolean) as string[];
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: { id: true, email: true },
+  });
+  const userMap = Object.fromEntries(users.map((user) => [user.id, user.email]));
+
+  return feedbackEvents.map((event) => {
+    const payload = parsePayload(event.payload);
+    const message =
+      typeof payload.message === "string"
+        ? payload.message
+        : typeof payload.text === "string"
+        ? payload.text
+        : "";
+    const category =
+      typeof payload.category === "string" && payload.category.trim()
+        ? payload.category.trim()
+        : "general";
+    return {
+      id: event.id,
+      createdAt: event.createdAt,
+      userId: event.userId,
+      userEmail: event.userId ? userMap[event.userId] || null : null,
+      category,
+      message,
+      path: event.path || null,
+    };
+  });
+}
+
 export async function getGteEditorStats(from: Date, to: Date, topUsersLimit = 25) {
   const gteEvents = (await getUnifiedEvents(from, to))
     .filter((event) =>

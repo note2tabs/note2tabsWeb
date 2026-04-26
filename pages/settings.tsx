@@ -217,6 +217,9 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             <Link href="/editor" className="button-secondary button-small">
               Open editor
             </Link>
+            <Link href="/feedback" className="button-secondary button-small">
+              Send feedback
+            </Link>
           </div>
         </section>
 

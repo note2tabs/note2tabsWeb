@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function AboutPage() {
   return (
     <main className="page about-page">
@@ -29,7 +31,8 @@ export default function AboutPage() {
               </p>
               <p className="about-story-paragraph">
                 We are constantly working on new features, design fixes and tools that could improve the experience of the avrage guitarist. 
-                If you have anything on your mind about what you would like to see from us, feedback or any ideas you might have, feel free to write to us! We'd love to hear from you.
+                If you have anything on your mind about what you would like to see from us, feedback or any ideas you might have, feel free to write to us!
+                <Link href="/feedback"> <strong>We'd love to hear from you.</strong></Link>
               </p>
             </div>
           </div>
