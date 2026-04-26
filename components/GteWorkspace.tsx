@@ -106,6 +106,7 @@ const CUT_BOUNDARY_OVERHANG = 12;
 const MAX_HISTORY = 16;
 const AUTOSAVE_DEBOUNCE_MS = 2500;
 const AUTOSAVE_INTERVAL_MS = 20000;
+const NOTE_FRET_ARROW_COMMIT_DEBOUNCE_MS = 300;
 const TOUCH_DRAG_HOLD_MS = 110;
 const TARGET_VISIBLE_BARS = 2.5;
 const MIN_TIMELINE_ZOOM = 0.1;
@@ -206,6 +207,7 @@ const parseOptionalNumber = (value: string): OptionalNumber => {
 };
 
 const cloneTabCoord = (tab: TabCoord): TabCoord => [tab[0], tab[1]];
+const tabCoordKey = (tab: TabCoord) => `${tab[0]}:${tab[1]}`;
 
 const getMaxFret = (snapshot: Pick<EditorSnapshot, "tabRef">) =>
   snapshot.tabRef?.[0]?.length ? snapshot.tabRef[0].length - 1 : DEFAULT_MAX_FRET;
@@ -839,6 +841,7 @@ export default function GteWorkspace({
   const tempChordIdRef = useRef(-1);
   const noteIdMapRef = useRef<Map<number, number>>(new Map());
   const chordIdMapRef = useRef<Map<number, number>>(new Map());
+  const noteAlternatesRequestSeqRef = useRef(0);
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const timelineOuterRef = useRef<HTMLDivElement | null>(null);
   const draftFretRef = useRef<HTMLInputElement | null>(null);
@@ -848,6 +851,8 @@ export default function GteWorkspace({
   const chordMenuRef = useRef<HTMLDivElement | null>(null);
   const chordEditPanelRef = useRef<HTMLDivElement | null>(null);
   const chordNoteMenuRef = useRef<HTMLDivElement | null>(null);
+  const noteFretArrowCommitTimerRef = useRef<number | null>(null);
+  const pendingNoteFretArrowCommitRef = useRef<{ noteId: number; fret: number } | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   const scaleHudRef = useRef<HTMLDivElement | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1147,24 +1152,6 @@ export default function GteWorkspace({
     () => snapshot.notes.find((note) => note.id === selectedNoteIds[0]) || null,
     [snapshot.notes, selectedNoteIds]
   );
-  const fallbackNoteAlternates = useMemo(() => {
-    if (!selectedNote?.optimals?.length) return null;
-    const seen = new Set<string>();
-    const possibleTabs = selectedNote.optimals
-      .filter((tab) => isTabCoordValidForSnapshot(snapshot, tab))
-      .filter((tab) => {
-        const key = `${tab[0]}:${tab[1]}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .map((tab) => cloneTabCoord(tab));
-    if (!possibleTabs.length) return null;
-    return {
-      possibleTabs,
-      blockedTabs: [] as TabCoord[],
-    };
-  }, [selectedNote, snapshot.tabRef]);
 
   const activeChordIds = useMemo(
     () => selectedChordIds.filter((id) => snapshot.chords.some((chord) => chord.id === id)),
@@ -1357,15 +1344,18 @@ export default function GteWorkspace({
   );
 
   useEffect(() => {
-    if (selectedNoteIds.length !== 1) {
+    if (selectedNoteIds.length !== 1 || !selectedNote) {
       setNoteAlternates(null);
       return;
     }
     let cancelled = false;
+    noteAlternatesRequestSeqRef.current += 1;
+    const requestSeq = noteAlternatesRequestSeqRef.current;
     const selectedId = selectedNoteIds[0];
     const resolvedId =
       selectedId < 0 ? noteIdMapRef.current.get(selectedId) ?? selectedId : selectedId;
-    setNoteAlternates(fallbackNoteAlternates);
+    const requestTabKey = tabCoordKey(selectedNote.tab);
+    setNoteAlternates(null);
     if (resolvedId < 0) {
       return () => {
         cancelled = true;
@@ -1374,17 +1364,27 @@ export default function GteWorkspace({
     void gteApi
       .getNoteOptimals(editorId, resolvedId)
       .then((data) => {
-        if (cancelled) return;
+        if (cancelled || requestSeq !== noteAlternatesRequestSeqRef.current) return;
+        const latestSelectedId = selectedNoteIdsRef.current[0];
+        if (!Number.isInteger(latestSelectedId)) return;
+        const latestResolvedId =
+          latestSelectedId < 0
+            ? noteIdMapRef.current.get(latestSelectedId) ?? latestSelectedId
+            : latestSelectedId;
+        if (latestResolvedId !== resolvedId) return;
+        const latestNote = snapshotRef.current.notes.find((note) => note.id === latestResolvedId);
+        if (!latestNote) return;
+        if (tabCoordKey(latestNote.tab) !== requestTabKey) return;
         setNoteAlternates(data);
       })
       .catch(() => {
-        if (cancelled) return;
-        setNoteAlternates(fallbackNoteAlternates);
+        if (cancelled || requestSeq !== noteAlternatesRequestSeqRef.current) return;
+        setNoteAlternates(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [editorId, fallbackNoteAlternates, selectedNoteIds]);
+  }, [editorId, selectedNote, selectedNoteIds]);
 
   useEffect(() => {
     if (selectedNoteIds.length !== 1 || !selectedNote || selectedNote.id !== noteMenuNoteId) {
@@ -4472,8 +4472,43 @@ export default function GteWorkspace({
     [editorId, enqueueOptimisticMutation, maxFret, selectedNote]
   );
 
+  const clearPendingNoteFretArrowCommit = useCallback(() => {
+    if (noteFretArrowCommitTimerRef.current !== null) {
+      window.clearTimeout(noteFretArrowCommitTimerRef.current);
+      noteFretArrowCommitTimerRef.current = null;
+    }
+    pendingNoteFretArrowCommitRef.current = null;
+  }, []);
+
+  const flushPendingNoteFretArrowCommit = useCallback(() => {
+    const pending = pendingNoteFretArrowCommitRef.current;
+    if (!pending) return;
+    clearPendingNoteFretArrowCommit();
+    const latestSelectedId = selectedNoteIdsRef.current[0];
+    if (!Number.isInteger(latestSelectedId)) return;
+    if (resolveNoteId(latestSelectedId) !== resolveNoteId(pending.noteId)) return;
+    commitNoteMenuFretValue(pending.fret);
+  }, [clearPendingNoteFretArrowCommit, commitNoteMenuFretValue, resolveNoteId]);
+
+  const scheduleNoteFretArrowCommit = useCallback(
+    (noteId: number, fretValue: number) => {
+      pendingNoteFretArrowCommitRef.current = {
+        noteId,
+        fret: fretValue,
+      };
+      if (noteFretArrowCommitTimerRef.current !== null) {
+        window.clearTimeout(noteFretArrowCommitTimerRef.current);
+      }
+      noteFretArrowCommitTimerRef.current = window.setTimeout(() => {
+        flushPendingNoteFretArrowCommit();
+      }, NOTE_FRET_ARROW_COMMIT_DEBOUNCE_MS);
+    },
+    [flushPendingNoteFretArrowCommit]
+  );
+
   const commitNoteMenuFret = () => {
     if (!noteMenuDraft) return;
+    clearPendingNoteFretArrowCommit();
     const fretValue = Number(noteMenuDraft.fret);
     if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) {
       setError("Invalid fret.");
@@ -4481,6 +4516,12 @@ export default function GteWorkspace({
     }
     commitNoteMenuFretValue(fretValue);
   };
+
+  useEffect(() => {
+    return () => {
+      clearPendingNoteFretArrowCommit();
+    };
+  }, [clearPendingNoteFretArrowCommit]);
 
   const commitNoteMenuLengthValue = useCallback(
     (rawLength: number) => {
@@ -4540,16 +4581,17 @@ export default function GteWorkspace({
       const nextValue = Math.max(min, Math.min(max, (Number.isFinite(currentValue) ? currentValue : fallbackValue) + delta));
       setMobileNoteFieldValue(field, nextValue);
       if (field === "fret") {
-        commitNoteMenuFretValue(nextValue);
+        if (!selectedNote) return;
+        scheduleNoteFretArrowCommit(selectedNote.id, nextValue);
       } else {
         commitNoteMenuLengthValue(nextValue);
       }
     },
     [
-      commitNoteMenuFretValue,
       commitNoteMenuLengthValue,
       maxFret,
       noteMenuDraft,
+      scheduleNoteFretArrowCommit,
       selectedNote,
       setMobileNoteFieldValue,
     ]
@@ -4557,14 +4599,15 @@ export default function GteWorkspace({
 
   const adjustDesktopNoteMenuFret = useCallback(
     (delta: number) => {
+      if (!selectedNote) return;
       const fallbackValue = selectedNote?.tab[1] ?? 0;
       const currentValue = Number(noteMenuDraft?.fret ?? fallbackValue);
       const baseValue = Number.isFinite(currentValue) ? currentValue : fallbackValue;
       const nextValue = Math.max(0, Math.min(maxFret, baseValue + delta));
       setNoteMenuDraft((prev) => (prev ? { ...prev, fret: String(nextValue) } : prev));
-      commitNoteMenuFretValue(nextValue);
+      scheduleNoteFretArrowCommit(selectedNote.id, nextValue);
     },
-    [commitNoteMenuFretValue, maxFret, noteMenuDraft, selectedNote]
+    [maxFret, noteMenuDraft, scheduleNoteFretArrowCommit, selectedNote]
   );
 
   const commitChordMenuLength = () => {
