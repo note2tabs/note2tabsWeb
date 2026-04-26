@@ -2981,7 +2981,7 @@ input[type="number"] {
 .about-story-paragraph {
   margin: 0;
   color: #1f2937;
-  font-size: clamp(1.03rem, 1.08vw, 1.14rem);
+  font-size: clamp(1.10rem, 1.08vw, 1.14rem);
   line-height: 1.72;
   max-width: 70ch;
 }
@@ -4464,11 +4464,6 @@ input[type="number"] {
   .about-section--story .about-story-copy {
     border-radius: 14px;
     padding: 16px 14px;
-  }
-
-  .about-story-paragraph {
-    font-size: 1rem;
-    line-height: 1.64;
   }
 
   .about-detail-grid,
