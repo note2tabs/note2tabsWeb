@@ -207,7 +207,6 @@ const parseOptionalNumber = (value: string): OptionalNumber => {
 };
 
 const cloneTabCoord = (tab: TabCoord): TabCoord => [tab[0], tab[1]];
-const tabCoordKey = (tab: TabCoord) => `${tab[0]}:${tab[1]}`;
 
 const getMaxFret = (snapshot: Pick<EditorSnapshot, "tabRef">) =>
   snapshot.tabRef?.[0]?.length ? snapshot.tabRef[0].length - 1 : DEFAULT_MAX_FRET;
@@ -842,6 +841,7 @@ export default function GteWorkspace({
   const noteIdMapRef = useRef<Map<number, number>>(new Map());
   const chordIdMapRef = useRef<Map<number, number>>(new Map());
   const noteAlternatesRequestSeqRef = useRef(0);
+  const noteAlternatesNoteIdRef = useRef<number | null>(null);
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const timelineOuterRef = useRef<HTMLDivElement | null>(null);
   const draftFretRef = useRef<HTMLInputElement | null>(null);
@@ -1152,6 +1152,8 @@ export default function GteWorkspace({
     () => snapshot.notes.find((note) => note.id === selectedNoteIds[0]) || null,
     [snapshot.notes, selectedNoteIds]
   );
+  const selectedSingleNoteId = selectedNoteIds.length === 1 ? selectedNoteIds[0] : null;
+  const selectedNoteTabKey = selectedNote ? `${selectedNote.tab[0]}:${selectedNote.tab[1]}` : null;
 
   const activeChordIds = useMemo(
     () => selectedChordIds.filter((id) => snapshot.chords.some((chord) => chord.id === id)),
@@ -1344,17 +1346,30 @@ export default function GteWorkspace({
   );
 
   useEffect(() => {
-    if (selectedNoteIds.length !== 1 || !selectedNote) {
+    if (selectedSingleNoteId === null || !selectedNote) {
+      noteAlternatesNoteIdRef.current = null;
       setNoteAlternates(null);
       return;
     }
     let cancelled = false;
     noteAlternatesRequestSeqRef.current += 1;
     const requestSeq = noteAlternatesRequestSeqRef.current;
-    const selectedId = selectedNoteIds[0];
+    const selectedId = selectedSingleNoteId;
     const resolvedId =
       selectedId < 0 ? noteIdMapRef.current.get(selectedId) ?? selectedId : selectedId;
-    const requestTabKey = tabCoordKey(selectedNote.tab);
+    const hasTabInLoadedAlternates = Boolean(
+      selectedNoteTabKey &&
+        noteAlternates &&
+        noteAlternatesNoteIdRef.current === resolvedId &&
+        [...(noteAlternates.possibleTabs || []), ...(noteAlternates.blockedTabs || [])].some(
+          (tab) => `${tab[0]}:${tab[1]}` === selectedNoteTabKey
+        )
+    );
+    if (hasTabInLoadedAlternates) {
+      return () => {
+        cancelled = true;
+      };
+    }
     setNoteAlternates(null);
     if (resolvedId < 0) {
       return () => {
@@ -1374,17 +1389,18 @@ export default function GteWorkspace({
         if (latestResolvedId !== resolvedId) return;
         const latestNote = snapshotRef.current.notes.find((note) => note.id === latestResolvedId);
         if (!latestNote) return;
-        if (tabCoordKey(latestNote.tab) !== requestTabKey) return;
+        noteAlternatesNoteIdRef.current = resolvedId;
         setNoteAlternates(data);
       })
       .catch(() => {
         if (cancelled || requestSeq !== noteAlternatesRequestSeqRef.current) return;
+        noteAlternatesNoteIdRef.current = null;
         setNoteAlternates(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [editorId, selectedNote, selectedNoteIds]);
+  }, [editorId, noteAlternates, selectedNote?.id, selectedNoteTabKey, selectedSingleNoteId]);
 
   useEffect(() => {
     if (selectedNoteIds.length !== 1 || !selectedNote || selectedNote.id !== noteMenuNoteId) {
