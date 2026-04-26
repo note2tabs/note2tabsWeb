@@ -45,6 +45,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
 </rss>`;
 
   res.setHeader("Content-Type", "application/rss+xml");
+  res.setHeader("Cache-Control", "public, s-maxage=1800, stale-while-revalidate=86400");
   res.write(xml);
   res.end();
 

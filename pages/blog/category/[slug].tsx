@@ -96,10 +96,14 @@ export default function BlogCategoryPage({ category, posts, pillarPost }: Catego
 
 export const getServerSideProps: GetServerSideProps<CategoryPageProps> = async (ctx) => {
   const slug = ctx.params?.slug as string;
-  const category = await prisma.category.findUnique({ where: { slug } });
+  const category = await prisma.category.findUnique({
+    where: { slug },
+    select: { id: true, name: true, slug: true, description: true },
+  });
   if (!category) {
     return { notFound: true };
   }
+  ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
 
   const postsRaw = await prisma.post.findMany({
     where: {
@@ -107,7 +111,18 @@ export const getServerSideProps: GetServerSideProps<CategoryPageProps> = async (
       categories: { some: { categoryId: category.id } },
     },
     orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
-    include: { clusters: true },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      excerpt: true,
+      content: true,
+      coverImageUrl: true,
+      publishedAt: true,
+      clusters: {
+        select: { isPillar: true },
+      },
+    },
   });
 
   const pillarCandidate = postsRaw.find((post) => post.clusters.some((cluster) => cluster.isPillar));

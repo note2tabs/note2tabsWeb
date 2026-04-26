@@ -23,6 +23,30 @@ type SnapshotSaveCacheEntry = {
 
 const snapshotSaveCache = new Map<string, SnapshotSaveCacheEntry>();
 
+function shouldLogTransferMetrics() {
+  return process.env.NOTE2TABS_TRANSFER_LOGS === "true";
+}
+
+function logGteTransferMetric(metric: {
+  method: string;
+  path: string;
+  upstreamStatus: number;
+  responseBytes: number;
+  durationMs: number;
+  cacheHit?: boolean;
+}) {
+  if (!shouldLogTransferMetrics()) return;
+  console.info("note2tabs.transfer.gte_proxy", {
+    route: "/api/gte/[...path]",
+    method: metric.method,
+    path: metric.path,
+    upstreamStatus: metric.upstreamStatus,
+    responseBytes: metric.responseBytes,
+    durationMs: metric.durationMs,
+    cacheHit: Boolean(metric.cacheHit),
+  });
+}
+
 type UpstreamImportBody = {
   ok?: boolean;
   target?: string;
@@ -165,6 +189,7 @@ async function maybeLogGteAnalyticsEvent(input: {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const requestStartedAt = Date.now();
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.id) {
     return res.status(401).json({ error: "Not authenticated" });
@@ -222,8 +247,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         res.setHeader("Content-Type", cached.contentType);
       }
       if (!cached.text) {
+        logGteTransferMetric({
+          method,
+          path,
+          upstreamStatus: cached.status,
+          responseBytes: 0,
+          durationMs: Date.now() - requestStartedAt,
+          cacheHit: true,
+        });
         return res.end();
       }
+      logGteTransferMetric({
+        method,
+        path,
+        upstreamStatus: cached.status,
+        responseBytes: Buffer.byteLength(cached.text, "utf-8"),
+        durationMs: Date.now() - requestStartedAt,
+        cacheHit: true,
+      });
       return res.send(cached.text);
     }
   }
@@ -254,13 +295,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       res.status(upstream.status);
       res.setHeader("Content-Type", "application/json; charset=utf-8");
-      return res.send(
-        JSON.stringify({
-          ok: true,
-          target,
-          editorId: requestedEditorId,
-        } satisfies UpstreamImportBody)
-      );
+      const responseText = JSON.stringify({
+        ok: true,
+        target,
+        editorId: requestedEditorId,
+      } satisfies UpstreamImportBody);
+      logGteTransferMetric({
+        method,
+        path,
+        upstreamStatus: upstream.status,
+        responseBytes: Buffer.byteLength(responseText, "utf-8"),
+        durationMs: Date.now() - requestStartedAt,
+      });
+      return res.send(responseText);
     }
   }
   const text = await upstream.text();
@@ -347,7 +394,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
   if (!responseText) {
+    logGteTransferMetric({
+      method,
+      path,
+      upstreamStatus: upstream.status,
+      responseBytes: 0,
+      durationMs: Date.now() - requestStartedAt,
+    });
     return res.end();
   }
+  logGteTransferMetric({
+    method,
+    path,
+    upstreamStatus: upstream.status,
+    responseBytes: Buffer.byteLength(responseText, "utf-8"),
+    durationMs: Date.now() - requestStartedAt,
+  });
   return res.send(responseText);
 }

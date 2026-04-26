@@ -67,10 +67,14 @@ export default function BlogTagPage({ tag, posts }: TagPageProps) {
 
 export const getServerSideProps: GetServerSideProps<TagPageProps> = async (ctx) => {
   const slug = ctx.params?.slug as string;
-  const tag = await prisma.tag.findUnique({ where: { slug } });
+  const tag = await prisma.tag.findUnique({
+    where: { slug },
+    select: { id: true, name: true, slug: true },
+  });
   if (!tag) {
     return { notFound: true };
   }
+  ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
 
   const postsRaw = await prisma.post.findMany({
     where: {
@@ -78,6 +82,15 @@ export const getServerSideProps: GetServerSideProps<TagPageProps> = async (ctx) 
       tags: { some: { tagId: tag.id } },
     },
     orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      excerpt: true,
+      content: true,
+      coverImageUrl: true,
+      publishedAt: true,
+    },
   });
 
   return {

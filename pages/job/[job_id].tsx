@@ -796,12 +796,26 @@ export default function JobPage() {
       }
       return;
     }
-    intervalRef.current = setInterval(() => {
+    const pollVisibleJob = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       void fetchJob(job_id);
-    }, POLL_INTERVAL);
+    };
+    const handleVisibilityChange = () => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        void fetchJob(job_id);
+      }
+    };
+    intervalRef.current = setInterval(pollVisibleJob, POLL_INTERVAL);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
       }
     };
   }, [job_id, showReviewUi, isFinalizedJob]);

@@ -187,6 +187,7 @@ export default function BlogIndexPage({
 }
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
+  ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
   const page = Math.max(1, Number(ctx.query.page || 1));
   const activeCategory = typeof ctx.query.category === "string" ? ctx.query.category : null;
   const activeTag = typeof ctx.query.tag === "string" ? ctx.query.tag : null;

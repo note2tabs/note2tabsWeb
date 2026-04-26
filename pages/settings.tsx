@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth/next";
 import { signOut } from "next-auth/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { authOptions } from "./api/auth/[...nextauth]";
-import { buildCreditsSummary, getCreditWindow } from "../lib/credits";
+import { buildCreditsSummary, calculateCreditsUsedFromDurationCounts, getCreditWindow } from "../lib/credits";
 import { prisma } from "../lib/prisma";
 import { generateFingerprint } from "../lib/fingerprint";
 
@@ -627,7 +627,8 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const creditWindow = isPremium
     ? getCreditWindow({ userCreatedAt: user?.createdAt })
     : getCreditWindow();
-  const creditJobs = await prisma.tabJob.findMany({
+  const creditDurationCounts = await prisma.tabJob.groupBy({
+    by: ["durationSec"],
     where: isPremium
       ? { userId: session.user.id }
       : {
@@ -637,10 +638,15 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
             lt: creditWindow.resetAt,
           },
         },
-    select: { durationSec: true },
+    _count: { _all: true },
   });
   const credits = buildCreditsSummary({
-    durations: creditJobs.map((job) => job.durationSec),
+    usedCredits: calculateCreditsUsedFromDurationCounts(
+      creditDurationCounts.map((item) => ({
+        durationSec: item.durationSec,
+        count: item._count._all,
+      }))
+    ),
     resetAt: creditWindow.resetAt,
     isPremium,
     userCreatedAt: user?.createdAt,

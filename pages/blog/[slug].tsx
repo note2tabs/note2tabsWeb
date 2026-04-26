@@ -250,16 +250,49 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
 
   const post = await prisma.post.findFirst({
     where,
-    include: {
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      excerpt: true,
+      content: true,
+      contentHtml: true,
+      contentToc: true,
+      contentMode: true,
+      coverImageUrl: true,
+      publishedAt: true,
+      publishAt: true,
+      updatedAt: true,
+      seoTitle: true,
+      seoDescription: true,
+      canonicalUrl: true,
       author: { select: { name: true, email: true } },
-      categories: { include: { category: true } },
-      tags: { include: { tag: true } },
-      clusters: { include: { cluster: true } },
+      categories: {
+        select: {
+          category: { select: { id: true, name: true, slug: true } },
+        },
+      },
+      tags: {
+        select: {
+          tagId: true,
+          tag: { select: { id: true, name: true, slug: true } },
+        },
+      },
+      clusters: {
+        select: {
+          clusterId: true,
+          isPillar: true,
+          cluster: { select: { id: true, name: true, slug: true } },
+        },
+      },
     },
   });
 
   if (!post) {
     return { notFound: true };
+  }
+  if (!allowDraft) {
+    ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
   }
 
   let contentHtml = post.contentHtml || "";

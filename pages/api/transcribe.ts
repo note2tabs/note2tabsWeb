@@ -8,6 +8,7 @@ import {
   type CreditsSummary,
   buildDevCreditsSummary,
   buildCreditsSummary,
+  calculateCreditsUsedFromDurationCounts,
   durationToCredits,
   getCreditWindow,
   DEFAULT_DURATION_SEC,
@@ -429,13 +430,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    let user: Awaited<ReturnType<typeof prisma.user.findUnique>> | null = null;
+    let user: {
+      id: string;
+      role: string;
+      tokensRemaining: number;
+      emailVerified: Date | null;
+      emailVerifiedBool: boolean;
+      createdAt: Date;
+    } | null = null;
     let isPremium = false;
     let refreshedCredits: CreditsSummary = buildDevCreditsSummary();
 
     if (session?.user?.id) {
       try {
-        user = await prisma.user.findUnique({ where: { id: session.user.id } });
+        user = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: {
+            id: true,
+            role: true,
+            tokensRemaining: true,
+            emailVerified: true,
+            emailVerifiedBool: true,
+            createdAt: true,
+          },
+        });
         if (!user) {
           if (!allowDevGuestTranscription) {
             return res.status(401).json({ error: "User not found" });
@@ -463,7 +481,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const creditWindow = isPremium
             ? getCreditWindow({ userCreatedAt: user.createdAt })
             : getCreditWindow();
-          const creditJobs = await prisma.tabJob.findMany({
+          const creditDurationCounts = await prisma.tabJob.groupBy({
+            by: ["durationSec"],
             where: isPremium
               ? { userId: session.user.id }
               : {
@@ -473,10 +492,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     lt: creditWindow.resetAt,
                   },
                 },
-            select: { durationSec: true },
+            _count: { _all: true },
           });
           refreshedCredits = buildCreditsSummary({
-            durations: creditJobs.map((job) => job.durationSec),
+            usedCredits: calculateCreditsUsedFromDurationCounts(
+              creditDurationCounts.map((item) => ({
+                durationSec: item.durationSec,
+                count: item._count._all,
+              }))
+            ),
             resetAt: creditWindow.resetAt,
             isPremium,
             userCreatedAt: user.createdAt,

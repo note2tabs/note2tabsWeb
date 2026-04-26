@@ -4,7 +4,12 @@ import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
-import { buildCreditsSummary, buildDevCreditsSummary, getCreditWindow } from "../../../lib/credits";
+import {
+  buildCreditsSummary,
+  buildDevCreditsSummary,
+  calculateCreditsUsedFromDurationCounts,
+  getCreditWindow,
+} from "../../../lib/credits";
 import { isLocalNoDbServerMode } from "../../../lib/serverDevMode";
 import { parseCookieHeader } from "../../../lib/analyticsV2/cookies";
 import { linkIdentityToUser } from "../../../lib/analyticsV2/identity";
@@ -22,6 +27,16 @@ const providers: NextAuthOptions["providers"] = [
         if (!credentials?.email || !credentials?.password) return null;
         const user = await prisma.user.findUnique({
           where: { email: credentials.email.toLowerCase() },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            tokensRemaining: true,
+            passwordHash: true,
+            emailVerified: true,
+            emailVerifiedBool: true,
+          },
         });
         if (!user?.passwordHash) return null;
         const isValid = await compare(credentials.password, user.passwordHash);
@@ -122,7 +137,16 @@ export const authOptions: NextAuthOptions = {
       // For OAuth logins, fetch the user to sync role/tokens.
       if (!user && account && token.email && !shouldBypassPrismaSync()) {
         try {
-          const dbUser = await prisma.user.findUnique({ where: { email: token.email.toString() } });
+          const dbUser = await prisma.user.findUnique({
+            where: { email: token.email.toString() },
+            select: {
+              id: true,
+              role: true,
+              tokensRemaining: true,
+              emailVerified: true,
+              emailVerifiedBool: true,
+            },
+          });
           if (dbUser) {
             token.id = dbUser.id;
             token.role = dbUser.role;
@@ -153,9 +177,26 @@ export const authOptions: NextAuthOptions = {
         return session;
       }
       // Fetch latest user data to keep tokens/role in sync.
-      let dbUser: Awaited<ReturnType<typeof prisma.user.findUnique>> | null = null;
+      let dbUser: {
+        id: string;
+        role: string;
+        tokensRemaining: number;
+        emailVerified: Date | null;
+        emailVerifiedBool: boolean;
+        createdAt: Date;
+      } | null = null;
       try {
-        dbUser = await prisma.user.findUnique({ where: { email: token.email.toString() } });
+        dbUser = await prisma.user.findUnique({
+          where: { email: token.email.toString() },
+          select: {
+            id: true,
+            role: true,
+            tokensRemaining: true,
+            emailVerified: true,
+            emailVerifiedBool: true,
+            createdAt: true,
+          },
+        });
       } catch (error) {
         markPrismaUnavailable(error);
         console.error("Session callback user lookup failed", error);
@@ -194,7 +235,8 @@ export const authOptions: NextAuthOptions = {
           const creditWindow = isPremium
             ? getCreditWindow({ userCreatedAt: dbUser?.createdAt })
             : getCreditWindow();
-          const creditJobs = await prisma.tabJob.findMany({
+          const creditDurationCounts = await prisma.tabJob.groupBy({
+            by: ["durationSec"],
             where: isPremium
               ? { userId: creditUserId }
               : {
@@ -204,10 +246,15 @@ export const authOptions: NextAuthOptions = {
                     lt: creditWindow.resetAt,
                   },
                 },
-            select: { durationSec: true },
+            _count: { _all: true },
           });
           const credits = buildCreditsSummary({
-            durations: creditJobs.map((job) => job.durationSec),
+            usedCredits: calculateCreditsUsedFromDurationCounts(
+              creditDurationCounts.map((item) => ({
+                durationSec: item.durationSec,
+                count: item._count._all,
+              }))
+            ),
             resetAt: creditWindow.resetAt,
             isPremium,
             userCreatedAt: dbUser?.createdAt,

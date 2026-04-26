@@ -22,6 +22,15 @@ type UnifiedAnalyticsEvent = {
   payload: string | null;
 };
 
+const UNIFIED_EVENTS_CACHE_TTL_MS = 10_000;
+const unifiedEventsCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    promise: Promise<UnifiedAnalyticsEvent[]>;
+  }
+>();
+
 function mapUnifiedEventName(name: string) {
   const canonical = toCanonicalName(name).name;
   return CANONICAL_TO_LEGACY_EVENT_NAME[canonical] || canonical;
@@ -32,6 +41,30 @@ function mapEventNameFromV2(name: string) {
 }
 
 async function getUnifiedEvents(from: Date, to: Date): Promise<UnifiedAnalyticsEvent[]> {
+  const cacheKey = `${analyticsFlags.readsEnabled ? "v2" : "legacy"}:${from.toISOString()}:${to.toISOString()}`;
+  const cached = unifiedEventsCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.promise;
+  }
+
+  const now = Date.now();
+  for (const [key, entry] of unifiedEventsCache) {
+    if (entry.expiresAt <= now) unifiedEventsCache.delete(key);
+  }
+  if (unifiedEventsCache.size > 20) unifiedEventsCache.clear();
+
+  const promise = fetchUnifiedEvents(from, to);
+  unifiedEventsCache.set(cacheKey, {
+    expiresAt: now + UNIFIED_EVENTS_CACHE_TTL_MS,
+    promise,
+  });
+  promise.catch(() => {
+    unifiedEventsCache.delete(cacheKey);
+  });
+  return promise;
+}
+
+async function fetchUnifiedEvents(from: Date, to: Date): Promise<UnifiedAnalyticsEvent[]> {
   if (!analyticsFlags.readsEnabled) {
     return prisma.analyticsEvent.findMany({
       where: { createdAt: { gte: from, lte: to } },
