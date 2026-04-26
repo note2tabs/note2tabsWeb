@@ -3024,14 +3024,16 @@ input[type="number"] {
 }
 
 .about-person {
-  display: grid;
-  align-content: start;
-  gap: 12px;
-  border: 1px solid rgba(15, 23, 42, 0.16);
-  background: rgba(255, 255, 255, 0.72);
+  position: relative;
+  padding: 14px 14px 30px;
   min-height: 230px;
-  padding: 22px;
+
+  background: #f3eee7;
+  border: 1px solid rgba(90, 75, 50, 0.22);
+  box-shadow: 0 10px 22px rgba(30, 24, 16, 0.16);
 }
+
+
 
 .about-person h3 {
   margin: 0;
