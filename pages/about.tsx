@@ -41,7 +41,7 @@ export default function AboutPage() {
         <section className="about-section">
           <h2 className="about-section-label">The Team</h2>
           <div className="about-section-content">
-            <p className="about-hero-text">Meet the people behind Note2Tabs.</p>
+            <p className="about-hero-text">Meet the team behind Note2Tabs.</p>
             <div className="about-team-grid">
               <article className="about-person">
                 <div className="about-photo about-photo--one" aria-hidden="true">
