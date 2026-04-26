@@ -7,42 +7,49 @@ export default function AboutPage() {
           <h1 className="page-title"><strong>About Us</strong></h1>
         </header>
 
-        <section className="about-section">
-          <h2 className="about-section-label">What Is Note2Tabs</h2>
+        <section className="about-section about-section--story">
+          <h2 className="about-section-label">Our Story</h2>
           <div className="about-section-content">
-            <p className="about-hero-text">
-              Note2Tabs is the complete platform to transcribe, edit tabs and create guitar music.
-            </p>
-            <div className="about-detail-grid">
-              <article className="about-detail-card">
-                <h3>Transcriber</h3>
-                <p>Generate guitar tabs from any piece of music, with incredible accuracy. Our goal is to provide everyone with perfect transcriptions everytime.</p>
-              </article>
-              <article className="about-detail-card">
-                <h3>Tab Editor</h3>
-                <p>Our guitar tab editor lets you edit tabs, optimize fingerings and create guitar music without having to constantly think about music-theory.</p>
-              </article>
+            <div className="about-story-copy">
+              <p className="about-hero-text">
+                How Note2Tabs started
+              </p>
+              <p className="about-story-paragraph">
+                In 2024, while I was still new to guitar, I wanted to find the tabs for a cover of "Space Oddity" by David Bowie called "Space Oddity" by David Matthews. 
+                I already knew how to play the MFDOOM sample of the song but I couldnt find any tabs for the original. 
+                So I started searching for automatic transcriber option, but I couldnt find one that was good enough or practical to use.
+                I then decided I was going to create my own transcriber and editor and with the help of my friend we finished our first analytic-transcriber in early 2025.
+                While figuring out how to get the optimal fingerings, we had the idea for the guitar tab editor, which together with the transcriber became the base of Note2Tabs.
+              </p>
+              <p className="about-story-paragraph">
+                In August 2025 both of us started studying engineering at KTH and on the side of our studies we started working on the website.
+                We are still woring on this project every day, to make it the best transcriber and editor possible.
+                Our goal is to make transcribing and creating your own guitar music as easy as possible,
+                and we want to provide guitar players with the best tools imaginable to make the guitar playing experience actually about guitar.
+              </p>
+              <p className="about-story-paragraph">
+                We are constantly working on new features, design fixes and tools that could improve the experience of the avrage guitarist. 
+                If you have anything on your mind about what you would like to see from us, feedback or any ideas you might have, feel free to write to us! We'd love to hear from you.
+              </p>
             </div>
           </div>
         </section>
 
         <section className="about-section">
-          <h2 className="about-section-label">Who We Are</h2>
+          <h2 className="about-section-label">The Team</h2>
           <div className="about-section-content">
-            <p className="about-hero-text">
-              Meet the team:
-            </p>
+            <p className="about-hero-text">Meet the people behind Note2Tabs.</p>
             <div className="about-team-grid">
               <article className="about-person">
                 <div className="about-photo about-photo--one" aria-hidden="true">
-                  <span>Stand-in photo 1</span>
+                  <img src="/images/team/noel.jpeg" alt="Noel Solomon" />
                 </div>
                 <h3>Noel Solomon</h3>
                 <p>Hobby Producer & Engineering Student</p>
               </article>
               <article className="about-person">
                 <div className="about-photo about-photo--two" aria-hidden="true">
-                  <span>Stand-in photo 2</span>
+                  <img src="/images/team/aron.jpeg" alt="Aron Salamon" />
                 </div>
                 <h3>Aron Salamon</h3>
                 <p>Hobby Guitarist & Engineering Student</p>
