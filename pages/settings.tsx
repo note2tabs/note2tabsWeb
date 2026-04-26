@@ -550,7 +550,6 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <div className="container settingsShell">
         <header className="settingsHeader">
           <div>
-            <p className="settingsEyebrow">Settings</p>
             <h1 className="settingsTitle">Settings</h1>
             <p className="settingsSubtitle">Manage your account, credits, privacy, and saved work.</p>
           </div>

@@ -931,15 +931,6 @@ input[type="number"] {
   flex-wrap: wrap;
 }
 
-.settingsEyebrow {
-  margin: 0;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #6b6458;
-  font-weight: 700;
-}
-
 .settingsTitle {
   margin: 6px 0 0;
   font-size: clamp(2rem, 4vw, 2.45rem);
