@@ -146,7 +146,9 @@ export default function GteIndexPage() {
     setError(null);
     try {
       const res = await gteApi.setEditorName(editorId, normalizedName);
+      const committed = await gteApi.commitEditor(editorId);
       const updatedName =
+        committed.snapshot?.name ||
         (res as any)?.canvas?.name ||
         (res as any)?.snapshot?.name ||
         normalizedName;

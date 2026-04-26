@@ -1118,10 +1118,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setNameError(null);
     try {
       const res = await gteApi.setEditorName(editorId, normalizedName);
-      const nextCanvas = normalizeCanvas(
+      let nextCanvas = normalizeCanvas(
         (res as any).canvas ? (res as any).canvas : (res as any).snapshot,
         editorId
       );
+      if (!isGuestMode) {
+        const committed = await gteApi.commitEditor(editorId);
+        nextCanvas = normalizeCanvas(committed.snapshot, editorId);
+      }
       applyCanvasUpdate(nextCanvas, { markDirty: !isGuestMode });
       setNameDraft(nextCanvas.name || normalizedName);
       if (options?.exitEdit) {
