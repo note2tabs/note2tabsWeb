@@ -51,7 +51,7 @@ type GteStats = Awaited<ReturnType<typeof getGteEditorStats>>;
 type ModerationSnapshot = Awaited<ReturnType<typeof getModerationSnapshot>>;
 type Parity = Awaited<ReturnType<typeof getParityMetrics>>;
 
-type AnalyticsView = "overview" | "gte" | "users" | "events" | "moderation" | "parity";
+type AnalyticsView = "overview" | "gte" | "users" | "events" | "feedback" | "moderation" | "parity";
 
 const presetRanges: Record<string, number> = {
   "7d": 7,
@@ -59,7 +59,7 @@ const presetRanges: Record<string, number> = {
   "90d": 90,
 };
 
-const ADMIN_VIEWS: AnalyticsView[] = ["overview", "gte", "users", "events", "moderation", "parity"];
+const ADMIN_VIEWS: AnalyticsView[] = ["overview", "gte", "users", "events", "feedback", "moderation", "parity"];
 const MODERATOR_VIEWS: AnalyticsView[] = ["moderation"];
 
 const VIEW_META: Record<AnalyticsView, { label: string; description: string }> = {
@@ -78,6 +78,10 @@ const VIEW_META: Record<AnalyticsView, { label: string; description: string }> =
   events: {
     label: "Events",
     description: "Raw recent event stream.",
+  },
+  feedback: {
+    label: "Feedback",
+    description: "Recent user feedback submissions.",
   },
   moderation: {
     label: "Moderation",
@@ -242,8 +246,10 @@ export default function AnalyticsDashboard(props: Props) {
               {activeView === "users" && <UsersView topUsers={topUsers} usersActivity={usersActivity} />}
 
               {activeView === "events" && (
-                <EventsView recentEvents={recentEvents} recentFeedback={recentFeedback} />
+                <EventsView recentEvents={recentEvents} />
               )}
+
+              {activeView === "feedback" && <FeedbackView recentFeedback={recentFeedback} />}
 
               {activeView === "moderation" && <ModerationView moderation={moderation} />}
 
@@ -704,83 +710,79 @@ function UsersView({ topUsers, usersActivity }: { topUsers: Props["topUsers"]; u
   );
 }
 
-function EventsView({
-  recentEvents,
-  recentFeedback,
-}: {
-  recentEvents: Props["recentEvents"];
-  recentFeedback: Props["recentFeedback"];
-}) {
+function FeedbackView({ recentFeedback }: { recentFeedback: Props["recentFeedback"] }) {
   return (
-    <>
-      <section className="card stack">
-        <SectionHeader title="Recent feedback" />
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr className="text-left text-slate-600">
-                <th className="px-2 py-1">Time</th>
-                <th className="px-2 py-1">User</th>
-                <th className="px-2 py-1">Category</th>
-                <th className="px-2 py-1">Message</th>
-                <th className="px-2 py-1">Page</th>
+    <section className="card stack">
+      <SectionHeader title="Recent feedback" />
+      <div className="overflow-x-auto">
+        <table className="table">
+          <thead>
+            <tr className="text-left text-slate-600">
+              <th className="px-2 py-1">Time</th>
+              <th className="px-2 py-1">User</th>
+              <th className="px-2 py-1">Category</th>
+              <th className="px-2 py-1">Message</th>
+              <th className="px-2 py-1">Page</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recentFeedback.map((entry) => (
+              <tr key={entry.id} className="border-t border-slate-200 align-top">
+                <td className="px-2 py-1 text-slate-600">{new Date(entry.createdAt).toLocaleString()}</td>
+                <td className="px-2 py-1">{entry.userEmail || "-"}</td>
+                <td className="px-2 py-1">{entry.category}</td>
+                <td className="px-2 py-1">{entry.message || "-"}</td>
+                <td className="px-2 py-1">{entry.path || "-"}</td>
               </tr>
-            </thead>
-            <tbody>
-              {recentFeedback.map((entry) => (
-                <tr key={entry.id} className="border-t border-slate-200 align-top">
-                  <td className="px-2 py-1 text-slate-600">{new Date(entry.createdAt).toLocaleString()}</td>
-                  <td className="px-2 py-1">{entry.userEmail || "-"}</td>
-                  <td className="px-2 py-1">{entry.category}</td>
-                  <td className="px-2 py-1">{entry.message || "-"}</td>
-                  <td className="px-2 py-1">{entry.path || "-"}</td>
-                </tr>
-              ))}
-              {recentFeedback.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-2 py-3 text-center text-slate-500">
-                    No feedback submitted yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+            ))}
+            {recentFeedback.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-2 py-3 text-center text-slate-500">
+                  No feedback submitted yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
 
-      <section className="card stack">
-        <SectionHeader title="Recent events" />
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr className="text-left text-slate-600">
-                <th className="px-2 py-1">Time</th>
-                <th className="px-2 py-1">Event</th>
-                <th className="px-2 py-1">User</th>
-                <th className="px-2 py-1">Path</th>
+function EventsView({ recentEvents }: { recentEvents: Props["recentEvents"] }) {
+  return (
+    <section className="card stack">
+      <SectionHeader title="Recent events" />
+      <div className="overflow-x-auto">
+        <table className="table">
+          <thead>
+            <tr className="text-left text-slate-600">
+              <th className="px-2 py-1">Time</th>
+              <th className="px-2 py-1">Event</th>
+              <th className="px-2 py-1">User</th>
+              <th className="px-2 py-1">Path</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recentEvents.map((e) => (
+              <tr key={e.id} className="border-t border-slate-200">
+                <td className="px-2 py-1 text-slate-600">{new Date(e.createdAt).toLocaleString()}</td>
+                <td className="px-2 py-1">{e.event}</td>
+                <td className="px-2 py-1">{e.userEmail || "-"}</td>
+                <td className="px-2 py-1">{e.path || "-"}</td>
               </tr>
-            </thead>
-            <tbody>
-              {recentEvents.map((e) => (
-                <tr key={e.id} className="border-t border-slate-200">
-                  <td className="px-2 py-1 text-slate-600">{new Date(e.createdAt).toLocaleString()}</td>
-                  <td className="px-2 py-1">{e.event}</td>
-                  <td className="px-2 py-1">{e.userEmail || "-"}</td>
-                  <td className="px-2 py-1">{e.path || "-"}</td>
-                </tr>
-              ))}
-              {recentEvents.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-2 py-3 text-center text-slate-500">
-                    No events yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </>
+            ))}
+            {recentEvents.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-2 py-3 text-center text-slate-500">
+                  No events yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -1075,10 +1077,9 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         getUsersActivity(from, to, 100),
       ]);
     } else if (activeView === "events") {
-      [recentEvents, recentFeedback] = await Promise.all([
-        getRecentEvents(from, to, 50),
-        getRecentFeedback(from, to, 50),
-      ]);
+      recentEvents = await getRecentEvents(from, to, 50);
+    } else if (activeView === "feedback") {
+      recentFeedback = await getRecentFeedback(from, to, 50);
     } else if (activeView === "moderation") {
       moderation = await getModerationSnapshot(50);
     } else if (activeView === "parity" && parityEnabled) {
