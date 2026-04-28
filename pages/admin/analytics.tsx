@@ -11,6 +11,7 @@ import {
   getPageViewBreakdown,
   getTopUsers,
   getRecentEvents,
+  getRecentFeedback,
   getUsersActivity,
   getGteEditorStats,
   getParityMetrics,
@@ -45,6 +46,7 @@ type Errors = Awaited<ReturnType<typeof getErrorStats>>;
 type PageViews = Awaited<ReturnType<typeof getPageViewBreakdown>>;
 type TopUser = Awaited<ReturnType<typeof getTopUsers>>[number];
 type RecentEvent = Awaited<ReturnType<typeof getRecentEvents>>[number];
+type RecentFeedback = Awaited<ReturnType<typeof getRecentFeedback>>[number];
 type GteStats = Awaited<ReturnType<typeof getGteEditorStats>>;
 type ModerationSnapshot = Awaited<ReturnType<typeof getModerationSnapshot>>;
 type Parity = Awaited<ReturnType<typeof getParityMetrics>>;
@@ -114,6 +116,7 @@ type Props = {
   errors: Errors | null;
   topUsers: Array<Omit<TopUser, "lastActive"> & { lastActive: string | null }>;
   recentEvents: Array<Omit<RecentEvent, "createdAt"> & { createdAt: string }>;
+  recentFeedback: Array<Omit<RecentFeedback, "createdAt"> & { createdAt: string }>;
   usersActivity: Array<
     Omit<Awaited<ReturnType<typeof getUsersActivity>>[number], "lastActive"> & { lastActive: string | null }
   >;
@@ -152,6 +155,7 @@ export default function AnalyticsDashboard(props: Props) {
     errors,
     topUsers,
     recentEvents,
+    recentFeedback,
     usersActivity,
     gteStats,
     parity,
@@ -237,7 +241,9 @@ export default function AnalyticsDashboard(props: Props) {
 
               {activeView === "users" && <UsersView topUsers={topUsers} usersActivity={usersActivity} />}
 
-              {activeView === "events" && <EventsView recentEvents={recentEvents} />}
+              {activeView === "events" && (
+                <EventsView recentEvents={recentEvents} recentFeedback={recentFeedback} />
+              )}
 
               {activeView === "moderation" && <ModerationView moderation={moderation} />}
 
@@ -698,40 +704,83 @@ function UsersView({ topUsers, usersActivity }: { topUsers: Props["topUsers"]; u
   );
 }
 
-function EventsView({ recentEvents }: { recentEvents: Props["recentEvents"] }) {
+function EventsView({
+  recentEvents,
+  recentFeedback,
+}: {
+  recentEvents: Props["recentEvents"];
+  recentFeedback: Props["recentFeedback"];
+}) {
   return (
-    <section className="card stack">
-      <SectionHeader title="Recent events" />
-      <div className="overflow-x-auto">
-        <table className="table">
-          <thead>
-            <tr className="text-left text-slate-600">
-              <th className="px-2 py-1">Time</th>
-              <th className="px-2 py-1">Event</th>
-              <th className="px-2 py-1">User</th>
-              <th className="px-2 py-1">Path</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentEvents.map((e) => (
-              <tr key={e.id} className="border-t border-slate-200">
-                <td className="px-2 py-1 text-slate-600">{new Date(e.createdAt).toLocaleString()}</td>
-                <td className="px-2 py-1">{e.event}</td>
-                <td className="px-2 py-1">{e.userEmail || "-"}</td>
-                <td className="px-2 py-1">{e.path || "-"}</td>
+    <>
+      <section className="card stack">
+        <SectionHeader title="Recent feedback" />
+        <div className="overflow-x-auto">
+          <table className="table">
+            <thead>
+              <tr className="text-left text-slate-600">
+                <th className="px-2 py-1">Time</th>
+                <th className="px-2 py-1">User</th>
+                <th className="px-2 py-1">Category</th>
+                <th className="px-2 py-1">Message</th>
+                <th className="px-2 py-1">Page</th>
               </tr>
-            ))}
-            {recentEvents.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-2 py-3 text-center text-slate-500">
-                  No events yet.
-                </td>
+            </thead>
+            <tbody>
+              {recentFeedback.map((entry) => (
+                <tr key={entry.id} className="border-t border-slate-200 align-top">
+                  <td className="px-2 py-1 text-slate-600">{new Date(entry.createdAt).toLocaleString()}</td>
+                  <td className="px-2 py-1">{entry.userEmail || "-"}</td>
+                  <td className="px-2 py-1">{entry.category}</td>
+                  <td className="px-2 py-1">{entry.message || "-"}</td>
+                  <td className="px-2 py-1">{entry.path || "-"}</td>
+                </tr>
+              ))}
+              {recentFeedback.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-2 py-3 text-center text-slate-500">
+                    No feedback submitted yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="card stack">
+        <SectionHeader title="Recent events" />
+        <div className="overflow-x-auto">
+          <table className="table">
+            <thead>
+              <tr className="text-left text-slate-600">
+                <th className="px-2 py-1">Time</th>
+                <th className="px-2 py-1">Event</th>
+                <th className="px-2 py-1">User</th>
+                <th className="px-2 py-1">Path</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
+            </thead>
+            <tbody>
+              {recentEvents.map((e) => (
+                <tr key={e.id} className="border-t border-slate-200">
+                  <td className="px-2 py-1 text-slate-600">{new Date(e.createdAt).toLocaleString()}</td>
+                  <td className="px-2 py-1">{e.event}</td>
+                  <td className="px-2 py-1">{e.userEmail || "-"}</td>
+                  <td className="px-2 py-1">{e.path || "-"}</td>
+                </tr>
+              ))}
+              {recentEvents.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-2 py-3 text-center text-slate-500">
+                    No events yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
   );
 }
 
@@ -956,6 +1005,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   let errors: Errors | null = null;
   let topUsers: TopUser[] = [];
   let recentEvents: RecentEvent[] = [];
+  let recentFeedback: RecentFeedback[] = [];
   let usersActivity: Awaited<ReturnType<typeof getUsersActivity>> = [];
   let gteStats: GteStats | null = null;
   let parity: Parity | null = null;
@@ -1025,7 +1075,10 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         getUsersActivity(from, to, 100),
       ]);
     } else if (activeView === "events") {
-      recentEvents = await getRecentEvents(from, to, 50);
+      [recentEvents, recentFeedback] = await Promise.all([
+        getRecentEvents(from, to, 50),
+        getRecentFeedback(from, to, 50),
+      ]);
     } else if (activeView === "moderation") {
       moderation = await getModerationSnapshot(50);
     } else if (activeView === "parity" && parityEnabled) {
@@ -1057,6 +1110,10 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         lastActive: u.lastActive ? u.lastActive.toISOString() : null,
       })),
       recentEvents: recentEvents.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
+      recentFeedback: recentFeedback.map((entry) => ({
+        ...entry,
+        createdAt: entry.createdAt.toISOString(),
+      })),
       usersActivity: usersActivity.map((u) => ({
         ...u,
         lastActive: u.lastActive ? u.lastActive.toISOString() : null,
