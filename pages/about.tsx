@@ -37,29 +37,6 @@ export default function AboutPage() {
             </div>
           </div>
         </section>
-
-        <section className="about-section">
-          <h2 className="about-section-label">The Team</h2>
-          <div className="about-section-content">
-            <p className="about-hero-text">Meet the team behind Note2Tabs.</p>
-            <div className="about-team-grid">
-              <article className="about-person">
-                <div className="about-photo about-photo--one" aria-hidden="true">
-                  <img src="/images/team/noel.jpeg" alt="Noel Solomon" />
-                </div>
-                <h3>Noel Solomon</h3>
-                <p>Hobby Producer & Engineering Student</p>
-              </article>
-              <article className="about-person">
-                <div className="about-photo about-photo--two" aria-hidden="true">
-                  <img src="/images/team/aron.jpeg" alt="Aron Salamon" />
-                </div>
-                <h3>Aron Salamon</h3>
-                <p>Hobby Guitarist & Engineering Student</p>
-              </article>
-            </div>
-          </div>
-        </section>
       </div>
     </main>
   );
