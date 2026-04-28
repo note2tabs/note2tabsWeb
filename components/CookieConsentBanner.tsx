@@ -60,11 +60,21 @@ function ensureTrackingIds() {
 export default function CookieConsentBanner() {
   const [visible, setVisible] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [consentState, setConsentState] = useState<"granted" | "denied">("granted");
 
   useEffect(() => {
     const consent = getCookie(CONSENT_COOKIE);
-    if (!consent) setVisible(true);
-    const openBanner = () => setVisible(true);
+    if (consent === "denied") {
+      setConsentState("denied");
+    } else {
+      setConsentState("granted");
+      if (!consent) setCookie(CONSENT_COOKIE, "granted", 365 * 24 * 60 * 60);
+    }
+
+    const openBanner = () => {
+      setConsentState(getCookie(CONSENT_COOKIE) === "denied" ? "denied" : "granted");
+      setVisible(true);
+    };
     window.addEventListener("note2tabs:open-cookie-settings", openBanner as EventListener);
     return () => {
       window.removeEventListener("note2tabs:open-cookie-settings", openBanner as EventListener);
@@ -85,6 +95,7 @@ export default function CookieConsentBanner() {
     } catch (error) {
       // ignore errors
     } finally {
+      setConsentState("granted");
       setProcessing(false);
       setVisible(false);
     }
@@ -103,6 +114,7 @@ export default function CookieConsentBanner() {
     } catch (error) {
       // ignore errors
     } finally {
+      setConsentState("denied");
       setProcessing(false);
       setVisible(false);
     }
@@ -114,15 +126,19 @@ export default function CookieConsentBanner() {
     <div className="cookie-banner">
       <div className="card cookie-card">
         <p>
-          We use analytics cookies and device details by default to improve Note2Tabs and prevent abuse. You
-          can deny analytics any time. See our <a className="button-link" href="/privacy">Privacy Policy</a>.
+          Analytics cookies are currently {consentState === "denied" ? "off" : "on"}. They help improve Note2Tabs
+          and prevent abuse. You can change this anytime. See our{" "}
+          <a className="button-link" href="/privacy">
+            Privacy Policy
+          </a>
+          .
         </p>
         <div className="cookie-actions">
           <button type="button" onClick={handleAllow} disabled={processing} className="button-primary">
-            {processing ? "Saving..." : "Continue"}
+            {processing ? "Saving..." : consentState === "denied" ? "Enable analytics" : "Keep analytics on"}
           </button>
           <button type="button" onClick={() => void handleReject()} className="button-secondary" disabled={processing}>
-            Deny
+            {processing ? "Saving..." : consentState === "denied" ? "Keep analytics off" : "Turn analytics off"}
           </button>
           <a className="button-link" href="/settings#privacy-controls">
             Manage settings
