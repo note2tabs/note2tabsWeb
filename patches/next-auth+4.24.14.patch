@@ -1,0 +1,43 @@
+diff --git a/node_modules/next-auth/jwt/index.js b/node_modules/next-auth/jwt/index.js
+index 5cd893a..9ce93e7 100644
+--- a/node_modules/next-auth/jwt/index.js
++++ b/node_modules/next-auth/jwt/index.js
+@@ -14,7 +14,7 @@ exports.encode = encode;
+ exports.getToken = getToken;
+ var _jose = require("jose");
+ var _hkdf = _interopRequireDefault(require("@panva/hkdf"));
+-var _uuid = require("uuid");
++var _crypto = require("crypto");
+ var _cookie = require("../core/lib/cookie");
+ var _types = require("./types");
+ Object.keys(_types).forEach(function (key) {
+@@ -41,7 +41,7 @@ async function encode(params) {
+   return await new _jose.EncryptJWT(token).setProtectedHeader({
+     alg: "dir",
+     enc: "A256GCM"
+-  }).setIssuedAt().setExpirationTime(now() + maxAge).setJti((0, _uuid.v4)()).encrypt(encryptionSecret);
++  }).setIssuedAt().setExpirationTime(now() + maxAge).setJti((0, _crypto.randomUUID)()).encrypt(encryptionSecret);
+ }
+ async function decode(params) {
+   const {
+diff --git a/node_modules/next-auth/src/jwt/index.ts b/node_modules/next-auth/src/jwt/index.ts
+index f858ed5..fef4269 100644
+--- a/node_modules/next-auth/src/jwt/index.ts
++++ b/node_modules/next-auth/src/jwt/index.ts
+@@ -1,6 +1,6 @@
+ import { EncryptJWT, jwtDecrypt } from "jose"
+ import hkdf from "@panva/hkdf"
+-import { v4 as uuid } from "uuid"
++import { randomUUID } from "crypto"
+ import { SessionStore } from "../core/lib/cookie"
+ import type { GetServerSidePropsContext, NextApiRequest } from "next"
+ import type { NextRequest } from "next/server"
+@@ -22,7 +22,7 @@ export async function encode(params: JWTEncodeParams) {
+     .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
+     .setIssuedAt()
+     .setExpirationTime(now() + maxAge)
+-    .setJti(uuid())
++    .setJti(randomUUID())
+     .encrypt(encryptionSecret)
+ }
+ 
