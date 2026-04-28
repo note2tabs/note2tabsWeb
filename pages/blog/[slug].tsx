@@ -5,6 +5,7 @@ import { authOptions } from "../api/auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
 import { estimateReadingTime, getPublishedWhere } from "../../lib/blog";
 import { compilePostContent } from "../../lib/blogContent";
+import { normalizeCanonicalUrl } from "../../lib/canonical";
 import BlogPostCard from "../../components/blog/BlogPostCard";
 import SeoHead, { absoluteUrl } from "../../components/SeoHead";
 import { formatBlogDate } from "../../lib/dateFormat";
@@ -36,7 +37,7 @@ type PostPageProps = {
 export default function BlogPostPage({ post, readingMinutes, relatedPosts }: PostPageProps) {
   const title = post.seoTitle || post.title;
   const description = post.seoDescription || post.excerpt;
-  const canonical = post.canonicalUrl || absoluteUrl(`/blog/${post.slug}`);
+  const canonical = normalizeCanonicalUrl(post.canonicalUrl) || absoluteUrl(`/blog/${post.slug}`);
   const ogImage = post.coverImageUrl || absoluteUrl(`/api/og?title=${encodeURIComponent(title)}`);
   const published = post.publishedAt || post.publishAt || undefined;
   const displayDate = formatBlogDate(post.publishedAt ?? post.publishAt);
