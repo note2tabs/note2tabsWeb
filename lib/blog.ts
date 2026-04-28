@@ -1,13 +1,10 @@
 import type { PostStatus } from "@prisma/client";
+import { getConfiguredSiteUrl } from "./siteUrl";
 
 export const BLOG_PAGE_SIZE = 8;
 
 export const getBaseUrl = () => {
-  const raw =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXTAUTH_URL ||
-    "http://localhost:3000";
-  return raw.endsWith("/") ? raw.slice(0, -1) : raw;
+  return getConfiguredSiteUrl();
 };
 
 export const getPublishedWhere = () => {

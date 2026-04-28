@@ -1,8 +1,8 @@
 import Head from "next/head";
+import { getConfiguredSiteUrl } from "../lib/siteUrl";
 
 export const SITE_NAME = "Note2Tabs";
-export const SITE_URL =
-  (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "https://note2tabs.com").replace(/\/$/, "");
+export const SITE_URL = getConfiguredSiteUrl();
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/logo01black.png`;
 export const DEFAULT_DESCRIPTION =
   "Upload audio or a YouTube link and instantly get playable guitar tabs. Edit, simplify and practice songs directly in the browser.";
