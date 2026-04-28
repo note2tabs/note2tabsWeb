@@ -10,3 +10,4 @@ prisma/dev.db-journal
 .env*.local
 .env.vercel.*
 .vscode/settings.json
+backups/

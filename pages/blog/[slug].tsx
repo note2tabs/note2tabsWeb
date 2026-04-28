@@ -4,10 +4,10 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
 import { estimateReadingTime, getPublishedWhere } from "../../lib/blog";
-import type { TocItem } from "../../lib/markdown";
-import { compilePostContent, parseStoredToc } from "../../lib/blogContent";
+import { compilePostContent } from "../../lib/blogContent";
 import BlogPostCard from "../../components/blog/BlogPostCard";
 import SeoHead, { absoluteUrl } from "../../components/SeoHead";
+import { formatBlogDate } from "../../lib/dateFormat";
 
 type PostPageProps = {
   post: {
@@ -29,20 +29,18 @@ type PostPageProps = {
     tags: { id: string; name: string; slug: string }[];
     clusters: { id: string; name: string; slug: string; isPillar: boolean }[];
   };
-  toc: TocItem[];
   readingMinutes: number;
   relatedPosts: { id: string; title: string; slug: string }[];
 };
 
-export default function BlogPostPage({ post, toc, readingMinutes, relatedPosts }: PostPageProps) {
+export default function BlogPostPage({ post, readingMinutes, relatedPosts }: PostPageProps) {
   const title = post.seoTitle || post.title;
   const description = post.seoDescription || post.excerpt;
   const canonical = post.canonicalUrl || absoluteUrl(`/blog/${post.slug}`);
   const ogImage = post.coverImageUrl || absoluteUrl(`/api/og?title=${encodeURIComponent(title)}`);
   const published = post.publishedAt || post.publishAt || undefined;
-  const displayDate = post.publishedAt ?? post.publishAt;
+  const displayDate = formatBlogDate(post.publishedAt ?? post.publishAt);
   const hasTaxonomy = post.categories.length > 0 || post.tags.length > 0 || post.clusters.length > 0;
-  const showAside = toc.length > 0 || hasTaxonomy;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -110,7 +108,7 @@ export default function BlogPostPage({ post, toc, readingMinutes, relatedPosts }
             {displayDate && (
               <>
                 <span aria-hidden="true">·</span>
-                <span>{new Date(displayDate).toLocaleDateString()}</span>
+                <span>{displayDate}</span>
               </>
             )}
             <span aria-hidden="true">·</span>
@@ -125,73 +123,10 @@ export default function BlogPostPage({ post, toc, readingMinutes, relatedPosts }
           </figure>
         )}
 
-        <div className={showAside ? "post-layout" : undefined}>
+        <div>
           <article className="post-content">
             <div className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
           </article>
-          {showAside && (
-            <aside className="post-aside">
-              {toc.length > 0 && (
-                <nav className="toc" aria-label="Table of contents">
-                  <h3>On this page</h3>
-                  <ul>
-                    {toc.map((item) => (
-                      <li
-                        key={item.id}
-                        className={
-                          item.level >= 4 ? "toc-level-4" : item.level >= 3 ? "toc-level-3" : undefined
-                        }
-                      >
-                        <a href={`#${item.id}`}>{item.text}</a>
-                      </li>
-                    ))}
-                  </ul>
-                </nav>
-              )}
-
-              {hasTaxonomy && (
-                <section className="post-taxonomy">
-                  {post.categories.length > 0 && (
-                    <>
-                      <h4>Categories</h4>
-                      <div className="tag-row">
-                        {post.categories.map((cat) => (
-                          <Link key={cat.id} href={`/blog/category/${cat.slug}`}>
-                            {cat.name}
-                          </Link>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  {post.tags.length > 0 && (
-                    <>
-                      <h4>Tags</h4>
-                      <div className="tag-row">
-                        {post.tags.map((tag) => (
-                          <Link key={tag.id} href={`/blog/tag/${tag.slug}`}>
-                            {tag.name}
-                          </Link>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  {post.clusters.length > 0 && (
-                    <>
-                      <h4>Topic clusters</h4>
-                      <div className="tag-row">
-                        {post.clusters.map((cluster) => (
-                          <Link key={cluster.id} href={`/blog/cluster/${cluster.slug}`}>
-                            {cluster.name}
-                            {cluster.isPillar ? " (pillar)" : ""}
-                          </Link>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </section>
-              )}
-            </aside>
-          )}
         </div>
 
         {hasTaxonomy && (
@@ -274,7 +209,6 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
       excerpt: true,
       content: true,
       contentHtml: true,
-      contentToc: true,
       contentMode: true,
       coverImageUrl: true,
       publishedAt: true,
@@ -313,15 +247,12 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
   }
 
   let contentHtml = post.contentHtml || "";
-  let toc = parseStoredToc(post.contentToc);
   if (post.contentMode === "LATEX") {
-    const compiled = await compilePostContent(post.content, post.contentMode);
+    const compiled = await compilePostContent(post.content, post.contentMode, { title: post.title });
     contentHtml = compiled.contentHtml;
-    toc = compiled.contentToc;
-  } else if (!contentHtml || toc.length === 0) {
-    const compiled = await compilePostContent(post.content, post.contentMode);
-    if (!contentHtml) contentHtml = compiled.contentHtml;
-    if (toc.length === 0) toc = compiled.contentToc;
+  } else if (!contentHtml) {
+    const compiled = await compilePostContent(post.content, post.contentMode, { title: post.title });
+    contentHtml = compiled.contentHtml;
   }
   const { minutes } = estimateReadingTime(post.content);
 
@@ -366,9 +297,8 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
           isPillar: item.isPillar,
         })),
       },
-      toc,
-      readingMinutes: minutes,
-      relatedPosts,
+        readingMinutes: minutes,
+        relatedPosts,
     },
   };
 };

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatBlogDate } from "../../lib/dateFormat";
 
 type Chip = {
   id: string;
@@ -27,19 +28,16 @@ export default function BlogPostCard({
   chips = [],
   variant = "default",
 }: BlogPostCardProps) {
-  const publishedLabel = publishedAt ? new Date(publishedAt).toLocaleDateString() : null;
+  const publishedLabel = formatBlogDate(publishedAt);
+  const hasCover = Boolean(coverImageUrl);
 
   return (
-    <article className={`blog-card blog-card--${variant}`}>
-      <Link href={`/blog/${slug}`} className="blog-card-media-link" aria-label={title}>
-        {coverImageUrl ? (
+    <article className={`blog-card blog-card--${variant}${hasCover ? "" : " blog-card--no-cover"}`}>
+      {coverImageUrl && (
+        <Link href={`/blog/${slug}`} className="blog-card-media-link" aria-label={title}>
           <img src={coverImageUrl} alt={title} className="blog-card-cover" loading="lazy" />
-        ) : (
-          <div className="blog-card-cover blog-card-cover--placeholder">
-            <span>Note2Tabs</span>
-          </div>
-        )}
-      </Link>
+        </Link>
+      )}
 
       <div className="blog-card-body">
         <Link href={`/blog/${slug}`} className="blog-card-title">
@@ -67,4 +65,3 @@ export default function BlogPostCard({
     </article>
   );
 }
-

@@ -91,7 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const slug = slugify(input.slug || input.title);
       const canonicalUrl = normalizeCanonicalUrl(input.canonicalUrl);
       const contentMode = input.contentMode || "PLAIN";
-      const compiledContent = await compilePostContent(input.content, contentMode);
+      const compiledContent = await compilePostContent(input.content, contentMode, { title: input.title });
 
       const existing = await prisma.post.findUnique({ where: { slug } });
       if (existing) {

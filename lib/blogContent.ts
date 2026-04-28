@@ -16,11 +16,19 @@ const normalizeToc = (toc: TocItem[]): TocRow[] =>
     }))
     .filter((item) => item.id && item.text && Number.isFinite(item.level));
 
-export const compilePostContent = async (content: string, contentMode: PostContentMode) => {
+type CompilePostContentOptions = {
+  title?: string | null;
+};
+
+export const compilePostContent = async (
+  content: string,
+  contentMode: PostContentMode,
+  options: CompilePostContentOptions = {}
+) => {
   const rendered =
     contentMode === "LATEX"
       ? await renderLatexDocument(content)
-      : await renderPlainText(content);
+      : await renderPlainText(content, { title: options.title });
 
   return {
     contentHtml: rendered.html,

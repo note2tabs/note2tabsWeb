@@ -347,7 +347,7 @@ export default function AdminBlogPage({ isAdmin }: Props) {
     const rendered =
       postForm.contentMode === "LATEX"
         ? await renderLatexDocument(postForm.content)
-        : await renderPlainText(postForm.content);
+        : await renderPlainText(postForm.content, { title: postForm.title });
     setPreviewHtml(rendered.html);
     setPreviewMode(true);
   };

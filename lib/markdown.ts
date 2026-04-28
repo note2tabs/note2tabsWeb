@@ -18,6 +18,7 @@ const defaultAttributes = (defaultSchema.attributes || {}) as Record<string, any
 
 const baseSchema = {
   ...defaultSchema,
+  clobberPrefix: "",
   attributes: {
     ...defaultAttributes,
     a: ["href", "title", "rel", "target"],
@@ -41,14 +42,6 @@ const extractText = (node: any): string => {
   }
   return "";
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 
 const stripLatexComments = (value: string) =>
   value
@@ -295,19 +288,124 @@ export const renderLatexDocument = async (latex: string) => {
   return renderMarkdown(normalized);
 };
 
-export const renderPlainText = async (text: string) => {
+type PlainTextRenderOptions = {
+  title?: string | null;
+};
+
+const tokenizeTitle = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length > 2);
+
+const looksLikeSameTitle = (candidate: string, title?: string | null) => {
+  if (!title) return false;
+  const candidateTokens = new Set(tokenizeTitle(candidate));
+  const titleTokens = tokenizeTitle(title);
+  if (candidateTokens.size === 0 || titleTokens.length === 0) return false;
+
+  const matches = titleTokens.filter((token) => candidateTokens.has(token)).length;
+  return matches / Math.min(candidateTokens.size, titleTokens.length) >= 0.55;
+};
+
+const isShortBlock = (value: string) => value.split(/\s+/).filter(Boolean).length <= 18;
+
+const isLikelyHeading = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.includes("\n") || trimmed.length > 95) return false;
+  if (/^step\s+\d+\b/i.test(trimmed)) return true;
+  if (/^(faqs?|conclusion)$/i.test(trimmed)) return true;
+  if (/^(quick answer|why |what |who |manual |common |a faster |supported |know |transcribing |basic |hybrid )/i.test(trimmed)) {
+    return true;
+  }
+  if (/[.!]$/.test(trimmed)) return false;
+
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length < 3 || words.length > 12) return false;
+  const titledWords = words.filter((word) => /^[A-Z0-9“"(\-]/.test(word));
+  return titledWords.length / words.length >= 0.6;
+};
+
+const headingLevelFor = (value: string, previousHeadingLevel: number) => {
+  if (/^step\s+\d+\b/i.test(value)) return 3;
+  if (/^(supported |know |transcribing |basic |hybrid )/i.test(value) && previousHeadingLevel >= 2) {
+    return 3;
+  }
+  return 2;
+};
+
+const shouldEndGeneratedList = (value: string) =>
+  /^(the key|the cleaner|the first|the frustration|understanding|this gives|this is|this step|the goal|real-time|this dramatically|think of|instead of|that’s|that's|let’s|let's|this hybrid|remember|if you|we’re|we're|fast\.?$|yes\.?$|no\.?$|however|because|accuracy depends)/i.test(
+    value
+  );
+
+const hasMarkdownStructure = (value: string) =>
+  /(^|\n)#{2,6}\s+\S/.test(value) ||
+  /(^|\n)(?:-|\*)\s+\S/.test(value) ||
+  /(^|\n)\d+\.\s+\S/.test(value) ||
+  /\[[^\]]+\]\([^)]+\)/.test(value);
+
+const renderPlainTextAsMarkdown = (text: string, options: PlainTextRenderOptions = {}) => {
+  const blocks = text
+    .replace(/\r\n/g, "\n")
+    .trim()
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  const units = blocks.flatMap((block) => {
+    const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+    if (lines.length > 1 && lines.every((line) => isShortBlock(line))) {
+      return lines;
+    }
+    return [block];
+  });
+
+  const output: string[] = [];
+  let previousHeadingLevel = 0;
+  let listMode = false;
+
+  units.forEach((unit, index) => {
+    if (index === 0 && looksLikeSameTitle(unit, options.title)) {
+      listMode = false;
+      return;
+    }
+
+    const escaped = unit.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+    if (!escaped) return;
+
+    if (isLikelyHeading(escaped)) {
+      const level = headingLevelFor(escaped, previousHeadingLevel);
+      output.push(`${"#".repeat(level)} ${escaped}`);
+      previousHeadingLevel = level;
+      listMode = false;
+      return;
+    }
+
+    if (listMode && isShortBlock(escaped) && !shouldEndGeneratedList(escaped)) {
+      output.push(`- ${escaped}`);
+      return;
+    }
+
+    output.push(escaped);
+    listMode = /:$/.test(escaped);
+  });
+
+  return output.join("\n\n").replace(/(- [^\n]+)\n\n(?=- )/g, "$1\n");
+};
+
+export const renderPlainText = async (text: string, options: PlainTextRenderOptions = {}) => {
   const normalized = (text || "").replace(/\r\n/g, "\n").trim();
   if (!normalized) {
     return { html: "", toc: [] as TocItem[] };
   }
 
-  const paragraphs = normalized
-    .split(/\n{2,}/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean)
-    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`);
+  if (hasMarkdownStructure(normalized)) {
+    return renderMarkdown(normalized);
+  }
 
-  return { html: paragraphs.join(""), toc: [] as TocItem[] };
+  return renderMarkdown(renderPlainTextAsMarkdown(normalized, options));
 };
 
 export type { TocItem };

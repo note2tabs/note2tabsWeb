@@ -107,8 +107,8 @@ describe("stripe premium flow", () => {
           line_items: [{ price: "price_test_premium", quantity: 1 }],
           subscription_data: { trial_period_days: 7 },
           metadata: { userId: "user_1" },
-          success_url: "https://note2tabs.test/account?upgrade=success",
-          cancel_url: "https://note2tabs.test/account?upgrade=cancel",
+          success_url: "https://note2tabs.test/settings?upgrade=success",
+          cancel_url: "https://note2tabs.test/settings?upgrade=cancel",
         })
       );
     });
@@ -156,7 +156,7 @@ describe("stripe premium flow", () => {
       });
       expect(stripeMock.billingPortal.sessions.create).toHaveBeenCalledWith({
         customer: "cus_123",
-        return_url: "https://note2tabs.test/account",
+        return_url: "https://note2tabs.test/settings",
       });
     });
 
