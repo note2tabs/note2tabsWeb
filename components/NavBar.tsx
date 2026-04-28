@@ -85,7 +85,10 @@ export default function NavBar() {
             Transcriber
           </Link>
           <a href="/#pricing">Pricing</a>
-          <span className="nav-auth-slot" aria-hidden={session ? "true" : undefined}>
+          <span
+            className={`nav-auth-slot${session ? " nav-auth-slot--profile" : " nav-auth-slot--guest"}`}
+            aria-hidden={session ? "true" : undefined}
+          >
             {!session && (
               <>
                 <button type="button" onClick={() => signIn(undefined, { callbackUrl: "/" })}>

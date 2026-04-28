@@ -1305,12 +1305,23 @@ input[type="number"] {
 }
 
 .nav-auth-slot {
-  min-width: 142px;
-  min-height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 22px;
+}
+
+.nav-auth-slot--guest {
+  min-width: 142px;
+  min-height: 38px;
+}
+
+.nav-auth-slot--profile {
+  width: 0;
+  min-width: 0;
+  min-height: 0;
+  gap: 0;
+  overflow: hidden;
 }
 
 .nav-links--reading {
