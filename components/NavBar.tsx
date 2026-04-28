@@ -27,10 +27,6 @@ export default function NavBar() {
     ? "/admin/analytics?view=overview&range=30d"
     : "/admin/analytics?view=moderation&range=30d";
   const analyticsLabel = isAdmin ? "Analytics" : "Moderation";
-  const initial =
-    session?.user?.email?.[0]?.toUpperCase() ||
-    session?.user?.name?.[0]?.toUpperCase() ||
-    "N";
 
   useEffect(() => {
     setMenuOpen(false);
@@ -117,7 +113,12 @@ export default function NavBar() {
                 }}
                 title={roleLabel(session.user?.role)}
               >
-                <div className="nav-chip">{initial}</div>
+                <span className="nav-chip" aria-hidden="true">
+                  <svg className="nav-chip-icon" viewBox="0 0 24 24" focusable="false">
+                    <path d="M12 12.2c2.05 0 3.72-1.68 3.72-3.75S14.05 4.7 12 4.7 8.28 6.38 8.28 8.45s1.67 3.75 3.72 3.75Z" />
+                    <path d="M5.75 19.3c.56-3.02 3.1-5.12 6.25-5.12s5.69 2.1 6.25 5.12c.06.31-.18.6-.5.6H6.25a.5.5 0 0 1-.5-.6Z" />
+                  </svg>
+                </span>
               </button>
               <div
                 id="nav-profile-menu"
