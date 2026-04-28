@@ -19,8 +19,8 @@
   --radius-md: 18px;
   --radius-sm: 12px;
   --max-width: 1160px;
-  --font-sans: "SF Pro Text", "SF Pro Display", "Manrope", "Helvetica Neue", sans-serif;
-  --font-display: "SF Pro Display", "SF Pro Text", "Manrope", "Helvetica Neue", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
 
 * {
@@ -1304,6 +1304,15 @@ input[type="number"] {
   margin-left: auto;
 }
 
+.nav-auth-slot {
+  min-width: 142px;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 22px;
+}
+
 .nav-links--reading {
   color: rgba(11, 15, 26, 0.92);
 }
@@ -1726,18 +1735,6 @@ input[type="number"] {
 .editor-landing-hero {
   padding-top: 74px;
   padding-bottom: 86px;
-}
-
-.editor-landing-logo-bg {
-  position: absolute;
-  left: 50%;
-  top: 56%;
-  width: min(540px, 56vw);
-  transform: translate(-50%, -50%);
-  opacity: 0;
-  filter: none;
-  pointer-events: none;
-  user-select: none;
 }
 
 .editor-landing-shell {
@@ -4686,12 +4683,6 @@ input[type="number"] {
     padding-bottom: 62px;
   }
 
-  .editor-landing-logo-bg {
-    width: min(360px, 72vw);
-    top: 54%;
-    opacity: 0.07;
-  }
-
   .editor-landing-grid,
   .editor-landing-split {
     grid-template-columns: 1fr;
@@ -4722,6 +4713,12 @@ input[type="number"] {
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-md);
     color: var(--text);
+  }
+
+  .nav-auth-slot {
+    min-width: 0;
+    min-height: 0;
+    display: contents;
   }
 
   .nav-links.open {

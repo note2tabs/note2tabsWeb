@@ -72,7 +72,7 @@ export default function NavBar() {
     >
       <div className="container nav">
         <Link href="/" className="logo">
-          <img src="/logo01black.png" alt="Note2Tabs logo" className="logo-mark" />
+          <img src="/logo-mark-96.png" alt="Note2Tabs logo" className="logo-mark" width="28" height="28" />
           <span className="logo-text">Note2Tabs</span>
         </Link>
         <nav
@@ -85,16 +85,18 @@ export default function NavBar() {
             Transcriber
           </Link>
           <a href="/#pricing">Pricing</a>
-          {!session && (
-            <>
-              <button type="button" onClick={() => signIn(undefined, { callbackUrl: "/" })}>
-                Log in
-              </button>
-              <Link href="/auth/signup" className="nav-cta">
-                Start free
-              </Link>
-            </>
-          )}
+          <span className="nav-auth-slot" aria-hidden={session ? "true" : undefined}>
+            {!session && (
+              <>
+                <button type="button" onClick={() => signIn(undefined, { callbackUrl: "/" })}>
+                  Log in
+                </button>
+                <Link href="/auth/signup" className="nav-cta">
+                  Start free
+                </Link>
+              </>
+            )}
+          </span>
         </nav>
         <div className="nav-actions">
           {session && (

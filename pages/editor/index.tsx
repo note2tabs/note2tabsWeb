@@ -46,7 +46,6 @@ export default function EditorLandingPage() {
   const [error, setError] = useState<string | null>(null);
 
   const isSignedIn = Boolean(session?.user?.id);
-  const libraryHref = isSignedIn ? LIBRARY_PATH : GUEST_EDITOR_PATH;
   const editorDescription =
     "Edit guitar tabs online with precise controls for timing, fingerings, chord shapes, and section structure.";
   const editorJsonLd = [
@@ -119,7 +118,6 @@ export default function EditorLandingPage() {
       <section className="hero editor-landing-hero">
         <div className="hero-glow hero-glow--one" />
         <div className="hero-glow hero-glow--two" />
-        <img src="/logo01black.png" alt="" aria-hidden="true" className="editor-landing-logo-bg" />
         <div className="container hero-stack hero-stack--centered editor-landing-shell">
           <div className="hero-heading">
             <div className="hero-title-row">
@@ -128,15 +126,9 @@ export default function EditorLandingPage() {
             <p className="editor-landing-byline">precision editing by Note2Tabs</p>
             <div className="button-row hero-cta-row editor-landing-hero-actions">
               <button type="button" onClick={() => void handleCreate()} className="button-primary" disabled={creating}>
-                {status === "loading"
-                  ? "Loading..."
-                  : creating
-                  ? "Starting..."
-                  : isSignedIn
-                  ? "Create a new tab"
-                  : "Start a new tab"}
+                {creating ? "Starting..." : "Start a new tab"}
               </button>
-              <Link href={libraryHref} className="button-secondary">
+              <Link href={LIBRARY_PATH} className="button-secondary">
                 Open your library
               </Link>
             </div>
@@ -145,9 +137,7 @@ export default function EditorLandingPage() {
               structure in one workspace.
             </p>
             <p className="editor-landing-support">
-              {isSignedIn
-                ? "Continue existing songs or open a new tab immediately."
-                : "You can start in guest mode first and move to your library later."}
+              Start in the browser, then save finished work to your library when you are ready.
             </p>
             {error && <div className="error editor-landing-error">{error}</div>}
           </div>
@@ -219,7 +209,7 @@ export default function EditorLandingPage() {
               <button type="button" onClick={() => void handleCreate()} className="button-primary" disabled={creating}>
                 {creating ? "Starting..." : isSignedIn ? "Create a new tab" : "Start a new tab"}
               </button>
-              <Link href={libraryHref} className="button-secondary">
+              <Link href={LIBRARY_PATH} className="button-secondary">
                 Open your library
               </Link>
             </div>

@@ -5,7 +5,7 @@ export default function Header() {
     <header className="nav-shell">
       <div className="container nav">
         <Link href="/" className="logo">
-          <img src="/logo01black.png" alt="Note2Tabs logo" className="logo-mark" />
+          <img src="/logo-mark-96.png" alt="Note2Tabs logo" className="logo-mark" width="28" height="28" />
           <span className="logo-text">Note2Tabs</span>
         </Link>
         <nav className="nav-links">
