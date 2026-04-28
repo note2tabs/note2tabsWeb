@@ -1423,7 +1423,7 @@ input[type="number"] {
 .nav-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   position: relative;
 }
 
@@ -1445,8 +1445,8 @@ input[type="number"] {
 }
 
 .nav-chip {
-  width: 32px;
-  height: 32px;
+  width: 29px;
+  height: 29px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -1456,8 +1456,8 @@ input[type="number"] {
 }
 
 .nav-chip-icon {
-  width: 21px;
-  height: 21px;
+  width: 18px;
+  height: 18px;
   display: block;
   fill: currentColor;
 }
