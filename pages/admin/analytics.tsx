@@ -1,5 +1,4 @@
 import { GetServerSideProps } from "next";
-import Head from "next/head";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
@@ -19,6 +18,7 @@ import {
 } from "../../lib/analyticsQueries";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
+import NoIndexHead from "../../components/NoIndexHead";
 
 const TimeSeriesChart = dynamic(
   () => import("../../components/AdminChartsClient").then((m) => m.TimeSeriesChart),
@@ -175,9 +175,7 @@ export default function AnalyticsDashboard(props: Props) {
 
   return (
     <>
-      <Head>
-        <title>Analytics Hub - Note2Tabs</title>
-      </Head>
+      <NoIndexHead title="Analytics Hub - Note2Tabs" canonicalPath="/admin/analytics" />
       <main className="page analytics-page">
         <div className="container stack analytics-shell">
           <div className="flex flex-wrap items-center justify-between gap-3">

@@ -1,14 +1,22 @@
+import SeoHead from "../components/SeoHead";
+
 export default function TermsPage() {
   return (
-    <main className="page legal-page">
-      <div className="legal-shell">
-        <header className="legal-header">
-          <p className="legal-kicker">Legal</p>
-          <h1 className="page-title">Terms of Service</h1>
-          <p className="page-subtitle">Last updated: February 2026</p>
-        </header>
+    <>
+      <SeoHead
+        title="Terms of Service | Note2Tabs"
+        description="Read the Note2Tabs terms for accounts, user content, generated tablature, acceptable use, payments, and service availability."
+        canonicalPath="/terms"
+      />
+      <main className="page legal-page">
+        <div className="legal-shell">
+          <header className="legal-header">
+            <p className="legal-kicker">Legal</p>
+            <h1 className="page-title">Terms of Service</h1>
+            <p className="page-subtitle">Last updated: February 2026</p>
+          </header>
 
-        <section className="legal-prose">
+          <section className="legal-prose">
           <p>
             These Terms govern your use of Note2Tabs. By using the service you agree to these Terms. If you do not
             agree, do not use the service.
@@ -110,8 +118,9 @@ export default function TermsPage() {
 
           <h2>13. Contact</h2>
           <p>note2tabs@gmail.com</p>
-        </section>
-      </div>
-    </main>
+          </section>
+        </div>
+      </main>
+    </>
   );
 }

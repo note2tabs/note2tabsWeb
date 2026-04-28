@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import NoIndexHead from "../../components/NoIndexHead";
 
 type VerifyState = "idle" | "verifying" | "verified" | "error";
 
@@ -91,6 +92,8 @@ export default function VerifyEmailPage() {
   };
 
   return (
+    <>
+      <NoIndexHead title="Verify your email | Note2Tabs" canonicalPath="/auth/verify-email" />
     <main className="page page-tight">
       <div className="container">
         <div className="card auth-card auth-card--expanded stack">
@@ -129,5 +132,6 @@ export default function VerifyEmailPage() {
         </div>
       </div>
     </main>
+    </>
   );
 }

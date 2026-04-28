@@ -10,6 +10,7 @@ import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
+import SeoHead, { SITE_NAME, SITE_URL, absoluteUrl } from "../components/SeoHead";
 
 type TabsResponse = {
   tabs: string[][];
@@ -739,26 +740,56 @@ export default function HomePage() {
       ? Math.max(0, Math.ceil((creditsResetDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
       : null;
   const showCreditsEmpty = displayedCredits && displayedCredits.remaining === 0;
+  const homeJsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: SITE_URL,
+      logo: absoluteUrl("/logo01black.png"),
+      sameAs: [
+        "https://instagram.com/note2tabs",
+        "https://tiktok.com/@note2tabs",
+        "https://youtube.com/@note2tabs",
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: SITE_NAME,
+      url: SITE_URL,
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: SITE_NAME,
+      applicationCategory: "MusicApplication",
+      operatingSystem: "Web",
+      url: SITE_URL,
+      description:
+        "Convert audio files and YouTube links into editable guitar tabs in the browser.",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
+    },
+  ];
 
   return (
     <>
+      <SeoHead
+        title="Note2Tabs | Convert Audio and YouTube to Guitar Tabs"
+        description="Convert audio files or YouTube links into playable guitar tabs online. Upload a song, generate tabs, and refine them in the browser."
+        canonicalPath="/"
+        jsonLd={homeJsonLd}
+      />
       <main className="page page-home">
         <section className="hero hero--landing-funnel" id="hero">
           <div className="container hero-stack hero-stack--centered">
-            <section className="seo-intro seo-crawler-only" aria-label="Note2Tabs overview" data-reveal>
-              <h1 className="seo-title">Note2Tabs – Guitar tab generator and editor</h1>
-              <p className="seo-copy">
-                Note2Tabs turns audio into guitar tabs so you can learn songs faster and with less trial and error.
-                Upload a track or paste a YouTube link to generate playable tablature in seconds.
-              </p>
-              <p className="seo-copy">
-                Edit fingerings, simplify tricky passages, and practice with clean, readable layouts right in the
-                browser.
-              </p>
-            </section>
             <div className="hero-heading" data-reveal>
               <div className="hero-title-row">
-                <h2 className="hero-title">Convert Any Song to Tabs</h2>
+                <h1 className="hero-title">Convert Any Song to Tabs</h1>
               </div>
             </div>
             <form

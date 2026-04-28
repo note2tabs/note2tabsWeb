@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import Head from "next/head";
 import Script from "next/script";
 import { useRouter } from "next/router";
 import { signIn, useSession } from "next-auth/react";
@@ -14,6 +13,7 @@ import { saveJobToHistory } from "../../lib/history";
 import { normalizeTabSegments, tabSegmentsToStamps, tabsToTabText } from "../../lib/tabTextToStamps";
 import { getAppBaseUrl } from "../../lib/urls";
 import type { EditorListItem } from "../../types/gte";
+import NoIndexHead from "../../components/NoIndexHead";
 
 const POLL_INTERVAL = 3000;
 const FINALIZE_IMPORT_TIMEOUT_MS = 60_000;
@@ -1120,10 +1120,11 @@ export default function JobPage() {
 
   return (
     <>
-      <Head>
-        <title>{title}</title>
-        <meta name="description" content="Preparing your tabs on Note2Tabs." />
-      </Head>
+      <NoIndexHead
+        title={title}
+        canonicalPath={`/job/${encodeURIComponent(typeof job_id === "string" ? job_id : "")}`}
+        description="Preparing your tabs on Note2Tabs."
+      />
       {loadAdScript && (
         <Script
           src={`https://live.primis.tech/live/liveView.php?s=${PRIMIS_CHANNEL_ID}`}

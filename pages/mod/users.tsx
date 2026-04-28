@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
 import { useState } from "react";
+import NoIndexHead from "../../components/NoIndexHead";
 
 type UserRow = {
   id: string;
@@ -47,6 +48,8 @@ export default function UsersAdminPage({ users, canEdit }: Props) {
   };
 
   return (
+    <>
+      <NoIndexHead title="Users | Note2Tabs" canonicalPath="/mod/users" />
     <main className="page">
       <div className="container stack">
         <div className="page-header">
@@ -117,6 +120,7 @@ export default function UsersAdminPage({ users, canEdit }: Props) {
         </section>
       </div>
     </main>
+    </>
   );
 }
 

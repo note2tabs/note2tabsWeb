@@ -1,5 +1,4 @@
 import type { GetServerSideProps } from "next";
-import Head from "next/head";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getServerSession } from "next-auth/next";
@@ -7,6 +6,7 @@ import { authOptions } from "../../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
 import { slugify } from "../../../lib/slug";
 import { renderLatexDocument, renderPlainText } from "../../../lib/markdown";
+import NoIndexHead from "../../../components/NoIndexHead";
 
 type TaxonomyItem = {
   id: string;
@@ -387,6 +387,7 @@ export default function AdminBlogPage({ isAdmin }: Props) {
   if (!isAdmin) {
     return (
       <main className="page">
+        <NoIndexHead title="Blog Admin | Note2Tabs" canonicalPath="/admin/blog" />
         <div className="container stack">
           <h1 className="page-title">Admin access required</h1>
           <Link href="/auth/login" className="button-primary">
@@ -399,9 +400,7 @@ export default function AdminBlogPage({ isAdmin }: Props) {
 
   return (
     <main className="page admin-blog">
-      <Head>
-        <title>Blog Admin | Note2Tabs</title>
-      </Head>
+      <NoIndexHead title="Blog Admin | Note2Tabs" canonicalPath="/admin/blog" />
       <div className="container stack">
         <header className="page-header">
           <div>

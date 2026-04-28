@@ -7,6 +7,7 @@ import { useRouter } from "next/router";
 import { gteApi } from "../../lib/gteApi";
 import type { EditorListItem, EditorSnapshot } from "../../types/gte";
 import { clearGuestDraft, GTE_GUEST_EDITOR_ID, readGuestDraft } from "../../lib/gteGuestDraft";
+import NoIndexHead from "../../components/NoIndexHead";
 
 export default function GteIndexPage() {
   const [editors, setEditors] = useState<EditorListItem[]>([]);
@@ -211,6 +212,8 @@ export default function GteIndexPage() {
   };
 
   return (
+    <>
+      <NoIndexHead title="Guitar Tab Editor Library | Note2Tabs" canonicalPath="/gte" />
     <main className="page">
       <div className="container stack">
         <div className="page-header">
@@ -405,6 +408,7 @@ export default function GteIndexPage() {
         </div>
       )}
     </main>
+    </>
   );
 }
 

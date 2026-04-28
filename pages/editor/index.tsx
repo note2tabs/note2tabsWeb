@@ -1,10 +1,10 @@
-import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { gteApi } from "../../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../../lib/gteGuestDraft";
+import SeoHead, { SITE_NAME, absoluteUrl } from "../../components/SeoHead";
 
 const LIBRARY_PATH = "/gte";
 const GUEST_EDITOR_PATH = `/gte/${GTE_GUEST_EDITOR_ID}`;
@@ -39,28 +39,6 @@ const reliabilityBullets = [
   "Designed for repeat editing sessions",
 ] as const;
 
-const editorSeoHighlights = [
-  "Build tabs from scratch or clean up a rough draft",
-  "Compare note and chord fingerings for better playability",
-  "Generate song cuts and refine segment boundaries",
-  "Keep songs organized in a transcription library",
-] as const;
-
-const editorSeoQuestions = [
-  {
-    title: "What does the guitar tab editor do?",
-    body: "It gives you a clean place to write, edit, and organize guitar tabs online. You can start from a blank tab, refine transcribed drafts, and shape timing and structure in one workflow.",
-  },
-  {
-    title: "Why use this after the transcriber?",
-    body: "The transcriber gives you a first pass. The editor is where you make decisions about playability, fingering, and section layout before saving the final version.",
-  },
-  {
-    title: "Can I change how notes and chords are played?",
-    body: "Yes. You can test alternatives for single notes and full chords, then keep the fingering that feels best for your hands and style.",
-  },
-] as const;
-
 export default function EditorLandingPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -69,6 +47,46 @@ export default function EditorLandingPage() {
 
   const isSignedIn = Boolean(session?.user?.id);
   const libraryHref = isSignedIn ? LIBRARY_PATH : GUEST_EDITOR_PATH;
+  const editorDescription =
+    "Edit guitar tabs online with precise controls for timing, fingerings, chord shapes, and section structure.";
+  const editorJsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "Note2Tabs Guitar Tab Editor",
+      applicationCategory: "MusicApplication",
+      operatingSystem: "Web",
+      url: absoluteUrl("/editor"),
+      description: editorDescription,
+      provider: {
+        "@type": "Organization",
+        name: SITE_NAME,
+      },
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: absoluteUrl("/"),
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Guitar Tab Editor",
+          item: absoluteUrl("/editor"),
+        },
+      ],
+    },
+  ];
 
   const handleCreate = async () => {
     if (creating || status === "loading") return;
@@ -91,26 +109,12 @@ export default function EditorLandingPage() {
 
   return (
     <>
-      <Head>
-        <title>Online Guitar Tab Editor | Note2Tabs</title>
-        <meta
-          key="description"
-          name="description"
-          content="Edit guitar tabs online with precise controls for timing, fingerings, chord shapes, and section structure."
-        />
-        <meta key="og:title" property="og:title" content="Online Guitar Tab Editor | Note2Tabs" />
-        <meta
-          key="og:description"
-          property="og:description"
-          content="Use the Note2Tabs editor to refine tabs, optimize fingerings, and organize songs in one library."
-        />
-        <meta key="twitter:title" name="twitter:title" content="Online Guitar Tab Editor | Note2Tabs" />
-        <meta
-          key="twitter:description"
-          name="twitter:description"
-          content="A browser-based guitar tab editor with precise controls and a transcription library."
-        />
-      </Head>
+      <SeoHead
+        title="Online Guitar Tab Editor | Note2Tabs"
+        description={editorDescription}
+        canonicalPath="/editor"
+        jsonLd={editorJsonLd}
+      />
 
       <section className="hero editor-landing-hero">
         <div className="hero-glow hero-glow--one" />
@@ -152,29 +156,6 @@ export default function EditorLandingPage() {
 
       <main className="page">
         <div className="container stack editor-landing-sections">
-          <section className="seo-intro seo-crawler-only" aria-label="Guitar tab editor overview">
-            <h2 className="seo-title">Online guitar tab editor for drafting and refinement</h2>
-            <p className="seo-copy">
-              Note2Tabs includes a browser-based guitar tab editor designed for full revision work. Use it to clean up
-              rough transcriptions, write tabs from scratch, and keep songs organized in one library.
-            </p>
-            <p className="seo-copy">
-              Core editing capabilities include timing adjustments, fingering alternatives, chord voicing choices, and
-              section cuts for clearer song structure.
-            </p>
-            <ul>
-              {editorSeoHighlights.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-            {editorSeoQuestions.map((item) => (
-              <article key={item.title}>
-                <h3>{item.title}</h3>
-                <p>{item.body}</p>
-              </article>
-            ))}
-          </section>
-
           <section className="editor-landing-grid" aria-label="Editor highlights">
             {editorHighlights.map((item) => (
               <article key={item.title} className="card-outline editor-landing-card">

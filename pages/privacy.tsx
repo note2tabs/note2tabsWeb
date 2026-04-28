@@ -1,17 +1,25 @@
+import SeoHead from "../components/SeoHead";
+
 export default function PrivacyPage() {
   return (
-    <main className="page legal-page">
-      <div className="legal-shell">
-        <header className="legal-header">
-          <p className="legal-kicker">Privacy</p>
-          <h1 className="page-title">Privacy Policy</h1>
-          <p className="page-subtitle">
-            We store account data and transcription history so Note2Tabs works reliably. Audio is sent to our
-            processing backend for transcription. Only upload content you have rights to use.
-          </p>
-        </header>
+    <>
+      <SeoHead
+        title="Privacy Policy | Note2Tabs"
+        description="Read how Note2Tabs handles account data, transcription history, uploaded audio, cookies, analytics, and security logging."
+        canonicalPath="/privacy"
+      />
+      <main className="page legal-page">
+        <div className="legal-shell">
+          <header className="legal-header">
+            <p className="legal-kicker">Privacy</p>
+            <h1 className="page-title">Privacy Policy</h1>
+            <p className="page-subtitle">
+              We store account data and transcription history so Note2Tabs works reliably. Audio is sent to our
+              processing backend for transcription. Only upload content you have rights to use.
+            </p>
+          </header>
 
-        <section className="legal-prose">
+          <section className="legal-prose">
           <h2>Access to your tabs and content</h2>
           <p>
             Tabs, transcriptions, and related metadata are stored so the service works. Our team may access created
@@ -26,7 +34,7 @@ export default function PrivacyPage() {
           <h2>Cookies and similar technologies</h2>
           <p>
             We use cookies to run the service and to measure usage and improve performance. Analytics is enabled by
-            default unless you explicitly deny it from the banner or settings.
+            default unless you explicitly deny it from the cookie settings button in the footer or from settings.
           </p>
           <ul>
             <li>
@@ -54,8 +62,9 @@ export default function PrivacyPage() {
             You can update this later in settings, clear cookies in your browser, and request account deletion at any
             time.
           </p>
-        </section>
-      </div>
-    </main>
+          </section>
+        </div>
+      </main>
+    </>
   );
 }

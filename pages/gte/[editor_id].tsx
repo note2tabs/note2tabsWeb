@@ -31,6 +31,7 @@ import {
   createGuestSnapshot,
   readGuestDraft,
 } from "../../lib/gteGuestDraft";
+import NoIndexHead from "../../components/NoIndexHead";
 
 type Props = {
   editorId: string;
@@ -727,8 +728,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const loginSaveHref = `/auth/login?next=${encodeURIComponent(saveToAccountPath)}`;
   const signupSaveHref = `/auth/signup?next=${encodeURIComponent(saveToAccountPath)}`;
   const transcriberHref = isGuestMode
-    ? "/transcriber"
-    : `/transcriber?appendEditorId=${encodeURIComponent(editorId)}`;
+    ? "/#hero"
+    : `/?appendEditorId=${encodeURIComponent(editorId)}#hero`;
 
   const cloneCanvas = useCallback((value: CanvasSnapshot) => {
     return JSON.parse(JSON.stringify(value)) as CanvasSnapshot;
@@ -2569,12 +2570,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   );
 
   return (
-    <main
-      className={`page page-tight ${
-        isMobileEditMode ? "h-[100dvh] overflow-hidden overscroll-none py-3" : ""
-      }`}
-      onMouseDownCapture={handleMainMouseDownCapture}
-    >
+    <>
+      <NoIndexHead title="Guitar Tab Editor Workspace | Note2Tabs" canonicalPath={`/gte/${editorId}`} />
+      <main
+        className={`page page-tight ${
+          isMobileEditMode ? "h-[100dvh] overflow-hidden overscroll-none py-3" : ""
+        }`}
+        onMouseDownCapture={handleMainMouseDownCapture}
+      >
       <div
         className={`container gte-wide ${
           isMobileEditMode
@@ -4363,7 +4366,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         )}
       </div>
-    </main>
+      </main>
+    </>
   );
 }
 

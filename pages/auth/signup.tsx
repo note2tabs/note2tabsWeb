@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { signIn } from "next-auth/react";
 import { generateFingerprint } from "../../lib/fingerprint";
+import NoIndexHead from "../../components/NoIndexHead";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -51,6 +52,8 @@ export default function SignupPage() {
   };
 
   return (
+    <>
+      <NoIndexHead title="Create your account | Note2Tabs" canonicalPath="/auth/signup" />
     <main className="page page-tight">
       <div className="container">
         <div className="card auth-card auth-card--expanded stack">
@@ -112,5 +115,6 @@ export default function SignupPage() {
         </div>
       </div>
     </main>
+    </>
   );
 }

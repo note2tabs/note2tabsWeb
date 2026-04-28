@@ -1,13 +1,13 @@
 import type { GetServerSideProps } from "next";
-import Head from "next/head";
 import Link from "next/link";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
-import { estimateReadingTime, getBaseUrl, getPublishedWhere } from "../../lib/blog";
+import { estimateReadingTime, getPublishedWhere } from "../../lib/blog";
 import type { TocItem } from "../../lib/markdown";
 import { compilePostContent, parseStoredToc } from "../../lib/blogContent";
 import BlogPostCard from "../../components/blog/BlogPostCard";
+import SeoHead, { absoluteUrl } from "../../components/SeoHead";
 
 type PostPageProps = {
   post: {
@@ -35,11 +35,10 @@ type PostPageProps = {
 };
 
 export default function BlogPostPage({ post, toc, readingMinutes, relatedPosts }: PostPageProps) {
-  const baseUrl = getBaseUrl();
   const title = post.seoTitle || post.title;
   const description = post.seoDescription || post.excerpt;
-  const canonical = post.canonicalUrl || `${baseUrl}/blog/${post.slug}`;
-  const ogImage = post.coverImageUrl || `${baseUrl}/api/og?title=${encodeURIComponent(title)}`;
+  const canonical = post.canonicalUrl || absoluteUrl(`/blog/${post.slug}`);
+  const ogImage = post.coverImageUrl || absoluteUrl(`/api/og?title=${encodeURIComponent(title)}`);
   const published = post.publishedAt || post.publishAt || undefined;
   const displayDate = post.publishedAt ?? post.publishAt;
   const hasTaxonomy = post.categories.length > 0 || post.tags.length > 0 || post.clusters.length > 0;
@@ -59,25 +58,43 @@ export default function BlogPostPage({ post, toc, readingMinutes, relatedPosts }
     mainEntityOfPage: canonical,
     image: ogImage,
   };
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: absoluteUrl("/"),
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Blog",
+        item: absoluteUrl("/blog"),
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: post.title,
+        item: canonical,
+      },
+    ],
+  };
 
   return (
     <main className="page blog-post">
-      <Head>
-        <title>{title} | Note2Tabs</title>
-        <meta name="description" content={description} />
-        <link rel="canonical" href={canonical} />
-        <meta property="og:title" content={title} />
-        <meta property="og:description" content={description} />
-        <meta property="og:type" content="article" />
-        <meta property="og:url" content={canonical} />
-        <meta property="og:image" content={ogImage} />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={title} />
-        <meta name="twitter:description" content={description} />
-        <meta name="twitter:image" content={ogImage} />
-        {published && <meta property="article:published_time" content={published} />}
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      </Head>
+      <SeoHead
+        title={`${title} | Note2Tabs`}
+        description={description}
+        canonicalUrl={canonical}
+        imageUrl={ogImage}
+        ogType="article"
+        articlePublishedTime={published}
+        articleModifiedTime={new Date(post.updatedAt).toISOString()}
+        jsonLd={[jsonLd, breadcrumbJsonLd]}
+      />
 
       <div className="container stack">
         <header className="post-header post-header--reader">

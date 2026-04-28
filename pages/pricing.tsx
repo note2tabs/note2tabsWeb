@@ -1,26 +1,40 @@
-import Head from "next/head";
 import Link from "next/link";
+import SeoHead, { absoluteUrl } from "../components/SeoHead";
 
 export default function PricingPage() {
+  const description =
+    "Simple monthly pricing for Note2Tabs. Compare free and premium plans for guitar tab transcription and editing.";
+  const pricingJsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name: "Note2Tabs Pricing",
+      url: absoluteUrl("/pricing"),
+      description,
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: absoluteUrl("/"),
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Pricing",
+          item: absoluteUrl("/pricing"),
+        },
+      ],
+    },
+  ];
+
   return (
     <>
-      <Head>
-        <title>Pricing | Note2Tabs</title>
-        <meta
-          name="description"
-          content="Simple monthly pricing for Note2Tabs. Compare free and premium plans for guitar tab transcription and editing."
-        />
-        <meta property="og:title" content="Pricing | Note2Tabs" />
-        <meta
-          property="og:description"
-          content="Simple monthly pricing for Note2Tabs. Compare free and premium plans for guitar tab transcription and editing."
-        />
-        <meta name="twitter:title" content="Pricing | Note2Tabs" />
-        <meta
-          name="twitter:description"
-          content="Simple monthly pricing for Note2Tabs. Compare free and premium plans for guitar tab transcription and editing."
-        />
-      </Head>
+      <SeoHead title="Pricing | Note2Tabs" description={description} canonicalPath="/pricing" jsonLd={pricingJsonLd} />
       <main className="page">
         <section className="pricing">
           <div className="container stack">

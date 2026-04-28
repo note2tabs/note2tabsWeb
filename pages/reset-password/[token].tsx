@@ -1,6 +1,7 @@
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import NoIndexHead from "../../components/NoIndexHead";
 
 export default function ResetPasswordTokenPage() {
   const router = useRouter();
@@ -66,6 +67,8 @@ export default function ResetPasswordTokenPage() {
   };
 
   return (
+    <>
+      <NoIndexHead title="Set a new password | Note2Tabs" canonicalPath="/reset-password" />
     <main className="page page-tight">
       <div className="container">
         <div className="card auth-card auth-card--expanded stack">
@@ -136,5 +139,6 @@ export default function ResetPasswordTokenPage() {
         </div>
       </div>
     </main>
+    </>
   );
 }

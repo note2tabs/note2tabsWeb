@@ -1,9 +1,9 @@
 import type { GetServerSideProps } from "next";
-import Head from "next/head";
 import Link from "next/link";
 import { prisma } from "../../../lib/prisma";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
 import BlogPostCard from "../../../components/blog/BlogPostCard";
+import SeoHead, { absoluteUrl } from "../../../components/SeoHead";
 
 type TagPageProps = {
   tag: { name: string; slug: string };
@@ -19,12 +19,42 @@ type TagPageProps = {
 };
 
 export default function BlogTagPage({ tag, posts }: TagPageProps) {
+  const description = `Articles tagged with ${tag.name}.`;
+  const canonicalPath = `/blog/tag/${tag.slug}`;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: absoluteUrl("/"),
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Blog",
+        item: absoluteUrl("/blog"),
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: tag.name,
+        item: absoluteUrl(canonicalPath),
+      },
+    ],
+  };
+
   return (
     <main className="page blog-page">
-      <Head>
-        <title>{tag.name} | Note2Tabs Blog</title>
-        <meta name="description" content={`Articles tagged with ${tag.name}.`} />
-      </Head>
+      <SeoHead
+        title={`${tag.name} | Note2Tabs Blog`}
+        description={description}
+        canonicalPath={canonicalPath}
+        noindex={posts.length === 0}
+        jsonLd={jsonLd}
+      />
       <div className="container stack">
         <header className="blog-hero blog-hero--compact">
           <div className="blog-hero-copy">

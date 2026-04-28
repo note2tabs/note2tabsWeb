@@ -1,9 +1,9 @@
 import type { GetServerSideProps } from "next";
-import Head from "next/head";
 import Link from "next/link";
 import { prisma } from "../../lib/prisma";
 import { BLOG_PAGE_SIZE, estimateReadingTime, getPublishedWhere } from "../../lib/blog";
 import BlogPostCard from "../../components/blog/BlogPostCard";
+import SeoHead, { absoluteUrl } from "../../components/SeoHead";
 
 type BlogPostCard = {
   id: string;
@@ -50,16 +50,46 @@ export default function BlogIndexPage({
     params.set("page", String(nextPage));
     return `/blog?${params.toString()}`;
   };
+  const description =
+    "Learn how to convert audio into guitar tabs, edit tablature, and practice songs with Note2Tabs.";
+  const blogJsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Blog",
+      name: "Note2Tabs Blog",
+      url: absoluteUrl("/blog"),
+      description,
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: absoluteUrl("/"),
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Blog",
+          item: absoluteUrl("/blog"),
+        },
+      ],
+    },
+  ];
 
   return (
     <main className="page blog-page">
-      <Head>
-        <title>Blog | Note2Tabs</title>
-        <meta
-          name="description"
-          content="Learn how to convert audio into guitar tabs, edit tablature, and practice songs with Note2Tabs."
-        />
-      </Head>
+      <SeoHead
+        title="Blog | Note2Tabs"
+        description={description}
+        canonicalPath="/blog"
+        rssUrl="/blog/rss.xml"
+        noindex={Boolean(activeCategory || activeTag || page > 1)}
+        jsonLd={blogJsonLd}
+      />
       <div className="container stack">
         <header className="blog-hero">
           <div className="blog-hero-copy">

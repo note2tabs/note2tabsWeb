@@ -65,7 +65,7 @@ export default function FooterBar() {
 
           <section className="footer-section">
             <h3>Products</h3>
-            <Link href="/transcriber">Transcriber</Link>
+            <Link href="/#hero">Transcriber</Link>
             <Link href="/gte">Editor</Link>
           </section>
 

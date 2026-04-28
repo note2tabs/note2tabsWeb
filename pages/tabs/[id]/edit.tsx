@@ -1,6 +1,7 @@
 import type { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../api/auth/[...nextauth]";
+import NoIndexHead from "../../../components/NoIndexHead";
 
 type Props = {
   error?: string;
@@ -9,21 +10,27 @@ type Props = {
 export default function EditTabRedirect({ error }: Props) {
   if (error) {
     return (
+      <>
+        <NoIndexHead title="Could not reopen transcription | Note2Tabs" canonicalPath="/tabs" />
       <main className="page">
         <div className="container stack">
           <h1 className="page-title">Could not reopen transcription</h1>
           <p className="page-subtitle">{error}</p>
         </div>
       </main>
+      </>
     );
   }
   return (
+    <>
+      <NoIndexHead title="Redirecting | Note2Tabs" canonicalPath="/tabs" />
     <main className="page">
       <div className="container stack">
         <h1 className="page-title">Redirecting...</h1>
         <p className="page-subtitle">Opening your transcription review.</p>
       </div>
     </main>
+    </>
   );
 }
 

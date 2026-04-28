@@ -7,6 +7,7 @@ import { authOptions } from "./api/auth/[...nextauth]";
 import { buildCreditsSummary, calculateCreditsUsedFromDurationCounts, getCreditWindow } from "../lib/credits";
 import { prisma } from "../lib/prisma";
 import { generateFingerprint } from "../lib/fingerprint";
+import NoIndexHead from "../components/NoIndexHead";
 
 type Props = {
   user: {
@@ -265,7 +266,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             <Link href="/tabs" className="settingsButton settingsButtonSecondary">
               Transcriptions
             </Link>
-            <Link href="/editor" className="settingsButton settingsButtonSecondary">
+            <Link href="/gte" className="settingsButton settingsButtonSecondary">
               Open editor
             </Link>
           </div>
@@ -546,6 +547,8 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   );
 
   return (
+    <>
+      <NoIndexHead title="Settings | Note2Tabs" canonicalPath="/settings" />
     <main className="page settingsPage">
       <div className="container settingsShell">
         <header className="settingsHeader">
@@ -592,6 +595,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         </section>
       </div>
     </main>
+    </>
   );
 }
 

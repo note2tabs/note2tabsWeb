@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
 import { parseStoredTabPayload } from "../../lib/storedTabs";
+import NoIndexHead from "../../components/NoIndexHead";
 
 type TabJob = {
   id: string;
@@ -20,6 +21,8 @@ type Props = {
 
 export default function SavedTabsPage({ tabs }: Props) {
   return (
+    <>
+      <NoIndexHead title="Transcriptions | Note2Tabs" canonicalPath="/tabs" />
     <main className="page">
       <div className="container stack">
         <div className="page-header">
@@ -73,6 +76,7 @@ export default function SavedTabsPage({ tabs }: Props) {
         </section>
       </div>
     </main>
+    </>
   );
 }
 

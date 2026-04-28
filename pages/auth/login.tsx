@@ -3,6 +3,7 @@ import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { generateFingerprint } from "../../lib/fingerprint";
+import NoIndexHead from "../../components/NoIndexHead";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,6 +49,8 @@ export default function LoginPage() {
   };
 
   return (
+    <>
+      <NoIndexHead title="Log in | Note2Tabs" canonicalPath="/auth/login" />
     <main className="page page-tight">
       <div className="container">
         <div className="card auth-card auth-card--expanded stack">
@@ -102,5 +105,6 @@ export default function LoginPage() {
         </div>
       </div>
     </main>
+    </>
   );
 }

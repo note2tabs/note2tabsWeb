@@ -1,4 +1,4 @@
-import Head from "next/head";
+import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import type { ChangeEvent, KeyboardEvent } from "react";
@@ -11,6 +11,7 @@ import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
+import SeoHead, { SITE_NAME, absoluteUrl } from "../components/SeoHead";
 
 type TabsResponse = {
   tabs: string[][];
@@ -691,16 +692,55 @@ export default function TranscriberPage() {
   const creditsResetLabel = displayedCredits ? new Date(displayedCredits.resetAt).toLocaleDateString() : "";
   const showCreditsEmpty = displayedCredits && displayedCredits.remaining === 0;
   const resetLabelText = isPremiumRole(transcriberSession?.user?.role) ? "Next credits" : "Resets";
+  const transcriberDescription =
+    "Upload audio or enter a YouTube segment to generate a draft guitar tab you can refine.";
+  const transcriberJsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "Note2Tabs Transcriber",
+      applicationCategory: "MusicApplication",
+      operatingSystem: "Web",
+      url: absoluteUrl("/transcribe"),
+      description: transcriberDescription,
+      provider: {
+        "@type": "Organization",
+        name: SITE_NAME,
+      },
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: absoluteUrl("/"),
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Transcriber",
+          item: absoluteUrl("/transcribe"),
+        },
+      ],
+    },
+  ];
 
   return (
     <>
-      <Head>
-        <title>Note2Tabs - Transcriber</title>
-        <meta
-          name="description"
-          content="Upload audio or enter a YouTube segment to generate a draft guitar tab you can refine."
-        />
-      </Head>
+      <SeoHead
+        title="Audio to Guitar Tab Transcriber | Note2Tabs"
+        description={transcriberDescription}
+        canonicalPath="/transcribe"
+        jsonLd={transcriberJsonLd}
+      />
 
       <main className="page page-home">
         <section className="hero" id="hero">
@@ -715,7 +755,7 @@ export default function TranscriberPage() {
                 Upload audio or enter a YouTube segment and get a draft tab you can refine in the editor.
               </p>
               <div className="button-row hero-cta-row">
-                <Link href="/editor" className="button-primary">
+                <Link href="/gte" className="button-primary">
                   Open Guitar Tab Editor
                 </Link>
                 <Link href="/" className="button-secondary">
@@ -974,3 +1014,10 @@ export default function TranscriberPage() {
     </>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async () => ({
+  redirect: {
+    destination: "/transcribe",
+    permanent: true,
+  },
+});

@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import NoIndexHead from "../../components/NoIndexHead";
 
 export default function RequestResetPage() {
   const [email, setEmail] = useState("");
@@ -31,6 +32,8 @@ export default function RequestResetPage() {
   };
 
   return (
+    <>
+      <NoIndexHead title="Reset your password | Note2Tabs" canonicalPath="/reset-password" />
     <main className="page page-tight">
       <div className="container">
         <div className="card auth-card auth-card--expanded stack">
@@ -65,5 +68,6 @@ export default function RequestResetPage() {
         </div>
       </div>
     </main>
+    </>
   );
 }

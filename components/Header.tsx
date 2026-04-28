@@ -12,7 +12,7 @@ export default function Header() {
           <Link href="/gte" className="nav-pill">
             Editor
           </Link>
-          <Link href="/transcriber" className="nav-pill">
+          <Link href="/#hero" className="nav-pill">
             Transcriber
           </Link>
           <Link href="/">Home</Link>
