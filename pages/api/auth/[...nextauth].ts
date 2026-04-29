@@ -14,6 +14,9 @@ import {
 import { isLocalNoDbServerMode } from "../../../lib/serverDevMode";
 import { parseCookieHeader } from "../../../lib/analyticsV2/cookies";
 import { linkIdentityToUser } from "../../../lib/analyticsV2/identity";
+import { getAuthSiteUrl } from "../../../lib/siteUrl";
+
+process.env.NEXTAUTH_URL = getAuthSiteUrl();
 
 const providers: NextAuthOptions["providers"] = [
   CredentialsProvider({
@@ -107,7 +110,14 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   providers,
   callbacks: {
-    async redirect({ baseUrl }) {
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      try {
+        const parsed = new URL(url);
+        if (parsed.origin === baseUrl) return url;
+      } catch {
+        return baseUrl;
+      }
       return baseUrl;
     },
     async signIn({ user, account }) {

@@ -66,6 +66,8 @@ export default function SignupPage() {
               <label className="label">Name (optional)</label>
               <input
                 type="text"
+                name="name"
+                autoComplete="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="form-input"
@@ -75,6 +77,8 @@ export default function SignupPage() {
               <label className="label">Email</label>
               <input
                 type="email"
+                name="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -85,6 +89,8 @@ export default function SignupPage() {
               <label className="label">Password</label>
               <input
                 type="password"
+                name="new-password"
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
