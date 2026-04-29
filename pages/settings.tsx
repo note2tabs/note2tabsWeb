@@ -4,7 +4,17 @@ import { getServerSession } from "next-auth/next";
 import { signOut } from "next-auth/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { authOptions } from "./api/auth/[...nextauth]";
-import { buildCreditsSummary, calculateCreditsUsedFromDurationCounts, getCreditWindow } from "../lib/credits";
+import {
+  buildCreditsSummary,
+  calculateCreditsUsedFromDurationCounts,
+  getCreditWindow,
+  reconcileCreditsWithStoredBalance,
+} from "../lib/credits";
+import {
+  buildBackendCreditHeaders,
+  raiseBackendCreditsToFloor,
+  withBackendRemainingCredits,
+} from "../lib/backendCredits";
 import { prisma } from "../lib/prisma";
 import { generateFingerprint } from "../lib/fingerprint";
 import NoIndexHead from "../components/NoIndexHead";
@@ -616,9 +626,11 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: {
+      id: true,
       email: true,
       name: true,
       role: true,
+      tokensRemaining: true,
       createdAt: true,
       emailVerified: true,
       emailVerifiedBool: true,
@@ -646,7 +658,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         },
     _count: { _all: true },
   });
-  const credits = buildCreditsSummary({
+  const computedCredits = buildCreditsSummary({
     usedCredits: calculateCreditsUsedFromDurationCounts(
       creditDurationCounts.map((item) => ({
         durationSec: item.durationSec,
@@ -657,6 +669,23 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     isPremium,
     userCreatedAt: user?.createdAt,
   });
+  let credits = isPremium
+    ? reconcileCreditsWithStoredBalance(computedCredits, user?.tokensRemaining)
+    : computedCredits;
+  if (isPremium && user?.id) {
+    try {
+      const backendRemaining = await raiseBackendCreditsToFloor(
+        user.id,
+        computedCredits.remaining,
+        buildBackendCreditHeaders(user.id)
+      );
+      if (typeof backendRemaining === "number") {
+        credits = withBackendRemainingCredits(computedCredits, backendRemaining);
+      }
+    } catch (error) {
+      console.warn("settings backend credits read failed", error);
+    }
+  }
 
   return {
     props: {

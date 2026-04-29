@@ -24,6 +24,9 @@ type TabsResponse = {
   verificationRequired?: boolean;
   unverifiedTranscriptionUsed?: boolean;
 };
+type CreditsResponse = {
+  credits?: CreditsSummary;
+};
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
 const MAX_FREE_BYTES = 50 * 1024 * 1024;
@@ -128,28 +131,9 @@ export default function HomePage() {
   const unverifiedTranscriptionUsed =
     localUnverifiedTranscriptionUsed || Boolean(transcriberSession?.user?.unverifiedTranscriptionUsed);
   const canUseUnverifiedTranscription = !requireVerifiedEmail || isEmailVerified || !unverifiedTranscriptionUsed;
-  const sessionCreditsRemaining =
-    typeof transcriberSession?.user?.tokensRemaining === "number"
-      ? transcriberSession.user.tokensRemaining
-      : null;
   const displayedCredits = useMemo(
-    () => {
-      const baseCredits = credits ?? (disableDbInDev ? buildDevCreditsSummary() : null);
-      if (
-        baseCredits &&
-        isPremiumRole(transcriberSession?.user?.role) &&
-        sessionCreditsRemaining !== null &&
-        sessionCreditsRemaining > baseCredits.remaining
-      ) {
-        return {
-          ...baseCredits,
-          remaining: sessionCreditsRemaining,
-          limit: Math.max(baseCredits.limit, baseCredits.used + sessionCreditsRemaining),
-        };
-      }
-      return baseCredits;
-    },
-    [credits, disableDbInDev, sessionCreditsRemaining, transcriberSession?.user?.role]
+    () => credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
+    [credits, disableDbInDev]
   );
   const verifyHref = `/auth/verify-email${
     transcriberSession?.user?.email
@@ -197,7 +181,20 @@ export default function HomePage() {
         unlimited: Boolean(session.user.monthlyCreditsUnlimited),
       });
     }
-  }, [session]);
+    if (!session?.user?.id || disableDbInDev) return;
+    let cancelled = false;
+    fetch("/api/credits", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: CreditsResponse | null) => {
+        if (!cancelled && data?.credits) {
+          setCredits(data.credits);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [session, disableDbInDev]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

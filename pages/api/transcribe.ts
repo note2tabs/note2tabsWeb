@@ -19,6 +19,11 @@ import {
   isLocalNoDbServerMode,
 } from "../../lib/serverDevMode";
 import { serializeStoredTabPayload } from "../../lib/storedTabs";
+import {
+  raiseBackendCreditsToFloor,
+  setBackendCredits,
+  withBackendRemainingCredits,
+} from "../../lib/backendCredits";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -388,24 +393,6 @@ async function waitForBackendJobResult(initialPayload: unknown, headers: Record<
   return { jobId, completed: false, payload: currentPayload };
 }
 
-async function syncBackendCredits(userId: string, credits: number, headers: Record<string, string>) {
-  const response = await fetch(`${API_BASE}/api/v1/credits/set`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...headers,
-    },
-    body: JSON.stringify({
-      userId,
-      credits: Math.max(0, Math.floor(credits)),
-    }),
-  });
-  if (!response.ok) {
-    const bodyText = await response.text();
-    throw new Error(bodyText || "Failed to sync backend credits.");
-  }
-}
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
@@ -645,6 +632,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         : Math.max(1, Math.ceil(filePayload?.duration || DEFAULT_DURATION_SEC));
     const requiredCredits = durationToCredits(durationSec);
 
+    if (user?.id) {
+      if (isPremium) {
+        try {
+          const backendRemaining = await raiseBackendCreditsToFloor(
+            user.id,
+            refreshedCredits.remaining,
+            backendHeaders
+          );
+          if (typeof backendRemaining === "number") {
+            refreshedCredits = withBackendRemainingCredits(refreshedCredits, backendRemaining);
+            user.tokensRemaining = refreshedCredits.remaining;
+          }
+        } catch (error) {
+          console.warn("premium backend credit read failed; backend will enforce final balance", error);
+        }
+      } else {
+        await setBackendCredits(user.id, refreshedCredits.remaining, backendHeaders);
+      }
+    }
+
     if (refreshedCredits.remaining < requiredCredits) {
       const resetLabel = refreshedCredits.resetAt.slice(0, 10);
       const errorMessage = isPremium
@@ -656,10 +663,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           error: errorMessage,
           credits: refreshedCredits,
         });
-    }
-
-    if (user?.id) {
-      await syncBackendCredits(user.id, refreshedCredits.remaining, backendHeaders);
     }
 
     let reservedUnverifiedTranscription = false;
@@ -783,14 +786,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     let updatedTokens = user?.tokensRemaining ?? refreshedCredits.remaining;
     const updatedUsed = refreshedCredits.used + requiredCredits;
-    const updatedRemaining = Math.max(0, refreshedCredits.limit - updatedUsed);
+    const updatedRemaining = Math.max(0, refreshedCredits.remaining - requiredCredits);
     const creditsAfter = {
       ...refreshedCredits,
       used: updatedUsed,
+      limit: Math.max(refreshedCredits.limit, updatedUsed + updatedRemaining),
       remaining: updatedRemaining,
     };
     let persistedUser = user;
-    if (persistedUser?.role === "FREE") {
+    if (persistedUser && (persistedUser.role === "FREE" || isPremium)) {
       updatedTokens = updatedRemaining;
       try {
         await prisma.user.update({
