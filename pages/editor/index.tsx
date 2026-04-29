@@ -217,10 +217,10 @@ export default function EditorLandingPage() {
             </div>
             <div className="editor-faq-list">
               {editorFaqs.map((faq) => (
-                <article className="editor-faq-item" key={faq.question}>
-                  <h3>{faq.question}</h3>
+                <details className="editor-faq-item" key={faq.question}>
+                  <summary>{faq.question}</summary>
                   <p>{faq.answer}</p>
-                </article>
+                </details>
               ))}
             </div>
           </div>

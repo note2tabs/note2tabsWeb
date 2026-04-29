@@ -606,6 +606,7 @@ export default function JobPage() {
   const { job_id } = router.query;
   const [job, setJob] = useState<JobResponse | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingInFlightRef = useRef(false);
   const [hasWatchedAd, setHasWatchedAd] = useState(false);
   const [showFallbackVideo, setShowFallbackVideo] = useState(true);
   const [adContainerKey, setAdContainerKey] = useState(0);
@@ -787,7 +788,17 @@ export default function JobPage() {
 
   useEffect(() => {
     if (!job_id || typeof job_id !== "string") return;
-    void fetchJob(job_id);
+    const pollFetchJob = async () => {
+      if (pollingInFlightRef.current) return;
+      pollingInFlightRef.current = true;
+      try {
+        await fetchJob(job_id);
+      } finally {
+        pollingInFlightRef.current = false;
+      }
+    };
+
+    void pollFetchJob();
     const shouldPoll = !showReviewUi && !isFinalizedJob;
     if (!shouldPoll) {
       if (intervalRef.current) {
@@ -798,11 +809,11 @@ export default function JobPage() {
     }
     const pollVisibleJob = () => {
       if (typeof document !== "undefined" && document.hidden) return;
-      void fetchJob(job_id);
+      void pollFetchJob();
     };
     const handleVisibilityChange = () => {
       if (typeof document !== "undefined" && !document.hidden) {
-        void fetchJob(job_id);
+        void pollFetchJob();
       }
     };
     intervalRef.current = setInterval(pollVisibleJob, POLL_INTERVAL);

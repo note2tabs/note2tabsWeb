@@ -36,6 +36,7 @@ const providers: NextAuthOptions["providers"] = [
             passwordHash: true,
             emailVerified: true,
             emailVerifiedBool: true,
+            unverifiedTranscriptionUsed: true,
           },
         });
         if (!user?.passwordHash) return null;
@@ -65,6 +66,7 @@ const providers: NextAuthOptions["providers"] = [
           role: user.role,
           tokensRemaining: user.tokensRemaining,
           isEmailVerified,
+          unverifiedTranscriptionUsed: user.unverifiedTranscriptionUsed,
         };
       } catch (error) {
         markPrismaUnavailable(error);
@@ -132,6 +134,7 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as any).role;
         token.tokensRemaining = (user as any).tokensRemaining;
         token.isEmailVerified = Boolean((user as any).isEmailVerified);
+        token.unverifiedTranscriptionUsed = Boolean((user as any).unverifiedTranscriptionUsed);
       }
 
       // For OAuth logins, fetch the user to sync role/tokens.
@@ -145,6 +148,7 @@ export const authOptions: NextAuthOptions = {
               tokensRemaining: true,
               emailVerified: true,
               emailVerifiedBool: true,
+              unverifiedTranscriptionUsed: true,
             },
           });
           if (dbUser) {
@@ -152,6 +156,7 @@ export const authOptions: NextAuthOptions = {
             token.role = dbUser.role;
             token.tokensRemaining = dbUser.tokensRemaining;
             token.isEmailVerified = Boolean((dbUser as any).emailVerifiedBool || dbUser.emailVerified);
+            token.unverifiedTranscriptionUsed = dbUser.unverifiedTranscriptionUsed;
           }
         } catch (error) {
           markPrismaUnavailable(error);
@@ -169,6 +174,7 @@ export const authOptions: NextAuthOptions = {
         session.user.tokensRemaining =
           (token.tokensRemaining as number) ?? devCredits.remaining;
         session.user.isEmailVerified = Boolean(token.isEmailVerified);
+        session.user.unverifiedTranscriptionUsed = Boolean(token.unverifiedTranscriptionUsed);
         session.user.monthlyCreditsUsed = devCredits.used;
         session.user.monthlyCreditsLimit = devCredits.limit;
         session.user.monthlyCreditsRemaining = devCredits.remaining;
@@ -183,6 +189,7 @@ export const authOptions: NextAuthOptions = {
         tokensRemaining: number;
         emailVerified: Date | null;
         emailVerifiedBool: boolean;
+        unverifiedTranscriptionUsed: boolean;
         createdAt: Date;
       } | null = null;
       try {
@@ -194,6 +201,7 @@ export const authOptions: NextAuthOptions = {
             tokensRemaining: true,
             emailVerified: true,
             emailVerifiedBool: true,
+            unverifiedTranscriptionUsed: true,
             createdAt: true,
           },
         });
@@ -207,6 +215,7 @@ export const authOptions: NextAuthOptions = {
         session.user.tokensRemaining = dbUser.tokensRemaining;
         const isEmailVerified = Boolean((dbUser as any).emailVerifiedBool || dbUser.emailVerified);
         session.user.isEmailVerified = isEmailVerified;
+        session.user.unverifiedTranscriptionUsed = dbUser.unverifiedTranscriptionUsed;
         if (isEmailVerified && !(dbUser as any).emailVerifiedBool) {
           try {
             await prisma.user.update({
@@ -223,6 +232,7 @@ export const authOptions: NextAuthOptions = {
         session.user.role = (token.role as string) || "FREE";
         session.user.tokensRemaining = (token.tokensRemaining as number) ?? 0;
         session.user.isEmailVerified = Boolean(token.isEmailVerified);
+        session.user.unverifiedTranscriptionUsed = Boolean(token.unverifiedTranscriptionUsed);
       }
       const creditUserId = session.user.id;
       if (creditUserId && !shouldBypassPrismaSync()) {

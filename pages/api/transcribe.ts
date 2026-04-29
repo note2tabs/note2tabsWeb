@@ -418,6 +418,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (upper === "FILE" || upper === "YOUTUBE") return upper as Mode;
     return null;
   };
+  let reservedUnverifiedTranscriptionUserId: string | null = null;
+  const releaseUnverifiedTranscriptionReservation = async () => {
+    if (!reservedUnverifiedTranscriptionUserId) return;
+    const userId = reservedUnverifiedTranscriptionUserId;
+    reservedUnverifiedTranscriptionUserId = null;
+    try {
+      await prisma.user.updateMany({
+        where: {
+          id: userId,
+          emailVerified: null,
+          emailVerifiedBool: false,
+          unverifiedTranscriptionUsed: true,
+        },
+        data: { unverifiedTranscriptionUsed: false },
+      });
+    } catch (error) {
+      console.warn("transcribe unverified allowance reservation release failed", error);
+    }
+  };
 
   try {
     const allowDevGuestTranscription = isLocalNoDbServerMode;
@@ -436,6 +455,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       tokensRemaining: number;
       emailVerified: Date | null;
       emailVerifiedBool: boolean;
+      unverifiedTranscriptionUsed: boolean;
       createdAt: Date;
     } | null = null;
     let isPremium = false;
@@ -451,6 +471,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             tokensRemaining: true,
             emailVerified: true,
             emailVerifiedBool: true,
+            unverifiedTranscriptionUsed: true,
             createdAt: true,
           },
         });
@@ -461,9 +482,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           console.warn("transcribe user lookup returned no user, using dev guest fallback");
         } else {
           const isEmailVerified = Boolean((user as any).emailVerifiedBool || user.emailVerified);
-          if (isEmailVerificationRequiredServer && !isEmailVerified) {
+          if (isEmailVerificationRequiredServer && !isEmailVerified && user.unverifiedTranscriptionUsed) {
             return res.status(403).json({
-              error: "Please verify your email before using the transcriber.",
+              error: "Please verify your email to continue using the transcriber.",
               verificationRequired: true,
             });
           }
@@ -637,6 +658,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await syncBackendCredits(user.id, refreshedCredits.remaining, backendHeaders);
     }
 
+    let reservedUnverifiedTranscription = false;
+    const shouldReserveUnverifiedTranscription =
+      Boolean(user?.id) &&
+      isEmailVerificationRequiredServer &&
+      !Boolean((user as any)?.emailVerifiedBool || user?.emailVerified);
+    if (shouldReserveUnverifiedTranscription && user?.id) {
+      const reservation = await prisma.user.updateMany({
+        where: {
+          id: user.id,
+          emailVerified: null,
+          emailVerifiedBool: false,
+          unverifiedTranscriptionUsed: false,
+        },
+        data: { unverifiedTranscriptionUsed: true },
+      });
+      if (reservation.count !== 1) {
+        return res.status(403).json({
+          error: "Please verify your email to continue using the transcriber.",
+          verificationRequired: true,
+        });
+      }
+      user.unverifiedTranscriptionUsed = true;
+      reservedUnverifiedTranscription = true;
+      reservedUnverifiedTranscriptionUserId = user.id;
+    }
+
     let backendJobId: string | undefined;
     const cleanupUploadedFile = () => {
       if (uploadedFile?.filepath) {
@@ -661,6 +708,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       if (!ytRes.ok) {
         const bodyText = await ytRes.text();
+        await releaseUnverifiedTranscriptionReservation();
         return res.status(ytRes.status).json({ error: `yt_processor error: ${bodyText}` });
       }
 
@@ -685,6 +733,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         if (!processRes.ok) {
           const bodyText = await processRes.text();
+          await releaseUnverifiedTranscriptionReservation();
           return res.status(processRes.status).json({ error: `process_audio_s3 error: ${bodyText}` });
         }
         const data = await fetchJson<unknown>(processRes);
@@ -713,6 +762,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         if (!processRes.ok) {
           const bodyText = await processRes.text();
+          await releaseUnverifiedTranscriptionReservation();
           return res.status(processRes.status).json({ error: `process_audio error: ${bodyText}` });
         }
         const data = await fetchJson<unknown>(processRes);
@@ -722,8 +772,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (!backendJobId) {
+      await releaseUnverifiedTranscriptionReservation();
       return res.status(502).json({ error: "Backend did not return a job id." });
     }
+    reservedUnverifiedTranscriptionUserId = null;
 
     let updatedTokens = user?.tokensRemaining ?? refreshedCredits.remaining;
     const updatedUsed = refreshedCredits.used + requiredCredits;
@@ -755,8 +807,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       credits: user ? creditsAfter : undefined,
       jobId: backendJobId,
       status: "processing",
+      unverifiedTranscriptionUsed: reservedUnverifiedTranscription || undefined,
     });
   } catch (error) {
+    await releaseUnverifiedTranscriptionReservation();
     console.error("transcribe error", error);
     return res.status(500).json({ error: "Transcription failed." });
   }

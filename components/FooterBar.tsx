@@ -3,6 +3,7 @@ import Link from "next/link";
 export default function FooterBar() {
   const openCookieSettings = () => {
     if (typeof window === "undefined") return;
+    (window as Window & { __note2tabsCookieSettingsRequested?: boolean }).__note2tabsCookieSettingsRequested = true;
     window.dispatchEvent(new Event("note2tabs:open-cookie-settings"));
   };
 

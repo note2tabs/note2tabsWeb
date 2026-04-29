@@ -7,6 +7,7 @@ declare module "next-auth" {
       role?: string;
       tokensRemaining?: number;
       isEmailVerified?: boolean;
+      unverifiedTranscriptionUsed?: boolean;
       monthlyCreditsUsed?: number;
       monthlyCreditsLimit?: number;
       monthlyCreditsRemaining?: number;
@@ -19,6 +20,7 @@ declare module "next-auth" {
     role?: string;
     tokensRemaining?: number;
     isEmailVerified?: boolean;
+    unverifiedTranscriptionUsed?: boolean;
   }
 }
 
@@ -28,5 +30,6 @@ declare module "next-auth/jwt" {
     role?: string;
     tokensRemaining?: number;
     isEmailVerified?: boolean;
+    unverifiedTranscriptionUsed?: boolean;
   }
 }

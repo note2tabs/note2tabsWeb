@@ -72,10 +72,14 @@ export default function CookieConsentBanner() {
     }
 
     const openBanner = () => {
+      (window as Window & { __note2tabsCookieSettingsRequested?: boolean }).__note2tabsCookieSettingsRequested = false;
       setConsentState(getCookie(CONSENT_COOKIE) === "denied" ? "denied" : "granted");
       setVisible(true);
     };
     window.addEventListener("note2tabs:open-cookie-settings", openBanner as EventListener);
+    if ((window as Window & { __note2tabsCookieSettingsRequested?: boolean }).__note2tabsCookieSettingsRequested) {
+      openBanner();
+    }
     return () => {
       window.removeEventListener("note2tabs:open-cookie-settings", openBanner as EventListener);
     };

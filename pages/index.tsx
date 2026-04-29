@@ -22,11 +22,13 @@ type TabsResponse = {
   status?: string;
   gteEditorId?: string;
   verificationRequired?: boolean;
+  unverifiedTranscriptionUsed?: boolean;
 };
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
 const MAX_FREE_BYTES = 50 * 1024 * 1024;
 const MAX_PREMIUM_BYTES = 200 * 1024 * 1024;
+const AUDIO_ACCEPT = "audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.webm";
 
 const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 
@@ -114,6 +116,7 @@ export default function HomePage() {
   const [pricingBusy, setPricingBusy] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
+  const [localUnverifiedTranscriptionUsed, setLocalUnverifiedTranscriptionUsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
   const convertInFlightRef = useRef(false);
@@ -122,6 +125,9 @@ export default function HomePage() {
   const isSignedIn = Boolean(transcriberSession);
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
+  const unverifiedTranscriptionUsed =
+    localUnverifiedTranscriptionUsed || Boolean(transcriberSession?.user?.unverifiedTranscriptionUsed);
+  const canUseUnverifiedTranscription = !requireVerifiedEmail || isEmailVerified || !unverifiedTranscriptionUsed;
   const displayedCredits = useMemo(
     () => credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
     [credits, disableDbInDev]
@@ -162,6 +168,7 @@ export default function HomePage() {
   const shouldDeferEditorSync = Boolean(appendEditorId);
 
   useEffect(() => {
+    setLocalUnverifiedTranscriptionUsed(Boolean(session?.user?.unverifiedTranscriptionUsed));
     if (session?.user?.monthlyCreditsUsed !== undefined) {
       setCredits({
         used: session.user.monthlyCreditsUsed ?? 0,
@@ -286,7 +293,7 @@ export default function HomePage() {
   const youtubeValid = useMemo(() => Boolean(youtubeId), [youtubeId]);
 
   const canSubmit = useMemo(() => {
-    if (isSignedIn && !isEmailVerified) return false;
+    if (isSignedIn && !canUseUnverifiedTranscription) return false;
     if (mode === "FILE") return Boolean(selectedFile) && !loading;
     return youtubeValid && youtubeTimeRangeValid && !loading;
   }, [
@@ -296,7 +303,7 @@ export default function HomePage() {
     youtubeTimeRangeValid,
     loading,
     isSignedIn,
-    isEmailVerified,
+    canUseUnverifiedTranscription,
   ]);
   const submitLabel = loading
     ? mode === "YOUTUBE"
@@ -385,8 +392,8 @@ export default function HomePage() {
       signIn(undefined, { callbackUrl: "/" });
       return false;
     }
-    if (transcriberSession && !isEmailVerified) {
-      setError("Please verify your email before using the transcriber.");
+    if (transcriberSession && !canUseUnverifiedTranscription) {
+      setError("Please verify your email to continue using the transcriber.");
       return false;
     }
 
@@ -556,6 +563,9 @@ export default function HomePage() {
         if (data.credits) {
           setCredits(data.credits);
         }
+        if (data.unverifiedTranscriptionUsed) {
+          setLocalUnverifiedTranscriptionUsed(true);
+        }
         setStatus("Getting things started. Opening progress screen...");
         sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
         const jobParams = new URLSearchParams();
@@ -574,7 +584,8 @@ export default function HomePage() {
           setCredits(data.credits);
         }
         if (data.verificationRequired) {
-          setError("Please verify your email before using the transcriber.");
+          setLocalUnverifiedTranscriptionUsed(true);
+          setError("Please verify your email to continue using the transcriber.");
           return;
         }
         setError(data?.error || "Transcription failed. Please try again.");
@@ -591,6 +602,9 @@ export default function HomePage() {
         setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
         if (data.credits) {
           setCredits(data.credits);
+        }
+        if (data.unverifiedTranscriptionUsed) {
+          setLocalUnverifiedTranscriptionUsed(true);
         }
         sendEvent("transcribe_success", { mode, jobId: data.jobId });
         if (transcriberSession && data.tabJobId) {
@@ -846,7 +860,6 @@ export default function HomePage() {
                         className={`funnel-input ${mode === "FILE" ? "is-file" : "is-url"} ${
                           dragActive ? "active" : ""
                         }`}
-                        onClick={mode === "FILE" ? () => fileInputRef.current?.click() : undefined}
                         onDrop={mode === "FILE" ? onDrop : undefined}
                         onDragOver={mode === "FILE" ? onDragOver : undefined}
                         onDragEnter={mode === "FILE" ? onDragEnter : undefined}
@@ -872,8 +885,10 @@ export default function HomePage() {
                         <input
                           ref={fileInputRef}
                           type="file"
-                          accept="audio/*"
-                          hidden
+                          accept={AUDIO_ACCEPT}
+                          className="native-file-input"
+                          aria-label="Choose audio file"
+                          disabled={mode !== "FILE" || loading}
                           onChange={onFileChange}
                         />
                       </div>
@@ -952,9 +967,9 @@ export default function HomePage() {
 
               {status && <div className="status">{status}</div>}
               {error && <div className="error">{error}</div>}
-              {isSignedIn && !isEmailVerified && (
+              {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
                 <div className="notice">
-                  Verify your email to use the transcriber.{" "}
+                  Verify your email to continue using the transcriber.{" "}
                   <Link href={verifyHref} className="button-link">
                     Verify now
                   </Link>

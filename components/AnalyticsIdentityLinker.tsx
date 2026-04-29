@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { generateFingerprint } from "../lib/fingerprint";
+import { scheduleIdle } from "../lib/idle";
 
 const STORAGE_PREFIX = "analytics_identity_linked:";
 
@@ -28,35 +28,38 @@ export default function AnalyticsIdentityLinker() {
       return;
     }
 
-    void (async () => {
-      try {
-        let fingerprintId: string | undefined;
+    return scheduleIdle(() => {
+      void (async () => {
         try {
-          const result = await generateFingerprint();
-          fingerprintId = result.fingerprintId;
+          let fingerprintId: string | undefined;
+          try {
+            const { generateFingerprint } = await import("../lib/fingerprint");
+            const result = await generateFingerprint();
+            fingerprintId = result.fingerprintId;
+          } catch {
+            // best effort
+          }
+
+          const anonId = getCookie("analytics_anon");
+          const sessionId = getCookie("analytics_session");
+
+          await fetch("/api/analytics/link-identity", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              source: "login",
+              fingerprintId,
+              anonId,
+              sessionId,
+            }),
+          });
         } catch {
-          // best effort
+          // ignore linking errors on client
+        } finally {
+          window.localStorage.setItem(storageKey, new Date().toISOString());
         }
-
-        const anonId = getCookie("analytics_anon");
-        const sessionId = getCookie("analytics_session");
-
-        await fetch("/api/analytics/link-identity", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            source: "login",
-            fingerprintId,
-            anonId,
-            sessionId,
-          }),
-        });
-      } catch {
-        // ignore linking errors on client
-      } finally {
-        window.localStorage.setItem(storageKey, new Date().toISOString());
-      }
-    })();
+      })();
+    });
   }, [session?.user?.id, status]);
 
   return null;

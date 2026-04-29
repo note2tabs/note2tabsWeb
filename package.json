@@ -53,6 +53,7 @@
     "@types/react-dom": "^18.2.14",
     "autoprefixer": "^10.4.16",
     "baseline-browser-mapping": "^2.9.16",
+    "critters": "^0.0.23",
     "dotenv": "^17.4.2",
     "node-mocks-http": "^1.17.2",
     "patch-package": "^8.0.1",
@@ -65,5 +66,12 @@
   "overrides": {
     "postcss": "^8.5.12",
     "uuid": "^14.0.0"
-  }
+  },
+  "browserslist": [
+    "chrome >= 111",
+    "edge >= 111",
+    "firefox >= 111",
+    "safari >= 16.1",
+    "ios_saf >= 16.1"
+  ]
 }

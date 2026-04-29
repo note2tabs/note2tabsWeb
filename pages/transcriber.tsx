@@ -23,11 +23,13 @@ type TabsResponse = {
   status?: string;
   gteEditorId?: string;
   verificationRequired?: boolean;
+  unverifiedTranscriptionUsed?: boolean;
 };
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
 const MAX_FREE_BYTES = 50 * 1024 * 1024;
 const MAX_PREMIUM_BYTES = 200 * 1024 * 1024;
+const AUDIO_ACCEPT = "audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.webm";
 
 const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 
@@ -113,6 +115,7 @@ export default function TranscriberPage() {
   const [editorChoice, setEditorChoice] = useState<string>("new");
   const [editorLoading, setEditorLoading] = useState(false);
   const [selectedSegments, setSelectedSegments] = useState<Set<number>>(new Set());
+  const [localUnverifiedTranscriptionUsed, setLocalUnverifiedTranscriptionUsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
   const convertInFlightRef = useRef(false);
@@ -121,6 +124,9 @@ export default function TranscriberPage() {
   const isSignedIn = Boolean(transcriberSession);
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
+  const unverifiedTranscriptionUsed =
+    localUnverifiedTranscriptionUsed || Boolean(transcriberSession?.user?.unverifiedTranscriptionUsed);
+  const canUseUnverifiedTranscription = !requireVerifiedEmail || isEmailVerified || !unverifiedTranscriptionUsed;
   const displayedCredits = useMemo(
     () => credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
     [credits, disableDbInDev]
@@ -161,6 +167,7 @@ export default function TranscriberPage() {
   const shouldDeferEditorSync = Boolean(appendEditorId);
 
   useEffect(() => {
+    setLocalUnverifiedTranscriptionUsed(Boolean(session?.user?.unverifiedTranscriptionUsed));
     if (session?.user?.monthlyCreditsUsed !== undefined) {
       setCredits({
         used: session.user.monthlyCreditsUsed ?? 0,
@@ -285,7 +292,7 @@ export default function TranscriberPage() {
   const youtubeValid = useMemo(() => Boolean(youtubeId), [youtubeId]);
 
   const canSubmit = useMemo(() => {
-    if (isSignedIn && !isEmailVerified) return false;
+    if (isSignedIn && !canUseUnverifiedTranscription) return false;
     if (mode === "FILE") return Boolean(selectedFile) && !loading;
     return youtubeValid && youtubeTimeRangeValid && !loading;
   }, [
@@ -295,7 +302,7 @@ export default function TranscriberPage() {
     youtubeTimeRangeValid,
     loading,
     isSignedIn,
-    isEmailVerified,
+    canUseUnverifiedTranscription,
   ]);
   const submitLabel = loading
     ? mode === "YOUTUBE"
@@ -384,8 +391,8 @@ export default function TranscriberPage() {
       signIn(undefined, { callbackUrl: "/" });
       return;
     }
-    if (transcriberSession && !isEmailVerified) {
-      setError("Please verify your email before using the transcriber.");
+    if (transcriberSession && !canUseUnverifiedTranscription) {
+      setError("Please verify your email to continue using the transcriber.");
       return;
     }
 
@@ -543,6 +550,9 @@ export default function TranscriberPage() {
         if (data.credits) {
           setCredits(data.credits);
         }
+        if (data.unverifiedTranscriptionUsed) {
+          setLocalUnverifiedTranscriptionUsed(true);
+        }
         setStatus("Opening progress screen...");
         sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
         const jobParams = new URLSearchParams();
@@ -561,7 +571,8 @@ export default function TranscriberPage() {
           setCredits(data.credits);
         }
         if (data.verificationRequired) {
-          setError("Please verify your email before using the transcriber.");
+          setLocalUnverifiedTranscriptionUsed(true);
+          setError("Please verify your email to continue using the transcriber.");
           return;
         }
         setError(data?.error || "Transcription failed. Please try again.");
@@ -578,6 +589,9 @@ export default function TranscriberPage() {
       setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
       if (data.credits) {
         setCredits(data.credits);
+      }
+      if (data.unverifiedTranscriptionUsed) {
+        setLocalUnverifiedTranscriptionUsed(true);
       }
       sendEvent("transcribe_success", { mode, jobId: data.jobId });
       if (transcriberSession && data.tabJobId) {
@@ -797,7 +811,6 @@ export default function TranscriberPage() {
                 {mode === "FILE" ? (
                   <div
                     className={`dropzone ${dragActive ? "active" : ""}`}
-                    onClick={() => fileInputRef.current?.click()}
                     onDrop={onDrop}
                     onDragOver={onDragOver}
                     onDragEnter={onDragEnter}
@@ -810,8 +823,10 @@ export default function TranscriberPage() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="audio/*"
-                      hidden
+                      accept={AUDIO_ACCEPT}
+                      className="native-file-input"
+                      aria-label="Choose audio file"
+                      disabled={loading}
                       onChange={onFileChange}
                     />
                   </div>
@@ -887,9 +902,9 @@ export default function TranscriberPage() {
 
               {status && <div className="status">{status}</div>}
               {error && <div className="error">{error}</div>}
-              {isSignedIn && !isEmailVerified && (
+              {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
                 <div className="notice">
-                  Verify your email to use the transcriber.{" "}
+                  Verify your email to continue using the transcriber.{" "}
                   <Link href={verifyHref} className="button-link">
                     Verify now
                   </Link>

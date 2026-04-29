@@ -10,6 +10,7 @@ const labelStyles =
   "block text-sm font-medium text-gray-700 mb-2";
 const inputBase =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition";
+const AUDIO_ACCEPT = "audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.webm";
 
 export default function UploadForm({ onSubmit, loading = false, serverError }: UploadFormProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -76,7 +77,7 @@ export default function UploadForm({ onSubmit, loading = false, serverError }: U
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
           onDrop={onDrop}
-          className={`rounded-xl border border-dashed px-4 py-6 text-center transition ${
+          className={`relative rounded-xl border border-dashed px-4 py-6 text-center transition ${
             dragActive ? "border-blue-500 bg-blue-50" : "border-gray-300 bg-white"
           }`}
         >
@@ -85,7 +86,6 @@ export default function UploadForm({ onSubmit, loading = false, serverError }: U
           <div className="mt-3 flex items-center justify-center gap-3">
             <button
               type="button"
-              onClick={() => !loading && fileInputRef.current?.click()}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
               disabled={loading}
             >
@@ -97,10 +97,11 @@ export default function UploadForm({ onSubmit, loading = false, serverError }: U
             id="fileInput"
             name="file"
             type="file"
-            accept="audio/*"
+            accept={AUDIO_ACCEPT}
             ref={fileInputRef}
             onChange={onFileChange}
-            className="hidden"
+            aria-label="Choose audio file"
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
             disabled={loading}
           />
         </div>

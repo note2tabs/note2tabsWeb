@@ -18,6 +18,8 @@ export default function NavBar() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
+  const scrolledRef = useRef(false);
+  const scrollFrameRef = useRef<number | null>(null);
   const isReadingArticle = router.pathname === "/blog/[slug]";
   const isHome = router.pathname === "/";
   const role = session?.user?.role || "";
@@ -35,10 +37,27 @@ export default function NavBar() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const updateScrollState = () => setIsScrolled(window.scrollY > 0);
+    const updateScrollState = () => {
+      const next = window.scrollY > 0;
+      if (scrolledRef.current === next) return;
+      scrolledRef.current = next;
+      setIsScrolled(next);
+    };
+    const requestScrollUpdate = () => {
+      if (scrollFrameRef.current !== null) return;
+      scrollFrameRef.current = window.requestAnimationFrame(() => {
+        scrollFrameRef.current = null;
+        updateScrollState();
+      });
+    };
     updateScrollState();
-    window.addEventListener("scroll", updateScrollState, { passive: true });
-    return () => window.removeEventListener("scroll", updateScrollState);
+    window.addEventListener("scroll", requestScrollUpdate, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", requestScrollUpdate);
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {

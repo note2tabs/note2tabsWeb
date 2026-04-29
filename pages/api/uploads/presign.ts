@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
+import { prisma } from "../../../lib/prisma";
 import {
   isEmailVerificationRequiredServer,
   isLocalNoDbServerMode,
@@ -29,11 +30,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session?.user?.id) {
     return res.status(401).json({ error: "Not authenticated" });
   }
-  if (isEmailVerificationRequiredServer && !session.user.isEmailVerified) {
-    return res.status(403).json({
-      error: "Please verify your email before using the transcriber.",
-      verificationRequired: true,
+  if (isEmailVerificationRequiredServer) {
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        emailVerified: true,
+        emailVerifiedBool: true,
+        unverifiedTranscriptionUsed: true,
+      },
     });
+    const isEmailVerified = Boolean(user?.emailVerifiedBool || user?.emailVerified);
+    if (!user || (!isEmailVerified && user.unverifiedTranscriptionUsed)) {
+      return res.status(403).json({
+        error: "Please verify your email to continue using the transcriber.",
+        verificationRequired: true,
+      });
+    }
   }
 
   const { fileName, contentType, size } = req.body || {};
