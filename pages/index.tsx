@@ -33,6 +33,7 @@ const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 const MAX_YT_SNIPPET_SEC = 30;
 const MAX_YT_START_SEC = 9 * 60;
 const MAX_YT_END_SEC = 10 * 60;
+const HOW_STEP_DURATION_MS = 4000;
 
 const isYouTubeId = (value: string) => /^[a-zA-Z0-9_-]{11}$/.test(value);
 
@@ -677,8 +678,48 @@ export default function HomePage() {
     }
   };
 
+  const howSteps = [
+    {
+      title: "Upload or paste a YouTube link",
+      text: "Drop in a song, riff, or recording and let Note2Tabs transcribe the music to tabs.",
+      video: "/videos/upload.mkv",
+    },
+    {
+      title: "Edit your guitar tabs",
+      text: "Edit your generated tabs or make your own. Adjust timings, find the right fingerings, find new ways to play your chords, or try any of our other smart tools for guitar tabs!",
+      video: "/videos/edit.mp4",
+    },
+    {
+      title: "Practice and play",
+      text: "Adjust your tabs to suit your playing style and start playing. Listen to your tracks, add a drum beat and play along. You can even export as MIDI or ASCII text tabs!",
+      video: "/videos/play.mp4",
+    },
+  ];
 
-  
+  const [activeHowStep, setActiveHowStep] = useState(0);
+  const [howAutoAdvanceEnabled, setHowAutoAdvanceEnabled] = useState(true);
+  const [howManualPlayNonce, setHowManualPlayNonce] = useState(0);
+
+  useEffect(() => {
+    if (!howAutoAdvanceEnabled || howSteps.length === 0) return;
+    const timer = window.setTimeout(() => {
+      setActiveHowStep((prev) => {
+        if (prev >= howSteps.length - 1) {
+          setHowAutoAdvanceEnabled(false);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, HOW_STEP_DURATION_MS);
+    return () => window.clearTimeout(timer);
+  }, [activeHowStep, howAutoAdvanceEnabled, howSteps.length]);
+
+  const handleHowStepClick = (index: number) => {
+    setHowAutoAdvanceEnabled(false);
+    setActiveHowStep(index);
+    setHowManualPlayNonce((prev) => prev + 1);
+  };
+
 
   const handleOpenGuestEditor = async () => {
     if (!tabsResult || importBusy) return;
@@ -1088,30 +1129,28 @@ export default function HomePage() {
             <div className="how-lovable" data-reveal>
               <div className="how-video-card">
                 <video
+                  key={`${howSteps[activeHowStep].video}-${howManualPlayNonce}-${howAutoAdvanceEnabled ? "auto" : "manual"}`}
                   className="how-video active"
-                  src="/videos/upload.mp4"
-                  autoPlay
+                  src={howSteps[activeHowStep].video}
+                  autoPlay={howAutoAdvanceEnabled || howManualPlayNonce > 0}
                   muted
-                  loop
+                  loop={howAutoAdvanceEnabled}
                   playsInline
                 />
               </div>
 
               <div className="how-copy-list">
-                <div className="how-copy-item active">
-                  <h3>Upload or paste a YouTube link</h3>
-                  <p>Drop in a song, riff, or recording and let Note2Tabs transcribe the music to tabs. </p>
-                </div>
-
-                <div className="how-copy-item">
-                  <h3>Edit your guitar tabs</h3>
-                  <p>Edit your generated tabs or make your own. Adjust timings, find the right fingerings, find new ways to play your chords, or try any of our other smart tools for guitar tabs!</p>
-                </div>
-
-                <div className="how-copy-item">
-                  <h3>Practice and play</h3>
-                  <p>Adjust your tabs to suit your playing style and start playing. Listen to your tracks, add a drum-beat and play along. You can even export as MIDI or ASCII text tabs!</p>
-                </div>
+                {howSteps.map((step, index) => (
+                  <button
+                    key={step.title}
+                    type="button"
+                    className={`how-copy-item ${activeHowStep === index ? "active" : ""}`}
+                    onClick={() => handleHowStepClick(index)}
+                  >
+                    <h3>{step.title}</h3>
+                    <p>{step.text}</p>
+                  </button>
+                ))}
               </div>
             </div>
           </div>

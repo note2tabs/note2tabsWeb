@@ -4622,12 +4622,31 @@ input[type="number"] {
 }
 
 .how-copy-item {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+
   opacity: 0.42;
   transition: opacity 180ms ease, transform 180ms ease;
 }
 
+.how-copy-item:hover {
+  opacity: 0.75;
+  transform: translateY(-2px);
+}
+
 .how-copy-item.active {
   opacity: 1;
+  transform: translateY(0);
+}
+
+.how-copy-item:focus-visible {
+  outline: 2px solid rgba(15, 23, 42, 0.2);
+  outline-offset: 8px;
+  border-radius: 12px;
 }
 
 .how-copy-item h3 {
