@@ -677,6 +677,9 @@ export default function HomePage() {
     }
   };
 
+
+  
+
   const handleOpenGuestEditor = async () => {
     if (!tabsResult || importBusy) return;
     setImportBusy(true);
@@ -1081,26 +1084,35 @@ export default function HomePage() {
             <h2 className="section-title" data-reveal>
               How it works
             </h2>
-            <div className="how-flow" data-reveal>
-              <article className="how-step">
-                <span className="how-step-index">1</span>
-                <h3>Transcribe</h3>
-                <p>Upload music or paste a youtube link to start transcribing</p>
-              </article>
 
+            <div className="how-lovable" data-reveal>
+              <div className="how-video-card">
+                <video
+                  className="how-video active"
+                  src="/videos/upload.mp4"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                />
+              </div>
 
-              <article className="how-step">
-                <span className="how-step-index">2</span>
-                <h3>Fine-Tune</h3>
-                <p>Tune the transcription settings until the notes sound right</p>
-              </article>
+              <div className="how-copy-list">
+                <div className="how-copy-item active">
+                  <h3>Upload or paste a YouTube link</h3>
+                  <p>Drop in a song, riff, or recording and let Note2Tabs transcribe the music to tabs. </p>
+                </div>
 
+                <div className="how-copy-item">
+                  <h3>Edit your guitar tabs</h3>
+                  <p>Edit your generated tabs or make your own. Adjust timings, find the right fingerings, find new ways to play your chords, or try any of our other smart tools for guitar tabs!</p>
+                </div>
 
-              <article className="how-step">
-                <span className="how-step-index">3</span>
-                <h3>Tabs</h3>
-                <p>You can edit the tabs or optimize the guitar fingerings to your liking, using the editor.</p>
-              </article>
+                <div className="how-copy-item">
+                  <h3>Practice and play</h3>
+                  <p>Adjust your tabs to suit your playing style and start playing. Listen to your tracks, add a drum-beat and play along. You can even export as MIDI or ASCII text tabs!</p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
