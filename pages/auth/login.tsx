@@ -5,6 +5,21 @@ import { useRouter } from "next/router";
 import { generateFingerprint } from "../../lib/fingerprint";
 import NoIndexHead from "../../components/NoIndexHead";
 
+const authErrorMessage = (error?: string | string[]) => {
+  const value = Array.isArray(error) ? error[0] : error;
+  if (!value) return null;
+  if (value === "OAuthAccountNotLinked") {
+    return "This email is already connected to an account. Try Google again or log in with your password.";
+  }
+  if (value === "OAuthCallback" || value === "OAuthSignin") {
+    return "Google sign in could not finish. Please try again.";
+  }
+  if (value === "CredentialsSignin") {
+    return "Invalid email or password.";
+  }
+  return "Sign in failed. Please try again.";
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -21,6 +36,7 @@ export default function LoginPage() {
   }, [router.query.next]);
   const signupHref =
     nextHref === "/" ? "/auth/signup" : `/auth/signup?next=${encodeURIComponent(nextHref)}`;
+  const routeError = useMemo(() => authErrorMessage(router.query.error), [router.query.error]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -83,7 +99,7 @@ export default function LoginPage() {
                 className="form-input"
               />
             </div>
-            {error && <div className="error">{error}</div>}
+            {(error || routeError) && <div className="error">{error || routeError}</div>}
             <button type="submit" disabled={loading} className="button-primary">
               {loading ? "Signing in..." : "Log in"}
             </button>

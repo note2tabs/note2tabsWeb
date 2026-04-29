@@ -5,6 +5,18 @@ import { signIn } from "next-auth/react";
 import { generateFingerprint } from "../../lib/fingerprint";
 import NoIndexHead from "../../components/NoIndexHead";
 
+const authErrorMessage = (error?: string | string[]) => {
+  const value = Array.isArray(error) ? error[0] : error;
+  if (!value) return null;
+  if (value === "OAuthAccountNotLinked") {
+    return "This email already has an account. Continue with Google again or log in instead.";
+  }
+  if (value === "OAuthCallback" || value === "OAuthSignin") {
+    return "Google sign up could not finish. Please try again.";
+  }
+  return "Google sign up failed. Please try again.";
+};
+
 export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -22,6 +34,7 @@ export default function SignupPage() {
   }, [router.query.next]);
   const loginHref =
     nextHref === "/" ? "/auth/login" : `/auth/login?next=${encodeURIComponent(nextHref)}`;
+  const routeError = useMemo(() => authErrorMessage(router.query.error), [router.query.error]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -98,7 +111,7 @@ export default function SignupPage() {
                 className="form-input"
               />
             </div>
-            {error && <div className="error">{error}</div>}
+            {(error || routeError) && <div className="error">{error || routeError}</div>}
             <button type="submit" disabled={loading} className="button-primary">
               {loading ? "Creating account..." : "Sign up"}
             </button>
