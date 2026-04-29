@@ -128,9 +128,28 @@ export default function HomePage() {
   const unverifiedTranscriptionUsed =
     localUnverifiedTranscriptionUsed || Boolean(transcriberSession?.user?.unverifiedTranscriptionUsed);
   const canUseUnverifiedTranscription = !requireVerifiedEmail || isEmailVerified || !unverifiedTranscriptionUsed;
+  const sessionCreditsRemaining =
+    typeof transcriberSession?.user?.tokensRemaining === "number"
+      ? transcriberSession.user.tokensRemaining
+      : null;
   const displayedCredits = useMemo(
-    () => credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
-    [credits, disableDbInDev]
+    () => {
+      const baseCredits = credits ?? (disableDbInDev ? buildDevCreditsSummary() : null);
+      if (
+        baseCredits &&
+        isPremiumRole(transcriberSession?.user?.role) &&
+        sessionCreditsRemaining !== null &&
+        sessionCreditsRemaining > baseCredits.remaining
+      ) {
+        return {
+          ...baseCredits,
+          remaining: sessionCreditsRemaining,
+          limit: Math.max(baseCredits.limit, baseCredits.used + sessionCreditsRemaining),
+        };
+      }
+      return baseCredits;
+    },
+    [credits, disableDbInDev, sessionCreditsRemaining, transcriberSession?.user?.role]
   );
   const verifyHref = `/auth/verify-email${
     transcriberSession?.user?.email

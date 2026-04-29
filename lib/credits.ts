@@ -158,3 +158,21 @@ export function buildCreditsSummary({
     unlimited: false,
   };
 }
+
+export function reconcileCreditsWithStoredBalance(
+  credits: CreditsSummary,
+  storedBalance?: number | null
+): CreditsSummary {
+  if (typeof storedBalance !== "number" || !Number.isFinite(storedBalance)) {
+    return credits;
+  }
+  const remaining = Math.max(0, Math.round(storedBalance));
+  if (remaining <= credits.remaining) {
+    return credits;
+  }
+  return {
+    ...credits,
+    remaining,
+    limit: Math.max(credits.limit, credits.used + remaining),
+  };
+}

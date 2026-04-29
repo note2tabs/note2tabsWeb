@@ -12,6 +12,7 @@ import {
   durationToCredits,
   getCreditWindow,
   DEFAULT_DURATION_SEC,
+  reconcileCreditsWithStoredBalance,
 } from "../../lib/credits";
 import {
   isEmailVerificationRequiredServer,
@@ -515,7 +516,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 },
             _count: { _all: true },
           });
-          refreshedCredits = buildCreditsSummary({
+          const computedCredits = buildCreditsSummary({
             usedCredits: calculateCreditsUsedFromDurationCounts(
               creditDurationCounts.map((item) => ({
                 durationSec: item.durationSec,
@@ -526,6 +527,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             isPremium,
             userCreatedAt: user.createdAt,
           });
+          refreshedCredits = isPremium
+            ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining)
+            : computedCredits;
           if (!isPremium && user.tokensRemaining !== refreshedCredits.remaining) {
             user.tokensRemaining = refreshedCredits.remaining;
             try {

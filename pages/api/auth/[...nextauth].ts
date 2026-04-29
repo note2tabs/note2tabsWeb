@@ -9,6 +9,7 @@ import {
   buildDevCreditsSummary,
   calculateCreditsUsedFromDurationCounts,
   getCreditWindow,
+  reconcileCreditsWithStoredBalance,
 } from "../../../lib/credits";
 import { isLocalNoDbServerMode } from "../../../lib/serverDevMode";
 import { parseCookieHeader } from "../../../lib/analyticsV2/cookies";
@@ -258,7 +259,7 @@ export const authOptions: NextAuthOptions = {
                 },
             _count: { _all: true },
           });
-          const credits = buildCreditsSummary({
+          const computedCredits = buildCreditsSummary({
             usedCredits: calculateCreditsUsedFromDurationCounts(
               creditDurationCounts.map((item) => ({
                 durationSec: item.durationSec,
@@ -269,6 +270,9 @@ export const authOptions: NextAuthOptions = {
             isPremium,
             userCreatedAt: dbUser?.createdAt,
           });
+          const credits = isPremium
+            ? reconcileCreditsWithStoredBalance(computedCredits, dbUser?.tokensRemaining)
+            : computedCredits;
           session.user.monthlyCreditsUsed = credits.used;
           session.user.monthlyCreditsLimit = credits.limit;
           session.user.monthlyCreditsRemaining = credits.remaining;
