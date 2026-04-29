@@ -696,12 +696,36 @@ export default function HomePage() {
     },
   ];
 
-  const [activeHowStep, setActiveHowStep] = useState(0);
+    const [activeHowStep, setActiveHowStep] = useState(0);
   const [howAutoAdvanceEnabled, setHowAutoAdvanceEnabled] = useState(true);
   const [howManualPlayNonce, setHowManualPlayNonce] = useState(0);
+  const howRef = useRef<HTMLElement | null>(null);
+  const howVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [hasViewedHowSection, setHasViewedHowSection] = useState(false);
 
   useEffect(() => {
-    if (!howAutoAdvanceEnabled || howSteps.length === 0) return;
+    const el = howRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setHasViewedHowSection(true);
+          observer.disconnect();
+        }
+      },
+      {
+        threshold: 0.35,
+      }
+    );
+
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!howAutoAdvanceEnabled || !hasViewedHowSection || howSteps.length === 0) return;
     const timer = window.setTimeout(() => {
       setActiveHowStep((prev) => {
         if (prev >= howSteps.length - 1) {
@@ -712,7 +736,18 @@ export default function HomePage() {
       });
     }, HOW_STEP_DURATION_MS);
     return () => window.clearTimeout(timer);
-  }, [activeHowStep, howAutoAdvanceEnabled, howSteps.length]);
+  }, [activeHowStep, hasViewedHowSection, howAutoAdvanceEnabled, howSteps.length]);
+
+  useEffect(() => {
+    if (!hasViewedHowSection) return;
+    const video = howVideoRef.current;
+    if (!video) return;
+    if (!howAutoAdvanceEnabled && howManualPlayNonce === 0) return;
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {});
+    }
+  }, [activeHowStep, hasViewedHowSection, howAutoAdvanceEnabled, howManualPlayNonce]);
 
   const handleHowStepClick = (index: number) => {
     setHowAutoAdvanceEnabled(false);
@@ -1120,7 +1155,7 @@ export default function HomePage() {
           </section>
         )}
 
-        <section className="steps" id="how">
+        <section ref={howRef} className="steps" id="how">
           <div className="container">
             <h2 className="section-title" data-reveal>
               How it works
@@ -1129,12 +1164,13 @@ export default function HomePage() {
             <div className="how-lovable" data-reveal>
               <div className="how-video-card">
                 <video
+                  ref={howVideoRef}
                   key={`${howSteps[activeHowStep].video}-${howManualPlayNonce}-${howAutoAdvanceEnabled ? "auto" : "manual"}`}
                   className="how-video active"
                   src={howSteps[activeHowStep].video}
-                  autoPlay={howAutoAdvanceEnabled || howManualPlayNonce > 0}
+                  autoPlay={(hasViewedHowSection && howAutoAdvanceEnabled) || howManualPlayNonce > 0}
                   muted
-                  loop={howAutoAdvanceEnabled}
+                  loop={hasViewedHowSection && howAutoAdvanceEnabled}
                   playsInline
                 />
               </div>
@@ -1217,3 +1253,4 @@ export default function HomePage() {
     </>
   );
 }
+
