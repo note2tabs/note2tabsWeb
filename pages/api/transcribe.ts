@@ -476,12 +476,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               verificationRequired: true,
             });
           }
-          if (!(user as any).emailVerifiedBool) {
-            await prisma.user.update({
-              where: { id: user.id },
-              data: { ...( { emailVerifiedBool: true } as any) } as any,
-            });
-          }
           isPremium =
             user.role === "PREMIUM" ||
             user.role === "ADMIN" ||
