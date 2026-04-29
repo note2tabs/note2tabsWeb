@@ -9,34 +9,64 @@ import SeoHead, { SITE_NAME, absoluteUrl } from "../../components/SeoHead";
 const LIBRARY_PATH = "/gte";
 const GUEST_EDITOR_PATH = `/gte/${GTE_GUEST_EDITOR_ID}`;
 
-const editorHighlights = [
+const heroProofPoints = ["No install", "Blank tab in one click", "Works after transcription"] as const;
+
+const editorWorkflow = [
   {
-    title: "Start from blank or import a draft",
-    body: "Open a clean tab instantly, or continue from a transcription draft when you already have material.",
+    step: "01",
+    title: "Start with a clean tab",
+    body: "Open the editor immediately and begin writing, or jump in after a Note2Tabs transcription gives you a draft.",
   },
   {
-    title: "Refine fingerings with control",
-    body: "Compare options for notes and chords, then keep the shape that is most playable for your hand.",
+    step: "02",
+    title: "Fix what matters",
+    body: "Adjust timing, string choices, chord shapes, fingerings, and section boundaries without digging through a heavy notation app.",
   },
   {
-    title: "Shape structure quickly",
-    body: "Generate cuts, split sections, and adjust boundaries until the song layout feels right.",
+    step: "03",
+    title: "Save a playable version",
+    body: "Keep finished tabs in your library when signed in, so every song can move from rough draft to practice-ready.",
   },
 ] as const;
 
-const controlChecklist = [
+const editorControls = [
   "Timing and note placement",
-  "Chord shapes and voicing choices",
+  "Chord shapes and voicings",
   "Single-note fingering alternatives",
-  "Section cuts and segment boundaries",
-  "Transcriptions in your library",
+  "Section cuts and song structure",
+  "Saved transcriptions and drafts",
 ] as const;
 
-const reliabilityBullets = [
-  "Browser-based editor with no install",
-  "Transcription library for ongoing songs",
-  "Works as a standalone workflow or after transcription",
-  "Designed for repeat editing sessions",
+const conversionReasons = [
+  {
+    title: "Start without a signup wall",
+    body: "Open an editable tab first. Create an account later when you want to keep work in your library.",
+  },
+  {
+    title: "Stay in a familiar tab workflow",
+    body: "Work with tabs, sections, chord choices, and drafts instead of switching into a heavy notation tool.",
+  },
+  {
+    title: "Keep moving after transcription",
+    body: "Use the editor as the next step when an AI transcription is close but still needs human musical judgment.",
+  },
+] as const;
+
+const editorFaqs = [
+  {
+    question: "Can I use the guitar tab editor without installing anything?",
+    answer: "Yes. Note2Tabs runs in the browser, so you can open a blank guitar tab and start editing online.",
+  },
+  {
+    question: "Can I edit tabs created from an audio or YouTube transcription?",
+    answer:
+      "Yes. The editor is designed to continue from Note2Tabs transcriptions, then refine timing, fingerings, chord shapes, and song sections.",
+  },
+  {
+    question: "Do I need an account to try the editor?",
+    answer:
+      "You can start in guest mode first. Sign in when you want to keep tabs in your library and return to them later.",
+  },
 ] as const;
 
 export default function EditorLandingPage() {
@@ -47,7 +77,7 @@ export default function EditorLandingPage() {
 
   const isSignedIn = Boolean(session?.user?.id);
   const editorDescription =
-    "Edit guitar tabs online with precise controls for timing, fingerings, chord shapes, and section structure.";
+    "Edit guitar tabs online in a fast browser-based editor for timing, fingerings, chord shapes, and song structure.";
   const editorJsonLd = [
     {
       "@context": "https://schema.org",
@@ -85,6 +115,18 @@ export default function EditorLandingPage() {
         },
       ],
     },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: editorFaqs.map((faq) => ({
+        "@type": "Question",
+        name: faq.question,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: faq.answer,
+        },
+      })),
+    },
   ];
 
   const handleCreate = async () => {
@@ -115,106 +157,169 @@ export default function EditorLandingPage() {
         jsonLd={editorJsonLd}
       />
 
-      <section className="hero editor-landing-hero">
-        <div className="hero-glow hero-glow--one" />
-        <div className="hero-glow hero-glow--two" />
-        <div className="container hero-stack hero-stack--centered editor-landing-shell">
-          <div className="hero-heading">
-            <div className="hero-title-row">
-              <h1 className="hero-title">Guitar Tab Editor</h1>
+      <section className="editor-landing-hero" aria-labelledby="editor-hero-title">
+        <div className="editor-landing-product-visual" aria-hidden="true">
+          <div className="editor-landing-product-window">
+            <div className="editor-landing-product-toolbar">
+              <span>Verse 1</span>
+              <span>92 BPM</span>
+              <span>4/4</span>
             </div>
-            <p className="editor-landing-byline">precision editing by Note2Tabs</p>
-            <div className="button-row hero-cta-row editor-landing-hero-actions">
-              <button type="button" onClick={() => void handleCreate()} className="button-primary" disabled={creating}>
-                {creating ? "Starting..." : "Start a new tab"}
+            <div className="editor-landing-tab-preview">
+              <div className="editor-landing-tab-label">Clean electric guitar</div>
+              <pre>{`e|-----0---------0------|-----3-----2-----0---|
+B|-------1---------1----|-------3-----3-------|
+G|---0-----0---2-----2--|---0-----0-----0-----|
+D|-2---------3----------|-0-------------------|
+A|----------------------|-----------2---------|
+E|----------------------|-3-------------------|`}</pre>
+              <div className="editor-landing-selection">
+                <span>Chord shape</span>
+                <strong>G major</strong>
+              </div>
+            </div>
+            <div className="editor-landing-product-footer">
+              <span>Cut section</span>
+              <span>Optimize fingering</span>
+              <span>Save draft</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="container editor-landing-shell">
+          <div className="editor-landing-hero-copy">
+            <p className="editor-landing-eyebrow">Online guitar tab editor</p>
+            <h1 id="editor-hero-title" className="editor-landing-title">
+              Make rough guitar tabs playable faster.
+            </h1>
+            <p className="editor-landing-subtitle">
+              Start from a blank tab or clean up a transcription draft. Edit timing, fingerings, chord shapes, and song
+              sections in one focused browser workspace.
+            </p>
+            <div className="editor-landing-hero-actions">
+              <button
+                type="button"
+                onClick={() => void handleCreate()}
+                className="button-primary editor-landing-primary-cta"
+                disabled={creating}
+              >
+                {creating ? "Starting..." : "Start editing free"}
               </button>
-              <Link href={LIBRARY_PATH} className="button-secondary">
+              <Link href={LIBRARY_PATH} className="editor-landing-secondary-link">
                 Open your library
               </Link>
             </div>
-            <p className="hero-subtitle editor-landing-subtitle">
-              Use it after transcription or start from blank. Edit timing, fingerings, chord shapes, and section
-              structure in one workspace.
-            </p>
-            <p className="editor-landing-support">
-              Start in the browser, then save finished work to your library when you are ready.
-            </p>
+            <ul className="editor-landing-proof-row" aria-label="Editor benefits">
+              {heroProofPoints.map((point) => (
+                <li key={point}>{point}</li>
+              ))}
+            </ul>
             {error && <div className="error editor-landing-error">{error}</div>}
           </div>
         </div>
       </section>
 
-      <main className="page">
-        <div className="container stack editor-landing-sections">
-          <section className="editor-landing-grid" aria-label="Editor highlights">
-            {editorHighlights.map((item) => (
-              <article key={item.title} className="card-outline editor-landing-card">
-                <p className="editor-landing-card-label">Core workflow</p>
-                <h2>{item.title}</h2>
-                <p>{item.body}</p>
-              </article>
-            ))}
-          </section>
-
-          <section className="editor-landing-split">
-            <article className="card editor-landing-story">
-              <p className="editor-landing-section-label">When to use it</p>
-              <h2>Use the editor when the draft needs decisions</h2>
-              <p>
-                The transcriber gives you a starting point. The editor is where you decide what is playable, what to
-                keep, and what to rewrite. It is built for real revision work, not just quick previews.
-              </p>
-              <ul className="editor-landing-list">
-                <li>Fix awkward positions before practice.</li>
-                <li>Test multiple fingerings for difficult passages.</li>
-                <li>Split long songs into practical sections.</li>
-                <li>Save versions so progress is not lost.</li>
-              </ul>
-            </article>
-
-            <article className="card-outline editor-landing-story editor-landing-story--contrast">
-              <p className="editor-landing-section-label">What you can control</p>
-              <h2>Detailed control without a heavy interface</h2>
-              <ul className="editor-landing-list">
-                {controlChecklist.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </article>
-          </section>
-
-          <section className="card editor-landing-feature-box" aria-label="Reliability">
-            <div className="editor-landing-feature-box-copy">
-              <p className="editor-landing-section-label">Reliability</p>
-              <h2>Built for repeat sessions</h2>
-              <p>
-                This is a working editor designed for daily use. You can come back to songs, continue edits, and keep
-                your tab workflow in one place.
-              </p>
+      <main className="editor-landing-page">
+        <section className="editor-landing-band">
+          <div className="container editor-landing-section">
+            <div className="editor-landing-section-header">
+              <p className="editor-landing-section-label">Workflow</p>
+              <h2>From first note to usable tab in three steps</h2>
+              <p>Open a tab, fix the passages that need judgment, then keep the version worth practicing.</p>
             </div>
-            <ul className="editor-landing-feature-list">
-              {reliabilityBullets.map((item) => (
-                <li key={item}>{item}</li>
+            <div className="editor-landing-step-grid">
+              {editorWorkflow.map((item) => (
+                <article key={item.title} className="editor-landing-step-card">
+                  <span>{item.step}</span>
+                  <h3>{item.title}</h3>
+                  <p>{item.body}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="editor-landing-band editor-landing-band--control">
+          <div className="container editor-landing-control-layout">
+            <div className="editor-landing-section-header editor-landing-section-header--left">
+              <p className="editor-landing-section-label">Control</p>
+              <h2>Fix the musical decisions that make a tab worth practicing</h2>
+              <p>
+                A transcription can get close, but guitarists still need to decide what is playable. Note2Tabs gives
+                those editing controls their own clear path.
+              </p>
+              <div className="editor-landing-inline-actions">
+                <button type="button" onClick={() => void handleCreate()} className="button-primary" disabled={creating}>
+                  {creating ? "Starting..." : "Open the editor"}
+                </button>
+              </div>
+            </div>
+            <ul className="editor-landing-control-list">
+              {editorControls.map((item) => (
+                <li key={item}>
+                  <span aria-hidden="true" />
+                  {item}
+                </li>
               ))}
             </ul>
-          </section>
+          </div>
+        </section>
 
-          <section className="card editor-landing-cta">
+        <section className="editor-landing-band">
+          <div className="container editor-landing-section">
+            <div className="editor-landing-section-header">
+              <p className="editor-landing-section-label">Less friction</p>
+              <h2>Get from idea to editable tab without detours</h2>
+              <p>
+                The page keeps the promise simple: start editing first, then save and organize when the tab is worth
+                keeping.
+              </p>
+            </div>
+            <div className="editor-landing-reason-grid">
+              {conversionReasons.map((item) => (
+                <article key={item.title} className="editor-landing-reason">
+                  <h3>{item.title}</h3>
+                  <p>{item.body}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="editor-landing-band editor-landing-band--faq">
+          <div className="container editor-landing-faq-layout">
+            <div className="editor-landing-section-header editor-landing-section-header--left">
+              <p className="editor-landing-section-label">Questions</p>
+              <h2>Quick answers before you start</h2>
+            </div>
+            <div className="editor-landing-faqs">
+              {editorFaqs.map((faq) => (
+                <article key={faq.question} className="editor-landing-faq">
+                  <h3>{faq.question}</h3>
+                  <p>{faq.answer}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="editor-landing-final">
+          <div className="container editor-landing-final-inner">
             <div>
               <p className="editor-landing-section-label">Start now</p>
-              <h2>Open your library or create a new tab</h2>
-              <p>Choose a transcription or begin from the first note.</p>
+              <h2>Open a guitar tab and start editing.</h2>
+              <p>Use guest mode immediately, or sign in later to keep your work in a library.</p>
             </div>
-            <div className="button-row">
+            <div className="button-row editor-landing-final-actions">
               <button type="button" onClick={() => void handleCreate()} className="button-primary" disabled={creating}>
-                {creating ? "Starting..." : isSignedIn ? "Create a new tab" : "Start a new tab"}
+                {creating ? "Starting..." : "Start editing free"}
               </button>
               <Link href={LIBRARY_PATH} className="button-secondary">
                 Open your library
               </Link>
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </main>
     </>
   );
