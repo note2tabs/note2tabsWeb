@@ -4159,7 +4159,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             ))}
                           </select>
                         </div>
-                        <div className="mt-2 flex items-start justify-center gap-2">
+                        <div className="mt-2 flex w-full flex-col items-center gap-2">
                           <div className="flex flex-col items-center gap-1.5">
                             <button
                               type="button"
@@ -4208,7 +4208,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               </svg>
                             </button>
                           </div>
-                          <div className="flex items-start justify-center gap-1">
+                          <div className="flex w-full min-w-0 items-center gap-1">
                             <input
                               type="range"
                               min={0}
@@ -4217,12 +4217,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               value={trackVolume}
                               onChange={(event) => handleTrackVolumeChange(laneId, Number(event.target.value))}
                               onClick={(event) => event.stopPropagation()}
-                              className="h-20 w-3 accent-slate-700 [writing-mode:bt-lr]"
-                              style={{ writingMode: "vertical-lr", direction: "rtl" }}
+                              className="w-[90%] h-2 accent-slate-700"
                               title="Track volume"
                               aria-label="Track volume"
                             />
-                            <div className="pt-1 text-[10px] font-medium text-slate-500">
+                            <div className="w-5 shrink-0 text-right text-[10px] font-medium text-slate-500">
                               {Math.round(trackVolume * 100)}%
                             </div>
                           </div>
