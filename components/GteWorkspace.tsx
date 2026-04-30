@@ -5477,25 +5477,35 @@ export default function GteWorkspace({
   }, [isMobileCanvasMode]);
 
   const getKeyboardGridStepFrames = useCallback(() => {
-    if (!snapToGridEnabled) return 1;
     const beats = Math.max(1, Math.min(64, Math.round(timeSignature)));
     return Math.max(1, Math.floor(FIXED_FRAMES_PER_BAR / beats));
-  }, [snapToGridEnabled, timeSignature]);
+  }, [timeSignature]);
+
+  const snapKeyboardCursorTimeToGrid = useCallback(
+    (time: number) => {
+      const step = getKeyboardGridStepFrames();
+      const maxTime = Math.max(0, timelineEnd - 1);
+      const safeTime = clamp(Math.round(time), 0, maxTime);
+      const index = Math.round(safeTime / step);
+      return clamp(index * step, 0, maxTime);
+    },
+    [clamp, getKeyboardGridStepFrames, timelineEnd]
+  );
 
   const getCenteredKeyboardCursor = useCallback((): KeyboardGridCursor => {
     const container = timelineOuterRef.current;
     const centerFrameRaw = container
       ? Math.round((container.scrollLeft + container.clientWidth / 2) / Math.max(scale, 0.0001))
       : Math.round(playheadFrameRef.current);
-    const centeredTime = clamp(snapStartTimeToGrid(centerFrameRaw), 0, Math.max(0, timelineEnd - 1));
+    const centeredTime = snapKeyboardCursorTimeToGrid(centerFrameRaw);
     return { time: centeredTime, stringIndex: 3 };
-  }, [clamp, scale, snapStartTimeToGrid, timelineEnd]);
+  }, [scale, snapKeyboardCursorTimeToGrid]);
 
   const resolveKeyboardCursor = useCallback((): KeyboardGridCursor => {
     const current = keyboardGridCursorRef.current;
     if (current) {
       return {
-        time: clamp(snapStartTimeToGrid(current.time), 0, Math.max(0, timelineEnd - 1)),
+        time: snapKeyboardCursorTimeToGrid(current.time),
         stringIndex: clamp(Math.round(current.stringIndex), 0, 5),
       };
     }
@@ -5505,13 +5515,13 @@ export default function GteWorkspace({
       const selected = snapshotRef.current.notes.find((note) => note.id === resolvedId);
       if (selected) {
         return {
-          time: clamp(snapStartTimeToGrid(selected.startTime), 0, Math.max(0, timelineEnd - 1)),
+          time: snapKeyboardCursorTimeToGrid(selected.startTime),
           stringIndex: clamp(Math.round(selected.tab[0]), 0, 5),
         };
       }
     }
     return getCenteredKeyboardCursor();
-  }, [clamp, getCenteredKeyboardCursor, resolveNoteId, snapStartTimeToGrid, timelineEnd]);
+  }, [clamp, getCenteredKeyboardCursor, resolveNoteId, snapKeyboardCursorTimeToGrid]);
 
   const getNoteIdsOnCursorGrid = useCallback((cursor: KeyboardGridCursor, cellWidthFrames: number) => {
     const cellStart = Math.round(cursor.time);
@@ -5752,13 +5762,13 @@ export default function GteWorkspace({
     if (!isActive || mobileViewport) return;
     if (selectedNoteIds.length !== 1 || !selectedNote) return;
     const next: KeyboardGridCursor = {
-      time: clamp(snapStartTimeToGrid(selectedNote.startTime), 0, Math.max(0, timelineEnd - 1)),
+      time: snapKeyboardCursorTimeToGrid(selectedNote.startTime),
       stringIndex: clamp(Math.round(selectedNote.tab[0]), 0, 5),
     };
     setKeyboardGridCursor((prev) =>
       prev && prev.time === next.time && prev.stringIndex === next.stringIndex ? prev : next
     );
-  }, [clamp, isActive, mobileViewport, selectedNote, selectedNoteIds.length, snapStartTimeToGrid, timelineEnd]);
+  }, [clamp, isActive, mobileViewport, selectedNote, selectedNoteIds.length, snapKeyboardCursorTimeToGrid]);
 
   useEffect(() => {
     if (!isActive || mobileViewport) return;
@@ -6123,7 +6133,7 @@ export default function GteWorkspace({
             });
             const cursor = resolveKeyboardCursor();
             setKeyboardGridCursor({
-              time: clamp(snapStartTimeToGrid(cursor.time + appliedDelta), 0, Math.max(0, timelineEnd - 1)),
+              time: snapKeyboardCursorTimeToGrid(cursor.time + appliedDelta),
               stringIndex: cursor.stringIndex,
             });
             return;
@@ -6150,7 +6160,7 @@ export default function GteWorkspace({
                 commit: () => gteApi.assignNoteTab(editorId, resolvedId, nextTab),
               });
               setKeyboardGridCursor({
-                time: clamp(snapStartTimeToGrid(selected.startTime), 0, Math.max(0, timelineEnd - 1)),
+                time: snapKeyboardCursorTimeToGrid(selected.startTime),
                 stringIndex: nextString,
               });
               return;
@@ -6158,7 +6168,7 @@ export default function GteWorkspace({
             const delta = event.key === "ArrowLeft" ? -step : step;
             const maxStart = Math.max(0, timelineEnd - Math.max(1, Math.round(selected.length)));
             const rawNext = selected.startTime + delta;
-            const snappedNext = clamp(snapStartTimeToGrid(rawNext), 0, maxStart);
+            const snappedNext = clamp(snapKeyboardCursorTimeToGrid(rawNext), 0, maxStart);
             if (snappedNext === selected.startTime) return;
             enqueueOptimisticMutation({
               label: "keyboard-shift-arrow-time",
@@ -6188,9 +6198,9 @@ export default function GteWorkspace({
           const nextCursor: KeyboardGridCursor = { ...baseCursor };
           if (!selectedForCursor) {
             if (event.key === "ArrowLeft") {
-              nextCursor.time = clamp(snapStartTimeToGrid(baseCursor.time - step), 0, Math.max(0, timelineEnd - 1));
+              nextCursor.time = snapKeyboardCursorTimeToGrid(baseCursor.time - step);
             } else if (event.key === "ArrowRight") {
-              nextCursor.time = clamp(snapStartTimeToGrid(baseCursor.time + step), 0, Math.max(0, timelineEnd - 1));
+              nextCursor.time = snapKeyboardCursorTimeToGrid(baseCursor.time + step);
             }
           }
           if (event.key === "ArrowUp") {
@@ -6423,7 +6433,7 @@ export default function GteWorkspace({
     resolveNoteId,
     setKeyboardSelection,
     getDirectionalCursorFromSelectedNote,
-    snapStartTimeToGrid,
+    snapKeyboardCursorTimeToGrid,
     snapToGridEnabled,
     timelineEnd,
   ]);
@@ -6504,7 +6514,7 @@ export default function GteWorkspace({
   const keyboardCursorMarker = useMemo<KeyboardCursorMarker | null>(() => {
     if (mobileViewport || !isActive || selectedNoteIds.length > 0 || !keyboardGridCursor) return null;
     const step = getKeyboardGridStepFrames();
-    const safeTime = clamp(Math.round(keyboardGridCursor.time), 0, Math.max(0, timelineEnd - 1));
+    const safeTime = snapKeyboardCursorTimeToGrid(keyboardGridCursor.time);
     const rowIndex = rowFrames > 0 ? clamp(Math.floor(safeTime / rowFrames), 0, rows - 1) : 0;
     const rowStart = rowIndex * rowFrames;
     const rowBarCount = getRowBarCount(rowIndex);
@@ -6526,6 +6536,7 @@ export default function GteWorkspace({
     rowStride,
     rows,
     scale,
+    snapKeyboardCursorTimeToGrid,
     selectedNoteIds.length,
     timelineEnd,
   ]);
