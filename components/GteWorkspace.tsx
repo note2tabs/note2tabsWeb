@@ -108,6 +108,7 @@ const AUTOSAVE_DEBOUNCE_MS = 2500;
 const AUTOSAVE_INTERVAL_MS = 20000;
 const NOTE_FRET_ARROW_COMMIT_DEBOUNCE_MS = 300;
 const TOUCH_DRAG_HOLD_MS = 110;
+const KEYBOARD_FRET_TYPE_TIMEOUT_MS = 1200;
 const TARGET_VISIBLE_BARS = 2.5;
 const MIN_TIMELINE_ZOOM = 0.1;
 const MAX_TIMELINE_ZOOM = 2.5;
@@ -549,6 +550,23 @@ type DraftNote = {
   fret: OptionalNumber;
 };
 
+type KeyboardGridCursor = {
+  time: number;
+  stringIndex: number;
+};
+
+type KeyboardCursorMarker = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+type KeyboardAddMode = {
+  noteId: number;
+  fretText: string;
+};
+
 type DraftNoteAnchor = {
   x: number;
   y: number;
@@ -786,6 +804,8 @@ export default function GteWorkspace({
     null
   );
   const [selection, setSelection] = useState<SelectionState | null>(null);
+  const [keyboardGridCursor, setKeyboardGridCursor] = useState<KeyboardGridCursor | null>(null);
+  const [keyboardAddMode, setKeyboardAddMode] = useState<KeyboardAddMode | null>(null);
   const [dragBarIndex, setDragBarIndex] = useState<number | null>(null);
   const [segmentDragIndex, setSegmentDragIndex] = useState<number | null>(null);
   const [ioPayload, setIoPayload] = useState("");
@@ -873,6 +893,11 @@ export default function GteWorkspace({
   const chordNoteDragStartYRef = useRef(0);
   const mousePosRef = useRef<{ x: number; y: number }>({ x: 80, y: 120 });
   const selectionRef = useRef<SelectionState | null>(null);
+  const enterGridCycleRef = useRef<{ gridKey: string; order: number[]; index: number } | null>(null);
+  const keyboardGridCursorRef = useRef<KeyboardGridCursor | null>(null);
+  const keyboardAddModeRef = useRef<KeyboardAddMode | null>(null);
+  const noteFretTypingBufferRef = useRef("");
+  const noteFretTypingAtRef = useRef(0);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosaveInFlightRef = useRef(false);
   const autosaveQueuedRef = useRef(false);
@@ -1223,6 +1248,14 @@ export default function GteWorkspace({
   useEffect(() => {
     multiDragDeltaRef.current = multiDragDelta;
   }, [multiDragDelta]);
+
+  useEffect(() => {
+    keyboardGridCursorRef.current = keyboardGridCursor;
+  }, [keyboardGridCursor]);
+
+  useEffect(() => {
+    keyboardAddModeRef.current = keyboardAddMode;
+  }, [keyboardAddMode]);
 
   useEffect(() => {
     resizePreviewRef.current = resizePreviewLength;
@@ -5384,6 +5417,7 @@ export default function GteWorkspace({
     setChordMenuChordId(null);
     setChordMenuDraft(null);
     setSelectedCutBoundaryIndex(null);
+    setKeyboardAddMode(null);
   }, [editorId, selectionClearEpoch, selectionClearExemptEditorId]);
 
   useEffect(() => {
@@ -5439,7 +5473,232 @@ export default function GteWorkspace({
     setChordNoteMenuDraft(null);
     setSelectedNoteIds([]);
     setSelectedChordIds([]);
+    setKeyboardAddMode(null);
   }, [isMobileCanvasMode]);
+
+  const getKeyboardGridStepFrames = useCallback(() => {
+    if (!snapToGridEnabled) return 1;
+    const beats = Math.max(1, Math.min(64, Math.round(timeSignature)));
+    return Math.max(1, Math.floor(FIXED_FRAMES_PER_BAR / beats));
+  }, [snapToGridEnabled, timeSignature]);
+
+  const getCenteredKeyboardCursor = useCallback((): KeyboardGridCursor => {
+    const container = timelineOuterRef.current;
+    const centerFrameRaw = container
+      ? Math.round((container.scrollLeft + container.clientWidth / 2) / Math.max(scale, 0.0001))
+      : Math.round(playheadFrameRef.current);
+    const centeredTime = clamp(snapStartTimeToGrid(centerFrameRaw), 0, Math.max(0, timelineEnd - 1));
+    return { time: centeredTime, stringIndex: 3 };
+  }, [clamp, scale, snapStartTimeToGrid, timelineEnd]);
+
+  const resolveKeyboardCursor = useCallback((): KeyboardGridCursor => {
+    const current = keyboardGridCursorRef.current;
+    if (current) {
+      return {
+        time: clamp(snapStartTimeToGrid(current.time), 0, Math.max(0, timelineEnd - 1)),
+        stringIndex: clamp(Math.round(current.stringIndex), 0, 5),
+      };
+    }
+    const selectedId = selectedNoteIdsRef.current[0];
+    if (Number.isInteger(selectedId)) {
+      const resolvedId = resolveNoteId(selectedId);
+      const selected = snapshotRef.current.notes.find((note) => note.id === resolvedId);
+      if (selected) {
+        return {
+          time: clamp(snapStartTimeToGrid(selected.startTime), 0, Math.max(0, timelineEnd - 1)),
+          stringIndex: clamp(Math.round(selected.tab[0]), 0, 5),
+        };
+      }
+    }
+    return getCenteredKeyboardCursor();
+  }, [clamp, getCenteredKeyboardCursor, resolveNoteId, snapStartTimeToGrid, timelineEnd]);
+
+  const getNoteIdsOnCursorGrid = useCallback((cursor: KeyboardGridCursor, cellWidthFrames: number) => {
+    const cellStart = Math.round(cursor.time);
+    const cellEnd = cellStart + Math.max(1, Math.round(cellWidthFrames));
+    return snapshotRef.current.notes
+      .filter((note) => {
+        if (note.tab[0] !== cursor.stringIndex) return false;
+        const noteStart = Math.round(note.startTime);
+        const noteEnd = Math.max(noteStart + 1, Math.round(note.startTime + note.length));
+        return noteStart < cellEnd && noteEnd > cellStart;
+      })
+      .map((note) => note.id);
+  }, []);
+
+  const getOrderedNoteIdsOnCursorGrid = useCallback(
+    (cursor: KeyboardGridCursor, cellWidthFrames: number) => {
+      const cellStart = Math.round(cursor.time);
+      const cellEnd = cellStart + Math.max(1, Math.round(cellWidthFrames));
+      return snapshotRef.current.notes
+        .filter((note) => {
+          if (note.tab[0] !== cursor.stringIndex) return false;
+          const noteStart = Math.round(note.startTime);
+          const noteEnd = Math.max(noteStart + 1, Math.round(note.startTime + note.length));
+          return noteStart < cellEnd && noteEnd > cellStart;
+        })
+        .sort((a, b) => a.startTime - b.startTime || a.id - b.id)
+        .map((note) => note.id);
+    },
+    []
+  );
+
+  const getGridCycleKey = useCallback((cursor: KeyboardGridCursor, cellWidthFrames: number) => {
+    const cellStart = Math.round(cursor.time);
+    const cellEnd = cellStart + Math.max(1, Math.round(cellWidthFrames));
+    return `${cursor.stringIndex}|${cellStart}|${cellEnd}`;
+  }, []);
+
+  const setKeyboardSelection = useCallback((cursor: KeyboardGridCursor, noteId: number | null) => {
+    setKeyboardGridCursor(cursor);
+    setSelectedCutBoundaryIndex(null);
+    setDraftNote(null);
+    setDraftNoteAnchor(null);
+    setNoteMenuAnchor(null);
+    setNoteMenuNoteId(null);
+    setNoteMenuDraft(null);
+    setChordMenuAnchor(null);
+    setChordMenuChordId(null);
+    setChordMenuDraft(null);
+    if (noteId === null) {
+      setSelectedNoteIds([]);
+      setSelectedChordIds([]);
+      return;
+    }
+    setSelectedNoteIds([noteId]);
+    setSelectedChordIds([]);
+  }, []);
+
+  const normalizeTypedFretText = useCallback(
+    (previous: string, digit: string) => {
+      const merged = `${previous}${digit}`.replace(/^0+(?=\d)/, "");
+      const mergedValue = merged === "" ? null : Number(merged);
+      if (mergedValue !== null && Number.isInteger(mergedValue) && mergedValue >= 0 && mergedValue <= maxFret) {
+        return merged;
+      }
+      const digitValue = Number(digit);
+      if (Number.isInteger(digitValue) && digitValue >= 0 && digitValue <= maxFret) {
+        return String(digitValue);
+      }
+      return previous;
+    },
+    [maxFret]
+  );
+
+  const assignNoteFretById = useCallback(
+    (rawNoteId: number, fretValue: number, options?: { playPreview?: boolean }) => {
+      if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) return false;
+      const noteId = resolveNoteId(rawNoteId);
+      const current = snapshotRef.current.notes.find((note) => note.id === noteId);
+      if (!current) return false;
+      if (current.tab[1] === fretValue) return true;
+      const nextTab: TabCoord = [current.tab[0], fretValue];
+      if (options?.playPreview) {
+        playNotePreview(nextTab);
+      }
+      enqueueOptimisticMutation({
+        label: "keyboard-fret",
+        apply: (draft) => {
+          const note = draft.notes.find((item) => item.id === noteId);
+          if (!note) return draft;
+          note.tab = [nextTab[0], nextTab[1]];
+          note.midiNum = 0;
+          return draft;
+        },
+        commit: () => gteApi.assignNoteTab(editorId, noteId, nextTab),
+      });
+      return true;
+    },
+    [editorId, enqueueOptimisticMutation, maxFret, playNotePreview, resolveNoteId]
+  );
+
+  const createKeyboardNoteAtCursor = useCallback(
+    (cursor: KeyboardGridCursor, fretDigit: string) => {
+      const fretValue = Number(fretDigit);
+      if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) return;
+      const rawLength = clampEventLength(lastAddedNoteLengthRef.current);
+      const snapped = snapNoteToGrid(cursor.time, rawLength);
+      const tab: TabCoord = [cursor.stringIndex, fretValue];
+      const tempId = getTempNoteId();
+      enqueueOptimisticMutation({
+        label: "keyboard-add-note",
+        createdNotes: [{ tempId, signature: noteSignature(snapped.startTime, snapped.length, tab) }],
+        apply: (draft) => {
+          draft.notes.push({
+            id: tempId,
+            startTime: snapped.startTime,
+            length: snapped.length,
+            midiNum: 0,
+            tab: [tab[0], tab[1]],
+            optimals: [],
+          });
+          return draft;
+        },
+        commit: () =>
+          gteApi.addNote(editorId, {
+            tab,
+            startTime: snapped.startTime,
+            length: snapped.length,
+            snapToGrid: snapToGridEnabled,
+          }),
+      });
+      lastAddedNoteLengthRef.current = clampEventLength(snapped.length);
+      setKeyboardGridCursor({ time: snapped.startTime, stringIndex: cursor.stringIndex });
+      setKeyboardAddMode({ noteId: tempId, fretText: String(fretValue) });
+      setSelectedNoteIds([tempId]);
+      setSelectedChordIds([]);
+      setDraftNote(null);
+      setDraftNoteAnchor(null);
+      setNoteMenuAnchor(null);
+      setNoteMenuNoteId(null);
+      setNoteMenuDraft(null);
+      setChordMenuAnchor(null);
+      setChordMenuChordId(null);
+      setChordMenuDraft(null);
+    },
+    [editorId, enqueueOptimisticMutation, getTempNoteId, maxFret, noteSignature, snapNoteToGrid, snapToGridEnabled]
+  );
+
+  const finalizeKeyboardAddMode = useCallback(
+    (options?: { playPreview?: boolean }) => {
+      const active = keyboardAddModeRef.current;
+      if (!active) return;
+      setKeyboardAddMode(null);
+      noteFretTypingBufferRef.current = "";
+      noteFretTypingAtRef.current = 0;
+      if (!options?.playPreview) return;
+      const resolvedId = resolveNoteId(active.noteId);
+      const note = snapshotRef.current.notes.find((item) => item.id === resolvedId);
+      if (!note) return;
+      playNotePreview([note.tab[0], note.tab[1]]);
+    },
+    [playNotePreview, resolveNoteId]
+  );
+
+  const getDirectionalCursorFromSelectedNote = useCallback(
+    (
+      note: { startTime: number; length: number; tab: TabCoord },
+      key: "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown",
+      step: number
+    ) => {
+      const maxTime = Math.max(0, timelineEnd - 1);
+      const safeStart = clamp(note.startTime, 0, maxTime);
+      const safeEnd = clamp(note.startTime + Math.max(1, Math.round(note.length)), 0, timelineEnd);
+      const safeStep = Math.max(1, step);
+      const ratioStart = safeStart / safeStep;
+      let index = Math.round(ratioStart);
+      if (key === "ArrowRight") {
+        index = Math.max(index + 1, Math.ceil(safeEnd / safeStep));
+      } else if (key === "ArrowLeft") {
+        index = Math.floor((safeStart - 1) / safeStep);
+      }
+      return {
+        time: clamp(Math.round(index * safeStep), 0, maxTime),
+        stringIndex: clamp(Math.round(note.tab[0]), 0, 5),
+      };
+    },
+    [clamp, timelineEnd]
+  );
 
   const [noteForm, setNoteForm] = useState<NoteFormState>({
     stringIndex: null,
@@ -5453,6 +5712,16 @@ export default function GteWorkspace({
     length: null,
   });
   const [chordTabsForm, setChordTabsForm] = useState<OptionalTabCoord[]>([]);
+
+  useEffect(() => {
+    if (!error) return;
+    const timer = window.setTimeout(() => {
+      setError(null);
+    }, 5000);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [error]);
 
   useEffect(() => {
     if (selectedNote) {
@@ -5480,12 +5749,48 @@ export default function GteWorkspace({
   }, [selectedChord]);
 
   useEffect(() => {
+    if (!isActive || mobileViewport) return;
+    if (selectedNoteIds.length !== 1 || !selectedNote) return;
+    const next: KeyboardGridCursor = {
+      time: clamp(snapStartTimeToGrid(selectedNote.startTime), 0, Math.max(0, timelineEnd - 1)),
+      stringIndex: clamp(Math.round(selectedNote.tab[0]), 0, 5),
+    };
+    setKeyboardGridCursor((prev) =>
+      prev && prev.time === next.time && prev.stringIndex === next.stringIndex ? prev : next
+    );
+  }, [clamp, isActive, mobileViewport, selectedNote, selectedNoteIds.length, snapStartTimeToGrid, timelineEnd]);
+
+  useEffect(() => {
+    if (!isActive || mobileViewport) return;
+    if (selectedNoteIds.length > 0) return;
+    if (keyboardGridCursorRef.current) return;
+    setKeyboardGridCursor(getCenteredKeyboardCursor());
+  }, [getCenteredKeyboardCursor, isActive, mobileViewport, selectedNoteIds.length]);
+
+  useEffect(() => {
+    if (selectedNoteIds.length !== 1) {
+      noteFretTypingBufferRef.current = "";
+      noteFretTypingAtRef.current = 0;
+    }
+  }, [selectedNoteIds.length]);
+
+  useEffect(() => {
+    if (!keyboardAddMode) return;
+    const resolvedId = resolveNoteId(keyboardAddMode.noteId);
+    const stillExists = snapshot.notes.some((note) => note.id === resolvedId);
+    if (!stillExists) {
+      setKeyboardAddMode(null);
+    }
+  }, [keyboardAddMode, resolveNoteId, snapshot.notes]);
+
+  useEffect(() => {
     if (!isActive) {
       return;
     }
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const isTyping = isShortcutTextEntryTarget(target);
+      const scaleModeSelect = target?.closest<HTMLElement>("[data-scale-mode-select='true']");
       if (!isTyping) {
         blurFocusedShortcutControl(target);
       }
@@ -5506,6 +5811,9 @@ export default function GteWorkspace({
         return;
       }
       if (event.key === "Escape") {
+        setKeyboardAddMode(null);
+        noteFretTypingBufferRef.current = "";
+        noteFretTypingAtRef.current = 0;
         if (scaleToolActive) {
           event.preventDefault();
           deactivateScaleTool();
@@ -5547,8 +5855,11 @@ export default function GteWorkspace({
         !event.metaKey &&
         !event.altKey
       ) {
-        if (isTyping) return;
+        if (isTyping && !scaleModeSelect) return;
         event.preventDefault();
+        if (scaleModeSelect) {
+          scaleModeSelect.blur();
+        }
         if (!scaleToolActive) {
           activateScaleTool();
         }
@@ -5598,6 +5909,298 @@ export default function GteWorkspace({
         }
         handleScaleFactorInputChange(buffer);
         return;
+      }
+      const isArrowKey =
+        event.key === "ArrowLeft" ||
+        event.key === "ArrowRight" ||
+        event.key === "ArrowUp" ||
+        event.key === "ArrowDown";
+      const isDigitKey = /^\d$/.test(event.key);
+      const isPlusKey =
+        event.code === "NumpadAdd" ||
+        event.key === "+" ||
+        (event.key === "=" && event.shiftKey);
+      const isMinusKey = event.code === "NumpadSubtract" || event.key === "-";
+      if (!mobileViewport && !isTyping && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (event.key === "Enter" && keyboardAddModeRef.current) {
+          event.preventDefault();
+          finalizeKeyboardAddMode({ playPreview: true });
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          const cursor = resolveKeyboardCursor();
+          const step = getKeyboardGridStepFrames();
+          const orderedNoteIds = getOrderedNoteIdsOnCursorGrid(cursor, step);
+          setKeyboardGridCursor(cursor);
+          setSelectedCutBoundaryIndex(null);
+          setDraftNote(null);
+          setDraftNoteAnchor(null);
+          setNoteMenuAnchor(null);
+          setNoteMenuNoteId(null);
+          setNoteMenuDraft(null);
+          setChordMenuAnchor(null);
+          setChordMenuChordId(null);
+          setChordMenuDraft(null);
+          setSelectedChordIds([]);
+          if (event.shiftKey) {
+            enterGridCycleRef.current = null;
+            setSelectedNoteIds(orderedNoteIds);
+            return;
+          }
+          if (orderedNoteIds.length <= 1) {
+            enterGridCycleRef.current = null;
+            setSelectedNoteIds(orderedNoteIds);
+            return;
+          }
+          const gridKey = getGridCycleKey(cursor, step);
+          const previousCycle = enterGridCycleRef.current;
+          let nextIndex = 0;
+          if (
+            previousCycle &&
+            previousCycle.gridKey === gridKey &&
+            previousCycle.order.length === orderedNoteIds.length &&
+            previousCycle.order.every((id, idx) => id === orderedNoteIds[idx])
+          ) {
+            nextIndex = (previousCycle.index + 1) % orderedNoteIds.length;
+          }
+          enterGridCycleRef.current = {
+            gridKey,
+            order: orderedNoteIds,
+            index: nextIndex,
+          };
+          setSelectedNoteIds([orderedNoteIds[nextIndex]]);
+          return;
+        }
+
+        if ((isPlusKey || isMinusKey) && selectedNoteIdsRef.current.length === 1 && !keyboardAddModeRef.current) {
+          const selectedId = resolveNoteId(selectedNoteIdsRef.current[0]);
+          const current = snapshotRef.current.notes.find((note) => note.id === selectedId);
+          if (!current) return;
+          event.preventDefault();
+          noteFretTypingBufferRef.current = "";
+          noteFretTypingAtRef.current = 0;
+          const nextFret = clamp(current.tab[1] + (isPlusKey ? 1 : -1), 0, maxFret);
+          setNoteMenuDraft((prev) => (prev ? { ...prev, fret: String(nextFret) } : prev));
+          void assignNoteFretById(current.id, nextFret, { playPreview: true });
+          return;
+        }
+
+        if (isDigitKey) {
+          event.preventDefault();
+          const activeAddMode = keyboardAddModeRef.current;
+          if (activeAddMode) {
+            const nextText = normalizeTypedFretText(activeAddMode.fretText, event.key);
+            if (nextText !== activeAddMode.fretText) {
+              const nextFret = Number(nextText);
+              if (Number.isInteger(nextFret)) {
+                assignNoteFretById(activeAddMode.noteId, nextFret);
+                setKeyboardAddMode((prev) => (prev ? { ...prev, fretText: nextText } : prev));
+              }
+            }
+            return;
+          }
+
+          const selectedId = selectedNoteIdsRef.current.length === 1 ? selectedNoteIdsRef.current[0] : null;
+          if (selectedId !== null) {
+            const now = Date.now();
+            const withinTypingWindow = now - noteFretTypingAtRef.current <= KEYBOARD_FRET_TYPE_TIMEOUT_MS;
+            const base = withinTypingWindow ? noteFretTypingBufferRef.current : "";
+            const nextText = normalizeTypedFretText(base, event.key);
+            if (nextText) {
+              noteFretTypingBufferRef.current = nextText;
+              noteFretTypingAtRef.current = now;
+              const nextFret = Number(nextText);
+              if (Number.isInteger(nextFret)) {
+                assignNoteFretById(selectedId, nextFret);
+              }
+            }
+            return;
+          }
+
+          const cursor = resolveKeyboardCursor();
+          const step = getKeyboardGridStepFrames();
+          const noteIdsOnGrid = getNoteIdsOnCursorGrid(cursor, step);
+          if (noteIdsOnGrid.length > 0) {
+            noteFretTypingBufferRef.current = "";
+            noteFretTypingAtRef.current = 0;
+            return;
+          }
+          noteFretTypingBufferRef.current = event.key;
+          noteFretTypingAtRef.current = Date.now();
+          createKeyboardNoteAtCursor(cursor, event.key);
+          return;
+        }
+
+        if (isArrowKey) {
+          event.preventDefault();
+          if (keyboardAddModeRef.current) {
+            finalizeKeyboardAddMode({ playPreview: true });
+          }
+          noteFretTypingBufferRef.current = "";
+          noteFretTypingAtRef.current = 0;
+          enterGridCycleRef.current = null;
+          const step = getKeyboardGridStepFrames();
+          const selectedId = selectedNoteIdsRef.current.length === 1 ? selectedNoteIdsRef.current[0] : null;
+          const selectedNoteGroup = Array.from(
+            new Set(selectedNoteIdsRef.current.map((id) => resolveNoteId(id)))
+          )
+            .map((id) => snapshotRef.current.notes.find((note) => note.id === id))
+            .filter((note): note is (typeof snapshotRef.current.notes)[number] => Boolean(note));
+          if (event.shiftKey && selectedNoteGroup.length > 1) {
+            if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+              const deltaString = event.key === "ArrowUp" ? -1 : 1;
+              const updates = selectedNoteGroup
+                .map((note) => ({
+                  id: note.id,
+                  nextString: clamp(note.tab[0] + deltaString, 0, 5),
+                  fret: note.tab[1],
+                }))
+                .filter((item, index) => item.nextString !== selectedNoteGroup[index].tab[0]);
+              if (!updates.length) return;
+              playNotePreview([updates[0].nextString, updates[0].fret]);
+              enqueueOptimisticMutation({
+                label: "keyboard-shift-arrow-string-multi",
+                apply: (draft) => {
+                  updates.forEach((update) => {
+                    const note = draft.notes.find((item) => item.id === update.id);
+                    if (!note) return;
+                    note.tab = [update.nextString, note.tab[1]];
+                    note.midiNum = 0;
+                  });
+                  return draft;
+                },
+                commit: async () => {
+                  let last: { snapshot?: EditorSnapshot } | null = null;
+                  for (const update of updates) {
+                    last = await gteApi.assignNoteTab(editorId, update.id, [update.nextString, update.fret]);
+                  }
+                  return last ?? {};
+                },
+              });
+              const cursor = resolveKeyboardCursor();
+              setKeyboardGridCursor({
+                time: cursor.time,
+                stringIndex: clamp(cursor.stringIndex + deltaString, 0, 5),
+              });
+              return;
+            }
+            const desiredDelta = event.key === "ArrowLeft" ? -step : step;
+            let minDelta = -Infinity;
+            let maxDelta = Infinity;
+            selectedNoteGroup.forEach((note) => {
+              minDelta = Math.max(minDelta, -note.startTime);
+              maxDelta = Math.min(maxDelta, timelineEnd - Math.max(1, Math.round(note.length)) - note.startTime);
+            });
+            const appliedDelta = clamp(desiredDelta, minDelta, maxDelta);
+            if (!Number.isFinite(appliedDelta) || appliedDelta === 0) return;
+            const updates = selectedNoteGroup.map((note) => ({
+              id: note.id,
+              nextStart: note.startTime + appliedDelta,
+            }));
+            enqueueOptimisticMutation({
+              label: "keyboard-shift-arrow-time-multi",
+              apply: (draft) => {
+                updates.forEach((update) => {
+                  const note = draft.notes.find((item) => item.id === update.id);
+                  if (!note) return;
+                  note.startTime = update.nextStart;
+                });
+                return draft;
+              },
+              commit: async () => {
+                let last: { snapshot?: EditorSnapshot } | null = null;
+                for (const update of updates) {
+                  last = await gteApi.setNoteStartTime(
+                    editorId,
+                    update.id,
+                    update.nextStart,
+                    snapToGridEnabled
+                  );
+                }
+                return last ?? {};
+              },
+            });
+            const cursor = resolveKeyboardCursor();
+            setKeyboardGridCursor({
+              time: clamp(snapStartTimeToGrid(cursor.time + appliedDelta), 0, Math.max(0, timelineEnd - 1)),
+              stringIndex: cursor.stringIndex,
+            });
+            return;
+          }
+          if (event.shiftKey && selectedId !== null) {
+            const resolvedId = resolveNoteId(selectedId);
+            const selected = snapshotRef.current.notes.find((note) => note.id === resolvedId);
+            if (!selected) return;
+            if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+              const deltaString = event.key === "ArrowUp" ? -1 : 1;
+              const nextString = clamp(selected.tab[0] + deltaString, 0, 5);
+              if (nextString === selected.tab[0]) return;
+              const nextTab: TabCoord = [nextString, selected.tab[1]];
+              playNotePreview(nextTab);
+              enqueueOptimisticMutation({
+                label: "keyboard-shift-arrow-string",
+                apply: (draft) => {
+                  const note = draft.notes.find((item) => item.id === resolvedId);
+                  if (!note) return draft;
+                  note.tab = [nextTab[0], nextTab[1]];
+                  note.midiNum = 0;
+                  return draft;
+                },
+                commit: () => gteApi.assignNoteTab(editorId, resolvedId, nextTab),
+              });
+              setKeyboardGridCursor({
+                time: clamp(snapStartTimeToGrid(selected.startTime), 0, Math.max(0, timelineEnd - 1)),
+                stringIndex: nextString,
+              });
+              return;
+            }
+            const delta = event.key === "ArrowLeft" ? -step : step;
+            const maxStart = Math.max(0, timelineEnd - Math.max(1, Math.round(selected.length)));
+            const rawNext = selected.startTime + delta;
+            const snappedNext = clamp(snapStartTimeToGrid(rawNext), 0, maxStart);
+            if (snappedNext === selected.startTime) return;
+            enqueueOptimisticMutation({
+              label: "keyboard-shift-arrow-time",
+              apply: (draft) => {
+                const note = draft.notes.find((item) => item.id === resolvedId);
+                if (!note) return draft;
+                note.startTime = snappedNext;
+                return draft;
+              },
+              commit: () => gteApi.setNoteStartTime(editorId, resolvedId, snappedNext, snapToGridEnabled),
+            });
+            setKeyboardGridCursor({ time: snappedNext, stringIndex: selected.tab[0] });
+            return;
+          }
+
+          const selectedForCursor =
+            selectedId !== null
+              ? snapshotRef.current.notes.find((note) => note.id === resolveNoteId(selectedId)) ?? null
+              : null;
+          const baseCursor = selectedForCursor
+            ? getDirectionalCursorFromSelectedNote(
+                selectedForCursor,
+                event.key as "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown",
+                step
+              )
+            : resolveKeyboardCursor();
+          const nextCursor: KeyboardGridCursor = { ...baseCursor };
+          if (!selectedForCursor) {
+            if (event.key === "ArrowLeft") {
+              nextCursor.time = clamp(snapStartTimeToGrid(baseCursor.time - step), 0, Math.max(0, timelineEnd - 1));
+            } else if (event.key === "ArrowRight") {
+              nextCursor.time = clamp(snapStartTimeToGrid(baseCursor.time + step), 0, Math.max(0, timelineEnd - 1));
+            }
+          }
+          if (event.key === "ArrowUp") {
+            nextCursor.stringIndex = clamp(baseCursor.stringIndex - 1, 0, 5);
+          } else if (event.key === "ArrowDown") {
+            nextCursor.stringIndex = clamp(baseCursor.stringIndex + 1, 0, 5);
+          }
+          setKeyboardSelection(nextCursor, null);
+          return;
+        }
       }
       if (event.key === "t" || event.key === "T") {
         if (isTyping) return;
@@ -5803,11 +6406,34 @@ export default function GteWorkspace({
     onRequestSelectedBarsDelete,
     onRequestSelectedBarsPaste,
     selectedBarIndices,
+    assignNoteFretById,
+    clamp,
+    createKeyboardNoteAtCursor,
+    enqueueOptimisticMutation,
+    finalizeKeyboardAddMode,
+    getGridCycleKey,
+    getKeyboardGridStepFrames,
+    getOrderedNoteIdsOnCursorGrid,
+    getNoteIdsOnCursorGrid,
+    maxFret,
+    mobileViewport,
+    normalizeTypedFretText,
+    playNotePreview,
+    resolveKeyboardCursor,
+    resolveNoteId,
+    setKeyboardSelection,
+    getDirectionalCursorFromSelectedNote,
+    snapStartTimeToGrid,
+    snapToGridEnabled,
+    timelineEnd,
   ]);
 
   useEffect(() => {
     const handlePointerStart = (target: HTMLElement | null, shiftKey: boolean) => {
       if (!target) return;
+      if (keyboardAddModeRef.current) {
+        finalizeKeyboardAddMode({ playPreview: true });
+      }
       if (shiftKey && target.closest("[data-gte-track='true']")) return;
       if (!target.closest("[data-cut-edit]")) {
         commitSegmentEditIfActive();
@@ -5861,7 +6487,7 @@ export default function GteWorkspace({
       window.removeEventListener("mousedown", handleMouseDown);
       window.removeEventListener("touchstart", handleTouchStart);
     };
-  }, [commitSegmentEditIfActive, contextMenu, editingChordId]);
+  }, [commitSegmentEditIfActive, contextMenu, editingChordId, finalizeKeyboardAddMode]);
 
   const workspaceClass = embedded
     ? `relative w-full min-w-0 max-w-full overflow-x-hidden border bg-white transition-[border-color,box-shadow] ${
@@ -5874,6 +6500,35 @@ export default function GteWorkspace({
           : "border-slate-200 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
       }`
     : "relative min-w-0 rounded-2xl border border-slate-200 bg-white p-5 space-y-5 -ml-3 w-[calc(100%+0.75rem)]";
+
+  const keyboardCursorMarker = useMemo<KeyboardCursorMarker | null>(() => {
+    if (mobileViewport || !isActive || selectedNoteIds.length > 0 || !keyboardGridCursor) return null;
+    const step = getKeyboardGridStepFrames();
+    const safeTime = clamp(Math.round(keyboardGridCursor.time), 0, Math.max(0, timelineEnd - 1));
+    const rowIndex = rowFrames > 0 ? clamp(Math.floor(safeTime / rowFrames), 0, rows - 1) : 0;
+    const rowStart = rowIndex * rowFrames;
+    const rowBarCount = getRowBarCount(rowIndex);
+    const availableFrames = Math.max(1, rowBarCount * framesPerMeasure);
+    const rowWidth = availableFrames * scale;
+    const cellWidth = Math.max(8, step * scale);
+    const left = clamp((safeTime - rowStart) * scale, 0, Math.max(0, rowWidth - cellWidth));
+    const stringIndex = clamp(Math.round(keyboardGridCursor.stringIndex), 0, 5);
+    const top = rowIndex * rowStride + stringIndex * ROW_HEIGHT;
+    return { left, top, width: cellWidth, height: ROW_HEIGHT };
+  }, [
+    clamp,
+    framesPerMeasure,
+    getKeyboardGridStepFrames,
+    isActive,
+    keyboardGridCursor,
+    mobileViewport,
+    rowFrames,
+    rowStride,
+    rows,
+    scale,
+    selectedNoteIds.length,
+    timelineEnd,
+  ]);
 
   const showMobileEditRail = isMobileEditMode && isActive;
   const showMobileInlineNoteSettings =
@@ -6025,6 +6680,7 @@ export default function GteWorkspace({
             </button>
             <div className="group relative flex w-[106px] flex-col gap-1">
               <select
+                data-scale-mode-select="true"
                 value={scaleToolMode}
                 onChange={(event) => {
                   const nextMode = event.target.value;
@@ -6664,7 +7320,11 @@ export default function GteWorkspace({
         </div>
       )}
 
-      {error && <div className="error">{error}</div>}
+      {error && isActive && (
+        <div className="fixed bottom-4 right-4 z-[10050] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-rose-300 bg-rose-50/95 px-3 py-2 text-sm text-rose-800 shadow-lg backdrop-blur">
+          {error}
+        </div>
+      )}
 
       <div
         className={`min-w-0 ${
@@ -6925,6 +7585,20 @@ export default function GteWorkspace({
                     </div>
                   );
                 })}
+
+                {keyboardCursorMarker && (
+                  <div
+                    className="absolute z-20 pointer-events-none"
+                    style={{
+                      left: keyboardCursorMarker.left,
+                      top: keyboardCursorMarker.top,
+                      width: keyboardCursorMarker.width,
+                      height: keyboardCursorMarker.height,
+                    }}
+                  >
+                    <div className="h-full w-full rounded-sm border border-slate-400/75 bg-slate-300/45" />
+                  </div>
+                )}
 
                 {sliceToolActive && sliceCursor && (() => {
                   const rowStart = sliceCursor.rowIndex * rowFrames;

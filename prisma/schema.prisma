@@ -9,19 +9,19 @@ datasource db {
 }
 
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?
-  access_token       String?
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?
-  session_state      String?
-  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -43,35 +43,35 @@ model VerificationToken {
 }
 
 model User {
-  id              String    @id @default(cuid())
-  name            String?
-  email           String    @unique
-  emailVerified   DateTime?
-  emailVerifiedBool Boolean @default(false)
-  unverifiedTranscriptionUsed Boolean @default(false)
-  image           String?
-  passwordHash    String?
-  role            String    @default("FREE")
-  tokensRemaining Int       @default(120)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  accounts        Account[]
-  sessions        Session[]
-  tabs            TabJob[]
-  posts           Post[]
-  gteTrackInstruments GteTrackInstrument[]
+  id                          String               @id @default(cuid())
+  name                        String?
+  email                       String               @unique
+  emailVerified               DateTime?
+  image                       String?
+  passwordHash                String?
+  role                        String               @default("FREE")
+  tokensRemaining             Int                  @default(120)
+  createdAt                   DateTime             @default(now())
+  updatedAt                   DateTime             @updatedAt
+  emailVerifiedBool           Boolean              @default(false)
+  unverifiedTranscriptionUsed Boolean              @default(false)
+  accounts                    Account[]
+  gteTrackInstruments         GteTrackInstrument[]
+  posts                       Post[]
+  sessions                    Session[]
+  tabs                        TabJob[]
 }
 
 model TabJob {
   id          String   @id @default(cuid())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
   sourceType  String
   sourceLabel String?
   durationSec Int?
   resultJson  String
-  gteEditorId String?
   createdAt   DateTime @default(now())
+  gteEditorId String?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model AnalyticsEvent {
@@ -101,33 +101,33 @@ model UserConsent {
 }
 
 model AnalyticsEventV2 {
-  id              BigInt                   @id @default(autoincrement())
-  eventId         String                   @unique
-  schemaVersion   Int
-  name            String
-  legacyEventName String?
-  ts              DateTime
-  receivedAt      DateTime                 @default(now())
-  accountId       String?
-  anonId          String?
-  sessionId       String?
-  fingerprintHash String?
+  id               BigInt                   @id @default(autoincrement())
+  eventId          String                   @unique
+  schemaVersion    Int
+  name             String
+  legacyEventName  String?
+  ts               DateTime
+  receivedAt       DateTime                 @default(now())
+  accountId        String?
+  anonId           String?
+  sessionId        String?
+  fingerprintHash  String?
   consentSubjectId BigInt?
-  path            String?
-  referrer        String?
-  utmSource       String?
-  utmMedium       String?
-  utmCampaign     String?
-  utmTerm         String?
-  utmContent      String?
-  ipHash          String?
-  uaBrowser       String?
-  uaOs            String?
-  uaDevice        String?
-  props           Json
-  env             String
-  appVersion      String?
-  consentSubject  AnalyticsConsentSubject? @relation(fields: [consentSubjectId], references: [id], onDelete: SetNull)
+  path             String?
+  referrer         String?
+  utmSource        String?
+  utmMedium        String?
+  utmCampaign      String?
+  utmTerm          String?
+  utmContent       String?
+  ipHash           String?
+  uaBrowser        String?
+  uaOs             String?
+  uaDevice         String?
+  props            Json
+  env              String
+  appVersion       String?
+  consentSubject   AnalyticsConsentSubject? @relation(fields: [consentSubjectId], references: [id])
 
   @@index([ts])
   @@index([name, ts])
@@ -138,13 +138,13 @@ model AnalyticsEventV2 {
 }
 
 model AnalyticsConsentSubject {
-  id              BigInt                 @id @default(autoincrement())
-  userId          String?                @unique
-  anonId          String?                @unique
+  id              BigInt                  @id @default(autoincrement())
+  userId          String?                 @unique
+  anonId          String?                 @unique
   fingerprintHash String?
-  state           AnalyticsConsentState  @default(granted)
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  state           AnalyticsConsentState   @default(granted)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
   audits          AnalyticsConsentAudit[]
   events          AnalyticsEventV2[]
 
@@ -152,19 +152,19 @@ model AnalyticsConsentSubject {
 }
 
 model AnalyticsConsentAudit {
-  id        BigInt                 @id @default(autoincrement())
+  id        BigInt                  @id @default(autoincrement())
   subjectId BigInt
   state     AnalyticsConsentState
   source    String?
   metadata  Json?
-  changedAt DateTime               @default(now())
+  changedAt DateTime                @default(now())
   subject   AnalyticsConsentSubject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
   @@index([subjectId, changedAt])
 }
 
 model AnalyticsIdentityLink {
-  id              BigInt                 @id @default(autoincrement())
+  id              BigInt                  @id @default(autoincrement())
   userId          String
   anonId          String?
   fingerprintHash String?
@@ -210,7 +210,7 @@ model GteTrackInstrument {
   laneId       String
   instrumentId String
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime @default(now()) @updatedAt
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, editorId, laneId])
@@ -231,28 +231,28 @@ model AnalyticsDailyKpi {
 }
 
 model Post {
-  id             String       @id @default(cuid())
+  id             String          @id @default(cuid())
   title          String
-  slug           String       @unique
+  slug           String          @unique
   excerpt        String
   content        String
-  contentHtml    String?
-  contentToc     Json?
-  contentMode    PostContentMode @default(PLAIN)
   coverImageUrl  String?
-  status         PostStatus   @default(DRAFT)
+  status         PostStatus      @default(DRAFT)
   publishAt      DateTime?
   publishedAt    DateTime?
   seoTitle       String?
   seoDescription String?
   canonicalUrl   String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   authorId       String
-  author         User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  contentMode    PostContentMode @default(PLAIN)
+  contentHtml    String?
+  contentToc     Json?
+  author         User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
   categories     PostCategory[]
-  tags           PostTag[]
   clusters       PostCluster[]
+  tags           PostTag[]
 
   @@index([status, publishAt])
 }
@@ -262,18 +262,18 @@ model Category {
   name        String
   slug        String         @unique
   description String?
-  posts       PostCategory[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
+  posts       PostCategory[]
 }
 
 model Tag {
   id        String    @id @default(cuid())
   name      String
   slug      String    @unique
-  posts     PostTag[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  posts     PostTag[]
 }
 
 model TopicCluster {
@@ -281,16 +281,16 @@ model TopicCluster {
   name        String
   slug        String        @unique
   description String?
-  posts       PostCluster[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+  posts       PostCluster[]
 }
 
 model PostCategory {
   postId     String
   categoryId String
-  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@id([postId, categoryId])
   @@index([categoryId])
@@ -299,8 +299,8 @@ model PostCategory {
 model PostTag {
   postId String
   tagId  String
-  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([postId, tagId])
   @@index([tagId])
@@ -309,12 +309,171 @@ model PostTag {
 model PostCluster {
   postId    String
   clusterId String
-  isPillar  Boolean @default(false)
-  post      Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  isPillar  Boolean      @default(false)
   cluster   TopicCluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  post      Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@id([postId, clusterId])
   @@index([clusterId])
+}
+
+model canvas_lanes {
+  user_id            String
+  canvas_id          String
+  lane_id            String
+  lane_index         Int
+  name               String?
+  version            Int           @default(1)
+  time_signature     Int           @default(8)
+  frames_per_messure Int           @default(480)
+  fps                Int           @default(240)
+  total_frames       Int           @default(480)
+  seconds_per_bar    Float         @default(2.0)
+  updated_at         DateTime      @db.Timestamptz(6)
+  created_at         DateTime      @default(now()) @db.Timestamptz(6)
+  canvases           canvases      @relation(fields: [user_id, canvas_id], references: [user_id, canvas_id], onDelete: Cascade, onUpdate: NoAction)
+  lane_chords        lane_chords[]
+  lane_cuts          lane_cuts[]
+  lane_notes         lane_notes[]
+
+  @@id([user_id, canvas_id, lane_id])
+  @@unique([user_id, canvas_id, lane_index], map: "idx_canvas_lanes_unique_order")
+  @@index([user_id, canvas_id, lane_id], map: "idx_canvas_lanes_lookup")
+}
+
+model canvases {
+  user_id               String
+  canvas_id             String
+  name                  String?
+  schema_version        Int            @default(1)
+  canvas_schema_version Int            @default(1)
+  seconds_per_bar       Float          @default(2.0)
+  version               Int            @default(1)
+  updated_at            DateTime       @db.Timestamptz(6)
+  created_at            DateTime       @default(now()) @db.Timestamptz(6)
+  canvas_lanes          canvas_lanes[]
+
+  @@id([user_id, canvas_id])
+  @@index([user_id, updated_at(sort: Desc)], map: "idx_canvases_user_updated")
+}
+
+model editor_snapshots {
+  user_id            String
+  editor_id          String
+  snapshot           Json
+  updated_at         DateTime @db.Timestamptz(6)
+  version            Int
+  name               String?
+  frames_per_messure Int?
+  total_frames       Int?
+  note_count         Int?
+  chord_count        Int?
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([user_id, editor_id])
+  @@index([user_id, updated_at(sort: Desc)], map: "idx_editor_user_updated")
+}
+
+model jobs {
+  id         String    @id
+  type       String
+  status     JobStatus @default(queued)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime  @default(now()) @db.Timestamptz(6)
+  startedAt  DateTime? @db.Timestamptz(6)
+  finishedAt DateTime? @db.Timestamptz(6)
+  userId     String?
+  input      Json
+  output     Json?
+  attempts   Int       @default(0)
+  lastError  String?
+
+  @@index([status, createdAt], map: "jobs_status_createdat_idx")
+}
+
+model lane_chords {
+  user_id       String
+  canvas_id     String
+  lane_id       String
+  chord_id      Int
+  start_time    Int
+  length        Int
+  original_midi Json         @default("[]")
+  current_tabs  Json         @default("[]")
+  og_tabs       Json         @default("[]")
+  updated_at    DateTime     @db.Timestamptz(6)
+  created_at    DateTime     @default(now()) @db.Timestamptz(6)
+  canvas_lanes  canvas_lanes @relation(fields: [user_id, canvas_id, lane_id], references: [user_id, canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, canvas_id, lane_id, chord_id])
+  @@index([user_id, canvas_id, lane_id, start_time, chord_id], map: "idx_lane_chords_lookup")
+}
+
+model lane_cuts {
+  user_id      String
+  canvas_id    String
+  lane_id      String
+  region_index Int
+  start_time   Int
+  end_time     Int
+  coord_string Int
+  coord_fret   Int
+  updated_at   DateTime     @db.Timestamptz(6)
+  created_at   DateTime     @default(now()) @db.Timestamptz(6)
+  canvas_lanes canvas_lanes @relation(fields: [user_id, canvas_id, lane_id], references: [user_id, canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, canvas_id, lane_id, region_index])
+  @@index([user_id, canvas_id, lane_id, region_index], map: "idx_lane_cuts_lookup")
+}
+
+model lane_notes {
+  user_id      String
+  canvas_id    String
+  lane_id      String
+  note_id      Int
+  start_time   Int
+  length       Int
+  midi_num     Int
+  tab_string   Int
+  tab_fret     Int
+  updated_at   DateTime     @db.Timestamptz(6)
+  created_at   DateTime     @default(now()) @db.Timestamptz(6)
+  canvas_lanes canvas_lanes @relation(fields: [user_id, canvas_id, lane_id], references: [user_id, canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, canvas_id, lane_id, note_id])
+  @@index([user_id, canvas_id, lane_id, start_time, note_id], map: "idx_lane_notes_lookup")
+}
+
+model thistothat_usage_state {
+  provider          String    @id
+  remainingRequests Int?
+  quotaLimit        Int?
+  resetAt           DateTime? @db.Timestamptz(6)
+  source            String?
+  fieldName         String?
+  observedAt        DateTime  @default(now()) @db.Timestamptz(6)
+  rawPayload        Json?
+  rawHeaders        Json?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model user_credits {
+  userId    String   @id
+  credits   Int
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model youtube_audio_cache {
+  videoId        String   @id
+  sourceUrl      String
+  artifact       Json
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @db.Timestamptz(6)
+  lastAccessedAt DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt      DateTime @db.Timestamptz(6)
+
+  @@index([expiresAt], map: "youtube_audio_cache_expiresat_idx")
 }
 
 enum PostStatus {
@@ -336,4 +495,11 @@ enum AnalyticsConsentState {
 enum AnalyticsIdentitySource {
   signup
   login
+}
+
+enum JobStatus {
+  queued
+  running
+  succeeded
+  failed
 }
