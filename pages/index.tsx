@@ -38,6 +38,7 @@ const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 const MAX_YT_SNIPPET_SEC = 30;
 const MAX_YT_START_SEC = 9 * 60;
 const MAX_YT_END_SEC = 10 * 60;
+const HOW_STEP_DURATION_MS = 4000;
 
 const isYouTubeId = (value: string) => /^[a-zA-Z0-9_-]{11}$/.test(value);
 
@@ -707,6 +708,84 @@ export default function HomePage() {
     }
   };
 
+  const howSteps = [
+    {
+      title: "Upload or paste a YouTube link",
+      text: "Drop in a song, riff, or recording and let Note2Tabs transcribe the music to tabs.",
+      video: "/videos/upload.mkv",
+    },
+    {
+      title: "Edit your guitar tabs",
+      text: "Edit your generated tabs or make your own. Adjust timings, find the right fingerings, find new ways to play your chords, or try any of our other smart tools for guitar tabs!",
+      video: "/videos/edit.mp4",
+    },
+    {
+      title: "Practice and play",
+      text: "Adjust your tabs to suit your playing style and start playing. Listen to your tracks, add a drum beat and play along. You can even export as MIDI or ASCII text tabs!",
+      video: "/videos/play.mp4",
+    },
+  ];
+
+    const [activeHowStep, setActiveHowStep] = useState(0);
+  const [howAutoAdvanceEnabled, setHowAutoAdvanceEnabled] = useState(true);
+  const [howManualPlayNonce, setHowManualPlayNonce] = useState(0);
+  const howRef = useRef<HTMLElement | null>(null);
+  const howVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [hasViewedHowSection, setHasViewedHowSection] = useState(false);
+
+  useEffect(() => {
+    const el = howRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setHasViewedHowSection(true);
+          observer.disconnect();
+        }
+      },
+      {
+        threshold: 0.35,
+      }
+    );
+
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!howAutoAdvanceEnabled || !hasViewedHowSection || howSteps.length === 0) return;
+    const timer = window.setTimeout(() => {
+      setActiveHowStep((prev) => {
+        if (prev >= howSteps.length - 1) {
+          setHowAutoAdvanceEnabled(false);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, HOW_STEP_DURATION_MS);
+    return () => window.clearTimeout(timer);
+  }, [activeHowStep, hasViewedHowSection, howAutoAdvanceEnabled, howSteps.length]);
+
+  useEffect(() => {
+    if (!hasViewedHowSection) return;
+    const video = howVideoRef.current;
+    if (!video) return;
+    if (!howAutoAdvanceEnabled && howManualPlayNonce === 0) return;
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {});
+    }
+  }, [activeHowStep, hasViewedHowSection, howAutoAdvanceEnabled, howManualPlayNonce]);
+
+  const handleHowStepClick = (index: number) => {
+    setHowAutoAdvanceEnabled(false);
+    setActiveHowStep(index);
+    setHowManualPlayNonce((prev) => prev + 1);
+  };
+
+
   const handleOpenGuestEditor = async () => {
     if (!tabsResult || importBusy) return;
     setImportBusy(true);
@@ -1107,31 +1186,39 @@ export default function HomePage() {
           </section>
         )}
 
-        <section className="steps" id="how">
+        <section ref={howRef} className="steps" id="how">
           <div className="container">
             <h2 className="section-title" data-reveal>
               How it works
             </h2>
-            <div className="how-flow" data-reveal>
-              <article className="how-step">
-                <span className="how-step-index">1</span>
-                <h3>Transcribe</h3>
-                <p>Upload music or paste a youtube link to start transcribing</p>
-              </article>
 
+            <div className="how-lovable" data-reveal>
+              <div className="how-video-card">
+                <video
+                  ref={howVideoRef}
+                  key={`${howSteps[activeHowStep].video}-${howManualPlayNonce}-${howAutoAdvanceEnabled ? "auto" : "manual"}`}
+                  className="how-video active"
+                  src={howSteps[activeHowStep].video}
+                  autoPlay={(hasViewedHowSection && howAutoAdvanceEnabled) || howManualPlayNonce > 0}
+                  muted
+                  loop={hasViewedHowSection && howAutoAdvanceEnabled}
+                  playsInline
+                />
+              </div>
 
-              <article className="how-step">
-                <span className="how-step-index">2</span>
-                <h3>Fine-Tune</h3>
-                <p>Tune the transcription settings until the notes sound right</p>
-              </article>
-
-
-              <article className="how-step">
-                <span className="how-step-index">3</span>
-                <h3>Tabs</h3>
-                <p>You can edit the tabs or optimize the guitar fingerings to your liking, using the editor.</p>
-              </article>
+              <div className="how-copy-list">
+                {howSteps.map((step, index) => (
+                  <button
+                    key={step.title}
+                    type="button"
+                    className={`how-copy-item ${activeHowStep === index ? "active" : ""}`}
+                    onClick={() => handleHowStepClick(index)}
+                  >
+                    <h3>{step.title}</h3>
+                    <p>{step.text}</p>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </section>
@@ -1197,3 +1284,4 @@ export default function HomePage() {
     </>
   );
 }
+

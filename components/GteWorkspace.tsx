@@ -7773,7 +7773,13 @@ export default function GteWorkspace({
                     const left = (segStart - rowStart) * scale;
                     const width = Math.max(CUT_SEGMENT_MIN_WIDTH, (segEnd - segStart) * scale);
                     const top = rowIdx * rowStride + rowHeight + CUT_SEGMENT_OFFSET;
-                    const editorLeft = Math.max(0, Math.min(timelineChromeWidth - 152, left));
+                    const rowPixelWidth = availableFrames * scale;
+                    const cutCoordEditorWidth = 148;
+                    const editorAnchorLeft = left + width / 2 - cutCoordEditorWidth / 2;
+                    const editorLeft = Math.max(
+                      0,
+                      Math.min(Math.max(0, rowPixelWidth - cutCoordEditorWidth), editorAnchorLeft)
+                    );
                     const editorTop = Math.max(0, top - 42);
                     const stringLabel =
                       segment.stringIndex !== null && STRING_LABELS[segment.stringIndex]
