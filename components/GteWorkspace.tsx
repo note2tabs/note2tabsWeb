@@ -6597,6 +6597,30 @@ export default function GteWorkspace({
     timelineEnd,
   ]);
 
+  useEffect(() => {
+    if (mobileViewport || !isActive || !keyboardCursorMarker) return;
+    const container = timelineOuterRef.current;
+    if (!container) return;
+    const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+    if (maxScroll <= 0) return;
+
+    const edgePadding = 48;
+    const cursorLeft = keyboardCursorMarker.left;
+    const cursorRight = keyboardCursorMarker.left + keyboardCursorMarker.width;
+    const visibleLeft = container.scrollLeft + edgePadding;
+    const visibleRight = container.scrollLeft + container.clientWidth - edgePadding;
+
+    let nextScrollLeft = container.scrollLeft;
+    if (cursorLeft < visibleLeft) {
+      nextScrollLeft = Math.max(0, cursorLeft - edgePadding);
+    } else if (cursorRight > visibleRight) {
+      nextScrollLeft = Math.min(maxScroll, cursorRight + edgePadding - container.clientWidth);
+    }
+
+    if (Math.abs(nextScrollLeft - container.scrollLeft) < 1) return;
+    container.scrollTo({ left: nextScrollLeft });
+  }, [isActive, keyboardCursorMarker, mobileViewport]);
+
   const showMobileEditRail = isMobileEditMode && isActive;
   const showMobileInlineNoteSettings =
     isMobileEditMode &&
