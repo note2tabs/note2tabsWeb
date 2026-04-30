@@ -45,6 +45,38 @@ const clampTab = (lane: Pick<EditorSnapshot, "tabRef">, tab?: TabCoord | null): 
 const buildDefaultCuts = (lane: Pick<EditorSnapshot, "tabRef" | "totalFrames">): CutWithCoord[] => [
   [[0, Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)))], clampTab(lane)],
 ];
+const isSameTab = (left: TabCoord, right: TabCoord) => left[0] === right[0] && left[1] === right[1];
+const normalizeCutRegions = (lane: EditorSnapshot, regions: CutWithCoord[]): CutWithCoord[] => {
+  const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)));
+  const normalized = regions
+    .map((entry) => {
+      const start = clamp(Math.round(toNumber(entry?.[0]?.[0], 0)), 0, totalFrames - 1);
+      const end = clamp(Math.round(toNumber(entry?.[0]?.[1], totalFrames)), start + 1, totalFrames);
+      return [[start, end], clampTab(lane, entry?.[1])] as CutWithCoord;
+    })
+    .filter((entry) => entry[0][1] > entry[0][0])
+    .sort((left, right) => left[0][0] - right[0][0]);
+  return normalized.length ? normalized : buildDefaultCuts(lane);
+};
+const mergeRedundantCutRegions = (lane: EditorSnapshot, regions: CutWithCoord[]): CutWithCoord[] => {
+  const merged: CutWithCoord[] = [];
+  normalizeCutRegions(lane, regions).forEach(([region, coord]) => {
+    const safeCoord = clampTab(lane, coord);
+    const start = Math.round(region[0]);
+    const end = Math.round(region[1]);
+    if (end <= start) return;
+    const last = merged[merged.length - 1];
+    if (last && isSameTab(last[1], safeCoord)) {
+      last[0][1] = Math.max(Math.round(last[0][1]), end);
+      return;
+    }
+    merged.push([[start, end], [safeCoord[0], safeCoord[1]]]);
+  });
+  return merged.length ? merged : buildDefaultCuts(lane);
+};
+const cleanCutSegmentsInLane = (lane: EditorSnapshot) => {
+  lane.cutPositionsWithCoords = mergeRedundantCutRegions(lane, lane.cutPositionsWithCoords);
+};
 
 const normalizeLane = (raw: unknown, laneId: string, secondsFallback: number, index: number): EditorSnapshot => {
   const source =
@@ -600,6 +632,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         const result = applyLaneMutation(canvas, laneId, (lane) => {
           lane.totalFrames = Math.max(FIXED_FRAMES_PER_BAR, lane.totalFrames + Math.max(1, Math.round(toNumber(body.count, 1))) * FIXED_FRAMES_PER_BAR);
           if (!lane.cutPositionsWithCoords.length) lane.cutPositionsWithCoords = buildDefaultCuts(lane);
+          cleanCutSegmentsInLane(lane);
         });
         canvas = persistCanvas(sessionId, result.canvas);
         return res.status(200).json({ ok: true, snapshot: result.snapshot });
@@ -609,6 +642,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
           const next = removeSingleBarFromLane(lane, body.index);
           if (!next) throw new Error("Unable to remove bar.");
           Object.assign(lane, next);
+          cleanCutSegmentsInLane(lane);
         });
         canvas = persistCanvas(sessionId, result.canvas);
         return res.status(200).json({ ok: true, snapshot: result.snapshot });
@@ -618,6 +652,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
           const next = reorderSingleBarInLane(lane, body.fromIndex, body.toIndex);
           if (!next) throw new Error("Unable to reorder bar.");
           Object.assign(lane, next);
+          cleanCutSegmentsInLane(lane);
         });
         canvas = persistCanvas(sessionId, result.canvas);
         return res.status(200).json({ ok: true, snapshot: result.snapshot });

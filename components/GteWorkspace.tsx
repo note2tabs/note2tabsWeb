@@ -373,6 +373,33 @@ const mergeRedundantCutRegionsInSnapshot = (draft: EditorSnapshot) => {
   draft.cutPositionsWithCoords = mergeRedundantCutRegions(draft, draft.cutPositionsWithCoords);
 };
 
+const applyBarOperationCleanupInSnapshot = (draft: EditorSnapshot) => {
+  mergeRedundantCutRegionsInSnapshot(draft);
+};
+
+const cloneCutRegionsPayload = (regions: CutWithCoord[]): CutWithCoord[] =>
+  regions.map((region) => [
+    [region[0][0], region[0][1]],
+    [region[1][0], region[1][1]],
+  ]);
+
+const cutRegionsEqual = (left: CutWithCoord[], right: CutWithCoord[]) => {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    const leftRegion = left[index];
+    const rightRegion = right[index];
+    if (
+      leftRegion[0][0] !== rightRegion[0][0] ||
+      leftRegion[0][1] !== rightRegion[0][1] ||
+      leftRegion[1][0] !== rightRegion[1][0] ||
+      leftRegion[1][1] !== rightRegion[1][1]
+    ) {
+      return false;
+    }
+  }
+  return true;
+};
+
 const getTabMidi = (snapshot: EditorSnapshot, tab: TabCoord) => {
   const fromRef = snapshot.tabRef?.[tab[0]]?.[tab[1]];
   if (fromRef !== undefined && fromRef !== null && Number.isFinite(Number(fromRef))) {
@@ -3756,7 +3783,16 @@ export default function GteWorkspace({
       setDragBarIndex(null);
       return;
     }
-    void runMutation(() => gteApi.reorderBars(editorId, dragBarIndex, targetIndex), {
+    void runMutation(async () => {
+      const reordered = await gteApi.reorderBars(editorId, dragBarIndex, targetIndex);
+      if (!reordered.snapshot) return reordered;
+      const cleanedSnapshot = cloneSnapshot(reordered.snapshot);
+      applyBarOperationCleanupInSnapshot(cleanedSnapshot);
+      if (cutRegionsEqual(reordered.snapshot.cutPositionsWithCoords, cleanedSnapshot.cutPositionsWithCoords)) {
+        return reordered;
+      }
+      return gteApi.applyManualCuts(editorId, cloneCutRegionsPayload(cleanedSnapshot.cutPositionsWithCoords));
+    }, {
       unavailableMessage: "Bar reordering is available after saving this draft to your account.",
     });
     setDragBarIndex(null);
@@ -4926,18 +4962,38 @@ export default function GteWorkspace({
   };
 
   const handleAddBar = () => {
-    void runMutation(() => gteApi.addBars(editorId, 1), {
+    void runMutation(async () => {
+      const added = await gteApi.addBars(editorId, 1);
+      if (!added.snapshot) return added;
+      const cleanedSnapshot = cloneSnapshot(added.snapshot);
+      applyBarOperationCleanupInSnapshot(cleanedSnapshot);
+      if (cutRegionsEqual(added.snapshot.cutPositionsWithCoords, cleanedSnapshot.cutPositionsWithCoords)) {
+        return added;
+      }
+      return gteApi.applyManualCuts(editorId, cloneCutRegionsPayload(cleanedSnapshot.cutPositionsWithCoords));
+    }, {
       localApply: (draft) => {
         addBarsInSnapshot(draft, 1);
+        applyBarOperationCleanupInSnapshot(draft);
       },
     });
   };
 
   const handleRemoveBar = (index: number) => {
     if (barCount <= 1) return;
-    void runMutation(() => gteApi.removeBar(editorId, index), {
+    void runMutation(async () => {
+      const removed = await gteApi.removeBar(editorId, index);
+      if (!removed.snapshot) return removed;
+      const cleanedSnapshot = cloneSnapshot(removed.snapshot);
+      applyBarOperationCleanupInSnapshot(cleanedSnapshot);
+      if (cutRegionsEqual(removed.snapshot.cutPositionsWithCoords, cleanedSnapshot.cutPositionsWithCoords)) {
+        return removed;
+      }
+      return gteApi.applyManualCuts(editorId, cloneCutRegionsPayload(cleanedSnapshot.cutPositionsWithCoords));
+    }, {
       localApply: (draft) => {
         removeBarInSnapshot(draft, index);
+        applyBarOperationCleanupInSnapshot(draft);
       },
     });
   };

@@ -230,10 +230,52 @@ const buildDefaultCutRegions = (totalFrames: number): EditorSnapshot["cutPositio
   [[0, Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(totalFrames, FIXED_FRAMES_PER_BAR)))], [2, 0]],
 ];
 
+const isSameTabCoord = (left: [number, number], right: [number, number]) =>
+  left[0] === right[0] && left[1] === right[1];
+
 const cloneCutRegion = (region: EditorSnapshot["cutPositionsWithCoords"][number]) => [
   [Number(region[0][0]), Number(region[0][1])],
   [Number(region[1][0]), Number(region[1][1])],
 ] as EditorSnapshot["cutPositionsWithCoords"][number];
+
+const cleanLaneCutSegments = (lane: EditorSnapshot): EditorSnapshot => {
+  const totalFrames = Math.max(
+    FIXED_FRAMES_PER_BAR,
+    Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR))
+  );
+  const normalizedRegions = (Array.isArray(lane.cutPositionsWithCoords) ? lane.cutPositionsWithCoords : [])
+    .map((region) => {
+      const start = Math.max(0, Math.min(totalFrames - 1, Math.round(toNumber(region?.[0]?.[0], 0))));
+      const end = Math.max(start + 1, Math.min(totalFrames, Math.round(toNumber(region?.[0]?.[1], totalFrames))));
+      const coord: [number, number] = [
+        Math.round(toNumber(region?.[1]?.[0], 2)),
+        Math.round(toNumber(region?.[1]?.[1], 0)),
+      ];
+      return [[start, end], coord] as EditorSnapshot["cutPositionsWithCoords"][number];
+    })
+    .filter((region) => region[0][1] > region[0][0])
+    .sort((left, right) => left[0][0] - right[0][0]);
+
+  const merged: EditorSnapshot["cutPositionsWithCoords"] = [];
+  normalizedRegions.forEach((region) => {
+    const last = merged[merged.length - 1];
+    if (last && isSameTabCoord(last[1], region[1])) {
+      last[0][1] = Math.max(last[0][1], region[0][1]);
+      return;
+    }
+    merged.push(cloneCutRegion(region));
+  });
+
+  return {
+    ...lane,
+    cutPositionsWithCoords: merged.length ? merged : buildDefaultCutRegions(totalFrames),
+  };
+};
+
+const cleanCanvasCutSegments = (canvas: CanvasSnapshot): CanvasSnapshot => ({
+  ...canvas,
+  editors: canvas.editors.map((lane) => cleanLaneCutSegments(lane)),
+});
 
 const selectBarsFromLane = (lane: EditorSnapshot, barIndices: number[]): EditorSnapshot | null => {
   const normalized = normalizeBarIndices(lane, barIndices);
@@ -1462,7 +1504,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const applyCanvasBarUpdate = useCallback(
     (nextCanvas: CanvasSnapshot) => {
-      applyCanvasUpdate(normalizeCanvas(nextCanvas, editorId), { markDirty: true });
+      const normalized = normalizeCanvas(nextCanvas, editorId);
+      const cleaned = cleanCanvasCutSegments(normalized);
+      applyCanvasUpdate(cleaned, { markDirty: true });
     },
     [applyCanvasUpdate, editorId]
   );
