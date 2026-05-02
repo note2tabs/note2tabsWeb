@@ -9,6 +9,28 @@ type QueuedEvent = {
   ts: string;
 };
 
+export const ANALYTICS_EVENTS = {
+  pageView: "page_view",
+  ctaClicked: "cta_clicked",
+  webVital: "web_vital",
+  pricingViewed: "pricing_viewed",
+  pricingCtaClicked: "pricing_cta_clicked",
+  checkoutStarted: "checkout_started",
+  signupStarted: "signup_started",
+  signupCompleted: "signup_completed",
+  signupFailed: "signup_failed",
+  uploadSelected: "upload_selected",
+  uploadDropped: "upload_dropped",
+  uploadValidationFailed: "upload_validation_failed",
+  uploadPresignStarted: "upload_presign_started",
+  uploadStorageSucceeded: "upload_storage_succeeded",
+  uploadStorageFailed: "upload_storage_failed",
+  tabGenerationStarted: "transcribe_start",
+  tabGenerationQueued: "transcribe_queued",
+  tabGenerationSucceeded: "transcribe_success",
+  tabGenerationFailed: "transcribe_error",
+} as const;
+
 const FLUSH_DELAY_MS = 1200;
 const QUEUE_MAX = 12;
 
@@ -31,6 +53,17 @@ function generateEventId() {
     }
   }
   return `${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`;
+}
+
+function getUtmParams() {
+  if (typeof window === "undefined") return {};
+  const params = new URLSearchParams(window.location.search);
+  const result: Record<string, string> = {};
+  for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"]) {
+    const value = params.get(key);
+    if (value) result[key] = value.slice(0, 160);
+  }
+  return result;
 }
 
 function postEvents(events: QueuedEvent[], useBeacon = false) {
@@ -107,7 +140,10 @@ export function sendEvent(event: string, payload?: EventPayload) {
     event,
     path: window.location.pathname,
     referer: document.referrer,
-    payload,
+    payload: {
+      ...getUtmParams(),
+      ...(payload || {}),
+    },
     ts: new Date().toISOString(),
   });
 
@@ -116,4 +152,8 @@ export function sendEvent(event: string, payload?: EventPayload) {
     return;
   }
   scheduleFlush();
+}
+
+export function trackCtaClick(name: string, payload?: EventPayload) {
+  sendEvent(ANALYTICS_EVENTS.ctaClicked, { cta: name, ...payload });
 }

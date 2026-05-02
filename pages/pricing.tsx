@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { useEffect } from "react";
+import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
 import SeoHead, { absoluteUrl } from "../components/SeoHead";
 
 export default function PricingPage() {
@@ -32,6 +34,10 @@ export default function PricingPage() {
     },
   ];
 
+  useEffect(() => {
+    sendEvent(ANALYTICS_EVENTS.pricingViewed, { path: "/pricing" });
+  }, []);
+
   return (
     <>
       <SeoHead title="Pricing | Note2Tabs" description={description} canonicalPath="/pricing" jsonLd={pricingJsonLd} />
@@ -45,7 +51,11 @@ export default function PricingPage() {
                   Compare Free and Premium plans for credits, speed, ads, and upload limits.
                 </p>
               </div>
-              <Link href="/#pricing" className="button-secondary button-small">
+              <Link
+                href="/#pricing"
+                className="button-secondary button-small"
+                onClick={() => trackCtaClick("pricing_back_to_app", { surface: "pricing_page" })}
+              >
                 Back to app
               </Link>
             </div>

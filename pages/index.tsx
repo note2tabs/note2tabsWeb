@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
-import { sendEvent } from "../lib/analytics";
+import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { copyText } from "../lib/clipboard";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
@@ -339,6 +339,13 @@ export default function HomePage() {
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
     setSelectedFile(file);
+    if (file) {
+      sendEvent(ANALYTICS_EVENTS.uploadSelected, {
+        mode: "FILE",
+        size: file.size,
+        type: file.type || "unknown",
+      });
+    }
     setMode("FILE");
     setError(null);
     setImportError(null);
@@ -367,6 +374,11 @@ export default function HomePage() {
     const file = event.dataTransfer.files?.[0];
     if (file) {
       setSelectedFile(file);
+      sendEvent(ANALYTICS_EVENTS.uploadDropped, {
+        mode: "FILE",
+        size: file.size,
+        type: file.type || "unknown",
+      });
       setMode("FILE");
       setError(null);
       setImportError(null);
@@ -406,21 +418,25 @@ export default function HomePage() {
   const validateConvertInputs = () => {
     if (!transcriberSession && !disableDbInDev) {
       setError("Sign in to start transcribing.");
+      sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "signed_out", mode });
       signIn(undefined, { callbackUrl: "/" });
       return false;
     }
     if (transcriberSession && !canUseUnverifiedTranscription) {
       setError("Please verify your email to continue using the transcriber.");
+      sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "email_unverified", mode });
       return false;
     }
 
     if (mode === "FILE" && !selectedFile) {
       setError("Please select an audio file to transcribe.");
+      sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "missing_file", mode });
       return false;
     }
 
     if (mode === "YOUTUBE" && !youtubeValid) {
       setError("Please paste a valid YouTube link.");
+      sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "invalid_youtube_url", mode });
       return false;
     }
     if (mode === "YOUTUBE" && (ytStartTime === null || ytEndTime === null)) {
@@ -447,6 +463,12 @@ export default function HomePage() {
         : MAX_FREE_BYTES;
       if (selectedFile.size > maxBytes) {
         setError(`File is too large. Max size is ${formatMb(maxBytes)} for your plan.`);
+        sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, {
+          reason: "file_too_large",
+          mode,
+          size: selectedFile.size,
+          maxBytes,
+        });
         return false;
       }
     }
@@ -489,7 +511,14 @@ export default function HomePage() {
     setTranscriberSegments(null);
     setStatus(mode === "FILE" ? "Uploading audio..." : "Preparing YouTube download...");
     setLoading(true);
-    sendEvent("transcribe_start", { mode, ytUrl: youtubeUrl || undefined });
+    sendEvent(ANALYTICS_EVENTS.tabGenerationStarted, {
+      mode,
+      sourceType: mode,
+      separateGuitar,
+      fileSize: selectedFile?.size,
+      durationSec: mode === "YOUTUBE" ? resolvedYtDuration : fileDuration,
+      hasAppendEditorId: Boolean(appendEditorId),
+    });
 
     try {
       let response: Response | null = null;
@@ -513,6 +542,7 @@ export default function HomePage() {
           response = await postFileDirectly();
         } else {
           const uploadStorageError = "Could not upload file to storage. Please try again.";
+          sendEvent(ANALYTICS_EVENTS.uploadPresignStarted, { mode, size: selectedFile.size });
           const presignRes = await fetch("/api/uploads/presign", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -524,6 +554,11 @@ export default function HomePage() {
           });
           const presignData = await presignRes.json().catch(() => ({}));
           if (!presignRes.ok || !presignData?.url || !presignData?.key) {
+            sendEvent(ANALYTICS_EVENTS.uploadStorageFailed, {
+              mode,
+              step: "presign",
+              error: presignData?.error || "presign_failed",
+            });
             throw new Error(presignData?.error || uploadStorageError);
           } else {
             try {
@@ -535,7 +570,13 @@ export default function HomePage() {
               if (!uploadRes.ok) {
                 throw new Error(uploadStorageError);
               }
+              sendEvent(ANALYTICS_EVENTS.uploadStorageSucceeded, {
+                mode,
+                size: selectedFile.size,
+                type: selectedFile.type || "unknown",
+              });
             } catch {
+              sendEvent(ANALYTICS_EVENTS.uploadStorageFailed, { mode, step: "storage_put" });
               throw new Error(uploadStorageError);
             }
             setStatus(transcribingStatusLabel);
@@ -584,7 +625,7 @@ export default function HomePage() {
           setLocalUnverifiedTranscriptionUsed(true);
         }
         setStatus("Getting things started. Opening progress screen...");
-        sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
+        sendEvent(ANALYTICS_EVENTS.tabGenerationQueued, { mode, jobId: data.jobId, status: data.status || "queued" });
         const jobParams = new URLSearchParams();
         jobParams.set("mode", mode);
         jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
@@ -606,12 +647,12 @@ export default function HomePage() {
           return;
         }
         setError(data?.error || "Transcription failed. Please try again.");
-        sendEvent("transcribe_error", { mode, error: data?.error || "unknown" });
+        sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, { mode, error: data?.error || "unknown" });
         return;
       }
       if (!data.tabs || !Array.isArray(data.tabs)) {
         setError("No tabs returned from server.");
-        sendEvent("transcribe_error", { mode, error: "no tabs" });
+        sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, { mode, error: "no tabs" });
         return;
         }
         const nextTabs = data.tabs;
@@ -623,7 +664,12 @@ export default function HomePage() {
         if (data.unverifiedTranscriptionUsed) {
           setLocalUnverifiedTranscriptionUsed(true);
         }
-        sendEvent("transcribe_success", { mode, jobId: data.jobId });
+        sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
+          mode,
+          jobId: data.jobId,
+          tabJobId: data.tabJobId,
+          segmentGroups: Array.isArray(data.transcriberSegments) ? data.transcriberSegments.length : undefined,
+        });
         if (transcriberSession && data.tabJobId) {
           setStatus("Tabs ready. Opening transcription...");
           await router.push(
@@ -648,7 +694,7 @@ export default function HomePage() {
         return;
     } catch (err: any) {
       setError(err?.message || "Something went wrong. Please try again.");
-      sendEvent("transcribe_error", { mode, error: err?.message || "unknown" });
+      sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, { mode, error: err?.message || "unknown" });
     } finally {
       setLoading(false);
       convertInFlightRef.current = false;
@@ -815,6 +861,7 @@ export default function HomePage() {
   const handlePricingClick = async () => {
     if (pricingBusy) return;
     if (!session) {
+      sendEvent(ANALYTICS_EVENTS.pricingCtaClicked, { cta: "premium_card", signedIn: false, path: "/" });
       signIn(undefined, { callbackUrl: "/" });
       return;
     }
@@ -827,6 +874,7 @@ export default function HomePage() {
         setPricingError(data?.error || "Could not start checkout.");
         return;
       }
+      sendEvent(ANALYTICS_EVENTS.checkoutStarted, { source: "home_pricing", plan: "premium_monthly" });
       window.location.href = data.url;
     } catch (err: any) {
       setPricingError(err?.message || "Could not start checkout.");
@@ -996,6 +1044,7 @@ export default function HomePage() {
                           onClick={() => {
                             setMode("FILE");
                             setShowInstrumentPrompt(false);
+                            trackCtaClick("mode_file", { surface: "hero_funnel" });
                           }}
                         >
                           Audio file
@@ -1006,6 +1055,7 @@ export default function HomePage() {
                           onClick={() => {
                             setMode("YOUTUBE");
                             setShowInstrumentPrompt(false);
+                            trackCtaClick("mode_youtube", { surface: "hero_funnel" });
                           }}
                         >
                           YouTube link
@@ -1015,7 +1065,10 @@ export default function HomePage() {
                         type="button"
                         className="button-primary funnel-submit"
                         disabled={!canSubmit}
-                        onClick={() => void handleConvert()}
+                        onClick={() => {
+                          trackCtaClick("convert_to_tabs", { surface: "hero_funnel", mode });
+                          void handleConvert();
+                        }}
                       >
                         {loading ? submitLabel : "Convert to Tabs"}
                       </button>
@@ -1245,7 +1298,14 @@ export default function HomePage() {
                 type="button"
                 className="pricing-card pricing-card--premium pricing-card--trial"
                 data-reveal
-                onClick={handlePricingClick}
+                onClick={() => {
+                  sendEvent(ANALYTICS_EVENTS.pricingCtaClicked, {
+                    cta: "premium_card",
+                    signedIn: Boolean(session),
+                    path: "/",
+                  });
+                  void handlePricingClick();
+                }}
                 disabled={pricingBusy}
               >
                 <span className="pricing-trial-ribbon">7 days free trial</span>

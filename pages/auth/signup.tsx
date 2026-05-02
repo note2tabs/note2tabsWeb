@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { signIn } from "next-auth/react";
 import { generateFingerprint } from "../../lib/fingerprint";
+import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../../lib/analytics";
 import NoIndexHead from "../../components/NoIndexHead";
 
 const authErrorMessage = (error?: string | string[]) => {
@@ -40,6 +41,7 @@ export default function SignupPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    sendEvent(ANALYTICS_EVENTS.signupStarted, { method: "email", next: nextHref });
     let fingerprintId: string | undefined;
     try {
       const fingerprint = await generateFingerprint();
@@ -56,8 +58,10 @@ export default function SignupPage() {
     const data = await res.json();
     if (!res.ok) {
       setError(data?.error || "Could not sign up.");
+      sendEvent(ANALYTICS_EVENTS.signupFailed, { method: "email", error: data?.error || "unknown" });
       return;
     }
+    sendEvent(ANALYTICS_EVENTS.signupCompleted, { method: "email", next: nextHref });
     const nextEmail = encodeURIComponent((data?.email as string) || email);
     const sentParam = data?.emailSent === false ? "&sent=0" : "";
     const nextParam = nextHref === "/" ? "" : `&next=${encodeURIComponent(nextHref)}`;
@@ -121,7 +125,11 @@ export default function SignupPage() {
           </div>
           <button
             type="button"
-            onClick={() => signIn("google", { callbackUrl: nextHref })}
+            onClick={() => {
+              sendEvent(ANALYTICS_EVENTS.signupStarted, { method: "google", next: nextHref });
+              trackCtaClick("signup_google", { surface: "signup_page" });
+              signIn("google", { callbackUrl: nextHref });
+            }}
             className="button-secondary"
           >
             Continue with Google

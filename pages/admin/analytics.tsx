@@ -16,6 +16,7 @@ import {
   getGteEditorStats,
   getParityMetrics,
   getModerationSnapshot,
+  getGrowthInsights,
 } from "../../lib/analyticsQueries";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
@@ -50,8 +51,9 @@ type RecentFeedback = Awaited<ReturnType<typeof getRecentFeedback>>[number];
 type GteStats = Awaited<ReturnType<typeof getGteEditorStats>>;
 type ModerationSnapshot = Awaited<ReturnType<typeof getModerationSnapshot>>;
 type Parity = Awaited<ReturnType<typeof getParityMetrics>>;
+type GrowthInsights = Awaited<ReturnType<typeof getGrowthInsights>>;
 
-type AnalyticsView = "overview" | "gte" | "users" | "events" | "feedback" | "moderation" | "parity";
+type AnalyticsView = "overview" | "growth" | "gte" | "users" | "events" | "feedback" | "moderation" | "parity";
 
 const presetRanges: Record<string, number> = {
   "7d": 7,
@@ -59,13 +61,17 @@ const presetRanges: Record<string, number> = {
   "90d": 90,
 };
 
-const ADMIN_VIEWS: AnalyticsView[] = ["overview", "gte", "users", "events", "feedback", "moderation", "parity"];
+const ADMIN_VIEWS: AnalyticsView[] = ["overview", "growth", "gte", "users", "events", "feedback", "moderation", "parity"];
 const MODERATOR_VIEWS: AnalyticsView[] = ["moderation"];
 
 const VIEW_META: Record<AnalyticsView, { label: string; description: string }> = {
   overview: {
     label: "Overview",
     description: "Core usage, conversion, devices, and reliability.",
+  },
+  growth: {
+    label: "Growth",
+    description: "Sources, landing pages, funnels, SEO, retention, and product quality signals.",
   },
   gte: {
     label: "GTE",
@@ -127,6 +133,7 @@ type Props = {
   gteStats: SerializedGteStats | null;
   parity: Parity | null;
   moderation: SerializedModerationSnapshot;
+  growth: GrowthInsights | null;
   thisToThat: {
     provider: string;
     configured: boolean;
@@ -164,6 +171,7 @@ export default function AnalyticsDashboard(props: Props) {
     gteStats,
     parity,
     moderation,
+    growth,
     thisToThat,
   } = props;
 
@@ -242,6 +250,7 @@ export default function AnalyticsDashboard(props: Props) {
               )}
 
               {activeView === "gte" && <GteView gteStats={gteStats} />}
+              {activeView === "growth" && <GrowthView growth={growth} />}
 
               {activeView === "users" && <UsersView topUsers={topUsers} usersActivity={usersActivity} />}
 
@@ -505,6 +514,114 @@ function OverviewView({
           <p className="text-sm text-slate-300">Total failed: {errors.totalFailed}</p>
           <ErrorBarChart data={errors.byType} />
         </div>
+      </section>
+    </>
+  );
+}
+
+function GrowthView({ growth }: { growth: Props["growth"] }) {
+  if (!growth) {
+    return <div className="card">Growth analytics are not available for this role.</div>;
+  }
+
+  const uploadCompletion = pct(growth.uploadFunnel.started, growth.uploadFunnel.succeeded);
+
+  return (
+    <>
+      <section className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+        <Card title="Tab success" value={`${growth.tabGeneration.successRate.toFixed(1)}%`} />
+        <Card title="Signup conversion" value={`${growth.signupConversion.rate.toFixed(1)}%`} />
+        <Card title="Pricing CTR" value={`${growth.pricing.clickRate.toFixed(1)}%`} />
+        <Card title="Organic sessions" value={growth.seo.organicSessions} />
+        <Card title="Multi-page sessions" value={`${growth.retention.multiPageRate.toFixed(1)}%`} />
+        <Card title="Upload completion" value={`${uploadCompletion}%`} />
+      </section>
+
+      {growth.recommendations.length > 0 && (
+        <section className="card stack">
+          <SectionHeader title="Actionable insights" />
+          <div className="stack" style={{ gap: "8px" }}>
+            {growth.recommendations.map((item) => (
+              <div key={item} className="notice">
+                {item}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <SimpleTable
+          title="Traffic sources"
+          rows={growth.trafficSources}
+          empty="No source data in range."
+          labelHeading="Source"
+        />
+        <SimpleTable
+          title="CTA clicks"
+          rows={growth.ctaClicks}
+          empty="No CTA click events yet."
+          labelHeading="CTA"
+        />
+      </section>
+
+      <section className="card stack">
+        <SectionHeader title="Landing page performance" />
+        <div className="overflow-x-auto">
+          <table className="table">
+            <thead>
+              <tr className="text-left text-slate-600">
+                <th className="px-2 py-1">Landing page</th>
+                <th className="px-2 py-1">Sessions</th>
+                <th className="px-2 py-1">Bounce</th>
+                <th className="px-2 py-1">Signup</th>
+                <th className="px-2 py-1">Start</th>
+                <th className="px-2 py-1">Success</th>
+              </tr>
+            </thead>
+            <tbody>
+              {growth.landingPages.map((row) => (
+                <tr key={row.path} className="border-t border-slate-200">
+                  <td className="px-2 py-1">{row.path}</td>
+                  <td className="px-2 py-1">{row.sessions}</td>
+                  <td className="px-2 py-1">{row.bounceRate.toFixed(1)}%</td>
+                  <td className="px-2 py-1">{row.signupRate.toFixed(1)}%</td>
+                  <td className="px-2 py-1">{row.transcriptionStartRate.toFixed(1)}%</td>
+                  <td className="px-2 py-1">{row.transcriptionSuccessRate.toFixed(1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <div className="card stack">
+          <SectionHeader title="Upload funnel" />
+          <BarItem label="File selected" value={growth.uploadFunnel.selected} />
+          <BarItem label="Generation started" value={growth.uploadFunnel.started} />
+          <BarItem label="Succeeded" value={growth.uploadFunnel.succeeded} />
+          <BarItem label="Failed" value={growth.uploadFunnel.failed} />
+        </div>
+        <div className="card stack">
+          <SectionHeader title="Pricing funnel" />
+          <BarItem label="Viewed" value={growth.pricing.viewed} />
+          <BarItem label="Clicked" value={growth.pricing.clicked} />
+          <BarItem label="Checkout started" value={growth.pricing.checkoutStarted} />
+        </div>
+        <div className="card stack">
+          <SectionHeader title="Performance p75" />
+          {growth.performance.map((row) => (
+            <BarItem key={row.metric} label={`${row.metric} (${row.samples})`} value={row.p75} />
+          ))}
+          {growth.performance.length === 0 && <p className="muted text-small">No performance samples yet.</p>}
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <SimpleTable title="Countries" rows={growth.countries} empty="Geo headers not available yet." labelHeading="Country" />
+        <SimpleTable title="Campaigns" rows={growth.campaigns} empty="No UTM campaigns in range." labelHeading="Campaign" />
+        <SimpleTable title="Organic search" rows={growth.seo.topOrganicSources} empty="No organic referrers in range." labelHeading="Source" />
       </section>
     </>
   );
@@ -960,6 +1077,49 @@ function BarItem({ label, value }: { label: string; value: number }) {
   );
 }
 
+function SimpleTable({
+  title,
+  rows,
+  empty,
+  labelHeading,
+}: {
+  title: string;
+  rows: Array<{ label: string; count: number }>;
+  empty: string;
+  labelHeading: string;
+}) {
+  return (
+    <section className="card stack">
+      <SectionHeader title={title} />
+      <div className="overflow-x-auto">
+        <table className="table">
+          <thead>
+            <tr className="text-left text-slate-600">
+              <th className="px-2 py-1">{labelHeading}</th>
+              <th className="px-2 py-1">Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.label} className="border-t border-slate-200">
+                <td className="px-2 py-1">{row.label}</td>
+                <td className="px-2 py-1">{row.count}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={2} className="px-2 py-3 text-center text-slate-500">
+                  {empty}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function pct(prev: number, next: number) {
   if (!prev) return 0;
   return Math.round((next / prev) * 100);
@@ -1016,6 +1176,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     consents: [],
     stats: { totalEvents: 0, totalConsents: 0, eventsByType: {} },
   };
+  let growth: GrowthInsights | null = null;
   let thisToThat: Props["thisToThat"] = null;
 
   if (isAdmin) {
@@ -1069,6 +1230,8 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
             })()
           : Promise.resolve(null),
       ]);
+    } else if (activeView === "growth") {
+      growth = await getGrowthInsights(from, to);
     } else if (activeView === "gte") {
       gteStats = await getGteEditorStats(from, to, 25);
     } else if (activeView === "users") {
@@ -1134,6 +1297,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         : null,
       parity,
       thisToThat,
+      growth,
       moderation: {
         analytics: moderation.analytics.map((row) => ({
           ...row,

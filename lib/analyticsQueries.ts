@@ -19,6 +19,9 @@ type UnifiedAnalyticsEvent = {
   browser: string | null;
   os: string | null;
   deviceType: string | null;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
   payload: string | null;
 };
 
@@ -85,6 +88,9 @@ async function fetchUnifiedEvents(from: Date, to: Date): Promise<UnifiedAnalytic
       rows.map((row) => ({
         ...row,
         event: mapUnifiedEventName(row.event),
+        utmSource: null,
+        utmMedium: null,
+        utmCampaign: null,
       }))
     );
   }
@@ -104,6 +110,9 @@ async function fetchUnifiedEvents(from: Date, to: Date): Promise<UnifiedAnalytic
       uaBrowser: true,
       uaOs: true,
       uaDevice: true,
+      utmSource: true,
+      utmMedium: true,
+      utmCampaign: true,
       props: true,
     },
   });
@@ -122,6 +131,9 @@ async function fetchUnifiedEvents(from: Date, to: Date): Promise<UnifiedAnalytic
       browser: row.uaBrowser || null,
       os: row.uaOs || null,
       deviceType: row.uaDevice || null,
+      utmSource: row.utmSource || (typeof props.utm_source === "string" ? props.utm_source : null),
+      utmMedium: row.utmMedium || (typeof props.utm_medium === "string" ? props.utm_medium : null),
+      utmCampaign: row.utmCampaign || (typeof props.utm_campaign === "string" ? props.utm_campaign : null),
       payload: row.props ? JSON.stringify(row.props) : null,
     };
   });
@@ -685,6 +697,232 @@ export async function getGteEditorStats(from: Date, to: Date, topUsersLimit = 25
         ...item,
         userEmail: item.userId ? userMap[item.userId]?.email || null : null,
       })),
+  };
+}
+
+function increment(map: Map<string, number>, key: string | null | undefined, count = 1) {
+  const normalized = key && key.trim() ? key.trim() : "Unknown";
+  map.set(normalized, (map.get(normalized) || 0) + count);
+}
+
+function topRows(map: Map<string, number>, limit = 8) {
+  return Array.from(map.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+    .slice(0, limit);
+}
+
+function classifyTrafficSource(event: UnifiedAnalyticsEvent) {
+  if (event.utmSource) return event.utmMedium ? `${event.utmSource} / ${event.utmMedium}` : event.utmSource;
+  const referer = event.referer || "";
+  if (!referer) return "Direct / none";
+  try {
+    const host = new URL(referer).hostname.replace(/^www\./, "");
+    if (/google|bing|duckduckgo|yahoo|yandex|baidu/i.test(host)) return `Organic search / ${host}`;
+    if (/youtube|facebook|instagram|tiktok|reddit|x\.com|twitter|linkedin/i.test(host)) return `Social / ${host}`;
+    if (/note2tabs/i.test(host)) return "Internal";
+    return `Referral / ${host}`;
+  } catch {
+    return "Referral / unknown";
+  }
+}
+
+export async function getGrowthInsights(from: Date, to: Date) {
+  const [events, users] = await Promise.all([
+    getUnifiedEvents(from, to),
+    prisma.user.findMany({
+      where: { createdAt: { gte: from, lte: to } },
+      select: { id: true, createdAt: true },
+    }),
+  ]);
+
+  const sourceCounts = new Map<string, number>();
+  const campaignCounts = new Map<string, number>();
+  const countryCounts = new Map<string, number>();
+  const ctaCounts = new Map<string, number>();
+  const performanceValues = new Map<string, number[]>();
+  const landing = new Map<
+    string,
+    {
+      sessions: Set<string>;
+      signups: Set<string>;
+      starts: Set<string>;
+      successes: Set<string>;
+      bounces: Set<string>;
+    }
+  >();
+  const sessionPages = new Map<string, string[]>();
+  const sessionFirstPage = new Map<string, string>();
+  const sessionHasAction = new Set<string>();
+  const returningSessions = new Set<string>();
+  const allSessions = new Set<string>();
+  const uploadSelected = new Set<string>();
+  const uploadStarted = new Set<string>();
+  const uploadSucceeded = new Set<string>();
+  const uploadFailed = new Set<string>();
+  const pricingViewed = new Set<string>();
+  const pricingClicked = new Set<string>();
+  const checkoutStarted = new Set<string>();
+  const signupStarted = new Set<string>();
+  const signupCompleted = new Set<string>();
+  const tabStarted = new Set<string>();
+  const tabSucceeded = new Set<string>();
+  const tabFailed = new Set<string>();
+
+  for (const event of events.slice().sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())) {
+    const sid = event.sessionId || "";
+    const payload = parsePayload(event.payload);
+    if (sid) {
+      allSessions.add(sid);
+      if (!sessionFirstPage.has(sid) && event.event === "page_view") {
+        sessionFirstPage.set(sid, normalizePath(event.path) || "/");
+      }
+    }
+    if (event.event === "page_view") {
+      increment(sourceCounts, classifyTrafficSource(event));
+      if (event.utmCampaign) increment(campaignCounts, event.utmCampaign);
+      if (sid) {
+        const path = normalizePath(event.path) || "/";
+        sessionPages.set(sid, [...(sessionPages.get(sid) || []), path]);
+      }
+    }
+
+    const geo = payload.geo && typeof payload.geo === "object" ? (payload.geo as Record<string, unknown>) : {};
+    if (typeof geo.country === "string") increment(countryCounts, geo.country);
+    if (event.event === "cta_clicked" && typeof payload.cta === "string") increment(ctaCounts, payload.cta);
+    if (event.event === "web_vital" && typeof payload.metric === "string" && typeof payload.value === "number") {
+      const values = performanceValues.get(payload.metric) || [];
+      values.push(payload.value);
+      performanceValues.set(payload.metric, values);
+    }
+
+    if (["transcription_started", "transcription_completed", "transcription_failed", "cta_clicked", "signup_completed"].includes(event.event) && sid) {
+      sessionHasAction.add(sid);
+    }
+    if (event.event === "upload_selected" && sid) uploadSelected.add(sid);
+    if (event.event === "transcription_started" && sid) {
+      uploadStarted.add(sid);
+      tabStarted.add(sid);
+    }
+    if (event.event === "transcription_completed" && sid) {
+      uploadSucceeded.add(sid);
+      tabSucceeded.add(sid);
+    }
+    if (event.event === "transcription_failed" && sid) {
+      uploadFailed.add(sid);
+      tabFailed.add(sid);
+    }
+    if (event.event === "pricing_viewed" && sid) pricingViewed.add(sid);
+    if (event.event === "pricing_cta_clicked" && sid) pricingClicked.add(sid);
+    if (event.event === "checkout_started" && sid) checkoutStarted.add(sid);
+    if (event.event === "signup_started" && sid) signupStarted.add(sid);
+    if (event.event === "signup_completed" && sid) signupCompleted.add(sid);
+  }
+
+  for (const [sid, pages] of sessionPages) {
+    if (pages.length > 1) returningSessions.add(sid);
+    const firstPath = sessionFirstPage.get(sid) || pages[0] || "/";
+    const row =
+      landing.get(firstPath) ||
+      { sessions: new Set<string>(), signups: new Set<string>(), starts: new Set<string>(), successes: new Set<string>(), bounces: new Set<string>() };
+    row.sessions.add(sid);
+    if (pages.length <= 1 && !sessionHasAction.has(sid)) row.bounces.add(sid);
+    landing.set(firstPath, row);
+  }
+
+  for (const event of events) {
+    const sid = event.sessionId || "";
+    if (!sid) continue;
+    const firstPath = sessionFirstPage.get(sid);
+    if (!firstPath) continue;
+    const row = landing.get(firstPath);
+    if (!row) continue;
+    if (event.event === "signup_completed") row.signups.add(sid);
+    if (event.event === "transcription_started") row.starts.add(sid);
+    if (event.event === "transcription_completed") row.successes.add(sid);
+  }
+
+  const performance = Array.from(performanceValues.entries()).map(([metric, values]) => ({
+    metric,
+    samples: values.length,
+    median: percentile(values, 50),
+    p75: percentile(values, 75),
+    p95: percentile(values, 95),
+  }));
+
+  const landingPages = Array.from(landing.entries())
+    .map(([path, row]) => ({
+      path,
+      sessions: row.sessions.size,
+      bounceRate: row.sessions.size ? Math.round((row.bounces.size / row.sessions.size) * 1000) / 10 : 0,
+      signupRate: row.sessions.size ? Math.round((row.signups.size / row.sessions.size) * 1000) / 10 : 0,
+      transcriptionStartRate: row.sessions.size ? Math.round((row.starts.size / row.sessions.size) * 1000) / 10 : 0,
+      transcriptionSuccessRate: row.starts.size ? Math.round((row.successes.size / row.starts.size) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.sessions - a.sessions)
+    .slice(0, 10);
+
+  const newUserIds = new Set(users.map((user) => user.id));
+  const returningAccountEvents = new Set(
+    events
+      .filter((event) => event.userId && !newUserIds.has(event.userId))
+      .map((event) => event.userId as string)
+  );
+
+  const recommendations: string[] = [];
+  const worstLanding = landingPages.slice().sort((a, b) => b.sessions - a.sessions || b.bounceRate - a.bounceRate)[0];
+  if (worstLanding && worstLanding.sessions >= 5 && worstLanding.bounceRate >= 70) {
+    recommendations.push(`${worstLanding.path} has a ${worstLanding.bounceRate}% bounce rate. Review above-the-fold copy and primary CTA clarity.`);
+  }
+  const failedRate = tabStarted.size ? Math.round((tabFailed.size / tabStarted.size) * 1000) / 10 : 0;
+  if (failedRate >= 10) {
+    recommendations.push(`Tab generation failure is ${failedRate}%. Check recent transcription errors and upload/storage failures.`);
+  }
+  if (pricingViewed.size >= 5 && checkoutStarted.size === 0) {
+    recommendations.push("Pricing is getting views but no checkout starts. Test clearer premium CTA placement or plan comparison.");
+  }
+
+  return {
+    trafficSources: topRows(sourceCounts),
+    campaigns: topRows(campaignCounts),
+    countries: topRows(countryCounts),
+    ctaClicks: topRows(ctaCounts),
+    landingPages,
+    uploadFunnel: {
+      selected: uploadSelected.size,
+      started: uploadStarted.size,
+      succeeded: uploadSucceeded.size,
+      failed: uploadFailed.size,
+    },
+    tabGeneration: {
+      started: tabStarted.size,
+      succeeded: tabSucceeded.size,
+      failed: tabFailed.size,
+      successRate: tabStarted.size ? Math.round((tabSucceeded.size / tabStarted.size) * 1000) / 10 : 0,
+    },
+    signupConversion: {
+      started: signupStarted.size,
+      completed: signupCompleted.size || users.length,
+      rate: signupStarted.size ? Math.round(((signupCompleted.size || users.length) / signupStarted.size) * 1000) / 10 : 0,
+    },
+    pricing: {
+      viewed: pricingViewed.size,
+      clicked: pricingClicked.size,
+      checkoutStarted: checkoutStarted.size,
+      clickRate: pricingViewed.size ? Math.round((pricingClicked.size / pricingViewed.size) * 1000) / 10 : 0,
+    },
+    retention: {
+      sessions: allSessions.size,
+      multiPageSessions: returningSessions.size,
+      multiPageRate: allSessions.size ? Math.round((returningSessions.size / allSessions.size) * 1000) / 10 : 0,
+      returningAccounts: returningAccountEvents.size,
+    },
+    performance,
+    seo: {
+      organicSessions: topRows(sourceCounts).filter((row) => row.label.startsWith("Organic search")).reduce((sum, row) => sum + row.count, 0),
+      topOrganicSources: topRows(sourceCounts).filter((row) => row.label.startsWith("Organic search")),
+    },
+    recommendations,
   };
 }
 

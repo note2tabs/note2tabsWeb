@@ -81,6 +81,22 @@ function getEnvironment() {
   return process.env.VERCEL_ENV || process.env.NODE_ENV || "development";
 }
 
+function getHeaderValue(req: NextApiRequest | undefined, name: string) {
+  const value = req?.headers[name.toLowerCase()];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function getGeoContext(req?: NextApiRequest) {
+  const country = getHeaderValue(req, "x-vercel-ip-country") || getHeaderValue(req, "cf-ipcountry");
+  const region = getHeaderValue(req, "x-vercel-ip-country-region");
+  const city = getHeaderValue(req, "x-vercel-ip-city");
+  return {
+    ...(country ? { country: country.slice(0, 80) } : {}),
+    ...(region ? { region: region.slice(0, 120) } : {}),
+    ...(city ? { city: decodeURIComponent(city).slice(0, 120) } : {}),
+  };
+}
+
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
@@ -297,6 +313,7 @@ export async function ingestAnalyticsEvents(context: IngestContext): Promise<Ing
   const ipHash = hashIpAddress(extractIp(context.req));
   const env = getEnvironment();
   const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || undefined;
+  const geo = getGeoContext(context.req);
 
   let written = 0;
   let deduped = 0;
@@ -372,6 +389,7 @@ export async function ingestAnalyticsEvents(context: IngestContext): Promise<Ing
           uaDevice: ua.deviceType,
           props: {
             ...event.props,
+            ...(Object.keys(geo).length ? { geo } : {}),
             ...(event.editorId ? { editorId: event.editorId } : {}),
             ...(event.jobId ? { jobId: event.jobId } : {}),
             ...(context.source ? { source: context.source } : {}),
