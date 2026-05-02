@@ -1907,6 +1907,84 @@ input[type="number"] {
   background: #fbf8f1;
 }
 
+.editor-seo-section {
+  background: #ffffff;
+}
+
+.editor-seo-layout {
+  display: grid;
+  gap: 28px;
+}
+
+.editor-seo-intro {
+  max-width: 900px;
+  display: grid;
+  gap: 14px;
+}
+
+.editor-seo-intro p,
+.editor-keyword-panel p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.98rem;
+  line-height: 1.72;
+}
+
+.editor-seo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.editor-seo-card,
+.editor-workflow-item,
+.editor-keyword-panel {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.055);
+}
+
+.editor-seo-card,
+.editor-workflow-item {
+  padding: 22px;
+  display: grid;
+  gap: 10px;
+}
+
+.editor-seo-card h3,
+.editor-workflow-item h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.08rem;
+  line-height: 1.28;
+}
+
+.editor-seo-card p,
+.editor-workflow-item p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.94rem;
+  line-height: 1.65;
+}
+
+.editor-workflow-section {
+  background: #f5f8fb;
+}
+
+.editor-workflow-grid {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.editor-keyword-panel {
+  margin-top: 18px;
+  padding: 20px 22px;
+  background: #fffdfa;
+}
+
 .hero-subtitle {
   margin: 14px auto 0;
   max-width: 760px;
@@ -4854,6 +4932,8 @@ input[type="number"] {
   }
 
   .editor-edit-grid,
+  .editor-seo-grid,
+  .editor-workflow-grid,
   .editor-faq-layout {
     grid-template-columns: 1fr;
   }
