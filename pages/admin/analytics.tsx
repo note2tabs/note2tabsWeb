@@ -510,12 +510,116 @@ function OverviewView({
           <DonutChart data={browserData} />
         </div>
         <div className="card stack">
-          <SectionHeader title="Error hotspots" />
-          <p className="text-sm text-slate-300">Total failed: {errors.totalFailed}</p>
+          <div className="page-header">
+            <SectionHeader title="Error pulse" />
+            <p className="muted text-small">
+              {errors.last24h} last 24h ({formatSignedPct(errors.trendPct)})
+            </p>
+          </div>
+          <Card title="Total tracked errors" value={errors.totalFailed} />
           <ErrorBarChart data={errors.byType} />
         </div>
       </section>
+
+      <ErrorTriagePanel errors={errors} />
     </>
+  );
+}
+
+function ErrorTriagePanel({ errors }: { errors: NonNullable<Props["errors"]> }) {
+  return (
+    <section className="card stack">
+      <div className="page-header">
+        <SectionHeader title="Error triage" />
+        <p className="muted text-small">
+          Recent failures include upload, signup, storage, and tab-generation errors.
+        </p>
+      </div>
+
+      <section className="grid gap-4 lg:grid-cols-4">
+        <div className="card-outline stack">
+          <p className="muted text-small">Last 24h</p>
+          <p style={{ fontSize: "1.5rem", fontWeight: 600, margin: 0 }}>{errors.last24h}</p>
+          <p className="muted text-small">Previous 24h: {errors.previous24h}</p>
+        </div>
+        <div className="card-outline stack">
+          <p className="muted text-small">Top message</p>
+          <p style={{ fontWeight: 600, margin: 0 }}>{truncate(errors.byType[0]?.message || "No errors", 72)}</p>
+          <p className="muted text-small">{errors.byType[0]?.count || 0} events</p>
+        </div>
+        <div className="card-outline stack">
+          <p className="muted text-small">Top page</p>
+          <p style={{ fontWeight: 600, margin: 0 }}>{errors.byPath[0]?.path || "-"}</p>
+          <p className="muted text-small">{errors.byPath[0]?.count || 0} events</p>
+        </div>
+        <div className="card-outline stack">
+          <p className="muted text-small">Top mode/browser</p>
+          <p style={{ fontWeight: 600, margin: 0 }}>
+            {(errors.byMode[0]?.mode || "unknown")} / {(errors.byBrowser[0]?.browser || "unknown")}
+          </p>
+          <p className="muted text-small">Use this to reproduce quickly.</p>
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <ErrorMiniTable
+          title="Error types"
+          rows={errors.byEvent.map((row) => ({ label: row.event, count: row.count }))}
+          empty="No error events."
+        />
+        <ErrorMiniTable
+          title="Messages"
+          rows={errors.byType.slice(0, 6).map((row) => ({ label: row.message, count: row.count }))}
+          empty="No messages."
+        />
+        <ErrorMiniTable
+          title="Affected pages"
+          rows={errors.byPath.slice(0, 6).map((row) => ({ label: row.path, count: row.count }))}
+          empty="No affected pages."
+        />
+      </section>
+
+      <section className="card-outline stack">
+        <SectionHeader title="Recent errors" />
+        <div className="overflow-x-auto">
+          <table className="table">
+            <thead>
+              <tr className="text-left text-slate-600">
+                <th className="px-2 py-1">When</th>
+                <th className="px-2 py-1">Event</th>
+                <th className="px-2 py-1">Message</th>
+                <th className="px-2 py-1">Page</th>
+                <th className="px-2 py-1">Mode</th>
+                <th className="px-2 py-1">Step</th>
+                <th className="px-2 py-1">Browser</th>
+                <th className="px-2 py-1">Job</th>
+              </tr>
+            </thead>
+            <tbody>
+              {errors.recentErrors.map((error) => (
+                <tr key={error.id} className="border-t border-slate-200 align-top">
+                  <td className="px-2 py-1 text-slate-600">{new Date(error.occurredAt).toLocaleString()}</td>
+                  <td className="px-2 py-1">{error.event}</td>
+                  <td className="px-2 py-1" style={{ minWidth: 240 }}>{error.message}</td>
+                  <td className="px-2 py-1">{error.path || "-"}</td>
+                  <td className="px-2 py-1">{error.mode || "-"}</td>
+                  <td className="px-2 py-1">{error.step || "-"}</td>
+                  <td className="px-2 py-1">{error.browser || "-"} / {error.deviceType || "-"}</td>
+                  <td className="px-2 py-1">{error.jobId || "-"}</td>
+                </tr>
+              ))}
+              {errors.recentErrors.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-2 py-3 text-center text-slate-500">
+                    No tracked errors in this range.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
   );
 }
 
@@ -1120,9 +1224,43 @@ function SimpleTable({
   );
 }
 
+function ErrorMiniTable({
+  title,
+  rows,
+  empty,
+}: {
+  title: string;
+  rows: Array<{ label: string; count: number }>;
+  empty: string;
+}) {
+  return (
+    <div className="card-outline stack">
+      <SectionHeader title={title} />
+      <div className="stack" style={{ gap: "8px" }}>
+        {rows.map((row) => (
+          <div key={row.label} className="page-header" style={{ gap: "12px" }}>
+            <span title={row.label}>{truncate(row.label, 72)}</span>
+            <span className="muted text-small">{row.count}</span>
+          </div>
+        ))}
+        {rows.length === 0 && <p className="muted text-small">{empty}</p>}
+      </div>
+    </div>
+  );
+}
+
 function pct(prev: number, next: number) {
   if (!prev) return 0;
   return Math.round((next / prev) * 100);
+}
+
+function formatSignedPct(value: number) {
+  if (!Number.isFinite(value) || value === 0) return "0%";
+  return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function truncate(value: string, maxLength: number) {
+  return value.length > maxLength ? `${value.slice(0, maxLength - 1)}...` : value;
 }
 
 function formatDuration(seconds: number) {

@@ -415,26 +415,102 @@ export async function getDeviceBreakdown(from: Date, to: Date) {
 }
 
 export async function getErrorStats(from: Date, to: Date) {
-  const events = (await getUnifiedEvents(from, to)).filter((event) => event.event === "transcription_failed");
+  const errorEventNames = new Set([
+    "transcription_failed",
+    "upload_storage_failed",
+    "upload_validation_failed",
+    "signup_failed",
+  ]);
+  const events = (await getUnifiedEvents(from, to))
+    .filter((event) => errorEventNames.has(event.event) || event.event.endsWith("_failed"))
+    .slice()
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const byMessage: Record<string, number> = {};
+  const byEvent: Record<string, number> = {};
+  const byPath: Record<string, number> = {};
+  const byMode: Record<string, number> = {};
+  const byBrowser: Record<string, number> = {};
+  const hourlyMap = new Map<string, number>();
+  const recentErrors: Array<{
+    id: string;
+    occurredAt: string;
+    event: string;
+    message: string;
+    path: string | null;
+    mode: string | null;
+    step: string | null;
+    browser: string | null;
+    deviceType: string | null;
+    userId: string | null;
+    sessionId: string | null;
+    jobId: string | null;
+  }> = [];
+
   events.forEach((e) => {
-    let msg = "Unknown error";
-    if (e.payload) {
-      try {
-        const parsed = JSON.parse(e.payload);
-        msg = parsed?.errorMessage || parsed?.message || msg;
-      } catch {
-        msg = e.payload;
-      }
-    }
+    const payload = parsePayload(e.payload);
+    const msg =
+      typeof payload.errorMessage === "string"
+        ? payload.errorMessage
+        : typeof payload.message === "string"
+        ? payload.message
+        : typeof payload.error === "string"
+        ? payload.error
+        : e.payload && e.payload.trim().startsWith("{")
+        ? "Unknown error"
+        : e.payload || "Unknown error";
+    const mode = typeof payload.mode === "string" ? payload.mode : null;
+    const step = typeof payload.step === "string" ? payload.step : null;
+    const jobId = typeof payload.jobId === "string" ? payload.jobId : null;
+    const hour = `${e.createdAt.toISOString().slice(0, 13)}:00`;
+
     byMessage[msg] = (byMessage[msg] || 0) + 1;
+    byEvent[e.event] = (byEvent[e.event] || 0) + 1;
+    byPath[e.path || "unknown"] = (byPath[e.path || "unknown"] || 0) + 1;
+    byMode[mode || "unknown"] = (byMode[mode || "unknown"] || 0) + 1;
+    byBrowser[e.browser || "unknown"] = (byBrowser[e.browser || "unknown"] || 0) + 1;
+    hourlyMap.set(hour, (hourlyMap.get(hour) || 0) + 1);
+    if (recentErrors.length < 40) {
+      recentErrors.push({
+        id: e.id,
+        occurredAt: e.createdAt.toISOString(),
+        event: e.event,
+        message: msg,
+        path: e.path || null,
+        mode,
+        step,
+        browser: e.browser || null,
+        deviceType: e.deviceType || null,
+        userId: e.userId || null,
+        sessionId: e.sessionId || null,
+        jobId,
+      });
+    }
   });
+
   const totalFailed = events.length;
   const byType = Object.entries(byMessage)
     .map(([message, count]) => ({ message, count }))
     .sort((a, b) => b.count - a.count);
 
-  return { totalFailed, byType };
+  const last24hCutoff = new Date(to.getTime() - 24 * 60 * 60 * 1000);
+  const last24h = events.filter((event) => event.createdAt >= last24hCutoff).length;
+  const previous24hCutoff = new Date(to.getTime() - 48 * 60 * 60 * 1000);
+  const previous24h = events.filter((event) => event.createdAt >= previous24hCutoff && event.createdAt < last24hCutoff).length;
+  const trendPct = previous24h > 0 ? Math.round(((last24h - previous24h) / previous24h) * 1000) / 10 : last24h > 0 ? 100 : 0;
+
+  return {
+    totalFailed,
+    last24h,
+    previous24h,
+    trendPct,
+    byType,
+    byEvent: Object.entries(byEvent).map(([event, count]) => ({ event, count })).sort((a, b) => b.count - a.count),
+    byPath: Object.entries(byPath).map(([path, count]) => ({ path, count })).sort((a, b) => b.count - a.count).slice(0, 10),
+    byMode: Object.entries(byMode).map(([mode, count]) => ({ mode, count })).sort((a, b) => b.count - a.count),
+    byBrowser: Object.entries(byBrowser).map(([browser, count]) => ({ browser, count })).sort((a, b) => b.count - a.count),
+    hourly: Array.from(hourlyMap.entries()).map(([hour, count]) => ({ hour, count })).sort((a, b) => a.hour.localeCompare(b.hour)),
+    recentErrors,
+  };
 }
 
 export async function getTopUsers(from: Date, to: Date, limit = 10) {
