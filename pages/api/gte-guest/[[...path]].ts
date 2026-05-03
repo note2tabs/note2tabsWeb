@@ -360,7 +360,7 @@ const getAllTabsForMidi = (lane: EditorSnapshot, midi: number) => {
 
 const buildAsciiTabText = (lane: EditorSnapshot) => {
   const beatsPerBar = clamp(Math.round(toNumber(lane.timeSignature, 8)), 1, 64);
-  const charactersPerBar = beatsPerBar * 10;
+  const charactersPerBar = beatsPerBar * 5;
   const totalBars = Math.max(1, Math.ceil(Math.max(FIXED_FRAMES_PER_BAR, lane.totalFrames) / FIXED_FRAMES_PER_BAR));
   const bars = Array.from({ length: totalBars }, () =>
     Array.from({ length: 6 }, () => Array.from({ length: charactersPerBar }, () => "-"))
@@ -374,7 +374,8 @@ const buildAsciiTabText = (lane: EditorSnapshot) => {
       0,
       Math.max(0, charactersPerBar - 1)
     );
-    const text = String(Math.max(0, Math.round(toNumber(fret, 0))));
+    const fretValue = Math.max(0, Math.round(toNumber(fret, 0)));
+    const text = fretValue >= 10 ? String(fretValue).slice(0, 2) : `${fretValue}-`;
     const line = bars[barIndex][clamp(Math.round(toNumber(stringIndex, 0)), 0, 5)];
     for (let idx = 0; idx < text.length && col + idx < line.length; idx += 1) {
       line[col + idx] = text[idx];
