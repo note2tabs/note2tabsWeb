@@ -79,7 +79,7 @@ export default function VerifyEmailPage() {
         setResendMessage("Your email is already verified.");
       } else if (data?.sent === false) {
         setResendMessage(
-          "Verification email delivery is not configured yet. Set AWS_SES_REGION and a valid sender address."
+          "Verification email delivery is not configured yet. Set SES SMTP credentials and a valid sender address."
         );
       } else {
         setResendMessage("Verification email sent. Please check your inbox.");

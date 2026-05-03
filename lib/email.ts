@@ -10,6 +10,7 @@ type SendEmailInput = {
 
 let sesClient: SESClient | null = null;
 let sesClientRegion = "";
+let sesClientKey = "";
 let smtpTransporter: nodemailer.Transporter | null = null;
 let smtpTransportKey = "";
 
@@ -37,6 +38,14 @@ function getSesSmtpCredentials() {
   return { user, pass };
 }
 
+function getSesApiCredentials() {
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID || "";
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || "";
+  const sessionToken = process.env.AWS_SESSION_TOKEN || undefined;
+  if (!accessKeyId || !secretAccessKey) return null;
+  return { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) };
+}
+
 function getSmtpTransporter() {
   const credentials = getSesSmtpCredentials();
   const host = getSesSmtpHost();
@@ -59,18 +68,21 @@ function getSmtpTransporter() {
 
 function getSesClient() {
   const region = getSesRegion();
-  if (!region) return null;
+  const credentials = getSesApiCredentials();
+  if (!region || !credentials) return null;
 
-  if (!sesClient || sesClientRegion !== region) {
-    sesClient = new SESClient({ region });
+  const key = `${region}:${credentials.accessKeyId}`;
+  if (!sesClient || sesClientRegion !== region || sesClientKey !== key) {
+    sesClient = new SESClient({ region, credentials });
     sesClientRegion = region;
+    sesClientKey = key;
   }
 
   return sesClient;
 }
 
 export function isEmailDeliveryConfigured() {
-  return Boolean(getSmtpTransporter() || getSesRegion());
+  return Boolean(getSmtpTransporter() || getSesClient());
 }
 
 export async function sendTransactionalEmail(input: SendEmailInput): Promise<boolean> {
