@@ -15,7 +15,7 @@ type EditorLane = {
 };
 
 const STRING_LABELS = ["e", "B", "G", "D", "A", "E"] as const;
-const TAB_FONT_SIZE_MIN = 11;
+const TAB_FONT_SIZE_MIN = 5;
 const TAB_FONT_SIZE_MAX = 22;
 const TAB_FONT_SIZE_STEP = 1;
 const TAB_FONT_SIZE_DEFAULT = 14;
