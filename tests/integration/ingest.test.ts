@@ -116,4 +116,28 @@ describe("ingestAnalyticsEvents", () => {
     expect(second.written).toBe(0);
     expect(second.deduped).toBe(1);
   });
+
+  it("retries transient database connectivity failures", async () => {
+    const prismaMock = createPrismaMock();
+    prismaMock.analyticsConsentSubject.findUnique
+      .mockRejectedValueOnce({ code: "P1001" })
+      .mockResolvedValue(null);
+
+    const result = await ingestAnalyticsEvents({
+      prismaClient: prismaMock,
+      accountId: "user_1",
+      cookies: { analytics_consent: "granted", analytics_anon: "anon_4", analytics_session: "sess_4" },
+      body: {
+        event_id: "07072935-822f-48a3-9085-e1c2c294ae2e",
+        schema_version: 2,
+        name: "page_viewed",
+        ts: "2026-02-26T10:00:00.000Z",
+        props: { path: "/" },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.written).toBe(1);
+    expect(prismaMock.analyticsConsentSubject.findUnique.mock.calls.length).toBeGreaterThan(1);
+  });
 });

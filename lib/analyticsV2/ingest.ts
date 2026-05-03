@@ -58,6 +58,40 @@ type IdentityContext = {
   consentSubjectId?: bigint;
 };
 
+const TRANSIENT_PRISMA_CONNECTION_CODES = new Set(["P1001", "P1002", "P1017"]);
+const TRANSIENT_RETRY_DELAYS_MS = [100, 300];
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function isTransientPrismaConnectionError(error: unknown) {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    TRANSIENT_PRISMA_CONNECTION_CODES.has(error.code)
+  ) {
+    return true;
+  }
+
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string" &&
+    TRANSIENT_PRISMA_CONNECTION_CODES.has((error as { code: string }).code)
+  );
+}
+
+async function resetPrismaConnection(context: IngestContext) {
+  if (context.prismaClient) return;
+
+  try {
+    await prisma.$disconnect();
+  } catch (error) {
+    console.warn("analytics prisma disconnect after transient error failed", error);
+  }
+}
+
 function resolveBody(input: unknown) {
   if (typeof input === "string") {
     try {
@@ -282,7 +316,7 @@ async function writeLegacyEvent(
   });
 }
 
-export async function ingestAnalyticsEvents(context: IngestContext): Promise<IngestResult> {
+async function ingestAnalyticsEventsOnce(context: IngestContext): Promise<IngestResult> {
   const prismaClient = context.prismaClient || prisma;
   const parsedBody = resolveBody(context.body ?? context.req?.body);
   const { events } = parseIngestBody(parsedBody);
@@ -436,4 +470,21 @@ export async function ingestAnalyticsEvents(context: IngestContext): Promise<Ing
     dualWritten,
     blocked: 0,
   };
+}
+
+export async function ingestAnalyticsEvents(context: IngestContext): Promise<IngestResult> {
+  for (let attempt = 0; attempt <= TRANSIENT_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      return await ingestAnalyticsEventsOnce(context);
+    } catch (error) {
+      if (!isTransientPrismaConnectionError(error) || attempt >= TRANSIENT_RETRY_DELAYS_MS.length) {
+        throw error;
+      }
+
+      await resetPrismaConnection(context);
+      await sleep(TRANSIENT_RETRY_DELAYS_MS[attempt]);
+    }
+  }
+
+  throw new Error("Analytics ingest retry loop exited unexpectedly.");
 }

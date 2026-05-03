@@ -1,7 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
-import { ingestAnalyticsEvents } from "../../../lib/analyticsV2/ingest";
+import {
+  ingestAnalyticsEvents,
+  isTransientPrismaConnectionError,
+} from "../../../lib/analyticsV2/ingest";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -33,6 +36,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
     return res.status(200).json(result);
   } catch (error: any) {
+    if (isTransientPrismaConnectionError(error)) {
+      console.warn("analytics ingest temporarily unavailable", error);
+      return res.status(202).json({
+        ok: true,
+        reason: "analytics_temporarily_unavailable",
+        received: 0,
+        written: 0,
+        deduped: 0,
+        dualWritten: 0,
+        blocked: 0,
+      });
+    }
+
     console.error("analytics ingest error", error);
     return res.status(400).json({
       ok: false,
