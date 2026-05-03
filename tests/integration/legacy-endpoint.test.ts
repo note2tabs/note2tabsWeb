@@ -10,6 +10,8 @@ vi.mock("next-auth/next", () => ({
 
 vi.mock("../../lib/analyticsV2/ingest", () => ({
   ingestAnalyticsEvents: (...args: unknown[]) => ingestMock(...args),
+  isTransientPrismaConnectionError: (error: unknown) =>
+    Boolean(error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "P1001"),
 }));
 
 describe("legacy analytics endpoint", () => {
@@ -39,5 +41,28 @@ describe("legacy analytics endpoint", () => {
     const arg = ingestMock.mock.calls[0][0];
     expect(arg.accountId).toBe("user_1");
     expect(arg.source).toBe("api_event_legacy");
+  });
+
+  it("soft-fails when analytics storage is temporarily unreachable", async () => {
+    sessionMock.mockResolvedValue({ user: { id: "user_1" } });
+    ingestMock.mockRejectedValue({ code: "P1001" });
+
+    const handler = (await import("../../pages/api/analytics/event")).default;
+    const { req, res } = createMocks({
+      method: "POST",
+      body: {
+        event: "page_view",
+        path: "/",
+        payload: { path: "/" },
+      },
+    });
+
+    await handler(req as any, res as any);
+
+    expect(res._getStatusCode()).toBe(202);
+    expect(JSON.parse(res._getData())).toMatchObject({
+      ok: true,
+      reason: "analytics_temporarily_unavailable",
+    });
   });
 });
