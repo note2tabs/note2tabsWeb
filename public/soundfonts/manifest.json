@@ -1,32 +1,56 @@
 [
   {
-    "id": "clean-guitar",
-    "label": "Clean Guitar",
-    "file": "/soundfonts/clean.sf2",
+    "id": "Nylon-Guitar",
+    "label": "Nylon Guitar",
+    "file": "/soundfonts/n2tSoundFonts.sf2",
     "bank": 0,
-    "preset": 2,
-    "gain": 0.9
+    "preset": 24,
+    "gain": 0.95
   },
   {
-    "id": "funk-guitar",
-    "label": "Funk Guitar",
-    "file": "/soundfonts/funk.sf2",
+    "id": "acoustic-steel",
+    "label": "Acoustic Guitar (Steel)",
+    "file": "/soundfonts/n2tSoundFonts.sf2",
     "bank": 0,
-    "preset": 4,
+    "preset": 25,
     "gain": 0.95
   },
   {
     "id": "jazz-guitar",
     "label": "Jazz Guitar",
-    "file": "/soundfonts/jazz.sf2",
+    "file": "/soundfonts/n2tSoundFonts.sf2",
     "bank": 0,
-    "preset": 2,
+    "preset": 26,
     "gain": 0.95
   },
   {
-    "id": "distorted-guitar",
-    "label": "Distorted Guitar",
-    "file": "/soundfonts/Electric_Guitar_Distorted01.sf2",
+    "id": "clean-guitar",
+    "label": "Electric Guitar (Clean)",
+    "file": "/soundfonts/n2tSoundFonts.sf2",
+    "bank": 0,
+    "preset": 27,
+    "gain": 0.9
+  },
+  {
+    "id": "muted-guitar",
+    "label": "Electric Guitar (Muted)",
+    "file": "/soundfonts/n2tSoundFonts.sf2",
+    "bank": 0,
+    "preset": 28,
+    "gain": 0.95
+  },
+  {
+    "id": "overdriven-guitar",
+    "label": "Overdriven Guitar",
+    "file": "/soundfonts/n2tSoundFonts.sf2",
+    "bank": 0,
+    "preset": 29,
+    "gain": 0.9
+  },
+  {
+    "id": "distortion-guitar",
+    "label": "Les Sustain",
+    "file": "/soundfonts/n2tSoundFonts.sf2",
     "bank": 0,
     "preset": 30,
     "gain": 0.9
