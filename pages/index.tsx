@@ -758,7 +758,7 @@ export default function HomePage() {
     {
       title: "Upload or paste a YouTube link",
       text: "Drop in a song, riff, or recording and let Note2Tabs transcribe the music to tabs.",
-      video: "/videos/upload.mkv",
+      video: "/videos/upload.mp4",
     },
     {
       title: "Edit your guitar tabs",
@@ -802,16 +802,26 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!howAutoAdvanceEnabled || !hasViewedHowSection || howSteps.length === 0) return;
-    const timer = window.setTimeout(() => {
+
+    const video = howVideoRef.current;
+    if (!video) return;
+
+    const handleEnded = () => {
       setActiveHowStep((prev) => {
         if (prev >= howSteps.length - 1) {
           setHowAutoAdvanceEnabled(false);
           return prev;
         }
+
         return prev + 1;
       });
-    }, HOW_STEP_DURATION_MS);
-    return () => window.clearTimeout(timer);
+    };
+
+    video.addEventListener("ended", handleEnded);
+
+    return () => {
+      video.removeEventListener("ended", handleEnded);
+    };
   }, [activeHowStep, hasViewedHowSection, howAutoAdvanceEnabled, howSteps.length]);
 
   useEffect(() => {
@@ -1254,7 +1264,7 @@ export default function HomePage() {
                   src={howSteps[activeHowStep].video}
                   autoPlay={(hasViewedHowSection && howAutoAdvanceEnabled) || howManualPlayNonce > 0}
                   muted
-                  loop={hasViewedHowSection && howAutoAdvanceEnabled}
+                  loop={false}
                   playsInline
                 />
               </div>
