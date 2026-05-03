@@ -1,3 +1,6 @@
+import { SendEmailCommand, SESClient } from "@aws-sdk/client-ses";
+import nodemailer from "nodemailer";
+
 type SendEmailInput = {
   to: string;
   subject: string;
@@ -5,37 +8,122 @@ type SendEmailInput = {
   text?: string;
 };
 
+let sesClient: SESClient | null = null;
+let sesClientRegion = "";
+let smtpTransporter: nodemailer.Transporter | null = null;
+let smtpTransportKey = "";
+
 function getFromAddress() {
-  return process.env.EMAIL_FROM || process.env.RESEND_FROM || "Note2Tabs <onboarding@resend.dev>";
+  return process.env.EMAIL_FROM || process.env.AWS_SES_FROM || "Note2Tabs <no-reply@note2tabs.com>";
+}
+
+function getSesRegion() {
+  return process.env.AWS_SES_REGION || process.env.AWS_REGION || process.env.SES_SMTP_REGION || "";
+}
+
+function getSesSmtpHost() {
+  return process.env.SES_SMTP_HOST || (getSesRegion() ? `email-smtp.${getSesRegion()}.amazonaws.com` : "");
+}
+
+function getSesSmtpPort() {
+  const value = Number(process.env.SES_SMTP_PORT || 587);
+  return Number.isFinite(value) ? value : 587;
+}
+
+function getSesSmtpCredentials() {
+  const user = process.env.SES_SMTP_USERNAME || process.env.SES_SMTP_USER || "";
+  const pass = process.env.SES_SMTP_PASSWORD || process.env.SES_SMTP_PASS || "";
+  if (!user || !pass) return null;
+  return { user, pass };
+}
+
+function getSmtpTransporter() {
+  const credentials = getSesSmtpCredentials();
+  const host = getSesSmtpHost();
+  const port = getSesSmtpPort();
+  if (!credentials || !host) return null;
+
+  const key = `${host}:${port}:${credentials.user}`;
+  if (!smtpTransporter || smtpTransportKey !== key) {
+    smtpTransporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: credentials,
+    });
+    smtpTransportKey = key;
+  }
+
+  return smtpTransporter;
+}
+
+function getSesClient() {
+  const region = getSesRegion();
+  if (!region) return null;
+
+  if (!sesClient || sesClientRegion !== region) {
+    sesClient = new SESClient({ region });
+    sesClientRegion = region;
+  }
+
+  return sesClient;
+}
+
+export function isEmailDeliveryConfigured() {
+  return Boolean(getSmtpTransporter() || getSesRegion());
 }
 
 export async function sendTransactionalEmail(input: SendEmailInput): Promise<boolean> {
-  const resendApiKey = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
+  const smtp = getSmtpTransporter();
+  const client = getSesClient();
   const from = getFromAddress();
 
-  if (resendApiKey) {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${resendApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from,
-        to: [input.to],
-        subject: input.subject,
-        html: input.html,
-        ...(input.text ? { text: input.text } : {}),
-      }),
+  if (smtp) {
+    await smtp.sendMail({
+      from,
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      ...(input.text ? { text: input.text } : {}),
     });
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`Resend send failed (${response.status}): ${body || "Unknown error"}`);
-    }
     return true;
   }
 
-  console.warn("[email] RESEND_API_KEY missing. Email delivery is disabled.");
+  if (client) {
+    await client.send(
+      new SendEmailCommand({
+        Source: from,
+        Destination: {
+          ToAddresses: [input.to],
+        },
+        Message: {
+          Subject: {
+            Charset: "UTF-8",
+            Data: input.subject,
+          },
+          Body: {
+            Html: {
+              Charset: "UTF-8",
+              Data: input.html,
+            },
+            ...(input.text
+              ? {
+                  Text: {
+                    Charset: "UTF-8",
+                    Data: input.text,
+                  },
+                }
+              : {}),
+          },
+        },
+      })
+    );
+    return true;
+  }
+
+  console.warn(
+    "[email] SES SMTP credentials or AWS SES API configuration missing. Email delivery is disabled."
+  );
   console.log("[email fallback]", {
     to: input.to,
     subject: input.subject,

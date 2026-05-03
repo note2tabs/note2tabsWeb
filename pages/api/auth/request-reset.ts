@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
 import { issueAndSendPasswordResetEmail } from "../../../lib/passwordReset";
+import { isEmailDeliveryConfigured } from "../../../lib/email";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -19,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Avoid leaking user existence
       return res.status(200).json({
         ok: true,
-        deliveryConfigured: Boolean(process.env.RESEND_API_KEY || process.env.RESEND_KEY),
+        deliveryConfigured: isEmailDeliveryConfigured(),
       });
     }
 
@@ -31,7 +32,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({
       ok: true,
-      deliveryConfigured: Boolean(process.env.RESEND_API_KEY || process.env.RESEND_KEY),
+      deliveryConfigured: isEmailDeliveryConfigured(),
       sent: result.sent,
     });
   } catch (error) {
