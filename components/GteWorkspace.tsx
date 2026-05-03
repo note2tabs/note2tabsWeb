@@ -5654,8 +5654,8 @@ export default function GteWorkspace({
   const assignNoteFretById = useCallback(
     (rawNoteId: number, fretValue: number, options?: { playPreview?: boolean }) => {
       if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) return false;
-      const noteId = resolveNoteId(rawNoteId);
-      const current = snapshotRef.current.notes.find((note) => note.id === noteId);
+      const resolvedCurrentId = resolveNoteId(rawNoteId);
+      const current = snapshotRef.current.notes.find((note) => note.id === resolvedCurrentId);
       if (!current) return false;
       if (current.tab[1] === fretValue) return true;
       const nextTab: TabCoord = [current.tab[0], fretValue];
@@ -5665,13 +5665,17 @@ export default function GteWorkspace({
       enqueueOptimisticMutation({
         label: "keyboard-fret",
         apply: (draft) => {
+          const noteId = resolveNoteId(rawNoteId);
           const note = draft.notes.find((item) => item.id === noteId);
           if (!note) return draft;
           note.tab = [nextTab[0], nextTab[1]];
           note.midiNum = 0;
           return draft;
         },
-        commit: () => gteApi.assignNoteTab(editorId, noteId, nextTab),
+        commit: () => {
+          const noteId = resolveNoteId(rawNoteId);
+          return gteApi.assignNoteTab(editorId, noteId, nextTab);
+        },
       });
       return true;
     },
