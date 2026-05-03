@@ -103,7 +103,7 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
     <>
       <NoIndexHead title="txt tabs | Note2Tabs" canonicalPath={`/gte/${editorId}/tabs`} />
       <main className="content py-8">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -117,7 +117,7 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
             </Link>
           </div>
 
-          <section className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm">
+          <section className="py-1">
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Tab view</h1>
             <p className="mt-2 text-sm text-slate-600">
               A clean text export of your guitar tab, ready to copy, save, or share.
@@ -125,12 +125,12 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
           </section>
 
           {loading && (
-            <section className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+            <section>
               <div className="mb-4 flex items-center justify-between">
                 <div className="h-4 w-28 animate-pulse rounded bg-slate-200" />
                 <div className="h-8 w-24 animate-pulse rounded-md bg-slate-200" />
               </div>
-              <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="space-y-2 rounded-xl bg-slate-50 p-4">
                 <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
                 <div className="h-4 w-11/12 animate-pulse rounded bg-slate-200" />
                 <div className="h-4 w-10/12 animate-pulse rounded bg-slate-200" />
@@ -141,17 +141,25 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
           )}
 
           {error && !loading && (
-            <section className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 shadow-sm">
+            <section className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700">
               {error}
             </section>
           )}
 
           {!loading && !error && (
-            <section className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+            <section>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <p className="text-sm font-medium text-slate-700">Tabs</p>
+                <button
+                  type="button"
+                  onClick={() => void handleCopyTabs()}
+                  disabled={!hasTabText}
+                  className="button-secondary button-small disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {copyState === "copied" ? "Copied" : "Copy tabs"}
+                </button>
               </div>
-              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="overflow-x-auto rounded-xl bg-white p-4">
                 <pre className="m-0 whitespace-pre font-mono text-sm leading-6 text-slate-800">
                   {tabText || "No tabs available yet."}
                 </pre>
