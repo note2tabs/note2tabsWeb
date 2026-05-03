@@ -112,6 +112,7 @@ export default function LoginPage() {
             onClick={() => signIn("google", { callbackUrl: nextHref })}
             className="button-secondary"
           >
+            <img src="/icons/google.svg" alt="" width={17} height={16} aria-hidden="true" />
             Continue with Google
           </button>
           <div className="auth-links-row auth-links-row--between">
