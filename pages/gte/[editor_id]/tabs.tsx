@@ -15,6 +15,10 @@ type EditorLane = {
 };
 
 const STRING_LABELS = ["e", "B", "G", "D", "A", "E"] as const;
+const TAB_FONT_SIZE_MIN = 11;
+const TAB_FONT_SIZE_MAX = 22;
+const TAB_FONT_SIZE_STEP = 1;
+const TAB_FONT_SIZE_DEFAULT = 14;
 
 const parseEditorLanes = (value: unknown): EditorLane[] => {
   if (!value || typeof value !== "object") return [{ id: "ed-1", name: "Tab 1" }];
@@ -51,6 +55,7 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [tabText, setTabText] = useState("");
   const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
+  const [tabFontSizePx, setTabFontSizePx] = useState(TAB_FONT_SIZE_DEFAULT);
 
   const hasTabText = useMemo(() => tabText.trim().length > 0, [tabText]);
 
@@ -97,6 +102,14 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
     } catch {
       // Keep silent; UI stays unchanged if clipboard is unavailable.
     }
+  };
+
+  const increaseTabSize = () => {
+    setTabFontSizePx((prev) => Math.min(TAB_FONT_SIZE_MAX, prev + TAB_FONT_SIZE_STEP));
+  };
+
+  const decreaseTabSize = () => {
+    setTabFontSizePx((prev) => Math.max(TAB_FONT_SIZE_MIN, prev - TAB_FONT_SIZE_STEP));
   };
 
   return (
@@ -150,17 +163,50 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
             <section>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <p className="text-sm font-medium text-slate-700">Tabs</p>
-                <button
-                  type="button"
-                  onClick={() => void handleCopyTabs()}
-                  disabled={!hasTabText}
-                  className="button-secondary button-small disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {copyState === "copied" ? "Copied" : "Copy tabs"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex items-center overflow-hidden rounded-md border border-slate-200 bg-white">
+                    <button
+                      type="button"
+                      onClick={decreaseTabSize}
+                      className="h-7 w-7 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={tabFontSizePx <= TAB_FONT_SIZE_MIN}
+                      aria-label="Shrink tabs"
+                      title="Shrink tabs"
+                    >
+                      -
+                    </button>
+                    <span className="min-w-[3rem] border-l border-r border-slate-200 px-2 text-center text-xs text-slate-600">
+                      {tabFontSizePx}px
+                    </span>
+                    <button
+                      type="button"
+                      onClick={increaseTabSize}
+                      className="h-7 w-7 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={tabFontSizePx >= TAB_FONT_SIZE_MAX}
+                      aria-label="Enlarge tabs"
+                      title="Enlarge tabs"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyTabs()}
+                    disabled={!hasTabText}
+                    className="button-secondary button-small disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {copyState === "copied" ? "Copied" : "Copy tabs"}
+                  </button>
+                </div>
               </div>
               <div className="overflow-x-auto rounded-xl bg-white p-4">
-                <pre className="m-0 whitespace-pre font-mono text-sm leading-6 text-slate-800">
+                <pre
+                  className="m-0 whitespace-pre font-mono text-slate-800"
+                  style={{
+                    fontSize: `${tabFontSizePx}px`,
+                    lineHeight: `${Math.max(16, Math.round(tabFontSizePx * 1.5))}px`,
+                  }}
+                >
                   {tabText || "No tabs available yet."}
                 </pre>
               </div>
