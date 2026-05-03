@@ -8,6 +8,15 @@ type SendEmailInput = {
   text?: string;
 };
 
+export class EmailConfigurationError extends Error {
+  constructor() {
+    super(
+      "Email delivery is not configured. Set SES_SMTP_USERNAME, SES_SMTP_PASSWORD, SES_SMTP_HOST, SES_SMTP_PORT, and EMAIL_FROM."
+    );
+    this.name = "EmailConfigurationError";
+  }
+}
+
 let sesClient: SESClient | null = null;
 let sesClientRegion = "";
 let sesClientKey = "";
@@ -133,13 +142,5 @@ export async function sendTransactionalEmail(input: SendEmailInput): Promise<boo
     return true;
   }
 
-  console.warn(
-    "[email] SES SMTP credentials or AWS SES API configuration missing. Email delivery is disabled."
-  );
-  console.log("[email fallback]", {
-    to: input.to,
-    subject: input.subject,
-    preview: input.text || input.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
-  });
-  return false;
+  throw new EmailConfigurationError();
 }

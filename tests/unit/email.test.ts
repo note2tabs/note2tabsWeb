@@ -23,10 +23,8 @@ describe("email delivery configuration", () => {
     vi.restoreAllMocks();
   });
 
-  it("does not treat an SES region alone as configured delivery", async () => {
+  it("throws a configuration error when only an SES region is set", async () => {
     vi.stubEnv("AWS_SES_REGION", "eu-north-1");
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    vi.spyOn(console, "log").mockImplementation(() => undefined);
 
     expect(isEmailDeliveryConfigured()).toBe(false);
     await expect(
@@ -36,6 +34,6 @@ describe("email delivery configuration", () => {
         html: "<p>Test</p>",
         text: "Test",
       })
-    ).resolves.toBe(false);
+    ).rejects.toThrow("Email delivery is not configured");
   });
 });

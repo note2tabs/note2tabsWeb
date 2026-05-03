@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
 import { issueAndSendPasswordResetEmail } from "../../../lib/passwordReset";
-import { isEmailDeliveryConfigured } from "../../../lib/email";
+import { EmailConfigurationError, isEmailDeliveryConfigured } from "../../../lib/email";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -36,6 +36,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       sent: result.sent,
     });
   } catch (error) {
+    if (error instanceof EmailConfigurationError) {
+      console.error("request-reset email configuration error", error);
+      return res.status(500).json({ error: error.message });
+    }
+
     console.error("request-reset error", error);
     return res.status(500).json({ error: "Could not start password reset." });
   }
