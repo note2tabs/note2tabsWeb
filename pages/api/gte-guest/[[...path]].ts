@@ -358,6 +358,48 @@ const getAllTabsForMidi = (lane: EditorSnapshot, midi: number) => {
   return result.length ? result : [clampTab(lane)];
 };
 
+const buildAsciiTabText = (lane: EditorSnapshot) => {
+  const beatsPerBar = clamp(Math.round(toNumber(lane.timeSignature, 8)), 1, 64);
+  const charactersPerBar = beatsPerBar * 10;
+  const totalBars = Math.max(1, Math.ceil(Math.max(FIXED_FRAMES_PER_BAR, lane.totalFrames) / FIXED_FRAMES_PER_BAR));
+  const bars = Array.from({ length: totalBars }, () =>
+    Array.from({ length: 6 }, () => Array.from({ length: charactersPerBar }, () => "-"))
+  );
+
+  const writeAt = (stringIndex: number, startTime: number, fret: number) => {
+    const barIndex = clamp(Math.floor(startTime / FIXED_FRAMES_PER_BAR), 0, totalBars - 1);
+    const inBar = startTime - barIndex * FIXED_FRAMES_PER_BAR;
+    const col = clamp(
+      Math.floor((inBar / FIXED_FRAMES_PER_BAR) * charactersPerBar),
+      0,
+      Math.max(0, charactersPerBar - 1)
+    );
+    const text = String(Math.max(0, Math.round(toNumber(fret, 0))));
+    const line = bars[barIndex][clamp(Math.round(toNumber(stringIndex, 0)), 0, 5)];
+    for (let idx = 0; idx < text.length && col + idx < line.length; idx += 1) {
+      line[col + idx] = text[idx];
+    }
+  };
+
+  lane.notes.forEach((note) => writeAt(note.tab?.[0] ?? 0, note.startTime, note.tab?.[1] ?? 0));
+  lane.chords.forEach((chord) => {
+    chord.currentTabs.forEach((tab) => writeAt(tab?.[0] ?? 0, chord.startTime, tab?.[1] ?? 0));
+  });
+
+  const lines = Array.from({ length: 6 }, () => "");
+  bars.forEach((bar) => {
+    for (let stringIndex = 0; stringIndex < 6; stringIndex += 1) {
+      lines[stringIndex] += `${bar[stringIndex].join("")}|`;
+    }
+  });
+  return {
+    tabText: lines.join("\n"),
+    lines,
+    beatsPerBar,
+    charactersPerBar,
+  };
+};
+
 const getNoteOptimals = (lane: EditorSnapshot, note: EditorSnapshot["notes"][number]) => {
   const midi = note.midiNum || getTabMidi(lane, note.tab);
   const tabs = getAllTabsForMidi(lane, midi);
@@ -852,8 +894,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       }
     }
 
-    if (rest[0] === "export" && method === "GET" && laneId) {
-      const lane = requireLane(canvas, laneId).lane;
+    if (rest[0] === "export" && method === "GET") {
+      const resolvedLaneId = laneId || canvas.editors[0]?.id || "ed-1";
+      const lane = requireLane(canvas, resolvedLaneId).lane;
       const stamps: Array<[number, TabCoord, number]> = [];
       lane.notes.forEach((note) => stamps.push([note.startTime, [note.tab[0], note.tab[1]], clampEventLength(note.length)]));
       lane.chords.forEach((chord) =>
@@ -867,6 +910,12 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         totalFrames: lane.totalFrames,
         tabStrings: ["e", "B", "G", "D", "A", "E"],
       });
+    }
+
+    if (rest[0] === "export_ascii" && method === "GET") {
+      const resolvedLaneId = laneId || canvas.editors[0]?.id || "ed-1";
+      const lane = requireLane(canvas, resolvedLaneId).lane;
+      return res.status(200).json(buildAsciiTabText(lane));
     }
 
     if ((rest[0] === "import" || rest[0] === "import_append") && method === "POST" && laneId) {

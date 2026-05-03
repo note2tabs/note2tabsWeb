@@ -498,6 +498,13 @@ export const gteApi = {
       totalFrames: number;
       tabStrings: string[];
     }>(editorId, `/editors/${editorId}/export`),
+  exportAsciiTab: (editorId: string) =>
+    requestForEditor<{
+      tabText: string;
+      lines: string[];
+      beatsPerBar: number;
+      charactersPerBar: number;
+    }>(editorId, `/editors/${editorId}/export_ascii`),
   importTab: (
     editorId: string,
     payload: {

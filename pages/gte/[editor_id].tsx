@@ -48,6 +48,7 @@ const TIMELINE_ZOOM_MAX = 250;
 const TIMELINE_ZOOM_DEFAULT = 100;
 const CONTROL_COMMIT_DEBOUNCE_MS = 350;
 const MOBILE_EDITOR_BREAKPOINT_PX = 768;
+const GTE_GUEST_CANVAS_STORAGE_KEY = "note2tabs:gte:guest-canvas:v1";
 
 const toNumber = (value: unknown, fallback: number) => {
   const parsed = Number(value);
@@ -213,6 +214,39 @@ const normalizeTrackVolume = (value: unknown) => {
   const next = Number(value);
   if (!Number.isFinite(next)) return 1;
   return Math.max(0, Math.min(1, next));
+};
+
+type GuestCanvasDraftRecord = {
+  version: 1;
+  savedAt: string;
+  canvas: CanvasSnapshot;
+};
+
+const readGuestCanvasDraft = (): CanvasSnapshot | null => {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(GTE_GUEST_CANVAS_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as GuestCanvasDraftRecord | CanvasSnapshot;
+    const canvas =
+      parsed && typeof parsed === "object" && "canvas" in parsed
+        ? (parsed as GuestCanvasDraftRecord).canvas
+        : (parsed as CanvasSnapshot);
+    if (!canvas || typeof canvas !== "object" || !Array.isArray(canvas.editors)) return null;
+    return canvas;
+  } catch {
+    return null;
+  }
+};
+
+const writeGuestCanvasDraft = (canvas: CanvasSnapshot) => {
+  if (typeof window === "undefined") return;
+  const payload: GuestCanvasDraftRecord = {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    canvas,
+  };
+  window.localStorage.setItem(GTE_GUEST_CANVAS_STORAGE_KEY, JSON.stringify(payload));
 };
 
 const normalizeBarIndices = (lane: EditorSnapshot, barIndices: number[]) => {
@@ -834,6 +868,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         try {
           const data = await gteApi.getEditor(editorId);
           let normalized = normalizeCanvas(data, editorId);
+          const canvasDraft = readGuestCanvasDraft();
           const legacy = readGuestDraft();
           const hasSessionContent =
             (normalized.name || "Untitled") !== "Untitled" ||
@@ -843,17 +878,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 lane.chords.length > 0 ||
                 lane.cutPositionsWithCoords.length > 1
             );
-          if (!hasSessionContent && legacy) {
-            normalized = normalizeCanvas(
-              {
-                id: editorId,
-                name: legacy.name || "Untitled",
-                secondsPerBar: legacy.secondsPerBar,
-                editors: [{ ...legacy, id: "ed-1", name: legacy.name || "Editor 1" }],
-              },
-              editorId
-            );
-            await gteApi.applySnapshot(editorId, normalized);
+          if (!hasSessionContent) {
+            if (canvasDraft) {
+              normalized = normalizeCanvas(canvasDraft, editorId);
+              await gteApi.applySnapshot(editorId, normalized);
+            } else if (legacy) {
+              normalized = normalizeCanvas(
+                {
+                  id: editorId,
+                  name: legacy.name || "Untitled",
+                  secondsPerBar: legacy.secondsPerBar,
+                  editors: [{ ...legacy, id: "ed-1", name: legacy.name || "Editor 1" }],
+                },
+                editorId
+              );
+              await gteApi.applySnapshot(editorId, normalized);
+            }
           }
           setCanvas(normalized);
           resetCanvasHistory();
@@ -873,6 +913,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
     void loadEditor();
   }, [editorId, isGuestMode, resetCanvasHistory]);
+
+  useEffect(() => {
+    if (!isGuestMode || !canvas) return;
+    writeGuestCanvasDraft(canvas);
+  }, [canvas, isGuestMode]);
 
   useEffect(() => {
     if (!editorId || isGuestMode) return;
@@ -3246,6 +3291,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               >
                 Generate tabs
               </button>
+              <button
+                type="button"
+                onClick={() => void router.push(`/gte/${editorId}/tabs`)}
+                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                title="View current editor as ASCII tabs"
+              >
+                View as tabs
+              </button>
             </div>
             <div
               className="text-small"
@@ -3617,6 +3670,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
                 >
                   {isMobileViewport ? "Editors" : "Back to editors"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void router.push(`/gte/${editorId}/tabs`)}
+                  className={`button-secondary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
+                  style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
+                  title="Open ASCII tab view"
+                >
+                  {isMobileViewport ? "Tabs" : "View as tabs"}
                 </button>
               </>
             )}
