@@ -30,8 +30,8 @@ const parseEditorLanes = (value: unknown): EditorLane[] => {
     const item = lane && typeof lane === "object" ? (lane as { id?: unknown; name?: unknown }) : {};
     const id = typeof item.id === "string" && item.id.trim() ? item.id.trim() : `ed-${index + 1}`;
     const rawName = typeof item.name === "string" ? item.name.trim() : "";
-    const defaultEditorName = `Editor ${index + 1}`;
-    const name = !rawName || rawName === defaultEditorName ? `Tab ${index + 1}` : rawName;
+    const defaultNamePattern = /^(editor|transcription)\s+\d+$/i;
+    const name = !rawName || defaultNamePattern.test(rawName) ? `Tab ${index + 1}` : rawName;
     return { id, name };
   });
 };

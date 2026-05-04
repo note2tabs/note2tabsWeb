@@ -98,10 +98,13 @@ const normalizeLane = (
 ): EditorSnapshot => {
   const safeSeconds = Math.max(0.1, toNumber(secondsPerBar, toNumber(lane.secondsPerBar, DEFAULT_SECONDS_PER_BAR)));
   const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)));
+  const rawName = typeof lane.name === "string" ? lane.name.trim() : "";
+  const defaultNamePattern = /^(editor|transcription)\s+\d+$/i;
+  const laneName = !rawName || defaultNamePattern.test(rawName) ? `Tab ${index + 1}` : rawName;
   return {
     ...lane,
     id: laneId,
-    name: lane.name || `Editor ${index + 1}`,
+    name: laneName,
     instrumentId: normalizeTrackInstrumentId(lane.instrumentId),
     framesPerMessure: FIXED_FRAMES_PER_BAR,
     secondsPerBar: safeSeconds,
