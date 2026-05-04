@@ -1259,7 +1259,7 @@ export default function HomePage() {
               <div className="how-video-card">
                 <video
                   ref={howVideoRef}
-                  key={`${howSteps[activeHowStep].video}-${howManualPlayNonce}-${howAutoAdvanceEnabled ? "auto" : "manual"}`}
+                  key={`${howSteps[activeHowStep].video}-${howManualPlayNonce}`}
                   className="how-video active"
                   src={howSteps[activeHowStep].video}
                   autoPlay={(hasViewedHowSection && howAutoAdvanceEnabled) || howManualPlayNonce > 0}
