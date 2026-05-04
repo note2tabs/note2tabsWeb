@@ -360,7 +360,7 @@ const getAllTabsForMidi = (lane: EditorSnapshot, midi: number) => {
 
 const buildAsciiTabText = (lane: EditorSnapshot) => {
   const beatsPerBar = clamp(Math.round(toNumber(lane.timeSignature, 8)), 1, 64);
-  const charactersPerBar = beatsPerBar * 5;
+  const charactersPerBar = beatsPerBar * 4;
   const totalBars = Math.max(1, Math.ceil(Math.max(FIXED_FRAMES_PER_BAR, lane.totalFrames) / FIXED_FRAMES_PER_BAR));
   const bars = Array.from({ length: totalBars }, () =>
     Array.from({ length: 6 }, () => Array.from({ length: charactersPerBar }, () => "-"))
