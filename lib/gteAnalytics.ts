@@ -3,6 +3,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 export type GteAnalyticsEvent =
   | "gte_editor_created"
+  | "gte_editor_imported"
+  | "gte_editor_saved"
+  | "gte_editor_exported"
+  | "gte_editor_action"
   | "gte_editor_visit"
   | "gte_editor_session_start"
   | "gte_editor_session_end";

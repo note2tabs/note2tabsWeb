@@ -53,6 +53,7 @@ import {
   getDropoffPoints,
   getErrorStats,
   getPageViewBreakdown,
+  getProductValueMetrics,
   getSummaryStats,
 } from "../../lib/analyticsQueries";
 
@@ -302,5 +303,88 @@ describe("analytics queries", () => {
       { message: "Validation failed: File too large", count: 1 },
       { message: "Validation failed: Invalid YouTube URL", count: 1 },
     ]);
+  });
+
+  it("computes product activation, retention, power users, and monetization signals", async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      {
+        id: "user_transcription",
+        email: "transcription@example.com",
+        role: "FREE",
+        tokensRemaining: 80,
+        createdAt: new Date("2026-03-01T09:00:00.000Z"),
+      },
+      {
+        id: "user_editor",
+        email: "editor@example.com",
+        role: "FREE",
+        tokensRemaining: 10,
+        createdAt: new Date("2026-03-01T10:00:00.000Z"),
+      },
+      {
+        id: "user_inactive",
+        email: "inactive@example.com",
+        role: "FREE",
+        tokensRemaining: 120,
+        createdAt: new Date("2026-03-01T11:00:00.000Z"),
+      },
+    ]);
+    prismaMock.tabJob.findMany.mockResolvedValue([
+      {
+        userId: "user_transcription",
+        createdAt: new Date("2026-03-01T09:30:00.000Z"),
+        gteEditorId: null,
+      },
+    ]);
+    prismaMock.analyticsGteSession.findMany.mockResolvedValue([
+      {
+        accountId: "user_editor",
+        startedAt: new Date("2026-03-02T10:00:00.000Z"),
+        endedAt: new Date("2026-03-02T10:05:00.000Z"),
+        durationMs: 300000,
+        editorId: "ed_1",
+      },
+    ]);
+    prismaMock.analyticsEventV2.findMany.mockResolvedValue([
+      v2Event({
+        name: "gte_editor_saved",
+        ts: "2026-03-01T10:30:00.000Z",
+        accountId: "user_editor",
+        props: { editorId: "ed_1" },
+      }),
+      v2Event({
+        name: "gte_editor_exported",
+        ts: "2026-03-01T10:35:00.000Z",
+        accountId: "user_editor",
+        props: { editorId: "ed_1", format: "ascii" },
+      }),
+      v2Event({
+        name: "pricing_viewed",
+        ts: "2026-03-02T11:00:00.000Z",
+        accountId: "user_editor",
+      }),
+    ]);
+
+    const metrics = await getProductValueMetrics(
+      new Date("2026-03-01T00:00:00.000Z"),
+      new Date("2026-03-01T23:59:59.999Z")
+    );
+
+    expect(metrics.activation.signups).toBe(3);
+    expect(metrics.activation.activated).toBe(2);
+    expect(metrics.activation.activationRate).toBeCloseTo(66.7);
+    expect(metrics.retention.returnedAfterSignupDay).toBe(1);
+    expect(metrics.editorValue.editorSaves).toBe(1);
+    expect(metrics.editorValue.editorExports).toBe(1);
+    expect(metrics.editorValue.meaningfulSessions).toBe(1);
+    expect(metrics.powerUsers[0]).toMatchObject({
+      userId: "user_editor",
+      editorSaves: 1,
+      editorExports: 1,
+    });
+    expect(metrics.monetizationSignals[0].reasons).toEqual(
+      expect.arrayContaining(["Low remaining credits", "Pricing interest", "Returned after signup"])
+    );
+    expect(metrics.dropoffs).toContainEqual({ label: "Signed up but not activated", count: 1 });
   });
 });

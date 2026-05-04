@@ -19,6 +19,7 @@ describe("gte telemetry endpoint", () => {
   });
 
   it.each([
+    "gte_editor_action",
     "gte_editor_visit",
     "gte_editor_session_start",
     "gte_editor_session_end",

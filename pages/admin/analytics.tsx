@@ -14,9 +14,9 @@ import {
   getRecentFeedback,
   getUsersActivity,
   getGteEditorStats,
-  getParityMetrics,
   getModerationSnapshot,
   getGrowthInsights,
+  getProductValueMetrics,
 } from "../../lib/analyticsQueries";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
@@ -50,10 +50,10 @@ type RecentEvent = Awaited<ReturnType<typeof getRecentEvents>>[number];
 type RecentFeedback = Awaited<ReturnType<typeof getRecentFeedback>>[number];
 type GteStats = Awaited<ReturnType<typeof getGteEditorStats>>;
 type ModerationSnapshot = Awaited<ReturnType<typeof getModerationSnapshot>>;
-type Parity = Awaited<ReturnType<typeof getParityMetrics>>;
 type GrowthInsights = Awaited<ReturnType<typeof getGrowthInsights>>;
+type ProductValueMetrics = Awaited<ReturnType<typeof getProductValueMetrics>>;
 
-type AnalyticsView = "overview" | "growth" | "gte" | "users" | "events" | "feedback" | "moderation" | "parity";
+type AnalyticsView = "overview" | "product" | "growth" | "gte" | "users" | "events" | "feedback" | "moderation";
 
 const presetRanges: Record<string, number> = {
   "7d": 7,
@@ -61,7 +61,7 @@ const presetRanges: Record<string, number> = {
   "90d": 90,
 };
 
-const ADMIN_VIEWS: AnalyticsView[] = ["overview", "growth", "gte", "users", "events", "feedback", "moderation", "parity"];
+const ADMIN_VIEWS: AnalyticsView[] = ["overview", "product", "growth", "gte", "users", "events", "feedback", "moderation"];
 const MODERATOR_VIEWS: AnalyticsView[] = ["moderation"];
 
 const VIEW_META: Record<AnalyticsView, { label: string; description: string }> = {
@@ -72,6 +72,10 @@ const VIEW_META: Record<AnalyticsView, { label: string; description: string }> =
   growth: {
     label: "Growth",
     description: "Sources, landing pages, funnels, SEO, retention, and product quality signals.",
+  },
+  product: {
+    label: "Product Value",
+    description: "Activation, retention, editor value, power users, and monetization-readiness signals.",
   },
   gte: {
     label: "GTE",
@@ -93,10 +97,6 @@ const VIEW_META: Record<AnalyticsView, { label: string; description: string }> =
     label: "Moderation",
     description: "Moderation snapshots for events and consent.",
   },
-  parity: {
-    label: "Parity",
-    description: "Old vs v2 metric parity checks.",
-  },
 };
 
 type SerializedModerationSnapshot = {
@@ -108,6 +108,21 @@ type SerializedModerationSnapshot = {
 type SerializedGteStats = Omit<GteStats, "createdPerUser" | "recentCreated"> & {
   createdPerUser: Array<Omit<GteStats["createdPerUser"][number], "lastCreatedAt"> & { lastCreatedAt: string | null }>;
   recentCreated: Array<Omit<GteStats["recentCreated"][number], "createdAt"> & { createdAt: string }>;
+};
+
+type SerializedProductValue = Omit<ProductValueMetrics, "powerUsers" | "monetizationSignals"> & {
+  powerUsers: Array<
+    Omit<ProductValueMetrics["powerUsers"][number], "signupAt" | "lastActive"> & {
+      signupAt: string;
+      lastActive: string | null;
+    }
+  >;
+  monetizationSignals: Array<
+    Omit<ProductValueMetrics["monetizationSignals"][number], "signupAt" | "lastActive"> & {
+      signupAt: string;
+      lastActive: string | null;
+    }
+  >;
 };
 
 type Props = {
@@ -131,9 +146,9 @@ type Props = {
     Omit<Awaited<ReturnType<typeof getUsersActivity>>[number], "lastActive"> & { lastActive: string | null }
   >;
   gteStats: SerializedGteStats | null;
-  parity: Parity | null;
   moderation: SerializedModerationSnapshot;
   growth: GrowthInsights | null;
+  productValue: SerializedProductValue | null;
   thisToThat: {
     provider: string;
     configured: boolean;
@@ -169,9 +184,9 @@ export default function AnalyticsDashboard(props: Props) {
     recentFeedback,
     usersActivity,
     gteStats,
-    parity,
     moderation,
     growth,
+    productValue,
     thisToThat,
   } = props;
 
@@ -250,6 +265,7 @@ export default function AnalyticsDashboard(props: Props) {
               )}
 
               {activeView === "gte" && <GteView gteStats={gteStats} />}
+              {activeView === "product" && <ProductValueView productValue={productValue} />}
               {activeView === "growth" && <GrowthView growth={growth} />}
 
               {activeView === "users" && <UsersView topUsers={topUsers} usersActivity={usersActivity} />}
@@ -261,8 +277,6 @@ export default function AnalyticsDashboard(props: Props) {
               {activeView === "feedback" && <FeedbackView recentFeedback={recentFeedback} />}
 
               {activeView === "moderation" && <ModerationView moderation={moderation} />}
-
-              {activeView === "parity" && <ParityView parity={parity} />}
             </section>
           </div>
         </div>
@@ -851,6 +865,143 @@ function GteView({ gteStats }: { gteStats: Props["gteStats"] }) {
   );
 }
 
+function ProductValueView({ productValue }: { productValue: Props["productValue"] }) {
+  if (!productValue) {
+    return <div className="card">Product value analytics are not available for this role.</div>;
+  }
+
+  return (
+    <>
+      <section className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+        <Card title="New signups" value={productValue.activation.signups} />
+        <Card title="Activated users" value={productValue.activation.activated} />
+        <Card title="Activation rate" value={`${productValue.activation.activationRate.toFixed(1)}%`} />
+        <Card
+          title="Median time to value"
+          value={formatDuration(productValue.activation.medianMinutesToFirstValue * 60)}
+        />
+        <Card title="Returned after signup" value={productValue.retention.returnedAfterSignupDay} />
+        <Card title="Return rate" value={`${productValue.retention.returningRate.toFixed(1)}%`} />
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+        <Card title="Editors created" value={productValue.editorValue.editorsCreated} />
+        <Card title="Imports" value={productValue.editorValue.editorsImported} />
+        <Card title="Saves" value={productValue.editorValue.editorSaves} />
+        <Card title="Exports" value={productValue.editorValue.editorExports} />
+        <Card title="Meaningful sessions" value={productValue.editorValue.meaningfulSessions} />
+        <Card title="P75 editor time" value={formatDuration(productValue.editorValue.p75SessionDurationSec)} />
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <ProductValueUserTable
+          title="Power users"
+          rows={productValue.powerUsers}
+          showReasons={false}
+          empty="No product-value activity in this range."
+        />
+        <ProductValueUserTable
+          title="Monetization signals"
+          rows={productValue.monetizationSignals}
+          showReasons
+          empty="No strong monetization signals yet."
+        />
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="card stack">
+          <SectionHeader title="Drop-off points" />
+          <div className="space-y-2 text-sm text-slate-800">
+            {productValue.dropoffs.map((row) => (
+              <BarItem key={row.label} label={row.label} value={row.count} />
+            ))}
+          </div>
+        </div>
+        <div className="card stack">
+          <SectionHeader title="Definitions" />
+          <div className="space-y-2 text-sm text-slate-700">
+            <p>
+              Activated means a signup reaches value within {productValue.activation.windowDays} days by completing a
+              transcription, creating/importing an editor, saving/exporting, or spending at least{" "}
+              {formatDuration(productValue.editorValue.meaningfulSessionSec)} in the editor.
+            </p>
+            <p>
+              Power-user score weights transcriptions, editor creation/imports, saves, exports, meaningful sessions,
+              and editor time. It is a ranking signal, not a stored account label.
+            </p>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function ProductValueUserTable({
+  title,
+  rows,
+  showReasons,
+  empty,
+}: {
+  title: string;
+  rows: Props["productValue"] extends null ? never[] : NonNullable<Props["productValue"]>["powerUsers"];
+  showReasons: boolean;
+  empty: string;
+}) {
+  return (
+    <section className="card stack">
+      <SectionHeader title={title} />
+      <div className="overflow-x-auto">
+        <table className="table">
+          <thead>
+            <tr className="text-left text-slate-600">
+              <th className="px-2 py-1">User</th>
+              <th className="px-2 py-1">Score</th>
+              <th className="px-2 py-1">Transcriptions</th>
+              <th className="px-2 py-1">Editor time</th>
+              <th className="px-2 py-1">Saves</th>
+              <th className="px-2 py-1">Exports</th>
+              <th className="px-2 py-1">Last active</th>
+              {showReasons && <th className="px-2 py-1">Signals</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.userId} className="border-t border-slate-200 align-top">
+                <td className="px-2 py-1">
+                  <div>{row.email}</div>
+                  <div className="muted text-small">
+                    {row.role} · signed up {new Date(row.signupAt).toLocaleDateString()}
+                  </div>
+                </td>
+                <td className="px-2 py-1">{row.valueScore}</td>
+                <td className="px-2 py-1">{row.transcriptionCount}</td>
+                <td className="px-2 py-1">{formatDuration(row.totalEditorDurationSec)}</td>
+                <td className="px-2 py-1">{row.editorSaves}</td>
+                <td className="px-2 py-1">{row.editorExports}</td>
+                <td className="px-2 py-1 text-slate-600">
+                  {row.lastActive ? new Date(row.lastActive).toLocaleString() : "-"}
+                </td>
+                {showReasons && (
+                  <td className="px-2 py-1">
+                    {"reasons" in row && Array.isArray(row.reasons) ? row.reasons.join(", ") : "-"}
+                  </td>
+                )}
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={showReasons ? 8 : 7} className="px-2 py-3 text-center text-slate-500">
+                  {empty}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function UsersView({ topUsers, usersActivity }: { topUsers: Props["topUsers"]; usersActivity: Props["usersActivity"] }) {
   return (
     <>
@@ -1110,51 +1261,6 @@ function ModerationView({ moderation }: { moderation: Props["moderation"] }) {
   );
 }
 
-function ParityView({ parity }: { parity: Props["parity"] }) {
-  if (!parity) {
-    return <div className="card">Parity checks are disabled or unavailable.</div>;
-  }
-
-  return (
-    <section className="card stack">
-      <SectionHeader title="Old vs V2 parity (last 7d)" />
-      <p className="text-sm text-slate-600">Threshold: {parity.threshold}% with minimum-volume guard.</p>
-      <div className="overflow-x-auto">
-        <table className="table">
-          <thead>
-            <tr className="text-left text-slate-600">
-              <th className="px-2 py-1">Metric</th>
-              <th className="px-2 py-1">Old</th>
-              <th className="px-2 py-1">V2</th>
-              <th className="px-2 py-1">Diff %</th>
-              <th className="px-2 py-1">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              { label: "Visitors", row: parity.visitors },
-              { label: "Pageviews", row: parity.pageviews },
-              { label: "Transcription started", row: parity.transcriptionStarted },
-              { label: "Transcription succeeded", row: parity.transcriptionSucceeded },
-              { label: "Transcription failed", row: parity.transcriptionFailed },
-              { label: "GTE sessions", row: parity.gteSessionsCount },
-              { label: "GTE duration (ms)", row: parity.gteSessionsDurationMs },
-            ].map(({ label, row }) => (
-              <tr key={label} className="border-t border-slate-200">
-                <td className="px-2 py-1">{label}</td>
-                <td className="px-2 py-1">{row.oldValue}</td>
-                <td className="px-2 py-1">{row.v2Value}</td>
-                <td className="px-2 py-1">{row.diffPct.toFixed(2)}%</td>
-                <td className="px-2 py-1">{row.flagged ? "Alert" : "OK"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
 function Card({ title, value }: { title: string; value: string | number }) {
   return (
     <div className="card">
@@ -1284,7 +1390,6 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const range = (ctx.query.range as string) || "30d";
   const days = presetRanges[range] || 30;
-  const parityEnabled = (process.env.ANALYTICS_ADMIN_PARITY_ENABLED || "true").toLowerCase() !== "false";
 
   const availableViews = isAdmin ? ADMIN_VIEWS : MODERATOR_VIEWS;
   const requestedView = (ctx.query.view as string) || availableViews[0];
@@ -1308,13 +1413,13 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   let recentFeedback: RecentFeedback[] = [];
   let usersActivity: Awaited<ReturnType<typeof getUsersActivity>> = [];
   let gteStats: GteStats | null = null;
-  let parity: Parity | null = null;
   let moderation: ModerationSnapshot = {
     analytics: [],
     consents: [],
     stats: { totalEvents: 0, totalConsents: 0, eventsByType: {} },
   };
   let growth: GrowthInsights | null = null;
+  let productValue: ProductValueMetrics | null = null;
   let thisToThat: Props["thisToThat"] = null;
 
   if (isAdmin) {
@@ -1370,6 +1475,8 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       ]);
     } else if (activeView === "growth") {
       growth = await getGrowthInsights(from, to);
+    } else if (activeView === "product") {
+      productValue = await getProductValueMetrics(from, to);
     } else if (activeView === "gte") {
       gteStats = await getGteEditorStats(from, to, 25);
     } else if (activeView === "users") {
@@ -1383,10 +1490,6 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       recentFeedback = await getRecentFeedback(from, to, 50);
     } else if (activeView === "moderation") {
       moderation = await getModerationSnapshot(50);
-    } else if (activeView === "parity" && parityEnabled) {
-      const parityFrom = new Date();
-      parityFrom.setDate(parityFrom.getDate() - 6);
-      parity = await getParityMetrics(parityFrom, to);
     }
   } else if (activeView === "moderation") {
     moderation = await getModerationSnapshot(50);
@@ -1433,7 +1536,21 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
             })),
           }
         : null,
-      parity,
+      productValue: productValue
+        ? {
+            ...productValue,
+            powerUsers: productValue.powerUsers.map((row) => ({
+              ...row,
+              signupAt: row.signupAt.toISOString(),
+              lastActive: row.lastActive ? row.lastActive.toISOString() : null,
+            })),
+            monetizationSignals: productValue.monetizationSignals.map((row) => ({
+              ...row,
+              signupAt: row.signupAt.toISOString(),
+              lastActive: row.lastActive ? row.lastActive.toISOString() : null,
+            })),
+          }
+        : null,
       thisToThat,
       growth,
       moderation: {

@@ -12,6 +12,7 @@ type TelemetryBody = {
 };
 
 const ALLOWED_EVENTS = new Set<GteAnalyticsEvent>([
+  "gte_editor_action",
   "gte_editor_visit",
   "gte_editor_session_start",
   "gte_editor_session_end",

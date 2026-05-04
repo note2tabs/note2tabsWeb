@@ -194,6 +194,21 @@ function percentile(values: number[], p: number) {
   return sorted[idx];
 }
 
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function userKey(event: UnifiedAnalyticsEvent) {
+  return event.userId || "";
+}
+
+function latestDate(current: Date | null, next: Date | null | undefined) {
+  if (!next) return current;
+  return !current || next > current ? next : current;
+}
+
 export async function getSummaryStats(from: Date, to: Date) {
   const [events, tabJobs, totalSignups] = await Promise.all([
     getUnifiedEvents(from, to),
@@ -1023,89 +1038,267 @@ export async function getGrowthInsights(from: Date, to: Date) {
   };
 }
 
-type ParityRow = {
-  oldValue: number;
-  v2Value: number;
-  diffPct: number;
-  flagged: boolean;
-};
-
-function buildParityRow(oldValue: number, v2Value: number, threshold: number): ParityRow {
-  const denominator = Math.max(oldValue, v2Value, 1);
-  const diffPct = Math.round((Math.abs(v2Value - oldValue) / denominator) * 10000) / 100;
-  const minimumVolume = 20;
-  const flagged = denominator >= minimumVolume && diffPct > threshold;
-  return { oldValue, v2Value, diffPct, flagged };
-}
-
-export async function getParityMetrics(from: Date, to: Date) {
-  const threshold = Math.max(1, analyticsFlags.parityThresholdPct);
-  const [oldEvents, v2Events, gteV2Sessions] = await Promise.all([
-    prisma.analyticsEvent.findMany({
+export async function getProductValueMetrics(from: Date, to: Date) {
+  const activationWindowDays = 7;
+  const meaningfulEditorSessionSec = 120;
+  const activationTo = addDays(to, activationWindowDays);
+  const [events, signupUsers, tabJobs, gteSessions] = await Promise.all([
+    getUnifiedEvents(from, activationTo),
+    prisma.user.findMany({
       where: { createdAt: { gte: from, lte: to } },
-      select: { event: true, sessionId: true, payload: true },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        tokensRemaining: true,
+        createdAt: true,
+      },
     }),
-    prisma.analyticsEventV2.findMany({
-      where: { ts: { gte: from, lte: to } },
-      select: { name: true, anonId: true, sessionId: true },
+    prisma.tabJob.findMany({
+      where: { createdAt: { gte: from, lte: activationTo } },
+      select: { userId: true, createdAt: true, gteEditorId: true },
     }),
     prisma.analyticsGteSession.findMany({
-      where: { startedAt: { gte: from, lte: to } },
-      select: { durationMs: true },
+      where: { startedAt: { gte: from, lte: activationTo } },
+      select: { accountId: true, startedAt: true, endedAt: true, durationMs: true, editorId: true },
     }),
   ]);
 
-  const oldVisitors = new Set(
-    oldEvents
-      .filter((event) => event.event === "page_view" && event.sessionId)
-      .map((event) => event.sessionId as string)
-  ).size;
-  const v2Visitors = new Set(
-    v2Events
-      .filter((event) => event.name === "page_viewed")
-      .map((event) => event.anonId || event.sessionId)
-      .filter(Boolean) as string[]
-  ).size;
-
-  const oldPageviews = oldEvents.filter((event) => event.event === "page_view").length;
-  const v2Pageviews = v2Events.filter((event) => event.name === "page_viewed").length;
-
-  const oldTranscriptionStarted = oldEvents.filter((event) => event.event === "transcription_started").length;
-  const v2TranscriptionStarted = v2Events.filter((event) => event.name === "transcription_started").length;
-
-  const oldTranscriptionSucceeded = oldEvents.filter((event) => event.event === "transcription_completed").length;
-  const v2TranscriptionSucceeded = v2Events.filter((event) => event.name === "transcription_succeeded").length;
-
-  const oldTranscriptionFailed = oldEvents.filter((event) => event.event === "transcription_failed").length;
-  const v2TranscriptionFailed = v2Events.filter((event) => event.name === "transcription_failed").length;
-
-  const oldGteSessionEndEvents = oldEvents.filter((event) => event.event === "gte_editor_session_end");
-  const oldGteSessionsCount = oldGteSessionEndEvents.length;
-  const oldGteDurationMs = oldGteSessionEndEvents.reduce((sum, event) => {
-    if (!event.payload) return sum;
-    try {
-      const parsed = JSON.parse(event.payload);
-      const durationSec =
-        typeof parsed.durationSec === "number" ? parsed.durationSec : Number(parsed.durationSec || 0);
-      if (!Number.isFinite(durationSec)) return sum;
-      return sum + Math.max(0, Math.round(durationSec * 1000));
-    } catch {
-      return sum;
+  const usersById = new Map(signupUsers.map((user) => [user.id, user]));
+  const userStats = new Map<
+    string,
+    {
+      transcriptionCount: number;
+      firstValueAt: Date | null;
+      editorCreated: number;
+      editorImported: number;
+      editorSaved: number;
+      editorExported: number;
+      editorActions: number;
+      editorSessions: number;
+      meaningfulSessions: number;
+      totalEditorDurationSec: number;
+      pricingViewed: number;
+      pricingClicked: number;
+      checkoutStarted: number;
+      lastActive: Date | null;
+      startedTranscription: boolean;
+      completedTranscription: boolean;
+      viewedEditor: boolean;
     }
-  }, 0);
+  >();
 
-  const v2GteSessionsCount = gteV2Sessions.length;
-  const v2GteDurationMs = gteV2Sessions.reduce((sum, row) => sum + Math.max(0, row.durationMs || 0), 0);
+  const ensureUserStats = (id: string) => {
+    const existing = userStats.get(id);
+    if (existing) return existing;
+    const created = {
+      transcriptionCount: 0,
+      firstValueAt: null,
+      editorCreated: 0,
+      editorImported: 0,
+      editorSaved: 0,
+      editorExported: 0,
+      editorActions: 0,
+      editorSessions: 0,
+      meaningfulSessions: 0,
+      totalEditorDurationSec: 0,
+      pricingViewed: 0,
+      pricingClicked: 0,
+      checkoutStarted: 0,
+      lastActive: null,
+      startedTranscription: false,
+      completedTranscription: false,
+      viewedEditor: false,
+    };
+    userStats.set(id, created);
+    return created;
+  };
+
+  const markValue = (userId: string, at: Date) => {
+    const user = usersById.get(userId);
+    if (!user) return;
+    if (at < user.createdAt || at > addDays(user.createdAt, activationWindowDays)) return;
+    const stats = ensureUserStats(userId);
+    stats.firstValueAt = !stats.firstValueAt || at < stats.firstValueAt ? at : stats.firstValueAt;
+  };
+
+  tabJobs.forEach((job) => {
+    if (!job.userId) return;
+    const stats = ensureUserStats(job.userId);
+    stats.transcriptionCount += 1;
+    stats.completedTranscription = true;
+    stats.lastActive = latestDate(stats.lastActive, job.createdAt);
+    markValue(job.userId, job.createdAt);
+  });
+
+  events.forEach((event) => {
+    const id = userKey(event);
+    if (!id) return;
+    const stats = ensureUserStats(id);
+    stats.lastActive = latestDate(stats.lastActive, event.createdAt);
+    if (event.event === "transcription_started") stats.startedTranscription = true;
+    if (event.event === "transcription_completed") {
+      stats.completedTranscription = true;
+      markValue(id, event.createdAt);
+    }
+    if (event.event === "gte_editor_created") {
+      stats.editorCreated += 1;
+      markValue(id, event.createdAt);
+    }
+    if (event.event === "gte_editor_imported") {
+      stats.editorImported += 1;
+      markValue(id, event.createdAt);
+    }
+    if (event.event === "gte_editor_saved") {
+      stats.editorSaved += 1;
+      markValue(id, event.createdAt);
+    }
+    if (event.event === "gte_editor_exported") {
+      stats.editorExported += 1;
+      markValue(id, event.createdAt);
+    }
+    if (event.event === "gte_editor_action") stats.editorActions += 1;
+    if (event.event === "gte_editor_visit") stats.viewedEditor = true;
+    if (event.event === "pricing_viewed") stats.pricingViewed += 1;
+    if (event.event === "pricing_cta_clicked") stats.pricingClicked += 1;
+    if (event.event === "checkout_started") stats.checkoutStarted += 1;
+  });
+
+  const sessionDurations: number[] = [];
+  gteSessions.forEach((session) => {
+    if (!session.accountId) return;
+    const stats = ensureUserStats(session.accountId);
+    const durationSec = Math.max(0, Math.round((session.durationMs || 0) / 1000));
+    stats.editorSessions += 1;
+    stats.totalEditorDurationSec += durationSec;
+    stats.lastActive = latestDate(stats.lastActive, session.endedAt || session.startedAt);
+    if (durationSec > 0) sessionDurations.push(durationSec);
+    if (durationSec >= meaningfulEditorSessionSec) {
+      stats.meaningfulSessions += 1;
+      markValue(session.accountId, session.endedAt || session.startedAt);
+    }
+  });
+
+  const activeUserIds = Array.from(userStats.keys()).filter((id) => !usersById.has(id));
+  const activeUsers = activeUserIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: activeUserIds } },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          tokensRemaining: true,
+          createdAt: true,
+        },
+      })
+    : [];
+  const users = [...signupUsers, ...activeUsers];
+
+  const activated = signupUsers.filter((user) => Boolean(userStats.get(user.id)?.firstValueAt));
+  const returningAfterSignupDay = signupUsers.filter((user) => {
+    const lastActive = userStats.get(user.id)?.lastActive;
+    return Boolean(lastActive && dayKey(lastActive) > dayKey(user.createdAt));
+  });
+  const returningWithin7d = signupUsers.filter((user) => {
+    const lastActive = userStats.get(user.id)?.lastActive;
+    return Boolean(lastActive && lastActive > user.createdAt && lastActive <= addDays(user.createdAt, 7));
+  });
+
+  const powerUsers = users
+    .map((user) => {
+      const stats = ensureUserStats(user.id);
+      const valueScore =
+        stats.transcriptionCount * 5 +
+        stats.editorCreated * 4 +
+        stats.editorImported * 4 +
+        stats.editorSaved * 8 +
+        stats.editorExported * 10 +
+        stats.meaningfulSessions * 6 +
+        Math.floor(stats.totalEditorDurationSec / 300);
+      return {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        tokensRemaining: user.tokensRemaining,
+        signupAt: user.createdAt,
+        transcriptionCount: stats.transcriptionCount,
+        editorSessions: stats.editorSessions,
+        totalEditorDurationSec: stats.totalEditorDurationSec,
+        editorSaves: stats.editorSaved,
+        editorExports: stats.editorExported,
+        lastActive: stats.lastActive,
+        valueScore,
+      };
+    })
+    .sort((a, b) => b.valueScore - a.valueScore || b.totalEditorDurationSec - a.totalEditorDurationSec)
+    .slice(0, 25);
+
+  const monetizationSignals = powerUsers
+    .map((user) => {
+      const stats = userStats.get(user.userId);
+      const reasons: string[] = [];
+      if (user.transcriptionCount >= 5) reasons.push("High transcription usage");
+      if (user.editorExports >= 2) reasons.push("Repeated exports");
+      if (user.editorSaves >= 3) reasons.push("Repeated saves");
+      if (user.tokensRemaining <= 20) reasons.push("Low remaining credits");
+      if ((stats?.pricingViewed || 0) > 0 || (stats?.pricingClicked || 0) > 0) reasons.push("Pricing interest");
+      if (returningAfterSignupDay.some((returningUser) => returningUser.id === user.userId)) reasons.push("Returned after signup");
+      return { ...user, reasons };
+    })
+    .filter((user) => user.reasons.length > 0)
+    .slice(0, 25);
+
+  const signedUpNoActivation = signupUsers.filter((user) => !userStats.get(user.id)?.firstValueAt).length;
+  const startedNoSuccess = Array.from(userStats.values()).filter(
+    (stats) => stats.startedTranscription && !stats.completedTranscription
+  ).length;
+  const editorViewedNoSaveOrExport = Array.from(userStats.values()).filter(
+    (stats) => stats.viewedEditor && stats.editorSaved === 0 && stats.editorExported === 0
+  ).length;
+  const pricingViewedNoCheckout = Array.from(userStats.values()).filter(
+    (stats) => stats.pricingViewed > 0 && stats.checkoutStarted === 0
+  ).length;
+  const firstValueTimes = activated
+    .map((user) => {
+      const firstValueAt = userStats.get(user.id)?.firstValueAt;
+      return firstValueAt ? Math.max(0, Math.round((firstValueAt.getTime() - user.createdAt.getTime()) / 60000)) : null;
+    })
+    .filter((value): value is number => value !== null);
 
   return {
-    threshold,
-    visitors: buildParityRow(oldVisitors, v2Visitors, threshold),
-    pageviews: buildParityRow(oldPageviews, v2Pageviews, threshold),
-    transcriptionStarted: buildParityRow(oldTranscriptionStarted, v2TranscriptionStarted, threshold),
-    transcriptionSucceeded: buildParityRow(oldTranscriptionSucceeded, v2TranscriptionSucceeded, threshold),
-    transcriptionFailed: buildParityRow(oldTranscriptionFailed, v2TranscriptionFailed, threshold),
-    gteSessionsCount: buildParityRow(oldGteSessionsCount, v2GteSessionsCount, threshold),
-    gteSessionsDurationMs: buildParityRow(oldGteDurationMs, v2GteDurationMs, threshold),
+    activation: {
+      signups: signupUsers.length,
+      activated: activated.length,
+      activationRate: signupUsers.length ? Math.round((activated.length / signupUsers.length) * 1000) / 10 : 0,
+      medianMinutesToFirstValue: percentile(firstValueTimes, 50),
+      windowDays: activationWindowDays,
+    },
+    retention: {
+      returnedAfterSignupDay: returningAfterSignupDay.length,
+      returnedWithin7d: returningWithin7d.length,
+      returningRate: signupUsers.length ? Math.round((returningAfterSignupDay.length / signupUsers.length) * 1000) / 10 : 0,
+    },
+    editorValue: {
+      editorsCreated: Array.from(userStats.values()).reduce((sum, stats) => sum + stats.editorCreated, 0),
+      editorsImported: Array.from(userStats.values()).reduce((sum, stats) => sum + stats.editorImported, 0),
+      editorSaves: Array.from(userStats.values()).reduce((sum, stats) => sum + stats.editorSaved, 0),
+      editorExports: Array.from(userStats.values()).reduce((sum, stats) => sum + stats.editorExported, 0),
+      editorActions: Array.from(userStats.values()).reduce((sum, stats) => sum + stats.editorActions, 0),
+      meaningfulSessions: Array.from(userStats.values()).reduce((sum, stats) => sum + stats.meaningfulSessions, 0),
+      avgSessionDurationSec: sessionDurations.length
+        ? sessionDurations.reduce((sum, duration) => sum + duration, 0) / sessionDurations.length
+        : 0,
+      p75SessionDurationSec: percentile(sessionDurations, 75),
+      meaningfulSessionSec: meaningfulEditorSessionSec,
+    },
+    powerUsers,
+    monetizationSignals,
+    dropoffs: [
+      { label: "Signed up but not activated", count: signedUpNoActivation },
+      { label: "Started transcription but no success", count: startedNoSuccess },
+      { label: "Viewed editor but no save/export", count: editorViewedNoSaveOrExport },
+      { label: "Viewed pricing but no checkout", count: pricingViewedNoCheckout },
+    ],
   };
 }
 

@@ -6,6 +6,7 @@ import {
   hydrateTrackInstrumentsFromStore,
   persistTrackInstrumentsFromSnapshot,
 } from "../../../lib/gteTrackInstrumentStore";
+import type { GteAnalyticsEvent } from "../../../lib/gteAnalytics";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -149,6 +150,38 @@ function getRenameEditorId(method: string, path: string) {
   return match ? decodeURIComponent(match[1]) : undefined;
 }
 
+function classifyEditorAction(method: string, path: string) {
+  if (method !== "POST" && method !== "DELETE" && method !== "PATCH") return null;
+  if (/^editors\/[^/]+\/snapshot$/.test(path)) return "snapshot_saved";
+  if (/^editors\/[^/]+\/name$/.test(path)) return "renamed";
+  if (/^editors\/[^/]+\/bars\//.test(path)) return "bars_changed";
+  if (/^editors\/[^/]+\/notes/.test(path)) return "notes_changed";
+  if (/^editors\/[^/]+\/chords/.test(path)) return "chords_changed";
+  if (/^editors\/[^/]+\/optimals\//.test(path)) return "optimals_assigned";
+  if (/^editors\/[^/]+\/cuts\//.test(path)) return "cuts_changed";
+  if (/^editors\/[^/]+\/import/.test(path)) return "tab_imported";
+  return null;
+}
+
+function snapshotCounts(snapshot: unknown) {
+  if (!snapshot || typeof snapshot !== "object") return {};
+  const record = snapshot as Record<string, unknown>;
+  const lanes = Array.isArray(record.editors) ? record.editors : [record];
+  let noteCount = 0;
+  let chordCount = 0;
+  for (const lane of lanes) {
+    if (!lane || typeof lane !== "object") continue;
+    const laneRecord = lane as Record<string, unknown>;
+    noteCount += Array.isArray(laneRecord.notes) ? laneRecord.notes.length : 0;
+    chordCount += Array.isArray(laneRecord.chords) ? laneRecord.chords.length : 0;
+  }
+  return {
+    laneCount: lanes.length,
+    noteCount,
+    chordCount,
+  };
+}
+
 function pruneSnapshotSaveCache() {
   if (snapshotSaveCache.size <= SNAPSHOT_SAVE_CACHE_MAX) return;
   const entries = Array.from(snapshotSaveCache.entries()).sort(
@@ -174,7 +207,7 @@ function buildUrl(req: NextApiRequest) {
 
 async function maybeLogGteAnalyticsEvent(input: {
   userId: string;
-  event: "gte_editor_created";
+  event: GteAnalyticsEvent;
   path: string;
   payload: Record<string, unknown>;
   req: NextApiRequest;
@@ -364,6 +397,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // ignore analytics parse/logging failures
     }
   }
+  const commitMatch = method === "POST" ? path.match(/^editors\/([^/]+)\/commit$/) : null;
+  if (upstream.ok && commitMatch) {
+    await maybeLogGteAnalyticsEvent({
+      userId: session.user.id,
+      event: "gte_editor_saved",
+      path: `/api/gte/${path}`,
+      payload: { editorId: decodeURIComponent(commitMatch[1]), source: "gte_commit" },
+      req,
+      res,
+    });
+  }
+  const editorAction = editorRef ? classifyEditorAction(method, path) : null;
+  if (upstream.ok && editorRef && editorAction) {
+    await maybeLogGteAnalyticsEvent({
+      userId: session.user.id,
+      event: "gte_editor_action",
+      path: `/api/gte/${path}`,
+      payload: {
+        editorId: editorRef,
+        action: editorAction,
+        ...snapshotCounts((req.body as { snapshot?: unknown } | undefined)?.snapshot),
+      },
+      req,
+      res,
+    });
+  }
+  const exportMatch = method === "GET" ? path.match(/^editors\/([^/]+)\/(export|export_ascii)$/) : null;
+  if (upstream.ok && exportMatch) {
+    await maybeLogGteAnalyticsEvent({
+      userId: session.user.id,
+      event: "gte_editor_exported",
+      path: `/api/gte/${path}`,
+      payload: {
+        editorId: decodeURIComponent(exportMatch[1]),
+        format: exportMatch[2] === "export_ascii" ? "ascii" : "structured",
+        source: "gte_export",
+      },
+      req,
+      res,
+    });
+  }
   if (upstream.ok && isTranscriberImport) {
     try {
       const target = getRequestedImportTarget(req);
@@ -376,6 +450,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           event: "gte_editor_created",
           path: "/api/gte/transcriber/import",
           payload: { editorId, source: "gte_transcriber_import" },
+          req,
+          res,
+        });
+      }
+      if (editorId) {
+        await maybeLogGteAnalyticsEvent({
+          userId: session.user.id,
+          event: "gte_editor_imported",
+          path: "/api/gte/transcriber/import",
+          payload: { editorId, target: target || "new", source: "gte_transcriber_import" },
           req,
           res,
         });
