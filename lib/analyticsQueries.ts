@@ -43,6 +43,25 @@ function mapEventNameFromV2(name: string) {
   return mapUnifiedEventName(name);
 }
 
+const ERROR_REASON_LABELS: Record<string, string> = {
+  email_unverified: "Email unverified",
+  file_too_large: "File too large",
+  invalid_youtube_url: "Invalid YouTube URL",
+  missing_file: "Missing file",
+  signed_out: "Signed out",
+};
+
+function formatErrorReason(reason: string) {
+  return (
+    ERROR_REASON_LABELS[reason] ||
+    reason
+      .split("_")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ")
+  );
+}
+
 async function getUnifiedEvents(from: Date, to: Date): Promise<UnifiedAnalyticsEvent[]> {
   const cacheKey = `${analyticsFlags.readsEnabled ? "v2" : "legacy"}:${from.toISOString()}:${to.toISOString()}`;
   const cached = unifiedEventsCache.get(cacheKey);
@@ -455,6 +474,8 @@ export async function getErrorStats(from: Date, to: Date) {
         ? payload.message
         : typeof payload.error === "string"
         ? payload.error
+        : typeof payload.reason === "string"
+        ? `Validation failed: ${formatErrorReason(payload.reason)}`
         : e.payload && e.payload.trim().startsWith("{")
         ? "Unknown error"
         : e.payload || "Unknown error";

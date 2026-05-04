@@ -51,6 +51,7 @@ import {
   getConversionFunnel,
   getDailyTimeSeries,
   getDropoffPoints,
+  getErrorStats,
   getPageViewBreakdown,
   getSummaryStats,
 } from "../../lib/analyticsQueries";
@@ -268,5 +269,38 @@ describe("analytics queries", () => {
     expect(exitMap["/tabs/1"]).toBe(1);
     expect(exitMap["/pricing"]).toBe(1);
     expect(exitMap["/auth/signup"]).toBe(1);
+  });
+
+  it("uses validation failure reasons as readable error messages", async () => {
+    prismaMock.analyticsEventV2.findMany.mockResolvedValue([
+      v2Event({
+        name: "upload_validation_failed",
+        ts: "2026-03-08T09:00:00.000Z",
+        path: "/",
+        sessionId: "sess_1",
+        props: { reason: "invalid_youtube_url", mode: "YOUTUBE" },
+      }),
+      v2Event({
+        name: "upload_validation_failed",
+        ts: "2026-03-08T09:01:00.000Z",
+        path: "/",
+        sessionId: "sess_2",
+        props: { reason: "file_too_large", mode: "FILE" },
+      }),
+    ]);
+
+    const errors = await getErrorStats(
+      new Date("2026-03-08T00:00:00.000Z"),
+      new Date("2026-03-08T23:59:59.999Z")
+    );
+
+    expect(errors.recentErrors.map((error) => error.message)).toEqual([
+      "Validation failed: File too large",
+      "Validation failed: Invalid YouTube URL",
+    ]);
+    expect(errors.byType).toEqual([
+      { message: "Validation failed: File too large", count: 1 },
+      { message: "Validation failed: Invalid YouTube URL", count: 1 },
+    ]);
   });
 });

@@ -108,7 +108,7 @@ export async function linkIdentityToUser(input: LinkIdentityInput) {
       create: {
         userId: input.userId,
         fingerprintHash,
-        anonId: anonId || null,
+        anonId: null,
         firstSeenAt: now,
         lastSeenAt: now,
         expiresAt,

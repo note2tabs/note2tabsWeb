@@ -35,6 +35,7 @@ describe("linkIdentityToUser", () => {
     expect(linked.userId).toBe("user_123");
     expect(linked.fingerprintHash).toBe(expectedHash);
     expect(prismaMock.analyticsIdentityLink.upsert).toHaveBeenCalledTimes(2);
+    expect(prismaMock.analyticsIdentityLink.upsert.mock.calls[1][0].create.anonId).toBeNull();
 
     const v2UpdateArgs = prismaMock.analyticsEventV2.updateMany.mock.calls[0][0];
     expect(v2UpdateArgs.where.accountId).toBeNull();
