@@ -809,8 +809,7 @@ export default function HomePage() {
     const handleEnded = () => {
       setActiveHowStep((prev) => {
         if (prev >= howSteps.length - 1) {
-          setHowAutoAdvanceEnabled(false);
-          return prev;
+          return 0;
         }
 
         return prev + 1;
