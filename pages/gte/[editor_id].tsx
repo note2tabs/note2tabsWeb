@@ -769,6 +769,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [trackMuteById, setTrackMuteById] = useState<Record<string, boolean>>({});
   const [trackVolumeById, setTrackVolumeById] = useState<Record<string, number>>({});
   const [trackPanById, setTrackPanById] = useState<Record<string, number>>({});
+  const [trackCapoDraftById, setTrackCapoDraftById] = useState<Record<string, string>>({});
   const [isolatedTrackId, setIsolatedTrackId] = useState<string | null>(null);
   const [laneSelectionById, setLaneSelectionById] = useState<
     Record<string, { noteCount: number; chordCount: number; noteIds: number[]; chordIds: number[] }>
@@ -1580,6 +1581,34 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       });
     },
     [canvas, editorId, recordCanvasHistory]
+  );
+
+  const handleLaneCapoDraftChange = useCallback(
+    (laneId: string, presetId: string, rawValue: string) => {
+      if (rawValue === "") {
+        setTrackCapoDraftById((prev) => ({ ...prev, [laneId]: rawValue }));
+        return;
+      }
+      const parsed = Number(rawValue);
+      if (!Number.isFinite(parsed)) {
+        setTrackCapoDraftById((prev) => ({ ...prev, [laneId]: rawValue }));
+        return;
+      }
+      const capo = normalizeCapo(parsed);
+      setTrackCapoDraftById((prev) => ({ ...prev, [laneId]: String(capo) }));
+      handleLaneTuningChange(laneId, presetId, capo);
+    },
+    [handleLaneTuningChange]
+  );
+
+  const commitLaneCapoDraft = useCallback(
+    (laneId: string, presetId: string, fallbackCapo: number) => {
+      const rawValue = trackCapoDraftById[laneId];
+      const capo = rawValue === "" ? 0 : normalizeCapo(rawValue ?? fallbackCapo);
+      setTrackCapoDraftById((prev) => ({ ...prev, [laneId]: String(capo) }));
+      handleLaneTuningChange(laneId, presetId, capo);
+    },
+    [handleLaneTuningChange, trackCapoDraftById]
   );
 
   const clearBarSelectionState = useCallback((exemptEditorRef: string | null = null) => {
@@ -4476,9 +4505,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               type="number"
                               min={0}
                               max={12}
-                              value={tuning.capo}
+                              value={trackCapoDraftById[laneId] ?? String(tuning.capo)}
                               onChange={(event) =>
-                                handleLaneTuningChange(laneId, tuning.presetId, Number(event.target.value))
+                                handleLaneCapoDraftChange(laneId, tuning.presetId, event.target.value)
+                              }
+                              onBlur={() =>
+                                commitLaneCapoDraft(laneId, tuning.presetId, tuning.capo)
                               }
                               onClick={(event) => event.stopPropagation()}
                               className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 shadow-sm"
