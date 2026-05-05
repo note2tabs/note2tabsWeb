@@ -15,6 +15,15 @@ import { authOptions } from "../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
 import { buildLaneEditorRef, gteApi } from "../../lib/gteApi";
 import {
+  buildMetronomeClicks,
+  equalPowerPanGains,
+  frameDeltaToSeconds,
+  nextSpeedTrainerValue,
+  normalizePlaybackSpeed,
+  normalizeTrackPan,
+  resolvePracticeLoopRange,
+} from "../../lib/gtePractice";
+import {
   DEFAULT_TRACK_INSTRUMENT_ID,
   getBuiltinTrackInstrumentOptions,
   loadTrackInstrumentOptions,
@@ -31,6 +40,7 @@ import {
   createGuestSnapshot,
   readGuestDraft,
 } from "../../lib/gteGuestDraft";
+import { TUNING_PRESETS, applyTuningToSnapshot, getSnapshotTuning, normalizeCapo } from "../../lib/gteTuning";
 import NoIndexHead from "../../components/NoIndexHead";
 
 type Props = {
@@ -749,8 +759,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [globalPlaybackFrame, setGlobalPlaybackFrame] = useState(0);
   const [globalPlaybackIsPlaying, setGlobalPlaybackIsPlaying] = useState(false);
   const [globalPlaybackVolume, setGlobalPlaybackVolume] = useState(0.6);
+  const [practiceLoopEnabled, setPracticeLoopEnabled] = useState(false);
+  const [metronomeEnabled, setMetronomeEnabled] = useState(false);
+  const [countInEnabled, setCountInEnabled] = useState(false);
+  const [speedTrainerEnabled, setSpeedTrainerEnabled] = useState(false);
+  const [speedTrainerTarget, setSpeedTrainerTarget] = useState(1.5);
+  const [speedTrainerStep, setSpeedTrainerStep] = useState(0.05);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [trackMuteById, setTrackMuteById] = useState<Record<string, boolean>>({});
   const [trackVolumeById, setTrackVolumeById] = useState<Record<string, number>>({});
+  const [trackPanById, setTrackPanById] = useState<Record<string, number>>({});
   const [isolatedTrackId, setIsolatedTrackId] = useState<string | null>(null);
   const [laneSelectionById, setLaneSelectionById] = useState<
     Record<string, { noteCount: number; chordCount: number; noteIds: number[]; chordIds: number[] }>
@@ -1565,6 +1583,37 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [editorId, isGuestMode, recordCanvasHistory]
   );
 
+  const handleLaneTuningChange = useCallback(
+    (laneId: string, presetId: string, capoValue: number) => {
+      if (!canvas) return;
+      const secondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
+      let didChange = false;
+      const nextEditors = canvas.editors.map((lane, index) => {
+        const normalizedLane = normalizeLane(lane, lane.id || `ed-${index + 1}`, secondsPerBar, index);
+        if (normalizedLane.id !== laneId) return normalizedLane;
+        const currentTuning = getSnapshotTuning(normalizedLane);
+        const capo = normalizeCapo(capoValue);
+        if (currentTuning.presetId === presetId && currentTuning.capo === capo) return normalizedLane;
+        didChange = true;
+        return normalizeLane(applyTuningToSnapshot(normalizedLane, presetId, capo), laneId, secondsPerBar, index);
+      });
+      if (!didChange) return;
+      const nextCanvas = {
+        ...canvas,
+        updatedAt: new Date().toISOString(),
+        editors: nextEditors,
+      };
+      recordCanvasHistory(canvas, nextCanvas);
+      setCanvas(nextCanvas);
+      setHasPendingCommit(true);
+      setActiveLaneId(laneId);
+      void gteApi.applySnapshot(editorId, nextCanvas).catch((err: any) => {
+        setSaveError(err?.message || "Could not save track tuning.");
+      });
+    },
+    [canvas, editorId, recordCanvasHistory]
+  );
+
   const clearBarSelectionState = useCallback((exemptEditorRef: string | null = null) => {
     setBarSelection(null);
     setBarDragState(null);
@@ -1911,6 +1960,23 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     () => fpsFromSecondsPerBar(Math.max(0.1, toNumber(canvas?.secondsPerBar, DEFAULT_SECONDS_PER_BAR))),
     [canvas?.secondsPerBar]
   );
+  const globalPracticeLoopRange = useMemo(
+    () =>
+      resolvePracticeLoopRange(barSelection?.barIndices, FIXED_FRAMES_PER_BAR, canvasTimelineEnd) ||
+      (canvasTimelineEnd > 0 ? { startFrame: 0, endFrame: canvasTimelineEnd } : null),
+    [barSelection?.barIndices, canvasTimelineEnd]
+  );
+  const normalizedPlaybackSpeed = normalizePlaybackSpeed(playbackSpeed);
+  const globalMetronomeBeatsPerBar = normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
+
+  useEffect(() => {
+    if (globalPracticeLoopRange) return;
+    if (practiceLoopEnabled) setPracticeLoopEnabled(false);
+  }, [globalPracticeLoopRange, practiceLoopEnabled]);
+  useEffect(() => {
+    if (practiceLoopEnabled) return;
+    if (speedTrainerEnabled) setSpeedTrainerEnabled(false);
+  }, [practiceLoopEnabled, speedTrainerEnabled]);
 
   useEffect(() => {
     setGlobalPlaybackFrame((prev) => Math.max(0, Math.min(canvasTimelineEnd, Math.round(prev))));
@@ -2254,6 +2320,23 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     globalPlaybackMasterGainRef.current = null;
   }, []);
 
+  const scheduleMetronomeClick = useCallback(
+    (ctx: AudioContext, destination: AudioNode, startTime: number, accent: boolean) => {
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.type = "square";
+      oscillator.frequency.setValueAtTime(accent ? 1320 : 880, startTime);
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.exponentialRampToValueAtTime(accent ? 0.18 : 0.11, startTime + 0.004);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.055);
+      oscillator.connect(gain);
+      gain.connect(destination);
+      oscillator.start(startTime);
+      oscillator.stop(startTime + 0.06);
+    },
+    []
+  );
+
   const stopGlobalPlayback = useCallback(() => {
     globalPlaybackStartRequestRef.current += 1;
     globalPlaybackStartPendingRef.current = false;
@@ -2274,8 +2357,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [editorId, stopGlobalPlayback]);
 
   const scheduleGlobalPlayback = useCallback(
-    async (startFrame: number) => {
+    async (startFrame: number, speedOverride?: number) => {
       if (!canvas) return null;
+      const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? normalizedPlaybackSpeed);
+      const playbackStartFrame =
+        practiceLoopEnabled && globalPracticeLoopRange ? globalPracticeLoopRange.startFrame : startFrame;
+      const playbackEndFrame =
+        practiceLoopEnabled && globalPracticeLoopRange ? globalPracticeLoopRange.endFrame : canvasTimelineEnd;
 
       const getMidiFromTab = (lane: EditorSnapshot, tab: [number, number], fallback?: number) => {
         const fromRef = lane.tabRef?.[tab[0]]?.[tab[1]];
@@ -2292,13 +2380,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         return 0;
       };
 
-      let endFrame = Math.max(startFrame, canvasTimelineEnd);
+      let endFrame = Math.max(playbackStartFrame, playbackEndFrame);
       const events: Array<{
         start: number;
         duration: number;
         midi: number;
         gain: number;
         instrumentId: string;
+        pan: number;
       }> = [];
 
       const pushEvent = (
@@ -2306,21 +2395,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         eventLength: number,
         midi: number,
         gain: number,
-        instrumentId: string
+        instrumentId: string,
+        pan: number
       ) => {
         const roundedStart = Math.round(eventStart);
         const roundedEnd = Math.round(eventStart + eventLength);
-        if (roundedEnd <= startFrame) return;
-        const trimmedStart = Math.max(roundedStart, startFrame);
-        const durationFrames = roundedEnd - trimmedStart;
+        if (roundedEnd <= playbackStartFrame || roundedStart >= playbackEndFrame) return;
+        const trimmedStart = Math.max(roundedStart, playbackStartFrame);
+        const trimmedEnd = Math.min(roundedEnd, playbackEndFrame);
+        const durationFrames = trimmedEnd - trimmedStart;
         if (durationFrames <= 0) return;
-        endFrame = Math.max(endFrame, roundedEnd);
+        endFrame = Math.max(endFrame, trimmedEnd);
         events.push({
-          start: (trimmedStart - startFrame) / globalPlaybackFps,
-          duration: durationFrames / globalPlaybackFps,
+          start: frameDeltaToSeconds(trimmedStart - playbackStartFrame, globalPlaybackFps, runPlaybackSpeed),
+          duration: frameDeltaToSeconds(durationFrames, globalPlaybackFps, runPlaybackSpeed),
           midi,
           gain,
           instrumentId,
+          pan,
         });
       };
 
@@ -2329,19 +2421,20 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         if (isolatedTrackId && laneId !== isolatedTrackId) return;
         if (trackMuteById[laneId]) return;
         const laneVolume = normalizeTrackVolume(trackVolumeById[laneId] ?? 1);
+        const lanePan = normalizeTrackPan(trackPanById[laneId] ?? 0);
         if (laneVolume <= 0) return;
         const instrumentId = normalizeTrackInstrumentId(lane.instrumentId);
 
         lane.notes.forEach((note) => {
           const midi =
             Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(lane, note.tab);
-          pushEvent(note.startTime, note.length, midi, 0.55 * laneVolume, instrumentId);
+          pushEvent(note.startTime, note.length, midi, 0.55 * laneVolume, instrumentId, lanePan);
         });
 
         lane.chords.forEach((chord) => {
           chord.currentTabs.forEach((tab, tabIndex) => {
             const midi = getMidiFromTab(lane, tab, chord.originalMidi?.[tabIndex]);
-            pushEvent(chord.startTime, chord.length, midi, 0.48 * laneVolume, instrumentId);
+            pushEvent(chord.startTime, chord.length, midi, 0.48 * laneVolume, instrumentId, lanePan);
           });
         });
       });
@@ -2369,42 +2462,103 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       master.gain.value = globalPlaybackVolume;
       master.connect(ctx.destination);
       globalPlaybackMasterGainRef.current = master;
+      const countInSec = countInEnabled
+        ? frameDeltaToSeconds(FIXED_FRAMES_PER_BAR, globalPlaybackFps, runPlaybackSpeed)
+        : 0;
+      const playBase = base + countInSec;
+
+      if (metronomeEnabled || countInEnabled) {
+        buildMetronomeClicks({
+          startFrame: playbackStartFrame,
+          endFrame,
+          framesPerBar: FIXED_FRAMES_PER_BAR,
+          beatsPerBar: globalMetronomeBeatsPerBar,
+          fps: globalPlaybackFps,
+          playbackSpeed: runPlaybackSpeed,
+          countInBars: countInEnabled ? 1 : 0,
+        }).forEach((click) => {
+          if (!metronomeEnabled && click.timeSec >= 0) return;
+          scheduleMetronomeClick(ctx, master, playBase + click.timeSec, click.accent);
+        });
+      }
 
       events.forEach((evt) => {
         if (!Number.isFinite(evt.midi) || evt.midi <= 0) return;
         const instrument = preparedByInstrumentId.get(evt.instrumentId);
         if (!instrument) return;
+        const destination = (() => {
+          if (typeof ctx.createStereoPanner === "function") {
+            const panner = ctx.createStereoPanner();
+            panner.pan.value = normalizeTrackPan(evt.pan);
+            panner.connect(master);
+            return panner;
+          }
+          const merger = ctx.createChannelMerger(2);
+          const left = ctx.createGain();
+          const right = ctx.createGain();
+          const gains = equalPowerPanGains(evt.pan);
+          left.gain.value = gains.leftGain;
+          right.gain.value = gains.rightGain;
+          left.connect(merger, 0, 0);
+          right.connect(merger, 0, 1);
+          merger.connect(master);
+          const splitter = ctx.createGain();
+          splitter.connect(left);
+          splitter.connect(right);
+          return splitter;
+        })();
         schedulePreparedTrackNote({
           ctx,
-          destination: master,
+          destination,
           instrument,
           midi: evt.midi,
           gain: evt.gain,
-          startTime: base + evt.start,
+          startTime: playBase + evt.start,
           duration: Math.max(0.05, evt.duration),
         });
       });
 
-      return { ctx, endFrame, startTimeSec: base };
+      return { ctx, endFrame, startFrame: playbackStartFrame, startTimeSec: playBase };
     },
-    [canvas, canvasTimelineEnd, globalPlaybackFps, globalPlaybackVolume, isolatedTrackId, trackMuteById, trackVolumeById]
+    [
+      canvas,
+      canvasTimelineEnd,
+      countInEnabled,
+      globalMetronomeBeatsPerBar,
+      globalPlaybackFps,
+      globalPlaybackVolume,
+      globalPracticeLoopRange,
+      isolatedTrackId,
+      metronomeEnabled,
+      normalizedPlaybackSpeed,
+      practiceLoopEnabled,
+      scheduleMetronomeClick,
+      trackMuteById,
+      trackPanById,
+      trackVolumeById,
+    ]
   );
 
-  const startGlobalPlayback = useCallback(async (startFrameOverride?: number) => {
+  const startGlobalPlayback = useCallback(async (startFrameOverride?: number, speedOverride?: number) => {
     if (!canvas) return;
     if (globalPlaybackRafRef.current !== null || globalPlaybackStartPendingRef.current) return;
     globalPlaybackStartPendingRef.current = true;
     const requestId = globalPlaybackStartRequestRef.current + 1;
     globalPlaybackStartRequestRef.current = requestId;
-    const startFrame = Math.max(
+    const requestedStartFrame = Math.max(
       0,
       Math.min(
         canvasTimelineEnd,
         Math.round(startFrameOverride ?? globalPlaybackFrameRef.current)
       )
     );
+    const startFrame =
+      practiceLoopEnabled && globalPracticeLoopRange
+        ? globalPracticeLoopRange.startFrame
+        : requestedStartFrame;
     stopGlobalPlaybackAudio();
-    const scheduled = await scheduleGlobalPlayback(startFrame);
+    const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? normalizedPlaybackSpeed);
+    const scheduled = await scheduleGlobalPlayback(startFrame, runPlaybackSpeed);
     globalPlaybackStartPendingRef.current = false;
     if (globalPlaybackStartRequestRef.current !== requestId) {
       if (scheduled?.ctx) {
@@ -2420,7 +2574,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     globalPlaybackAudioRef.current = scheduled.ctx;
     globalPlaybackAudioStartRef.current = scheduled.startTimeSec ?? null;
     globalPlaybackEndFrameRef.current = Math.max(startFrame, Math.round(scheduled.endFrame ?? startFrame));
-    globalPlaybackStartFrameRef.current = startFrame;
+    globalPlaybackStartFrameRef.current = Math.round(scheduled.startFrame ?? startFrame);
     globalPlaybackStartTimeRef.current = performance.now();
     setGlobalPlaybackFrame(startFrame);
     setGlobalPlaybackIsPlaying(true);
@@ -2432,9 +2586,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         elapsed = globalPlaybackAudioRef.current.currentTime - globalPlaybackAudioStartRef.current;
       }
       if (elapsed < 0) elapsed = 0;
-      const nextFrame = globalPlaybackStartFrameRef.current + elapsed * globalPlaybackFps;
+      const nextFrame =
+        globalPlaybackStartFrameRef.current + elapsed * globalPlaybackFps * runPlaybackSpeed;
       const endFrame = globalPlaybackEndFrameRef.current ?? canvasTimelineEnd;
       if (nextFrame >= endFrame) {
+        if (practiceLoopEnabled && globalPracticeLoopRange) {
+          const nextSpeed = speedTrainerEnabled
+            ? nextSpeedTrainerValue(runPlaybackSpeed, speedTrainerStep, speedTrainerTarget)
+            : runPlaybackSpeed;
+          if (speedTrainerEnabled) {
+            setPlaybackSpeed(nextSpeed);
+          }
+          setGlobalPlaybackFrame(globalPracticeLoopRange.startFrame);
+          stopGlobalPlayback();
+          window.setTimeout(() => {
+            void startGlobalPlayback(globalPracticeLoopRange.startFrame, nextSpeed);
+          }, 0);
+          return;
+        }
         setGlobalPlaybackFrame(endFrame);
         stopGlobalPlayback();
         return;
@@ -2447,8 +2616,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [
     canvas,
     canvasTimelineEnd,
+    globalPracticeLoopRange,
     globalPlaybackFps,
+    normalizedPlaybackSpeed,
+    practiceLoopEnabled,
     scheduleGlobalPlayback,
+    speedTrainerStep,
+    speedTrainerTarget,
+    speedTrainerEnabled,
     stopGlobalPlayback,
     stopGlobalPlaybackAudio,
   ]);
@@ -2535,6 +2710,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }));
   }, []);
 
+  const handleTrackPanChange = useCallback((trackId: string, nextPan: number) => {
+    setTrackPanById((prev) => ({
+      ...prev,
+      [trackId]: normalizeTrackPan(nextPan),
+    }));
+  }, []);
+
   const toggleTrackIsolation = useCallback((trackId: string) => {
     setIsolatedTrackId((prev) => (prev === trackId ? null : trackId));
   }, []);
@@ -2543,14 +2725,31 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!canvas) return "";
     return [
       `iso:${isolatedTrackId ?? ""}`,
+      `loop:${practiceLoopEnabled ? globalPracticeLoopRange?.startFrame ?? "-" : "-"}:${practiceLoopEnabled ? globalPracticeLoopRange?.endFrame ?? "-" : "-"}`,
+      `met:${metronomeEnabled ? 1 : 0}`,
+      `count:${countInEnabled ? 1 : 0}`,
+      `train:${speedTrainerEnabled ? 1 : 0}`,
+      `speed:${Math.round(normalizedPlaybackSpeed * 1000)}`,
       ...canvas.editors.map((lane, index) => {
         const laneId = lane.id || `ed-${index + 1}`;
         return `${laneId}:${trackMuteById[laneId] ? 1 : 0}:${Math.round(
           normalizeTrackVolume(trackVolumeById[laneId] ?? 1) * 1000
-        )}`;
+        )}:${Math.round(normalizeTrackPan(trackPanById[laneId] ?? 0) * 1000)}`;
       }),
     ].join("|");
-  }, [canvas, isolatedTrackId, trackMuteById, trackVolumeById]);
+  }, [
+    canvas,
+    countInEnabled,
+    globalPracticeLoopRange,
+    isolatedTrackId,
+    metronomeEnabled,
+    normalizedPlaybackSpeed,
+    practiceLoopEnabled,
+    speedTrainerEnabled,
+    trackMuteById,
+    trackPanById,
+    trackVolumeById,
+  ]);
 
   useEffect(() => {
     const previousTrackPlaybackStateSignature = previousTrackPlaybackStateSignatureRef.current;
@@ -3762,6 +3961,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               const isTrackMuted = Boolean(trackMuteById[laneId]);
               const isTrackIsolated = isolatedTrackId === laneId;
               const trackVolume = normalizeTrackVolume(trackVolumeById[laneId] ?? 1);
+              const trackPan = normalizeTrackPan(trackPanById[laneId] ?? 0);
               const laneBarCount = getLaneBarCount(lane);
               const instrumentValue = trackInstrumentOptions.some(
                 (option) => option.id === normalizeTrackInstrumentId(lane.instrumentId)
@@ -3770,6 +3970,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 : DEFAULT_TRACK_INSTRUMENT_ID;
               const instrumentLabel =
                 trackInstrumentOptions.find((option) => option.id === instrumentValue)?.label || "Built-in synth";
+              const tuning = getSnapshotTuning(lane);
               const mobileEditing = isMobileViewport && mobileEditLaneId === laneId;
               const mobileSelectedBars =
                 isMobileViewport && barSelection?.laneId === laneId ? barSelection.barIndices : [];
@@ -3957,6 +4158,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onGlobalPlaybackSkipToStart={skipGlobalPlaybackToStart}
                               onGlobalPlaybackSkipBackwardBar={skipGlobalPlaybackBackwardBar}
                               onGlobalPlaybackSkipForwardBar={skipGlobalPlaybackForwardBar}
+                              practiceLoopEnabled={practiceLoopEnabled}
+                              practiceLoopRange={globalPracticeLoopRange}
+                              onPracticeLoopEnabledChange={setPracticeLoopEnabled}
+                              metronomeEnabled={metronomeEnabled}
+                              onMetronomeEnabledChange={setMetronomeEnabled}
+                              countInEnabled={countInEnabled}
+                              onCountInEnabledChange={setCountInEnabled}
+                              speedTrainerEnabled={speedTrainerEnabled}
+                              onSpeedTrainerEnabledChange={setSpeedTrainerEnabled}
+                              speedTrainerTarget={speedTrainerTarget}
+                              onSpeedTrainerTargetChange={setSpeedTrainerTarget}
+                              speedTrainerStep={speedTrainerStep}
+                              onSpeedTrainerStepChange={setSpeedTrainerStep}
+                              playbackSpeed={normalizedPlaybackSpeed}
+                              onPlaybackSpeedChange={setPlaybackSpeed}
                               showToolbarWhenInactive={false}
                               multiTrackSelectionActive={multiTrackSelectionActive}
                               onSelectionStateChange={(selection) =>
@@ -4197,6 +4413,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onGlobalPlaybackSkipToStart={skipGlobalPlaybackToStart}
                               onGlobalPlaybackSkipBackwardBar={skipGlobalPlaybackBackwardBar}
                               onGlobalPlaybackSkipForwardBar={skipGlobalPlaybackForwardBar}
+                              practiceLoopEnabled={practiceLoopEnabled}
+                              practiceLoopRange={globalPracticeLoopRange}
+                              onPracticeLoopEnabledChange={setPracticeLoopEnabled}
+                              metronomeEnabled={metronomeEnabled}
+                              onMetronomeEnabledChange={setMetronomeEnabled}
+                              countInEnabled={countInEnabled}
+                              onCountInEnabledChange={setCountInEnabled}
+                              speedTrainerEnabled={speedTrainerEnabled}
+                              onSpeedTrainerEnabledChange={setSpeedTrainerEnabled}
+                              speedTrainerTarget={speedTrainerTarget}
+                              onSpeedTrainerTargetChange={setSpeedTrainerTarget}
+                              speedTrainerStep={speedTrainerStep}
+                              onSpeedTrainerStepChange={setSpeedTrainerStep}
+                              playbackSpeed={normalizedPlaybackSpeed}
+                              onPlaybackSpeedChange={setPlaybackSpeed}
                               showToolbarWhenInactive={index === 0 && activeLaneId === null}
                               multiTrackSelectionActive={multiTrackSelectionActive}
                               onSelectionStateChange={(selection) =>
@@ -4255,6 +4486,38 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               </option>
                             ))}
                           </select>
+                        </div>
+                        <div className="mt-2 min-w-0 space-y-1.5">
+                          <select
+                            value={tuning.presetId}
+                            onChange={(event) => handleLaneTuningChange(laneId, event.target.value, tuning.capo)}
+                            onClick={(event) => event.stopPropagation()}
+                            className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 shadow-sm"
+                            title="Track tuning"
+                            aria-label="Track tuning"
+                          >
+                            {TUNING_PRESETS.map((preset) => (
+                              <option key={`${laneId}-tuning-${preset.id}`} value={preset.id}>
+                                {preset.label}
+                              </option>
+                            ))}
+                          </select>
+                          <label className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
+                            Capo
+                            <input
+                              type="number"
+                              min={0}
+                              max={12}
+                              value={tuning.capo}
+                              onChange={(event) =>
+                                handleLaneTuningChange(laneId, tuning.presetId, Number(event.target.value))
+                              }
+                              onClick={(event) => event.stopPropagation()}
+                              className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 shadow-sm"
+                              title="Track capo"
+                              aria-label="Track capo"
+                            />
+                          </label>
                         </div>
                         <div className="mt-2 flex w-full flex-col items-center gap-2">
                           <div className="flex flex-col items-center gap-1.5">
@@ -4320,6 +4583,27 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             />
                             <div className="w-5 shrink-0 text-right text-[10px] font-medium text-slate-500">
                               {Math.round(trackVolume * 100)}%
+                            </div>
+                          </div>
+                          <div className="flex w-full min-w-0 items-center gap-1">
+                            <input
+                              type="range"
+                              min={-1}
+                              max={1}
+                              step={0.01}
+                              value={trackPan}
+                              onChange={(event) => handleTrackPanChange(laneId, Number(event.target.value))}
+                              onClick={(event) => event.stopPropagation()}
+                              className="w-[90%] h-2 accent-sky-700"
+                              title="Track pan"
+                              aria-label="Track pan"
+                            />
+                            <div className="w-5 shrink-0 text-right text-[10px] font-medium text-slate-500">
+                              {trackPan < -0.05
+                                ? `L${Math.round(Math.abs(trackPan) * 100)}`
+                                : trackPan > 0.05
+                                ? `R${Math.round(trackPan * 100)}`
+                                : "C"}
                             </div>
                           </div>
                         </div>
@@ -4393,6 +4677,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onGlobalPlaybackSkipToStart={skipGlobalPlaybackToStart}
                           onGlobalPlaybackSkipBackwardBar={skipGlobalPlaybackBackwardBar}
                           onGlobalPlaybackSkipForwardBar={skipGlobalPlaybackForwardBar}
+                          practiceLoopEnabled={practiceLoopEnabled}
+                          practiceLoopRange={globalPracticeLoopRange}
+                          onPracticeLoopEnabledChange={setPracticeLoopEnabled}
+                          metronomeEnabled={metronomeEnabled}
+                          onMetronomeEnabledChange={setMetronomeEnabled}
+                          countInEnabled={countInEnabled}
+                          onCountInEnabledChange={setCountInEnabled}
+                          speedTrainerEnabled={speedTrainerEnabled}
+                          onSpeedTrainerEnabledChange={setSpeedTrainerEnabled}
+                          speedTrainerTarget={speedTrainerTarget}
+                          onSpeedTrainerTargetChange={setSpeedTrainerTarget}
+                          speedTrainerStep={speedTrainerStep}
+                          onSpeedTrainerStepChange={setSpeedTrainerStep}
+                          playbackSpeed={normalizedPlaybackSpeed}
+                          onPlaybackSpeedChange={setPlaybackSpeed}
                           showToolbarWhenInactive={
                             isMobileViewport ? index === 0 && !mobileEditLaneId : activeLaneId === null && index === 0
                           }
