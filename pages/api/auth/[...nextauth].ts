@@ -27,7 +27,6 @@ const providers: NextAuthOptions["providers"] = [
     },
     async authorize(credentials, req) {
       try {
-        if (shouldBypassPrismaSync()) return null;
         if (!credentials?.email || !credentials?.password) return null;
         const user = await prisma.user.findUnique({
           where: { email: credentials.email.toLowerCase() },
