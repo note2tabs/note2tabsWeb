@@ -11,6 +11,17 @@ import {
 } from "react";
 import { gteApi } from "../lib/gteApi";
 import {
+  PLAYBACK_SPEED_OPTIONS,
+  SPEED_TRAINER_STEP_OPTIONS,
+  SPEED_TRAINER_TARGET_OPTIONS,
+  buildMetronomeClicks,
+  frameDeltaToSeconds,
+  nextSpeedTrainerValue,
+  normalizePlaybackSpeed,
+  resolvePracticeLoopRange,
+  type PracticeLoopRange,
+} from "../lib/gtePractice";
+import {
   prepareTrackInstrument,
   schedulePreparedTrackNote,
   warmTrackInstrument,
@@ -49,6 +60,21 @@ type Props = {
   onGlobalPlaybackSkipToStart?: () => void;
   onGlobalPlaybackSkipBackwardBar?: () => void;
   onGlobalPlaybackSkipForwardBar?: () => void;
+  practiceLoopEnabled?: boolean;
+  practiceLoopRange?: PracticeLoopRange | null;
+  onPracticeLoopEnabledChange?: (enabled: boolean) => void;
+  metronomeEnabled?: boolean;
+  onMetronomeEnabledChange?: (enabled: boolean) => void;
+  countInEnabled?: boolean;
+  onCountInEnabledChange?: (enabled: boolean) => void;
+  speedTrainerEnabled?: boolean;
+  onSpeedTrainerEnabledChange?: (enabled: boolean) => void;
+  speedTrainerTarget?: number;
+  onSpeedTrainerTargetChange?: (target: number) => void;
+  speedTrainerStep?: number;
+  onSpeedTrainerStepChange?: (step: number) => void;
+  playbackSpeed?: number;
+  onPlaybackSpeedChange?: (speed: number) => void;
   showToolbarWhenInactive?: boolean;
   selectionClearEpoch?: number;
   selectionClearExemptEditorId?: string | null;
@@ -820,6 +846,21 @@ export default function GteWorkspace({
   onGlobalPlaybackSkipToStart,
   onGlobalPlaybackSkipBackwardBar,
   onGlobalPlaybackSkipForwardBar,
+  practiceLoopEnabled,
+  practiceLoopRange,
+  onPracticeLoopEnabledChange,
+  metronomeEnabled,
+  onMetronomeEnabledChange,
+  countInEnabled,
+  onCountInEnabledChange,
+  speedTrainerEnabled,
+  onSpeedTrainerEnabledChange,
+  speedTrainerTarget,
+  onSpeedTrainerTargetChange,
+  speedTrainerStep,
+  onSpeedTrainerStepChange,
+  playbackSpeed,
+  onPlaybackSpeedChange,
   showToolbarWhenInactive = false,
   selectionClearEpoch,
   selectionClearExemptEditorId,
@@ -849,6 +890,13 @@ export default function GteWorkspace({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playbackVolume, setPlaybackVolume] = useState(0.6);
+  const [localPracticeLoopEnabled, setLocalPracticeLoopEnabled] = useState(false);
+  const [localMetronomeEnabled, setLocalMetronomeEnabled] = useState(false);
+  const [localCountInEnabled, setLocalCountInEnabled] = useState(false);
+  const [localSpeedTrainerEnabled, setLocalSpeedTrainerEnabled] = useState(false);
+  const [localSpeedTrainerTarget, setLocalSpeedTrainerTarget] = useState(1.5);
+  const [localSpeedTrainerStep, setLocalSpeedTrainerStep] = useState(0.05);
+  const [localPlaybackSpeed, setLocalPlaybackSpeed] = useState(1);
   const [undoCount, setUndoCount] = useState(0);
   const [redoCount, setRedoCount] = useState(0);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -1050,6 +1098,12 @@ export default function GteWorkspace({
   const showToolbarUi = showPlaybackUi && !isMobileCanvasMode;
   const compactEmbeddedMobile = embedded && mobileViewport;
   const selectedBarIndexSet = useMemo(() => new Set(selectedBarIndices), [selectedBarIndices]);
+  const localPracticeLoopRange = useMemo(
+    () =>
+      resolvePracticeLoopRange(selectedBarIndices, framesPerMeasure, timelineEnd) ||
+      (timelineEnd > 0 ? { startFrame: 0, endFrame: timelineEnd } : null),
+    [selectedBarIndices, timelineEnd]
+  );
   const useExternalPlayback =
     globalPlaybackFrame !== undefined &&
     globalPlaybackIsPlaying !== undefined &&
@@ -1060,6 +1114,105 @@ export default function GteWorkspace({
   const effectivePlaybackVolume = useExternalPlayback
     ? Math.max(0, Math.min(1, globalPlaybackVolume ?? playbackVolume))
     : playbackVolume;
+  const effectivePracticeLoopRange = useExternalPlayback ? practiceLoopRange ?? null : localPracticeLoopRange;
+  const effectivePracticeLoopEnabled = useExternalPlayback
+    ? Boolean(practiceLoopEnabled && effectivePracticeLoopRange)
+    : Boolean(localPracticeLoopEnabled && effectivePracticeLoopRange);
+  const effectiveMetronomeEnabled = useExternalPlayback
+    ? Boolean(metronomeEnabled)
+    : localMetronomeEnabled;
+  const effectiveCountInEnabled = useExternalPlayback ? Boolean(countInEnabled) : localCountInEnabled;
+  const effectiveSpeedTrainerEnabled = useExternalPlayback
+    ? Boolean(speedTrainerEnabled && effectivePracticeLoopEnabled)
+    : Boolean(localSpeedTrainerEnabled && effectivePracticeLoopEnabled);
+  const effectiveSpeedTrainerTarget = normalizePlaybackSpeed(
+    useExternalPlayback ? speedTrainerTarget ?? localSpeedTrainerTarget : localSpeedTrainerTarget
+  );
+  const effectiveSpeedTrainerStep = Math.max(
+    0.01,
+    Number(useExternalPlayback ? speedTrainerStep ?? localSpeedTrainerStep : localSpeedTrainerStep) || 0.05
+  );
+  const effectivePlaybackSpeed = normalizePlaybackSpeed(
+    useExternalPlayback ? playbackSpeed ?? localPlaybackSpeed : localPlaybackSpeed
+  );
+  const effectivePlaybackSpeedOptions = useMemo(() => {
+    const values = new Set<number>(PLAYBACK_SPEED_OPTIONS.map((speed) => normalizePlaybackSpeed(speed)));
+    values.add(Math.round(effectivePlaybackSpeed * 100) / 100);
+    return [...values].sort((left, right) => left - right);
+  }, [effectivePlaybackSpeed]);
+  const setEffectivePracticeLoopEnabled = useCallback(
+    (enabled: boolean) => {
+      if (onPracticeLoopEnabledChange) {
+        onPracticeLoopEnabledChange(enabled);
+        return;
+      }
+      setLocalPracticeLoopEnabled(enabled);
+    },
+    [onPracticeLoopEnabledChange]
+  );
+  const setEffectiveMetronomeEnabled = useCallback(
+    (enabled: boolean) => {
+      if (onMetronomeEnabledChange) {
+        onMetronomeEnabledChange(enabled);
+        return;
+      }
+      setLocalMetronomeEnabled(enabled);
+    },
+    [onMetronomeEnabledChange]
+  );
+  const setEffectiveCountInEnabled = useCallback(
+    (enabled: boolean) => {
+      if (onCountInEnabledChange) {
+        onCountInEnabledChange(enabled);
+        return;
+      }
+      setLocalCountInEnabled(enabled);
+    },
+    [onCountInEnabledChange]
+  );
+  const setEffectiveSpeedTrainerEnabled = useCallback(
+    (enabled: boolean) => {
+      if (onSpeedTrainerEnabledChange) {
+        onSpeedTrainerEnabledChange(enabled);
+        return;
+      }
+      setLocalSpeedTrainerEnabled(enabled);
+    },
+    [onSpeedTrainerEnabledChange]
+  );
+  const setEffectiveSpeedTrainerTarget = useCallback(
+    (target: number) => {
+      const normalized = normalizePlaybackSpeed(target);
+      if (onSpeedTrainerTargetChange) {
+        onSpeedTrainerTargetChange(normalized);
+        return;
+      }
+      setLocalSpeedTrainerTarget(normalized);
+    },
+    [onSpeedTrainerTargetChange]
+  );
+  const setEffectiveSpeedTrainerStep = useCallback(
+    (step: number) => {
+      const normalized = Math.max(0.01, Number(step) || 0.05);
+      if (onSpeedTrainerStepChange) {
+        onSpeedTrainerStepChange(normalized);
+        return;
+      }
+      setLocalSpeedTrainerStep(normalized);
+    },
+    [onSpeedTrainerStepChange]
+  );
+  const setEffectivePlaybackSpeed = useCallback(
+    (speed: number) => {
+      const normalized = normalizePlaybackSpeed(speed);
+      if (onPlaybackSpeedChange) {
+        onPlaybackSpeedChange(normalized);
+        return;
+      }
+      setLocalPlaybackSpeed(normalized);
+    },
+    [onPlaybackSpeedChange]
+  );
   const setEffectivePlaybackVolume = useCallback(
     (nextVolume: number) => {
       const normalized = Math.max(0, Math.min(1, nextVolume));
@@ -1085,6 +1238,17 @@ export default function GteWorkspace({
     },
     [globalPlaybackTimelineEnd, onGlobalPlaybackFrameChange, timelineEnd, useExternalPlayback]
   );
+
+  useEffect(() => {
+    if (effectivePracticeLoopRange) return;
+    if (!effectivePracticeLoopEnabled) return;
+    setEffectivePracticeLoopEnabled(false);
+  }, [effectivePracticeLoopEnabled, effectivePracticeLoopRange, setEffectivePracticeLoopEnabled]);
+  useEffect(() => {
+    if (effectivePracticeLoopEnabled) return;
+    if (!effectiveSpeedTrainerEnabled) return;
+    setEffectiveSpeedTrainerEnabled(false);
+  }, [effectivePracticeLoopEnabled, effectiveSpeedTrainerEnabled, setEffectiveSpeedTrainerEnabled]);
   const useExternalHistory = Boolean(onRequestUndo && onRequestRedo);
   const effectiveUndoCount = useExternalHistory ? Math.max(0, historyUndoCount ?? 0) : undoCount;
   const effectiveRedoCount = useExternalHistory ? Math.max(0, historyRedoCount ?? 0) : redoCount;
@@ -5346,8 +5510,36 @@ export default function GteWorkspace({
     masterGainRef.current = null;
   };
 
-  const schedulePlayback = async (startFrame: number) => {
-    let endFrame = Math.max(startFrame, timelineEnd);
+  const scheduleMetronomeClick = (
+    ctx: AudioContext,
+    destination: AudioNode,
+    startTime: number,
+    accent: boolean
+  ) => {
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = "square";
+    oscillator.frequency.setValueAtTime(accent ? 1320 : 880, startTime);
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.exponentialRampToValueAtTime(accent ? 0.18 : 0.11, startTime + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.055);
+    oscillator.connect(gain);
+    gain.connect(destination);
+    oscillator.start(startTime);
+    oscillator.stop(startTime + 0.06);
+  };
+
+  const schedulePlayback = async (startFrame: number, speedOverride?: number) => {
+    const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? effectivePlaybackSpeed);
+    const playbackStartFrame =
+      effectivePracticeLoopEnabled && effectivePracticeLoopRange
+        ? effectivePracticeLoopRange.startFrame
+        : startFrame;
+    const playbackEndFrame =
+      effectivePracticeLoopEnabled && effectivePracticeLoopRange
+        ? effectivePracticeLoopRange.endFrame
+        : timelineEnd;
+    let endFrame = Math.max(playbackStartFrame, playbackEndFrame);
     const events: Array<{
       start: number;
       duration: number;
@@ -5365,14 +5557,15 @@ export default function GteWorkspace({
     ) => {
       const eventStart = Math.round(startTime);
       const eventEnd = Math.round(startTime + length);
-      if (eventEnd <= startFrame) return;
-      const trimmedStart = Math.max(eventStart, startFrame);
-      const durationFrames = eventEnd - trimmedStart;
+      if (eventEnd <= playbackStartFrame || eventStart >= playbackEndFrame) return;
+      const trimmedStart = Math.max(eventStart, playbackStartFrame);
+      const trimmedEnd = Math.min(eventEnd, playbackEndFrame);
+      const durationFrames = trimmedEnd - trimmedStart;
       if (durationFrames <= 0) return;
-      endFrame = Math.max(endFrame, eventEnd);
+      endFrame = Math.max(endFrame, trimmedEnd);
       events.push({
-        start: (trimmedStart - startFrame) / playbackFps,
-        duration: durationFrames / playbackFps,
+        start: frameDeltaToSeconds(trimmedStart - playbackStartFrame, playbackFps, runPlaybackSpeed),
+        duration: frameDeltaToSeconds(durationFrames, playbackFps, runPlaybackSpeed),
         midi,
         gain,
         stringIndex,
@@ -5408,6 +5601,25 @@ export default function GteWorkspace({
     master.gain.value = effectivePlaybackVolume;
     master.connect(ctx.destination);
     masterGainRef.current = master;
+    const countInSec = effectiveCountInEnabled
+      ? frameDeltaToSeconds(framesPerMeasure, playbackFps, runPlaybackSpeed)
+      : 0;
+    const playBase = base + countInSec;
+
+    if (effectiveMetronomeEnabled || effectiveCountInEnabled) {
+      buildMetronomeClicks({
+        startFrame: playbackStartFrame,
+        endFrame,
+        framesPerBar: framesPerMeasure,
+        beatsPerBar: timeSignature,
+        fps: playbackFps,
+        playbackSpeed: runPlaybackSpeed,
+        countInBars: effectiveCountInEnabled ? 1 : 0,
+      }).forEach((click) => {
+        if (!effectiveMetronomeEnabled && click.timeSec >= 0) return;
+        scheduleMetronomeClick(ctx, master, playBase + click.timeSec, click.accent);
+      });
+    }
 
     const schedulePluck = (evt: {
       start: number;
@@ -5423,13 +5635,13 @@ export default function GteWorkspace({
         instrument,
         midi: evt.midi,
         gain: evt.gain,
-        startTime: base + evt.start,
+        startTime: playBase + evt.start,
         duration: Math.max(0.05, evt.duration),
       });
     };
 
     events.forEach((evt) => schedulePluck(evt));
-    return { ctx, endFrame, startTimeSec: base };
+    return { ctx, endFrame, startFrame: playbackStartFrame, startTimeSec: playBase };
   };
 
   const stopPlayback = () => {
@@ -5446,18 +5658,23 @@ export default function GteWorkspace({
     setIsPlaying(false);
   };
 
-  const startPlayback = async (startFrameOverride?: number) => {
-    if (isPlaying || playbackStartPendingRef.current) return;
+  const startPlayback = async (startFrameOverride?: number, speedOverride?: number) => {
+    if (playheadRafRef.current !== null || playbackStartPendingRef.current) return;
     playbackStartPendingRef.current = true;
     const requestId = playbackStartRequestRef.current + 1;
     playbackStartRequestRef.current = requestId;
-    const startFrame = clamp(
+    const requestedStartFrame = clamp(
       Math.round(startFrameOverride ?? playheadFrameRef.current),
       0,
       timelineEnd
     );
+    const startFrame =
+      effectivePracticeLoopEnabled && effectivePracticeLoopRange
+        ? effectivePracticeLoopRange.startFrame
+        : requestedStartFrame;
     stopAudio();
-    const scheduled = await schedulePlayback(startFrame);
+    const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? effectivePlaybackSpeed);
+    const scheduled = await schedulePlayback(startFrame, runPlaybackSpeed);
     playbackStartPendingRef.current = false;
     if (playbackStartRequestRef.current !== requestId) {
       if (scheduled?.ctx) {
@@ -5470,8 +5687,8 @@ export default function GteWorkspace({
     }
     playheadAudioStartRef.current = scheduled?.startTimeSec ?? null;
     setEffectivePlayheadFrame(startFrame);
-    playheadEndFrameRef.current = timelineEnd;
-    playheadStartFrameRef.current = startFrame;
+    playheadEndFrameRef.current = scheduled?.endFrame ?? timelineEnd;
+    playheadStartFrameRef.current = scheduled?.startFrame ?? startFrame;
     playheadStartTimeRef.current = performance.now();
     setIsPlaying(true);
     const tick = (now: number) => {
@@ -5481,9 +5698,23 @@ export default function GteWorkspace({
         elapsed = audioRef.current.currentTime - playheadAudioStartRef.current;
       }
       if (elapsed < 0) elapsed = 0;
-      const nextFrame = playheadStartFrameRef.current + elapsed * playbackFps;
+      const nextFrame = playheadStartFrameRef.current + elapsed * playbackFps * runPlaybackSpeed;
       const endFrame = playheadEndFrameRef.current ?? timelineEnd;
       if (nextFrame >= endFrame) {
+        if (effectivePracticeLoopEnabled && effectivePracticeLoopRange) {
+          const nextSpeed = effectiveSpeedTrainerEnabled
+            ? nextSpeedTrainerValue(runPlaybackSpeed, effectiveSpeedTrainerStep, effectiveSpeedTrainerTarget)
+            : runPlaybackSpeed;
+          if (effectiveSpeedTrainerEnabled) {
+            setEffectivePlaybackSpeed(nextSpeed);
+          }
+          setEffectivePlayheadFrame(effectivePracticeLoopRange.startFrame);
+          stopPlayback();
+          window.setTimeout(() => {
+            void startPlayback(effectivePracticeLoopRange.startFrame, nextSpeed);
+          }, 0);
+          return;
+        }
         setEffectivePlayheadFrame(endFrame);
         stopPlayback();
         return;
@@ -7193,6 +7424,92 @@ export default function GteWorkspace({
                     title="Volume"
                   />
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setEffectivePracticeLoopEnabled(!effectivePracticeLoopEnabled)}
+                  disabled={!effectivePracticeLoopRange}
+                  aria-pressed={effectivePracticeLoopEnabled}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+                    effectivePracticeLoopEnabled ? "bg-emerald-100 text-emerald-800" : "hover:bg-slate-100"
+                  }`}
+                  title="Loop selected bars"
+                >
+                  L
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEffectiveMetronomeEnabled(!effectiveMetronomeEnabled)}
+                  aria-pressed={effectiveMetronomeEnabled}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold ${
+                    effectiveMetronomeEnabled ? "bg-sky-100 text-sky-800" : "hover:bg-slate-100"
+                  }`}
+                  title="Metronome"
+                >
+                  M
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEffectiveCountInEnabled(!effectiveCountInEnabled)}
+                  aria-pressed={effectiveCountInEnabled}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold ${
+                    effectiveCountInEnabled ? "bg-amber-100 text-amber-800" : "hover:bg-slate-100"
+                  }`}
+                  title="One-bar count-in"
+                >
+                  1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEffectiveSpeedTrainerEnabled(!effectiveSpeedTrainerEnabled)}
+                  disabled={!effectivePracticeLoopEnabled}
+                  aria-pressed={effectiveSpeedTrainerEnabled}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+                    effectiveSpeedTrainerEnabled ? "bg-violet-100 text-violet-800" : "hover:bg-slate-100"
+                  }`}
+                  title="Speed trainer"
+                >
+                  T
+                </button>
+                <select
+                  value={effectivePlaybackSpeed}
+                  onChange={(event) => setEffectivePlaybackSpeed(Number(event.target.value))}
+                  className="h-9 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                  title="Playback speed"
+                >
+                  {effectivePlaybackSpeedOptions.map((speed) => (
+                    <option key={speed} value={speed}>
+                      {Math.round(speed * 100)}%
+                    </option>
+                  ))}
+                </select>
+                {effectiveSpeedTrainerEnabled && (
+                  <>
+                    <select
+                      value={effectiveSpeedTrainerTarget}
+                      onChange={(event) => setEffectiveSpeedTrainerTarget(Number(event.target.value))}
+                      className="h-9 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
+                      title="Speed trainer target"
+                    >
+                      {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
+                        <option key={speed} value={speed}>
+                          to {Math.round(speed * 100)}%
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={effectiveSpeedTrainerStep}
+                      onChange={(event) => setEffectiveSpeedTrainerStep(Number(event.target.value))}
+                      className="h-9 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
+                      title="Speed trainer step"
+                    >
+                      {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
+                        <option key={step} value={step}>
+                          +{Math.round(step * 100)}%
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
             ) : (
               <div
@@ -7303,6 +7620,92 @@ export default function GteWorkspace({
                     title="Volume"
                   />
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setEffectivePracticeLoopEnabled(!effectivePracticeLoopEnabled)}
+                  disabled={!effectivePracticeLoopRange}
+                  aria-pressed={effectivePracticeLoopEnabled}
+                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+                    effectivePracticeLoopEnabled ? "bg-emerald-100 text-emerald-800" : "hover:bg-slate-100"
+                  }`}
+                  title="Loop selected bars"
+                >
+                  Loop
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEffectiveMetronomeEnabled(!effectiveMetronomeEnabled)}
+                  aria-pressed={effectiveMetronomeEnabled}
+                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold ${
+                    effectiveMetronomeEnabled ? "bg-sky-100 text-sky-800" : "hover:bg-slate-100"
+                  }`}
+                  title="Metronome"
+                >
+                  Met
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEffectiveCountInEnabled(!effectiveCountInEnabled)}
+                  aria-pressed={effectiveCountInEnabled}
+                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold ${
+                    effectiveCountInEnabled ? "bg-amber-100 text-amber-800" : "hover:bg-slate-100"
+                  }`}
+                  title="One-bar count-in"
+                >
+                  Count
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEffectiveSpeedTrainerEnabled(!effectiveSpeedTrainerEnabled)}
+                  disabled={!effectivePracticeLoopEnabled}
+                  aria-pressed={effectiveSpeedTrainerEnabled}
+                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+                    effectiveSpeedTrainerEnabled ? "bg-violet-100 text-violet-800" : "hover:bg-slate-100"
+                  }`}
+                  title="Speed trainer"
+                >
+                  Train
+                </button>
+                <select
+                  value={effectivePlaybackSpeed}
+                  onChange={(event) => setEffectivePlaybackSpeed(Number(event.target.value))}
+                  className="h-8 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                  title="Playback speed"
+                >
+                  {effectivePlaybackSpeedOptions.map((speed) => (
+                    <option key={speed} value={speed}>
+                      {Math.round(speed * 100)}%
+                    </option>
+                  ))}
+                </select>
+                {effectiveSpeedTrainerEnabled && (
+                  <>
+                    <select
+                      value={effectiveSpeedTrainerTarget}
+                      onChange={(event) => setEffectiveSpeedTrainerTarget(Number(event.target.value))}
+                      className="h-8 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
+                      title="Speed trainer target"
+                    >
+                      {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
+                        <option key={speed} value={speed}>
+                          to {Math.round(speed * 100)}%
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={effectiveSpeedTrainerStep}
+                      onChange={(event) => setEffectiveSpeedTrainerStep(Number(event.target.value))}
+                      className="h-8 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
+                      title="Speed trainer step"
+                    >
+                      {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
+                        <option key={step} value={step}>
+                          +{Math.round(step * 100)}%
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -9042,8 +9445,12 @@ export default function GteWorkspace({
     </div>
   );
 }
+<<<<<<< HEAD
 
 
 
 
+
+=======
+>>>>>>> bc5d26b (added guitar pro features we wanted)
 
