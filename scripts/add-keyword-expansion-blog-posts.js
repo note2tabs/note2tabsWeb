@@ -626,6 +626,8 @@ async function upsertPost(post, authorId, taxonomy) {
     title: post.title,
     excerpt: post.excerpt,
     content: post.content,
+    contentHtml: null,
+    contentToc: undefined,
     contentMode: "PLAIN",
     status: "PUBLISHED",
     seoTitle: post.seoTitle,

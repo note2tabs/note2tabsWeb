@@ -64,7 +64,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   posts.forEach((post) => {
     entries.push({
       loc: buildUrl(baseUrl, `/blog/${post.slug}`),
-      lastmod: (post.publishedAt || post.publishAt || post.updatedAt).toISOString(),
+      lastmod: post.updatedAt.toISOString(),
     });
   });
 

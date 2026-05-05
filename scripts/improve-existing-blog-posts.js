@@ -131,6 +131,8 @@ async function main() {
       where: { id: post.id },
       data: {
         content,
+        contentHtml: null,
+        contentToc: undefined,
         seoTitle: update.seoTitle || post.seoTitle,
         seoDescription: update.seoDescription || post.seoDescription,
       },
