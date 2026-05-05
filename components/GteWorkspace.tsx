@@ -26,6 +26,7 @@ import {
   schedulePreparedTrackNote,
   warmTrackInstrument,
 } from "../lib/gteSoundfonts";
+import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
 import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
@@ -931,8 +932,8 @@ export default function GteWorkspace({
   const pendingMutationsRef = useRef<OptimisticMutation[]>([]);
   const mutationSeqRef = useRef(0);
   const mutationProcessingRef = useRef(false);
-  const tempNoteIdRef = useRef(-1);
-  const tempChordIdRef = useRef(-1);
+  const tempNoteIdRef = useRef(1);
+  const tempChordIdRef = useRef(1);
   const noteIdMapRef = useRef<Map<number, number>>(new Map());
   const chordIdMapRef = useRef<Map<number, number>>(new Map());
   const noteAlternatesRequestSeqRef = useRef(0);
@@ -1241,8 +1242,8 @@ export default function GteWorkspace({
     mutationProcessingRef.current = false;
     noteIdMapRef.current = new Map();
     chordIdMapRef.current = new Map();
-    tempNoteIdRef.current = -1;
-    tempChordIdRef.current = -1;
+    tempNoteIdRef.current = 1;
+    tempChordIdRef.current = 1;
     autosaveInFlightRef.current = false;
     autosaveQueuedRef.current = false;
     localRevisionRef.current = 0;
@@ -1933,9 +1934,13 @@ export default function GteWorkspace({
     options?: {
       localApply?: (draft: EditorSnapshot) => void;
       unavailableMessage?: string;
+      serverMode?: "local-first" | "immediate";
     }
   ) => {
-    if (!allowBackend) {
+    const shouldApplyLocally =
+      Boolean(options?.localApply) && (!allowBackend || options?.serverMode !== "immediate");
+
+    if (!allowBackend || shouldApplyLocally) {
       const current = snapshotRef.current;
       if (!current) return;
       if (!options?.localApply) {
@@ -1974,16 +1979,16 @@ export default function GteWorkspace({
 
   const getTempNoteId = useCallback(() => {
     const current = snapshotRef.current;
-    const minExisting = current.notes.reduce((min, note) => Math.min(min, note.id), 0);
-    tempNoteIdRef.current = Math.min(tempNoteIdRef.current, minExisting, -1) - 1;
-    return tempNoteIdRef.current;
+    const nextId = nextLocalNoteId(current, tempNoteIdRef.current);
+    tempNoteIdRef.current = nextId + 1;
+    return nextId;
   }, []);
 
   const getTempChordId = useCallback(() => {
     const current = snapshotRef.current;
-    const minExisting = current.chords.reduce((min, chord) => Math.min(min, chord.id), 0);
-    tempChordIdRef.current = Math.min(tempChordIdRef.current, minExisting, -1) - 1;
-    return tempChordIdRef.current;
+    const nextId = nextLocalChordId(current, tempChordIdRef.current);
+    tempChordIdRef.current = nextId + 1;
+    return nextId;
   }, []);
 
   const resolveNoteId = useCallback(
@@ -2123,6 +2128,7 @@ export default function GteWorkspace({
       commit: () => Promise<{ snapshot?: EditorSnapshot }>;
       createdNotes?: TempNoteMapping[];
       createdChords?: TempChordMapping[];
+      serverMode?: "local-first" | "immediate";
     }) => {
       const current = snapshotRef.current;
       if (!current) return;
@@ -2132,7 +2138,7 @@ export default function GteWorkspace({
       mutationSeqRef.current += 1;
       applySnapshot(optimistic);
       markLocalSnapshotDirty();
-      if (!allowBackend) {
+      if (!allowBackend || input.serverMode !== "immediate") {
         return;
       }
       pendingMutationsRef.current.push({
@@ -5105,9 +5111,8 @@ export default function GteWorkspace({
 
   const handleGenerateCuts = () => {
     void runMutation(() => gteApi.generateCuts(editorId), {
-      localApply: (draft) => {
-        generateCutsInSnapshot(draft);
-      },
+      serverMode: "immediate",
+      unavailableMessage: "Generated cuts are available after saving this draft to an account.",
     });
   };
 

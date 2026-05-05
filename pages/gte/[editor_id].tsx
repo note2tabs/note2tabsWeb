@@ -1089,9 +1089,41 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   useEffect(() => {
     if (!canvas) return;
-    canvas.editors.forEach((lane) => {
-      void warmTrackInstrument(lane.instrumentId);
-    });
+    const instrumentIds = Array.from(
+      new Set(canvas.editors.map((lane) => normalizeTrackInstrumentId(lane.instrumentId)))
+    );
+    if (!instrumentIds.length) return;
+
+    let cancelled = false;
+    const warmInstruments = () => {
+      if (cancelled) return;
+      instrumentIds.forEach((instrumentId) => {
+        void warmTrackInstrument(instrumentId);
+      });
+    };
+
+    const requestIdleCallback = (window as any).requestIdleCallback as
+      | ((callback: () => void, options?: { timeout?: number }) => number)
+      | undefined;
+    const cancelIdleCallback = (window as any).cancelIdleCallback as ((id: number) => void) | undefined;
+    let idleId: number | null = null;
+    let timeoutId: number | null = null;
+
+    if (typeof requestIdleCallback === "function") {
+      idleId = requestIdleCallback(warmInstruments, { timeout: 1500 });
+    } else {
+      timeoutId = window.setTimeout(warmInstruments, 350);
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleId !== null && typeof cancelIdleCallback === "function") {
+        cancelIdleCallback(idleId);
+      }
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
   }, [canvas?.editors]);
 
   const handleMainMouseDownCapture = useCallback((event: ReactMouseEvent<HTMLElement>) => {
