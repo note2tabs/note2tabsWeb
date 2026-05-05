@@ -1,5 +1,6 @@
 import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
 import { DEFAULT_TRACK_INSTRUMENT_ID, normalizeTrackInstrumentId } from "./gteSoundfonts";
+import { getTuningPreset, normalizeCapo } from "./gteTuning";
 
 export const GTE_GUEST_EDITOR_ID = "local";
 export const GTE_GUEST_DRAFT_STORAGE_KEY = "note2tabs:gte:guest-draft:v1";
@@ -108,6 +109,24 @@ const buildNormalizedTabRef = (value: unknown): number[][] => {
     const base = normalized.length ? normalized[0] : fallbackString[0];
     return Array.from({ length: DEFAULT_MAX_FRET + 1 }, (_, fret) => normalized[fret] ?? base + fret);
   });
+};
+
+const normalizeTuning = (value: unknown, tabRef: number[][]): EditorSnapshot["tuning"] => {
+  const raw = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const preset = getTuningPreset(typeof raw.presetId === "string" ? raw.presetId : undefined);
+  const fromRaw = Array.isArray(raw.openStringMidi)
+    ? raw.openStringMidi.map((item) => toFiniteNumber(item, NaN)).filter((item) => Number.isFinite(item))
+    : [];
+  const openStringMidi =
+    fromRaw.length === tabRef.length
+      ? fromRaw.map((item) => Math.round(item))
+      : tabRef.map((stringValues) => Math.round(toFiniteNumber(stringValues?.[0], 0)));
+  return {
+    presetId: preset.id,
+    label: typeof raw.label === "string" && raw.label.trim() ? raw.label.trim() : preset.label,
+    openStringMidi,
+    capo: normalizeCapo(raw.capo),
+  };
 };
 
 const normalizeTab = (value: unknown): TabCoord | null => {
@@ -228,6 +247,7 @@ export const normalizeGuestSnapshot = (
 
   const cutPositionsWithCoords = normalizeCutPositions(raw.cutPositionsWithCoords, frameRatio);
   const tabRef = buildNormalizedTabRef(raw.tabRef);
+  const tuning = normalizeTuning(raw.tuning, tabRef);
 
   const id = typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : fallbackEditorId;
   const name = typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : "Untitled";
@@ -251,6 +271,7 @@ export const normalizeGuestSnapshot = (
       : buildDefaultCutPositions(totalFrames),
     optimalsByTime: normalizeOptimalsByTime(raw.optimalsByTime, frameRatio),
     tabRef,
+    tuning,
   };
 };
 

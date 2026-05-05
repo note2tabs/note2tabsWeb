@@ -26,6 +26,12 @@ export type EditorSnapshot = {
   id: string;
   name?: string;
   instrumentId?: string;
+  tuning?: {
+    presetId?: string;
+    label?: string;
+    openStringMidi: number[];
+    capo?: number;
+  };
   schemaVersion?: number;
   version?: number;
   updatedAt?: string;
