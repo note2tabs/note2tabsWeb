@@ -2,6 +2,9 @@ import type { EditorSnapshot } from "../types/gte";
 
 const STRING_LABELS = ["e", "B", "G", "D", "A", "E"];
 
+let spotsPerBar = 16
+let barsPerLine = 3
+
 type TabTextOptions = {
   barsPerRow?: number;
   barWidth?: number;
@@ -87,7 +90,7 @@ const writeFret = (line: string[], startCol: number, fret: number) => {
 
 export function buildTabTextFromSnapshot(
   snapshot: EditorSnapshot,
-  { barsPerRow = 3, barWidth = 32 }: TabTextOptions = {}
+  { barsPerRow = barsPerLine, barWidth = spotsPerBar*2 }: TabTextOptions = {}
 ) {
   const safeBarsPerRow = Math.max(1, Math.round(barsPerRow));
   const safeBarWidth = Math.max(8, Math.round(barWidth));
