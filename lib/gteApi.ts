@@ -553,10 +553,17 @@ export const gteApi = {
       body: JSON.stringify({ timeSignature }),
       }
     ),
-  generateCuts: (editorId: string) =>
+  generateCuts: (
+    editorId: string,
+    payload?: {
+      tuning?: EditorSnapshot["tuning"];
+      tabRef?: EditorSnapshot["tabRef"];
+    }
+  ) =>
     requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/cuts/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload ?? {}),
     }),
   applyManualCuts: (editorId: string, cutPositionsWithCoords: any) =>
     requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/cuts/apply_manual`, {

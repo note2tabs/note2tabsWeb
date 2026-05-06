@@ -1000,12 +1000,18 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
     if (rest[0] === "cuts" && laneId) {
       if (rest[1] === "generate" && method === "POST") {
+        const laneForPayload = requireLane(canvas, laneId).lane;
+        const upstreamBody = {
+          ...(body ?? {}),
+          tuning: (body?.tuning ?? laneForPayload.tuning) || laneForPayload.tuning,
+          tabRef: (body?.tabRef ?? laneForPayload.tabRef) || laneForPayload.tabRef,
+        };
         return ensureUpstreamGuestCanvas(sessionId, canvas)
           .then(({ headers }) =>
             fetch(`${API_BASE}/gte/editors/${encodeURIComponent(editorRef)}/cuts/generate`, {
               method: "POST",
               headers,
-              body: JSON.stringify(body ?? {}),
+              body: JSON.stringify(upstreamBody),
             })
           )
           .then(async (upstream) => {

@@ -5166,7 +5166,10 @@ export default function GteWorkspace({
   };
 
   const handleGenerateCuts = () => {
-    void runMutation(() => gteApi.generateCuts(editorId), {
+    void runMutation(() => gteApi.generateCuts(editorId, {
+      tuning: snapshot.tuning,
+      tabRef: snapshot.tabRef,
+    }), {
       serverMode: "immediate",
       unavailableMessage: "Generated cuts are available after saving this draft to an account.",
     });
