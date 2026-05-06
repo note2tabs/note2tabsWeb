@@ -978,6 +978,10 @@ export default function GteWorkspace({
   const [barDropIndex, setBarDropIndex] = useState<number | null>(null);
   const [editingSegmentIndex, setEditingSegmentIndex] = useState<number | null>(null);
   const [segmentCoordDraft, setSegmentCoordDraft] = useState<{ stringIndex: string; fret: string } | null>(null);
+  const [timelineViewport, setTimelineViewport] = useState<{ scrollLeft: number; clientWidth: number }>({
+    scrollLeft: 0,
+    clientWidth: 0,
+  });
   const audioRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
   const previewAudioRef = useRef<AudioContext | null>(null);
@@ -1631,16 +1635,48 @@ export default function GteWorkspace({
 
   const handleTimelineOuterScroll = useCallback(
     (event: ReactUiEvent<HTMLDivElement>) => {
+      const target = event.currentTarget;
+      if (!target) return;
+      const nextScrollLeft = target.scrollLeft;
+      const nextClientWidth = target.clientWidth;
+      setTimelineViewport((prev) => {
+        if (
+          Math.abs(prev.scrollLeft - nextScrollLeft) < 1 &&
+          Math.abs(prev.clientWidth - nextClientWidth) < 1
+        ) {
+          return prev;
+        }
+        return { scrollLeft: nextScrollLeft, clientWidth: nextClientWidth };
+      });
       if (!onSharedTimelineScrollRatioChange || applyingSharedScrollRef.current) return;
-      const maxScroll = Math.max(
-        0,
-        event.currentTarget.scrollWidth - event.currentTarget.clientWidth
-      );
+      const maxScroll = Math.max(0, target.scrollWidth - nextClientWidth);
       if (maxScroll <= 0) return;
-      onSharedTimelineScrollRatioChange(event.currentTarget.scrollLeft / maxScroll);
+      onSharedTimelineScrollRatioChange(nextScrollLeft / maxScroll);
     },
     [onSharedTimelineScrollRatioChange]
   );
+
+  useEffect(() => {
+    const container = timelineOuterRef.current;
+    if (!container) return;
+    const syncViewport = () => {
+      setTimelineViewport((prev) => {
+        const nextScrollLeft = container.scrollLeft;
+        const nextClientWidth = container.clientWidth;
+        if (
+          Math.abs(prev.scrollLeft - nextScrollLeft) < 1 &&
+          Math.abs(prev.clientWidth - nextClientWidth) < 1
+        ) {
+          return prev;
+        }
+        return { scrollLeft: nextScrollLeft, clientWidth: nextClientWidth };
+      });
+    };
+    syncViewport();
+    const observer = new ResizeObserver(syncViewport);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [viewportTimelineWidth]);
 
   useEffect(() => {
     if (selectedSingleNoteId === null || !selectedNote) {
@@ -7023,7 +7059,7 @@ export default function GteWorkspace({
           <div>
             <div className="text-[11px] font-bold text-slate-800">Toolbar</div>
             <div className="text-[9px] text-slate-400">
-              Edit notes, chords and cut regions
+              Edit notes, chords and playing coordinates
             </div>
           </div>
 
@@ -7117,7 +7153,7 @@ export default function GteWorkspace({
                 className={textButtonClass}
               >
                 <span className={tooltipClass}>O</span>
-                Optimize
+                Optimize Notes
               </button>
 
               <button
@@ -7134,10 +7170,10 @@ export default function GteWorkspace({
                 className={textButtonClass}
               >
                 <span className={tooltipClass}>J</span>
-                Merge
+                Merge Notes
               </button>
 
-              <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_86px] gap-1.5">
+              <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_156px] gap-1.5">
                 <select
                   data-scale-mode-select="true"
                   value={scaleToolMode}
@@ -7195,7 +7231,7 @@ export default function GteWorkspace({
               <button
                 type="button"
                 onClick={toggleSliceTool}
-                title="Slice - Shortcut: Shift+S"
+                title="Note slicing tool, click on the note and where you want to cut it - Shortcut: Shift+S"
                 className={
                   sliceToolActive
                     ? `${activeButtonClass} bg-indigo-600`
@@ -7211,20 +7247,20 @@ export default function GteWorkspace({
                     sliceToolActive ? "brightness-0 invert" : ""
                   }`}
                 />
-                Slice
+                Slicing Tool
               </button>
             </div>
           </div>
 
           <div className={sectionClass}>
-            <div className={sectionTitleClass}>Cut segments</div>
+            <div className={sectionTitleClass}>Playing Coordinates</div>
 
             <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
                 onClick={() => {
                   const ok = window.confirm(
-                    "Generate cut-segments from all notes? This will replace the current cut segments."
+                    "Generate playing coordinates for track? This will replace the current playing coordinates on this track"
                   );
 
                   if (!ok) return;
@@ -7235,24 +7271,24 @@ export default function GteWorkspace({
                 className={textButtonClass}
               >
                 <span className={tooltipClass}>No shortcut</span>
-                Generate
+                Generate Playing Coordinates 
               </button>
 
               <button
                 type="button"
                 onClick={handleMergeRedundantCutRegions}
                 disabled={!hasRedundantCutRegions}
-                title="Merge adjacent cut regions with the same coord"
+                title="Merges adjacent cut regions with the same coordinates"
                 className={textButtonClass}
               >
                 <span className={tooltipClass}>No shortcut</span>
-                Clean
+                Clean Playing-Coordinates
               </button>
 
               <button
                 type="button"
                 onClick={toggleCutTool}
-                title="Cut tool - Shortcut: K"
+                title="Cut tool for cutting playing coordinates - Shortcut: K"
                 className={
                   cutToolActive
                     ? `${activeButtonClass} bg-sky-600`
@@ -7275,7 +7311,7 @@ export default function GteWorkspace({
                 type="button"
                 onClick={handleMergeCutBoundary}
                 disabled={selectedCutBoundaryIndex === null}
-                title="Merge selected boundary"
+                title="Merge/delete selected boundary"
                 className={textButtonClass}
               >
                 <span className={tooltipClass}>No shortcut</span>
@@ -8343,12 +8379,25 @@ export default function GteWorkspace({
                     const width = Math.max(CUT_SEGMENT_MIN_WIDTH, (segEnd - segStart) * scale);
                     const top = rowIdx * rowStride + rowHeight + CUT_SEGMENT_OFFSET;
                     const rowPixelWidth = availableFrames * scale;
+                    const viewportLeft = timelineViewport.scrollLeft;
+                    const viewportRight = viewportLeft + Math.max(1, timelineViewport.clientWidth);
+                    const overlapsViewport = left < viewportRight && left + width > viewportLeft;
+                    const coordLabelWidth = 58;
+                    const coordLabelAnchorLeft = left + width / 2 - coordLabelWidth / 2;
+                    const labelLeft = overlapsViewport
+                      ? clamp(
+                          coordLabelAnchorLeft,
+                          viewportLeft + 4,
+                          Math.max(viewportLeft + 4, viewportRight - coordLabelWidth - 4)
+                        )
+                      : clamp(coordLabelAnchorLeft, 0, Math.max(0, rowPixelWidth - coordLabelWidth));
                     const cutCoordEditorWidth = 148;
                     const editorAnchorLeft = left + width / 2 - cutCoordEditorWidth / 2;
-                    const editorLeft = Math.max(
-                      0,
-                      Math.min(Math.max(0, rowPixelWidth - cutCoordEditorWidth), editorAnchorLeft)
-                    );
+                    const editorMinLeft = overlapsViewport ? viewportLeft + 6 : 0;
+                    const editorMaxLeft = overlapsViewport
+                      ? Math.max(editorMinLeft, viewportRight - cutCoordEditorWidth - 6)
+                      : Math.max(0, rowPixelWidth - cutCoordEditorWidth);
+                    const editorLeft = clamp(editorAnchorLeft, editorMinLeft, editorMaxLeft);
                     const editorTop = Math.max(0, top - 42);
                     const stringLabel =
                       segment.stringIndex !== null && stringLabels[segment.stringIndex]
@@ -8361,7 +8410,7 @@ export default function GteWorkspace({
                         key={`cut-${segIndex}-row-${rowIdx}`}
                         className="absolute rounded-md border border-sky-300 bg-sky-200/60 px-2 py-1 text-[10px] text-slate-700"
                         style={{ top, left, width, height: CUT_SEGMENT_HEIGHT }}
-                        title="Playing coordinates"
+                        title="Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below"
                         aria-label="Playing coordinates"
                         onMouseDown={(event) => {
                           event.stopPropagation();
@@ -8369,10 +8418,11 @@ export default function GteWorkspace({
                       >
                         <button
                           type="button"
-                          className={`flex h-full w-full items-center justify-center rounded text-[10px] font-semibold text-slate-700 hover:text-slate-900 ${
+                          className={`absolute top-0 flex h-full items-center justify-center rounded text-[10px] font-semibold text-slate-700 hover:text-slate-900 ${
                             cutToolActive ? "cursor-crosshair" : "cursor-pointer"
                           }`}
-                          title="Playing coordinates"
+                          style={{ left: labelLeft - left, width: coordLabelWidth }}
+                          title="Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below"
                           aria-label="Playing coordinates"
                           onClick={(event) => {
                             if (cutToolActive) {
