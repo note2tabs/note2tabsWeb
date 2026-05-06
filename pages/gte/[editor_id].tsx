@@ -33,6 +33,7 @@ import {
   type TrackInstrumentOption,
   warmTrackInstrument,
 } from "../../lib/gteSoundfonts";
+import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import GteWorkspace from "../../components/GteWorkspace";
 import {
@@ -52,7 +53,6 @@ const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
 const CANVAS_AUTOSAVE_MS = 20000;
 const MAX_CANVAS_HISTORY = 64;
-const STANDARD_TUNING_MIDI = [64, 59, 55, 50, 45, 40];
 const TIMELINE_ZOOM_MIN = 10;
 const TIMELINE_ZOOM_MAX = 250;
 const TIMELINE_ZOOM_DEFAULT = 100;
@@ -2402,7 +2402,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         if (fallback !== undefined && fallback !== null && Number.isFinite(Number(fallback))) {
           return Number(fallback);
         }
-        const base = STANDARD_TUNING_MIDI[tab[0]];
+        const openStrings = getOpenStringMidiFromSnapshot(lane);
+        const base = openStrings[tab[0]];
         if (base !== undefined && Number.isFinite(tab[1]) && tab[1] >= 0) {
           return base + tab[1];
         }
@@ -4628,7 +4629,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onClick={(event) => event.stopPropagation()}
                               className="w-[90%] h-2 accent-sky-700"
                               title="Track pan"
-                              aria-label="Track pan"
+                              aria-label="headset direction (L/R)"
                             />
                             <div className="w-5 shrink-0 text-right text-[10px] font-medium text-slate-500">
                               {trackPan < -0.05

@@ -26,6 +26,7 @@ import {
   schedulePreparedTrackNote,
   warmTrackInstrument,
 } from "../lib/gteSoundfonts";
+import { getOpenStringMidiFromSnapshot, getStringLabelsForSnapshot } from "../lib/gteTuning";
 import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
 import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
 import TabViewer from "./TabViewer";
@@ -115,8 +116,7 @@ type ContextMenuState =
       insertIndex: number;
     };
 
-const STRING_LABELS = ["e", "B", "G", "D", "A", "E"];
-const STANDARD_TUNING_MIDI = [64, 59, 55, 50, 45, 40];
+const DEFAULT_STRING_LABELS = ["E", "B", "G", "D", "A", "E"];
 const ROW_HEIGHT = 24;
 const ROW_GAP = 80;
 const BARS_PER_ROW = 3;
@@ -313,9 +313,9 @@ const computeNoteAlternatesForSnapshot = (
 ) => {
   const noteStart = Math.round(note.startTime);
   const noteEnd = noteStart + clampEventLength(note.length);
-  const midi = Number.isFinite(Number(note.midiNum))
-    ? Number(note.midiNum)
-    : getTabMidi(snapshot, note.tab);
+  // Keep parity with backend: midiNum can be 0 as a temporary/local placeholder,
+  // so fall back to tab-derived MIDI unless midiNum is truthy.
+  const midi = note.midiNum || getTabMidi(snapshot, note.tab);
   const candidates = getAllTabsForMidi(snapshot, midi);
   const blocked = new Set<string>();
   snapshot.notes.forEach((item) => {
@@ -502,7 +502,8 @@ const getTabMidi = (snapshot: EditorSnapshot, tab: TabCoord) => {
   if (fromRef !== undefined && fromRef !== null && Number.isFinite(Number(fromRef))) {
     return Number(fromRef);
   }
-  const base = STANDARD_TUNING_MIDI[tab[0]];
+  const openStrings = getOpenStringMidiFromSnapshot(snapshot);
+  const base = openStrings[tab[0]];
   if (base !== undefined && Number.isFinite(tab[1])) {
     return base + tab[1];
   }
@@ -1059,6 +1060,10 @@ export default function GteWorkspace({
   const previewFrames = scaleToolActive ? Math.max(0, Math.round(scalePreviewMaxEnd)) : 0;
   const effectiveTotalFrames = Math.max(totalFrames, previewFrames);
   const maxFret = getMaxFret(snapshot);
+  const stringLabels = useMemo(() => {
+    const labels = getStringLabelsForSnapshot(snapshot);
+    return labels.length === 6 ? labels : DEFAULT_STRING_LABELS;
+  }, [snapshot]);
   const barCount = Math.max(1, Math.ceil(Math.max(1, effectiveTotalFrames) / framesPerMeasure));
   const normalizedSharedViewportBars =
     sharedViewportBarCount !== undefined && Number.isFinite(sharedViewportBarCount)
@@ -5461,7 +5466,8 @@ export default function GteWorkspace({
     const value = snapshot.tabRef?.[tab[0]]?.[tab[1]];
     if (value !== undefined && value !== null) return Number(value);
     if (fallback !== undefined && fallback !== null) return Number(fallback);
-    const base = STANDARD_TUNING_MIDI[tab[0]];
+    const openStrings = getOpenStringMidiFromSnapshot(snapshot);
+    const base = openStrings[tab[0]];
     if (base !== undefined && Number.isFinite(tab[1]) && tab[1] >= 0) {
       return base + tab[1];
     }
@@ -6922,12 +6928,12 @@ export default function GteWorkspace({
     () => [
       ...(noteAlternates?.possibleTabs || []).map((tab) => ({
         key: `open-${tab[0]}-${tab[1]}`,
-        label: `${STRING_LABELS[tab[0]]}${tab[1]}`,
+        label: `${stringLabels[tab[0]]}${tab[1]}`,
         value: `${tab[0]}:${tab[1]}`,
       })),
       ...(noteAlternates?.blockedTabs || []).map((tab) => ({
         key: `blocked-${tab[0]}-${tab[1]}`,
-        label: `${STRING_LABELS[tab[0]]}${tab[1]} blocked`,
+        label: `${stringLabels[tab[0]]}${tab[1]} blocked`,
         value: `${tab[0]}:${tab[1]}`,
       })),
     ],
@@ -7905,9 +7911,9 @@ export default function GteWorkspace({
                 className="flex flex-col gap-0"
                 style={{ height: rowBlockHeight, marginBottom: rowIdx < rows - 1 ? ROW_GAP : 0 }}
               >
-                {STRING_LABELS.map((label) => (
+                {stringLabels.map((label, stringIndex) => (
                   <div
-                    key={`${label}-${rowIdx}`}
+                    key={`label-${rowIdx}-${stringIndex}`}
                     className="flex items-center justify-end pr-2"
                     style={{ height: ROW_HEIGHT }}
                   >
@@ -8269,8 +8275,8 @@ export default function GteWorkspace({
                     );
                     const editorTop = Math.max(0, top - 42);
                     const stringLabel =
-                      segment.stringIndex !== null && STRING_LABELS[segment.stringIndex]
-                        ? STRING_LABELS[segment.stringIndex]
+                      segment.stringIndex !== null && stringLabels[segment.stringIndex]
+                        ? stringLabels[segment.stringIndex]
                         : "?";
                     const fretLabel = segment.fret !== null ? segment.fret : "?";
                     const isEditing = editingSegmentIndex === segIndex;
@@ -8344,8 +8350,8 @@ export default function GteWorkspace({
                             ).map(({ field, label, value, max }) => {
                               const parsedValue = Number(value);
                               const stringDisplay =
-                                Number.isInteger(parsedValue) && STRING_LABELS[parsedValue]
-                                  ? STRING_LABELS[parsedValue]
+                                Number.isInteger(parsedValue) && stringLabels[parsedValue]
+                                  ? stringLabels[parsedValue]
                                   : "?";
                               return (
                                 <div
@@ -8852,7 +8858,7 @@ export default function GteWorkspace({
                                 onClick={() => handleAssignAlt(tab)}
                                 className="rounded bg-amber-400/70 px-2 py-1 text-[10px] font-semibold text-slate-900"
                               >
-                                {STRING_LABELS[tab[0]]}
+                                {stringLabels[tab[0]]}
                                 {tab[1]}
                               </button>
                             ))}
@@ -8863,7 +8869,7 @@ export default function GteWorkspace({
                                 onClick={() => handleAssignAlt(tab)}
                                 className="rounded bg-rose-200 px-2 py-1 text-[10px] font-semibold text-rose-700"
                               >
-                                {STRING_LABELS[tab[0]]}
+                                {stringLabels[tab[0]]}
                                 {tab[1]}
                               </button>
                             ))}
@@ -8947,7 +8953,7 @@ export default function GteWorkspace({
                                 onClick={() => handleApplyChordTabs(tabs)}
                                 className="rounded bg-amber-400/70 px-2 py-1 text-[10px] font-semibold text-slate-900"
                               >
-                                {tabs.map((tab) => `${STRING_LABELS[tab[0]]}${tab[1]}`).join(" ")}
+                                {tabs.map((tab) => `${stringLabels[tab[0]]}${tab[1]}`).join(" ")}
                               </button>
                             ))}
                           </div>
@@ -9128,7 +9134,7 @@ export default function GteWorkspace({
                           Add note
                         </div>
                         <div className="mt-1 text-sm text-slate-700">
-                          String {STRING_LABELS[draftNote.stringIndex]} at {draftNote.startTime}
+                          String {stringLabels[draftNote.stringIndex]} at {draftNote.startTime}
                         </div>
                       </div>
                       <button
@@ -9195,7 +9201,7 @@ export default function GteWorkspace({
                     }}
                   >
                     <div className="text-[11px] text-slate-600">
-                      String {STRING_LABELS[draftNote.stringIndex]} @ {draftNote.startTime}
+                      String {stringLabels[draftNote.stringIndex]} @ {draftNote.startTime}
                     </div>
                     <div className="mt-1 flex items-end gap-2">
                       <div className="flex flex-col items-start gap-1">
@@ -9445,12 +9451,5 @@ export default function GteWorkspace({
     </div>
   );
 }
-<<<<<<< HEAD
 
-
-
-
-
-=======
->>>>>>> bc5d26b (added guitar pro features we wanted)
 

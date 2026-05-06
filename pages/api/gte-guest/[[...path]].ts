@@ -33,6 +33,31 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const clampEventLength = (value: number) => clamp(Math.round(toNumber(value, 1)), 1, MAX_EVENT_LENGTH_FRAMES);
 const getStoreKey = (sessionId: string, canvasId: string) => `${sessionId}:${canvasId}`;
+const getLaneOpenStringMidi = (lane: Pick<EditorSnapshot, "tabRef" | "tuning">) => {
+  const tuningOpen =
+    Array.isArray(lane.tuning?.openStringMidi) &&
+    lane.tuning.openStringMidi.length >= 6 &&
+    lane.tuning.openStringMidi.every((value) => Number.isFinite(Number(value)))
+      ? lane.tuning.openStringMidi.slice(0, 6).map((value) => Number(value))
+      : null;
+  const capo = Number.isFinite(Number(lane.tuning?.capo)) ? Math.max(0, Math.round(Number(lane.tuning?.capo))) : 0;
+  if (tuningOpen) {
+    return tuningOpen.map((value) => Math.round(value + capo));
+  }
+  if (Array.isArray(lane.tabRef) && lane.tabRef.length >= 6) {
+    const fromTabRef = lane.tabRef
+      .slice(0, 6)
+      .map((stringValues) =>
+        Array.isArray(stringValues) && Number.isFinite(Number(stringValues[0]))
+          ? Math.round(Number(stringValues[0]))
+          : null
+      );
+    if (fromTabRef.every((value) => value !== null)) {
+      return fromTabRef as number[];
+    }
+  }
+  return [...STANDARD_TUNING_MIDI];
+};
 const getMaxFret = (lane: Pick<EditorSnapshot, "tabRef">) =>
   lane.tabRef?.[0]?.length ? lane.tabRef[0].length - 1 : DEFAULT_MAX_FRET;
 const clampTab = (lane: Pick<EditorSnapshot, "tabRef">, tab?: TabCoord | null): TabCoord => {
@@ -242,7 +267,8 @@ const ensureUpstreamGuestCanvas = async (sessionId: string, canvas: CanvasSnapsh
 const getTabMidi = (lane: EditorSnapshot, tab: TabCoord) => {
   const fromRef = lane.tabRef?.[tab[0]]?.[tab[1]];
   if (fromRef !== undefined && fromRef !== null && Number.isFinite(Number(fromRef))) return Number(fromRef);
-  const base = STANDARD_TUNING_MIDI[tab[0]];
+  const openStrings = getLaneOpenStringMidi(lane);
+  const base = openStrings[tab[0]];
   return Number.isFinite(base) ? base + tab[1] : 0;
 };
 
@@ -459,11 +485,41 @@ const deleteCutBoundary = (lane: EditorSnapshot, boundaryIndex: number) => {
 };
 
 const generateCuts = (lane: EditorSnapshot) => {
+  const tabsForMidi = (midi: number): TabCoord[] => {
+    const result: TabCoord[] = [];
+    lane.tabRef?.forEach((stringValues, stringIndex) => {
+      stringValues?.forEach((value, fret) => {
+        if (Number(value) === midi) result.push([stringIndex, fret]);
+      });
+    });
+    return result.length ? result : [clampTab(lane)];
+  };
+  const chooseClosestTab = (candidates: TabCoord[], reference: TabCoord): TabCoord => {
+    const ranked = [...candidates].sort((left, right) => {
+      const leftDistance = Math.abs(left[0] - reference[0]) + Math.abs(left[1] - reference[1]);
+      const rightDistance = Math.abs(right[0] - reference[0]) + Math.abs(right[1] - reference[1]);
+      return leftDistance - rightDistance || left[0] - right[0] || left[1] - right[1];
+    });
+    return clampTab(lane, ranked[0] ?? reference);
+  };
+
+  let lastCoord = clampTab(lane);
   const events = [
-    ...lane.notes.map((note) => ({ time: Math.round(toNumber(note.startTime, 0)), coord: clampTab(lane, note.tab) })),
+    ...lane.notes.map((note) => {
+      const midi = note.midiNum || getTabMidi(lane, note.tab);
+      const coord = chooseClosestTab(tabsForMidi(midi), lastCoord);
+      lastCoord = [coord[0], coord[1]];
+      return { time: Math.round(toNumber(note.startTime, 0)), coord };
+    }),
     ...lane.chords.filter((chord) => chord.currentTabs.length > 0).map((chord) => ({
       time: Math.round(toNumber(chord.startTime, 0)),
-      coord: clampTab(lane, chord.currentTabs[0]),
+      coord: (() => {
+        const firstTab = chord.currentTabs[0];
+        const midi = chord.originalMidi?.[0] || getTabMidi(lane, firstTab);
+        const coord = chooseClosestTab(tabsForMidi(midi), lastCoord);
+        lastCoord = [coord[0], coord[1]];
+        return coord;
+      })(),
     })),
   ].sort((a, b) => a.time - b.time);
   if (!events.length) {
@@ -974,7 +1030,17 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
             return res.status(200).json({ ...parsed, snapshot: result.snapshot });
           })
           .catch((error: any) => {
-            return res.status(500).json({ error: error?.message || "Guest cut generation failed." });
+            try {
+              const result = applyLaneMutation(canvas, laneId, (lane) => generateCuts(lane));
+              canvas = persistCanvas(sessionId, result.canvas);
+              return res.status(200).json({
+                ok: true,
+                snapshot: result.snapshot,
+                warning: error?.message || "Guest cut generation failed upstream; applied local fallback.",
+              });
+            } catch {
+              return res.status(500).json({ error: error?.message || "Guest cut generation failed." });
+            }
           });
       }
       if (rest[1] === "apply_manual" && method === "POST") {

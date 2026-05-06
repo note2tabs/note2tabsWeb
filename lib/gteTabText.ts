@@ -1,6 +1,5 @@
 import type { EditorSnapshot } from "../types/gte";
-
-const STRING_LABELS = ["e", "B", "G", "D", "A", "E"];
+import { getStringLabelsForSnapshot } from "./gteTuning";
 
 let spotsPerBar = 16
 let barsPerLine = 3
@@ -120,10 +119,11 @@ export function buildTabTextFromSnapshot(
   });
 
   const rows: string[] = [];
+  const stringLabels = getStringLabelsForSnapshot(snapshot);
   for (let rowStart = 0; rowStart < totalBars; rowStart += safeBarsPerRow) {
     const rowEnd = Math.min(totalBars, rowStart + safeBarsPerRow);
-    for (let stringIndex = 0; stringIndex < STRING_LABELS.length; stringIndex += 1) {
-      let line = `${STRING_LABELS[stringIndex]}|`;
+    for (let stringIndex = 0; stringIndex < stringLabels.length; stringIndex += 1) {
+      let line = `${stringLabels[stringIndex]}|`;
       for (let barIndex = rowStart; barIndex < rowEnd; barIndex += 1) {
         line += `${bars[barIndex][stringIndex].join("")}|`;
       }
