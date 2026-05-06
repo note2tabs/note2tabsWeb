@@ -2747,14 +2747,15 @@ export default function GteWorkspace({
   }, [activateScaleTool, deactivateScaleTool, scaleToolActive]);
 
   const cycleScaleToolModeWithShortcut = useCallback(() => {
-    if (!scaleToolActive) return;
     const idx = SCALE_TOOL_MODES.indexOf(scaleToolMode);
     const nextMode =
       idx >= 0
         ? SCALE_TOOL_MODES[(idx + 1) % SCALE_TOOL_MODES.length]
         : SCALE_TOOL_MODES[0];
     setScaleToolMode(nextMode);
-    applyScalePreview(scaleFactor, { mode: nextMode, syncInput: false });
+    if (scaleToolActive) {
+      applyScalePreview(scaleFactor, { mode: nextMode, syncInput: false });
+    }
   }, [applyScalePreview, scaleFactor, scaleToolActive, scaleToolMode]);
 
   const handleScaleFactorInputChange = useCallback(
@@ -6121,9 +6122,7 @@ export default function GteWorkspace({
       time: snapKeyboardCursorTimeToGrid(selectedNote.startTime),
       stringIndex: clamp(Math.round(selectedNote.tab[0]), 0, 5),
     };
-    setKeyboardGridCursor((prev) =>
-      prev && prev.time === next.time && prev.stringIndex === next.stringIndex ? prev : next
-    );
+    setKeyboardGridCursor((prev) => (prev ? prev : next));
   }, [clamp, isActive, mobileViewport, selectedNote, selectedNoteIds.length, snapKeyboardCursorTimeToGrid]);
 
   useEffect(() => {
@@ -6236,11 +6235,13 @@ export default function GteWorkspace({
         !event.shiftKey &&
         !event.ctrlKey &&
         !event.metaKey &&
-        !event.altKey &&
-        scaleToolActive
+        !event.altKey
       ) {
-        if (isTyping) return;
+        if (isTyping && !scaleModeSelect) return;
         event.preventDefault();
+        if (scaleModeSelect) {
+          scaleModeSelect.blur();
+        }
         cycleScaleToolModeWithShortcut();
         return;
       }
@@ -6287,7 +6288,13 @@ export default function GteWorkspace({
         event.key === "+" ||
         (event.key === "=" && event.shiftKey);
       const isMinusKey = event.code === "NumpadSubtract" || event.key === "-";
-      if (!mobileViewport && !isTyping && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      const allowCtrlOrMetaForArrow = isArrowKey && (event.ctrlKey || event.metaKey);
+      if (
+        !mobileViewport &&
+        !isTyping &&
+        !event.altKey &&
+        ((!event.ctrlKey && !event.metaKey) || allowCtrlOrMetaForArrow)
+      ) {
         if (event.key === "Enter" && keyboardAddModeRef.current) {
           event.preventDefault();
           finalizeKeyboardAddMode({ playPreview: true });
@@ -6311,7 +6318,11 @@ export default function GteWorkspace({
           setSelectedChordIds([]);
           if (event.shiftKey) {
             enterGridCycleRef.current = null;
-            setSelectedNoteIds(orderedNoteIds);
+            setSelectedNoteIds((prev) => {
+              const merged = new Set(prev);
+              orderedNoteIds.forEach((id) => merged.add(id));
+              return Array.from(merged);
+            });
             return;
           }
           if (orderedNoteIds.length <= 1) {
@@ -6413,7 +6424,7 @@ export default function GteWorkspace({
           )
             .map((id) => snapshotRef.current.notes.find((note) => note.id === id))
             .filter((note): note is (typeof snapshotRef.current.notes)[number] => Boolean(note));
-          if (event.shiftKey && selectedNoteGroup.length > 1) {
+          if ((event.ctrlKey || event.metaKey) && selectedNoteGroup.length > 1) {
             if (event.key === "ArrowUp" || event.key === "ArrowDown") {
               const deltaString = event.key === "ArrowUp" ? -1 : 1;
               const updates = selectedNoteGroup
@@ -6494,7 +6505,7 @@ export default function GteWorkspace({
             });
             return;
           }
-          if (event.shiftKey && selectedId !== null) {
+          if ((event.ctrlKey || event.metaKey) && selectedId !== null) {
             const resolvedId = resolveNoteId(selectedId);
             const selected = snapshotRef.current.notes.find((note) => note.id === resolvedId);
             if (!selected) return;
@@ -6544,27 +6555,38 @@ export default function GteWorkspace({
             selectedId !== null
               ? snapshotRef.current.notes.find((note) => note.id === resolveNoteId(selectedId)) ?? null
               : null;
-          const baseCursor = selectedForCursor
-            ? getDirectionalCursorFromSelectedNote(
-                selectedForCursor,
-                event.key as "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown",
-                step
-              )
-            : resolveKeyboardCursor();
+          const currentKeyboardCursor = keyboardGridCursorRef.current;
+          const baseCursor = currentKeyboardCursor
+            ? currentKeyboardCursor
+            : selectedForCursor
+              ? getDirectionalCursorFromSelectedNote(
+                  selectedForCursor,
+                  event.key as "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown",
+                  step
+                )
+              : resolveKeyboardCursor();
           const nextCursor: KeyboardGridCursor = { ...baseCursor };
-          if (!selectedForCursor) {
-            if (event.key === "ArrowLeft") {
-              nextCursor.time = snapKeyboardCursorTimeToGrid(baseCursor.time - step);
-            } else if (event.key === "ArrowRight") {
-              nextCursor.time = snapKeyboardCursorTimeToGrid(baseCursor.time + step);
-            }
+          if (event.key === "ArrowLeft") {
+            nextCursor.time = snapKeyboardCursorTimeToGrid(baseCursor.time - step);
+          } else if (event.key === "ArrowRight") {
+            nextCursor.time = snapKeyboardCursorTimeToGrid(baseCursor.time + step);
           }
           if (event.key === "ArrowUp") {
             nextCursor.stringIndex = clamp(baseCursor.stringIndex - 1, 0, 5);
           } else if (event.key === "ArrowDown") {
             nextCursor.stringIndex = clamp(baseCursor.stringIndex + 1, 0, 5);
           }
-          setKeyboardSelection(nextCursor, null);
+          setKeyboardGridCursor(nextCursor);
+          setSelectedCutBoundaryIndex(null);
+          setDraftNote(null);
+          setDraftNoteAnchor(null);
+          setNoteMenuAnchor(null);
+          setNoteMenuNoteId(null);
+          setNoteMenuDraft(null);
+          setChordMenuAnchor(null);
+          setChordMenuChordId(null);
+          setChordMenuDraft(null);
+          setSelectedChordIds([]);
           return;
         }
       }
@@ -6868,7 +6890,7 @@ export default function GteWorkspace({
     : "relative min-w-0 rounded-2xl border border-slate-200 bg-white p-5 space-y-5 -ml-3 w-[calc(100%+0.75rem)]";
 
   const keyboardCursorMarker = useMemo<KeyboardCursorMarker | null>(() => {
-    if (mobileViewport || !isActive || selectedNoteIds.length > 0 || !keyboardGridCursor) return null;
+    if (mobileViewport || !isActive || !keyboardGridCursor) return null;
     const step = getKeyboardGridStepFrames();
     const safeTime = snapKeyboardCursorTimeToGrid(keyboardGridCursor.time);
     const rowIndex = rowFrames > 0 ? clamp(Math.floor(safeTime / rowFrames), 0, rows - 1) : 0;
@@ -6893,7 +6915,6 @@ export default function GteWorkspace({
     rows,
     scale,
     snapKeyboardCursorTimeToGrid,
-    selectedNoteIds.length,
     timelineEnd,
   ]);
 
