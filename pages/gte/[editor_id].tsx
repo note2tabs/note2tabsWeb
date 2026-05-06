@@ -4464,19 +4464,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         )}
 
-        {canvas && !isMobileViewport && (
-          <div className="pointer-events-none fixed bottom-2 left-0 right-0 z-[130] px-4">
-            <div className="pointer-events-auto mx-auto w-full max-w-[1700px] rounded-md border border-slate-200 bg-white/95 px-2 py-1 shadow-sm backdrop-blur">
-              <div
-                ref={globalTimelineScrollbarRef}
-                className="overflow-x-scroll overflow-y-hidden"
-                onScroll={handleGlobalTimelineScrollbarScroll}
-              >
-                <div style={{ width: globalTimelineTrackWidth, height: 1 }} />
-              </div>
-            </div>
-          </div>
-        )}
         {confirmDeleteTrackId && (
           <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/30 px-4">
             <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
