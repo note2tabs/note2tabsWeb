@@ -4553,7 +4553,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           </label>
                         </div>
                         <div className="mt-2 flex w-full flex-col items-center gap-2">
-                          <div className="flex flex-col items-center gap-1.5">
+                          <div className="flex flex-row items-center gap-1.5">
                             <button
                               type="button"
                               onClick={(event) => {

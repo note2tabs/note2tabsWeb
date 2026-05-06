@@ -2747,14 +2747,15 @@ export default function GteWorkspace({
   }, [activateScaleTool, deactivateScaleTool, scaleToolActive]);
 
   const cycleScaleToolModeWithShortcut = useCallback(() => {
-    if (!scaleToolActive) return;
     const idx = SCALE_TOOL_MODES.indexOf(scaleToolMode);
     const nextMode =
       idx >= 0
         ? SCALE_TOOL_MODES[(idx + 1) % SCALE_TOOL_MODES.length]
         : SCALE_TOOL_MODES[0];
     setScaleToolMode(nextMode);
-    applyScalePreview(scaleFactor, { mode: nextMode, syncInput: false });
+    if (scaleToolActive) {
+      applyScalePreview(scaleFactor, { mode: nextMode, syncInput: false });
+    }
   }, [applyScalePreview, scaleFactor, scaleToolActive, scaleToolMode]);
 
   const handleScaleFactorInputChange = useCallback(
@@ -4198,36 +4199,61 @@ export default function GteWorkspace({
 
   const handleJoinSelectedNotes = () => {
     if (!selectedNoteIds.length) return;
+    const selectedResolvedIds = new Set(
+      selectedNoteIds
+        .map((id) => resolveNoteId(id))
+        .filter((id) => id !== null && id !== undefined)
+    );
     const grouped = new Map<number, typeof snapshot.notes>();
     snapshot.notes.forEach((note) => {
-      if (!selectedNoteIds.includes(note.id)) return;
+      if (!selectedResolvedIds.has(note.id)) return;
       const existing = grouped.get(note.tab[0]) || [];
       existing.push(note);
       grouped.set(note.tab[0], existing);
     });
-    const nextSelected: number[] = [];
-    void runMutation(async () => {
-      let last: Awaited<ReturnType<typeof gteApi.deleteNote>> | null = null;
-      for (const notes of grouped.values()) {
-        if (notes.length === 0) continue;
-        notes.sort((a, b) => a.startTime - b.startTime);
-        const first = notes[0];
-        const lastNote = notes[notes.length - 1];
-        nextSelected.push(first.id);
-        if (notes.length < 2) continue;
-        const targetEnd = lastNote.startTime + lastNote.length;
-        const nextLength = clampEventLength(targetEnd - first.startTime);
-        if (nextLength !== first.length) {
-          await gteApi.setNoteLength(editorId, first.id, nextLength, false);
-        }
-        for (const note of notes.slice(1)) {
-          last = await gteApi.deleteNote(editorId, note.id);
-        }
-      }
-      return last ?? {};
+    const keepIds = new Set<number>();
+    grouped.forEach((notes) => {
+      if (!notes.length) return;
+      notes.sort((a, b) => a.startTime - b.startTime || a.id - b.id);
+      keepIds.add(notes[0].id);
     });
-    if (nextSelected.length) {
-      setSelectedNoteIds(nextSelected);
+    void runMutation(
+      async () => ({}),
+      {
+        localApply: (draft) => {
+          const draftGrouped = new Map<number, typeof draft.notes>();
+          draft.notes.forEach((note) => {
+            if (!selectedResolvedIds.has(note.id)) return;
+            const existing = draftGrouped.get(note.tab[0]) || [];
+            existing.push(note);
+            draftGrouped.set(note.tab[0], existing);
+          });
+          const removeIds = new Set<number>();
+          draftGrouped.forEach((notes) => {
+            if (!notes.length) return;
+            notes.sort((a, b) => a.startTime - b.startTime || a.id - b.id);
+            const first = notes[0];
+            const lastNote = notes[notes.length - 1];
+            if (notes.length > 1) {
+              const targetEnd = lastNote.startTime + lastNote.length;
+              first.length = clampEventLength(targetEnd - first.startTime);
+            }
+            first.midiNum = getTabMidi(draft, first.tab as TabCoord);
+            first.optimals = computeNoteAlternatesForSnapshot(draft, first).possibleTabs.map((tab) => [
+              tab[0],
+              tab[1],
+            ] as TabCoord);
+            notes.slice(1).forEach((note) => removeIds.add(note.id));
+          });
+          if (removeIds.size > 0) {
+            draft.notes = draft.notes.filter((note) => !removeIds.has(note.id));
+          }
+        },
+        serverMode: "local-first",
+      }
+    );
+    if (keepIds.size > 0) {
+      setSelectedNoteIds(Array.from(keepIds));
     }
   };
 
@@ -6121,9 +6147,7 @@ export default function GteWorkspace({
       time: snapKeyboardCursorTimeToGrid(selectedNote.startTime),
       stringIndex: clamp(Math.round(selectedNote.tab[0]), 0, 5),
     };
-    setKeyboardGridCursor((prev) =>
-      prev && prev.time === next.time && prev.stringIndex === next.stringIndex ? prev : next
-    );
+    setKeyboardGridCursor((prev) => (prev ? prev : next));
   }, [clamp, isActive, mobileViewport, selectedNote, selectedNoteIds.length, snapKeyboardCursorTimeToGrid]);
 
   useEffect(() => {
@@ -6236,11 +6260,13 @@ export default function GteWorkspace({
         !event.shiftKey &&
         !event.ctrlKey &&
         !event.metaKey &&
-        !event.altKey &&
-        scaleToolActive
+        !event.altKey
       ) {
-        if (isTyping) return;
+        if (isTyping && !scaleModeSelect) return;
         event.preventDefault();
+        if (scaleModeSelect) {
+          scaleModeSelect.blur();
+        }
         cycleScaleToolModeWithShortcut();
         return;
       }
@@ -6287,7 +6313,13 @@ export default function GteWorkspace({
         event.key === "+" ||
         (event.key === "=" && event.shiftKey);
       const isMinusKey = event.code === "NumpadSubtract" || event.key === "-";
-      if (!mobileViewport && !isTyping && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      const allowCtrlOrMetaForArrow = isArrowKey && (event.ctrlKey || event.metaKey);
+      if (
+        !mobileViewport &&
+        !isTyping &&
+        !event.altKey &&
+        ((!event.ctrlKey && !event.metaKey) || allowCtrlOrMetaForArrow)
+      ) {
         if (event.key === "Enter" && keyboardAddModeRef.current) {
           event.preventDefault();
           finalizeKeyboardAddMode({ playPreview: true });
@@ -6311,7 +6343,11 @@ export default function GteWorkspace({
           setSelectedChordIds([]);
           if (event.shiftKey) {
             enterGridCycleRef.current = null;
-            setSelectedNoteIds(orderedNoteIds);
+            setSelectedNoteIds((prev) => {
+              const merged = new Set(prev);
+              orderedNoteIds.forEach((id) => merged.add(id));
+              return Array.from(merged);
+            });
             return;
           }
           if (orderedNoteIds.length <= 1) {
@@ -6413,7 +6449,7 @@ export default function GteWorkspace({
           )
             .map((id) => snapshotRef.current.notes.find((note) => note.id === id))
             .filter((note): note is (typeof snapshotRef.current.notes)[number] => Boolean(note));
-          if (event.shiftKey && selectedNoteGroup.length > 1) {
+          if ((event.ctrlKey || event.metaKey) && selectedNoteGroup.length > 1) {
             if (event.key === "ArrowUp" || event.key === "ArrowDown") {
               const deltaString = event.key === "ArrowUp" ? -1 : 1;
               const updates = selectedNoteGroup
@@ -6494,7 +6530,7 @@ export default function GteWorkspace({
             });
             return;
           }
-          if (event.shiftKey && selectedId !== null) {
+          if ((event.ctrlKey || event.metaKey) && selectedId !== null) {
             const resolvedId = resolveNoteId(selectedId);
             const selected = snapshotRef.current.notes.find((note) => note.id === resolvedId);
             if (!selected) return;
@@ -6544,27 +6580,38 @@ export default function GteWorkspace({
             selectedId !== null
               ? snapshotRef.current.notes.find((note) => note.id === resolveNoteId(selectedId)) ?? null
               : null;
-          const baseCursor = selectedForCursor
-            ? getDirectionalCursorFromSelectedNote(
-                selectedForCursor,
-                event.key as "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown",
-                step
-              )
-            : resolveKeyboardCursor();
+          const currentKeyboardCursor = keyboardGridCursorRef.current;
+          const baseCursor = currentKeyboardCursor
+            ? currentKeyboardCursor
+            : selectedForCursor
+              ? getDirectionalCursorFromSelectedNote(
+                  selectedForCursor,
+                  event.key as "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown",
+                  step
+                )
+              : resolveKeyboardCursor();
           const nextCursor: KeyboardGridCursor = { ...baseCursor };
-          if (!selectedForCursor) {
-            if (event.key === "ArrowLeft") {
-              nextCursor.time = snapKeyboardCursorTimeToGrid(baseCursor.time - step);
-            } else if (event.key === "ArrowRight") {
-              nextCursor.time = snapKeyboardCursorTimeToGrid(baseCursor.time + step);
-            }
+          if (event.key === "ArrowLeft") {
+            nextCursor.time = snapKeyboardCursorTimeToGrid(baseCursor.time - step);
+          } else if (event.key === "ArrowRight") {
+            nextCursor.time = snapKeyboardCursorTimeToGrid(baseCursor.time + step);
           }
           if (event.key === "ArrowUp") {
             nextCursor.stringIndex = clamp(baseCursor.stringIndex - 1, 0, 5);
           } else if (event.key === "ArrowDown") {
             nextCursor.stringIndex = clamp(baseCursor.stringIndex + 1, 0, 5);
           }
-          setKeyboardSelection(nextCursor, null);
+          setKeyboardGridCursor(nextCursor);
+          setSelectedCutBoundaryIndex(null);
+          setDraftNote(null);
+          setDraftNoteAnchor(null);
+          setNoteMenuAnchor(null);
+          setNoteMenuNoteId(null);
+          setNoteMenuDraft(null);
+          setChordMenuAnchor(null);
+          setChordMenuChordId(null);
+          setChordMenuDraft(null);
+          setSelectedChordIds([]);
           return;
         }
       }
@@ -6868,7 +6915,7 @@ export default function GteWorkspace({
     : "relative min-w-0 rounded-2xl border border-slate-200 bg-white p-5 space-y-5 -ml-3 w-[calc(100%+0.75rem)]";
 
   const keyboardCursorMarker = useMemo<KeyboardCursorMarker | null>(() => {
-    if (mobileViewport || !isActive || selectedNoteIds.length > 0 || !keyboardGridCursor) return null;
+    if (mobileViewport || !isActive || !keyboardGridCursor) return null;
     const step = getKeyboardGridStepFrames();
     const safeTime = snapKeyboardCursorTimeToGrid(keyboardGridCursor.time);
     const rowIndex = rowFrames > 0 ? clamp(Math.floor(safeTime / rowFrames), 0, rows - 1) : 0;
@@ -6893,7 +6940,6 @@ export default function GteWorkspace({
     rows,
     scale,
     snapKeyboardCursorTimeToGrid,
-    selectedNoteIds.length,
     timelineEnd,
   ]);
 
@@ -6943,277 +6989,304 @@ export default function GteWorkspace({
     [noteAlternates]
   );
 
-  const renderToolbarPanel = (inlineMobile: boolean) => (
-    <div
-      ref={toolbarRef}
-      data-gte-floating-ui="true"
-      className={
-        inlineMobile
-          ? "h-full min-h-0 w-full min-w-0 overflow-y-auto rounded-xl border border-slate-200 bg-white px-2 py-2 shadow-lg"
-          : "fixed bottom-5 left-1/2 z-[9998] w-[min(980px,calc(100vw-1.5rem))] -translate-x-1/2 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 shadow-lg backdrop-blur"
-      }
-      onMouseDown={(event) => event.stopPropagation()}
-    >
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-slate-700">Toolbar</span>
-        <button
-          type="button"
-          onClick={() => setToolbarOpen(false)}
-          className="rounded px-2 py-0.5 text-[11px] text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-        >
-          x
-        </button>
-      </div>
-      <div className={mobileViewport ? "flex items-start gap-2 overflow-x-auto pb-1" : "flex flex-wrap items-start gap-2"}>
-        <div className={`${mobileViewport ? "shrink-0" : "min-w-0 flex-1"} rounded-md border border-slate-200 bg-white p-1.5`}>
-          <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-            Notes & chords
+  const renderToolbarPanel = (inlineMobile: boolean) => {
+    const panelClass = inlineMobile
+      ? "h-auto w-full min-w-0 overflow-visible rounded-2xl border border-slate-200 bg-white p-2 shadow-lg"
+      : "fixed bottom-5 left-1/2 z-[9998] w-[min(800px,calc(100vw-1.5rem))] -translate-x-1/2 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-xl shadow-slate-900/10 backdrop-blur";
+
+    const sectionClass =
+      "min-w-0 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm";
+
+    const sectionTitleClass =
+      "mb-2 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400";
+
+    const textButtonClass =
+      "group relative flex h-10 w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-center text-[11px] font-semibold leading-none text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
+
+    const activeButtonClass =
+      "group relative flex h-10 w-full items-center justify-center rounded-lg px-3 text-center text-[11px] font-semibold leading-none text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none";
+
+    const iconButtonClass =
+      "group relative flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
+
+    const tooltipClass =
+      "pointer-events-none absolute -top-7 rounded-md bg-slate-950 px-1.5 py-0.5 text-[9px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100";
+
+    return (
+      <div
+        ref={toolbarRef}
+        data-gte-floating-ui="true"
+        className={panelClass}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="mb-2 flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-bold text-slate-800">Toolbar</div>
+            <div className="text-[9px] text-slate-400">
+              Edit notes, chords and cut regions
+            </div>
           </div>
-          <div className="flex flex-wrap gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                void handleMakeChord();
-              }}
-              disabled={chordizeCandidateCount < 2 || selectionActionsLocked}
-              title={
-                selectionActionsLocked
-                  ? "Disabled while notes/chords are selected in multiple tracks"
-                  : "Make Chord - Shortcut: C"
-              }
-              className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md bg-blue-600 text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">C</span>
-              <img
-                src={STREAMLINE_TOOLBAR_ICONS.chordize}
-                alt=""
-                aria-hidden="true"
-                className="h-3.5 w-3.5 brightness-0 invert"
-              />
-              <span className="text-[9px] leading-none">Make Chord</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (activeChordIds.length) {
-                  const chordIds = [...activeChordIds];
-                  void runMutation(async () => {
-                    const latestSnapshot = await disbandChordIds(chordIds);
-                    return latestSnapshot ? { snapshot: latestSnapshot } : {};
-                  }, {
-                    localApply: (draft) => {
-                      chordIds.forEach((chordId) => disbandChordInSnapshot(draft, chordId));
-                    },
-                  });
-                  setSelectedChordIds([]);
-                }
-              }}
-              disabled={activeChordIds.length === 0 || selectionActionsLocked}
-              title={
-                selectionActionsLocked
-                  ? "Disabled while notes/chords are selected in multiple tracks"
-                  : "Disband - Shortcut: L"
-              }
-              className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-            >
-              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">L</span>
-              <img
-                src={STREAMLINE_TOOLBAR_ICONS.disband}
-                alt=""
-                aria-hidden="true"
-                className="h-3.5 w-3.5"
-              />
-              <span className="text-[9px] leading-none">Disband</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                void handleAssignOptimals();
-              }}
-              disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
-              title={
-                selectionActionsLocked
-                  ? "Disabled while notes/chords are selected in multiple tracks"
-                  : "Optimize - Shortcut: O"
-              }
-              className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-            >
-              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">O</span>
-              <img
-                src={STREAMLINE_TOOLBAR_ICONS.optimize}
-                alt=""
-                aria-hidden="true"
-                className="h-3.5 w-3.5"
-              />
-              <span className="text-[9px] leading-none">Optimize</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                void handleJoinSelectedNotes();
-              }}
-              disabled={selectedNoteIds.length < 2 || selectionActionsLocked}
-              title={
-                selectionActionsLocked
-                  ? "Disabled while notes/chords are selected in multiple tracks"
-                  : "Join - Shortcut: J"
-              }
-              className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-            >
-              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">J</span>
-              <img
-                src={STREAMLINE_TOOLBAR_ICONS.join}
-                alt=""
-                aria-hidden="true"
-                className="h-3.5 w-3.5"
-              />
-              <span className="text-[9px] leading-none">Join</span>
-            </button>
-            <div className="group relative flex w-[106px] flex-col gap-1">
-              <select
-                data-scale-mode-select="true"
-                value={scaleToolMode}
-                onChange={(event) => {
-                  const nextMode = event.target.value;
-                  if (!isScaleToolMode(nextMode)) return;
-                  setScaleToolMode(nextMode);
-                  if (scaleToolActive) {
-                    applyScalePreview(scaleFactor, { mode: nextMode, syncInput: false });
-                  }
-                }}
-                className="h-5 rounded border border-slate-200 bg-white px-1 text-[10px] text-slate-700"
-                title="Scale mode - Shortcut: H"
-              >
-                <option value="length">Length scaling</option>
-                <option value="start">Start-time scaling</option>
-                <option value="both">Start + length</option>
-              </select>
+
+          <button
+            type="button"
+            onClick={() => setToolbarOpen(false)}
+            className="grid h-6 w-6 place-items-center rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
+          >
+            ×
+          </button>
+        </div>
+
+        <div
+          className={
+            mobileViewport
+              ? "grid grid-cols-1 gap-2"
+              : "grid grid-cols-[minmax(0,1fr)_320px] gap-2"
+          }
+        >
+          <div className={sectionClass}>
+            <div className={sectionTitleClass}>Notes & chords</div>
+
+            <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
-                onClick={toggleScaleTool}
-                disabled={!scaleToolActive && selectedNoteIds.length + selectedChordIds.length === 0}
-                title="Scale - Shortcut: S"
-                className={`relative flex h-[27px] w-full items-center justify-center gap-1 rounded-md text-[9px] font-semibold ${
-                  scaleToolActive
-                    ? "bg-amber-500 text-white"
-                    : "border border-slate-200 text-slate-700 hover:bg-slate-100"
-                } disabled:cursor-not-allowed disabled:text-slate-400`}
+                onClick={() => {
+                  void handleMakeChord();
+                }}
+                disabled={chordizeCandidateCount < 2 || selectionActionsLocked}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Merges notes into a chord object - Shortcut: C"
+                }
+                className={
+                  chordizeCandidateCount >= 2 && !selectionActionsLocked
+                    ? `${activeButtonClass} bg-blue-600`
+                    : textButtonClass
+                }
               >
-                <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">S</span>
-                <svg
-                  viewBox="0 0 24 24"
-                  className={`h-3.5 w-3.5 ${scaleToolActive ? "fill-white" : "fill-current"}`}
-                  aria-hidden="true"
+                <span className={tooltipClass}>C</span>
+                Merge to Chord
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeChordIds.length) {
+                    const chordIds = [...activeChordIds];
+
+                    void runMutation(
+                      async () => {
+                        const latestSnapshot = await disbandChordIds(chordIds);
+                        return latestSnapshot ? { snapshot: latestSnapshot } : {};
+                      },
+                      {
+                        localApply: (draft) => {
+                          chordIds.forEach((chordId) =>
+                            disbandChordInSnapshot(draft, chordId)
+                          );
+                        },
+                      }
+                    );
+
+                    setSelectedChordIds([]);
+                  }
+                }}
+                disabled={activeChordIds.length === 0 || selectionActionsLocked}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Disband selected chord into notes - Shortcut: L"
+                }
+                className={textButtonClass}
+              >
+                <span className={tooltipClass}>L</span>
+                Disband Chord
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void handleAssignOptimals();
+                }}
+                disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Assigns the optimal fingering to selected notes - Shortcut: O"
+                }
+                className={textButtonClass}
+              >
+                <span className={tooltipClass}>O</span>
+                Optimize
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void handleJoinSelectedNotes();
+                }}
+                disabled={selectedNoteIds.length < 2 || selectionActionsLocked}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Merges notes into a single one - Shortcut: J"
+                }
+                className={textButtonClass}
+              >
+                <span className={tooltipClass}>J</span>
+                Merge
+              </button>
+
+              <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_86px] gap-1.5">
+                <select
+                  data-scale-mode-select="true"
+                  value={scaleToolMode}
+                  onChange={(event) => {
+                    const nextMode = event.target.value;
+                    if (!isScaleToolMode(nextMode)) return;
+
+                    setScaleToolMode(nextMode);
+
+                    if (scaleToolActive) {
+                      applyScalePreview(scaleFactor, {
+                        mode: nextMode,
+                        syncInput: false,
+                      });
+                    }
+                  }}
+                  className="h-10 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 shadow-sm outline-none transition focus:border-slate-400"
+                  title="Scale mode - Shortcut: H"
                 >
-                  <path d="M3 10h18v4H3z" />
-                  <path d="M7 6l-4 6 4 6z" />
-                  <path d="M17 6l4 6-4 6z" />
-                </svg>
-                <span className="leading-none">Scale</span>
+                  <option value="length">Length scaling</option>
+                  <option value="start">Start-time scaling</option>
+                  <option value="both">Start + length</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={toggleScaleTool}
+                  disabled={
+                    !scaleToolActive &&
+                    selectedNoteIds.length + selectedChordIds.length === 0
+                  }
+                  title="Scale - Shortcut: S"
+                  className={
+                    scaleToolActive
+                      ? `${activeButtonClass} bg-amber-500`
+                      : iconButtonClass
+                  }
+                >
+                  <span className={tooltipClass}>S</span>
+                  <svg
+                    viewBox="0 0 24 24"
+                    className={`h-3.5 w-3.5 ${
+                      scaleToolActive ? "fill-white" : "fill-current"
+                    }`}
+                    aria-hidden="true"
+                  >
+                    <path d="M3 10h18v4H3z" />
+                    <path d="M7 6l-4 6 4 6z" />
+                    <path d="M17 6l4 6-4 6z" />
+                  </svg>
+                  Scale
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={toggleSliceTool}
+                title="Slice - Shortcut: Shift+S"
+                className={
+                  sliceToolActive
+                    ? `${activeButtonClass} bg-indigo-600`
+                    : iconButtonClass
+                }
+              >
+                <span className={tooltipClass}>Shift+S</span>
+                <img
+                  src={STREAMLINE_TOOLBAR_ICONS.slice}
+                  alt=""
+                  aria-hidden="true"
+                  className={`h-3.5 w-3.5 ${
+                    sliceToolActive ? "brightness-0 invert" : ""
+                  }`}
+                />
+                Slice
               </button>
             </div>
-            <button
-              type="button"
-              onClick={toggleSliceTool}
-              title="Slice - Shortcut: Shift+S"
-              className={`group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md ${
-                sliceToolActive
-                  ? "bg-indigo-600 text-white"
-                  : "border border-slate-200 text-slate-700 hover:bg-slate-100"
-              }`}
-            >
-              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">Shift+S</span>
-              <img
-                src={STREAMLINE_TOOLBAR_ICONS.slice}
-                alt=""
-                aria-hidden="true"
-                className={`h-3.5 w-3.5 ${sliceToolActive ? "brightness-0 invert" : ""}`}
-              />
-              <span className="text-[9px] leading-none">Slice</span>
-            </button>
           </div>
-        </div>
-        <div className={`${mobileViewport ? "shrink-0" : ""} rounded-md border border-slate-200 bg-white p-1.5`}>
-          <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-            Cut segments
-          </div>
-          <div className="flex flex-wrap gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                const ok = window.confirm(
-                  "Generate cut-segments from all notes? This will replace the current cut segments."
-                );
-                if (!ok) return;
-                handleGenerateCuts();
-              }}
-              title="Generate cuts"
-              className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100"
-            >
-              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">No shortcut</span>
-              <img
-                src={STREAMLINE_TOOLBAR_ICONS.generate}
-                alt=""
-                aria-hidden="true"
-                className="h-3.5 w-3.5"
-              />
-              <span className="text-[9px] leading-none">Generate</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleMergeRedundantCutRegions}
-              disabled={!hasRedundantCutRegions}
-              title="Merge adjacent cut regions with the same coord"
-              className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-            >
-              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">No shortcut</span>
-              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
-                <path d="M4 8h10v3H4z" />
-                <path d="M4 13h10v3H4z" />
-                <path d="M16 6l4 6-4 6v-4h-4v-4h4z" />
-              </svg>
-              <span className="text-[9px] leading-none">Clean</span>
-            </button>
-            <button
-              type="button"
-              onClick={toggleCutTool}
-              title="Cut tool - Shortcut: K"
-              className={`group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md ${
-                cutToolActive
-                  ? "bg-sky-600 text-white"
-                  : "border border-slate-200 text-slate-700 hover:bg-slate-100"
-              }`}
-            >
-              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">K</span>
-              <img
-                src={STREAMLINE_TOOLBAR_ICONS.cut}
-                alt=""
-                aria-hidden="true"
-                className={`h-3.5 w-3.5 ${cutToolActive ? "brightness-0 invert" : ""}`}
-              />
-              <span className="text-[9px] leading-none">Cut</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleMergeCutBoundary}
-              disabled={selectedCutBoundaryIndex === null}
-              title="Merge selected boundary"
-              className="group relative flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-            >
-              <span className="pointer-events-none absolute -top-6 rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">No shortcut</span>
-              <img
-                src={STREAMLINE_TOOLBAR_ICONS.merge}
-                alt=""
-                aria-hidden="true"
-                className="h-3.5 w-3.5"
-              />
-              <span className="text-[9px] leading-none">Merge</span>
-            </button>
+
+          <div className={sectionClass}>
+            <div className={sectionTitleClass}>Cut segments</div>
+
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const ok = window.confirm(
+                    "Generate cut-segments from all notes? This will replace the current cut segments."
+                  );
+
+                  if (!ok) return;
+
+                  handleGenerateCuts();
+                }}
+                title="Generate cuts"
+                className={textButtonClass}
+              >
+                <span className={tooltipClass}>No shortcut</span>
+                Generate
+              </button>
+
+              <button
+                type="button"
+                onClick={handleMergeRedundantCutRegions}
+                disabled={!hasRedundantCutRegions}
+                title="Merge adjacent cut regions with the same coord"
+                className={textButtonClass}
+              >
+                <span className={tooltipClass}>No shortcut</span>
+                Clean
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleCutTool}
+                title="Cut tool - Shortcut: K"
+                className={
+                  cutToolActive
+                    ? `${activeButtonClass} bg-sky-600`
+                    : iconButtonClass
+                }
+              >
+                <span className={tooltipClass}>K</span>
+                <img
+                  src={STREAMLINE_TOOLBAR_ICONS.cut}
+                  alt=""
+                  aria-hidden="true"
+                  className={`h-3.5 w-3.5 ${
+                    cutToolActive ? "brightness-0 invert" : ""
+                  }`}
+                />
+                Cut
+              </button>
+
+              <button
+                type="button"
+                onClick={handleMergeCutBoundary}
+                disabled={selectedCutBoundaryIndex === null}
+                title="Merge selected boundary"
+                className={textButtonClass}
+              >
+                <span className={tooltipClass}>No shortcut</span>
+                Merge
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div
