@@ -259,6 +259,76 @@ const normalizeCutRegions = (draft: EditorSnapshot, regions: CutWithCoord[]): Cu
 const getCutRegions = (draft: EditorSnapshot) =>
   normalizeCutRegions(draft, Array.isArray(draft.cutPositionsWithCoords) ? draft.cutPositionsWithCoords : []);
 
+const getAllTabsForMidi = (snapshot: Pick<EditorSnapshot, "tabRef">, midi: number): TabCoord[] => {
+  const result: TabCoord[] = [];
+  snapshot.tabRef?.forEach((stringValues, stringIndex) => {
+    stringValues?.forEach((value, fret) => {
+      if (Number(value) === midi) result.push([stringIndex, fret]);
+    });
+  });
+  return result.length ? result : [clampTabCoordInSnapshot(snapshot, DEFAULT_CUT_COORD)];
+};
+
+const getCutCoordAtTime = (snapshot: EditorSnapshot, time: number): TabCoord => {
+  const cuts = getCutRegions(snapshot);
+  const roundedTime = Math.max(0, Math.round(time));
+  const hit = cuts.find((entry) => roundedTime >= entry[0][0] && roundedTime < entry[0][1]);
+  return clampTabCoordInSnapshot(snapshot, hit?.[1] ?? cuts[0]?.[1] ?? DEFAULT_CUT_COORD);
+};
+
+const tabKey = (tab: TabCoord) => `${tab[0]}:${tab[1]}`;
+
+const scoreTabDistance = (tab: TabCoord, coord: TabCoord) =>
+  Math.abs(tab[0] - coord[0]) + Math.abs(tab[1] - coord[1]);
+
+const computeNoteAlternatesForSnapshot = (
+  snapshot: EditorSnapshot,
+  note: EditorSnapshot["notes"][number]
+) => {
+  const noteStart = Math.round(note.startTime);
+  const noteEnd = noteStart + clampEventLength(note.length);
+  const midi = Number.isFinite(Number(note.midiNum))
+    ? Number(note.midiNum)
+    : getTabMidi(snapshot, note.tab);
+  const candidates = getAllTabsForMidi(snapshot, midi);
+  const blocked = new Set<string>();
+  snapshot.notes.forEach((item) => {
+    if (item.id === note.id) return;
+    const start = Math.round(item.startTime);
+    const end = start + clampEventLength(item.length);
+    if (start < noteEnd && noteStart < end) {
+      blocked.add(tabKey(item.tab));
+    }
+  });
+  snapshot.chords.forEach((chord) => {
+    const start = Math.round(chord.startTime);
+    const end = start + clampEventLength(chord.length);
+    if (start < noteEnd && noteStart < end) {
+      chord.currentTabs.forEach((tab) => blocked.add(tabKey(tab)));
+    }
+  });
+  const cutCoord = getCutCoordAtTime(snapshot, noteStart);
+  const ranked = candidates
+    .map((tab) => ({ tab, score: scoreTabDistance(tab, cutCoord), blocked: blocked.has(tabKey(tab)) }))
+    .sort((left, right) => left.score - right.score || left.tab[0] - right.tab[0] || left.tab[1] - right.tab[1]);
+  return {
+    possibleTabs: ranked.filter((item) => !item.blocked).map((item) => item.tab),
+    blockedTabs: ranked.filter((item) => item.blocked).map((item) => item.tab),
+  };
+};
+
+const recomputeSnapshotOptimals = (snapshot: EditorSnapshot): EditorSnapshot => {
+  const next = JSON.parse(JSON.stringify(snapshot)) as EditorSnapshot;
+  next.notes = next.notes.map((note) => {
+    const alternates = computeNoteAlternatesForSnapshot(next, note);
+    return {
+      ...note,
+      optimals: alternates.possibleTabs.map((tab) => [tab[0], tab[1]] as TabCoord),
+    };
+  });
+  return next;
+};
+
 const mergeRedundantCutRegions = (draft: EditorSnapshot, regions: CutWithCoord[]): CutWithCoord[] => {
   const merged: CutWithCoord[] = [];
   normalizeCutRegions(draft, regions).forEach(([region, coord]) => {
@@ -888,8 +958,6 @@ export default function GteWorkspace({
   const tempChordIdRef = useRef(1);
   const noteIdMapRef = useRef<Map<number, number>>(new Map());
   const chordIdMapRef = useRef<Map<number, number>>(new Map());
-  const noteAlternatesRequestSeqRef = useRef(0);
-  const noteAlternatesNoteIdRef = useRef<number | null>(null);
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const timelineOuterRef = useRef<HTMLDivElement | null>(null);
   const draftFretRef = useRef<HTMLInputElement | null>(null);
@@ -1206,7 +1274,6 @@ export default function GteWorkspace({
     [snapshot.notes, selectedNoteIds]
   );
   const selectedSingleNoteId = selectedNoteIds.length === 1 ? selectedNoteIds[0] : null;
-  const selectedNoteTabKey = selectedNote ? `${selectedNote.tab[0]}:${selectedNote.tab[1]}` : null;
 
   const activeChordIds = useMemo(
     () => selectedChordIds.filter((id) => snapshot.chords.some((chord) => chord.id === id)),
@@ -1408,60 +1475,24 @@ export default function GteWorkspace({
 
   useEffect(() => {
     if (selectedSingleNoteId === null || !selectedNote) {
-      noteAlternatesNoteIdRef.current = null;
       setNoteAlternates(null);
       return;
     }
-    let cancelled = false;
-    noteAlternatesRequestSeqRef.current += 1;
-    const requestSeq = noteAlternatesRequestSeqRef.current;
-    const selectedId = selectedSingleNoteId;
     const resolvedId =
-      selectedId < 0 ? noteIdMapRef.current.get(selectedId) ?? selectedId : selectedId;
-    const hasTabInLoadedAlternates = Boolean(
-      selectedNoteTabKey &&
-        noteAlternates &&
-        noteAlternatesNoteIdRef.current === resolvedId &&
-        [...(noteAlternates.possibleTabs || []), ...(noteAlternates.blockedTabs || [])].some(
-          (tab) => `${tab[0]}:${tab[1]}` === selectedNoteTabKey
-        )
-    );
-    if (hasTabInLoadedAlternates) {
-      return () => {
-        cancelled = true;
-      };
-    }
-    setNoteAlternates(null);
+      selectedSingleNoteId < 0
+        ? noteIdMapRef.current.get(selectedSingleNoteId) ?? selectedSingleNoteId
+        : selectedSingleNoteId;
     if (resolvedId < 0) {
-      return () => {
-        cancelled = true;
-      };
+      setNoteAlternates(null);
+      return;
     }
-    void gteApi
-      .getNoteOptimals(editorId, resolvedId)
-      .then((data) => {
-        if (cancelled || requestSeq !== noteAlternatesRequestSeqRef.current) return;
-        const latestSelectedId = selectedNoteIdsRef.current[0];
-        if (!Number.isInteger(latestSelectedId)) return;
-        const latestResolvedId =
-          latestSelectedId < 0
-            ? noteIdMapRef.current.get(latestSelectedId) ?? latestSelectedId
-            : latestSelectedId;
-        if (latestResolvedId !== resolvedId) return;
-        const latestNote = snapshotRef.current.notes.find((note) => note.id === latestResolvedId);
-        if (!latestNote) return;
-        noteAlternatesNoteIdRef.current = resolvedId;
-        setNoteAlternates(data);
-      })
-      .catch(() => {
-        if (cancelled || requestSeq !== noteAlternatesRequestSeqRef.current) return;
-        noteAlternatesNoteIdRef.current = null;
-        setNoteAlternates(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [editorId, noteAlternates, selectedNote?.id, selectedNoteTabKey, selectedSingleNoteId]);
+    const note = snapshotRef.current.notes.find((item) => item.id === resolvedId);
+    if (!note) {
+      setNoteAlternates(null);
+      return;
+    }
+    setNoteAlternates(computeNoteAlternatesForSnapshot(snapshotRef.current, note));
+  }, [selectedNote, selectedSingleNoteId, snapshot.notes, snapshot.chords, snapshot.cutPositionsWithCoords]);
 
   useEffect(() => {
     if (selectedNoteIds.length !== 1 || !selectedNote || selectedNote.id !== noteMenuNoteId) {
@@ -1617,8 +1648,9 @@ export default function GteWorkspace({
     (next: EditorSnapshot, options?: { recordUndo?: boolean; recordHistory?: boolean }) => {
       const recordUndo = options?.recordUndo !== false && !useExternalHistory;
       const recordHistory = options?.recordHistory !== false;
+      const nextWithOptimals = recomputeSnapshotOptimals(next);
       const current = snapshotRef.current;
-      const sameSnapshot = current ? snapshotsEqual(current, next) : false;
+      const sameSnapshot = current ? snapshotsEqual(current, nextWithOptimals) : false;
       if (recordUndo && current && !sameSnapshot) {
         const nextUndo = [...undoRef.current, cloneSnapshot(current)];
         if (nextUndo.length > MAX_HISTORY) {
@@ -1629,8 +1661,8 @@ export default function GteWorkspace({
         redoRef.current = [];
         setRedoCount(0);
       }
-      snapshotRef.current = next;
-      onSnapshotChange(next, { recordHistory });
+      snapshotRef.current = nextWithOptimals;
+      onSnapshotChange(nextWithOptimals, { recordHistory });
     },
     [cloneSnapshot, onSnapshotChange, snapshotsEqual, useExternalHistory]
   );
@@ -3971,9 +4003,28 @@ export default function GteWorkspace({
 
   const handleAssignOptimals = () => {
     if (!selectedNoteIds.length) return;
-    const resolvedIds = selectedNoteIds.map((id) => resolveNoteId(id)).filter((id) => id >= 0);
-    if (!resolvedIds.length) return;
-    void runMutation(() => gteApi.assignOptimals(editorId, resolvedIds));
+    void runMutation(
+      async () => ({}),
+      {
+        localApply: (draft) => {
+          const resolvedIds = selectedNoteIds
+            .map((id) => (id < 0 ? noteIdMapRef.current.get(id) ?? id : id))
+            .filter((id) => id >= 0);
+          if (!resolvedIds.length) return;
+          const selectedIdSet = new Set(resolvedIds);
+          draft.notes.forEach((note) => {
+            if (!selectedIdSet.has(note.id)) return;
+            const alternates = computeNoteAlternatesForSnapshot(draft, note);
+            const nextTab =
+              alternates.possibleTabs[0] || alternates.blockedTabs[0] || ([note.tab[0], note.tab[1]] as TabCoord);
+            note.tab = [nextTab[0], nextTab[1]];
+            note.midiNum = getTabMidi(draft, note.tab);
+            note.optimals = alternates.possibleTabs.map((tab) => [tab[0], tab[1]] as TabCoord);
+          });
+        },
+        serverMode: "local-first",
+      }
+    );
   };
 
   const handleJoinSelectedNotes = () => {
