@@ -9008,7 +9008,7 @@ export default function GteWorkspace({
                 )}
               </div>
               {showMobileInlineToolbar && (
-                <div className={`${toolbarOpen ? "w-[min(10.5rem,42vw)]" : "w-[5.25rem]"} shrink-0 transition-[width] duration-150`}>
+                <div className={`${toolbarOpen ? "w-[min(10.5rem,42vw)]" : "w-[5.25rem]"} shrink-0 self-start transition-[width] duration-150`}>
                   <div className="flex h-full min-h-0 flex-col gap-2">
                     <button
                       type="button"
@@ -9023,15 +9023,11 @@ export default function GteWorkspace({
                     >
                       Toolbar
                     </button>
-                    <div className="min-h-0 flex-1">
-                      {toolbarOpen ? (
-                        renderToolbarPanel(true)
-                      ) : (
-                        <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/75 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                          Hidden
-                        </div>
-                      )}
-                    </div>
+                    {toolbarOpen && (
+                      <div className="min-h-0 flex-1">
+                        {renderToolbarPanel(true)}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -9042,8 +9038,6 @@ export default function GteWorkspace({
     </div>
   );
 }
-
-
 
 
 
