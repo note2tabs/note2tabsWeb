@@ -1345,12 +1345,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setTimeSignatureDraft(String(normalized));
     const current = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
     const allTracksMatch = canvas.editors.every((lane) => (normalizeTimeSignature(lane.timeSignature) ?? 8) === normalized);
-    const currentBpm = normalizeBpm(bpmDraft) ?? secondsPerBarToBpm(canvas.secondsPerBar, current);
-    const secondsPerBar = bpmToSecondsPerBar(currentBpm, normalized);
-    if (!secondsPerBar) return;
-    setBpmDraft(formatBpm(currentBpm));
-    const secondsAlreadyMatch = Math.abs(secondsPerBar - (canvas.secondsPerBar || DEFAULT_SECONDS_PER_BAR)) < 0.0001;
-    if (normalized === current && allTracksMatch && secondsAlreadyMatch) return;
+    const secondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
+    setBpmDraft(formatBpm(secondsPerBarToBpm(secondsPerBar, normalized)));
+    if (normalized === current && allTracksMatch) return;
 
     setTimeSignatureSaving(true);
     setTimeSignatureError(null);
