@@ -7028,7 +7028,7 @@ export default function GteWorkspace({
   const renderToolbarPanel = (inlineMobile: boolean) => {
     const panelClass = inlineMobile
       ? "h-auto w-full min-w-0 overflow-visible rounded-2xl border border-slate-200 bg-white p-2 shadow-lg"
-      : "fixed bottom-5 left-1/2 z-[9998] w-[min(800px,calc(100vw-1.5rem))] -translate-x-1/2 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-xl shadow-slate-900/10 backdrop-blur";
+      : "fixed right-4 top-1/2 z-[9998] max-h-[calc(100vh-6rem)] w-[min(18rem,calc(100vw-5rem))] -translate-y-1/2 overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2.5 shadow-xl shadow-slate-900/10 backdrop-blur";
 
     const sectionClass =
       "min-w-0 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm";
@@ -7037,13 +7037,13 @@ export default function GteWorkspace({
       "mb-2 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400";
 
     const textButtonClass =
-      "group relative flex h-10 w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-center text-[11px] font-semibold leading-none text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
+      "group relative flex h-8 w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-2 text-center text-[10px] font-semibold leading-none text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
 
     const activeButtonClass =
-      "group relative flex h-10 w-full items-center justify-center rounded-lg px-3 text-center text-[11px] font-semibold leading-none text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none";
+      "group relative flex h-8 w-full items-center justify-center rounded-lg px-2 text-center text-[10px] font-semibold leading-none text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none";
 
     const iconButtonClass =
-      "group relative flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
+      "group relative flex h-8 w-full items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
 
     const tooltipClass =
       "pointer-events-none absolute -top-7 rounded-md bg-slate-950 px-1.5 py-0.5 text-[9px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100";
@@ -7055,12 +7055,14 @@ export default function GteWorkspace({
         className={panelClass}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-2 flex items-start justify-between gap-2">
           <div>
             <div className="text-[11px] font-bold text-slate-800">Toolbar</div>
-            <div className="text-[9px] text-slate-400">
-              Edit notes, chords and playing coordinates
-            </div>
+            {inlineMobile ? (
+              <div className="text-[9px] text-slate-400">
+                Edit notes, chords and playing coordinates
+              </div>
+            ) : null}
           </div>
 
           <button
@@ -7076,7 +7078,7 @@ export default function GteWorkspace({
           className={
             mobileViewport
               ? "grid grid-cols-1 gap-2"
-              : "grid grid-cols-[minmax(0,1fr)_320px] gap-2"
+              : "grid grid-cols-1 gap-2"
           }
         >
           <div className={sectionClass}>
@@ -7173,7 +7175,7 @@ export default function GteWorkspace({
                 Merge Notes
               </button>
 
-              <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_156px] gap-1.5">
+              <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_86px] gap-1.5">
                 <select
                   data-scale-mode-select="true"
                   value={scaleToolMode}
@@ -7190,7 +7192,7 @@ export default function GteWorkspace({
                       });
                     }
                   }}
-                  className="h-10 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 shadow-sm outline-none transition focus:border-slate-400"
+                  className="h-8 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 shadow-sm outline-none transition focus:border-slate-400"
                   title="Scale mode - Shortcut: H"
                 >
                   <option value="length">Length scaling</option>
@@ -7460,7 +7462,7 @@ export default function GteWorkspace({
                 onClick={() => setToolbarOpen((prev) => !prev)}
                 aria-pressed={toolbarOpen}
                 title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
-                className={`pointer-events-auto flex h-12 items-center justify-center rounded-full border px-5 text-sm font-semibold shadow-md backdrop-blur transition ${
+                className={`pointer-events-auto flex h-10 items-center justify-center rounded-full border px-3 text-xs font-semibold shadow-md backdrop-blur transition ${
                   mobileViewport ? "" : "md:absolute md:left-0"
                 } ${
                   toolbarOpen
@@ -7468,7 +7470,7 @@ export default function GteWorkspace({
                     : "border-sky-300 bg-sky-100/95 text-sky-900 hover:bg-sky-50"
                 }`}
               >
-                Toolbar (T)
+                Tools
               </button>
             )}
             {mobileViewport ? (
