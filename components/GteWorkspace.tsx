@@ -6073,7 +6073,7 @@ export default function GteWorkspace({
       lastAddedNoteLengthRef.current = clampEventLength(snapped.length);
       setKeyboardGridCursor({ time: snapped.startTime, stringIndex: cursor.stringIndex });
       setKeyboardAddMode({ noteId: tempId, fretText: String(fretValue) });
-      setSelectedNoteIds([tempId]);
+      setSelectedNoteIds([]);
       setSelectedChordIds([]);
       setDraftNote(null);
       setDraftNoteAnchor(null);

@@ -7,6 +7,7 @@ export type Note = {
   midiNum: number;
   tab: TabCoord;
   optimals: TabCoord[];
+  
 };
 
 export type Chord = {
