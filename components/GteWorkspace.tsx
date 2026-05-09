@@ -6267,9 +6267,16 @@ export default function GteWorkspace({
     const events: Array<{
       start: number;
       duration: number;
+      baseDuration: number;
       midi: number;
       gain: number;
       stringIndex?: number;
+      startEffect?: number;
+      endEffect?: number;
+      preBendSustain?: number;
+      preBendTransition?: number;
+      bendSustain?: number;
+      bendTransition?: number;
     }> = [];
 
     const pushEvent = (
@@ -6277,22 +6284,40 @@ export default function GteWorkspace({
       length: number,
       midi: number,
       gain: number,
-      stringIndex?: number
+      stringIndex?: number,
+      options?: {
+        startEffect?: number;
+        endEffect?: number;
+        preBendSustain?: number;
+        preBendTransition?: number;
+        bendSustain?: number;
+        bendTransition?: number;
+      }
     ) => {
+      const baseLength = Math.max(1, Math.round(length));
+      const extraEndLength =
+        options?.endEffect && options.endEffect >= 1 && options.endEffect <= 3
+          ? Math.max(0, Math.round(options.bendTransition || 0)) +
+            Math.max(0, Math.round(options.bendSustain || 0))
+          : 0;
       const eventStart = Math.round(startTime);
-      const eventEnd = Math.round(startTime + length);
+      const eventEnd = Math.round(startTime + baseLength + extraEndLength);
       if (eventEnd <= playbackStartFrame || eventStart >= playbackEndFrame) return;
       const trimmedStart = Math.max(eventStart, playbackStartFrame);
       const trimmedEnd = Math.min(eventEnd, playbackEndFrame);
       const durationFrames = trimmedEnd - trimmedStart;
       if (durationFrames <= 0) return;
+      const trimmedBaseEnd = Math.min(eventStart + baseLength, trimmedEnd);
+      const baseDurationFrames = Math.max(0, trimmedBaseEnd - trimmedStart);
       endFrame = Math.max(endFrame, trimmedEnd);
       events.push({
         start: frameDeltaToSeconds(trimmedStart - playbackStartFrame, playbackFps, runPlaybackSpeed),
         duration: frameDeltaToSeconds(durationFrames, playbackFps, runPlaybackSpeed),
+        baseDuration: frameDeltaToSeconds(baseDurationFrames, playbackFps, runPlaybackSpeed),
         midi,
         gain,
         stringIndex,
+        ...options,
       });
     };
 
@@ -6300,7 +6325,14 @@ export default function GteWorkspace({
       const key = `note-${note.id}`;
       const gain = conflictInfo.conflictKeys.has(key) ? 0.25 : 0.55;
       const midi = Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(note.tab);
-      pushEvent(note.startTime, note.length, midi, gain, note.tab[0]);
+      pushEvent(note.startTime, note.length, midi, gain, note.tab[0], {
+        startEffect: note.startEffect,
+        endEffect: note.endEffect,
+        preBendSustain: note.preBendSustain,
+        preBendTransition: note.preBendTransition,
+        bendSustain: note.bendSustain,
+        bendTransition: note.bendTransition,
+      });
     });
     snapshot.chords.forEach((chord) => {
       chord.currentTabs.forEach((tab, idx) => {
@@ -6348,9 +6380,16 @@ export default function GteWorkspace({
     const schedulePluck = (evt: {
       start: number;
       duration: number;
+      baseDuration: number;
       midi: number;
       gain: number;
       stringIndex?: number;
+      startEffect?: number;
+      endEffect?: number;
+      preBendSustain?: number;
+      preBendTransition?: number;
+      bendSustain?: number;
+      bendTransition?: number;
     }) => {
       if (!Number.isFinite(evt.midi) || evt.midi <= 0) return;
       schedulePreparedTrackNote({
@@ -6361,6 +6400,21 @@ export default function GteWorkspace({
         gain: evt.gain,
         startTime: playBase + evt.start,
         duration: Math.max(0.05, evt.duration),
+        baseDuration: Math.max(0.05, evt.baseDuration),
+        startEffect: evt.startEffect,
+        endEffect: evt.endEffect,
+        preBendSustain: evt.preBendSustain
+          ? frameDeltaToSeconds(evt.preBendSustain, playbackFps, runPlaybackSpeed)
+          : 0,
+        preBendTransition: evt.preBendTransition
+          ? frameDeltaToSeconds(evt.preBendTransition, playbackFps, runPlaybackSpeed)
+          : 0,
+        bendSustain: evt.bendSustain
+          ? frameDeltaToSeconds(evt.bendSustain, playbackFps, runPlaybackSpeed)
+          : 0,
+        bendTransition: evt.bendTransition
+          ? frameDeltaToSeconds(evt.bendTransition, playbackFps, runPlaybackSpeed)
+          : 0,
       });
     };
 

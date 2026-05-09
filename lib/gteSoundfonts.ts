@@ -54,6 +54,13 @@ export type ScheduledTrackNote = {
   gain: number;
   startTime: number;
   duration: number;
+  baseDuration?: number;
+  startEffect?: number;
+  endEffect?: number;
+  preBendSustain?: number;
+  preBendTransition?: number;
+  bendSustain?: number;
+  bendTransition?: number;
 };
 
 const SOUND_FONT_MANIFEST_PATH = "/soundfonts/manifest.json";
@@ -85,6 +92,7 @@ const toFiniteNumber = (value: unknown, fallback: number) => {
 };
 
 const midiToFrequency = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
+const semitoneToRate = (semitones: number) => Math.pow(2, semitones / 12);
 
 const timecentsToSeconds = (value: unknown, fallback: number, min: number, max: number) => {
   const parsed = Number(value);
@@ -191,12 +199,82 @@ const getSampleBuffer = (ctx: AudioContext, sample: SoundfontSample) => {
   return buffer;
 };
 
+const applyPitchBendAutomation = (params: {
+  param: AudioParam;
+  baseValue: number;
+  scheduledStartTime: number;
+  baseDuration: number;
+  startEffect?: number;
+  endEffect?: number;
+  preBendSustain?: number;
+  preBendTransition?: number;
+  bendSustain?: number;
+  bendTransition?: number;
+}) => {
+  const {
+    param,
+    baseValue,
+    scheduledStartTime,
+    baseDuration,
+    startEffect,
+    endEffect,
+    preBendSustain = 0,
+    preBendTransition = 0,
+    bendSustain = 0,
+    bendTransition = 0,
+  } = params;
+  const mainNoteEnd = scheduledStartTime + Math.max(0.05, baseDuration);
+
+  param.cancelScheduledValues(scheduledStartTime);
+  param.setValueAtTime(baseValue, scheduledStartTime);
+
+  if (Number.isFinite(startEffect) && startEffect! >= 1 && startEffect! <= 3) {
+    const bentValue = baseValue * semitoneToRate(startEffect!);
+    const holdEnd = Math.min(mainNoteEnd, scheduledStartTime + Math.max(0, preBendSustain));
+    const releaseEnd = Math.min(mainNoteEnd, holdEnd + Math.max(0, preBendTransition));
+    param.setValueAtTime(bentValue, scheduledStartTime);
+    param.setValueAtTime(bentValue, holdEnd);
+    if (releaseEnd > holdEnd) {
+      param.linearRampToValueAtTime(baseValue, releaseEnd);
+    } else {
+      param.setValueAtTime(baseValue, holdEnd);
+    }
+  }
+
+  if (Number.isFinite(endEffect) && endEffect! >= 1 && endEffect! <= 3) {
+    const bentValue = baseValue * semitoneToRate(endEffect!);
+    const transitionStart = mainNoteEnd;
+    const transitionEnd = transitionStart + Math.max(0, bendTransition);
+    const sustainEnd = transitionEnd + Math.max(0, bendSustain);
+    param.setValueAtTime(baseValue, transitionStart);
+    if (transitionEnd > transitionStart) {
+      param.linearRampToValueAtTime(bentValue, transitionEnd);
+    } else {
+      param.setValueAtTime(bentValue, transitionStart);
+    }
+    param.setValueAtTime(bentValue, sustainEnd);
+  }
+};
+
 const scheduleBuiltinSynthNote = (
   destination: AudioNode,
   option: BuiltinTrackInstrumentOption,
   params: Omit<ScheduledTrackNote, "destination" | "instrument">
 ) => {
-  const { ctx, midi, gain, startTime, duration } = params;
+  const {
+    ctx,
+    midi,
+    gain,
+    startTime,
+    duration,
+    baseDuration = duration,
+    startEffect,
+    endEffect,
+    preBendSustain,
+    preBendTransition,
+    bendSustain,
+    bendTransition,
+  } = params;
   if (!Number.isFinite(midi) || midi <= 0) return;
   const stopAt = startTime + Math.max(0.05, duration);
   const peak = Math.max(0, gain * Math.max(0, option.gain ?? 1));
@@ -204,6 +282,18 @@ const scheduleBuiltinSynthNote = (
   const oscillator = ctx.createOscillator();
   oscillator.type = option.waveform;
   oscillator.frequency.setValueAtTime(midiToFrequency(midi), startTime);
+  applyPitchBendAutomation({
+    param: oscillator.frequency,
+    baseValue: midiToFrequency(midi),
+    scheduledStartTime: startTime,
+    baseDuration,
+    startEffect,
+    endEffect,
+    preBendSustain,
+    preBendTransition,
+    bendSustain,
+    bendTransition,
+  });
 
   const amp = ctx.createGain();
   amp.gain.setValueAtTime(0, startTime);
@@ -222,7 +312,20 @@ const scheduleSoundfontNote = (
   instrument: Extract<PreparedTrackInstrument, { kind: "sf2" }>,
   params: Omit<ScheduledTrackNote, "destination" | "instrument">
 ) => {
-  const { ctx, midi, gain, startTime, duration } = params;
+  const {
+    ctx,
+    midi,
+    gain,
+    startTime,
+    duration,
+    baseDuration = duration,
+    startEffect,
+    endEffect,
+    preBendSustain,
+    preBendTransition,
+    bendSustain,
+    bendTransition,
+  } = params;
   const zones = instrument.getActiveZones(instrument.preset, midi);
   if (!zones.length) {
     scheduleBuiltinSynthNote(destination, BUILTIN_TRACK_INSTRUMENTS[0], params);
@@ -249,6 +352,18 @@ const scheduleSoundfontNote = (
       (midi * 100 - (rootKey * 100 + sample.header.pitchCorrection - fineTune)) / 1200
     );
     source.playbackRate.setValueAtTime(playbackRate, startTime);
+    applyPitchBendAutomation({
+      param: source.playbackRate,
+      baseValue: playbackRate,
+      scheduledStartTime: startTime,
+      baseDuration,
+      startEffect,
+      endEffect,
+      preBendSustain,
+      preBendTransition,
+      bendSustain,
+      bendTransition,
+    });
 
     const sampleModes = Math.round(toFiniteNumber(generators.sampleModes, 0));
     const startLoop =
