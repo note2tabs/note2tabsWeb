@@ -763,8 +763,8 @@ type NoteEffectVisual = {
   top: number;
   width: number;
   height: number;
-  path: string;
-  label?: "h" | "p";
+  path?: string;
+  label?: "h" | "p" | `b${1 | 2 | 3}`;
   strokeDasharray?: string;
   strokeWidth?: number;
 };
@@ -4796,25 +4796,67 @@ export default function GteWorkspace({
   }, [sharedTimeSignature, snapshot.framesPerMessure, snapshot.timeSignature]);
 
   const getSuggestedBendDurations = useCallback(
-    (note: { id: number; startTime: number; tab: TabCoord }) => {
+    (note: { id: number; startTime: number; length?: number; tab: TabCoord }, effectType: "start" | "end") => {
       const beatFrames = getBeatFrames();
-      const quarterBeat = Math.max(1, Math.round(beatFrames / 4));
-      const halfQuarterBeat = Math.max(1, Math.round(quarterBeat / 2));
-      const nextSameStringNote = snapshot.notes
-        .filter((item) => item.id !== note.id && item.tab[0] === note.tab[0] && item.startTime > note.startTime)
-        .sort((left, right) => left.startTime - right.startTime)[0];
-      const isCloseFollowUp =
-        nextSameStringNote !== undefined && nextSameStringNote.startTime - note.startTime < Math.max(1, Math.round(beatFrames / 2));
-      const value = isCloseFollowUp ? halfQuarterBeat : quarterBeat;
-      return { sustain: value, transition: value };
+      const defaultTotal = Math.max(1, Math.round(beatFrames / 2));
+      const sameStringNotes = snapshot.notes
+        .filter((item) => item.id !== note.id && item.tab[0] === note.tab[0])
+        .sort((left, right) => left.startTime - right.startTime);
+      const noteEnd = note.startTime + Math.max(1, Math.round(note.length ?? 1));
+      const availableFrames =
+        effectType === "start"
+          ? (() => {
+              const previousNote = [...sameStringNotes]
+                .reverse()
+                .find((item) => item.startTime < note.startTime);
+              if (!previousNote) return defaultTotal;
+              const previousEnd = previousNote.startTime + Math.max(1, Math.round(previousNote.length));
+              return Math.max(0, note.startTime - previousEnd);
+            })()
+          : (() => {
+              const nextNote = sameStringNotes.find((item) => item.startTime > note.startTime);
+              if (!nextNote) return defaultTotal;
+              return Math.max(0, nextNote.startTime - noteEnd);
+            })();
+      const total = Math.min(defaultTotal, availableFrames);
+      const transition = Math.max(0, Math.floor(total / 2));
+      const sustain = Math.max(0, total - transition);
+      return { sustain, transition };
     },
     [getBeatFrames, snapshot.notes]
   );
 
-  const noteEffectVisuals = useMemo<NoteEffectVisual[]>(() => {
-    const beatFrames = getBeatFrames();
-    const halfBeatFrames = Math.max(1, Math.round(beatFrames / 2));
+  const getMaxEffectDurationFrames = useCallback(() => {
+    return Math.max(1, Math.round(getBeatFrames() * 2));
+  }, [getBeatFrames]);
 
+  const getMaxBendWindowFrames = useCallback(
+    (note: { id: number; startTime: number; length: number; tab: TabCoord }, effectType: "start" | "end") => {
+      const sameStringNotes = snapshot.notes
+        .filter((item) => item.id !== note.id && item.tab[0] === note.tab[0])
+        .sort((left, right) => left.startTime - right.startTime);
+      const noteEnd = note.startTime + Math.max(1, Math.round(note.length));
+      if (effectType === "start") {
+        const previousNote = [...sameStringNotes]
+          .reverse()
+          .find((item) => item.startTime < note.startTime);
+        const previousEnd =
+          previousNote === undefined
+            ? Number.POSITIVE_INFINITY
+            : previousNote.startTime + Math.max(1, Math.round(previousNote.length));
+        return Math.max(0, Math.min(getMaxEffectDurationFrames(), note.startTime - previousEnd));
+      }
+      const nextNote = sameStringNotes.find((item) => item.startTime > note.startTime);
+      const nextStart = nextNote === undefined ? Number.POSITIVE_INFINITY : nextNote.startTime;
+      return Math.max(0, Math.min(getMaxEffectDurationFrames(), nextStart - noteEnd));
+    },
+    [getMaxEffectDurationFrames, snapshot.notes]
+  );
+
+  const noteEffectVisuals = useMemo<NoteEffectVisual[]>(() => {
+    if (dragging?.type === "note" || multiDragDelta !== null) {
+      return [];
+    }
     return snapshot.notes.flatMap((note) => {
       const stringIndex = note.tab[0];
       const noteRowIndex = Math.floor(note.startTime / rowFrames);
@@ -4827,70 +4869,31 @@ export default function GteWorkspace({
       const rowTop = noteRowIndex * rowStride;
       const arcHeight = mobileViewport ? 10 : 12;
       const arcTop = Math.max(rowTop, rowTop + stringIndex * ROW_HEIGHT - arcHeight);
+      const noteTop = rowTop + stringIndex * ROW_HEIGHT + (mobileViewport ? 1 : 4);
+      const noteHeight = mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 8;
       const bendUnitHeight = mobileViewport ? 5 : 7;
-      const sameStringNotes = snapshot.notes
-        .filter((item) => item.tab[0] === stringIndex)
-        .sort((left, right) => left.startTime - right.startTime);
 
       const visuals: NoteEffectVisual[] = [];
 
       if (note.startEffect === 4) {
-        const previousNote = [...sameStringNotes]
-          .reverse()
-          .find((item) => item.id !== note.id && item.startTime < note.startTime);
-        const previousEnd =
-          previousNote === undefined
-            ? null
-            : previousNote.startTime + Math.max(1, Math.round(previousNote.length));
-        const previousRowIndex =
-          previousEnd === null ? null : Math.floor(previousEnd / rowFrames);
-        const canConnectPrevious =
-          previousEnd !== null &&
-          note.startTime - previousEnd < beatFrames &&
-          previousRowIndex === noteRowIndex;
-        const startFrame = canConnectPrevious
-          ? previousEnd
-          : Math.max(noteRowStart, note.startTime - halfBeatFrames);
-        const startLeft = (startFrame - noteRowStart) * scale;
-        const endLeft = noteLeft;
-        const width = Math.max(12, endLeft - startLeft);
-        const gapPercent = Math.min(45, Math.max(18, (mobileViewport ? 12 : 14) / width * 100));
-        const visiblePercent = Math.max(0, (100 - gapPercent) / 2);
         visuals.push({
           key: `hammer-${note.id}`,
           label: "h",
-          left: Math.max(0, Math.min(startLeft, noteRowWidth - width)),
-          top: arcTop,
-          width,
-          height: arcHeight,
-          path: `M 0 ${arcHeight - 1} C ${width * 0.2} 0, ${width * 0.8} 0, ${width} ${arcHeight - 1}`,
-          strokeDasharray: `${visiblePercent} ${gapPercent} ${visiblePercent} 0`,
+          left: Math.max(0, noteLeft - (mobileViewport ? 12 : 14)),
+          top: noteTop,
+          width: mobileViewport ? 10 : 12,
+          height: noteHeight,
         });
       }
 
       if (note.endEffect === 4) {
-        const noteEnd = note.startTime + Math.max(1, Math.round(note.length));
-        const nextNote = sameStringNotes.find((item) => item.id !== note.id && item.startTime > note.startTime);
-        const nextRowIndex = nextNote === undefined ? null : Math.floor(nextNote.startTime / rowFrames);
-        const canConnectNext =
-          nextNote !== undefined &&
-          nextNote.startTime - noteEnd < beatFrames &&
-          nextRowIndex === noteRowIndex;
-        const endFrame = canConnectNext ? nextNote.startTime : Math.min(noteRowStart + noteRowFrameLength, noteEnd + halfBeatFrames);
-        const startLeft = noteRight;
-        const endLeft = (endFrame - noteRowStart) * scale;
-        const width = Math.max(12, endLeft - startLeft);
-        const gapPercent = Math.min(45, Math.max(18, (mobileViewport ? 12 : 14) / width * 100));
-        const visiblePercent = Math.max(0, (100 - gapPercent) / 2);
         visuals.push({
           key: `pull-${note.id}`,
           label: "p",
-          left: Math.max(0, Math.min(startLeft, noteRowWidth - width)),
-          top: arcTop,
-          width,
-          height: arcHeight,
-          path: `M 0 ${arcHeight - 1} C ${width * 0.2} 0, ${width * 0.8} 0, ${width} ${arcHeight - 1}`,
-          strokeDasharray: `${visiblePercent} ${gapPercent} ${visiblePercent} 0`,
+          left: Math.max(0, Math.min(noteRight + 2, noteRowWidth - (mobileViewport ? 10 : 12))),
+          top: noteTop,
+          width: mobileViewport ? 10 : 12,
+          height: noteHeight,
         });
       }
 
@@ -4905,6 +4908,8 @@ export default function GteWorkspace({
         const height = bendHeight + 4;
         const baseY = height - 1;
         const topY = Math.max(1, height - bendHeight - 1);
+        const gapPercent = Math.min(45, Math.max(18, (mobileViewport ? 12 : 18) / width * 100));
+        const visiblePercent = Math.max(0, (100 - gapPercent) / 2);
         visuals.push({
           key: `prebend-${note.id}`,
           left: Math.max(0, noteLeft - width),
@@ -4915,6 +4920,8 @@ export default function GteWorkspace({
             0,
             width - clampedTransitionWidth * 0.65
           )} ${topY} ${width} ${baseY}`,
+          label: `b${Math.max(1, Math.min(3, note.startEffect))}` as "b1" | "b2" | "b3",
+          strokeDasharray: `${visiblePercent} ${gapPercent} ${visiblePercent} 0`,
           strokeWidth: mobileViewport ? 1.25 : 1.5,
         });
       }
@@ -4930,6 +4937,8 @@ export default function GteWorkspace({
         const height = bendHeight + 4;
         const baseY = height - 1;
         const topY = Math.max(1, height - bendHeight - 1);
+        const gapPercent = Math.min(45, Math.max(18, (mobileViewport ? 12 : 18) / width * 100));
+        const visiblePercent = Math.max(0, (100 - gapPercent) / 2);
         visuals.push({
           key: `bend-${note.id}`,
           left: Math.max(0, Math.min(noteRight, noteRowWidth - width)),
@@ -4937,6 +4946,8 @@ export default function GteWorkspace({
           width,
           height,
           path: `M 0 ${baseY} Q ${clampedTransitionWidth * 0.65} ${topY} ${clampedTransitionWidth} ${topY} L ${width} ${topY}`,
+          label: `b${Math.max(1, Math.min(3, note.endEffect))}` as "b1" | "b2" | "b3",
+          strokeDasharray: `${visiblePercent} ${gapPercent} ${visiblePercent} 0`,
           strokeWidth: mobileViewport ? 1.25 : 1.5,
         });
       }
@@ -4948,10 +4959,12 @@ export default function GteWorkspace({
     getBeatFrames,
     getRowBarCount,
     mobileViewport,
+    multiDragDelta,
     rowFrames,
     rowStride,
     scale,
     snapshot.notes,
+    dragging,
   ]);
 
   const deriveEffectMode = useCallback((effectValue: number, effectType: "start" | "end"): NoteEffectMode => {
@@ -4963,32 +4976,42 @@ export default function GteWorkspace({
 
   const buildNoteMenuDraft = useCallback(
     (note: (typeof snapshot.notes)[number]): NoteMenuDraftState => {
-      const suggested = getSuggestedBendDurations(note);
+      const suggestedStart = getSuggestedBendDurations(note, "start");
+      const suggestedEnd = getSuggestedBendDurations(note, "end");
       return {
         fret: String(note.tab[1]),
         length: String(note.length),
         startEffectMode: deriveEffectMode(note.startEffect, "start"),
         startEffectSemitone: String(note.startEffect >= 1 && note.startEffect <= 3 ? note.startEffect : 1),
-        preBendSustain: String(note.preBendSustain > 0 ? note.preBendSustain : suggested.sustain),
-        preBendTransition: String(note.preBendTransition > 0 ? note.preBendTransition : suggested.transition),
+        preBendSustain: String(note.preBendSustain > 0 ? note.preBendSustain : suggestedStart.sustain),
+        preBendTransition: String(note.preBendTransition > 0 ? note.preBendTransition : suggestedStart.transition),
         endEffectMode: deriveEffectMode(note.endEffect, "end"),
         endEffectSemitone: String(note.endEffect >= 1 && note.endEffect <= 3 ? note.endEffect : 1),
-        bendSustain: String(note.bendSustain > 0 ? note.bendSustain : suggested.sustain),
-        bendTransition: String(note.bendTransition > 0 ? note.bendTransition : suggested.transition),
+        bendSustain: String(note.bendSustain > 0 ? note.bendSustain : suggestedEnd.sustain),
+        bendTransition: String(note.bendTransition > 0 ? note.bendTransition : suggestedEnd.transition),
       };
     },
-    [deriveEffectMode, getSuggestedBendDurations, snapshot.notes]
+    [deriveEffectMode, getSuggestedBendDurations]
   );
 
-  const parsePositiveEffectDuration = useCallback((value: string, fallback: number) => {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed) || parsed < 0) return Math.max(0, Math.round(fallback));
-    return Math.max(0, Math.round(parsed));
-  }, []);
+  const parsePositiveEffectDuration = useCallback(
+    (value: string, fallback: number) => {
+      const maxDuration = getMaxEffectDurationFrames();
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        return Math.min(maxDuration, Math.max(0, Math.round(fallback)));
+      }
+      return Math.min(maxDuration, Math.max(0, Math.round(parsed)));
+    },
+    [getMaxEffectDurationFrames]
+  );
 
   const getEffectValuesFromDraft = useCallback(
     (draft: NoteMenuDraftState, note: (typeof snapshot.notes)[number]) => {
-      const suggested = getSuggestedBendDurations(note);
+      const suggestedStart = getSuggestedBendDurations(note, "start");
+      const suggestedEnd = getSuggestedBendDurations(note, "end");
+      const maxStartWindow = getMaxBendWindowFrames(note, "start");
+      const maxEndWindow = getMaxBendWindowFrames(note, "end");
       const startEffect =
         draft.startEffectMode === "bend"
           ? Math.max(1, Math.min(3, Math.round(Number(draft.startEffectSemitone) || 1)))
@@ -5001,28 +5024,39 @@ export default function GteWorkspace({
           : draft.endEffectMode === "pull"
             ? 4
             : 0;
+      const rawPreBendSustain =
+        draft.startEffectMode === "bend"
+          ? parsePositiveEffectDuration(draft.preBendSustain, suggestedStart.sustain)
+          : 0;
+      const rawPreBendTransition =
+        draft.startEffectMode === "bend"
+          ? parsePositiveEffectDuration(draft.preBendTransition, suggestedStart.transition)
+          : 0;
+      const clampedPreBendSustain = Math.min(rawPreBendSustain, maxStartWindow);
+      const clampedPreBendTransition = Math.min(
+        rawPreBendTransition,
+        Math.max(0, maxStartWindow - clampedPreBendSustain)
+      );
+      const rawBendSustain =
+        draft.endEffectMode === "bend"
+          ? parsePositiveEffectDuration(draft.bendSustain, suggestedEnd.sustain)
+          : 0;
+      const rawBendTransition =
+        draft.endEffectMode === "bend"
+          ? parsePositiveEffectDuration(draft.bendTransition, suggestedEnd.transition)
+          : 0;
+      const clampedBendSustain = Math.min(rawBendSustain, maxEndWindow);
+      const clampedBendTransition = Math.min(rawBendTransition, Math.max(0, maxEndWindow - clampedBendSustain));
       return {
         startEffect,
         endEffect,
-        preBendSustain:
-          draft.startEffectMode === "bend"
-            ? parsePositiveEffectDuration(draft.preBendSustain, suggested.sustain)
-            : 0,
-        preBendTransition:
-          draft.startEffectMode === "bend"
-            ? parsePositiveEffectDuration(draft.preBendTransition, suggested.transition)
-            : 0,
-        bendSustain:
-          draft.endEffectMode === "bend"
-            ? parsePositiveEffectDuration(draft.bendSustain, suggested.sustain)
-            : 0,
-        bendTransition:
-          draft.endEffectMode === "bend"
-            ? parsePositiveEffectDuration(draft.bendTransition, suggested.transition)
-            : 0,
+        preBendSustain: clampedPreBendSustain,
+        preBendTransition: clampedPreBendTransition,
+        bendSustain: clampedBendSustain,
+        bendTransition: clampedBendTransition,
       };
     },
-    [getSuggestedBendDurations, parsePositiveEffectDuration, snapshot.notes]
+    [getMaxBendWindowFrames, getSuggestedBendDurations, parsePositiveEffectDuration]
   );
 
   const openNoteMenu = (noteId: number, fret: number, length: number, event: ReactMouseEvent) => {
@@ -5242,6 +5276,73 @@ export default function GteWorkspace({
     [getEffectValuesFromDraft, resolveNoteId, runMutation, selectedNote]
   );
 
+  const toggleSelectedNoteEffect = useCallback(
+    (effectType: "start" | "end", effectValue: 1 | 4) => {
+      const resolvedIds = Array.from(
+        new Set(
+          selectedNoteIdsRef.current
+            .map((id) => resolveNoteId(id))
+            .filter((id) => id !== null && id !== undefined)
+        )
+      );
+      if (!resolvedIds.length) return;
+      const notes = resolvedIds
+        .map((id) => snapshotRef.current.notes.find((note) => note.id === id))
+        .filter((note): note is (typeof snapshotRef.current.notes)[number] => Boolean(note));
+      if (!notes.length) return;
+      const field = effectType === "start" ? "startEffect" : "endEffect";
+      const shouldDisable = notes.every((note) => note[field] === effectValue);
+      void runMutation(
+        async () => ({}),
+        {
+          localApply: (draft) => {
+            resolvedIds.forEach((noteId) => {
+              const note = draft.notes.find((item) => item.id === noteId);
+              if (!note) return;
+              const nextEffect = shouldDisable ? 0 : effectValue;
+              if (effectType === "start") {
+                note.startEffect = nextEffect;
+                if (nextEffect !== 1) {
+                  note.preBendSustain = 0;
+                  note.preBendTransition = 0;
+                }
+              } else {
+                note.endEffect = nextEffect;
+                if (nextEffect !== 1) {
+                  note.bendSustain = 0;
+                  note.bendTransition = 0;
+                }
+              }
+            });
+          },
+          serverMode: "local-first",
+        }
+      );
+      if (selectedNote && resolvedIds.length === 1 && resolvedIds[0] === resolveNoteId(selectedNote.id)) {
+        setNoteMenuDraft((prev) => {
+          if (!prev) return prev;
+          if (effectType === "start") {
+            return {
+              ...prev,
+              startEffectMode: shouldDisable ? "none" : effectValue === 4 ? "hammer" : "bend",
+              startEffectSemitone: effectValue === 1 ? "1" : prev.startEffectSemitone,
+              preBendSustain: effectValue === 1 && !shouldDisable ? prev.preBendSustain : "0",
+              preBendTransition: effectValue === 1 && !shouldDisable ? prev.preBendTransition : "0",
+            };
+          }
+          return {
+            ...prev,
+            endEffectMode: shouldDisable ? "none" : effectValue === 4 ? "pull" : "bend",
+            endEffectSemitone: effectValue === 1 ? "1" : prev.endEffectSemitone,
+            bendSustain: effectValue === 1 && !shouldDisable ? prev.bendSustain : "0",
+            bendTransition: effectValue === 1 && !shouldDisable ? prev.bendTransition : "0",
+          };
+        });
+      }
+    },
+    [resolveNoteId, runMutation, selectedNote]
+  );
+
   const applyNoteMenuEffectDraft = useCallback(
     (
       updater: (draft: NoteMenuDraftState, note: (typeof snapshot.notes)[number]) => NoteMenuDraftState,
@@ -5261,7 +5362,7 @@ export default function GteWorkspace({
     (effectType: "start" | "end", mode: NoteEffectMode) => {
       applyNoteMenuEffectDraft(
         (draft, note) => {
-          const suggested = getSuggestedBendDurations(note);
+          const suggested = getSuggestedBendDurations(note, effectType);
           if (effectType === "start") {
             return {
               ...draft,
@@ -5319,12 +5420,37 @@ export default function GteWorkspace({
       value: string,
       commit?: boolean
     ) => {
+      const maxDuration = getMaxEffectDurationFrames();
+      const maxStartWindow = selectedNote ? getMaxBendWindowFrames(selectedNote, "start") : maxDuration;
+      const maxEndWindow = selectedNote ? getMaxBendWindowFrames(selectedNote, "end") : maxDuration;
+      const currentStartSustain = Number(noteMenuDraft?.preBendSustain ?? "0");
+      const currentStartTransition = Number(noteMenuDraft?.preBendTransition ?? "0");
+      const currentEndSustain = Number(noteMenuDraft?.bendSustain ?? "0");
+      const currentEndTransition = Number(noteMenuDraft?.bendTransition ?? "0");
       const normalizedValue =
         field === "startEffectSemitone" || field === "endEffectSemitone"
           ? (() => {
               const parsed = Number(value);
               if (!Number.isFinite(parsed)) return "1";
               return String(Math.max(1, Math.min(3, Math.round(parsed))));
+            })()
+          : field === "preBendSustain" ||
+            field === "preBendTransition" ||
+            field === "bendSustain" ||
+            field === "bendTransition"
+          ? (() => {
+              const parsed = Number(value);
+              if (!Number.isFinite(parsed)) return "0";
+              const rounded = Math.round(parsed);
+              const fieldMax =
+                field === "preBendSustain"
+                  ? Math.max(0, Math.min(maxDuration, maxStartWindow - Math.max(0, currentStartTransition)))
+                  : field === "preBendTransition"
+                    ? Math.max(0, Math.min(maxDuration, maxStartWindow - Math.max(0, currentStartSustain)))
+                    : field === "bendSustain"
+                      ? Math.max(0, Math.min(maxDuration, maxEndWindow - Math.max(0, currentEndTransition)))
+                      : Math.max(0, Math.min(maxDuration, maxEndWindow - Math.max(0, currentEndSustain)));
+              return String(Math.max(0, Math.min(fieldMax, rounded)));
             })()
           : value;
       applyNoteMenuEffectDraft(
@@ -5335,7 +5461,7 @@ export default function GteWorkspace({
         { commit }
       );
     },
-    [applyNoteMenuEffectDraft]
+    [applyNoteMenuEffectDraft, getMaxBendWindowFrames, getMaxEffectDurationFrames, noteMenuDraft, selectedNote]
   );
 
   const adjustNoteEffectSemitone = useCallback(
@@ -5360,6 +5486,10 @@ export default function GteWorkspace({
       const semitoneValue = draft[semitoneField];
       const sustainValue = draft[sustainField];
       const transitionValue = draft[transitionField];
+      const maxDuration = getMaxEffectDurationFrames();
+      const maxWindow = selectedNote ? getMaxBendWindowFrames(selectedNote, prefix) : maxDuration;
+      const sustainMax = Math.max(0, Math.min(maxDuration, maxWindow - Math.max(0, Number(transitionValue) || 0)));
+      const transitionMax = Math.max(0, Math.min(maxDuration, maxWindow - Math.max(0, Number(sustainValue) || 0)));
       const labelClass = compact
         ? "text-[9px] font-semibold uppercase tracking-wide text-slate-500"
         : "text-[10px] text-slate-500";
@@ -5415,6 +5545,7 @@ export default function GteWorkspace({
             <input
               type="number"
               min={0}
+              max={sustainMax}
               inputMode="numeric"
               value={sustainValue}
               onChange={(event) => handleNoteEffectValueChange(sustainField, event.target.value)}
@@ -5433,6 +5564,7 @@ export default function GteWorkspace({
             <input
               type="number"
               min={0}
+              max={transitionMax}
               inputMode="numeric"
               value={transitionValue}
               onChange={(event) => handleNoteEffectValueChange(transitionField, event.target.value)}
@@ -5449,7 +5581,7 @@ export default function GteWorkspace({
         </div>
       );
     },
-    [adjustNoteEffectSemitone, handleNoteEffectValueChange]
+    [adjustNoteEffectSemitone, getMaxBendWindowFrames, getMaxEffectDurationFrames, handleNoteEffectValueChange, selectedNote]
   );
 
   const setMobileNoteFieldValue = useCallback(
@@ -6813,7 +6945,7 @@ export default function GteWorkspace({
         return;
       }
       if (
-        event.code === "KeyH" &&
+        event.code === "KeyQ" &&
         !event.shiftKey &&
         !event.ctrlKey &&
         !event.metaKey &&
@@ -7262,6 +7394,30 @@ export default function GteWorkspace({
         toggleCutTool();
         return;
       }
+      if (event.key === "h" || event.key === "H") {
+        if (isTyping) return;
+        if (selectedNoteIds.length > 0) {
+          event.preventDefault();
+          toggleSelectedNoteEffect("start", 4);
+        }
+        return;
+      }
+      if (event.key === "p" || event.key === "P") {
+        if (isTyping) return;
+        if (selectedNoteIds.length > 0) {
+          event.preventDefault();
+          toggleSelectedNoteEffect("end", 4);
+        }
+        return;
+      }
+      if (event.key === "b" || event.key === "B") {
+        if (isTyping) return;
+        if (selectedNoteIds.length > 0) {
+          event.preventDefault();
+          toggleSelectedNoteEffect("end", 1);
+        }
+        return;
+      }
       if (
         event.code === "KeyS" &&
         event.shiftKey &&
@@ -7285,10 +7441,10 @@ export default function GteWorkspace({
       }
       if (event.key === "o" || event.key === "O") {
         if (isTyping) return;
-        if (guardSingleTrackSelectionAction("Optimize")) return;
         if (selectedNoteIds.length > 0) {
           event.preventDefault();
-          handleAssignOptimals();
+          toggleSelectedNoteEffect("start", 1);
+          return;
         }
         return;
       }
@@ -7355,6 +7511,7 @@ export default function GteWorkspace({
     runMutation,
     requestUndo,
     requestRedo,
+    toggleSelectedNoteEffect,
     toggleCutTool,
     guardSingleTrackSelectionAction,
     toggleSliceTool,
@@ -9105,21 +9262,27 @@ export default function GteWorkspace({
                       preserveAspectRatio="none"
                       className="overflow-visible"
                     >
-                      <path
-                        d={effect.path}
-                        fill="none"
-                        stroke="rgb(15 23 42 / 0.7)"
-                        strokeWidth={effect.strokeWidth ?? 1.5}
-                        strokeLinecap="round"
-                        pathLength={100}
-                        strokeDasharray={effect.strokeDasharray}
-                      />
+                      {effect.path ? (
+                        <path
+                          d={effect.path}
+                          fill="none"
+                          stroke="rgb(15 23 42 / 0.7)"
+                          strokeWidth={effect.strokeWidth ?? 1.5}
+                          strokeLinecap="round"
+                          pathLength={100}
+                          strokeDasharray={effect.strokeDasharray}
+                        />
+                      ) : null}
                       {effect.label ? (
                         <text
                           x={effect.width / 2}
-                          y={Math.max(7, effect.height - 3)}
+                          y={
+                            effect.label.startsWith("b")
+                              ? Math.max(7, effect.height - 5)
+                              : Math.max(8, effect.height - 2)
+                          }
                           textAnchor="middle"
-                          fontSize={mobileViewport ? 8 : 10}
+                          fontSize={effect.label.startsWith("b") ? (mobileViewport ? 8 : 10) : mobileViewport ? 10 : 12}
                           fontWeight="700"
                           fill="rgb(15 23 42 / 0.75)"
                         >
