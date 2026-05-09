@@ -1,7 +1,6 @@
-import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
+import { applyDefaultNoteEffects, type CutWithCoord, type EditorSnapshot, type TabCoord } from "../types/gte";
 import { DEFAULT_TRACK_INSTRUMENT_ID, normalizeTrackInstrumentId } from "./gteSoundfonts";
 import { getTuningPreset, normalizeCapo } from "./gteTuning";
-
 export const GTE_GUEST_EDITOR_ID = "local";
 export const GTE_GUEST_DRAFT_STORAGE_KEY = "note2tabs:gte:guest-draft:v1";
 
@@ -200,7 +199,7 @@ export const normalizeGuestSnapshot = (
           const note = value as Record<string, unknown>;
           const tab = normalizeTab(note.tab);
           if (!tab) return null;
-          return {
+          return applyDefaultNoteEffects({
             id: clampInt(note.id, 0, -2147483648, 2147483647),
             startTime: scaleFrame(note.startTime, frameRatio, 0),
             length: scaleFrame(note.length, frameRatio, 1),
@@ -209,7 +208,7 @@ export const normalizeGuestSnapshot = (
             optimals: Array.isArray(note.optimals)
               ? note.optimals.map((item) => normalizeTab(item)).filter((item): item is TabCoord => Boolean(item))
               : [],
-          };
+          });
         })
         .filter((note): note is EditorSnapshot["notes"][number] => note !== null)
     : [];

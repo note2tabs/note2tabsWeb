@@ -28,7 +28,7 @@ import {
 } from "../lib/gteSoundfonts";
 import { getOpenStringMidiFromSnapshot, getStringLabelsForSnapshot } from "../lib/gteTuning";
 import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
-import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
+import { applyDefaultNoteEffects, type CutWithCoord, type EditorSnapshot, type TabCoord } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
 
@@ -545,7 +545,7 @@ const disbandChordInSnapshot = (draft: EditorSnapshot, chordId: number) => {
   if (chordIndex < 0) return;
   const chord = draft.chords[chordIndex];
   const nextNoteId = draft.notes.reduce((max, note) => Math.max(max, note.id), 0) + 1;
-  const disbandedNotes = chord.currentTabs.map((tab, idx) => ({
+  const disbandedNotes = chord.currentTabs.map((tab, idx) => applyDefaultNoteEffects({
     id: nextNoteId + idx,
     startTime: chord.startTime,
     length: chord.length,
@@ -742,6 +742,33 @@ type NoteFormState = {
   length: OptionalNumber;
 };
 
+type NoteEffectMode = "none" | "bend" | "hammer" | "pull";
+
+type NoteMenuDraftState = {
+  fret: string;
+  length: string;
+  startEffectMode: NoteEffectMode;
+  startEffectSemitone: string;
+  preBendSustain: string;
+  preBendTransition: string;
+  endEffectMode: NoteEffectMode;
+  endEffectSemitone: string;
+  bendSustain: string;
+  bendTransition: string;
+};
+
+type NoteEffectVisual = {
+  key: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  path: string;
+  label?: "h" | "p";
+  strokeDasharray?: string;
+  strokeWidth?: number;
+};
+
 type ChordFormState = {
   startTime: OptionalNumber;
   length: OptionalNumber;
@@ -932,7 +959,7 @@ export default function GteWorkspace({
   const [resizeChordPreviewLength, setResizeChordPreviewLength] = useState<number | null>(null);
   const [noteMenuAnchor, setNoteMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const [noteMenuNoteId, setNoteMenuNoteId] = useState<number | null>(null);
-  const [noteMenuDraft, setNoteMenuDraft] = useState<{ fret: string; length: string } | null>(null);
+  const [noteMenuDraft, setNoteMenuDraft] = useState<NoteMenuDraftState | null>(null);
   const [chordMenuAnchor, setChordMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const [chordMenuChordId, setChordMenuChordId] = useState<number | null>(null);
   const [chordMenuDraft, setChordMenuDraft] = useState<{ length: string } | null>(null);
@@ -2908,14 +2935,14 @@ export default function GteWorkspace({
           const target = draft.notes.find((item) => item.id === noteId);
           if (!target) return;
           target.length = note.leftLength;
-          draft.notes.push({
+          draft.notes.push(applyDefaultNoteEffects({
             id: note.tempId,
             startTime: sliceTime,
             length: note.rightLength,
             midiNum: 0,
             tab: [note.tab[0], note.tab[1]],
             optimals: [],
-          });
+          }));
         });
         chordsToSlice.forEach((chord) => {
           const chordId = resolveChordId(chord.id);
@@ -4184,14 +4211,14 @@ export default function GteWorkspace({
       label: "add-note",
       createdNotes: [{ tempId, signature: noteSignature(snapped.startTime, snapped.length, tab) }],
       apply: (draft) => {
-        draft.notes.push({
+        draft.notes.push(applyDefaultNoteEffects({
           id: tempId,
           startTime: snapped.startTime,
           length: snapped.length,
           midiNum: 0,
           tab: [tab[0], tab[1]],
           optimals: [],
-        });
+        }));
         return draft;
       },
       commit: () =>
@@ -4763,16 +4790,267 @@ export default function GteWorkspace({
     []
   );
 
+  const getBeatFrames = useCallback(() => {
+    const beatsPerBar = Math.max(1, Math.round(snapshot.timeSignature || sharedTimeSignature || 4));
+    return Math.max(1, Math.round(snapshot.framesPerMessure / beatsPerBar));
+  }, [sharedTimeSignature, snapshot.framesPerMessure, snapshot.timeSignature]);
+
+  const getSuggestedBendDurations = useCallback(
+    (note: { id: number; startTime: number; tab: TabCoord }) => {
+      const beatFrames = getBeatFrames();
+      const quarterBeat = Math.max(1, Math.round(beatFrames / 4));
+      const halfQuarterBeat = Math.max(1, Math.round(quarterBeat / 2));
+      const nextSameStringNote = snapshot.notes
+        .filter((item) => item.id !== note.id && item.tab[0] === note.tab[0] && item.startTime > note.startTime)
+        .sort((left, right) => left.startTime - right.startTime)[0];
+      const isCloseFollowUp =
+        nextSameStringNote !== undefined && nextSameStringNote.startTime - note.startTime < Math.max(1, Math.round(beatFrames / 2));
+      const value = isCloseFollowUp ? halfQuarterBeat : quarterBeat;
+      return { sustain: value, transition: value };
+    },
+    [getBeatFrames, snapshot.notes]
+  );
+
+  const noteEffectVisuals = useMemo<NoteEffectVisual[]>(() => {
+    const beatFrames = getBeatFrames();
+    const halfBeatFrames = Math.max(1, Math.round(beatFrames / 2));
+
+    return snapshot.notes.flatMap((note) => {
+      const stringIndex = note.tab[0];
+      const noteRowIndex = Math.floor(note.startTime / rowFrames);
+      const noteRowStart = noteRowIndex * rowFrames;
+      const noteRowBarCount = getRowBarCount(noteRowIndex);
+      const noteRowFrameLength = Math.max(1, noteRowBarCount * framesPerMeasure);
+      const noteRowWidth = noteRowFrameLength * scale;
+      const noteLeft = (note.startTime - noteRowStart) * scale;
+      const noteRight = (note.startTime + Math.max(1, Math.round(note.length)) - noteRowStart) * scale;
+      const rowTop = noteRowIndex * rowStride;
+      const arcHeight = mobileViewport ? 10 : 12;
+      const arcTop = Math.max(rowTop, rowTop + stringIndex * ROW_HEIGHT - arcHeight);
+      const bendUnitHeight = mobileViewport ? 5 : 7;
+      const sameStringNotes = snapshot.notes
+        .filter((item) => item.tab[0] === stringIndex)
+        .sort((left, right) => left.startTime - right.startTime);
+
+      const visuals: NoteEffectVisual[] = [];
+
+      if (note.startEffect === 4) {
+        const previousNote = [...sameStringNotes]
+          .reverse()
+          .find((item) => item.id !== note.id && item.startTime < note.startTime);
+        const previousEnd =
+          previousNote === undefined
+            ? null
+            : previousNote.startTime + Math.max(1, Math.round(previousNote.length));
+        const previousRowIndex =
+          previousEnd === null ? null : Math.floor(previousEnd / rowFrames);
+        const canConnectPrevious =
+          previousEnd !== null &&
+          note.startTime - previousEnd < beatFrames &&
+          previousRowIndex === noteRowIndex;
+        const startFrame = canConnectPrevious
+          ? previousEnd
+          : Math.max(noteRowStart, note.startTime - halfBeatFrames);
+        const startLeft = (startFrame - noteRowStart) * scale;
+        const endLeft = noteLeft;
+        const width = Math.max(12, endLeft - startLeft);
+        const gapPercent = Math.min(45, Math.max(18, (mobileViewport ? 12 : 14) / width * 100));
+        const visiblePercent = Math.max(0, (100 - gapPercent) / 2);
+        visuals.push({
+          key: `hammer-${note.id}`,
+          label: "h",
+          left: Math.max(0, Math.min(startLeft, noteRowWidth - width)),
+          top: arcTop,
+          width,
+          height: arcHeight,
+          path: `M 0 ${arcHeight - 1} C ${width * 0.2} 0, ${width * 0.8} 0, ${width} ${arcHeight - 1}`,
+          strokeDasharray: `${visiblePercent} ${gapPercent} ${visiblePercent} 0`,
+        });
+      }
+
+      if (note.endEffect === 4) {
+        const noteEnd = note.startTime + Math.max(1, Math.round(note.length));
+        const nextNote = sameStringNotes.find((item) => item.id !== note.id && item.startTime > note.startTime);
+        const nextRowIndex = nextNote === undefined ? null : Math.floor(nextNote.startTime / rowFrames);
+        const canConnectNext =
+          nextNote !== undefined &&
+          nextNote.startTime - noteEnd < beatFrames &&
+          nextRowIndex === noteRowIndex;
+        const endFrame = canConnectNext ? nextNote.startTime : Math.min(noteRowStart + noteRowFrameLength, noteEnd + halfBeatFrames);
+        const startLeft = noteRight;
+        const endLeft = (endFrame - noteRowStart) * scale;
+        const width = Math.max(12, endLeft - startLeft);
+        const gapPercent = Math.min(45, Math.max(18, (mobileViewport ? 12 : 14) / width * 100));
+        const visiblePercent = Math.max(0, (100 - gapPercent) / 2);
+        visuals.push({
+          key: `pull-${note.id}`,
+          label: "p",
+          left: Math.max(0, Math.min(startLeft, noteRowWidth - width)),
+          top: arcTop,
+          width,
+          height: arcHeight,
+          path: `M 0 ${arcHeight - 1} C ${width * 0.2} 0, ${width * 0.8} 0, ${width} ${arcHeight - 1}`,
+          strokeDasharray: `${visiblePercent} ${gapPercent} ${visiblePercent} 0`,
+        });
+      }
+
+      if (note.startEffect >= 1 && note.startEffect <= 3) {
+        const transitionFrames = Math.max(0, Math.round(note.preBendTransition));
+        const sustainFrames = Math.max(0, Math.round(note.preBendSustain));
+        const transitionWidth = transitionFrames * scale;
+        const sustainWidth = sustainFrames * scale;
+        const width = Math.max(8, transitionWidth + sustainWidth);
+        const clampedTransitionWidth = Math.min(width, Math.max(4, transitionWidth || width));
+        const bendHeight = note.startEffect * bendUnitHeight;
+        const height = bendHeight + 4;
+        const baseY = height - 1;
+        const topY = Math.max(1, height - bendHeight - 1);
+        visuals.push({
+          key: `prebend-${note.id}`,
+          left: Math.max(0, noteLeft - width),
+          top: Math.max(rowTop, rowTop + stringIndex * ROW_HEIGHT - height + 2),
+          width,
+          height,
+          path: `M 0 ${topY} L ${Math.max(0, width - clampedTransitionWidth)} ${topY} Q ${Math.max(
+            0,
+            width - clampedTransitionWidth * 0.65
+          )} ${topY} ${width} ${baseY}`,
+          strokeWidth: mobileViewport ? 1.25 : 1.5,
+        });
+      }
+
+      if (note.endEffect >= 1 && note.endEffect <= 3) {
+        const transitionFrames = Math.max(0, Math.round(note.bendTransition));
+        const sustainFrames = Math.max(0, Math.round(note.bendSustain));
+        const transitionWidth = transitionFrames * scale;
+        const sustainWidth = sustainFrames * scale;
+        const width = Math.max(8, transitionWidth + sustainWidth);
+        const clampedTransitionWidth = Math.min(width, Math.max(4, transitionWidth || width));
+        const bendHeight = note.endEffect * bendUnitHeight;
+        const height = bendHeight + 4;
+        const baseY = height - 1;
+        const topY = Math.max(1, height - bendHeight - 1);
+        visuals.push({
+          key: `bend-${note.id}`,
+          left: Math.max(0, Math.min(noteRight, noteRowWidth - width)),
+          top: Math.max(rowTop, rowTop + stringIndex * ROW_HEIGHT - height + 2),
+          width,
+          height,
+          path: `M 0 ${baseY} Q ${clampedTransitionWidth * 0.65} ${baseY} ${clampedTransitionWidth} ${topY} L ${width} ${topY}`,
+          strokeWidth: mobileViewport ? 1.25 : 1.5,
+        });
+      }
+
+      return visuals;
+    });
+  }, [
+    framesPerMeasure,
+    getBeatFrames,
+    getRowBarCount,
+    mobileViewport,
+    rowFrames,
+    rowStride,
+    scale,
+    snapshot.notes,
+  ]);
+
+  const deriveEffectMode = useCallback((effectValue: number, effectType: "start" | "end"): NoteEffectMode => {
+    if (effectValue >= 1 && effectValue <= 3) return "bend";
+    if (effectType === "start" && effectValue === 4) return "hammer";
+    if (effectType === "end" && effectValue === 4) return "pull";
+    return "none";
+  }, []);
+
+  const buildNoteMenuDraft = useCallback(
+    (note: (typeof snapshot.notes)[number]): NoteMenuDraftState => {
+      const suggested = getSuggestedBendDurations(note);
+      return {
+        fret: String(note.tab[1]),
+        length: String(note.length),
+        startEffectMode: deriveEffectMode(note.startEffect, "start"),
+        startEffectSemitone: String(note.startEffect >= 1 && note.startEffect <= 3 ? note.startEffect : 1),
+        preBendSustain: String(note.preBendSustain > 0 ? note.preBendSustain : suggested.sustain),
+        preBendTransition: String(note.preBendTransition > 0 ? note.preBendTransition : suggested.transition),
+        endEffectMode: deriveEffectMode(note.endEffect, "end"),
+        endEffectSemitone: String(note.endEffect >= 1 && note.endEffect <= 3 ? note.endEffect : 1),
+        bendSustain: String(note.bendSustain > 0 ? note.bendSustain : suggested.sustain),
+        bendTransition: String(note.bendTransition > 0 ? note.bendTransition : suggested.transition),
+      };
+    },
+    [deriveEffectMode, getSuggestedBendDurations, snapshot.notes]
+  );
+
+  const parsePositiveEffectDuration = useCallback((value: string, fallback: number) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) return Math.max(0, Math.round(fallback));
+    return Math.max(0, Math.round(parsed));
+  }, []);
+
+  const getEffectValuesFromDraft = useCallback(
+    (draft: NoteMenuDraftState, note: (typeof snapshot.notes)[number]) => {
+      const suggested = getSuggestedBendDurations(note);
+      const startEffect =
+        draft.startEffectMode === "bend"
+          ? Math.max(1, Math.min(3, Math.round(Number(draft.startEffectSemitone) || 1)))
+          : draft.startEffectMode === "hammer"
+            ? 4
+            : 0;
+      const endEffect =
+        draft.endEffectMode === "bend"
+          ? Math.max(1, Math.min(3, Math.round(Number(draft.endEffectSemitone) || 1)))
+          : draft.endEffectMode === "pull"
+            ? 4
+            : 0;
+      return {
+        startEffect,
+        endEffect,
+        preBendSustain:
+          draft.startEffectMode === "bend"
+            ? parsePositiveEffectDuration(draft.preBendSustain, suggested.sustain)
+            : 0,
+        preBendTransition:
+          draft.startEffectMode === "bend"
+            ? parsePositiveEffectDuration(draft.preBendTransition, suggested.transition)
+            : 0,
+        bendSustain:
+          draft.endEffectMode === "bend"
+            ? parsePositiveEffectDuration(draft.bendSustain, suggested.sustain)
+            : 0,
+        bendTransition:
+          draft.endEffectMode === "bend"
+            ? parsePositiveEffectDuration(draft.bendTransition, suggested.transition)
+            : 0,
+      };
+    },
+    [getSuggestedBendDurations, parsePositiveEffectDuration, snapshot.notes]
+  );
+
   const openNoteMenu = (noteId: number, fret: number, length: number, event: ReactMouseEvent) => {
     if (event.shiftKey || editingChordId !== null) return;
     if (isMobileEditMode) {
       setNoteMenuAnchor(null);
     } else {
-      const { x, y } = getSideMenuAnchor(event, 224, 220);
+      const { x, y } = getSideMenuAnchor(event, 260, 470);
       setNoteMenuAnchor({ x, y });
     }
     setNoteMenuNoteId(noteId);
-    setNoteMenuDraft({ fret: String(fret), length: String(length) });
+    const note = snapshot.notes.find((item) => item.id === noteId);
+    setNoteMenuDraft(
+      note
+        ? buildNoteMenuDraft(note)
+        : {
+            fret: String(fret),
+            length: String(length),
+            startEffectMode: "none",
+            startEffectSemitone: "1",
+            preBendSustain: "0",
+            preBendTransition: "0",
+            endEffectMode: "none",
+            endEffectSemitone: "1",
+            bendSustain: "0",
+            bendTransition: "0",
+          }
+    );
   };
 
   const openChordMenu = (chordId: number, length: number, event: ReactMouseEvent) => {
@@ -4930,6 +5208,249 @@ export default function GteWorkspace({
     }
     commitNoteMenuLengthValue(rawLength);
   };
+
+  const commitNoteMenuEffectsValue = useCallback(
+    (draftValue: NoteMenuDraftState) => {
+      if (!selectedNote) return;
+      const nextValues = getEffectValuesFromDraft(draftValue, selectedNote);
+      const didChange =
+        selectedNote.startEffect !== nextValues.startEffect ||
+        selectedNote.endEffect !== nextValues.endEffect ||
+        selectedNote.preBendSustain !== nextValues.preBendSustain ||
+        selectedNote.preBendTransition !== nextValues.preBendTransition ||
+        selectedNote.bendSustain !== nextValues.bendSustain ||
+        selectedNote.bendTransition !== nextValues.bendTransition;
+      if (!didChange) return;
+      void runMutation(
+        async () => ({}),
+        {
+          localApply: (draft) => {
+            const noteId = resolveNoteId(selectedNote.id);
+            const note = draft.notes.find((item) => item.id === noteId);
+            if (!note) return;
+            note.startEffect = nextValues.startEffect;
+            note.endEffect = nextValues.endEffect;
+            note.preBendSustain = nextValues.preBendSustain;
+            note.preBendTransition = nextValues.preBendTransition;
+            note.bendSustain = nextValues.bendSustain;
+            note.bendTransition = nextValues.bendTransition;
+          },
+          serverMode: "local-first",
+        }
+      );
+    },
+    [getEffectValuesFromDraft, resolveNoteId, runMutation, selectedNote]
+  );
+
+  const applyNoteMenuEffectDraft = useCallback(
+    (
+      updater: (draft: NoteMenuDraftState, note: (typeof snapshot.notes)[number]) => NoteMenuDraftState,
+      options?: { commit?: boolean }
+    ) => {
+      if (!noteMenuDraft || !selectedNote) return;
+      const nextDraft = updater(noteMenuDraft, selectedNote);
+      setNoteMenuDraft(nextDraft);
+      if (options?.commit) {
+        commitNoteMenuEffectsValue(nextDraft);
+      }
+    },
+    [commitNoteMenuEffectsValue, noteMenuDraft, selectedNote]
+  );
+
+  const handleNoteEffectModeChange = useCallback(
+    (effectType: "start" | "end", mode: NoteEffectMode) => {
+      applyNoteMenuEffectDraft(
+        (draft, note) => {
+          const suggested = getSuggestedBendDurations(note);
+          if (effectType === "start") {
+            return {
+              ...draft,
+              startEffectMode: mode,
+              startEffectSemitone:
+                mode === "bend"
+                  ? draft.startEffectMode === "bend"
+                    ? draft.startEffectSemitone
+                    : "1"
+                  : draft.startEffectSemitone,
+              preBendSustain:
+                mode === "bend" && draft.startEffectMode !== "bend"
+                  ? String(suggested.sustain)
+                  : draft.preBendSustain,
+              preBendTransition:
+                mode === "bend" && draft.startEffectMode !== "bend"
+                  ? String(suggested.transition)
+                  : draft.preBendTransition,
+            };
+          }
+          return {
+            ...draft,
+            endEffectMode: mode,
+            endEffectSemitone:
+              mode === "bend"
+                ? draft.endEffectMode === "bend"
+                  ? draft.endEffectSemitone
+                  : "1"
+                : draft.endEffectSemitone,
+            bendSustain:
+              mode === "bend" && draft.endEffectMode !== "bend"
+                ? String(suggested.sustain)
+                : draft.bendSustain,
+            bendTransition:
+              mode === "bend" && draft.endEffectMode !== "bend"
+                ? String(suggested.transition)
+                : draft.bendTransition,
+          };
+        },
+        { commit: true }
+      );
+    },
+    [applyNoteMenuEffectDraft, getSuggestedBendDurations]
+  );
+
+  const handleNoteEffectValueChange = useCallback(
+    (
+      field:
+        | "startEffectSemitone"
+        | "preBendSustain"
+        | "preBendTransition"
+        | "endEffectSemitone"
+        | "bendSustain"
+        | "bendTransition",
+      value: string,
+      commit?: boolean
+    ) => {
+      const normalizedValue =
+        field === "startEffectSemitone" || field === "endEffectSemitone"
+          ? (() => {
+              const parsed = Number(value);
+              if (!Number.isFinite(parsed)) return "1";
+              return String(Math.max(1, Math.min(3, Math.round(parsed))));
+            })()
+          : value;
+      applyNoteMenuEffectDraft(
+        (draft) => ({
+          ...draft,
+          [field]: normalizedValue,
+        }),
+        { commit }
+      );
+    },
+    [applyNoteMenuEffectDraft]
+  );
+
+  const adjustNoteEffectSemitone = useCallback(
+    (field: "startEffectSemitone" | "endEffectSemitone", delta: number) => {
+      if (!noteMenuDraft) return;
+      const current = Number(noteMenuDraft[field]);
+      const next = Math.max(1, Math.min(3, (Number.isFinite(current) ? current : 1) + delta));
+      handleNoteEffectValueChange(field, String(next), true);
+    },
+    [handleNoteEffectValueChange, noteMenuDraft]
+  );
+
+  const renderBendEffectFields = useCallback(
+    (
+      prefix: "start" | "end",
+      draft: NoteMenuDraftState,
+      compact: boolean
+    ) => {
+      const semitoneField = prefix === "start" ? "startEffectSemitone" : "endEffectSemitone";
+      const sustainField = prefix === "start" ? "preBendSustain" : "bendSustain";
+      const transitionField = prefix === "start" ? "preBendTransition" : "bendTransition";
+      const semitoneValue = draft[semitoneField];
+      const sustainValue = draft[sustainField];
+      const transitionValue = draft[transitionField];
+      const labelClass = compact
+        ? "text-[9px] font-semibold uppercase tracking-wide text-slate-500"
+        : "text-[10px] text-slate-500";
+      const inputClass = compact
+        ? "mt-1 h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-800"
+        : "mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs";
+
+      return (
+        <div className={compact ? "mt-2 grid grid-cols-3 gap-2" : "mt-2 grid grid-cols-3 gap-2"}>
+          <label className="block">
+            <div className={labelClass}>Semi-tone</div>
+            <div className="mt-1 flex items-stretch gap-1">
+              <input
+                type="number"
+                min={1}
+                max={3}
+                inputMode="numeric"
+                value={semitoneValue}
+                onChange={(event) => handleNoteEffectValueChange(semitoneField, event.target.value)}
+                onBlur={() => handleNoteEffectValueChange(semitoneField, semitoneValue, true)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  event.preventDefault();
+                  handleNoteEffectValueChange(semitoneField, event.currentTarget.value, true);
+                  event.currentTarget.blur();
+                }}
+                className={compact ? "w-full rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-800" : "w-full rounded border border-slate-200 px-2 py-1 text-xs"}
+              />
+              <div className={compact ? "flex w-6 flex-col gap-1" : "flex w-7 flex-col gap-1"}>
+                <button
+                  type="button"
+                  className={compact ? "flex h-[18px] items-center justify-center rounded border border-slate-200 bg-white text-[9px] text-slate-600" : "flex h-[18px] items-center justify-center rounded border border-slate-200 bg-slate-50 text-[10px] text-slate-700"}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => adjustNoteEffectSemitone(semitoneField, 1)}
+                  aria-label={`Increase ${prefix} bend semitone`}
+                >
+                  &#9650;
+                </button>
+                <button
+                  type="button"
+                  className={compact ? "flex h-[18px] items-center justify-center rounded border border-slate-200 bg-white text-[9px] text-slate-600" : "flex h-[18px] items-center justify-center rounded border border-slate-200 bg-slate-50 text-[10px] text-slate-700"}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => adjustNoteEffectSemitone(semitoneField, -1)}
+                  aria-label={`Decrease ${prefix} bend semitone`}
+                >
+                  &#9660;
+                </button>
+              </div>
+            </div>
+          </label>
+          <label className="block">
+            <div className={labelClass}>Sustain</div>
+            <input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={sustainValue}
+              onChange={(event) => handleNoteEffectValueChange(sustainField, event.target.value)}
+              onBlur={() => handleNoteEffectValueChange(sustainField, sustainValue, true)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                handleNoteEffectValueChange(sustainField, event.currentTarget.value, true);
+                event.currentTarget.blur();
+              }}
+              className={inputClass}
+            />
+          </label>
+          <label className="block">
+            <div className={labelClass}>Bend dur.</div>
+            <input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={transitionValue}
+              onChange={(event) => handleNoteEffectValueChange(transitionField, event.target.value)}
+              onBlur={() => handleNoteEffectValueChange(transitionField, transitionValue, true)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                handleNoteEffectValueChange(transitionField, event.currentTarget.value, true);
+                event.currentTarget.blur();
+              }}
+              className={inputClass}
+            />
+          </label>
+        </div>
+      );
+    },
+    [adjustNoteEffectSemitone, handleNoteEffectValueChange]
+  );
 
   const setMobileNoteFieldValue = useCallback(
     (field: "fret" | "length", value: number) => {
@@ -6052,14 +6573,14 @@ export default function GteWorkspace({
         label: "keyboard-add-note",
         createdNotes: [{ tempId, signature: noteSignature(snapped.startTime, snapped.length, tab) }],
         apply: (draft) => {
-          draft.notes.push({
+          draft.notes.push(applyDefaultNoteEffects({
             id: tempId,
             startTime: snapped.startTime,
             length: snapped.length,
             midiNum: 0,
             tab: [tab[0], tab[1]],
             optimals: [],
-          });
+          }));
           return draft;
         },
         commit: () =>
@@ -8565,6 +9086,50 @@ export default function GteWorkspace({
                   />
                 )}
 
+                {noteEffectVisuals.map((effect) => (
+                  <div
+                    key={effect.key}
+                    className="pointer-events-none absolute"
+                    style={{
+                      left: effect.left,
+                      top: effect.top,
+                      width: effect.width,
+                      height: effect.height,
+                      zIndex: 5,
+                    }}
+                  >
+                    <svg
+                      width="100%"
+                      height="100%"
+                      viewBox={`0 0 ${effect.width} ${effect.height}`}
+                      preserveAspectRatio="none"
+                      className="overflow-visible"
+                    >
+                      <path
+                        d={effect.path}
+                        fill="none"
+                        stroke="rgb(15 23 42 / 0.7)"
+                        strokeWidth={effect.strokeWidth ?? 1.5}
+                        strokeLinecap="round"
+                        pathLength={100}
+                        strokeDasharray={effect.strokeDasharray}
+                      />
+                      {effect.label ? (
+                        <text
+                          x={effect.width / 2}
+                          y={Math.max(7, effect.height - 3)}
+                          textAnchor="middle"
+                          fontSize={mobileViewport ? 8 : 10}
+                          fontWeight="700"
+                          fill="rgb(15 23 42 / 0.75)"
+                        >
+                          {effect.label}
+                        </text>
+                      ) : null}
+                    </svg>
+                  </div>
+                ))}
+
                 {snapshot.notes.flatMap((note) => {
                   const scalePreview = scaleToolActive ? scalePreviewNotes[note.id] : undefined;
                   const preview =
@@ -8880,7 +9445,7 @@ export default function GteWorkspace({
                   !mobileViewport && (
                     <div
                       ref={noteMenuRef}
-                      className="fixed z-[9999] w-56 rounded-md border border-slate-200 bg-white p-2 shadow-md"
+                      className="fixed z-[9999] w-64 rounded-md border border-slate-200 bg-white p-2 shadow-md"
                       style={{
                         left: noteMenuAnchor.x,
                         top: noteMenuAnchor.y,
@@ -8891,7 +9456,7 @@ export default function GteWorkspace({
                         className="flex cursor-move items-center justify-between rounded-md bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700"
                         onMouseDown={(event) => startFloatingPanelDrag("note", event)}
                       >
-                        <span>Note #{selectedNote.id}</span>
+                        <span>Note settings</span>
                         <span className="text-[9px] font-medium uppercase tracking-wide text-slate-400">
                           Drag
                         </span>
@@ -8973,6 +9538,46 @@ export default function GteWorkspace({
                             onBlur={() => commitNoteMenuLength()}
                           />
                         </label>
+                        <label className="block text-[10px] text-slate-500">
+                          Start effect
+                          <select
+                            className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                            value={noteMenuDraft.startEffectMode}
+                            onChange={(event) =>
+                              handleNoteEffectModeChange(
+                                "start",
+                                event.target.value as NoteEffectMode
+                              )
+                            }
+                          >
+                            <option value="none">None</option>
+                            <option value="bend">Pre-bend</option>
+                            <option value="hammer">Hammer-on</option>
+                          </select>
+                        </label>
+                        {noteMenuDraft.startEffectMode === "bend"
+                          ? renderBendEffectFields("start", noteMenuDraft, false)
+                          : null}
+                        <label className="block text-[10px] text-slate-500">
+                          End effect
+                          <select
+                            className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                            value={noteMenuDraft.endEffectMode}
+                            onChange={(event) =>
+                              handleNoteEffectModeChange(
+                                "end",
+                                event.target.value as NoteEffectMode
+                              )
+                            }
+                          >
+                            <option value="none">None</option>
+                            <option value="bend">Bend</option>
+                            <option value="pull">Pull-off</option>
+                          </select>
+                        </label>
+                        {noteMenuDraft.endEffectMode === "bend"
+                          ? renderBendEffectFields("end", noteMenuDraft, false)
+                          : null}
                       </div>
                       {noteAlternates?.possibleTabs?.length ||
                       noteAlternates?.blockedTabs?.length ? (
@@ -9035,7 +9640,7 @@ export default function GteWorkspace({
                         className="flex cursor-move items-center justify-between rounded-md bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700"
                         onMouseDown={(event) => startFloatingPanelDrag("chord", event)}
                       >
-                        <span>Chord #{selectedChord.id}</span>
+                        <span>Chord settings</span>
                         <span className="text-[9px] font-medium uppercase tracking-wide text-slate-400">
                           Drag
                         </span>
@@ -9504,6 +10109,52 @@ export default function GteWorkspace({
                           </div>
                         );
                       })}
+                    </div>
+                    <div className="mt-2 grid grid-cols-1 gap-2">
+                      <label className="block rounded-lg border border-slate-200 bg-slate-50 p-1.5">
+                        <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                          Start effect
+                        </div>
+                        <select
+                          value={noteMenuDraft.startEffectMode}
+                          onChange={(event) =>
+                            handleNoteEffectModeChange(
+                              "start",
+                              event.target.value as NoteEffectMode
+                            )
+                          }
+                          className="mt-1 h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-800"
+                        >
+                          <option value="none">None</option>
+                          <option value="bend">Pre-bend</option>
+                          <option value="hammer">Hammer-on</option>
+                        </select>
+                        {noteMenuDraft.startEffectMode === "bend"
+                          ? renderBendEffectFields("start", noteMenuDraft, true)
+                          : null}
+                      </label>
+                      <label className="block rounded-lg border border-slate-200 bg-slate-50 p-1.5">
+                        <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                          End effect
+                        </div>
+                        <select
+                          value={noteMenuDraft.endEffectMode}
+                          onChange={(event) =>
+                            handleNoteEffectModeChange(
+                              "end",
+                              event.target.value as NoteEffectMode
+                            )
+                          }
+                          className="mt-1 h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-800"
+                        >
+                          <option value="none">None</option>
+                          <option value="bend">Bend</option>
+                          <option value="pull">Pull-off</option>
+                        </select>
+                        {noteMenuDraft.endEffectMode === "bend"
+                          ? renderBendEffectFields("end", noteMenuDraft, true)
+                          : null}
+                      </label>
                     </div>
                     <label className="mt-2 block text-[9px] font-semibold uppercase tracking-wide text-slate-500">
                       Fingering

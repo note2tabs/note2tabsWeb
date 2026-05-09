@@ -1,4 +1,4 @@
-import type { Chord, CutWithCoord, EditorSnapshot, Note, TabCoord } from "../types/gte";
+import { applyDefaultNoteEffects, type Chord, type CutWithCoord, type EditorSnapshot, type Note, type TabCoord } from "../types/gte";
 
 export const GTE_FRAMES_PER_BAR = 480;
 
@@ -42,20 +42,43 @@ const sortChords = (chords: Chord[]) =>
 
 export const addNoteLocal = (
   snapshot: EditorSnapshot,
-  note: Omit<Note, "id" | "optimals"> & Partial<Pick<Note, "id" | "optimals">>
+  note: Omit<
+    Note,
+    | "id"
+    | "optimals"
+    | "endEffect"
+    | "startEffect"
+    | "preBendSustain"
+    | "preBendTransition"
+    | "bendSustain"
+    | "bendTransition"
+  > &
+    Partial<
+      Pick<
+        Note,
+        | "id"
+        | "optimals"
+        | "endEffect"
+        | "startEffect"
+        | "preBendSustain"
+        | "preBendTransition"
+        | "bendSustain"
+        | "bendTransition"
+      >
+    >
 ) => {
   const next = cloneEditorSnapshot(snapshot);
   const id = note.id ?? nextLocalNoteId(next);
   next.notes = sortNotes([
     ...next.notes,
-    {
+    applyDefaultNoteEffects({
       id,
       startTime: Math.max(0, Math.round(toNumber(note.startTime, 0))),
       length: Math.max(1, Math.round(toNumber(note.length, 1))),
       midiNum: Math.round(toNumber(note.midiNum, 0)),
       tab: normalizeTab(note.tab),
       optimals: Array.isArray(note.optimals) ? note.optimals.map(normalizeTab) : [],
-    },
+    }),
   ]);
   next.totalFrames = Math.max(next.totalFrames, next.notes[next.notes.length - 1]?.startTime ?? 0);
   return next;
@@ -135,7 +158,7 @@ export const disbandChordLocal = (snapshot: EditorSnapshot, chordId: number) => 
   const chord = next.chords.find((item) => item.id === chordId);
   if (!chord) return next;
   let noteId = nextLocalNoteId(next);
-  const notes = chord.currentTabs.map((tab, index): Note => ({
+  const notes = chord.currentTabs.map((tab, index): Note => applyDefaultNoteEffects({
     id: noteId++,
     startTime: chord.startTime,
     length: chord.length,

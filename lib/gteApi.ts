@@ -1,6 +1,5 @@
 import type { CanvasSnapshot, EditorListItem, EditorSnapshot, TabCoord } from "../types/gte";
 import { GTE_GUEST_EDITOR_ID } from "./gteGuestDraft";
-
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
 const LANE_DELIMITER = "__ed__";
@@ -364,7 +363,18 @@ export const gteApi = {
     }),
   addNote: (
     editorId: string,
-    payload: { tab: TabCoord; startTime: number; length: number; snapToGrid?: boolean }
+    payload: {
+      tab: TabCoord;
+      startTime: number;
+      length: number;
+      snapToGrid?: boolean;
+      endEffect?: number;
+      startEffect?: number;
+      preBendSustain?: number;
+      preBendTransition?: number;
+      bendSustain?: number;
+      bendTransition?: number;
+    }
   ) =>
     requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/notes`, {
       method: "POST",

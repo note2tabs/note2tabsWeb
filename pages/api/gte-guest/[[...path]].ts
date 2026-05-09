@@ -5,7 +5,13 @@ import {
   createGuestSnapshot,
   normalizeGuestSnapshot,
 } from "../../../lib/gteGuestDraft";
-import type { CanvasSnapshot, CutWithCoord, EditorSnapshot, TabCoord } from "../../../types/gte";
+import {
+  applyDefaultNoteEffects,
+  type CanvasSnapshot,
+  type CutWithCoord,
+  type EditorSnapshot,
+  type TabCoord,
+} from "../../../types/gte";
 
 const COOKIE_NAME = "note2tabs_gte_guest_session";
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
@@ -766,7 +772,22 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
           const snap = parseSnapToGrid(req, body);
           const startTime = snapStart(lane, body.startTime, snap);
           const length = snapLength(lane, body.length, snap);
-          lane.notes.push({ id: nextNoteId(lane), startTime, length, midiNum: getTabMidi(lane, tab), tab, optimals: [] });
+          lane.notes.push(
+            applyDefaultNoteEffects({
+              id: nextNoteId(lane),
+              startTime,
+              length,
+              midiNum: getTabMidi(lane, tab),
+              tab,
+              optimals: [],
+              endEffect: body.endEffect,
+              startEffect: body.startEffect,
+              preBendSustain: body.preBendSustain,
+              preBendTransition: body.preBendTransition,
+              bendSustain: body.bendSustain,
+              bendTransition: body.bendTransition,
+            })
+          );
           lane.notes.sort((a, b) => a.startTime - b.startTime || a.id - b.id);
           lane.totalFrames = Math.max(lane.totalFrames, startTime + length);
         });
@@ -872,7 +893,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
           const chord = lane.chords[index];
           const baseId = nextNoteId(lane);
           lane.notes.push(
-            ...chord.currentTabs.map((tab, offset) => ({
+            ...chord.currentTabs.map((tab, offset) => applyDefaultNoteEffects({
               id: baseId + offset,
               startTime: chord.startTime,
               length: chord.length,
@@ -987,7 +1008,16 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
           const tab = clampTab(lane, (entry[1] as TabCoord) || DEFAULT_CUT_COORD);
           const startTime = Math.max(0, Math.round(toNumber(entry[0], 0))) + baseOffset;
           const length = clampEventLength(entry[2]);
-          notes.push({ id: cursor++, startTime, length, midiNum: getTabMidi(lane, tab), tab, optimals: [] });
+          notes.push(
+            applyDefaultNoteEffects({
+              id: cursor++,
+              startTime,
+              length,
+              midiNum: getTabMidi(lane, tab),
+              tab,
+              optimals: [],
+            })
+          );
         });
         lane.notes = notes.sort((a, b) => a.startTime - b.startTime || a.id - b.id);
         if (!append) lane.chords = [];

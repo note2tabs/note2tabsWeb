@@ -34,7 +34,7 @@ import {
   warmTrackInstrument,
 } from "../../lib/gteSoundfonts";
 import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
-import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
+import { applyDefaultNoteEffects, type CanvasSnapshot, type EditorSnapshot } from "../../types/gte";
 import GteWorkspace from "../../components/GteWorkspace";
 import {
   GTE_GUEST_EDITOR_ID,
@@ -121,7 +121,7 @@ const normalizeLane = (
     fps: fpsFromSecondsPerBar(safeSeconds),
     totalFrames,
     timeSignature: Math.max(1, Math.min(64, Math.round(toNumber(lane.timeSignature, 8)))),
-    notes: Array.isArray(lane.notes) ? lane.notes : [],
+    notes: Array.isArray(lane.notes) ? lane.notes.map((note) => applyDefaultNoteEffects(note)) : [],
     chords: Array.isArray(lane.chords) ? lane.chords : [],
     cutPositionsWithCoords:
       Array.isArray(lane.cutPositionsWithCoords) && lane.cutPositionsWithCoords.length
@@ -341,7 +341,7 @@ const selectBarsFromLane = (lane: EditorSnapshot, barIndices: number[]): EditorS
     lane.notes.forEach((note) => {
       const noteStart = Math.round(toNumber(note.startTime, 0));
       if (noteStart < barStart || noteStart >= barEnd) return;
-      notes.push({
+      notes.push(applyDefaultNoteEffects({
         ...note,
         id: notes.length + 1,
         startTime: noteStart + offset,
@@ -350,7 +350,7 @@ const selectBarsFromLane = (lane: EditorSnapshot, barIndices: number[]): EditorS
         optimals: Array.isArray(note.optimals)
           ? note.optimals.map((tab) => [tab[0], tab[1]] as [number, number])
           : [],
-      });
+      }));
     });
 
     lane.chords.forEach((chord) => {
@@ -460,7 +460,7 @@ const insertBarsIntoLane = (
       if (noteStart < insertFrame) return note;
       return { ...note, startTime: noteStart + clipLength };
     }),
-    ...clipboard.notes.map((note) => ({
+    ...clipboard.notes.map((note) => applyDefaultNoteEffects({
       ...note,
       id: nextNoteId++,
       startTime: Math.round(toNumber(note.startTime, 0)) + insertFrame,
