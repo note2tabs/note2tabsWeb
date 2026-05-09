@@ -4936,7 +4936,7 @@ export default function GteWorkspace({
           top: Math.max(rowTop, rowTop + stringIndex * ROW_HEIGHT - height + 2),
           width,
           height,
-          path: `M 0 ${baseY} Q ${clampedTransitionWidth * 0.65} ${baseY} ${clampedTransitionWidth} ${topY} L ${width} ${topY}`,
+          path: `M 0 ${baseY} Q ${clampedTransitionWidth * 0.65} ${topY} ${clampedTransitionWidth} ${topY} L ${width} ${topY}`,
           strokeWidth: mobileViewport ? 1.25 : 1.5,
         });
       }
