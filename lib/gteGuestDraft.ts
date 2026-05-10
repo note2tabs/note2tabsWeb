@@ -157,7 +157,7 @@ const normalizeNoteEffects = (value: unknown): NonNullable<EditorSnapshot["noteE
     .map((entry) => {
       if (!entry || typeof entry !== "object") return null;
       const effect = entry as Record<string, unknown>;
-      const type = clampInt(effect.type, -1, -1, 1);
+      const type = clampInt(effect.type, -1, -1, 2);
       const startNoteId = clampInt(effect.startNoteId, -1, -2147483648, 2147483647);
       const endNoteId = clampInt(effect.endNoteId, -1, -2147483648, 2147483647);
       if (type < 0 || startNoteId < 0 || endNoteId < 0 || startNoteId === endNoteId) return null;

@@ -380,7 +380,6 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
                   );
                 })}
               </div>
-              </div>
             </section>
           )}
         </div>
