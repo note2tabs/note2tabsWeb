@@ -122,13 +122,22 @@ const getCanonicalNoteEffect = (lane: EditorSnapshot, effect: NoteEffect): NoteE
     return leftEnd <= noteStart && noteStart <= rightStart;
   });
   if (blocked) return null;
-  const type = effect.type === 1 ? 1 : 0;
+  const type = effect.type === 1 ? 1 : effect.type === 2 ? 2 : 0;
   return {
     id: Math.round(toNumber(effect.id, 0)),
     type,
     startNoteId: startNote.id,
     endNoteId: endNote.id,
-    noteEffectLabel: type === 0 ? "b" : endNote.tab[1] - startNote.tab[1] >= 0 ? "h" : "p",
+    noteEffectLabel:
+      type === 0
+        ? "b"
+        : type === 1
+        ? endNote.tab[1] - startNote.tab[1] >= 0
+          ? "h"
+          : "p"
+        : endNote.tab[1] - startNote.tab[1] >= 0
+        ? "/"
+        : "\\",
   };
 };
 
@@ -890,7 +899,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         const result = applyLaneMutation(canvas, laneId, (lane) => {
           const note1Id = Math.round(toNumber(body.note1Id, -1));
           const note2Id = Math.round(toNumber(body.note2Id, -1));
-          const type = clamp(Math.round(toNumber(body.type, 0)), 0, 1);
+          const type = clamp(Math.round(toNumber(body.type, 0)), 0, 2);
+          const first = lane.notes.find((note) => note.id === note1Id);
+          const second = lane.notes.find((note) => note.id === note2Id);
           lane.noteEffects = [
             ...(lane.noteEffects || []),
             {
@@ -898,7 +909,16 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
               type,
               startNoteId: note1Id,
               endNoteId: note2Id,
-              noteEffectLabel: type === 0 ? "b" : "h",
+              noteEffectLabel:
+                type === 0
+                  ? "b"
+                  : type === 1
+                  ? (second?.tab?.[1] ?? 0) - (first?.tab?.[1] ?? 0) >= 0
+                    ? "h"
+                    : "p"
+                  : (second?.tab?.[1] ?? 0) - (first?.tab?.[1] ?? 0) >= 0
+                  ? "/"
+                  : "\\",
             },
           ];
           normalizeNoteEffectsInLane(lane);

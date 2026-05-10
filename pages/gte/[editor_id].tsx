@@ -2416,6 +2416,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         gain: number;
         instrumentId: string;
         pan: number;
+        bendSegments?: Array<{
+          holdSec: number;
+          bendSec: number;
+          targetCents: number;
+        }>;
+        slideSegments?: Array<{
+          holdSec: number;
+          slideSec: number;
+          targetCents: number;
+        }>;
       }> = [];
 
       const pushEvent = (
@@ -2424,7 +2434,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         midi: number,
         gain: number,
         instrumentId: string,
-        pan: number
+        pan: number,
+        bendSegments?: Array<{
+          holdFrames: number;
+          bendFrames: number;
+          targetCents: number;
+        }>,
+        slideSegments?: Array<{
+          holdFrames: number;
+          slideFrames: number;
+          targetCents: number;
+        }>
       ) => {
         const roundedStart = Math.round(eventStart);
         const roundedEnd = Math.round(eventStart + eventLength);
@@ -2441,6 +2461,46 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           gain,
           instrumentId,
           pan,
+          bendSegments:
+            Array.isArray(bendSegments) && bendSegments.length > 0
+              ? bendSegments
+                  .map((segment) => ({
+                    holdSec: frameDeltaToSeconds(
+                      Math.max(0, roundedStart + segment.holdFrames - trimmedStart),
+                      globalPlaybackFps,
+                      runPlaybackSpeed
+                    ),
+                    bendSec: frameDeltaToSeconds(
+                      Math.max(0, segment.bendFrames),
+                      globalPlaybackFps,
+                      runPlaybackSpeed
+                    ),
+                    targetCents: segment.targetCents,
+                  }))
+                  .filter(
+                    (segment) => Number.isFinite(segment.holdSec) && Number.isFinite(segment.bendSec)
+                  )
+              : undefined,
+          slideSegments:
+            Array.isArray(slideSegments) && slideSegments.length > 0
+              ? slideSegments
+                  .map((segment) => ({
+                    holdSec: frameDeltaToSeconds(
+                      Math.max(0, roundedStart + segment.holdFrames - trimmedStart),
+                      globalPlaybackFps,
+                      runPlaybackSpeed
+                    ),
+                    slideSec: frameDeltaToSeconds(
+                      Math.max(0, segment.slideFrames),
+                      globalPlaybackFps,
+                      runPlaybackSpeed
+                    ),
+                    targetCents: segment.targetCents,
+                  }))
+                  .filter(
+                    (segment) => Number.isFinite(segment.holdSec) && Number.isFinite(segment.slideSec)
+                  )
+              : undefined,
         });
       };
 
@@ -2452,11 +2512,130 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         const lanePan = normalizeTrackPan(trackPanById[laneId] ?? 0);
         if (laneVolume <= 0) return;
         const instrumentId = normalizeTrackInstrumentId(lane.instrumentId);
+        const notesById = new Map(lane.notes.map((note) => [note.id, note] as const));
+        const outgoingTransitions = new Map<
+          number,
+          {
+            startNoteId: number;
+            endNoteId: number;
+            type: number;
+          }
+        >();
+        const incomingTransitionNoteIds = new Set<number>();
 
+        (lane.noteEffects || []).forEach((effect) => {
+          if (effect.type !== 0 && effect.type !== 2) return;
+          const first = notesById.get(effect.startNoteId);
+          const second = notesById.get(effect.endNoteId);
+          if (!first || !second || first.id === second.id) return;
+          if (first.tab[0] !== second.tab[0]) return;
+
+          const [startNote, endNote] =
+            first.startTime < second.startTime || (first.startTime === second.startTime && first.id <= second.id)
+              ? [first, second]
+              : [second, first];
+          const blocked = lane.notes.some((note) => {
+            if (note.id === startNote.id || note.id === endNote.id) return false;
+            if (note.tab[0] !== startNote.tab[0]) return false;
+            const noteStart = Math.round(note.startTime);
+            return (
+              Math.round(startNote.startTime + Math.max(1, Math.round(startNote.length))) <= noteStart &&
+              noteStart <= Math.round(endNote.startTime)
+            );
+          });
+          if (blocked || outgoingTransitions.has(startNote.id)) return;
+          outgoingTransitions.set(startNote.id, {
+            startNoteId: startNote.id,
+            endNoteId: endNote.id,
+            type: effect.type,
+          });
+          incomingTransitionNoteIds.add(endNote.id);
+        });
+
+        const consumedTransitionNoteIds = new Set<number>();
         lane.notes.forEach((note) => {
-          const midi =
+          if (consumedTransitionNoteIds.has(note.id)) return;
+          if (incomingTransitionNoteIds.has(note.id) && !outgoingTransitions.has(note.id)) return;
+
+          const baseMidi =
             Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(lane, note.tab);
-          pushEvent(note.startTime, note.length, midi, 0.55 * laneVolume, instrumentId, lanePan);
+          const noteGain = 0.55 * laneVolume;
+          if (!outgoingTransitions.has(note.id)) {
+            pushEvent(note.startTime, note.length, baseMidi, noteGain, instrumentId, lanePan);
+            return;
+          }
+
+          const chain = [note];
+          const visited = new Set<number>([note.id]);
+          let current = note;
+          while (true) {
+            const effect = outgoingTransitions.get(current.id);
+            if (!effect) break;
+            const next = notesById.get(effect.endNoteId);
+            if (!next || visited.has(next.id)) break;
+            chain.push(next);
+            visited.add(next.id);
+            current = next;
+          }
+
+          chain.forEach((item) => consumedTransitionNoteIds.add(item.id));
+          const lastNote = chain[chain.length - 1];
+          const totalEnd = Math.max(
+            Math.round(lastNote.startTime + lastNote.length),
+            ...chain.map((item) => Math.round(item.startTime + item.length))
+          );
+          const totalLength = Math.max(1, totalEnd - Math.round(note.startTime));
+          const minimumBendFrames = 10;
+          let previousBendEndFrames = 0;
+          const bendSegments: Array<{ holdFrames: number; bendFrames: number; targetCents: number }> = [];
+          const slideSegments: Array<{ holdFrames: number; slideFrames: number; targetCents: number }> = [];
+          chain.slice(1).forEach((item, chainIndex) => {
+            const previous = chain[chainIndex];
+            const transition = outgoingTransitions.get(previous.id);
+            if (!transition) return;
+            const targetMidi =
+              Number.isFinite(item.midiNum) && item.midiNum > 0
+                ? item.midiNum
+                : getMidiFromTab(lane, item.tab);
+            const targetStartFrames = Math.max(0, Math.round(item.startTime - note.startTime));
+            const previousStartFrames = Math.max(0, Math.round(previous.startTime - note.startTime));
+            const previousEndFrames = Math.max(
+              previousStartFrames,
+              Math.round(previous.startTime + previous.length - note.startTime)
+            );
+            const bendStartFrames = Math.max(
+              previousStartFrames,
+              previousBendEndFrames,
+              Math.min(previousEndFrames, targetStartFrames - minimumBendFrames)
+            );
+            const bendFrames = Math.max(0, targetStartFrames - bendStartFrames);
+            previousBendEndFrames = targetStartFrames;
+            const targetCents = (targetMidi - baseMidi) * 100;
+            if (transition.type === 2) {
+              slideSegments.push({
+                holdFrames: bendStartFrames,
+                slideFrames: bendFrames,
+                targetCents,
+              });
+              return;
+            }
+            bendSegments.push({
+              holdFrames: bendStartFrames,
+              bendFrames,
+              targetCents,
+            });
+          });
+
+          pushEvent(
+            note.startTime,
+            totalLength,
+            baseMidi,
+            noteGain,
+            instrumentId,
+            lanePan,
+            bendSegments.length > 0 ? bendSegments : undefined,
+            slideSegments.length > 0 ? slideSegments : undefined
+          );
         });
 
         lane.chords.forEach((chord) => {
@@ -2543,6 +2722,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           gain: evt.gain,
           startTime: playBase + evt.start,
           duration: Math.max(0.05, evt.duration),
+          bendSegments: evt.bendSegments,
+          slideSegments: evt.slideSegments,
         });
       });
 

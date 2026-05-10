@@ -54,6 +54,16 @@ export type ScheduledTrackNote = {
   gain: number;
   startTime: number;
   duration: number;
+  bendSegments?: Array<{
+    holdSec: number;
+    bendSec: number;
+    targetCents: number;
+  }>;
+  slideSegments?: Array<{
+    holdSec: number;
+    slideSec: number;
+    targetCents: number;
+  }>;
 };
 
 const SOUND_FONT_MANIFEST_PATH = "/soundfonts/manifest.json";
@@ -191,19 +201,132 @@ const getSampleBuffer = (ctx: AudioContext, sample: SoundfontSample) => {
   return buffer;
 };
 
+const centsToRatio = (cents: number) => Math.pow(2, cents / 1200);
+
+const normalizeBendSegments = (
+  segments: ScheduledTrackNote["bendSegments"],
+  duration: number
+) => {
+  if (!Array.isArray(segments) || segments.length === 0) return [];
+  const safeDuration = Math.max(0, duration);
+  return segments
+    .map((segment) => ({
+      holdSec: clamp(toFiniteNumber(segment.holdSec, 0), 0, safeDuration),
+      bendSec: clamp(toFiniteNumber(segment.bendSec, 0), 0, safeDuration),
+      targetCents: toFiniteNumber(segment.targetCents, 0),
+    }))
+    .filter((segment) => segment.holdSec <= safeDuration);
+};
+
+const normalizeSlideSegments = (
+  segments: ScheduledTrackNote["slideSegments"],
+  duration: number
+) => {
+  if (!Array.isArray(segments) || segments.length === 0) return [];
+  const safeDuration = Math.max(0, duration);
+  return segments
+    .map((segment) => ({
+      holdSec: clamp(toFiniteNumber(segment.holdSec, 0), 0, safeDuration),
+      slideSec: clamp(toFiniteNumber(segment.slideSec, 0), 0, safeDuration),
+      targetCents: toFiniteNumber(segment.targetCents, 0),
+    }))
+    .filter((segment) => segment.holdSec <= safeDuration);
+};
+
+const applyBendAutomationToRate = (
+  param: AudioParam | null | undefined,
+  baseValue: number,
+  startTime: number,
+  duration: number,
+  bendSegments?: ScheduledTrackNote["bendSegments"]
+) => {
+  if (!param || !Number.isFinite(baseValue) || baseValue <= 0) return;
+  const segments = normalizeBendSegments(bendSegments, duration);
+  param.setValueAtTime(baseValue, startTime);
+  let currentCents = 0;
+  segments.forEach((segment) => {
+    const holdAt = startTime + segment.holdSec;
+    const bendEndAt = startTime + Math.min(duration, segment.holdSec + segment.bendSec);
+    param.setValueAtTime(baseValue * centsToRatio(currentCents), holdAt);
+    param.linearRampToValueAtTime(baseValue * centsToRatio(segment.targetCents), bendEndAt);
+    currentCents = segment.targetCents;
+  });
+};
+
+const applySlideAutomationToRate = (
+  param: AudioParam | null | undefined,
+  baseValue: number,
+  startTime: number,
+  duration: number,
+  slideSegments?: ScheduledTrackNote["slideSegments"]
+) => {
+  if (!param || !Number.isFinite(baseValue) || baseValue <= 0) return;
+  const segments = normalizeSlideSegments(slideSegments, duration);
+  param.setValueAtTime(baseValue, startTime);
+  let currentCents = 0;
+  segments.forEach((segment) => {
+    const holdAt = startTime + segment.holdSec;
+    const slideEndAt = startTime + Math.min(duration, segment.holdSec + segment.slideSec);
+    param.setValueAtTime(baseValue * centsToRatio(currentCents), holdAt);
+    const semitoneDelta = Math.round((segment.targetCents - currentCents) / 100);
+    const stepCount = Math.max(1, Math.abs(semitoneDelta));
+    for (let step = 1; step <= stepCount; step += 1) {
+      const ratio = step / stepCount;
+      const stepTime = holdAt + (slideEndAt - holdAt) * ratio;
+      const stepCents = currentCents + semitoneDelta * 100 * ratio;
+      param.setValueAtTime(baseValue * centsToRatio(stepCents), stepTime);
+    }
+    currentCents = segment.targetCents;
+  });
+};
+
+const shouldUseFallbackSustainLoop = (
+  duration: number,
+  bendSegments?: ScheduledTrackNote["bendSegments"],
+  slideSegments?: ScheduledTrackNote["slideSegments"]
+) =>
+  Boolean(
+    ((Array.isArray(bendSegments) && bendSegments.length > 0) ||
+      (Array.isArray(slideSegments) && slideSegments.length > 0)) &&
+      duration > 0.12
+  );
+
+const getFallbackSustainLoop = (bufferDuration: number) => {
+  if (!Number.isFinite(bufferDuration) || bufferDuration <= 0.12) return null;
+  const loopEnd = Math.max(0.08, bufferDuration - 0.02);
+  const loopStart = Math.max(0.02, Math.min(loopEnd - 0.04, bufferDuration * 0.35));
+  if (loopEnd - loopStart < 0.03) return null;
+  return { loopStart, loopEnd };
+};
+
 const scheduleBuiltinSynthNote = (
   destination: AudioNode,
   option: BuiltinTrackInstrumentOption,
   params: Omit<ScheduledTrackNote, "destination" | "instrument">
 ) => {
-  const { ctx, midi, gain, startTime, duration } = params;
+  const { ctx, midi, gain, startTime, duration, bendSegments, slideSegments } = params;
   if (!Number.isFinite(midi) || midi <= 0) return;
   const stopAt = startTime + Math.max(0.05, duration);
   const peak = Math.max(0, gain * Math.max(0, option.gain ?? 1));
+  const baseFrequency = midiToFrequency(midi);
 
   const oscillator = ctx.createOscillator();
   oscillator.type = option.waveform;
-  oscillator.frequency.setValueAtTime(midiToFrequency(midi), startTime);
+  oscillator.frequency.setValueAtTime(baseFrequency, startTime);
+  applyBendAutomationToRate(
+    oscillator.frequency,
+    baseFrequency,
+    startTime,
+    Math.max(0.05, duration),
+    bendSegments
+  );
+  applySlideAutomationToRate(
+    oscillator.frequency,
+    baseFrequency,
+    startTime,
+    Math.max(0.05, duration),
+    slideSegments
+  );
 
   const amp = ctx.createGain();
   amp.gain.setValueAtTime(0, startTime);
@@ -222,7 +345,7 @@ const scheduleSoundfontNote = (
   instrument: Extract<PreparedTrackInstrument, { kind: "sf2" }>,
   params: Omit<ScheduledTrackNote, "destination" | "instrument">
 ) => {
-  const { ctx, midi, gain, startTime, duration } = params;
+  const { ctx, midi, gain, startTime, duration, bendSegments, slideSegments } = params;
   const zones = instrument.getActiveZones(instrument.preset, midi);
   if (!zones.length) {
     scheduleBuiltinSynthNote(destination, BUILTIN_TRACK_INSTRUMENTS[0], params);
@@ -249,6 +372,8 @@ const scheduleSoundfontNote = (
       (midi * 100 - (rootKey * 100 + sample.header.pitchCorrection - fineTune)) / 1200
     );
     source.playbackRate.setValueAtTime(playbackRate, startTime);
+    applyBendAutomationToRate(source.playbackRate, playbackRate, startTime, noteDuration, bendSegments);
+    applySlideAutomationToRate(source.playbackRate, playbackRate, startTime, noteDuration, slideSegments);
 
     const sampleModes = Math.round(toFiniteNumber(generators.sampleModes, 0));
     const startLoop =
@@ -263,6 +388,13 @@ const scheduleSoundfontNote = (
       source.loop = true;
       source.loopStart = startLoop / sample.header.sampleRate;
       source.loopEnd = endLoop / sample.header.sampleRate;
+    } else if (shouldUseFallbackSustainLoop(noteDuration, bendSegments, slideSegments)) {
+      const fallbackLoop = getFallbackSustainLoop(buffer.duration);
+      if (fallbackLoop) {
+        source.loop = true;
+        source.loopStart = fallbackLoop.loopStart;
+        source.loopEnd = fallbackLoop.loopEnd;
+      }
     }
 
     const amp = ctx.createGain();

@@ -28,7 +28,7 @@ import {
 } from "../lib/gteSoundfonts";
 import { getOpenStringMidiFromSnapshot, getStringLabelsForSnapshot } from "../lib/gteTuning";
 import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
-import type { CutWithCoord, EditorSnapshot, NoteEffect, TabCoord } from "../types/gte";
+import type { CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
 
@@ -358,6 +358,20 @@ const recomputeSnapshotOptimals = (snapshot: EditorSnapshot): EditorSnapshot => 
   return next;
 };
 
+const getNoteEffectTypeName = (type: number) => {
+  if (type === 0) return "Bend";
+  if (type === 1) return "Hammer/Pull";
+  if (type === 2) return "Slide";
+  return "Note Effect";
+};
+
+const getNoteEffectLabelForNotes = (type: number, startNote: Note, endNote: Note) => {
+  if (type === 0) return "b";
+  if (type === 1) return endNote.tab[1] - startNote.tab[1] >= 0 ? "h" : "p";
+  if (type === 2) return endNote.tab[1] - startNote.tab[1] >= 0 ? "/" : "\\";
+  return "";
+};
+
 const getCanonicalNoteEffectForSnapshot = (
   snapshot: EditorSnapshot,
   effect: NoteEffect
@@ -384,9 +398,8 @@ const getCanonicalNoteEffectForSnapshot = (
   });
   if (blocked) return null;
 
-  const type = effect.type === 1 ? 1 : 0;
-  const noteEffectLabel =
-    type === 0 ? "b" : endNote.tab[1] - startNote.tab[1] >= 0 ? "h" : "p";
+  const type = effect.type === 1 ? 1 : effect.type === 2 ? 2 : 0;
+  const noteEffectLabel = getNoteEffectLabelForNotes(type, startNote, endNote);
   return {
     id: effect.id,
     type,
@@ -589,12 +602,13 @@ const addNoteEffectToSnapshot = (draft: EditorSnapshot, noteIds: number[], type:
     .map((id) => draft.notes.find((note) => note.id === id))
     .filter((note): note is EditorSnapshot["notes"][number] => Boolean(note));
   if (notes.length !== 2) return;
+  const [first, second] = notes;
   const effect: NoteEffect = {
     id: nextNoteEffectId(draft),
     type,
-    startNoteId: notes[0].id,
-    endNoteId: notes[1].id,
-    noteEffectLabel: type === 0 ? "b" : "h",
+    startNoteId: first.id,
+    endNoteId: second.id,
+    noteEffectLabel: getNoteEffectLabelForNotes(type, first, second),
   };
   const existingPairKey = noteEffectKey(effect);
   const remainingEffects = (draft.noteEffects || []).filter(
@@ -4748,7 +4762,7 @@ export default function GteWorkspace({
 
   const handleAddNoteEffect = useCallback(
     (type: number) => {
-      if (guardSingleTrackSelectionAction(type === 0 ? "Bend" : "Hammer/Pull")) return;
+      if (guardSingleTrackSelectionAction(getNoteEffectTypeName(type))) return;
       const noteIds = Array.from(new Set(selectedNoteIds));
       if (noteIds.length !== 2 || activeChordIds.length > 0) return;
       const resolvedNoteIds = noteIds.map((id) => resolveNoteId(id));
@@ -4772,12 +4786,8 @@ export default function GteWorkspace({
       enqueueOptimisticMutation({
         label:
           existingEffect?.type === type
-            ? type === 0
-              ? "remove-bend"
-              : "remove-hammer-pull"
-            : type === 0
-            ? "add-bend"
-            : "add-hammer-pull",
+            ? `remove-${getNoteEffectTypeName(type).toLowerCase().replace("/", "-").replace(/\s+/g, "-")}`
+            : `add-${getNoteEffectTypeName(type).toLowerCase().replace("/", "-").replace(/\s+/g, "-")}`,
         apply: (draft) => {
           if (existingEffect?.type === type) {
             removeNoteEffectFromSnapshot(draft, existingEffect.id);
@@ -5795,6 +5805,16 @@ export default function GteWorkspace({
       midi: number;
       gain: number;
       stringIndex?: number;
+      bendSegments?: Array<{
+        holdSec: number;
+        bendSec: number;
+        targetCents: number;
+      }>;
+      slideSegments?: Array<{
+        holdSec: number;
+        slideSec: number;
+        targetCents: number;
+      }>;
     }> = [];
 
     const pushEvent = (
@@ -5802,7 +5822,17 @@ export default function GteWorkspace({
       length: number,
       midi: number,
       gain: number,
-      stringIndex?: number
+      stringIndex?: number,
+      bendSegments?: Array<{
+        holdFrames: number;
+        bendFrames: number;
+        targetCents: number;
+      }>,
+      slideSegments?: Array<{
+        holdFrames: number;
+        slideFrames: number;
+        targetCents: number;
+      }>
     ) => {
       const eventStart = Math.round(startTime);
       const eventEnd = Math.round(startTime + length);
@@ -5818,14 +5848,137 @@ export default function GteWorkspace({
         midi,
         gain,
         stringIndex,
+        bendSegments:
+          Array.isArray(bendSegments) && bendSegments.length > 0
+            ? bendSegments
+                .map((segment) => ({
+                  holdSec: frameDeltaToSeconds(
+                    Math.max(0, eventStart + segment.holdFrames - trimmedStart),
+                    playbackFps,
+                    runPlaybackSpeed
+                  ),
+                  bendSec: frameDeltaToSeconds(
+                    Math.max(0, segment.bendFrames),
+                    playbackFps,
+                    runPlaybackSpeed
+                  ),
+                  targetCents: segment.targetCents,
+                }))
+                .filter((segment) => Number.isFinite(segment.holdSec) && Number.isFinite(segment.bendSec))
+            : undefined,
+        slideSegments:
+          Array.isArray(slideSegments) && slideSegments.length > 0
+            ? slideSegments
+                .map((segment) => ({
+                  holdSec: frameDeltaToSeconds(
+                    Math.max(0, eventStart + segment.holdFrames - trimmedStart),
+                    playbackFps,
+                    runPlaybackSpeed
+                  ),
+                  slideSec: frameDeltaToSeconds(
+                    Math.max(0, segment.slideFrames),
+                    playbackFps,
+                    runPlaybackSpeed
+                  ),
+                  targetCents: segment.targetCents,
+                }))
+                .filter((segment) => Number.isFinite(segment.holdSec) && Number.isFinite(segment.slideSec))
+            : undefined,
       });
     };
 
+    const notesById = new Map(snapshot.notes.map((note) => [note.id, note] as const));
+    const outgoingTransitions = new Map<number, NonNullable<EditorSnapshot["noteEffects"]>[number]>();
+    const incomingTransitionNoteIds = new Set<number>();
+    (snapshot.noteEffects || []).forEach((effect) => {
+      if (effect.type !== 0 && effect.type !== 2) return;
+      const canonical = getCanonicalNoteEffectForSnapshot(snapshot, effect);
+      if (!canonical) return;
+      if (outgoingTransitions.has(canonical.startNoteId)) return;
+      outgoingTransitions.set(canonical.startNoteId, canonical);
+      incomingTransitionNoteIds.add(canonical.endNoteId);
+    });
+
+    const consumedTransitionNoteIds = new Set<number>();
     snapshot.notes.forEach((note) => {
+      if (consumedTransitionNoteIds.has(note.id)) return;
+      if (incomingTransitionNoteIds.has(note.id) && !outgoingTransitions.has(note.id)) return;
       const key = `note-${note.id}`;
       const gain = conflictInfo.conflictKeys.has(key) ? 0.25 : 0.55;
-      const midi = Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(note.tab);
-      pushEvent(note.startTime, note.length, midi, gain, note.tab[0]);
+      const baseMidi =
+        Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(note.tab);
+      if (!outgoingTransitions.has(note.id)) {
+        pushEvent(note.startTime, note.length, baseMidi, gain, note.tab[0]);
+        return;
+      }
+
+      const chain = [note];
+      const visited = new Set<number>([note.id]);
+      let current = note;
+      while (true) {
+        const effect = outgoingTransitions.get(current.id);
+        if (!effect) break;
+        const next = notesById.get(effect.endNoteId);
+        if (!next || visited.has(next.id)) break;
+        chain.push(next);
+        visited.add(next.id);
+        current = next;
+      }
+
+      chain.forEach((item) => consumedTransitionNoteIds.add(item.id));
+      const lastNote = chain[chain.length - 1];
+      const totalEnd = Math.max(
+        Math.round(lastNote.startTime + lastNote.length),
+        ...chain.map((item) => Math.round(item.startTime + item.length))
+      );
+      const totalLength = Math.max(1, totalEnd - Math.round(note.startTime));
+      const minimumBendFrames = 10;
+      let previousBendEndFrames = 0;
+      const bendSegments: Array<{ holdFrames: number; bendFrames: number; targetCents: number }> = [];
+      const slideSegments: Array<{ holdFrames: number; slideFrames: number; targetCents: number }> = [];
+      chain.slice(1).forEach((item, chainIndex) => {
+        const previous = chain[chainIndex];
+        const transition = outgoingTransitions.get(previous.id);
+        if (!transition) return;
+        const targetMidi =
+          Number.isFinite(item.midiNum) && item.midiNum > 0 ? item.midiNum : getMidiFromTab(item.tab);
+        const targetStartFrames = Math.max(0, Math.round(item.startTime - note.startTime));
+        const previousStartFrames = Math.max(0, Math.round(previous.startTime - note.startTime));
+        const previousEndFrames = Math.max(
+          previousStartFrames,
+          Math.round(previous.startTime + previous.length - note.startTime)
+        );
+        const bendStartFrames = Math.max(
+          previousStartFrames,
+          previousBendEndFrames,
+          Math.min(previousEndFrames, targetStartFrames - minimumBendFrames)
+        );
+        const bendFrames = Math.max(0, targetStartFrames - bendStartFrames);
+        previousBendEndFrames = targetStartFrames;
+        const targetCents = (targetMidi - baseMidi) * 100;
+        if (transition.type === 2) {
+          slideSegments.push({
+            holdFrames: bendStartFrames,
+            slideFrames: bendFrames,
+            targetCents,
+          });
+          return;
+        }
+        bendSegments.push({
+          holdFrames: bendStartFrames,
+          bendFrames,
+          targetCents,
+        });
+      });
+      pushEvent(
+        note.startTime,
+        totalLength,
+        baseMidi,
+        gain,
+        note.tab[0],
+        bendSegments.length > 0 ? bendSegments : undefined,
+        slideSegments.length > 0 ? slideSegments : undefined
+      );
     });
     snapshot.chords.forEach((chord) => {
       chord.currentTabs.forEach((tab, idx) => {
@@ -5876,6 +6029,16 @@ export default function GteWorkspace({
       midi: number;
       gain: number;
       stringIndex?: number;
+      bendSegments?: Array<{
+        holdSec: number;
+        bendSec: number;
+        targetCents: number;
+      }>;
+      slideSegments?: Array<{
+        holdSec: number;
+        slideSec: number;
+        targetCents: number;
+      }>;
     }) => {
       if (!Number.isFinite(evt.midi) || evt.midi <= 0) return;
       schedulePreparedTrackNote({
@@ -5886,6 +6049,8 @@ export default function GteWorkspace({
         gain: evt.gain,
         startTime: playBase + evt.start,
         duration: Math.max(0.05, evt.duration),
+        bendSegments: evt.bendSegments,
+        slideSegments: evt.slideSegments,
       });
     };
 
@@ -6896,10 +7061,17 @@ export default function GteWorkspace({
         void handleMakeChord();
         return;
       }
-      if (event.key === "l" || event.key === "L") {
+      if (
+        event.code === "KeyL" &&
+        event.shiftKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey
+      ) {
         if (isTyping) return;
         if (guardSingleTrackSelectionAction("Disband")) return;
         if (activeChordIds.length) {
+          event.preventDefault();
           const chordIds = [...activeChordIds];
           void runMutation(async () => {
             const latestSnapshot = await disbandChordIds(chordIds);
@@ -6955,6 +7127,15 @@ export default function GteWorkspace({
         if (canCreateNoteEffect) {
           event.preventDefault();
           handleAddNoteEffect(1);
+        }
+        return;
+      }
+      if (event.key === "l" || event.key === "L") {
+        if (isTyping) return;
+        if (guardSingleTrackSelectionAction("Slide")) return;
+        if (canCreateNoteEffect) {
+          event.preventDefault();
+          handleAddNoteEffect(2);
         }
         return;
       }
@@ -7383,11 +7564,11 @@ export default function GteWorkspace({
                 title={
                   selectionActionsLocked
                     ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Disband selected chord into notes - Shortcut: L"
+                    : "Disband selected chord into notes - Shortcut: Shift+L"
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>L</span>
+                <span className={tooltipClass}>Shift+L</span>
                 Disband Chord
               </button>
 
@@ -7457,6 +7638,23 @@ export default function GteWorkspace({
               >
                 <span className={tooltipClass}>B</span>
                 Bend
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleAddNoteEffect(2);
+                }}
+                disabled={!canCreateNoteEffect}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Connect two selected notes with a slide - Shortcut: L"
+                }
+                className={textButtonClass}
+              >
+                <span className={tooltipClass}>L</span>
+                Slide
               </button>
 
               <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_86px] gap-1.5">
@@ -8883,7 +9081,10 @@ export default function GteWorkspace({
                           height,
                           borderRadius: 0,
                         }}
-                        title={effect.noteEffectLabel || (effect.type === 0 ? "bend" : "hammer/pull")}
+                        title={
+                          effect.noteEffectLabel ||
+                          getNoteEffectTypeName(effect.type).toLowerCase()
+                        }
                       >
                         {idx === 0 ? (
                           <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-slate-900">
