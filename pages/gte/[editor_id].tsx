@@ -123,6 +123,7 @@ const normalizeLane = (
     timeSignature: Math.max(1, Math.min(64, Math.round(toNumber(lane.timeSignature, 8)))),
     notes: Array.isArray(lane.notes) ? lane.notes : [],
     chords: Array.isArray(lane.chords) ? lane.chords : [],
+    noteEffects: Array.isArray(lane.noteEffects) ? lane.noteEffects : [],
     cutPositionsWithCoords:
       Array.isArray(lane.cutPositionsWithCoords) && lane.cutPositionsWithCoords.length
         ? lane.cutPositionsWithCoords

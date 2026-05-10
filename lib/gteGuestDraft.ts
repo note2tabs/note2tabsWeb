@@ -151,6 +151,28 @@ const normalizeCutPositions = (value: unknown, ratio: number): CutWithCoord[] =>
   return result;
 };
 
+const normalizeNoteEffects = (value: unknown): NonNullable<EditorSnapshot["noteEffects"]> => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null;
+      const effect = entry as Record<string, unknown>;
+      const type = clampInt(effect.type, -1, -1, 1);
+      const startNoteId = clampInt(effect.startNoteId, -1, -2147483648, 2147483647);
+      const endNoteId = clampInt(effect.endNoteId, -1, -2147483648, 2147483647);
+      if (type < 0 || startNoteId < 0 || endNoteId < 0 || startNoteId === endNoteId) return null;
+      return {
+        id: clampInt(effect.id, 0, -2147483648, 2147483647),
+        type,
+        startNoteId,
+        endNoteId,
+        noteEffectLabel:
+          typeof effect.noteEffectLabel === "string" ? effect.noteEffectLabel : String(effect.noteEffectLabel ?? ""),
+      };
+    })
+    .filter((effect): effect is NonNullable<EditorSnapshot["noteEffects"]>[number] => effect !== null);
+};
+
 export const createGuestSnapshot = (editorId: string = GTE_GUEST_EDITOR_ID): EditorSnapshot => {
   return {
     id: editorId,
@@ -166,6 +188,7 @@ export const createGuestSnapshot = (editorId: string = GTE_GUEST_EDITOR_ID): Edi
     secondsPerBar: DEFAULT_SECONDS_PER_BAR,
     notes: [],
     chords: [],
+    noteEffects: [],
     cutPositionsWithCoords: buildDefaultCutPositions(DEFAULT_TOTAL_FRAMES),
     optimalsByTime: {},
     tabRef: buildDefaultTabRef(DEFAULT_MAX_FRET),
@@ -245,6 +268,8 @@ export const normalizeGuestSnapshot = (
         .filter((chord): chord is EditorSnapshot["chords"][number] => chord !== null)
     : [];
 
+  const noteEffects = normalizeNoteEffects(raw.noteEffects);
+
   const cutPositionsWithCoords = normalizeCutPositions(raw.cutPositionsWithCoords, frameRatio);
   const tabRef = buildNormalizedTabRef(raw.tabRef);
   const tuning = normalizeTuning(raw.tuning, tabRef);
@@ -266,6 +291,7 @@ export const normalizeGuestSnapshot = (
     secondsPerBar,
     notes,
     chords,
+    noteEffects,
     cutPositionsWithCoords: cutPositionsWithCoords.length
       ? cutPositionsWithCoords
       : buildDefaultCutPositions(totalFrames),

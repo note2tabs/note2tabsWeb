@@ -7,7 +7,14 @@ export type Note = {
   midiNum: number;
   tab: TabCoord;
   optimals: TabCoord[];
-  
+};
+
+export type NoteEffect = {
+  id: number;
+  type: number;
+  startNoteId: number;
+  endNoteId: number;
+  noteEffectLabel: string;
 };
 
 export type Chord = {
@@ -43,6 +50,7 @@ export type EditorSnapshot = {
   secondsPerBar?: number;
   notes: Note[];
   chords: Chord[];
+  noteEffects?: NoteEffect[];
   cutPositionsWithCoords: CutWithCoord[];
   optimalsByTime: Record<string, Record<string, TabCoord[]>>;
   tabRef?: number[][];

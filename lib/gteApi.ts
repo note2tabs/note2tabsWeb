@@ -421,6 +421,16 @@ export const gteApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ noteIds }),
     }),
+  addNoteEffect: (editorId: string, note1Id: number, note2Id: number, type: number) =>
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/note-effects`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note1Id, note2Id, type }),
+    }),
+  deleteNoteEffect: (editorId: string, effectId: number) =>
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/note-effects/${effectId}`, {
+      method: "DELETE",
+    }),
   makeChord: (editorId: string, noteIds: number[]) =>
     requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/chords`, {
       method: "POST",
