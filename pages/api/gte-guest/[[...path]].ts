@@ -5,7 +5,7 @@ import {
   createGuestSnapshot,
   normalizeGuestSnapshot,
 } from "../../../lib/gteGuestDraft";
-import type { CanvasSnapshot, CutWithCoord, EditorSnapshot, TabCoord } from "../../../types/gte";
+import type { CanvasSnapshot, CutWithCoord, EditorSnapshot, NoteEffect, TabCoord } from "../../../types/gte";
 
 const COOKIE_NAME = "note2tabs_gte_guest_session";
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
@@ -103,19 +103,66 @@ const cleanCutSegmentsInLane = (lane: EditorSnapshot) => {
   lane.cutPositionsWithCoords = mergeRedundantCutRegions(lane, lane.cutPositionsWithCoords);
 };
 
+const getCanonicalNoteEffect = (lane: EditorSnapshot, effect: NoteEffect): NoteEffect | null => {
+  const first = lane.notes.find((note) => note.id === effect.startNoteId);
+  const second = lane.notes.find((note) => note.id === effect.endNoteId);
+  if (!first || !second || first.id === second.id) return null;
+  if (first.tab[0] !== second.tab[0]) return null;
+  const ordered =
+    first.startTime < second.startTime || (first.startTime === second.startTime && first.id <= second.id)
+      ? [first, second]
+      : [second, first];
+  const [startNote, endNote] = ordered;
+  const leftEnd = Math.round(startNote.startTime + clampEventLength(startNote.length));
+  const rightStart = Math.round(endNote.startTime);
+  const blocked = lane.notes.some((note) => {
+    if (note.id === startNote.id || note.id === endNote.id) return false;
+    if (note.tab[0] !== startNote.tab[0]) return false;
+    const noteStart = Math.round(note.startTime);
+    return leftEnd <= noteStart && noteStart <= rightStart;
+  });
+  if (blocked) return null;
+  const type = effect.type === 1 ? 1 : 0;
+  return {
+    id: Math.round(toNumber(effect.id, 0)),
+    type,
+    startNoteId: startNote.id,
+    endNoteId: endNote.id,
+    noteEffectLabel: type === 0 ? "b" : endNote.tab[1] - startNote.tab[1] >= 0 ? "h" : "p",
+  };
+};
+
+const normalizeNoteEffectsInLane = (lane: EditorSnapshot) => {
+  const seen = new Set<string>();
+  lane.noteEffects = (lane.noteEffects || []).flatMap((effect) => {
+    const canonical = getCanonicalNoteEffect(lane, effect);
+    if (!canonical) return [];
+    const key = `${Math.min(canonical.startNoteId, canonical.endNoteId)}:${Math.max(
+      canonical.startNoteId,
+      canonical.endNoteId
+    )}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [canonical];
+  });
+};
+
 const normalizeLane = (raw: unknown, laneId: string, secondsFallback: number, index: number): EditorSnapshot => {
   const source =
     raw && typeof raw === "object"
       ? { ...(raw as Record<string, unknown>), secondsPerBar: toNumber((raw as any).secondsPerBar, secondsFallback) }
       : { secondsPerBar: secondsFallback };
   const lane = normalizeGuestSnapshot(source, laneId);
-  return {
+  const nextLane = {
     ...lane,
     id: laneId,
     name: lane.name || `Editor ${index + 1}`,
     secondsPerBar: Math.max(0.1, toNumber(lane.secondsPerBar, secondsFallback)),
+    noteEffects: Array.isArray(lane.noteEffects) ? lane.noteEffects : [],
     cutPositionsWithCoords: lane.cutPositionsWithCoords.length ? lane.cutPositionsWithCoords : buildDefaultCuts(lane),
   };
+  normalizeNoteEffectsInLane(nextLane);
+  return nextLane;
 };
 
 const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot => {
@@ -274,6 +321,8 @@ const getTabMidi = (lane: EditorSnapshot, tab: TabCoord) => {
 
 const nextNoteId = (lane: EditorSnapshot) => lane.notes.reduce((max, note) => Math.max(max, note.id), 0) + 1;
 const nextChordId = (lane: EditorSnapshot) => lane.chords.reduce((max, chord) => Math.max(max, chord.id), 0) + 1;
+const nextNoteEffectId = (lane: EditorSnapshot) =>
+  (lane.noteEffects || []).reduce((max, effect) => Math.max(max, effect.id), -1) + 1;
 const signatureLength = (lane: EditorSnapshot) =>
   Math.max(1, Math.floor(FIXED_FRAMES_PER_BAR / Math.max(1, Math.min(64, Math.round(toNumber(lane.timeSignature, 4))))));
 const snapStart = (lane: EditorSnapshot, value: number, enabled: boolean) => {
@@ -833,6 +882,50 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       });
       canvas = persistCanvas(sessionId, result.canvas);
       return res.status(200).json({ ok: true, snapshot: result.snapshot });
+    }
+
+    if (rest[0] === "note-effects" && laneId) {
+      const effectId = rest[1] ? Math.round(toNumber(rest[1], -1)) : null;
+      if (method === "POST" && rest.length === 1) {
+        const result = applyLaneMutation(canvas, laneId, (lane) => {
+          const note1Id = Math.round(toNumber(body.note1Id, -1));
+          const note2Id = Math.round(toNumber(body.note2Id, -1));
+          const type = clamp(Math.round(toNumber(body.type, 0)), 0, 1);
+          lane.noteEffects = [
+            ...(lane.noteEffects || []),
+            {
+              id: nextNoteEffectId(lane),
+              type,
+              startNoteId: note1Id,
+              endNoteId: note2Id,
+              noteEffectLabel: type === 0 ? "b" : "h",
+            },
+          ];
+          normalizeNoteEffectsInLane(lane);
+          const pairKey = `${Math.min(note1Id, note2Id)}:${Math.max(note1Id, note2Id)}`;
+          const matches = (lane.noteEffects || []).filter(
+            (effect) =>
+              `${Math.min(effect.startNoteId, effect.endNoteId)}:${Math.max(
+                effect.startNoteId,
+                effect.endNoteId
+              )}` === pairKey
+          );
+          if (matches.length !== 1 || matches[0].type !== type) {
+            throw new Error("Unable to add note effect");
+          }
+        });
+        canvas = persistCanvas(sessionId, result.canvas);
+        return res.status(200).json({ ok: true, snapshot: result.snapshot });
+      }
+      if (method === "DELETE" && rest.length === 2 && effectId !== null) {
+        const result = applyLaneMutation(canvas, laneId, (lane) => {
+          const before = (lane.noteEffects || []).length;
+          lane.noteEffects = (lane.noteEffects || []).filter((effect) => effect.id !== effectId);
+          if ((lane.noteEffects || []).length === before) throw new Error("Note effect not found.");
+        });
+        canvas = persistCanvas(sessionId, result.canvas);
+        return res.status(200).json({ ok: true, snapshot: result.snapshot });
+      }
     }
 
     if (rest[0] === "chords" && laneId) {

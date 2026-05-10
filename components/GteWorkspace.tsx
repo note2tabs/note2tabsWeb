@@ -28,7 +28,7 @@ import {
 } from "../lib/gteSoundfonts";
 import { getOpenStringMidiFromSnapshot, getStringLabelsForSnapshot } from "../lib/gteTuning";
 import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
-import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
+import type { CutWithCoord, EditorSnapshot, NoteEffect, TabCoord } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
 
@@ -303,6 +303,8 @@ const getCutCoordAtTime = (snapshot: EditorSnapshot, time: number): TabCoord => 
 };
 
 const tabKey = (tab: TabCoord) => `${tab[0]}:${tab[1]}`;
+const noteEffectKey = (effect: Pick<NoteEffect, "startNoteId" | "endNoteId">) =>
+  `${Math.min(effect.startNoteId, effect.endNoteId)}:${Math.max(effect.startNoteId, effect.endNoteId)}`;
 
 const scoreTabDistance = (tab: TabCoord, coord: TabCoord) =>
   Math.abs(tab[0] - coord[0]) + Math.abs(tab[1] - coord[1]);
@@ -352,7 +354,60 @@ const recomputeSnapshotOptimals = (snapshot: EditorSnapshot): EditorSnapshot => 
       optimals: alternates.possibleTabs.map((tab) => [tab[0], tab[1]] as TabCoord),
     };
   });
+  next.noteEffects = normalizeSnapshotNoteEffects(next);
   return next;
+};
+
+const getCanonicalNoteEffectForSnapshot = (
+  snapshot: EditorSnapshot,
+  effect: NoteEffect
+): NoteEffect | null => {
+  const first = snapshot.notes.find((note) => note.id === effect.startNoteId);
+  const second = snapshot.notes.find((note) => note.id === effect.endNoteId);
+  if (!first || !second) return null;
+  if (first.id === second.id) return null;
+  if (first.tab[0] !== second.tab[0]) return null;
+
+  const ordered =
+    first.startTime < second.startTime || (first.startTime === second.startTime && first.id <= second.id)
+      ? [first, second]
+      : [second, first];
+  const [startNote, endNote] = ordered;
+  const leftEnd = Math.round(startNote.startTime + clampEventLength(startNote.length));
+  const rightStart = Math.round(endNote.startTime);
+  const stringIndex = startNote.tab[0];
+  const blocked = snapshot.notes.some((note) => {
+    if (note.id === startNote.id || note.id === endNote.id) return false;
+    if (note.tab[0] !== stringIndex) return false;
+    const noteStart = Math.round(note.startTime);
+    return leftEnd <= noteStart && noteStart <= rightStart;
+  });
+  if (blocked) return null;
+
+  const type = effect.type === 1 ? 1 : 0;
+  const noteEffectLabel =
+    type === 0 ? "b" : endNote.tab[1] - startNote.tab[1] >= 0 ? "h" : "p";
+  return {
+    id: effect.id,
+    type,
+    startNoteId: startNote.id,
+    endNoteId: endNote.id,
+    noteEffectLabel,
+  };
+};
+
+const normalizeSnapshotNoteEffects = (snapshot: EditorSnapshot): NoteEffect[] => {
+  const normalized: NoteEffect[] = [];
+  const seen = new Set<string>();
+  (snapshot.noteEffects || []).forEach((effect) => {
+    const canonical = getCanonicalNoteEffectForSnapshot(snapshot, effect);
+    if (!canonical) return;
+    const key = noteEffectKey(canonical);
+    if (seen.has(key)) return;
+    seen.add(key);
+    normalized.push(canonical);
+  });
+  return normalized;
 };
 
 const mergeRedundantCutRegions = (draft: EditorSnapshot, regions: CutWithCoord[]): CutWithCoord[] => {
@@ -510,12 +565,45 @@ const getTabMidi = (snapshot: EditorSnapshot, tab: TabCoord) => {
   return 0;
 };
 
+const nextNoteEffectId = (draft: EditorSnapshot) =>
+  (draft.noteEffects || []).reduce((max, effect) => Math.max(max, effect.id), -1) + 1;
+
+const removeNoteEffectFromSnapshot = (draft: EditorSnapshot, effectId: number) => {
+  draft.noteEffects = (draft.noteEffects || []).filter((effect) => effect.id !== effectId);
+};
+
 const removeNoteFromSnapshot = (draft: EditorSnapshot, noteId: number) => {
   draft.notes = draft.notes.filter((note) => note.id !== noteId);
+  draft.noteEffects = (draft.noteEffects || []).filter(
+    (effect) => effect.startNoteId !== noteId && effect.endNoteId !== noteId
+  );
 };
 
 const removeChordFromSnapshot = (draft: EditorSnapshot, chordId: number) => {
   draft.chords = draft.chords.filter((chord) => chord.id !== chordId);
+};
+
+const addNoteEffectToSnapshot = (draft: EditorSnapshot, noteIds: number[], type: number) => {
+  if (noteIds.length !== 2) return;
+  const notes = noteIds
+    .map((id) => draft.notes.find((note) => note.id === id))
+    .filter((note): note is EditorSnapshot["notes"][number] => Boolean(note));
+  if (notes.length !== 2) return;
+  const effect: NoteEffect = {
+    id: nextNoteEffectId(draft),
+    type,
+    startNoteId: notes[0].id,
+    endNoteId: notes[1].id,
+    noteEffectLabel: type === 0 ? "b" : "h",
+  };
+  const existingPairKey = noteEffectKey(effect);
+  const remainingEffects = (draft.noteEffects || []).filter(
+    (item) => noteEffectKey(item) !== existingPairKey
+  );
+  draft.noteEffects = normalizeSnapshotNoteEffects({
+    ...draft,
+    noteEffects: [...remainingEffects, effect],
+  });
 };
 
 const setChordTabsInSnapshot = (draft: EditorSnapshot, chordId: number, tabs: TabCoord[]) => {
@@ -578,6 +666,9 @@ const makeChordInSnapshot = (draft: EditorSnapshot, noteIds: number[]) => {
     ogTabs: tabs.map((tab) => cloneTabCoord(tab)),
   });
   draft.notes = draft.notes.filter((note) => !noteSet.has(note.id));
+  draft.noteEffects = (draft.noteEffects || []).filter(
+    (effect) => !noteSet.has(effect.startNoteId) && !noteSet.has(effect.endNoteId)
+  );
 };
 
 const setSecondsPerBarInSnapshot = (draft: EditorSnapshot, secondsPerBar: number) => {
@@ -907,6 +998,7 @@ export default function GteWorkspace({
   const [barSelectionAnchor, setBarSelectionAnchor] = useState<number | null>(null);
   const [selectedNoteIds, setSelectedNoteIds] = useState<number[]>([]);
   const [selectedChordIds, setSelectedChordIds] = useState<number[]>([]);
+  const [selectedNoteEffectId, setSelectedNoteEffectId] = useState<number | null>(null);
   const [draftNote, setDraftNote] = useState<DraftNote | null>(null);
   const [draftNoteAnchor, setDraftNoteAnchor] = useState<DraftNoteAnchor | null>(null);
   const [noteAlternates, setNoteAlternates] = useState<{
@@ -1303,6 +1395,12 @@ export default function GteWorkspace({
   }, [selectedChordIds]);
 
   useEffect(() => {
+    if (selectedNoteIds.length || selectedChordIds.length || selectedCutBoundaryIndex !== null) {
+      setSelectedNoteEffectId(null);
+    }
+  }, [selectedChordIds.length, selectedCutBoundaryIndex, selectedNoteIds.length]);
+
+  useEffect(() => {
     if (!hasUnsavedChanges) {
       setLastSavedAt(snapshot.updatedAt || null);
     }
@@ -1446,12 +1544,17 @@ export default function GteWorkspace({
     () => snapshot.notes.find((note) => note.id === selectedNoteIds[0]) || null,
     [snapshot.notes, selectedNoteIds]
   );
+  const selectedNoteEffect = useMemo(
+    () => (snapshot.noteEffects || []).find((effect) => effect.id === selectedNoteEffectId) || null,
+    [selectedNoteEffectId, snapshot.noteEffects]
+  );
   const selectedSingleNoteId = selectedNoteIds.length === 1 ? selectedNoteIds[0] : null;
 
   const activeChordIds = useMemo(
     () => selectedChordIds.filter((id) => snapshot.chords.some((chord) => chord.id === id)),
     [snapshot.chords, selectedChordIds]
   );
+  const canCreateNoteEffect = selectedNoteIds.length === 2 && activeChordIds.length === 0 && !selectionActionsLocked;
 
   const selectedChord = useMemo(() => {
     const activeId = activeChordIds[0];
@@ -1747,6 +1850,13 @@ export default function GteWorkspace({
     setSelectedNoteIds((prev) => prev.filter((id) => snapshot.notes.some((note) => note.id === id)));
     setSelectedChordIds((prev) => prev.filter((id) => snapshot.chords.some((chord) => chord.id === id)));
   }, [snapshot.notes, snapshot.chords]);
+  useEffect(() => {
+    if (selectedNoteEffectId === null) return;
+    const stillExists = (snapshot.noteEffects || []).some((effect) => effect.id === selectedNoteEffectId);
+    if (!stillExists) {
+      setSelectedNoteEffectId(null);
+    }
+  }, [selectedNoteEffectId, snapshot.noteEffects]);
 
   useEffect(() => {
     setSelectedBarIndices((prev) => {
@@ -4636,6 +4746,74 @@ export default function GteWorkspace({
     setSelectedNoteIds([]);
   };
 
+  const handleAddNoteEffect = useCallback(
+    (type: number) => {
+      if (guardSingleTrackSelectionAction(type === 0 ? "Bend" : "Hammer/Pull")) return;
+      const noteIds = Array.from(new Set(selectedNoteIds));
+      if (noteIds.length !== 2 || activeChordIds.length > 0) return;
+      const resolvedNoteIds = noteIds.map((id) => resolveNoteId(id));
+      const pairKey = `${Math.min(resolvedNoteIds[0], resolvedNoteIds[1])}:${Math.max(
+        resolvedNoteIds[0],
+        resolvedNoteIds[1]
+      )}`;
+      const existingEffect = (snapshotRef.current.noteEffects || []).find((effect) => {
+        const effectKey = `${Math.min(effect.startNoteId, effect.endNoteId)}:${Math.max(
+          effect.startNoteId,
+          effect.endNoteId
+        )}`;
+        return effectKey === pairKey;
+      });
+      const nextSnapshot = cloneSnapshot(snapshotRef.current);
+      if (existingEffect?.type === type) {
+        removeNoteEffectFromSnapshot(nextSnapshot, existingEffect.id);
+      } else {
+        addNoteEffectToSnapshot(nextSnapshot, resolvedNoteIds, type);
+      }
+      enqueueOptimisticMutation({
+        label:
+          existingEffect?.type === type
+            ? type === 0
+              ? "remove-bend"
+              : "remove-hammer-pull"
+            : type === 0
+            ? "add-bend"
+            : "add-hammer-pull",
+        apply: (draft) => {
+          if (existingEffect?.type === type) {
+            removeNoteEffectFromSnapshot(draft, existingEffect.id);
+          } else {
+            addNoteEffectToSnapshot(draft, noteIds, type);
+          }
+          return draft;
+        },
+        commit: () => gteApi.applySnapshot(editorId, nextSnapshot),
+      });
+      setSelectedNoteEffectId(null);
+    },
+    [
+      activeChordIds.length,
+      cloneSnapshot,
+      editorId,
+      enqueueOptimisticMutation,
+      guardSingleTrackSelectionAction,
+      resolveNoteId,
+      selectedNoteIds,
+    ]
+  );
+
+  const handleDeleteNoteEffect = useCallback(() => {
+    if (!selectedNoteEffect) return;
+    enqueueOptimisticMutation({
+      label: "delete-note-effect",
+      apply: (draft) => {
+        removeNoteEffectFromSnapshot(draft, selectedNoteEffect.id);
+        return draft;
+      },
+      commit: () => gteApi.deleteNoteEffect(editorId, selectedNoteEffect.id),
+    });
+    setSelectedNoteEffectId(null);
+  }, [editorId, enqueueOptimisticMutation, selectedNoteEffect]);
+
   const handleChordUpdate = async () => {
     if (!selectedChord) return;
     const { startTime, length } = chordForm;
@@ -6292,7 +6470,7 @@ export default function GteWorkspace({
         return;
       }
       if (
-        event.code === "KeyH" &&
+        event.code === "KeyD" &&
         !event.shiftKey &&
         !event.ctrlKey &&
         !event.metaKey &&
@@ -6771,6 +6949,24 @@ export default function GteWorkspace({
         }
         return;
       }
+      if (event.key === "h" || event.key === "H") {
+        if (isTyping) return;
+        if (guardSingleTrackSelectionAction("Hammer/Pull")) return;
+        if (canCreateNoteEffect) {
+          event.preventDefault();
+          handleAddNoteEffect(1);
+        }
+        return;
+      }
+      if (event.key === "b" || event.key === "B") {
+        if (isTyping) return;
+        if (guardSingleTrackSelectionAction("Bend")) return;
+        if (canCreateNoteEffect) {
+          event.preventDefault();
+          handleAddNoteEffect(0);
+        }
+        return;
+      }
       if (event.key !== "Delete" && event.key !== "Backspace") return;
       if (
         isTyping
@@ -6790,6 +6986,11 @@ export default function GteWorkspace({
           },
         });
         setSelectedCutBoundaryIndex(null);
+        return;
+      }
+      if (selectedNoteEffect) {
+        event.preventDefault();
+        handleDeleteNoteEffect();
         return;
       }
       if (selectedNoteIds.length > 0) {
@@ -6830,7 +7031,9 @@ export default function GteWorkspace({
     selectedChordIds,
     activeChordIds,
     selectedCutBoundaryIndex,
+    selectedNoteEffect,
     editorId,
+    handleDeleteNoteEffect,
     runMutation,
     requestUndo,
     requestRedo,
@@ -6839,9 +7042,11 @@ export default function GteWorkspace({
     toggleSliceTool,
     togglePlayback,
     activateScaleTool,
+    canCreateNoteEffect,
     cycleScaleToolModeWithShortcut,
     commitScaleTool,
     deactivateScaleTool,
+    handleAddNoteEffect,
     handleScaleFactorInputChange,
     setSnapToGridEnabled,
     scaleToolActive,
@@ -6912,6 +7117,7 @@ export default function GteWorkspace({
       if (timelineRef.current && timelineRef.current.contains(target)) return;
       setSelectedNoteIds([]);
       setSelectedChordIds([]);
+      setSelectedNoteEffectId(null);
       setDraftNote(null);
       setDraftNoteAnchor(null);
       setNoteMenuAnchor(null);
@@ -7024,6 +7230,50 @@ export default function GteWorkspace({
     ],
     [noteAlternates]
   );
+
+  const noteEffectEdgeMap = useMemo(() => {
+    const map = new Map<number, { left: boolean; right: boolean }>();
+    (snapshot.noteEffects || []).forEach((effect) => {
+      const startNote = snapshot.notes.find((note) => note.id === effect.startNoteId);
+      const endNote = snapshot.notes.find((note) => note.id === effect.endNoteId);
+      if (!startNote || !endNote) return;
+      const startEntry = map.get(startNote.id) || { left: false, right: false };
+      startEntry.right = true;
+      map.set(startNote.id, startEntry);
+      const endEntry = map.get(endNote.id) || { left: false, right: false };
+      endEntry.left = true;
+      map.set(endNote.id, endEntry);
+    });
+    return map;
+  }, [snapshot.noteEffects, snapshot.notes]);
+
+  const renderableNoteEffects = useMemo(() => {
+    return (snapshot.noteEffects || [])
+      .map((effect) => {
+        const startNote = snapshot.notes.find((note) => note.id === effect.startNoteId);
+        const endNote = snapshot.notes.find((note) => note.id === effect.endNoteId);
+        if (!startNote || !endNote) return null;
+        const startEnd = startNote.startTime + Math.max(1, Math.round(startNote.length));
+        const effectStart = Math.min(startEnd, endNote.startTime);
+        const effectLength = Math.max(1, Math.round(endNote.startTime - effectStart));
+        return {
+          effect,
+          startNote,
+          endNote,
+          connectorSegments: getSpanSegments(effectStart, effectLength),
+        };
+      })
+      .filter(
+        (
+          item
+        ): item is {
+          effect: NoteEffect;
+          startNote: EditorSnapshot["notes"][number];
+          endNote: EditorSnapshot["notes"][number];
+          connectorSegments: ReturnType<typeof getSpanSegments>;
+        } => Boolean(item)
+      );
+  }, [getSpanSegments, snapshot.noteEffects, snapshot.notes]);
 
   const renderToolbarPanel = (inlineMobile: boolean) => {
     const panelClass = inlineMobile
@@ -7175,6 +7425,40 @@ export default function GteWorkspace({
                 Merge Notes
               </button>
 
+              <button
+                type="button"
+                onClick={() => {
+                  handleAddNoteEffect(1);
+                }}
+                disabled={!canCreateNoteEffect}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Connect two selected notes with hammer-on or pull-off - Shortcut: H"
+                }
+                className={textButtonClass}
+              >
+                <span className={tooltipClass}>H</span>
+                Hammer/Pull
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleAddNoteEffect(0);
+                }}
+                disabled={!canCreateNoteEffect}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Connect two selected notes with a bend - Shortcut: B"
+                }
+                className={textButtonClass}
+              >
+                <span className={tooltipClass}>B</span>
+                Bend
+              </button>
+
               <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_86px] gap-1.5">
                 <select
                   data-scale-mode-select="true"
@@ -7193,7 +7477,7 @@ export default function GteWorkspace({
                     }
                   }}
                   className="h-8 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 shadow-sm outline-none transition focus:border-slate-400"
-                  title="Scale mode - Shortcut: H"
+                  title="Scale mode - Shortcut: D"
                 >
                   <option value="length">Length scaling</option>
                   <option value="start">Start-time scaling</option>
@@ -8565,7 +8849,54 @@ export default function GteWorkspace({
                   />
                 )}
 
+                {renderableNoteEffects.flatMap(({ effect, startNote, connectorSegments }) => {
+                  const effectColorClass =
+                    selectedNoteEffectId === effect.id ? "bg-amber-400" : "bg-emerald-400";
+                  return connectorSegments.map((segment, idx) => {
+                    const left = segment.inRowStart * scale;
+                    const top =
+                      segment.rowIndex * rowStride + startNote.tab[0] * ROW_HEIGHT + (mobileViewport ? 1 : 4);
+                    const width = Math.max(8, segment.length * scale);
+                    const height = mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 8;
+                    return (
+                      <button
+                        key={`note-effect-${effect.id}-seg-${segment.rowIndex}-${idx}`}
+                        type="button"
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setSelectedNoteEffectId(effect.id);
+                          setSelectedNoteIds([]);
+                          setSelectedChordIds([]);
+                          setSelectedCutBoundaryIndex(null);
+                          setDraftNote(null);
+                          setDraftNoteAnchor(null);
+                          setNoteMenuAnchor(null);
+                          setNoteMenuNoteId(null);
+                          setNoteMenuDraft(null);
+                        }}
+                        className={`absolute z-[1] ${effectColorClass} ${selectedNoteEffectId === effect.id ? "shadow-sm" : ""}`}
+                        style={{
+                          left,
+                          top,
+                          width,
+                          height,
+                          borderRadius: 0,
+                        }}
+                        title={effect.noteEffectLabel || (effect.type === 0 ? "bend" : "hammer/pull")}
+                      >
+                        {idx === 0 ? (
+                          <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-slate-900">
+                            {effect.noteEffectLabel}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  });
+                })}
+
                 {snapshot.notes.flatMap((note) => {
+                  const noteEffectEdges = noteEffectEdgeMap.get(note.id) || { left: false, right: false };
                   const scalePreview = scaleToolActive ? scalePreviewNotes[note.id] : undefined;
                   const preview =
                     dragging?.type === "note" && dragging.id === note.id ? dragPreview : null;
@@ -8639,6 +8970,7 @@ export default function GteWorkspace({
                             return;
                           }
                           playNotePreview([note.tab[0], note.tab[1]]);
+                          setSelectedNoteEffectId(null);
                           if (mobileViewport) {
                             const previousSelected = selectedNoteIdsRef.current;
                             const alreadySelected = previousSelected.includes(note.id);
@@ -8675,6 +9007,8 @@ export default function GteWorkspace({
                             : isMobileCanvasMode
                             ? "pointer-events-none"
                             : ""
+                        } ${noteEffectEdges.left && idx === 0 ? "rounded-l-none" : ""} ${
+                          noteEffectEdges.right && isLast ? "rounded-r-none" : ""
                         }`}
                         style={{
                           top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + (mobileViewport ? 1 : 4),
@@ -8693,6 +9027,7 @@ export default function GteWorkspace({
                               event.stopPropagation();
                               setSelectedNoteIds([note.id]);
                               setSelectedChordIds([]);
+                              setSelectedNoteEffectId(null);
                               setDraftNote(null);
                               setDraftNoteAnchor(null);
                               setResizingChord(null);
