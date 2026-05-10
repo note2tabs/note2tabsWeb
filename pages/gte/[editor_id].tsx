@@ -3114,7 +3114,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         className={`container gte-wide ${
           isMobileEditMode
             ? "flex h-full min-h-0 flex-col gap-3 overflow-hidden overscroll-none pb-0"
-            : `stack ${isMobileCanvasMode ? "pb-24" : "pb-16"}`
+            : `stack ${isMobileCanvasMode ? "pb-24" : "pb-28"}`
         }`}
       >
         {isMobileCanvasMode && (
@@ -5004,6 +5004,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         )}
       </div>
+      {!isMobileViewport && canvas && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur">
+          <div className="container gte-wide py-2">
+            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+              <div
+                ref={globalTimelineScrollbarRef}
+                className="overflow-x-auto overflow-y-hidden"
+                onScroll={handleGlobalTimelineScrollbarScroll}
+              >
+                <div style={{ width: globalTimelineTrackWidth, height: 1 }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       </main>
     </>
   );

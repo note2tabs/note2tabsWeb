@@ -7326,7 +7326,7 @@ export default function GteWorkspace({
   }, [commitSegmentEditIfActive, contextMenu, editingChordId, finalizeKeyboardAddMode]);
 
   const workspaceClass = embedded
-    ? `relative w-full min-w-0 max-w-full overflow-x-hidden border bg-white transition-[border-color,box-shadow] ${
+    ? `relative w-full min-w-0 max-w-full border bg-white transition-[border-color,box-shadow] ${
         isMobileEditMode
           ? "flex h-full min-h-0 flex-col p-1.5"
           : `${compactEmbeddedMobile ? "rounded-lg p-1.5" : "rounded-xl p-2"} space-y-2`
@@ -7389,6 +7389,29 @@ export default function GteWorkspace({
     if (Math.abs(nextScrollLeft - container.scrollLeft) < 1) return;
     container.scrollTo({ left: nextScrollLeft });
   }, [isActive, keyboardCursorMarker, mobileViewport]);
+
+  useEffect(() => {
+    if (mobileViewport || !isActive || !effectiveIsPlaying) return;
+    const container = timelineOuterRef.current;
+    if (!container) return;
+    const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+    if (maxScroll <= 0) return;
+
+    const playheadLeft = effectivePlayheadFrame * scale;
+    const edgePadding = Math.max(48, Math.min(120, container.clientWidth * 0.18));
+    const visibleLeft = container.scrollLeft + edgePadding;
+    const visibleRight = container.scrollLeft + container.clientWidth - edgePadding;
+
+    let nextScrollLeft = container.scrollLeft;
+    if (playheadLeft < visibleLeft) {
+      nextScrollLeft = Math.max(0, playheadLeft - edgePadding);
+    } else if (playheadLeft > visibleRight) {
+      nextScrollLeft = Math.min(maxScroll, playheadLeft + edgePadding - container.clientWidth);
+    }
+
+    if (Math.abs(nextScrollLeft - container.scrollLeft) < 1) return;
+    container.scrollTo({ left: nextScrollLeft, behavior: "auto" });
+  }, [effectiveIsPlaying, effectivePlayheadFrame, isActive, mobileViewport, scale]);
 
   const showMobileEditRail = isMobileEditMode && isActive;
   const showMobileInlineNoteSettings =
@@ -8524,7 +8547,7 @@ export default function GteWorkspace({
               ref={timelineOuterRef}
               className={`min-w-0 overflow-y-hidden ${
                 embedded && !mobileViewport ? "overflow-x-hidden" : "overflow-x-auto"
-              } ${embedded && !mobileViewport ? "hide-scrollbar" : ""}`}
+              }`}
               onScroll={handleTimelineOuterScroll}
             >
               <div className="relative pt-5" style={{ width: timelineChromeWidth }}>
