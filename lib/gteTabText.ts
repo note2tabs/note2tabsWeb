@@ -193,20 +193,11 @@ const writeEffectBetweenNotes = (
   start: NotePlacement,
   end: NotePlacement,
   label: string,
-  type: number
+  _type: number
 ) => {
   const startIndex = start.barIndex * barWidth + start.col + start.width;
   const endIndex = end.barIndex * barWidth + end.col - 1;
   if (endIndex < startIndex) return;
-
-  if (type === 2) {
-    for (let globalIndex = startIndex; globalIndex <= endIndex; globalIndex += 1) {
-      const barIndex = Math.floor(globalIndex / barWidth);
-      const col = globalIndex % barWidth;
-      writeEffectPoint(bars, barWidth, start.stringIndex, barIndex, col, label);
-    }
-    return;
-  }
 
   const centerIndex = Math.floor((startIndex + endIndex) / 2);
   const barIndex = Math.floor(centerIndex / barWidth);

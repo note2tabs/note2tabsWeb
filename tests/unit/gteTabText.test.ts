@@ -38,7 +38,7 @@ describe("gteTabText", () => {
     const lines = text.split("\n");
 
     expect(lines[0]).toContain("3-h-5");
-    expect(lines[1]).toContain("5///7");
+    expect(lines[1]).toContain("5-/-7");
     expect(lines[2]).toContain("8-p-6");
     expect(lines[3]).toContain("7b-9");
   });
