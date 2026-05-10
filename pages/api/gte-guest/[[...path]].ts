@@ -137,7 +137,10 @@ const normalizeNoteEffectsInLane = (lane: EditorSnapshot) => {
   lane.noteEffects = (lane.noteEffects || []).flatMap((effect) => {
     const canonical = getCanonicalNoteEffect(lane, effect);
     if (!canonical) return [];
-    const key = `${canonical.type}:${canonical.startNoteId}:${canonical.endNoteId}`;
+    const key = `${Math.min(canonical.startNoteId, canonical.endNoteId)}:${Math.max(
+      canonical.startNoteId,
+      canonical.endNoteId
+    )}`;
     if (seen.has(key)) return [];
     seen.add(key);
     return [canonical];
@@ -899,12 +902,17 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
             },
           ];
           normalizeNoteEffectsInLane(lane);
-          const exists = (lane.noteEffects || []).some((effect) =>
-            (effect.type === type) &&
-            ((effect.startNoteId === note1Id && effect.endNoteId === note2Id) ||
-              (effect.startNoteId === note2Id && effect.endNoteId === note1Id))
+          const pairKey = `${Math.min(note1Id, note2Id)}:${Math.max(note1Id, note2Id)}`;
+          const matches = (lane.noteEffects || []).filter(
+            (effect) =>
+              `${Math.min(effect.startNoteId, effect.endNoteId)}:${Math.max(
+                effect.startNoteId,
+                effect.endNoteId
+              )}` === pairKey
           );
-          if (!exists) throw new Error("Unable to add note effect");
+          if (matches.length !== 1 || matches[0].type !== type) {
+            throw new Error("Unable to add note effect");
+          }
         });
         canvas = persistCanvas(sessionId, result.canvas);
         return res.status(200).json({ ok: true, snapshot: result.snapshot });

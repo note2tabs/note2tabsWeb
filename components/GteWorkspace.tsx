@@ -303,8 +303,8 @@ const getCutCoordAtTime = (snapshot: EditorSnapshot, time: number): TabCoord => 
 };
 
 const tabKey = (tab: TabCoord) => `${tab[0]}:${tab[1]}`;
-const noteEffectKey = (effect: Pick<NoteEffect, "type" | "startNoteId" | "endNoteId">) =>
-  `${effect.type}:${effect.startNoteId}:${effect.endNoteId}`;
+const noteEffectKey = (effect: Pick<NoteEffect, "startNoteId" | "endNoteId">) =>
+  `${Math.min(effect.startNoteId, effect.endNoteId)}:${Math.max(effect.startNoteId, effect.endNoteId)}`;
 
 const scoreTabDistance = (tab: TabCoord, coord: TabCoord) =>
   Math.abs(tab[0] - coord[0]) + Math.abs(tab[1] - coord[1]);
@@ -596,9 +596,13 @@ const addNoteEffectToSnapshot = (draft: EditorSnapshot, noteIds: number[], type:
     endNoteId: notes[1].id,
     noteEffectLabel: type === 0 ? "b" : "h",
   };
+  const existingPairKey = noteEffectKey(effect);
+  const remainingEffects = (draft.noteEffects || []).filter(
+    (item) => noteEffectKey(item) !== existingPairKey
+  );
   draft.noteEffects = normalizeSnapshotNoteEffects({
     ...draft,
-    noteEffects: [...(draft.noteEffects || []), effect],
+    noteEffects: [...remainingEffects, effect],
   });
 };
 
@@ -4747,24 +4751,48 @@ export default function GteWorkspace({
       if (guardSingleTrackSelectionAction(type === 0 ? "Bend" : "Hammer/Pull")) return;
       const noteIds = Array.from(new Set(selectedNoteIds));
       if (noteIds.length !== 2 || activeChordIds.length > 0) return;
+      const resolvedNoteIds = noteIds.map((id) => resolveNoteId(id));
+      const pairKey = `${Math.min(resolvedNoteIds[0], resolvedNoteIds[1])}:${Math.max(
+        resolvedNoteIds[0],
+        resolvedNoteIds[1]
+      )}`;
+      const existingEffect = (snapshotRef.current.noteEffects || []).find((effect) => {
+        const effectKey = `${Math.min(effect.startNoteId, effect.endNoteId)}:${Math.max(
+          effect.startNoteId,
+          effect.endNoteId
+        )}`;
+        return effectKey === pairKey;
+      });
+      const nextSnapshot = cloneSnapshot(snapshotRef.current);
+      if (existingEffect?.type === type) {
+        removeNoteEffectFromSnapshot(nextSnapshot, existingEffect.id);
+      } else {
+        addNoteEffectToSnapshot(nextSnapshot, resolvedNoteIds, type);
+      }
       enqueueOptimisticMutation({
-        label: type === 0 ? "add-bend" : "add-hammer-pull",
+        label:
+          existingEffect?.type === type
+            ? type === 0
+              ? "remove-bend"
+              : "remove-hammer-pull"
+            : type === 0
+            ? "add-bend"
+            : "add-hammer-pull",
         apply: (draft) => {
-          addNoteEffectToSnapshot(draft, noteIds, type);
+          if (existingEffect?.type === type) {
+            removeNoteEffectFromSnapshot(draft, existingEffect.id);
+          } else {
+            addNoteEffectToSnapshot(draft, noteIds, type);
+          }
           return draft;
         },
-        commit: () =>
-          gteApi.addNoteEffect(
-            editorId,
-            resolveNoteId(noteIds[0]),
-            resolveNoteId(noteIds[1]),
-            type
-          ),
+        commit: () => gteApi.applySnapshot(editorId, nextSnapshot),
       });
       setSelectedNoteEffectId(null);
     },
     [
       activeChordIds.length,
+      cloneSnapshot,
       editorId,
       enqueueOptimisticMutation,
       guardSingleTrackSelectionAction,
@@ -6442,7 +6470,7 @@ export default function GteWorkspace({
         return;
       }
       if (
-        event.code === "KeyH" &&
+        event.code === "KeyD" &&
         !event.shiftKey &&
         !event.ctrlKey &&
         !event.metaKey &&
@@ -6921,6 +6949,24 @@ export default function GteWorkspace({
         }
         return;
       }
+      if (event.key === "h" || event.key === "H") {
+        if (isTyping) return;
+        if (guardSingleTrackSelectionAction("Hammer/Pull")) return;
+        if (canCreateNoteEffect) {
+          event.preventDefault();
+          handleAddNoteEffect(1);
+        }
+        return;
+      }
+      if (event.key === "b" || event.key === "B") {
+        if (isTyping) return;
+        if (guardSingleTrackSelectionAction("Bend")) return;
+        if (canCreateNoteEffect) {
+          event.preventDefault();
+          handleAddNoteEffect(0);
+        }
+        return;
+      }
       if (event.key !== "Delete" && event.key !== "Backspace") return;
       if (
         isTyping
@@ -6996,9 +7042,11 @@ export default function GteWorkspace({
     toggleSliceTool,
     togglePlayback,
     activateScaleTool,
+    canCreateNoteEffect,
     cycleScaleToolModeWithShortcut,
     commitScaleTool,
     deactivateScaleTool,
+    handleAddNoteEffect,
     handleScaleFactorInputChange,
     setSnapToGridEnabled,
     scaleToolActive,
@@ -7386,10 +7434,11 @@ export default function GteWorkspace({
                 title={
                   selectionActionsLocked
                     ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Connect two selected notes with hammer-on or pull-off"
+                    : "Connect two selected notes with hammer-on or pull-off - Shortcut: H"
                 }
                 className={textButtonClass}
               >
+                <span className={tooltipClass}>H</span>
                 Hammer/Pull
               </button>
 
@@ -7402,10 +7451,11 @@ export default function GteWorkspace({
                 title={
                   selectionActionsLocked
                     ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Connect two selected notes with a bend"
+                    : "Connect two selected notes with a bend - Shortcut: B"
                 }
                 className={textButtonClass}
               >
+                <span className={tooltipClass}>B</span>
                 Bend
               </button>
 
@@ -7427,7 +7477,7 @@ export default function GteWorkspace({
                     }
                   }}
                   className="h-8 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 shadow-sm outline-none transition focus:border-slate-400"
-                  title="Scale mode - Shortcut: H"
+                  title="Scale mode - Shortcut: D"
                 >
                   <option value="length">Length scaling</option>
                   <option value="start">Start-time scaling</option>
