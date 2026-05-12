@@ -1058,6 +1058,7 @@ export default function GteWorkspace({
   );
   const [selection, setSelection] = useState<SelectionState | null>(null);
   const [keyboardGridCursor, setKeyboardGridCursor] = useState<KeyboardGridCursor | null>(null);
+  const [keyboardCursorVisible, setKeyboardCursorVisible] = useState(true);
   const [keyboardAddMode, setKeyboardAddMode] = useState<KeyboardAddMode | null>(null);
   const [dragBarIndex, setDragBarIndex] = useState<number | null>(null);
   const [segmentDragIndex, setSegmentDragIndex] = useState<number | null>(null);
@@ -3879,6 +3880,16 @@ export default function GteWorkspace({
     if (event.button !== 0) return;
     event.preventDefault();
     setContextMenu(null);
+    const target = getPointerFrame(event.clientX, event.clientY);
+    if (target) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const y = clamp(event.clientY - rect.top, 0, timelineHeight);
+      const rowTop = target.rowIndex * rowStride;
+      const stringIndex = clamp(Math.floor((y - rowTop) / ROW_HEIGHT), 0, 5);
+      hideKeyboardCursor({ time: target.time, stringIndex });
+    } else {
+      hideKeyboardCursor();
+    }
     if (isMobileCanvasMode) {
       setSelectedCutBoundaryIndex(null);
       setSelectedNoteIds([]);
@@ -4002,6 +4013,10 @@ export default function GteWorkspace({
   ) => {
     event.preventDefault();
     event.stopPropagation();
+    hideKeyboardCursor({
+      time: snapKeyboardCursorTimeToGrid(startTime),
+      stringIndex: clamp(Math.round(stringIndex), 0, 5),
+    });
     const shiftKey = Boolean(event.shiftKey);
     if (sliceToolActive && !shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
       multiDragMovedRef.current = true;
@@ -4072,12 +4087,17 @@ export default function GteWorkspace({
 
   const startChordDrag = (
     chordId: number,
+    stringIndex: number,
     startTime: number,
     length: number,
     event: DragPointerEventLike
   ) => {
     event.preventDefault();
     event.stopPropagation();
+    hideKeyboardCursor({
+      time: snapKeyboardCursorTimeToGrid(startTime),
+      stringIndex: clamp(Math.round(stringIndex), 0, 5),
+    });
     const shiftKey = Boolean(event.shiftKey);
     if (sliceToolActive && !shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
       const target = getPointerFrame(event.clientX, event.clientY);
@@ -6316,8 +6336,20 @@ export default function GteWorkspace({
     return `${cursor.stringIndex}|${cellStart}|${cellEnd}`;
   }, []);
 
-  const setKeyboardSelection = useCallback((cursor: KeyboardGridCursor, noteId: number | null) => {
+  const hideKeyboardCursor = useCallback((cursor?: KeyboardGridCursor | null) => {
+    if (cursor) {
+      setKeyboardGridCursor(cursor);
+    }
+    setKeyboardCursorVisible(false);
+  }, []);
+
+  const showKeyboardCursor = useCallback((cursor: KeyboardGridCursor) => {
     setKeyboardGridCursor(cursor);
+    setKeyboardCursorVisible(true);
+  }, []);
+
+  const setKeyboardSelection = useCallback((cursor: KeyboardGridCursor, noteId: number | null) => {
+    showKeyboardCursor(cursor);
     setSelectedCutBoundaryIndex(null);
     setDraftNote(null);
     setDraftNoteAnchor(null);
@@ -6334,7 +6366,7 @@ export default function GteWorkspace({
     }
     setSelectedNoteIds([noteId]);
     setSelectedChordIds([]);
-  }, []);
+  }, [showKeyboardCursor]);
 
   const normalizeTypedFretText = useCallback(
     (previous: string, digit: string) => {
@@ -6414,7 +6446,7 @@ export default function GteWorkspace({
           }),
       });
       lastAddedNoteLengthRef.current = clampEventLength(snapped.length);
-      setKeyboardGridCursor({ time: snapped.startTime, stringIndex: cursor.stringIndex });
+      showKeyboardCursor({ time: snapped.startTime, stringIndex: cursor.stringIndex });
       setKeyboardAddMode({ noteId: tempId, fretText: String(fretValue) });
       setSelectedNoteIds([]);
       setSelectedChordIds([]);
@@ -6427,7 +6459,16 @@ export default function GteWorkspace({
       setChordMenuChordId(null);
       setChordMenuDraft(null);
     },
-    [editorId, enqueueOptimisticMutation, getTempNoteId, maxFret, noteSignature, snapNoteToGrid, snapToGridEnabled]
+    [
+      editorId,
+      enqueueOptimisticMutation,
+      getTempNoteId,
+      maxFret,
+      noteSignature,
+      showKeyboardCursor,
+      snapNoteToGrid,
+      snapToGridEnabled,
+    ]
   );
 
   const finalizeKeyboardAddMode = useCallback(
@@ -6709,7 +6750,7 @@ export default function GteWorkspace({
           const cursor = resolveKeyboardCursor();
           const step = getKeyboardGridStepFrames();
           const orderedNoteIds = getOrderedNoteIdsOnCursorGrid(cursor, step);
-          setKeyboardGridCursor(cursor);
+          showKeyboardCursor(cursor);
           setSelectedCutBoundaryIndex(null);
           setDraftNote(null);
           setDraftNoteAnchor(null);
@@ -6860,7 +6901,7 @@ export default function GteWorkspace({
                 },
               });
               const cursor = resolveKeyboardCursor();
-              setKeyboardGridCursor({
+              showKeyboardCursor({
                 time: cursor.time,
                 stringIndex: clamp(cursor.stringIndex + deltaString, 0, 5),
               });
@@ -6903,7 +6944,7 @@ export default function GteWorkspace({
               },
             });
             const cursor = resolveKeyboardCursor();
-            setKeyboardGridCursor({
+            showKeyboardCursor({
               time: snapKeyboardCursorTimeToGrid(cursor.time + appliedDelta),
               stringIndex: cursor.stringIndex,
             });
@@ -6930,7 +6971,7 @@ export default function GteWorkspace({
                 },
                 commit: () => gteApi.assignNoteTab(editorId, resolvedId, nextTab),
               });
-              setKeyboardGridCursor({
+              showKeyboardCursor({
                 time: snapKeyboardCursorTimeToGrid(selected.startTime),
                 stringIndex: nextString,
               });
@@ -6951,7 +6992,7 @@ export default function GteWorkspace({
               },
               commit: () => gteApi.setNoteStartTime(editorId, resolvedId, snappedNext, snapToGridEnabled),
             });
-            setKeyboardGridCursor({ time: snappedNext, stringIndex: selected.tab[0] });
+            showKeyboardCursor({ time: snappedNext, stringIndex: selected.tab[0] });
             return;
           }
 
@@ -6980,7 +7021,7 @@ export default function GteWorkspace({
           } else if (event.key === "ArrowDown") {
             nextCursor.stringIndex = clamp(baseCursor.stringIndex + 1, 0, 5);
           }
-          setKeyboardGridCursor(nextCursor);
+          showKeyboardCursor(nextCursor);
           setSelectedCutBoundaryIndex(null);
           setDraftNote(null);
           setDraftNoteAnchor(null);
@@ -7258,6 +7299,7 @@ export default function GteWorkspace({
     resolveNoteId,
     setKeyboardSelection,
     getDirectionalCursorFromSelectedNote,
+    showKeyboardCursor,
     snapKeyboardCursorTimeToGrid,
     snapToGridEnabled,
     timelineEnd,
@@ -7266,6 +7308,9 @@ export default function GteWorkspace({
   useEffect(() => {
     const handlePointerStart = (target: HTMLElement | null, shiftKey: boolean) => {
       if (!target) return;
+      if (timelineRef.current && timelineRef.current.contains(target)) {
+        setKeyboardCursorVisible(false);
+      }
       if (keyboardAddModeRef.current) {
         finalizeKeyboardAddMode({ playPreview: true });
       }
@@ -7317,11 +7362,11 @@ export default function GteWorkspace({
       handlePointerStart(event.target as HTMLElement | null, false);
     };
 
-    window.addEventListener("mousedown", handleMouseDown);
-    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("mousedown", handleMouseDown, true);
+    window.addEventListener("touchstart", handleTouchStart, { capture: true, passive: true });
     return () => {
-      window.removeEventListener("mousedown", handleMouseDown);
-      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("mousedown", handleMouseDown, true);
+      window.removeEventListener("touchstart", handleTouchStart, true);
     };
   }, [commitSegmentEditIfActive, contextMenu, editingChordId, finalizeKeyboardAddMode]);
 
@@ -7338,7 +7383,7 @@ export default function GteWorkspace({
     : "relative min-w-0 rounded-2xl border border-slate-200 bg-white p-5 space-y-5 -ml-3 w-[calc(100%+0.75rem)]";
 
   const keyboardCursorMarker = useMemo<KeyboardCursorMarker | null>(() => {
-    if (mobileViewport || !isActive || !keyboardGridCursor) return null;
+    if (mobileViewport || !isActive || !keyboardGridCursor || !keyboardCursorVisible) return null;
     const step = getKeyboardGridStepFrames();
     const safeTime = snapKeyboardCursorTimeToGrid(keyboardGridCursor.time);
     const rowIndex = rowFrames > 0 ? clamp(Math.floor(safeTime / rowFrames), 0, rows - 1) : 0;
@@ -7356,6 +7401,7 @@ export default function GteWorkspace({
     framesPerMeasure,
     getKeyboardGridStepFrames,
     isActive,
+    keyboardCursorVisible,
     keyboardGridCursor,
     mobileViewport,
     rowFrames,
@@ -9322,14 +9368,14 @@ export default function GteWorkspace({
                               }
                               return;
                             }
-                            startChordDrag(chord.id, chord.startTime, chord.length, event);
+                            startChordDrag(chord.id, tab[0], chord.startTime, chord.length, event);
                           }}
                           onTouchStart={(event) => {
                             if (isMobileCanvasMode) return;
                             event.stopPropagation();
                             if (editingChordId !== null) return;
                             scheduleTouchHold(event, (pointer) =>
-                              startChordDrag(chord.id, chord.startTime, chord.length, pointer)
+                              startChordDrag(chord.id, tab[0], chord.startTime, chord.length, pointer)
                             );
                           }}
                           onTouchMove={cancelTouchHoldOnMove}
