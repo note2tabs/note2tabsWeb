@@ -1145,6 +1145,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!(target instanceof Element)) return;
     if (isMobileViewport && mobileEditLaneId) return;
     if (target.closest("[data-gte-track='true']")) return;
+    if (target.closest("[data-gte-timeline-control='true']")) return;
     if (target.closest("button, a, input, textarea, select, label, [role='button']")) return;
     setActiveLaneId(null);
   }, [isMobileViewport, mobileEditLaneId]);
@@ -5102,6 +5103,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             <div className="rounded-xl border border-slate-200 bg-white px-3 py-0 shadow-sm">
               <div
                 ref={globalTimelineScrollbarRef}
+                data-gte-timeline-control="true"
                 className="overflow-x-auto overflow-y-hidden"
                 onScroll={handleGlobalTimelineScrollbarScroll}
               >

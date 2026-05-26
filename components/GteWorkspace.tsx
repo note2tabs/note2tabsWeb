@@ -1767,11 +1767,12 @@ export default function GteWorkspace({
         return { scrollLeft: nextScrollLeft, clientWidth: nextClientWidth };
       });
       if (!onSharedTimelineScrollRatioChange || applyingSharedScrollRef.current) return;
+      if (embedded && !mobileViewport) return;
       const maxScroll = Math.max(0, target.scrollWidth - nextClientWidth);
       if (maxScroll <= 0) return;
       onSharedTimelineScrollRatioChange(nextScrollLeft / maxScroll);
     },
-    [onSharedTimelineScrollRatioChange]
+    [embedded, mobileViewport, onSharedTimelineScrollRatioChange]
   );
 
   useEffect(() => {
