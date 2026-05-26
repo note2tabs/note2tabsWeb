@@ -8014,14 +8014,14 @@ export default function GteWorkspace({
                 aria-pressed={toolbarOpen}
                 title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
                 className={`pointer-events-auto flex h-10 items-center justify-center rounded-full border px-3 text-xs font-semibold shadow-md backdrop-blur transition ${
-                  mobileViewport ? "" : "md:absolute md:left-0"
+                  mobileViewport ? "" : "md:absolute md:right-0"
                 } ${
                   toolbarOpen
                     ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
                     : "border-sky-300 bg-sky-100/95 text-sky-900 hover:bg-sky-50"
                 }`}
               >
-                Tools
+                Toolbar
               </button>
             )}
             {mobileViewport ? (

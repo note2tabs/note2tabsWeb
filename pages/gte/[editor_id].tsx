@@ -3747,57 +3747,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </span>
                 </span>
               </label>
-              <label
-                className="text-small muted"
-                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
-              >
-                Time scale
-                <input
-                  type="range"
-                  min={TIMELINE_ZOOM_MIN}
-                  max={TIMELINE_ZOOM_MAX}
-                  step={1}
-                  value={timelineZoomPercent}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    if (!Number.isFinite(next)) return;
-                    setTimelineZoomPercent(
-                      Math.max(TIMELINE_ZOOM_MIN, Math.min(TIMELINE_ZOOM_MAX, Math.round(next)))
-                    );
-                  }}
-                  className="w-28"
-                  title="Scale editor width in time direction"
-                />
-                <span className="text-[11px] text-slate-600">{timelineZoomPercent}%</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => setGlobalSnapToGridEnabled((prev) => !prev)}
-                className={`rounded-md border px-2 py-1 text-xs font-semibold ${
-                  globalSnapToGridEnabled
-                    ? "border-emerald-300 bg-emerald-100 text-emerald-800"
-                    : "border-slate-200 bg-white text-slate-600"
-                }`}
-                title="Global snap to grid for all tracks. shortcut 'G'"
-              >
-                Snap to grid: {globalSnapToGridEnabled ? "On" : "Off"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void router.push(transcriberHref)}
-                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                title="Open the standalone transcriber"
-              >
-                Generate tabs
-              </button>
-              <button
-                type="button"
-                onClick={() => void router.push(`/gte/${editorId}/tabs`)}
-                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                title="View current editor as ASCII tabs"
-              >
-                View as tabs
-              </button>
             </div>
             <div
               className="text-small"
@@ -4170,24 +4119,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 >
                   {isMobileViewport ? "Editors" : "Back to editors"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void router.push(`/gte/${editorId}/tabs`)}
-                  className={`button-secondary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
-                  style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
-                  title="Open ASCII tab view"
-                >
-                  {isMobileViewport ? "Tabs" : "View as tabs"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void router.push(`/gte/${editorId}/import-tab`)}
-                  className={`button-secondary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
-                  style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
-                  title="Import a pasted text tab"
-                >
-                  {isMobileViewport ? "Import" : "Import tab"}
-                </button>
               </>
             )}
             <button
@@ -4209,6 +4140,82 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             </button>
           </div>
         </div>
+        )}
+        {!isMobileViewport && !isMobileEditMode && (
+          <>
+            <div className="absolute right-5 top-28 z-[9996] w-44 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Tab tools
+              </div>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => void router.push(transcriberHref)}
+                  className="rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  title="Open the standalone transcriber"
+                >
+                  Generate tabs
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void router.push(`/gte/${editorId}/tabs`)}
+                  className="rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  title="View current editor as ASCII tabs"
+                >
+                  View as tabs
+                </button>
+                {!isGuestMode && (
+                  <button
+                    type="button"
+                    onClick={() => void router.push(`/gte/${editorId}/import-tab`)}
+                    className="rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    title="Import a pasted text tab"
+                  >
+                    Import tab
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="fixed bottom-16 left-5 z-[9996] flex w-72 max-w-[calc(100vw-2.5rem)] flex-col gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Editor timing
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setGlobalSnapToGridEnabled((prev) => !prev)}
+                  className={`rounded-md border px-2 py-1 text-xs font-semibold ${
+                    globalSnapToGridEnabled
+                      ? "border-emerald-300 bg-emerald-100 text-emerald-800"
+                      : "border-slate-200 bg-white text-slate-600"
+                  }`}
+                  title="Global snap to grid for all tracks. shortcut 'G'"
+                >
+                  Snap: {globalSnapToGridEnabled ? "On" : "Off"}
+                </button>
+              </div>
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                <span className="shrink-0">Time scale</span>
+                <input
+                  type="range"
+                  min={TIMELINE_ZOOM_MIN}
+                  max={TIMELINE_ZOOM_MAX}
+                  step={1}
+                  value={timelineZoomPercent}
+                  onChange={(event) => {
+                    const next = Number(event.target.value);
+                    if (!Number.isFinite(next)) return;
+                    setTimelineZoomPercent(
+                      Math.max(TIMELINE_ZOOM_MIN, Math.min(TIMELINE_ZOOM_MAX, Math.round(next)))
+                    );
+                  }}
+                  className="min-w-0 flex-1"
+                  title="Scale editor width in time direction"
+                />
+                <span className="w-10 text-right text-[11px] text-slate-600">{timelineZoomPercent}%</span>
+              </label>
+            </div>
+          </>
         )}
 
         {isGuestMode && !isMobileEditMode && (
