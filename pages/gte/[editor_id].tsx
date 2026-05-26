@@ -3157,6 +3157,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         className={`page page-tight ${
           isMobileEditMode ? "h-[100dvh] overflow-hidden overscroll-none py-3" : ""
         }`}
+        style={!isMobileEditMode ? { paddingTop: 18 } : undefined}
         onMouseDownCapture={handleMainMouseDownCapture}
       >
       <div
@@ -3517,7 +3518,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         )}
         {!isMobileViewport && (
-        <div className="page-header" style={isMobileViewport ? { position: "relative", paddingRight: 152 } : undefined}>
+        <div
+          className="page-header"
+          style={
+            isMobileViewport
+              ? { position: "relative", paddingRight: 152 }
+              : { alignItems: "flex-start" }
+          }
+        >
           <div style={{ flex: "1 1 0", minWidth: 0 }}>
             <div
               className="page-title"
@@ -4057,6 +4065,34 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               </div>
             )}
           </div>
+          {!isGuestMode && (
+            <div className="mt-1 flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => void router.push(transcriberHref)}
+                  className="button-secondary button-small"
+                  title="Open the standalone transcriber"
+                >
+                  Generate tabs
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void router.push(`/gte/${editorId}/tabs`)}
+                  className="button-secondary button-small"
+                  title="View current editor as ASCII tabs"
+                >
+                  View as tabs
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void router.push(`/gte/${editorId}/import-tab`)}
+                  className="button-secondary button-small"
+                  title="Import a pasted text tab"
+                >
+                  Import tab
+                </button>
+            </div>
+          )}
           <div
             className="button-row"
             style={
@@ -4069,7 +4105,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     right: 0,
                     gap: 6,
                   }
-                : { flex: "0 0 auto", alignSelf: "flex-start" }
+                : { flex: "0 0 auto", alignSelf: "flex-start", marginTop: 4 }
             }
           >
             {isGuestMode ? (
@@ -4143,44 +4179,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         )}
         {!isMobileViewport && !isMobileEditMode && (
           <>
-            <div className="absolute right-5 top-28 z-[9996] w-44 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Tab tools
-              </div>
-              <div className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => void router.push(transcriberHref)}
-                  className="rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                  title="Open the standalone transcriber"
-                >
-                  Generate tabs
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void router.push(`/gte/${editorId}/tabs`)}
-                  className="rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                  title="View current editor as ASCII tabs"
-                >
-                  View as tabs
-                </button>
-                {!isGuestMode && (
-                  <button
-                    type="button"
-                    onClick={() => void router.push(`/gte/${editorId}/import-tab`)}
-                    className="rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    title="Import a pasted text tab"
-                  >
-                    Import tab
-                  </button>
-                )}
-              </div>
-            </div>
             <div className="fixed bottom-16 left-5 z-[9996] flex w-72 max-w-[calc(100vw-2.5rem)] flex-col gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  Editor timing
-                </span>
                 <button
                   type="button"
                   onClick={() => setGlobalSnapToGridEnabled((prev) => !prev)}
