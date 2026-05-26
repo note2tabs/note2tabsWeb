@@ -7884,11 +7884,17 @@ export default function GteWorkspace({
       onMouseDownCapture={(event) => {
         const target = event.target as HTMLElement | null;
         if (target?.closest("[data-gte-floating-ui='true']")) return;
+        if (!isActive && !mobileViewport) {
+          showKeyboardCursor(getCenteredKeyboardCursor());
+        }
         onFocusWorkspace?.();
       }}
       onTouchStartCapture={(event) => {
         const target = event.target as HTMLElement | null;
         if (target?.closest("[data-gte-floating-ui='true']")) return;
+        if (!isActive && !mobileViewport) {
+          showKeyboardCursor(getCenteredKeyboardCursor());
+        }
         onFocusWorkspace?.();
       }}
     >
