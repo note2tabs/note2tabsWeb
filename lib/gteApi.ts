@@ -543,6 +543,22 @@ export const gteApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
+  importAsciiTab: (
+    editorId: string,
+    payload: {
+      text: string;
+      name?: string;
+    }
+  ) =>
+    requestForEditor<{ ok: true; canvas: CanvasSnapshot; editor: EditorSnapshot }>(
+      editorId,
+      `/editors/${editorId}/canvas/import_ascii`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    ),
   setSecondsPerBar: (editorId: string, secondsPerBar: number) =>
     requestForEditor<{ ok: true; snapshot: EditorSnapshot; canvas?: CanvasSnapshot }>(
       editorId,

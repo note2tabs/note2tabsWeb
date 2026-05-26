@@ -3229,6 +3229,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             >
                               Back to editors
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => void router.push(`/gte/${editorId}/import-tab`)}
+                              className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm text-slate-700"
+                            >
+                              Import tab
+                            </button>
                           </>
                         )}
                         <button
@@ -4171,6 +4178,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   title="Open ASCII tab view"
                 >
                   {isMobileViewport ? "Tabs" : "View as tabs"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void router.push(`/gte/${editorId}/import-tab`)}
+                  className={`button-secondary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
+                  style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
+                  title="Import a pasted text tab"
+                >
+                  {isMobileViewport ? "Import" : "Import tab"}
                 </button>
               </>
             )}
