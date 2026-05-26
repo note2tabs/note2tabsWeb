@@ -1027,6 +1027,7 @@ export default function GteWorkspace({
   const [shiftBoundaryIndex, setShiftBoundaryIndex] = useState<OptionalNumber>(null);
   const [shiftBoundaryTime, setShiftBoundaryTime] = useState<OptionalNumber>(null);
   const [deleteBoundaryIndex, setDeleteBoundaryIndex] = useState<OptionalNumber>(null);
+  const [showGenerateCutsConfirm, setShowGenerateCutsConfirm] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
@@ -7812,15 +7813,7 @@ export default function GteWorkspace({
             <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
-                onClick={() => {
-                  const ok = window.confirm(
-                    "Generate playing coordinates for track? This will replace the current playing coordinates on this track"
-                  );
-
-                  if (!ok) return;
-
-                  handleGenerateCuts();
-                }}
+                onClick={() => setShowGenerateCutsConfirm(true)}
                 title="Generate cuts"
                 className={textButtonClass}
               >
@@ -8555,6 +8548,41 @@ export default function GteWorkspace({
       {error && isActive && (
         <div className="fixed bottom-4 right-4 z-[10050] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-rose-300 bg-rose-50/95 px-3 py-2 text-sm text-rose-800 shadow-lg backdrop-blur">
           {error}
+        </div>
+      )}
+
+      {showGenerateCutsConfirm && (
+        <div
+          data-gte-floating-ui="true"
+          className="fixed inset-0 z-[10060] flex items-center justify-center bg-slate-900/35 px-4"
+          onMouseDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
+        >
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
+            <h2 className="text-base font-semibold text-slate-900">Generate playing coordinates?</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              This will replace the current playing coordinates on this track.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={() => setShowGenerateCutsConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button-primary button-small"
+                onClick={() => {
+                  setShowGenerateCutsConfirm(false);
+                  handleGenerateCuts();
+                }}
+              >
+                Generate
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
