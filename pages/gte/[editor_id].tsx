@@ -41,7 +41,13 @@ import {
   createGuestSnapshot,
   readGuestDraft,
 } from "../../lib/gteGuestDraft";
-import { TUNING_PRESETS, applyTuningToSnapshot, getSnapshotTuning, normalizeCapo } from "../../lib/gteTuning";
+import {
+  TUNING_PRESETS,
+  applyTuningToSnapshot,
+  applyTuningToSnapshotPreservingSound,
+  getSnapshotTuning,
+  normalizeCapo,
+} from "../../lib/gteTuning";
 import NoIndexHead from "../../components/NoIndexHead";
 
 type Props = {
@@ -183,6 +189,12 @@ type BarSelectionState = {
 type BarDragState = {
   sourceLaneId: string;
   barIndices: number[];
+};
+
+type PendingLaneTuningChange = {
+  laneId: string;
+  presetId: string;
+  capo: number;
 };
 
 const getLaneBarCount = (lane: EditorSnapshot) =>
@@ -771,6 +783,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [trackVolumeById, setTrackVolumeById] = useState<Record<string, number>>({});
   const [trackPanById, setTrackPanById] = useState<Record<string, number>>({});
   const [trackCapoDraftById, setTrackCapoDraftById] = useState<Record<string, string>>({});
+  const [pendingLaneTuningChange, setPendingLaneTuningChange] = useState<PendingLaneTuningChange | null>(null);
   const [isolatedTrackId, setIsolatedTrackId] = useState<string | null>(null);
   const [laneSelectionById, setLaneSelectionById] = useState<
     Record<string, { noteCount: number; chordCount: number; noteIds: number[]; chordIds: number[] }>
@@ -1582,8 +1595,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [editorId, isGuestMode, recordCanvasHistory]
   );
 
-  const handleLaneTuningChange = useCallback(
-    (laneId: string, presetId: string, capoValue: number) => {
+  const commitLaneTuningChange = useCallback(
+    (laneId: string, presetId: string, capoValue: number, preserveSound: boolean) => {
       if (!canvas) return;
       const secondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
       let didChange = false;
@@ -1594,7 +1607,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         const capo = normalizeCapo(capoValue);
         if (currentTuning.presetId === presetId && currentTuning.capo === capo) return normalizedLane;
         didChange = true;
-        return normalizeLane(applyTuningToSnapshot(normalizedLane, presetId, capo), laneId, secondsPerBar, index);
+        const tunedLane = preserveSound
+          ? applyTuningToSnapshotPreservingSound(normalizedLane, presetId, capo)
+          : applyTuningToSnapshot(normalizedLane, presetId, capo);
+        return normalizeLane(tunedLane, laneId, secondsPerBar, index);
       });
       if (!didChange) return;
       const nextCanvas = {
@@ -1613,22 +1629,54 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [canvas, editorId, recordCanvasHistory]
   );
 
-  const handleLaneCapoDraftChange = useCallback(
-    (laneId: string, presetId: string, rawValue: string) => {
-      if (rawValue === "") {
-        setTrackCapoDraftById((prev) => ({ ...prev, [laneId]: rawValue }));
+  const handleLaneTuningChange = useCallback(
+    (laneId: string, presetId: string, capoValue: number) => {
+      if (!canvas) return;
+      const secondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
+      const lane = canvas.editors.find((item, index) => {
+        const normalizedLane = normalizeLane(item, item.id || `ed-${index + 1}`, secondsPerBar, index);
+        return normalizedLane.id === laneId;
+      });
+      if (!lane) return;
+      const currentTuning = getSnapshotTuning(lane);
+      const capo = normalizeCapo(capoValue);
+      if (currentTuning.presetId === presetId && currentTuning.capo === capo) return;
+      if (lane.notes.length || lane.chords.length) {
+        setPendingLaneTuningChange({ laneId, presetId, capo });
         return;
       }
-      const parsed = Number(rawValue);
-      if (!Number.isFinite(parsed)) {
-        setTrackCapoDraftById((prev) => ({ ...prev, [laneId]: rawValue }));
-        return;
-      }
-      const capo = normalizeCapo(parsed);
-      setTrackCapoDraftById((prev) => ({ ...prev, [laneId]: String(capo) }));
-      handleLaneTuningChange(laneId, presetId, capo);
+      commitLaneTuningChange(laneId, presetId, capo, false);
     },
-    [handleLaneTuningChange]
+    [canvas, commitLaneTuningChange]
+  );
+
+  const closeLaneTuningPrompt = useCallback(() => {
+    const pending = pendingLaneTuningChange;
+    if (pending && canvas) {
+      const lane = canvas.editors.find((item) => item.id === pending.laneId);
+      if (lane) {
+        const tuning = getSnapshotTuning(lane);
+        setTrackCapoDraftById((prev) => ({ ...prev, [pending.laneId]: String(tuning.capo) }));
+      }
+    }
+    setPendingLaneTuningChange(null);
+  }, [canvas, pendingLaneTuningChange]);
+
+  const resolveLaneTuningPrompt = useCallback(
+    (preserveSound: boolean) => {
+      const pending = pendingLaneTuningChange;
+      if (!pending) return;
+      setPendingLaneTuningChange(null);
+      commitLaneTuningChange(pending.laneId, pending.presetId, pending.capo, preserveSound);
+    },
+    [commitLaneTuningChange, pendingLaneTuningChange]
+  );
+
+  const handleLaneCapoDraftChange = useCallback(
+    (laneId: string, rawValue: string) => {
+      setTrackCapoDraftById((prev) => ({ ...prev, [laneId]: rawValue }));
+    },
+    []
   );
 
   const commitLaneCapoDraft = useCallback(
@@ -4719,11 +4767,20 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               max={12}
                               value={trackCapoDraftById[laneId] ?? String(tuning.capo)}
                               onChange={(event) =>
-                                handleLaneCapoDraftChange(laneId, tuning.presetId, event.target.value)
+                                handleLaneCapoDraftChange(laneId, event.target.value)
                               }
                               onBlur={() =>
                                 commitLaneCapoDraft(laneId, tuning.presetId, tuning.capo)
                               }
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.currentTarget.blur();
+                                }
+                                if (event.key === "Escape") {
+                                  setTrackCapoDraftById((prev) => ({ ...prev, [laneId]: String(tuning.capo) }));
+                                  event.currentTarget.blur();
+                                }
+                              }}
                               onClick={(event) => event.stopPropagation()}
                               className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 shadow-sm"
                               title="Track capo"
@@ -4998,6 +5055,41 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   disabled={Boolean(deletingLaneId)}
                 >
                   {deletingLaneId === confirmDeleteTrackId ? "Removing..." : "Remove track"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {pendingLaneTuningChange && (
+          <div className="fixed inset-0 z-[180] flex items-center justify-center bg-slate-900/35 px-4">
+            <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
+              <h2 className="text-base font-semibold text-slate-900">Adjust notes/chords to keep the sound?</h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Notes/Chords have different fingerings on different tunings. 
+                Automatically adjust them to keep the same sound.
+              </p>
+              <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  className="button-secondary button-small"
+                  onClick={closeLaneTuningPrompt}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="button-secondary button-small"
+                  onClick={() => resolveLaneTuningPrompt(false)}
+                >
+                  Change tuning only
+                </button>
+                <button
+                  type="button"
+                  className="button-primary button-small"
+                  onClick={() => resolveLaneTuningPrompt(true)}
+                >
+                  Adjust notes/chords
                 </button>
               </div>
             </div>

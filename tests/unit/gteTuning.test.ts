@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { applyTuningToSnapshot, buildTabRefForTuning, getSnapshotTuning } from "../../lib/gteTuning";
+import {
+  applyTuningToSnapshot,
+  applyTuningToSnapshotPreservingSound,
+  buildTabRefForTuning,
+  getSnapshotTuning,
+} from "../../lib/gteTuning";
 import type { EditorSnapshot } from "../../types/gte";
 
 const baseSnapshot = (): EditorSnapshot => ({
@@ -48,6 +53,30 @@ describe("gte tuning", () => {
     expect(tuned.notes[0].midiNum).toBe(38);
     expect(tuned.notes[1].midiNum).toBe(64);
     expect(tuned.chords[0].originalMidi).toEqual([38, 45]);
+  });
+
+  it("preserves note and chord pitches by moving tabs onto the new fretboard", () => {
+    const tuned = applyTuningToSnapshotPreservingSound(baseSnapshot(), "drop-d", 0);
+    expect(tuned.tuning?.presetId).toBe("drop-d");
+    expect(tuned.notes[0]).toMatchObject({ midiNum: 40, tab: [5, 2] });
+    expect(tuned.notes[1]).toMatchObject({ midiNum: 64, tab: [0, 0] });
+    expect(tuned.chords[0].originalMidi).toEqual([40, 45]);
+    expect(tuned.chords[0].currentTabs).toEqual([
+      [5, 2],
+      [4, 0],
+    ]);
+  });
+
+  it("uses an octave fallback and removes unplayable pitches when preserving tuning sound", () => {
+    const source = baseSnapshot();
+    source.notes = [
+      { id: 1, startTime: 0, length: 120, midiNum: 30, tab: [5, 0], optimals: [] },
+      { id: 2, startTime: 120, length: 120, midiNum: 20, tab: [5, 0], optimals: [] },
+    ];
+    source.chords = [];
+    const tuned = applyTuningToSnapshotPreservingSound(source, "standard", 0);
+    expect(tuned.notes).toHaveLength(1);
+    expect(tuned.notes[0]).toMatchObject({ id: 1, midiNum: 42, tab: [5, 2] });
   });
 
   it("reads normalized tuning defaults", () => {
