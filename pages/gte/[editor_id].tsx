@@ -4065,34 +4065,36 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               </div>
             )}
           </div>
-          {!isGuestMode && (
-            <div className="mt-1 flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => void router.push(transcriberHref)}
-                  className="button-secondary button-small"
-                  title="Open the standalone transcriber"
-                >
-                  Generate tabs
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void router.push(`/gte/${editorId}/tabs`)}
-                  className="button-secondary button-small"
-                  title="View current editor as ASCII tabs"
-                >
-                  View as tabs
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void router.push(`/gte/${editorId}/import-tab`)}
-                  className="button-secondary button-small"
-                  title="Import a pasted text tab"
-                >
-                  Import tab
-                </button>
-            </div>
-          )}
+          <div className="mt-1 flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
+            {!isGuestMode && (
+              <button
+                type="button"
+                onClick={() => void router.push(transcriberHref)}
+                className="button-secondary button-small"
+                title="Open the standalone transcriber"
+              >
+                Generate tabs
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => void router.push(`/gte/${editorId}/tabs`)}
+              className="button-secondary button-small"
+              title="View current editor as ASCII tabs"
+            >
+              View as tabs
+            </button>
+            {!isGuestMode && (
+              <button
+                type="button"
+                onClick={() => void router.push(`/gte/${editorId}/import-tab`)}
+                className="button-secondary button-small"
+                title="Import a pasted text tab"
+              >
+                Import tab
+              </button>
+            )}
+          </div>
           <div
             className="button-row"
             style={
