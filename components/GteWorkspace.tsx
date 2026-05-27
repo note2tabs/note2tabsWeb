@@ -6216,6 +6216,7 @@ export default function GteWorkspace({
       if (barSelector?.dataset.barSelectEditor === editorId) return;
       const barMenu = target.closest<HTMLElement>("[data-mobile-bar-menu='true']");
       if (barMenu?.dataset.mobileBarMenuEditor === editorId) return;
+      if (target.closest("[data-gte-floating-ui='true']")) return;
       setSelectedBarIndices([]);
       setBarSelectionAnchor(null);
       setLastBarInsertIndex(null);
