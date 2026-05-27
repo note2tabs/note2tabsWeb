@@ -231,6 +231,43 @@ const bpmToSecondsPerBar = (bpm: unknown, beatsPerBar: unknown) => {
   return Math.max(0.1, (60 / normalizedBpm) * beats);
 };
 
+const scaleLaneEventsForTimeSignatureChange = (
+  lane: EditorSnapshot,
+  previousTimeSignature: number,
+  nextTimeSignature: number
+): EditorSnapshot => {
+  const previous = normalizeTimeSignature(previousTimeSignature) ?? 8;
+  const next = normalizeTimeSignature(nextTimeSignature) ?? 8;
+  if (previous === next) return lane;
+  const ratio = previous / next;
+  const scaleFrame = (value: number) => Math.max(0, Math.round(Math.max(0, toNumber(value, 0)) * ratio));
+  const scaleLength = (value: number) => Math.max(1, scaleFrame(toNumber(value, 1)));
+  const notes = (Array.isArray(lane.notes) ? lane.notes : []).map((note) => ({
+    ...note,
+    startTime: scaleFrame(note.startTime),
+    length: scaleLength(note.length),
+  }));
+  const chords = (Array.isArray(lane.chords) ? lane.chords : []).map((chord) => ({
+    ...chord,
+    startTime: scaleFrame(chord.startTime),
+    length: scaleLength(chord.length),
+  }));
+  const maxEventEnd = Math.max(
+    0,
+    ...notes.map((note) => note.startTime + Math.max(1, Math.round(toNumber(note.length, 1)))),
+    ...chords.map((chord) => chord.startTime + Math.max(1, Math.round(toNumber(chord.length, 1))))
+  );
+  return {
+    ...lane,
+    notes,
+    chords,
+    totalFrames: Math.max(
+      FIXED_FRAMES_PER_BAR,
+      Math.round(Math.max(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR), maxEventEnd))
+    ),
+  };
+};
+
 const formatBpm = (value: number) => {
   const rounded = Math.round(value * 100) / 100;
   return Number.isInteger(rounded) ? String(rounded) : String(rounded);
@@ -750,6 +787,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [bpmSaving, setBpmSaving] = useState(false);
   const [bpmError, setBpmError] = useState<string | null>(null);
   const [timeSignatureDraft, setTimeSignatureDraft] = useState("8");
+  const [keepNotesOnBeat, setKeepNotesOnBeat] = useState(false);
   const [timeSignatureSaving, setTimeSignatureSaving] = useState(false);
   const [timeSignatureError, setTimeSignatureError] = useState<string | null>(null);
   const [activeLaneId, setActiveLaneId] = useState<string | null>(null);
@@ -1372,18 +1410,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           ...canvas,
           updatedAt: new Date().toISOString(),
           secondsPerBar,
-          editors: canvas.editors.map((lane, index) =>
-            normalizeLane(
+          editors: canvas.editors.map((lane, index) => {
+            const adjustedLane = keepNotesOnBeat
+              ? scaleLaneEventsForTimeSignatureChange(lane, current, normalized)
+              : lane;
+            return normalizeLane(
               {
-                ...lane,
+                ...adjustedLane,
                 secondsPerBar,
                 timeSignature: normalized,
               },
               lane.id || `ed-${index + 1}`,
               secondsPerBar,
               index
-            )
-          ),
+            );
+          }),
         },
         editorId
       );
@@ -3445,6 +3486,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           </button>
                         </span>
                       </span>
+                      <span className="mt-2 flex items-center gap-1.5 text-[11px] font-medium normal-case tracking-normal text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={keepNotesOnBeat}
+                          onChange={(event) => setKeepNotesOnBeat(event.target.checked)}
+                          className="h-3.5 w-3.5 rounded border-slate-300"
+                        />
+                        <span>Keep notes on beat</span>
+                      </span>
                     </label>
                   </div>
                   <div className="flex min-h-[1.25rem] flex-wrap items-center gap-3 text-xs">
@@ -3755,6 +3805,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </span>
                 </span>
               </label>
+              <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <input
+                  type="checkbox"
+                  checked={keepNotesOnBeat}
+                  onChange={(event) => setKeepNotesOnBeat(event.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-slate-300"
+                />
+                Keep notes on beat
+              </label>
             </div>
             <div
               className="text-small"
@@ -3966,6 +4025,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               &#9660;
                             </button>
                           </span>
+                        </span>
+                        <span className="mt-2 flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={keepNotesOnBeat}
+                            onChange={(event) => setKeepNotesOnBeat(event.target.checked)}
+                            className="h-3.5 w-3.5 rounded border-slate-300"
+                          />
+                          <span>Keep notes on beat</span>
                         </span>
                       </label>
                     </div>

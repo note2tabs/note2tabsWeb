@@ -196,6 +196,30 @@ const formatScaleFactor = (value: number) => {
 const clampEventLength = (length: number) =>
   Math.max(1, Math.min(MAX_EVENT_LENGTH_FRAMES, Math.round(length)));
 
+const normalizeBeatsPerBar = (value: unknown) =>
+  Math.max(1, Math.min(64, Math.round(Number(value) || 1)));
+
+const getBeatGridTime = (time: number, beatsPerBar: number, mode: "floor" | "round" | "ceil" = "round") => {
+  const beats = normalizeBeatsPerBar(beatsPerBar);
+  const safeTime = Math.max(0, Math.round(time));
+  const barIndex = Math.floor(safeTime / FIXED_FRAMES_PER_BAR);
+  const barStart = barIndex * FIXED_FRAMES_PER_BAR;
+  const inBar = safeTime - barStart;
+  const rawBeat = (inBar / FIXED_FRAMES_PER_BAR) * beats;
+  const beatIndex =
+    mode === "floor" ? Math.floor(rawBeat) : mode === "ceil" ? Math.ceil(rawBeat) : Math.round(rawBeat);
+  return Math.max(0, barStart + Math.round((Math.max(0, Math.min(beats, beatIndex)) * FIXED_FRAMES_PER_BAR) / beats));
+};
+
+const getBeatGridLength = (length: number, beatsPerBar: number, mode: "floor" | "round" | "ceil" = "floor") => {
+  const beats = normalizeBeatsPerBar(beatsPerBar);
+  const safeLength = clampEventLength(length);
+  const rawBeatCount = (safeLength / FIXED_FRAMES_PER_BAR) * beats;
+  const beatCount =
+    mode === "floor" ? Math.floor(rawBeatCount) : mode === "ceil" ? Math.ceil(rawBeatCount) : Math.round(rawBeatCount);
+  return clampEventLength(Math.round((Math.max(1, beatCount) * FIXED_FRAMES_PER_BAR) / beats));
+};
+
 const NON_TEXT_INPUT_TYPES = new Set([
   "button",
   "submit",
@@ -697,6 +721,39 @@ const setTimeSignatureInSnapshot = (draft: EditorSnapshot, timeSignature: number
   draft.timeSignature = Math.max(1, Math.min(64, Math.round(timeSignature)));
 };
 
+const scaleEventsForTimeSignatureChangeInSnapshot = (
+  draft: EditorSnapshot,
+  previousTimeSignature: number,
+  nextTimeSignature: number
+) => {
+  const previous = Math.max(1, Math.min(64, Math.round(previousTimeSignature)));
+  const next = Math.max(1, Math.min(64, Math.round(nextTimeSignature)));
+  if (previous === next) return;
+  const ratio = previous / next;
+  const scaleFrame = (value: number) => Math.max(0, Math.round(Math.max(0, value) * ratio));
+  const scaleLength = (value: number) => clampEventLength(scaleFrame(value));
+
+  draft.notes = draft.notes.map((note) => ({
+    ...note,
+    startTime: scaleFrame(note.startTime),
+    length: scaleLength(note.length),
+  }));
+  draft.chords = draft.chords.map((chord) => ({
+    ...chord,
+    startTime: scaleFrame(chord.startTime),
+    length: scaleLength(chord.length),
+  }));
+  const maxEventEnd = Math.max(
+    0,
+    ...draft.notes.map((note) => note.startTime + clampEventLength(note.length)),
+    ...draft.chords.map((chord) => chord.startTime + clampEventLength(chord.length))
+  );
+  draft.totalFrames = Math.max(
+    FIXED_FRAMES_PER_BAR,
+    Math.round(Math.max(draft.totalFrames || FIXED_FRAMES_PER_BAR, maxEventEnd))
+  );
+};
+
 const addBarsInSnapshot = (draft: EditorSnapshot, count: number) => {
   const safeCount = Math.max(1, Math.round(count));
   const framesPerBar = FIXED_FRAMES_PER_BAR;
@@ -992,6 +1049,7 @@ export default function GteWorkspace({
   const [bpmInput, setBpmInput] = useState(formatBpm(secondsPerBarToBpm(2, 8)));
   const [timeSignature, setTimeSignature] = useState(8);
   const [timeSignatureInput, setTimeSignatureInput] = useState("8");
+  const [keepNotesOnBeat, setKeepNotesOnBeat] = useState(false);
   const [localSnapToGridEnabled, setLocalSnapToGridEnabled] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -2419,14 +2477,7 @@ export default function GteWorkspace({
       if (!snapToGridEnabled) {
         return safeStart;
       }
-      const frames = FIXED_FRAMES_PER_BAR;
-      const beats = Math.max(1, Math.min(64, Math.round(timeSignature)));
-      const signatureLength = Math.max(1, Math.floor(frames / beats));
-      const barIndex = Math.floor(safeStart / frames);
-      const barOffset = barIndex * frames;
-      const inBarStart = safeStart - barOffset;
-      const signatureIndex = Math.floor(inBarStart / signatureLength);
-      return Math.max(0, signatureIndex * signatureLength + barOffset);
+      return getBeatGridTime(safeStart, timeSignature, "floor");
     },
     [snapToGridEnabled, timeSignature]
   );
@@ -2440,13 +2491,8 @@ export default function GteWorkspace({
           length: safeLength,
         };
       }
-      const frames = FIXED_FRAMES_PER_BAR;
-      const beats = Math.max(1, Math.min(64, Math.round(timeSignature)));
-      const signatureLength = Math.max(1, Math.floor(frames / beats));
       const snappedStart = snapStartTimeToGrid(startTime);
-      const lengthIndex = Math.max(1, Math.floor(safeLength / signatureLength));
-      const snappedLength = lengthIndex * signatureLength;
-      return { startTime: snappedStart, length: clampEventLength(snappedLength) };
+      return { startTime: snappedStart, length: getBeatGridLength(safeLength, timeSignature, "floor") };
     },
     [snapStartTimeToGrid, snapToGridEnabled, timeSignature]
   );
@@ -2457,11 +2503,7 @@ export default function GteWorkspace({
       if (!snapToGridEnabled) {
         return safeLength;
       }
-      const frames = FIXED_FRAMES_PER_BAR;
-      const beats = Math.max(1, Math.min(64, Math.round(timeSignature)));
-      const signatureLength = Math.max(1, Math.floor(frames / beats));
-      const signatureAmount = Math.max(1, Math.floor(safeLength / signatureLength));
-      return clampEventLength(signatureAmount * signatureLength);
+      return getBeatGridLength(safeLength, timeSignature, "floor");
     },
     [snapToGridEnabled, timeSignature]
   );
@@ -2469,7 +2511,6 @@ export default function GteWorkspace({
   const computeScalePreview = useCallback(
     (session: ScaleSession, factor: number, mode: ScaleToolMode) => {
       const normalizedFactor = clamp(factor, SCALE_FACTOR_MIN, SCALE_FACTOR_MAX);
-      const signatureLength = Math.max(1, Math.floor(framesPerMeasure / Math.max(1, Math.round(timeSignature))));
       const scaleStart = mode === "start" || mode === "both";
       const scaleLength = mode === "length" || mode === "both";
       const notes: Record<number, ScalePreviewEntity> = {};
@@ -2479,19 +2520,14 @@ export default function GteWorkspace({
       const scaleStartTime = (value: number) => {
         let next = Math.trunc((value - session.minTime) * normalizedFactor + session.minTime);
         if (snapToGridEnabled) {
-          const barIndex = Math.trunc(next / framesPerMeasure);
-          const barOffset = framesPerMeasure * barIndex;
-          const inBar = next - barOffset;
-          const signatureIndex = Math.trunc(inBar / signatureLength);
-          next = signatureIndex * signatureLength + barOffset;
+          next = getBeatGridTime(next, timeSignature, "floor");
         }
         return Math.max(0, next);
       };
 
       const scaleItemLength = (value: number) => {
         if (snapToGridEnabled) {
-          const amount = Math.max(1, Math.round((value * normalizedFactor) / signatureLength));
-          return clampEventLength(amount * signatureLength);
+          return getBeatGridLength(value * normalizedFactor, timeSignature, "round");
         }
         return clampEventLength(Math.trunc(value * normalizedFactor));
       };
@@ -5506,19 +5542,23 @@ export default function GteWorkspace({
         return false;
       }
       const normalized = Math.max(1, Math.min(64, Math.round(next)));
+      const previousTimeSignature = timeSignature;
       setTimeSignature(normalized);
       setTimeSignatureInput(String(normalized));
-      if (normalized === timeSignature) {
+      if (normalized === previousTimeSignature) {
         return true;
       }
       void runMutation(() => gteApi.setTimeSignature(editorId, normalized), {
         localApply: (draft) => {
+          if (keepNotesOnBeat) {
+            scaleEventsForTimeSignatureChangeInSnapshot(draft, previousTimeSignature, normalized);
+          }
           setTimeSignatureInSnapshot(draft, normalized);
         },
       });
       return true;
     },
-    [editorId, runMutation, timeSignature]
+    [editorId, keepNotesOnBeat, runMutation, timeSignature]
   );
 
   const handleBarSelection = useCallback(
@@ -6256,20 +6296,35 @@ export default function GteWorkspace({
     setKeyboardAddMode(null);
   }, [isMobileCanvasMode]);
 
-  const getKeyboardGridStepFrames = useCallback(() => {
-    const beats = Math.max(1, Math.min(64, Math.round(timeSignature)));
-    return Math.max(1, Math.floor(FIXED_FRAMES_PER_BAR / beats));
-  }, [timeSignature]);
+  const getAdjacentKeyboardGridTime = useCallback(
+    (time: number, direction: -1 | 1) => {
+      const maxTime = Math.max(0, timelineEnd - 1);
+      const safeTime = clamp(Math.round(time), 0, maxTime);
+      const current = getBeatGridTime(safeTime, timeSignature, "round");
+      const nudge = direction > 0 ? current + 1 : current - 1;
+      return clamp(getBeatGridTime(nudge, timeSignature, direction > 0 ? "ceil" : "floor"), 0, maxTime);
+    },
+    [clamp, timeSignature, timelineEnd]
+  );
 
   const snapKeyboardCursorTimeToGrid = useCallback(
     (time: number) => {
-      const step = getKeyboardGridStepFrames();
       const maxTime = Math.max(0, timelineEnd - 1);
       const safeTime = clamp(Math.round(time), 0, maxTime);
-      const index = Math.round(safeTime / step);
-      return clamp(index * step, 0, maxTime);
+      return clamp(getBeatGridTime(safeTime, timeSignature, "round"), 0, maxTime);
     },
-    [clamp, getKeyboardGridStepFrames, timelineEnd]
+    [clamp, timeSignature, timelineEnd]
+  );
+
+  const getKeyboardGridCellWidthFrames = useCallback(
+    (time: number) => {
+      const current = snapKeyboardCursorTimeToGrid(time);
+      const next = getAdjacentKeyboardGridTime(current, 1);
+      if (next > current) return next - current;
+      const previous = getAdjacentKeyboardGridTime(current, -1);
+      return Math.max(1, current - previous);
+    },
+    [getAdjacentKeyboardGridTime, snapKeyboardCursorTimeToGrid]
   );
 
   const getCenteredKeyboardCursor = useCallback((): KeyboardGridCursor => {
@@ -6493,26 +6548,23 @@ export default function GteWorkspace({
   const getDirectionalCursorFromSelectedNote = useCallback(
     (
       note: { startTime: number; length: number; tab: TabCoord },
-      key: "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown",
-      step: number
+      key: "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown"
     ) => {
       const maxTime = Math.max(0, timelineEnd - 1);
       const safeStart = clamp(note.startTime, 0, maxTime);
       const safeEnd = clamp(note.startTime + Math.max(1, Math.round(note.length)), 0, timelineEnd);
-      const safeStep = Math.max(1, step);
-      const ratioStart = safeStart / safeStep;
-      let index = Math.round(ratioStart);
+      let time = snapKeyboardCursorTimeToGrid(safeStart);
       if (key === "ArrowRight") {
-        index = Math.max(index + 1, Math.ceil(safeEnd / safeStep));
+        time = Math.max(getAdjacentKeyboardGridTime(safeStart, 1), snapKeyboardCursorTimeToGrid(safeEnd));
       } else if (key === "ArrowLeft") {
-        index = Math.floor((safeStart - 1) / safeStep);
+        time = getAdjacentKeyboardGridTime(safeStart, -1);
       }
       return {
-        time: clamp(Math.round(index * safeStep), 0, maxTime),
+        time: clamp(time, 0, maxTime),
         stringIndex: clamp(Math.round(note.tab[0]), 0, 5),
       };
     },
-    [clamp, timelineEnd]
+    [clamp, getAdjacentKeyboardGridTime, snapKeyboardCursorTimeToGrid, timelineEnd]
   );
 
   const [noteForm, setNoteForm] = useState<NoteFormState>({
@@ -6751,7 +6803,7 @@ export default function GteWorkspace({
         if (event.key === "Enter") {
           event.preventDefault();
           const cursor = resolveKeyboardCursor();
-          const step = getKeyboardGridStepFrames();
+          const step = getKeyboardGridCellWidthFrames(cursor.time);
           const orderedNoteIds = getOrderedNoteIdsOnCursorGrid(cursor, step);
           showKeyboardCursor(cursor);
           setSelectedCutBoundaryIndex(null);
@@ -6844,7 +6896,7 @@ export default function GteWorkspace({
           }
 
           const cursor = resolveKeyboardCursor();
-          const step = getKeyboardGridStepFrames();
+          const step = getKeyboardGridCellWidthFrames(cursor.time);
           const noteIdsOnGrid = getNoteIdsOnCursorGrid(cursor, step);
           if (noteIdsOnGrid.length > 0) {
             noteFretTypingBufferRef.current = "";
@@ -6865,7 +6917,6 @@ export default function GteWorkspace({
           noteFretTypingBufferRef.current = "";
           noteFretTypingAtRef.current = 0;
           enterGridCycleRef.current = null;
-          const step = getKeyboardGridStepFrames();
           const selectedId = selectedNoteIdsRef.current.length === 1 ? selectedNoteIdsRef.current[0] : null;
           const selectedNoteGroup = Array.from(
             new Set(selectedNoteIdsRef.current.map((id) => resolveNoteId(id)))
@@ -6910,7 +6961,9 @@ export default function GteWorkspace({
               });
               return;
             }
-            const desiredDelta = event.key === "ArrowLeft" ? -step : step;
+            const anchorStart = Math.min(...selectedNoteGroup.map((note) => note.startTime));
+            const desiredAnchor = getAdjacentKeyboardGridTime(anchorStart, event.key === "ArrowLeft" ? -1 : 1);
+            const desiredDelta = desiredAnchor - anchorStart;
             let minDelta = -Infinity;
             let maxDelta = Infinity;
             selectedNoteGroup.forEach((note) => {
@@ -6980,10 +7033,12 @@ export default function GteWorkspace({
               });
               return;
             }
-            const delta = event.key === "ArrowLeft" ? -step : step;
             const maxStart = Math.max(0, timelineEnd - Math.max(1, Math.round(selected.length)));
-            const rawNext = selected.startTime + delta;
-            const snappedNext = clamp(snapKeyboardCursorTimeToGrid(rawNext), 0, maxStart);
+            const snappedNext = clamp(
+              getAdjacentKeyboardGridTime(selected.startTime, event.key === "ArrowLeft" ? -1 : 1),
+              0,
+              maxStart
+            );
             if (snappedNext === selected.startTime) return;
             enqueueOptimisticMutation({
               label: "keyboard-shift-arrow-time",
@@ -7009,15 +7064,14 @@ export default function GteWorkspace({
             : selectedForCursor
               ? getDirectionalCursorFromSelectedNote(
                   selectedForCursor,
-                  event.key as "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown",
-                  step
+                  event.key as "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown"
                 )
               : resolveKeyboardCursor();
           const nextCursor: KeyboardGridCursor = { ...baseCursor };
           if (event.key === "ArrowLeft") {
-            nextCursor.time = snapKeyboardCursorTimeToGrid(baseCursor.time - step);
+            nextCursor.time = getAdjacentKeyboardGridTime(baseCursor.time, -1);
           } else if (event.key === "ArrowRight") {
-            nextCursor.time = snapKeyboardCursorTimeToGrid(baseCursor.time + step);
+            nextCursor.time = getAdjacentKeyboardGridTime(baseCursor.time, 1);
           }
           if (event.key === "ArrowUp") {
             nextCursor.stringIndex = clamp(baseCursor.stringIndex - 1, 0, 5);
@@ -7290,8 +7344,9 @@ export default function GteWorkspace({
     createKeyboardNoteAtCursor,
     enqueueOptimisticMutation,
     finalizeKeyboardAddMode,
+    getAdjacentKeyboardGridTime,
     getGridCycleKey,
-    getKeyboardGridStepFrames,
+    getKeyboardGridCellWidthFrames,
     getOrderedNoteIdsOnCursorGrid,
     getNoteIdsOnCursorGrid,
     maxFret,
@@ -7387,8 +7442,8 @@ export default function GteWorkspace({
 
   const keyboardCursorMarker = useMemo<KeyboardCursorMarker | null>(() => {
     if (mobileViewport || !isActive || !keyboardGridCursor || !keyboardCursorVisible) return null;
-    const step = getKeyboardGridStepFrames();
     const safeTime = snapKeyboardCursorTimeToGrid(keyboardGridCursor.time);
+    const step = getKeyboardGridCellWidthFrames(safeTime);
     const rowIndex = rowFrames > 0 ? clamp(Math.floor(safeTime / rowFrames), 0, rows - 1) : 0;
     const rowStart = rowIndex * rowFrames;
     const rowBarCount = getRowBarCount(rowIndex);
@@ -7402,7 +7457,7 @@ export default function GteWorkspace({
   }, [
     clamp,
     framesPerMeasure,
-    getKeyboardGridStepFrames,
+    getKeyboardGridCellWidthFrames,
     isActive,
     keyboardCursorVisible,
     keyboardGridCursor,
@@ -8431,57 +8486,68 @@ export default function GteWorkspace({
         </div>
         )}
         {!embedded && (
-        <div className="flex items-center gap-2 text-xs text-slate-600">
-          <span>Beats/bar</span>
-          <div className="flex items-center gap-1">
-            <input
-              type="number"
-              min={1}
-              max={64}
-              step={1}
-              inputMode="numeric"
-              value={timeSignatureInput}
-              onChange={(e) => setTimeSignatureInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
-                e.preventDefault();
-                commitTimeSignatureValue(timeSignatureInput);
-              }}
-              onBlur={() => {
-                commitTimeSignatureValue(timeSignatureInput);
-              }}
-              className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-            />
-            <div className="flex flex-col gap-0.5">
-              <button
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  commitTimeSignatureValue(timeSignature + 1);
-                }}
-                className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
-                title="Increase beats per bar"
-                aria-label="Increase beats per bar"
-                disabled={timeSignature >= 64}
-              >
-                &#9650;
-              </button>
-              <button
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  commitTimeSignatureValue(timeSignature - 1);
-                }}
-                className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
-                title="Decrease beats per bar"
-                aria-label="Decrease beats per bar"
-                disabled={timeSignature <= 1}
-              >
-                &#9660;
-              </button>
+          <div className="flex items-center gap-3 text-xs text-slate-600">
+            <div className="flex items-center gap-2">
+              <span>Beats/bar</span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={1}
+                  max={64}
+                  step={1}
+                  inputMode="numeric"
+                  value={timeSignatureInput}
+                  onChange={(e) => setTimeSignatureInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    commitTimeSignatureValue(timeSignatureInput);
+                  }}
+                  onBlur={() => {
+                    commitTimeSignatureValue(timeSignatureInput);
+                  }}
+                  className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
+                />
+                <div className="flex flex-col gap-0.5">
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      commitTimeSignatureValue(timeSignature + 1);
+                    }}
+                    className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
+                    title="Increase beats per bar"
+                    aria-label="Increase beats per bar"
+                    disabled={timeSignature >= 64}
+                  >
+                    &#9650;
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      commitTimeSignatureValue(timeSignature - 1);
+                    }}
+                    className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
+                    title="Decrease beats per bar"
+                    aria-label="Decrease beats per bar"
+                    disabled={timeSignature <= 1}
+                  >
+                    &#9660;
+                  </button>
+                </div>
+              </div>
             </div>
+            <label className="flex items-center gap-1.5 whitespace-nowrap">
+              <input
+                type="checkbox"
+                checked={keepNotesOnBeat}
+                onChange={(event) => setKeepNotesOnBeat(event.target.checked)}
+                className="h-3.5 w-3.5 rounded border-slate-300"
+              />
+              <span>Keep notes on beat</span>
+            </label>
           </div>
-        </div>
         )}
         {!embedded && (
           <button
