@@ -136,9 +136,9 @@ const AUTOSAVE_INTERVAL_MS = 20000;
 const NOTE_FRET_ARROW_COMMIT_DEBOUNCE_MS = 300;
 const TOUCH_DRAG_HOLD_MS = 110;
 const KEYBOARD_FRET_TYPE_TIMEOUT_MS = 1200;
-const TARGET_VISIBLE_BARS = 2.5;
+const TARGET_VISIBLE_BARS = 4;
 const MIN_TIMELINE_ZOOM = 0.1;
-const MAX_TIMELINE_ZOOM = 2.5;
+const MAX_TIMELINE_ZOOM = 2;
 const STREAMLINE_TOOLBAR_ICONS = {
   chordize: "/icons/toolbar/make-chord.png",
   disband: "/icons/toolbar/disband.png",
