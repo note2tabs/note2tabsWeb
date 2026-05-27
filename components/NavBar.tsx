@@ -11,15 +11,22 @@ const roleLabel = (role?: string) => {
   return "Free";
 };
 
-export default function NavBar() {
+type NavBarProps = {
+  editorRevealMode?: boolean;
+};
+
+export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [editorRevealVisible, setEditorRevealVisible] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const scrolledRef = useRef(false);
   const scrollFrameRef = useRef<number | null>(null);
+  const editorMouseNearTopRef = useRef(false);
+  const editorAtPageTopRef = useRef(true);
   const isReadingArticle = router.pathname === "/blog/[slug]";
   const isHome = router.pathname === "/";
   const role = session?.user?.role || "";
@@ -61,6 +68,35 @@ export default function NavBar() {
   }, []);
 
   useEffect(() => {
+    if (!editorRevealMode || typeof window === "undefined") {
+      setEditorRevealVisible(false);
+      return;
+    }
+
+    const updateRevealState = () => {
+      setEditorRevealVisible(editorAtPageTopRef.current && editorMouseNearTopRef.current);
+    };
+    const handleMouseMove = (event: MouseEvent) => {
+      editorMouseNearTopRef.current = event.clientY <= 72;
+      updateRevealState();
+    };
+    const handleScroll = () => {
+      editorAtPageTopRef.current = window.scrollY <= 2;
+      updateRevealState();
+    };
+
+    editorAtPageTopRef.current = window.scrollY <= 2;
+    editorMouseNearTopRef.current = false;
+    updateRevealState();
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [editorRevealMode]);
+
+  useEffect(() => {
     if (!profileMenuOpen) return;
     const handleDocumentClick = (event: MouseEvent) => {
       const target = event.target as Node | null;
@@ -83,7 +119,7 @@ export default function NavBar() {
 
   return (
     <header
-      className={`nav-shell${isReadingArticle ? " nav-shell--reading" : ""}${isHome ? " nav-shell--home" : ""}${isHome && !isScrolled ? " nav-shell--blend" : ""}`}
+      className={`nav-shell${isReadingArticle ? " nav-shell--reading" : ""}${isHome ? " nav-shell--home" : ""}${isHome && !isScrolled ? " nav-shell--blend" : ""}${editorRevealMode ? " nav-shell--editor-reveal" : ""}${editorRevealMode && (editorRevealVisible || menuOpen || profileMenuOpen) ? " nav-shell--editor-visible" : ""}`}
     >
       <div className="container nav">
         <Link href="/" className="logo">

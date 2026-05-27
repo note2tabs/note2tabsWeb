@@ -3157,7 +3157,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         className={`page page-tight ${
           isMobileEditMode ? "h-[100dvh] overflow-hidden overscroll-none py-3" : ""
         }`}
-        style={!isMobileEditMode ? { paddingTop: 18 } : undefined}
+        style={!isMobileEditMode ? { paddingTop: 76 } : undefined}
         onMouseDownCapture={handleMainMouseDownCapture}
       >
       <div

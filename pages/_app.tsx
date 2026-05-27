@@ -14,6 +14,7 @@ const AnalyticsIdentityLinker = dynamic(() => import("../components/AnalyticsIde
 
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   const router = useRouter();
+  const isGteEditorPage = router.pathname === "/gte/[editor_id]";
 
   useEffect(() => {
     const trackPageView = (url?: string) => {
@@ -94,11 +95,11 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <div className="app-shell">
-        <NavBar />
+        <NavBar editorRevealMode={isGteEditorPage} />
         <main className="flex-1">
           <Component {...pageProps} />
         </main>
-        <FooterBar />
+        {!isGteEditorPage && <FooterBar />}
         <CookieConsentBanner />
         <AnalyticsIdentityLinker />
       </div>
