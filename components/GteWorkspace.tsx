@@ -5653,6 +5653,11 @@ export default function GteWorkspace({
         setBarSelectionAnchor(index);
         return;
       }
+      if (selectedBarIndices.length === 1 && selectedBarIndices[0] === index) {
+        setSelectedBarIndices([]);
+        setBarSelectionAnchor(null);
+        return;
+      }
       setSelectedBarIndices([index]);
       setBarSelectionAnchor(index);
     },
@@ -6294,26 +6299,6 @@ export default function GteWorkspace({
     setBarSelectionAnchor(null);
     setLastBarInsertIndex(null);
   }, [barSelectionClearEpoch, barSelectionClearExemptEditorId, editorId]);
-
-  useEffect(() => {
-    if (!selectedBarIndices.length) return;
-    const handleMouseDownCapture = (event: globalThis.MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
-      const barSelector = target.closest<HTMLElement>("[data-bar-select='true']");
-      if (barSelector?.dataset.barSelectEditor === editorId) return;
-      const barMenu = target.closest<HTMLElement>("[data-mobile-bar-menu='true']");
-      if (barMenu?.dataset.mobileBarMenuEditor === editorId) return;
-      if (target.closest("[data-gte-floating-ui='true']")) return;
-      setSelectedBarIndices([]);
-      setBarSelectionAnchor(null);
-      setLastBarInsertIndex(null);
-    };
-    window.addEventListener("mousedown", handleMouseDownCapture, true);
-    return () => {
-      window.removeEventListener("mousedown", handleMouseDownCapture, true);
-    };
-  }, [editorId, selectedBarIndices.length]);
 
   useEffect(() => {
     if (activeBarDrag) return;
@@ -7265,6 +7250,11 @@ export default function GteWorkspace({
       }
       if ((event.ctrlKey || event.metaKey) && (event.key === "c" || event.key === "C")) {
         if (isTyping) return;
+        if (selectedNoteIds.length > 0 || selectedChordIds.length > 0) {
+          event.preventDefault();
+          void handleCopySelection();
+          return;
+        }
         if (selectedBarIndices.length > 0 && onRequestSelectedBarsCopy) {
           event.preventDefault();
           handleCopySelectedBars();

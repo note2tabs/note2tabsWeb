@@ -4349,10 +4349,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       const clickedBarSelector = Boolean(
                         target?.closest("[data-bar-select='true']")
                     );
-                    if (activeLaneId !== laneId) {
-                      setBarSelectionClearExemptEditorId(
-                        clickedBarSelector ? laneEditorRef : null
-                      );
+                    if (activeLaneId !== laneId && clickedBarSelector) {
+                      setBarSelectionClearExemptEditorId(laneEditorRef);
                       setBarSelectionClearEpoch((prev) => prev + 1);
                     }
                     if (
@@ -4387,8 +4385,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     onTouchStartCapture={(event) => {
                       const target = event.target as HTMLElement | null;
                       const clickedBarSelector = Boolean(target?.closest("[data-bar-select='true']"));
-                      if (activeLaneId !== laneId) {
-                        setBarSelectionClearExemptEditorId(clickedBarSelector ? laneEditorRef : null);
+                      if (activeLaneId !== laneId && clickedBarSelector) {
+                        setBarSelectionClearExemptEditorId(laneEditorRef);
                         setBarSelectionClearEpoch((prev) => prev + 1);
                         setOpenMobileBarMenuLaneId(null);
                       }
