@@ -330,8 +330,12 @@ const tabKey = (tab: TabCoord) => `${tab[0]}:${tab[1]}`;
 const noteEffectKey = (effect: Pick<NoteEffect, "startNoteId" | "endNoteId">) =>
   `${Math.min(effect.startNoteId, effect.endNoteId)}:${Math.max(effect.startNoteId, effect.endNoteId)}`;
 
-const scoreTabDistance = (tab: TabCoord, coord: TabCoord) =>
-  Math.abs(tab[0] - coord[0]) + Math.abs(tab[1] - coord[1]);
+const scoreTabDistance = (tab: TabCoord, coord: TabCoord, isConnectedToEffect: boolean) => {
+  if (!isConnectedToEffect && tab[1] === 0) {
+    return 0;
+  }
+  return Math.abs(tab[0] - coord[0]) + Math.abs(tab[1] - coord[1]);
+};
 
 const computeNoteAlternatesForSnapshot = (
   snapshot: EditorSnapshot,
@@ -360,8 +364,15 @@ const computeNoteAlternatesForSnapshot = (
     }
   });
   const cutCoord = getCutCoordAtTime(snapshot, noteStart);
+  const isConnectedToEffect = (snapshot.noteEffects || []).some(
+    (effect) => effect.startNoteId === note.id || effect.endNoteId === note.id
+  );
   const ranked = candidates
-    .map((tab) => ({ tab, score: scoreTabDistance(tab, cutCoord), blocked: blocked.has(tabKey(tab)) }))
+    .map((tab) => ({
+      tab,
+      score: scoreTabDistance(tab, cutCoord, isConnectedToEffect),
+      blocked: blocked.has(tabKey(tab)),
+    }))
     .sort((left, right) => left.score - right.score || left.tab[0] - right.tab[0] || left.tab[1] - right.tab[1]);
   return {
     possibleTabs: ranked.filter((item) => !item.blocked).map((item) => item.tab),
@@ -842,6 +853,12 @@ type KeyboardGridCursor = {
   stringIndex: number;
 };
 
+type KeyboardGridTarget = {
+  type: "note" | "chord";
+  id: number;
+  startTime: number;
+};
+
 type KeyboardCursorMarker = {
   left: number;
   top: number;
@@ -1208,7 +1225,7 @@ export default function GteWorkspace({
   const chordNoteDragStartYRef = useRef(0);
   const mousePosRef = useRef<{ x: number; y: number }>({ x: 80, y: 120 });
   const selectionRef = useRef<SelectionState | null>(null);
-  const enterGridCycleRef = useRef<{ gridKey: string; order: number[]; index: number } | null>(null);
+  const enterGridCycleRef = useRef<{ gridKey: string; order: string[]; index: number } | null>(null);
   const keyboardGridCursorRef = useRef<KeyboardGridCursor | null>(null);
   const keyboardAddModeRef = useRef<KeyboardAddMode | null>(null);
   const noteFretTypingBufferRef = useRef("");
@@ -4400,15 +4417,46 @@ export default function GteWorkspace({
             .filter((id) => id >= 0);
           if (!resolvedIds.length) return;
           const selectedIdSet = new Set(resolvedIds);
+          const reservedStringsByStart = new Map<number, Set<number>>();
+          const reserveString = (startTime: number, stringIndex: number) => {
+            const startKey = Math.round(startTime);
+            const current = reservedStringsByStart.get(startKey) ?? new Set<number>();
+            current.add(stringIndex);
+            reservedStringsByStart.set(startKey, current);
+          };
+
           draft.notes.forEach((note) => {
-            if (!selectedIdSet.has(note.id)) return;
-            const alternates = computeNoteAlternatesForSnapshot(draft, note);
-            const nextTab =
-              alternates.possibleTabs[0] || alternates.blockedTabs[0] || ([note.tab[0], note.tab[1]] as TabCoord);
-            note.tab = [nextTab[0], nextTab[1]];
-            note.midiNum = getTabMidi(draft, note.tab);
-            note.optimals = alternates.possibleTabs.map((tab) => [tab[0], tab[1]] as TabCoord);
+            if (selectedIdSet.has(note.id)) return;
+            reserveString(note.startTime, note.tab[0]);
           });
+          draft.chords.forEach((chord) => {
+            chord.currentTabs.forEach((tab) => reserveString(chord.startTime, tab[0]));
+          });
+
+          draft.notes
+            .filter((note) => selectedIdSet.has(note.id))
+            .sort(
+              (left, right) =>
+                left.startTime - right.startTime || left.tab[0] - right.tab[0] || left.id - right.id
+            )
+            .forEach((note) => {
+              const alternates = computeNoteAlternatesForSnapshot(draft, note);
+              const reservedStrings = reservedStringsByStart.get(Math.round(note.startTime)) ?? new Set<number>();
+              const availablePossibleTabs = alternates.possibleTabs.filter((tab) => !reservedStrings.has(tab[0]));
+              const availableBlockedTabs = alternates.blockedTabs.filter((tab) => !reservedStrings.has(tab[0]));
+              const nextTab =
+                availablePossibleTabs[0] ||
+                availableBlockedTabs[0] ||
+                alternates.possibleTabs[0] ||
+                alternates.blockedTabs[0] ||
+                ([note.tab[0], note.tab[1]] as TabCoord);
+              note.tab = [nextTab[0], nextTab[1]];
+              note.midiNum = getTabMidi(draft, note.tab);
+              note.optimals = (availablePossibleTabs.length ? availablePossibleTabs : alternates.possibleTabs).map(
+                (tab) => [tab[0], tab[1]] as TabCoord
+              );
+              reserveString(note.startTime, note.tab[0]);
+            });
         },
         serverMode: "local-first",
       }
@@ -6355,43 +6403,72 @@ export default function GteWorkspace({
         };
       }
     }
+    const selectedChordId = selectedChordIdsRef.current[0];
+    if (Number.isInteger(selectedChordId)) {
+      const selected = snapshotRef.current.chords.find((chord) => chord.id === selectedChordId);
+      const tab = selected?.currentTabs[0];
+      if (selected && tab) {
+        return {
+          time: snapKeyboardCursorTimeToGrid(selected.startTime),
+          stringIndex: clamp(Math.round(tab[0]), 0, 5),
+        };
+      }
+    }
     return getCenteredKeyboardCursor();
   }, [clamp, getCenteredKeyboardCursor, resolveNoteId, snapKeyboardCursorTimeToGrid]);
 
-  const getNoteIdsOnCursorGrid = useCallback((cursor: KeyboardGridCursor, cellWidthFrames: number) => {
+  const getCursorGridTargets = useCallback((cursor: KeyboardGridCursor, cellWidthFrames: number) => {
     const cellStart = Math.round(cursor.time);
     const cellEnd = cellStart + Math.max(1, Math.round(cellWidthFrames));
-    return snapshotRef.current.notes
+    const noteTargets: KeyboardGridTarget[] = snapshotRef.current.notes
       .filter((note) => {
         if (note.tab[0] !== cursor.stringIndex) return false;
         const noteStart = Math.round(note.startTime);
         const noteEnd = Math.max(noteStart + 1, Math.round(note.startTime + note.length));
         return noteStart < cellEnd && noteEnd > cellStart;
       })
-      .map((note) => note.id);
+      .map((note) => ({ type: "note", id: note.id, startTime: note.startTime }));
+    const chordTargets: KeyboardGridTarget[] = snapshotRef.current.chords
+      .filter((chord) => {
+        if (!chord.currentTabs.some((tab) => tab[0] === cursor.stringIndex)) return false;
+        const chordStart = Math.round(chord.startTime);
+        const chordEnd = Math.max(chordStart + 1, Math.round(chord.startTime + chord.length));
+        return chordStart < cellEnd && chordEnd > cellStart;
+      })
+      .map((chord) => ({ type: "chord", id: chord.id, startTime: chord.startTime }));
+    return [...noteTargets, ...chordTargets];
   }, []);
 
-  const getOrderedNoteIdsOnCursorGrid = useCallback(
+  const getOrderedCursorGridTargets = useCallback(
     (cursor: KeyboardGridCursor, cellWidthFrames: number) => {
-      const cellStart = Math.round(cursor.time);
-      const cellEnd = cellStart + Math.max(1, Math.round(cellWidthFrames));
-      return snapshotRef.current.notes
-        .filter((note) => {
-          if (note.tab[0] !== cursor.stringIndex) return false;
-          const noteStart = Math.round(note.startTime);
-          const noteEnd = Math.max(noteStart + 1, Math.round(note.startTime + note.length));
-          return noteStart < cellEnd && noteEnd > cellStart;
-        })
-        .sort((a, b) => a.startTime - b.startTime || a.id - b.id)
-        .map((note) => note.id);
+      return getCursorGridTargets(cursor, cellWidthFrames).sort(
+        (a, b) => a.startTime - b.startTime || (a.type === b.type ? a.id - b.id : a.type.localeCompare(b.type))
+      );
     },
-    []
+    [getCursorGridTargets]
   );
 
   const getGridCycleKey = useCallback((cursor: KeyboardGridCursor, cellWidthFrames: number) => {
     const cellStart = Math.round(cursor.time);
     const cellEnd = cellStart + Math.max(1, Math.round(cellWidthFrames));
     return `${cursor.stringIndex}|${cellStart}|${cellEnd}`;
+  }, []);
+
+  const getKeyboardGridTargetKey = useCallback((target: KeyboardGridTarget) => `${target.type}:${target.id}`, []);
+
+  const applyKeyboardGridTargetSelection = useCallback((target: KeyboardGridTarget | null) => {
+    if (!target) {
+      setSelectedNoteIds([]);
+      setSelectedChordIds([]);
+      return;
+    }
+    if (target.type === "note") {
+      setSelectedNoteIds([target.id]);
+      setSelectedChordIds([]);
+      return;
+    }
+    setSelectedNoteIds([]);
+    setSelectedChordIds([target.id]);
   }, []);
 
   const hideKeyboardCursor = useCallback((cursor?: KeyboardGridCursor | null) => {
@@ -6804,7 +6881,7 @@ export default function GteWorkspace({
           event.preventDefault();
           const cursor = resolveKeyboardCursor();
           const step = getKeyboardGridCellWidthFrames(cursor.time);
-          const orderedNoteIds = getOrderedNoteIdsOnCursorGrid(cursor, step);
+          const orderedTargets = getOrderedCursorGridTargets(cursor, step);
           showKeyboardCursor(cursor);
           setSelectedCutBoundaryIndex(null);
           setDraftNote(null);
@@ -6815,38 +6892,47 @@ export default function GteWorkspace({
           setChordMenuAnchor(null);
           setChordMenuChordId(null);
           setChordMenuDraft(null);
-          setSelectedChordIds([]);
           if (event.shiftKey) {
             enterGridCycleRef.current = null;
             setSelectedNoteIds((prev) => {
               const merged = new Set(prev);
-              orderedNoteIds.forEach((id) => merged.add(id));
+              orderedTargets
+                .filter((target) => target.type === "note")
+                .forEach((target) => merged.add(target.id));
+              return Array.from(merged);
+            });
+            setSelectedChordIds((prev) => {
+              const merged = new Set(prev);
+              orderedTargets
+                .filter((target) => target.type === "chord")
+                .forEach((target) => merged.add(target.id));
               return Array.from(merged);
             });
             return;
           }
-          if (orderedNoteIds.length <= 1) {
+          if (orderedTargets.length <= 1) {
             enterGridCycleRef.current = null;
-            setSelectedNoteIds(orderedNoteIds);
+            applyKeyboardGridTargetSelection(orderedTargets[0] ?? null);
             return;
           }
           const gridKey = getGridCycleKey(cursor, step);
+          const orderedTargetKeys = orderedTargets.map(getKeyboardGridTargetKey);
           const previousCycle = enterGridCycleRef.current;
           let nextIndex = 0;
           if (
             previousCycle &&
             previousCycle.gridKey === gridKey &&
-            previousCycle.order.length === orderedNoteIds.length &&
-            previousCycle.order.every((id, idx) => id === orderedNoteIds[idx])
+            previousCycle.order.length === orderedTargetKeys.length &&
+            previousCycle.order.every((key, idx) => key === orderedTargetKeys[idx])
           ) {
-            nextIndex = (previousCycle.index + 1) % orderedNoteIds.length;
+            nextIndex = (previousCycle.index + 1) % orderedTargets.length;
           }
           enterGridCycleRef.current = {
             gridKey,
-            order: orderedNoteIds,
+            order: orderedTargetKeys,
             index: nextIndex,
           };
-          setSelectedNoteIds([orderedNoteIds[nextIndex]]);
+          applyKeyboardGridTargetSelection(orderedTargets[nextIndex]);
           return;
         }
 
@@ -6897,8 +6983,8 @@ export default function GteWorkspace({
 
           const cursor = resolveKeyboardCursor();
           const step = getKeyboardGridCellWidthFrames(cursor.time);
-          const noteIdsOnGrid = getNoteIdsOnCursorGrid(cursor, step);
-          if (noteIdsOnGrid.length > 0) {
+          const targetsOnGrid = getCursorGridTargets(cursor, step);
+          if (targetsOnGrid.length > 0) {
             noteFretTypingBufferRef.current = "";
             noteFretTypingAtRef.current = 0;
             return;
@@ -6923,6 +7009,86 @@ export default function GteWorkspace({
           )
             .map((id) => snapshotRef.current.notes.find((note) => note.id === id))
             .filter((note): note is (typeof snapshotRef.current.notes)[number] => Boolean(note));
+          const selectedChordGroup = Array.from(
+            new Set(selectedChordIdsRef.current.map((id) => resolveChordId(id)))
+          )
+            .map((id) => snapshotRef.current.chords.find((chord) => chord.id === id))
+            .filter((chord): chord is (typeof snapshotRef.current.chords)[number] => Boolean(chord));
+          if (
+            (event.ctrlKey || event.metaKey) &&
+            (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
+            selectedNoteGroup.length + selectedChordGroup.length > 0
+          ) {
+            const starts = [
+              ...selectedNoteGroup.map((note) => note.startTime),
+              ...selectedChordGroup.map((chord) => chord.startTime),
+            ];
+            const anchorStart = Math.min(...starts);
+            const desiredAnchor = getAdjacentKeyboardGridTime(anchorStart, event.key === "ArrowLeft" ? -1 : 1);
+            const desiredDelta = desiredAnchor - anchorStart;
+            let minDelta = -Infinity;
+            let maxDelta = Infinity;
+            selectedNoteGroup.forEach((note) => {
+              minDelta = Math.max(minDelta, -note.startTime);
+              maxDelta = Math.min(maxDelta, timelineEnd - Math.max(1, Math.round(note.length)) - note.startTime);
+            });
+            selectedChordGroup.forEach((chord) => {
+              minDelta = Math.max(minDelta, -chord.startTime);
+              maxDelta = Math.min(maxDelta, timelineEnd - Math.max(1, Math.round(chord.length)) - chord.startTime);
+            });
+            const appliedDelta = clamp(desiredDelta, minDelta, maxDelta);
+            if (!Number.isFinite(appliedDelta) || appliedDelta === 0) return;
+            const noteUpdates = selectedNoteGroup.map((note) => ({
+              id: note.id,
+              nextStart: note.startTime + appliedDelta,
+            }));
+            const chordUpdates = selectedChordGroup.map((chord) => ({
+              id: chord.id,
+              nextStart: chord.startTime + appliedDelta,
+            }));
+            enqueueOptimisticMutation({
+              label: "keyboard-shift-arrow-time-selection",
+              apply: (draft) => {
+                noteUpdates.forEach((update) => {
+                  const noteId = resolveNoteId(update.id);
+                  const note = draft.notes.find((item) => item.id === noteId);
+                  if (note) note.startTime = update.nextStart;
+                });
+                chordUpdates.forEach((update) => {
+                  const chordId = resolveChordId(update.id);
+                  const chord = draft.chords.find((item) => item.id === chordId);
+                  if (chord) chord.startTime = update.nextStart;
+                });
+                return draft;
+              },
+              commit: async () => {
+                let last: { snapshot?: EditorSnapshot } | null = null;
+                for (const update of noteUpdates) {
+                  last = await gteApi.setNoteStartTime(
+                    editorId,
+                    resolveNoteId(update.id),
+                    update.nextStart,
+                    snapToGridEnabled
+                  );
+                }
+                for (const update of chordUpdates) {
+                  last = await gteApi.setChordStartTime(
+                    editorId,
+                    resolveChordId(update.id),
+                    update.nextStart,
+                    snapToGridEnabled
+                  );
+                }
+                return last ?? {};
+              },
+            });
+            const cursor = resolveKeyboardCursor();
+            showKeyboardCursor({
+              time: snapKeyboardCursorTimeToGrid(cursor.time + appliedDelta),
+              stringIndex: cursor.stringIndex,
+            });
+            return;
+          }
           if ((event.ctrlKey || event.metaKey) && selectedNoteGroup.length > 1) {
             if (event.key === "ArrowUp" || event.key === "ArrowDown") {
               const deltaString = event.key === "ArrowUp" ? -1 : 1;
@@ -7088,7 +7254,6 @@ export default function GteWorkspace({
           setChordMenuAnchor(null);
           setChordMenuChordId(null);
           setChordMenuDraft(null);
-          setSelectedChordIds([]);
           return;
         }
       }
@@ -7340,20 +7505,23 @@ export default function GteWorkspace({
     onRequestSelectedBarsPaste,
     selectedBarIndices,
     assignNoteFretById,
+    applyKeyboardGridTargetSelection,
     clamp,
     createKeyboardNoteAtCursor,
     enqueueOptimisticMutation,
     finalizeKeyboardAddMode,
     getAdjacentKeyboardGridTime,
+    getCursorGridTargets,
     getGridCycleKey,
     getKeyboardGridCellWidthFrames,
-    getOrderedNoteIdsOnCursorGrid,
-    getNoteIdsOnCursorGrid,
+    getKeyboardGridTargetKey,
+    getOrderedCursorGridTargets,
     maxFret,
     mobileViewport,
     normalizeTypedFretText,
     playNotePreview,
     resolveKeyboardCursor,
+    resolveChordId,
     resolveNoteId,
     setKeyboardSelection,
     getDirectionalCursorFromSelectedNote,
@@ -8882,9 +9050,7 @@ export default function GteWorkspace({
                           return (
                             <div
                               key={`row-${rowIdx}-beat-${beat}`}
-                              className={`absolute top-0 h-full w-px pointer-events-none ${
-                                snapToGridEnabled ? "bg-emerald-300/60" : "bg-slate-200/70"
-                              }`}
+                              className={`absolute top-0 h-full w-px pointer-events-none bg-slate-200/70`}
                               style={{ left, height: rowHeight }}
                             />
                           );
