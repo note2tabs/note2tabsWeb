@@ -1177,6 +1177,7 @@ export default function GteWorkspace({
   const playheadEndFrameRef = useRef<number | null>(null);
   const playheadAudioStartRef = useRef<number | null>(null);
   const playheadRafRef = useRef<number | null>(null);
+  const playbackScrollRafRef = useRef<number | null>(null);
   const clipboardRef = useRef<{
     anchor: number;
     notes: Array<{ start: number; length: number; tab: TabCoord }>;
@@ -1815,6 +1816,7 @@ export default function GteWorkspace({
   useEffect(() => {
     const container = timelineOuterRef.current;
     if (!container) return;
+    if (effectiveIsPlaying) return;
     if (sharedTimelineScrollRatio === undefined || !Number.isFinite(sharedTimelineScrollRatio)) return;
     const ratio = Math.max(0, Math.min(1, sharedTimelineScrollRatio));
     const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
@@ -1825,7 +1827,7 @@ export default function GteWorkspace({
     window.requestAnimationFrame(() => {
       applyingSharedScrollRef.current = false;
     });
-  }, [sharedTimelineScrollRatio, viewportTimelineWidth]);
+  }, [effectiveIsPlaying, sharedTimelineScrollRatio, viewportTimelineWidth]);
 
   const handleTimelineOuterScroll = useCallback(
     (event: ReactUiEvent<HTMLDivElement>) => {
@@ -7653,27 +7655,57 @@ export default function GteWorkspace({
   }, [isActive, keyboardCursorMarker, mobileViewport]);
 
   useEffect(() => {
-    if (mobileViewport || !isActive || !effectiveIsPlaying) return;
+    if (playbackScrollRafRef.current !== null) {
+      window.cancelAnimationFrame(playbackScrollRafRef.current);
+      playbackScrollRafRef.current = null;
+    }
+    if (mobileViewport || !effectiveIsPlaying || (!isActive && !useExternalPlayback)) return;
     const container = timelineOuterRef.current;
     if (!container) return;
-    const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
-    if (maxScroll <= 0) return;
 
-    const playheadLeft = effectivePlayheadFrame * scale;
-    const edgePadding = Math.max(48, Math.min(120, container.clientWidth * 0.18));
-    const visibleLeft = container.scrollLeft + edgePadding;
-    const visibleRight = container.scrollLeft + container.clientWidth - edgePadding;
+    const tick = () => {
+      const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+      if (maxScroll <= 0) {
+        playbackScrollRafRef.current = null;
+        return;
+      }
 
-    let nextScrollLeft = container.scrollLeft;
-    if (playheadLeft < visibleLeft) {
-      nextScrollLeft = Math.max(0, playheadLeft - edgePadding);
-    } else if (playheadLeft > visibleRight) {
-      nextScrollLeft = Math.min(maxScroll, playheadLeft + edgePadding - container.clientWidth);
-    }
+      const rect = container.getBoundingClientRect();
+      const visibleLeft = Math.max(rect.left, 0);
+      const visibleRight = Math.min(rect.right, window.innerWidth);
+      const visibleWidth = Math.max(1, visibleRight - visibleLeft);
+      const visibleStartInContainer = Math.max(0, visibleLeft - rect.left);
+      const minPlayheadOffset =
+        visibleStartInContainer + Math.max(48, Math.min(120, visibleWidth * 0.18));
+      const followPlayheadOffset = visibleStartInContainer + visibleWidth * 0.45;
+      const maxPlayheadOffset = visibleStartInContainer + visibleWidth * (2 / 3);
+      const playheadLeft = playheadFrameRef.current * scale;
+      const playheadViewportX = playheadLeft - container.scrollLeft;
 
-    if (Math.abs(nextScrollLeft - container.scrollLeft) < 1) return;
-    container.scrollTo({ left: nextScrollLeft, behavior: "auto" });
-  }, [effectiveIsPlaying, effectivePlayheadFrame, isActive, mobileViewport, scale]);
+      let nextScrollLeft = container.scrollLeft;
+      if (playheadViewportX < minPlayheadOffset) {
+        nextScrollLeft = Math.max(0, playheadLeft - minPlayheadOffset);
+      } else if (playheadViewportX > followPlayheadOffset) {
+        const targetScrollLeft = Math.max(0, Math.min(maxScroll, playheadLeft - followPlayheadOffset));
+        const hardLimitScrollLeft = Math.max(0, Math.min(maxScroll, playheadLeft - maxPlayheadOffset));
+        const easedScrollLeft = container.scrollLeft + (targetScrollLeft - container.scrollLeft) * 0.22;
+        nextScrollLeft = Math.max(hardLimitScrollLeft, Math.min(maxScroll, easedScrollLeft));
+      }
+
+      if (Math.abs(nextScrollLeft - container.scrollLeft) >= 0.5) {
+        container.scrollLeft = nextScrollLeft;
+      }
+      playbackScrollRafRef.current = window.requestAnimationFrame(tick);
+    };
+
+    playbackScrollRafRef.current = window.requestAnimationFrame(tick);
+    return () => {
+      if (playbackScrollRafRef.current !== null) {
+        window.cancelAnimationFrame(playbackScrollRafRef.current);
+        playbackScrollRafRef.current = null;
+      }
+    };
+  }, [effectiveIsPlaying, isActive, mobileViewport, scale, useExternalPlayback]);
 
   const showMobileEditRail = isMobileEditMode && isActive;
   const showMobileInlineNoteSettings =
