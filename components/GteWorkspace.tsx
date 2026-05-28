@@ -127,7 +127,7 @@ const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
 const DEFAULT_CUT_COORD: TabCoord = [2, 0];
 const CUT_SEGMENT_HEIGHT = 20;
-const CUT_SEGMENT_OFFSET = 15;
+const CUT_SEGMENT_OFFSET = 20;
 const CUT_SEGMENT_MIN_WIDTH = 28;
 const CUT_BOUNDARY_OVERHANG = 12;
 const TIMELINE_BAR_HEADER_HEIGHT = 20;
@@ -1294,8 +1294,8 @@ export default function GteWorkspace({
     () => buildTabTextFromSnapshot(snapshot, { barsPerRow: BARS_PER_ROW }),
     [snapshot]
   );
-  const showFloatingUi = !embedded || isActive;
-  const showPlaybackUi = showFloatingUi || showToolbarWhenInactive;
+  const showFloatingUi = true;
+  const showPlaybackUi = true;
   const showToolbarUi = showPlaybackUi && !isMobileCanvasMode;
   const compactEmbeddedMobile = embedded && mobileViewport;
   const selectedBarIndexSet = useMemo(() => new Set(selectedBarIndices), [selectedBarIndices]);
