@@ -127,9 +127,10 @@ const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
 const DEFAULT_CUT_COORD: TabCoord = [2, 0];
 const CUT_SEGMENT_HEIGHT = 20;
-const CUT_SEGMENT_OFFSET = 14;
+const CUT_SEGMENT_OFFSET = 15;
 const CUT_SEGMENT_MIN_WIDTH = 28;
 const CUT_BOUNDARY_OVERHANG = 12;
+const TIMELINE_BAR_HEADER_HEIGHT = 20;
 const MAX_HISTORY = 16;
 const AUTOSAVE_DEBOUNCE_MS = 2500;
 const AUTOSAVE_INTERVAL_MS = 20000;
@@ -191,6 +192,13 @@ const isScaleToolMode = (value: unknown): value is ScaleToolMode =>
 const formatScaleFactor = (value: number) => {
   const rounded = Math.round(value * 100) / 100;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+};
+
+const formatTimelineSecondLabel = (seconds: number) => {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return `${minutes}:${String(remainder).padStart(2, "0")}`;
 };
 
 const clampEventLength = (length: number) =>
@@ -1333,6 +1341,15 @@ export default function GteWorkspace({
     values.add(Math.round(effectivePlaybackSpeed * 100) / 100);
     return [...values].sort((left, right) => left - right);
   }, [effectivePlaybackSpeed]);
+  const timelineSecondMarks = useMemo(() => {
+    if (playbackFps <= 0 || timelineEnd <= 0) return [];
+    const totalSeconds = Math.floor(timelineEnd / playbackFps);
+    return Array.from({ length: totalSeconds + 1 }, (_, second) => ({
+      second,
+      left: second * playbackFps * scale,
+      isLabel: second % 5 === 0,
+    }));
+  }, [playbackFps, scale, timelineEnd]);
   const setEffectivePracticeLoopEnabled = useCallback(
     (enabled: boolean) => {
       if (onPracticeLoopEnabledChange) {
@@ -1430,6 +1447,16 @@ export default function GteWorkspace({
       setPlayheadFrame(normalized);
     },
     [globalPlaybackTimelineEnd, onGlobalPlaybackFrameChange, timelineEnd, useExternalPlayback]
+  );
+  const handleTimelineRulerMouseDown = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const localX = Math.max(0, Math.min(event.clientX - rect.left, timelineWidth));
+      setEffectivePlayheadFrame(Math.round(localX / Math.max(0.0001, scale)));
+    },
+    [scale, setEffectivePlayheadFrame, timelineWidth]
   );
 
   useEffect(() => {
@@ -6687,23 +6714,6 @@ export default function GteWorkspace({
   }, [selectedChord]);
 
   useEffect(() => {
-    if (!isActive || mobileViewport) return;
-    if (selectedNoteIds.length !== 1 || !selectedNote) return;
-    const next: KeyboardGridCursor = {
-      time: snapKeyboardCursorTimeToGrid(selectedNote.startTime),
-      stringIndex: clamp(Math.round(selectedNote.tab[0]), 0, 5),
-    };
-    setKeyboardGridCursor((prev) => (prev ? prev : next));
-  }, [clamp, isActive, mobileViewport, selectedNote, selectedNoteIds.length, snapKeyboardCursorTimeToGrid]);
-
-  useEffect(() => {
-    if (!isActive || mobileViewport) return;
-    if (selectedNoteIds.length > 0) return;
-    if (keyboardGridCursorRef.current) return;
-    setKeyboardGridCursor(getCenteredKeyboardCursor());
-  }, [getCenteredKeyboardCursor, isActive, mobileViewport, selectedNoteIds.length]);
-
-  useEffect(() => {
     if (selectedNoteIds.length !== 1) {
       noteFretTypingBufferRef.current = "";
       noteFretTypingAtRef.current = 0;
@@ -7596,19 +7606,15 @@ export default function GteWorkspace({
   }, [commitSegmentEditIfActive, contextMenu, editingChordId, finalizeKeyboardAddMode]);
 
   const workspaceClass = embedded
-    ? `relative w-full min-w-0 max-w-full border bg-white transition-[border-color,box-shadow] ${
+    ? `relative w-full min-w-0 max-w-full border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${
         isMobileEditMode
           ? "flex h-full min-h-0 flex-col p-1.5"
           : `${compactEmbeddedMobile ? "rounded-lg p-1.5" : "rounded-xl p-2"} space-y-2`
-      } ${
-        isActive
-          ? "border-sky-300 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.22),0_1px_2px_rgba(15,23,42,0.04)]"
-          : "border-slate-200 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
       }`
     : "relative min-w-0 rounded-2xl border border-slate-200 bg-white p-5 space-y-5 -ml-3 w-[calc(100%+0.75rem)]";
 
   const keyboardCursorMarker = useMemo<KeyboardCursorMarker | null>(() => {
-    if (mobileViewport || !isActive || !keyboardGridCursor || !keyboardCursorVisible) return null;
+    if (mobileViewport || !keyboardGridCursor || !keyboardCursorVisible) return null;
     const safeTime = snapKeyboardCursorTimeToGrid(keyboardGridCursor.time);
     const step = getKeyboardGridCellWidthFrames(safeTime);
     const rowIndex = rowFrames > 0 ? clamp(Math.floor(safeTime / rowFrames), 0, rows - 1) : 0;
@@ -7625,7 +7631,6 @@ export default function GteWorkspace({
     clamp,
     framesPerMeasure,
     getKeyboardGridCellWidthFrames,
-    isActive,
     keyboardCursorVisible,
     keyboardGridCursor,
     mobileViewport,
@@ -7659,7 +7664,7 @@ export default function GteWorkspace({
 
     if (Math.abs(nextScrollLeft - container.scrollLeft) < 1) return;
     container.scrollTo({ left: nextScrollLeft });
-  }, [isActive, keyboardCursorMarker, mobileViewport]);
+  }, [keyboardCursorMarker, mobileViewport]);
 
   useEffect(() => {
     if (playbackScrollRafRef.current !== null) {
@@ -8137,20 +8142,21 @@ export default function GteWorkspace({
       onMouseDownCapture={(event) => {
         const target = event.target as HTMLElement | null;
         if (target?.closest("[data-gte-floating-ui='true']")) return;
-        if (!isActive && !mobileViewport) {
-          showKeyboardCursor(getCenteredKeyboardCursor());
-        }
         onFocusWorkspace?.();
       }}
       onTouchStartCapture={(event) => {
         const target = event.target as HTMLElement | null;
         if (target?.closest("[data-gte-floating-ui='true']")) return;
-        if (!isActive && !mobileViewport) {
-          showKeyboardCursor(getCenteredKeyboardCursor());
-        }
         onFocusWorkspace?.();
       }}
     >
+      {embedded && isActive && (
+        <div
+          className={`pointer-events-none absolute inset-0 z-10 border border-sky-300 ${
+            isMobileEditMode ? "" : compactEmbeddedMobile ? "rounded-lg" : "rounded-xl"
+          }`}
+        />
+      )}
       {toolbarOpen && showToolbarUi && !mobileViewport && renderToolbarPanel(false)}
       {scaleToolActive && scaleHudPosition && (
         <div
@@ -8873,8 +8879,9 @@ export default function GteWorkspace({
         >
           <div
             className={`flex flex-col gap-0 ${
-              isMobileEditMode ? "pt-0 text-[10px]" : compactEmbeddedMobile ? "pt-4 text-[10px]" : "pt-5 text-xs"
+              isMobileEditMode ? "text-[10px]" : compactEmbeddedMobile ? "text-[10px]" : "text-xs"
             } text-slate-600`}
+            style={{ paddingTop: TIMELINE_BAR_HEADER_HEIGHT }}
           >
             {Array.from({ length: rows }).map((_, rowIdx) => (
               <div
@@ -8902,7 +8909,7 @@ export default function GteWorkspace({
               }`}
               onScroll={handleTimelineOuterScroll}
             >
-              <div className="relative pt-5" style={{ width: timelineChromeWidth }}>
+              <div className="relative" style={{ width: timelineChromeWidth, paddingTop: TIMELINE_BAR_HEADER_HEIGHT }}>
                 {framesPerMeasure > 0 &&
                   Array.from({ length: barCount }).map((_, barIndex) => {
                     const left = barIndex * framesPerMeasure * scale;
@@ -8934,7 +8941,7 @@ export default function GteWorkspace({
                             ? "bg-slate-200/90 text-slate-800"
                             : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-800"
                         }`}
-                        style={{ left, width, height: 20 }}
+                        style={{ left, width, height: TIMELINE_BAR_HEADER_HEIGHT }}
                         title={`Select Bar ${barIndex + 1}`}
                         aria-label={`Select Bar ${barIndex + 1}`}
                       >
@@ -8979,7 +8986,7 @@ export default function GteWorkspace({
                         } ${isActiveDrop ? "bg-sky-500" : "bg-transparent"}`}
                         style={{
                           left,
-                          height: 20 + timelineHeight,
+                          height: TIMELINE_BAR_HEADER_HEIGHT + timelineHeight,
                           opacity: dragEnabled ? (isActiveDrop ? 0.95 : mobileViewport ? 0.32 : 0.5) : 0,
                         }}
                         title={dragEnabled ? `Insert bars at ${insertIndex + 1}` : undefined}
@@ -8996,7 +9003,7 @@ export default function GteWorkspace({
                     className="absolute z-40 flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white/95 text-base font-semibold text-slate-600 shadow-sm hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900"
                     style={{
                     left: Math.max(0, Math.min(timelineChromeWidth - 28, timelineWidth + 10)),
-                      top: 20 + Math.max(0, Math.round(rowHeight / 2) - 14),
+                      top: TIMELINE_BAR_HEADER_HEIGHT + Math.max(0, Math.round(rowHeight / 2) - 14),
                     }}
                   title="Add bar to end"
                   aria-label="Add bar to end"
@@ -9114,6 +9121,40 @@ export default function GteWorkspace({
                     </div>
                   );
                 })}
+
+                {showPlayingCoordinates && (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="absolute left-0 z-10 cursor-pointer border-t border-slate-200 bg-slate-50/80 text-[8px] text-slate-500"
+                    style={{ top: rowHeight, width: timelineWidth, height: CUT_SEGMENT_OFFSET }}
+                    title="Click to jump playback"
+                    aria-label="Timeline seconds ruler"
+                    onMouseDown={handleTimelineRulerMouseDown}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      setEffectivePlayheadFrame(effectivePlayheadFrame);
+                    }}
+                  >
+                    {timelineSecondMarks.map(({ second, left, isLabel }) => (
+                      <div
+                        key={`timeline-second-${second}`}
+                        className="absolute bottom-0 border-l border-slate-300"
+                        style={{
+                          left,
+                          height: isLabel ? CUT_SEGMENT_OFFSET : 6,
+                        }}
+                      >
+                        {isLabel ? (
+                          <span className="absolute left-1 top-0.5 whitespace-nowrap font-medium leading-none text-slate-500">
+                            {formatTimelineSecondLabel(second)}
+                          </span>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {keyboardCursorMarker && (
                   <div
