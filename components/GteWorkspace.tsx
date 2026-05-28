@@ -5035,8 +5035,15 @@ export default function GteWorkspace({
 
   const getSideMenuAnchor = (event: ReactMouseEvent, menuWidth: number, menuHeight: number) => {
     const padding = 16;
+    const panelGap = 12;
     const openOnRight = event.clientX < window.innerWidth / 2;
-    const targetX = openOnRight ? window.innerWidth - menuWidth - padding : padding;
+    const toolbarRect =
+      toolbarOpen && !mobileViewport && toolbarRef.current
+        ? toolbarRef.current.getBoundingClientRect()
+        : null;
+    const rightEdgeX = window.innerWidth - menuWidth - padding;
+    const toolbarSafeRightX = toolbarRect ? toolbarRect.left - menuWidth - panelGap : rightEdgeX;
+    const targetX = openOnRight ? Math.min(rightEdgeX, toolbarSafeRightX) : padding;
     const targetY = event.clientY - menuHeight / 2;
     return clampFloatingPanelAnchor(targetX, targetY, menuWidth, menuHeight);
   };
@@ -7923,56 +7930,63 @@ export default function GteWorkspace({
                 Merge Notes
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  handleAddNoteEffect(1);
-                }}
-                disabled={!canCreateNoteEffect}
-                title={
-                  selectionActionsLocked
-                    ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Connect two selected notes with hammer-on or pull-off - Shortcut: H"
-                }
-                className={textButtonClass}
-              >
-                <span className={tooltipClass}>H</span>
-                Hammer/Pull
-              </button>
+              <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-1.5">
+                <div className="mb-1 px-1 text-[8px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                  Effects
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleAddNoteEffect(1);
+                    }}
+                    disabled={!canCreateNoteEffect}
+                    title={
+                      selectionActionsLocked
+                        ? "Disabled while notes/chords are selected in multiple tracks"
+                        : "Connect two selected notes with hammer-on or pull-off - Shortcut: H"
+                    }
+                    className={textButtonClass}
+                  >
+                    <span className={tooltipClass}>H</span>
+                    Hammer/Pull
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  handleAddNoteEffect(0);
-                }}
-                disabled={!canCreateNoteEffect}
-                title={
-                  selectionActionsLocked
-                    ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Connect two selected notes with a bend - Shortcut: B"
-                }
-                className={textButtonClass}
-              >
-                <span className={tooltipClass}>B</span>
-                Bend
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleAddNoteEffect(2);
+                    }}
+                    disabled={!canCreateNoteEffect}
+                    title={
+                      selectionActionsLocked
+                        ? "Disabled while notes/chords are selected in multiple tracks"
+                        : "Connect two selected notes with a slide - Shortcut: L"
+                    }
+                    className={textButtonClass}
+                  >
+                    <span className={tooltipClass}>L</span>
+                    Slide
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  handleAddNoteEffect(2);
-                }}
-                disabled={!canCreateNoteEffect}
-                title={
-                  selectionActionsLocked
-                    ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Connect two selected notes with a slide - Shortcut: L"
-                }
-                className={textButtonClass}
-              >
-                <span className={tooltipClass}>L</span>
-                Slide
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleAddNoteEffect(0);
+                    }}
+                    disabled={!canCreateNoteEffect}
+                    title={
+                      selectionActionsLocked
+                        ? "Disabled while notes/chords are selected in multiple tracks"
+                        : "Connect two selected notes with a bend - Shortcut: B"
+                    }
+                    className={textButtonClass}
+                  >
+                    <span className={tooltipClass}>B</span>
+                    Bend
+                  </button>
+                </div>
+              </div>
 
               <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_86px] gap-1.5">
                 <select
