@@ -6815,6 +6815,18 @@ export default function GteWorkspace({
           deactivateScaleTool();
           return;
         }
+        if (cutToolActive) {
+          event.preventDefault();
+          setCutToolActive(false);
+          setCutCursor(null);
+          return;
+        }
+        if (sliceToolActive) {
+          event.preventDefault();
+          setSliceToolActive(false);
+          setSliceCursor(null);
+          return;
+        }
         if (editingChordId !== null) {
           exitChordEdit();
           return;
