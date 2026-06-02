@@ -1152,6 +1152,7 @@ export default function GteWorkspace({
   const [tabPreviewOpen, setTabPreviewOpen] = useState(false);
   const [sliceToolActive, setSliceToolActive] = useState(false);
   const [sliceCursor, setSliceCursor] = useState<{ time: number; rowIndex: number } | null>(null);
+  const [cutCursor, setCutCursor] = useState<{ time: number; rowIndex: number } | null>(null);
   const [cutToolActive, setCutToolActive] = useState(false);
   const [scaleToolActive, setScaleToolActive] = useState(false);
   const [scaleToolMode, setScaleToolMode] = useState<ScaleToolMode>("length");
@@ -2961,6 +2962,12 @@ export default function GteWorkspace({
     }
   }, [sliceToolActive]);
 
+  useEffect(() => {
+    if (!cutToolActive) {
+      setCutCursor(null);
+    }
+  }, [cutToolActive]);
+
   const toggleCutTool = useCallback(() => {
     setCutToolActive((prev) => {
       const next = !prev;
@@ -3031,6 +3038,45 @@ export default function GteWorkspace({
     const snappedTime = getSnapTime(rawTime, { min: rowStart, max: rowStart + availableFrames });
     const time = clamp(snappedTime, rowStart, rowStart + availableFrames);
     return { time, rowIndex };
+  };
+
+  const getPointerCutTarget = (clientX: number, clientY: number) => {
+    if (!timelineRef.current || !showPlayingCoordinates || framesPerMeasure <= 0) return null;
+    const rect = timelineRef.current.getBoundingClientRect();
+    const x = clamp(clientX - rect.left, 0, timelineWidth);
+    const y = clamp(clientY - rect.top, 0, timelineHeight);
+    const rowIndex = clamp(Math.floor(y / rowStride), 0, rows - 1);
+    const localY = y - rowIndex * rowStride;
+    const bandTop = rowHeight + CUT_SEGMENT_OFFSET;
+    const bandBottom = bandTop + CUT_SEGMENT_HEIGHT;
+    if (localY < bandTop || localY > bandBottom) return null;
+
+    const rowBarCount = getRowBarCount(rowIndex);
+    const availableFrames = Math.max(1, rowBarCount * framesPerMeasure);
+    const rowStart = rowIndex * rowFrames;
+    const rawTime = clamp(rowStart + Math.round(x / scale), rowStart, rowStart + availableFrames);
+    const segment = segmentEditsRef.current.find((item) => {
+      const start = Math.max(item.start, rowStart);
+      const end = Math.min(item.end, rowStart + availableFrames);
+      return end - start > 1 && rawTime > start && rawTime < end;
+    });
+    if (!segment) return null;
+
+    const segStart = Math.max(segment.start, rowStart);
+    const segEnd = Math.min(segment.end, rowStart + availableFrames);
+    const time = clamp(rawTime, segStart + 1, segEnd - 1);
+    return { time, rowIndex };
+  };
+
+  const insertCutAtPointer = (clientX: number, clientY: number) => {
+    const target = getPointerCutTarget(clientX, clientY);
+    if (!target) return false;
+    void runMutation(() => gteApi.insertCutAt(editorId, target.time), {
+      localApply: (draft) => {
+        insertCutAtInSnapshot(draft, target.time);
+      },
+    });
+    return true;
   };
 
   const handleSliceAtTime = (sliceTime: number) => {
@@ -3994,6 +4040,10 @@ export default function GteWorkspace({
       if (target) {
         handleSliceAtTime(target.time);
       }
+      return;
+    }
+    if (cutToolActive && insertCutAtPointer(event.clientX, event.clientY)) {
+      setSelectedCutBoundaryIndex(null);
       return;
     }
     setSelectedCutBoundaryIndex(null);
@@ -8078,6 +8128,7 @@ export default function GteWorkspace({
             <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
+                data-gte-editor-control="true"
                 onClick={() => setShowGenerateCutsConfirm(true)}
                 title="Generate cuts"
                 className={textButtonClass}
@@ -8088,6 +8139,7 @@ export default function GteWorkspace({
 
               <button
                 type="button"
+                data-gte-editor-control="true"
                 onClick={handleMergeRedundantCutRegions}
                 disabled={!hasRedundantCutRegions}
                 title="Merges adjacent cut regions with the same coordinates"
@@ -8099,6 +8151,7 @@ export default function GteWorkspace({
 
               <button
                 type="button"
+                data-gte-editor-control="true"
                 onClick={toggleCutTool}
                 title="Cut tool for cutting playing coordinates - Shortcut: K"
                 className={
@@ -8121,6 +8174,7 @@ export default function GteWorkspace({
 
               <button
                 type="button"
+                data-gte-editor-control="true"
                 onClick={handleMergeCutBoundary}
                 disabled={selectedCutBoundaryIndex === null}
                 title="Merge/delete selected boundary"
@@ -9024,12 +9078,17 @@ export default function GteWorkspace({
                 onMouseDown={handleTimelineMouseDown}
                 onContextMenu={handleTimelineContextMenu}
                 onMouseMove={(event) => {
-                  if (!sliceToolActive) return;
-                  const target = getPointerFrame(event.clientX, event.clientY);
-                  if (target) setSliceCursor(target);
+                  if (sliceToolActive) {
+                    const target = getPointerFrame(event.clientX, event.clientY);
+                    if (target) setSliceCursor(target);
+                  }
+                  if (cutToolActive) {
+                    setCutCursor(getPointerCutTarget(event.clientX, event.clientY));
+                  }
                 }}
                 onMouseLeave={() => {
                   if (sliceToolActive) setSliceCursor(null);
+                  if (cutToolActive) setCutCursor(null);
                 }}
               >
                 {selectedBarIndices.map((barIndex) => {
@@ -9049,22 +9108,13 @@ export default function GteWorkspace({
                   const left = barIndex * framesPerMeasure * scale;
                   const width = Math.max(1, framesPerMeasure * scale);
                   return (
-                    <button
+                    <div
                       key={`bar-surface-${barIndex}`}
-                      type="button"
                       data-bar-select="true"
                       data-bar-select-editor={editorId}
-                      onMouseDown={(event) => {
-                        event.stopPropagation();
-                      }}
-                      onContextMenu={(event) => handleBarContextMenu(barIndex, event)}
-                      draggable
-                      onDragStart={(event) => handleSelectedBarDragStart(barIndex, event)}
-                      onDragEnd={handleSelectedBarDragEnd}
-                      className="absolute top-0 z-20 cursor-grab bg-transparent"
+                      className="absolute top-0 z-20 pointer-events-none bg-transparent"
                       style={{ left, width, height: rowHeight }}
                       title={`Selected Bar ${barIndex + 1}`}
-                      aria-label={`Selected Bar ${barIndex + 1}`}
                     />
                   );
                 })}
@@ -9184,6 +9234,20 @@ export default function GteWorkspace({
                   );
                 })()}
 
+                {cutToolActive && cutCursor && (() => {
+                  const rowStart = cutCursor.rowIndex * rowFrames;
+                  const left = (cutCursor.time - rowStart) * scale;
+                  const top = cutCursor.rowIndex * rowStride + rowHeight + CUT_SEGMENT_OFFSET;
+                  return (
+                    <div
+                      className="absolute pointer-events-none"
+                      style={{ left, top, height: CUT_SEGMENT_HEIGHT, width: 2, zIndex: 35 }}
+                    >
+                      <div className="h-full w-[2px] rounded-full bg-sky-600" />
+                    </div>
+                  );
+                })()}
+
                 {(() => {
                   if (framesPerMeasure <= 0) return null;
                   const safeFrame = clamp(Math.round(effectivePlayheadFrame), 0, timelineEnd);
@@ -9227,13 +9291,15 @@ export default function GteWorkspace({
                   const boundaryTime = clamp(boundary.time, rowStart, rowStart + availableFrames);
                   const left = (boundaryTime - rowStart) * scale;
                   const segmentTop = rowIndex * rowStride + rowHeight + CUT_SEGMENT_OFFSET;
-                  const top = segmentTop - CUT_BOUNDARY_OVERHANG;
+                  const top = segmentTop;
                   const height = CUT_SEGMENT_HEIGHT + CUT_BOUNDARY_OVERHANG;
                   const selected = selectedCutBoundaryIndex === boundary.index;
                   return (
                     <button
                       key={`cut-boundary-${boundary.index}`}
                       type="button"
+                      data-gte-editor-control="true"
+                      data-gte-playing-coordinate="true"
                       onMouseDown={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
@@ -9242,18 +9308,20 @@ export default function GteWorkspace({
                         setSelectedNoteIds([]);
                         setSelectedChordIds([]);
                       }}
-                      className="absolute cursor-pointer"
-                      style={{ left, top, height, width: 10, transform: "translateX(-5px)" }}
+                      className="absolute z-40 cursor-pointer"
+                      style={{ left, top, height, width: 18, transform: "translateX(-9px)" }}
                     >
                       <span
-                        className={`absolute left-1/2 top-0 h-0 w-0 -translate-x-1/2 border-l-[8px] border-r-[8px] border-t-[12px] border-l-transparent border-r-transparent ${
-                          selected ? "border-t-sky-600" : "border-t-sky-300/80"
+                        className={`absolute left-1/2 h-0 w-0 -translate-x-1/2 border-b-[12px] border-l-[8px] border-r-[8px] border-b-sky-300/80 border-l-transparent border-r-transparent ${
+                          selected ? "border-b-sky-600" : "border-b-sky-300/80"
                         }`}
+                        style={{ top: CUT_SEGMENT_HEIGHT }}
                       />
                       <span
-                        className={`absolute left-1/2 top-0 h-full w-[3px] -translate-x-1/2 rounded-full ${
+                        className={`absolute left-1/2 top-0 w-[3px] -translate-x-1/2 rounded-full ${
                           selected ? "bg-sky-600" : "bg-sky-300/90"
                         }`}
+                        style={{ height: CUT_SEGMENT_HEIGHT }}
                       />
                     </button>
                   );
@@ -9306,16 +9374,26 @@ export default function GteWorkspace({
                     pieces.push(
                       <div
                         key={`cut-${segIndex}-row-${rowIdx}`}
+                        data-gte-editor-control="true"
+                        data-gte-playing-coordinate="true"
                         className="absolute rounded-md border border-sky-300 bg-sky-200/60 px-2 py-1 text-[10px] text-slate-700"
                         style={{ top, left, width, height: CUT_SEGMENT_HEIGHT }}
                         title="Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below"
                         aria-label="Playing coordinates"
                         onMouseDown={(event) => {
+                          if (cutToolActive) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            insertCutAtPointer(event.clientX, event.clientY);
+                            return;
+                          }
                           event.stopPropagation();
                         }}
                       >
                         <button
                           type="button"
+                          data-gte-editor-control="true"
+                          data-gte-playing-coordinate="true"
                           className={`absolute top-0 flex h-full items-center justify-center rounded text-[10px] font-semibold text-slate-700 hover:text-slate-900 ${
                             cutToolActive ? "cursor-crosshair" : "cursor-pointer"
                           }`}
@@ -9326,20 +9404,6 @@ export default function GteWorkspace({
                             if (cutToolActive) {
                               event.preventDefault();
                               event.stopPropagation();
-                              if (!timelineRef.current) return;
-                              if (segEnd - segStart <= 1) return;
-                              const rect = timelineRef.current.getBoundingClientRect();
-                              const clickX = clamp(event.clientX - rect.left, 0, timelineWidth);
-                              const relativeX = clamp(clickX - left, 0, width);
-                              const ratio = width > 0 ? relativeX / width : 0;
-                              const rawTime = segStart + Math.round((segEnd - segStart) * ratio);
-                              const cutTime = clamp(rawTime, segStart + 1, segEnd - 1);
-                              if (cutTime <= segStart || cutTime >= segEnd) return;
-                              void runMutation(() => gteApi.insertCutAt(editorId, cutTime), {
-                                localApply: (draft) => {
-                                  insertCutAtInSnapshot(draft, cutTime);
-                                },
-                              });
                               return;
                             }
                             startSegmentEdit(segIndex, segment);
@@ -9357,6 +9421,8 @@ export default function GteWorkspace({
                           className="absolute z-30 w-[9.25rem] rounded-lg border border-sky-300 bg-white/98 p-1.5 shadow-md"
                           style={{ top: editorTop, left: editorLeft }}
                           data-cut-edit
+                          data-gte-editor-control="true"
+                          data-gte-playing-coordinate="true"
                           onMouseDown={(event) => {
                             event.stopPropagation();
                           }}

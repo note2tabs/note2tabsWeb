@@ -4346,18 +4346,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     style={mobileEditing ? { backgroundColor: "var(--bg)", minHeight: 0 } : undefined}
                     onMouseDownCapture={(event) => {
                       const target = event.target as HTMLElement | null;
-                      const clickedBarSelector = Boolean(
-                        target?.closest("[data-bar-select='true']")
-                    );
-                    if (activeLaneId !== laneId && clickedBarSelector) {
-                      setBarSelectionClearExemptEditorId(laneEditorRef);
-                      setBarSelectionClearEpoch((prev) => prev + 1);
-                    }
-                    if (
-                      activeLaneId !== laneId &&
-                      (!event.shiftKey || clickedBarSelector)
-                    ) {
-                      setSelectionClearExemptEditorId(laneEditorRef);
+                      const clickedBarSelector = Boolean(target?.closest("[data-bar-select='true']"));
+                      const clickedEditorControl = Boolean(
+                        target?.closest("[data-gte-editor-control='true']")
+                      );
+
+                      if (activeLaneId !== laneId && clickedBarSelector) {
+                        setBarSelectionClearExemptEditorId(laneEditorRef);
+                        setBarSelectionClearEpoch((prev) => prev + 1);
+                      }
+                      if (
+                        activeLaneId !== laneId &&
+                        !clickedEditorControl &&
+                        (!event.shiftKey || clickedBarSelector)
+                      ) {
+                        setSelectionClearExemptEditorId(laneEditorRef);
                         setSelectionClearEpoch((prev) => prev + 1);
                       }
                       setActiveLaneId(laneId);
@@ -4385,12 +4388,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     onTouchStartCapture={(event) => {
                       const target = event.target as HTMLElement | null;
                       const clickedBarSelector = Boolean(target?.closest("[data-bar-select='true']"));
+                      const clickedEditorControl = Boolean(
+                        target?.closest("[data-gte-editor-control='true']")
+                      );
                       if (activeLaneId !== laneId && clickedBarSelector) {
                         setBarSelectionClearExemptEditorId(laneEditorRef);
                         setBarSelectionClearEpoch((prev) => prev + 1);
                         setOpenMobileBarMenuLaneId(null);
                       }
-                      if (activeLaneId !== laneId) {
+                      if (activeLaneId !== laneId && !clickedEditorControl) {
                         setSelectionClearExemptEditorId(laneEditorRef);
                         setSelectionClearEpoch((prev) => prev + 1);
                       }
