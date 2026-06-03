@@ -6920,6 +6920,93 @@ export default function GteWorkspace({
     [editorId, enqueueOptimisticMutation, maxFret, playNotePreview, resolveNoteId]
   );
 
+  const assignSelectedNoteFretsByDelta = useCallback(
+    (rawNoteIds: number[], delta: number, options?: { playPreview?: boolean }) => {
+      const updates = Array.from(new Set(rawNoteIds))
+        .map((rawId) => {
+          const noteId = resolveNoteId(rawId);
+          const current = snapshotRef.current.notes.find((note) => note.id === noteId);
+          if (!current) return null;
+          const nextFret = clamp(current.tab[1] + delta, 0, maxFret);
+          if (nextFret === current.tab[1]) return null;
+          return {
+            rawId,
+            noteId,
+            tab: [current.tab[0], nextFret] as TabCoord,
+          };
+        })
+        .filter((item): item is { rawId: number; noteId: number; tab: TabCoord } => Boolean(item));
+
+      if (!updates.length) return false;
+      if (options?.playPreview && updates.length === 1) {
+        playNotePreview(updates[0].tab);
+      }
+
+      enqueueOptimisticMutation({
+        label: "keyboard-fret-group",
+        apply: (draft) => {
+          updates.forEach((update) => {
+            const noteId = resolveNoteId(update.rawId);
+            const note = draft.notes.find((item) => item.id === noteId);
+            if (!note) return;
+            note.tab = [update.tab[0], update.tab[1]];
+            note.midiNum = 0;
+          });
+          return draft;
+        },
+        commit: async () => {
+          let last: { snapshot?: EditorSnapshot } | null = null;
+          for (const update of updates) {
+            last = await gteApi.assignNoteTab(editorId, resolveNoteId(update.rawId), update.tab);
+          }
+          return last ?? {};
+        },
+      });
+      return true;
+    },
+    [clamp, editorId, enqueueOptimisticMutation, maxFret, playNotePreview, resolveNoteId]
+  );
+
+  const assignSelectedChordFretsByDelta = useCallback(
+    (rawChordIds: number[], delta: number) => {
+      const updates = Array.from(new Set(rawChordIds))
+        .map((rawId) => {
+          const chordId = resolveChordId(rawId);
+          const current = snapshotRef.current.chords.find((chord) => chord.id === chordId);
+          if (!current) return null;
+          const nextTabs = current.currentTabs.map(
+            (tab) => [tab[0], clamp(tab[1] + delta, 0, maxFret)] as TabCoord
+          );
+          const changed = nextTabs.some((tab, index) => tab[1] !== current.currentTabs[index]?.[1]);
+          if (!changed) return null;
+          return { rawId, chordId, tabs: nextTabs };
+        })
+        .filter((item): item is { rawId: number; chordId: number; tabs: TabCoord[] } => Boolean(item));
+
+      if (!updates.length) return false;
+
+      enqueueOptimisticMutation({
+        label: "keyboard-chord-fret-group",
+        apply: (draft) => {
+          updates.forEach((update) => {
+            const chordId = resolveChordId(update.rawId);
+            setChordTabsInSnapshot(draft, chordId, update.tabs);
+          });
+          return draft;
+        },
+        commit: async () => {
+          let last: { snapshot?: EditorSnapshot } | null = null;
+          for (const update of updates) {
+            last = await gteApi.setChordTabs(editorId, resolveChordId(update.rawId), update.tabs);
+          }
+          return last ?? {};
+        },
+      });
+      return true;
+    },
+    [clamp, editorId, enqueueOptimisticMutation, maxFret, resolveChordId]
+  );
+
   const createKeyboardNoteAtCursor = useCallback(
     (cursor: KeyboardGridCursor, fretDigit: string) => {
       const fretValue = Number(fretDigit);
@@ -7313,16 +7400,28 @@ export default function GteWorkspace({
           return;
         }
 
-        if ((isPlusKey || isMinusKey) && selectedNoteIdsRef.current.length === 1 && !keyboardAddModeRef.current) {
-          const selectedId = resolveNoteId(selectedNoteIdsRef.current[0]);
-          const current = snapshotRef.current.notes.find((note) => note.id === selectedId);
-          if (!current) return;
+        if (
+          (isPlusKey || isMinusKey) &&
+          selectedNoteIdsRef.current.length + selectedChordIdsRef.current.length > 0 &&
+          !keyboardAddModeRef.current
+        ) {
           event.preventDefault();
           noteFretTypingBufferRef.current = "";
           noteFretTypingAtRef.current = 0;
-          const nextFret = clamp(current.tab[1] + (isPlusKey ? 1 : -1), 0, maxFret);
-          setNoteMenuDraft((prev) => (prev ? { ...prev, fret: String(nextFret) } : prev));
-          void assignNoteFretById(current.id, nextFret, { playPreview: true });
+          const selectedIds = selectedNoteIdsRef.current;
+          const selectedChordIds = selectedChordIdsRef.current;
+          const delta = isPlusKey ? 1 : -1;
+          if (selectedIds.length === 1 && selectedChordIds.length === 0) {
+            const selectedId = resolveNoteId(selectedIds[0]);
+            const current = snapshotRef.current.notes.find((note) => note.id === selectedId);
+            if (!current) return;
+            const nextFret = clamp(current.tab[1] + delta, 0, maxFret);
+            setNoteMenuDraft((prev) => (prev ? { ...prev, fret: String(nextFret) } : prev));
+            void assignNoteFretById(current.id, nextFret, { playPreview: true });
+            return;
+          }
+          assignSelectedNoteFretsByDelta(selectedIds, delta, { playPreview: false });
+          assignSelectedChordFretsByDelta(selectedChordIds, delta);
           return;
         }
 
@@ -7890,6 +7989,8 @@ export default function GteWorkspace({
     onRequestSelectedBarsPaste,
     selectedBarIndices,
     assignNoteFretById,
+    assignSelectedChordFretsByDelta,
+    assignSelectedNoteFretsByDelta,
     applyKeyboardGridTargetSelection,
     clamp,
     createKeyboardNoteAtCursor,
