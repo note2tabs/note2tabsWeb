@@ -74,6 +74,8 @@ export type CanvasSnapshot = {
   canvasSchemaVersion?: number;
   version?: number;
   updatedAt?: string;
+  keyBase?: number;
+  keyType?: number;
   secondsPerBar?: number;
   editors: EditorSnapshot[];
 };

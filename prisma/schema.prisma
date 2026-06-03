@@ -347,6 +347,8 @@ model canvases {
   name                  String?
   schema_version        Int            @default(1)
   canvas_schema_version Int            @default(1)
+  key_base              Int            @default(0)
+  key_type              Int            @default(0)
   seconds_per_bar       Float          @default(2.0)
   version               Int            @default(1)
   updated_at            DateTime       @db.Timestamptz(6)

@@ -63,6 +63,19 @@ const TIMELINE_ZOOM_MIN = 15;
 const TIMELINE_ZOOM_MAX = 200;
 const TIMELINE_ZOOM_DEFAULT = 100;
 const CONTROL_COMMIT_DEBOUNCE_MS = 350;
+const KEY_BASE_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const KEY_TYPE_OPTIONS = [
+  "Major",
+  "Minor",
+  "Harmonic Minor",
+  "Melodic Minor",
+  "Dorian",
+  "Phyrigian",
+  "Lydian",
+  "Mixolydian",
+  "Major Blues",
+  "Minor Blues",
+];
 const MOBILE_EDITOR_BREAKPOINT_PX = 768;
 const GTE_GUEST_CANVAS_STORAGE_KEY = "note2tabs:gte:guest-canvas:v1";
 
@@ -102,6 +115,12 @@ const blurFocusedShortcutControl = (target: HTMLElement | null) => {
 
 const fpsFromSecondsPerBar = (secondsPerBar: number) =>
   Math.max(1, Math.round(FIXED_FRAMES_PER_BAR / Math.max(0.1, secondsPerBar)));
+
+const normalizeKeyBase = (value: unknown) =>
+  Math.max(0, Math.min(KEY_BASE_OPTIONS.length - 1, Math.round(toNumber(value, 0))));
+
+const normalizeKeyType = (value: unknown) =>
+  Math.max(0, Math.min(KEY_TYPE_OPTIONS.length - 1, Math.round(toNumber(value, 0))));
 
 const isCanvasSnapshot = (value: unknown): value is CanvasSnapshot =>
   Boolean(value && typeof value === "object" && Array.isArray((value as CanvasSnapshot).editors));
@@ -156,6 +175,8 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
       canvasSchemaVersion: raw.canvasSchemaVersion,
       version: raw.version,
       updatedAt: raw.updatedAt,
+      keyBase: normalizeKeyBase(raw.keyBase),
+      keyType: normalizeKeyType(raw.keyType),
       secondsPerBar: safeSeconds,
       editors: normalizedEditors.length
         ? normalizedEditors
@@ -176,6 +197,8 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
     canvasSchemaVersion: 1,
     version: lane.version || 1,
     updatedAt: lane.updatedAt,
+    keyBase: 0,
+    keyType: 0,
     secondsPerBar: lane.secondsPerBar || DEFAULT_SECONDS_PER_BAR,
     editors: [lane],
   };
@@ -1296,6 +1319,29 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       }
     },
     [recordCanvasHistory]
+  );
+
+  const commitCanvasKey = useCallback(
+    (nextKeyBase: number, nextKeyType: number) => {
+      if (!canvas) return;
+      const keyBase = normalizeKeyBase(nextKeyBase);
+      const keyType = normalizeKeyType(nextKeyType);
+      const currentKeyBase = normalizeKeyBase(canvas.keyBase);
+      const currentKeyType = normalizeKeyType(canvas.keyType);
+      if (keyBase === currentKeyBase && keyType === currentKeyType) return;
+      const nextCanvas = normalizeCanvas(
+        {
+          ...canvas,
+          keyBase,
+          keyType,
+          updatedAt: new Date().toISOString(),
+        },
+        editorId
+      );
+      applyCanvasUpdate(nextCanvas, { markDirty: true });
+      void syncCanvasDraftToBackend(nextCanvas, { silent: true });
+    },
+    [applyCanvasUpdate, canvas, editorId, syncCanvasDraftToBackend]
   );
 
   const commitName = async (rawValue: string = nameDraft, options?: { exitEdit?: boolean }) => {
@@ -3648,6 +3694,42 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               className="page-subtitle"
               style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}
             >
+              <div
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 shadow-sm"
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                <span className="text-small muted">Key</span>
+                <select
+                  value={normalizeKeyBase(canvas?.keyBase)}
+                  onChange={(event) =>
+                    commitCanvasKey(Number(event.target.value), normalizeKeyType(canvas?.keyType))
+                  }
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
+                  title="Base note"
+                  aria-label="Base note"
+                >
+                  {KEY_BASE_OPTIONS.map((label, index) => (
+                    <option key={label} value={index}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={normalizeKeyType(canvas?.keyType)}
+                  onChange={(event) =>
+                    commitCanvasKey(normalizeKeyBase(canvas?.keyBase), Number(event.target.value))
+                  }
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
+                  title="Key extension"
+                  aria-label="Key extension"
+                >
+                  {KEY_TYPE_OPTIONS.map((label, index) => (
+                    <option key={label} value={index}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
                 BPM
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
