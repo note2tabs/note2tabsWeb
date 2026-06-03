@@ -4815,7 +4815,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     ) : (
                     <div className="flex flex-col gap-3 lg:flex-row">
                       <aside
-                        className="w-full shrink-0 rounded-xl border border-slate-200 bg-white/90 p-2 shadow-sm lg:w-28"
+                        className="flex w-full shrink-0 flex-col rounded-xl border border-slate-200 bg-white/90 p-2 shadow-sm lg:w-28 lg:self-stretch"
                         data-track-reorder-block="true"
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -4886,8 +4886,46 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             />
                           </label>
                         </div>
-                        <div className="mt-2 flex w-full flex-col items-center gap-2">
-                          <div className="flex flex-row items-center gap-1.1">
+                        <div className="mt-2 flex w-full flex-1 flex-col gap-2">
+                          <div className="flex w-full min-w-0 items-center gap-1">
+                            <input
+                              type="range"
+                              min={0}
+                              max={1}
+                              step={0.01}
+                              value={trackVolume}
+                              onChange={(event) => handleTrackVolumeChange(laneId, Number(event.target.value))}
+                              onClick={(event) => event.stopPropagation()}
+                              className="h-2 min-w-0 flex-1 accent-slate-700"
+                              title="Track volume"
+                              aria-label="Track volume"
+                            />
+                            <div className="w-5 shrink-0 text-right text-[10px] font-medium text-slate-500">
+                              {Math.round(trackVolume * 100)}%
+                            </div>
+                          </div>
+                          <div className="flex w-full min-w-0 items-center gap-1">
+                            <input
+                              type="range"
+                              min={-1}
+                              max={1}
+                              step={0.01}
+                              value={trackPan}
+                              onChange={(event) => handleTrackPanChange(laneId, Number(event.target.value))}
+                              onClick={(event) => event.stopPropagation()}
+                              className="h-2 min-w-0 flex-1 accent-sky-700"
+                              title="Track pan"
+                              aria-label="headset direction (L/R)"
+                            />
+                            <div className="w-5 shrink-0 text-right text-[10px] font-medium text-slate-500">
+                              {trackPan < -0.05
+                                ? `L${Math.round(Math.abs(trackPan) * 100)}`
+                                : trackPan > 0.05
+                                ? `R${Math.round(trackPan * 100)}`
+                                : "C"}
+                            </div>
+                          </div>
+                          <div className="mt-auto flex flex-row items-center justify-center gap-1" data-track-menu="true">
                             <button
                               type="button"
                               onClick={(event) => {
@@ -4934,80 +4972,40 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                 <path d="M12 4a8 8 0 0 0-8 8v5a3 3 0 0 0 3 3h2v-7H6v-1a6 6 0 0 1 12 0v1h-3v7h2a3 3 0 0 0 3-3v-5a8 8 0 0 0-8-8z" />
                               </svg>
                             </button>
-                          </div>
-                          <div className="flex w-full min-w-0 items-center gap-1">
-                            <input
-                              type="range"
-                              min={0}
-                              max={1}
-                              step={0.01}
-                              value={trackVolume}
-                              onChange={(event) => handleTrackVolumeChange(laneId, Number(event.target.value))}
-                              onClick={(event) => event.stopPropagation()}
-                              className="w-[90%] h-2 accent-slate-700"
-                              title="Track volume"
-                              aria-label="Track volume"
-                            />
-                            <div className="w-5 shrink-0 text-right text-[10px] font-medium text-slate-500">
-                              {Math.round(trackVolume * 100)}%
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setOpenTrackMenuId((prev) => (prev === laneId ? null : laneId));
+                                }}
+                                className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                title="Track options"
+                                aria-label="Track options"
+                              >
+                                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                                  <circle cx="12" cy="5" r="1.8" />
+                                  <circle cx="12" cy="12" r="1.8" />
+                                  <circle cx="12" cy="19" r="1.8" />
+                                </svg>
+                              </button>
+                              {openTrackMenuId === laneId && (
+                                <div className="absolute left-1/2 top-8 z-30 min-w-[120px] -translate-x-1/2 rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenTrackMenuId(null);
+                                      requestDeleteTrack(laneId);
+                                    }}
+                                    className="block w-full px-3 py-1.5 text-left text-[10px] font-medium text-rose-600 hover:bg-rose-50"
+                                    disabled={deletingLaneId === laneId}
+                                  >
+                                    {deletingLaneId === laneId ? "..." : "Remove track"}
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                          <div className="flex w-full min-w-0 items-center gap-1">
-                            <input
-                              type="range"
-                              min={-1}
-                              max={1}
-                              step={0.01}
-                              value={trackPan}
-                              onChange={(event) => handleTrackPanChange(laneId, Number(event.target.value))}
-                              onClick={(event) => event.stopPropagation()}
-                              className="w-[90%] h-2 accent-sky-700"
-                              title="Track pan"
-                              aria-label="headset direction (L/R)"
-                            />
-                            <div className="w-5 shrink-0 text-right text-[10px] font-medium text-slate-500">
-                              {trackPan < -0.05
-                                ? `L${Math.round(Math.abs(trackPan) * 100)}`
-                                : trackPan > 0.05
-                                ? `R${Math.round(trackPan * 100)}`
-                                : "C"}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="mt-2 flex justify-center" data-track-menu="true">
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                setOpenTrackMenuId((prev) => (prev === laneId ? null : laneId));
-                              }}
-                              className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                              title="Track options"
-                              aria-label="Track options"
-                            >
-                              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                                <circle cx="12" cy="5" r="1.8" />
-                                <circle cx="12" cy="12" r="1.8" />
-                                <circle cx="12" cy="19" r="1.8" />
-                              </svg>
-                            </button>
-                            {openTrackMenuId === laneId && (
-                              <div className="absolute left-1/2 top-8 z-30 min-w-[120px] -translate-x-1/2 rounded-md border border-slate-200 bg-white py-1 shadow-lg">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setOpenTrackMenuId(null);
-                                    requestDeleteTrack(laneId);
-                                  }}
-                                  className="block w-full px-3 py-1.5 text-left text-[10px] font-medium text-rose-600 hover:bg-rose-50"
-                                  disabled={deletingLaneId === laneId}
-                                >
-                                  {deletingLaneId === laneId ? "..." : "Remove track"}
-                                </button>
-                              </div>
-                            )}
                           </div>
                         </div>
                       </aside>
