@@ -154,6 +154,8 @@ const SCALE_TOOL_MODE_STORAGE_KEY = "gte-scale-tool-mode-v1";
 const SCALE_FACTOR_MIN = 0.1;
 const SCALE_FACTOR_MAX = 8;
 const SCALE_FACTOR_DRAG_PIXELS = 240;
+const QUANTIZE_SUBDIVISION_MIN = 1;
+const QUANTIZE_SUBDIVISION_MAX = 64;
 const SINGLE_DRAG_ACTIVATION_DISTANCE_PX = 3;
 const SCALE_TOOL_MODES = ["length", "start", "both"] as const;
 
@@ -989,6 +991,17 @@ type ScaleSession = {
   minTime: number;
 };
 
+type QuantizeSession = {
+  notes: ScaleEntityBase[];
+  chords: ScaleEntityBase[];
+  minTime: number;
+};
+
+type QuantizePreviewEntity = {
+  startTime: number;
+  length: number;
+};
+
 type FloatingPanelDragState = {
   panel: "note" | "chord";
   offsetX: number;
@@ -1162,6 +1175,15 @@ export default function GteWorkspace({
   const [scalePreviewNotes, setScalePreviewNotes] = useState<Record<number, ScalePreviewEntity>>({});
   const [scalePreviewChords, setScalePreviewChords] = useState<Record<number, ScalePreviewEntity>>({});
   const [scalePreviewMaxEnd, setScalePreviewMaxEnd] = useState(0);
+  const [quantizeDialogOpen, setQuantizeDialogOpen] = useState(false);
+  const [quantizeSubdivision, setQuantizeSubdivision] = useState(4);
+  const [quantizeSubdivisionInput, setQuantizeSubdivisionInput] = useState("4");
+  const [quantizePreScale, setQuantizePreScale] = useState(1);
+  const [quantizePreScaleInput, setQuantizePreScaleInput] = useState("1");
+  const [quantizeApplyToLength, setQuantizeApplyToLength] = useState(false);
+  const [quantizePreviewNotes, setQuantizePreviewNotes] = useState<Record<number, QuantizePreviewEntity>>({});
+  const [quantizePreviewChords, setQuantizePreviewChords] = useState<Record<number, QuantizePreviewEntity>>({});
+  const [quantizePreviewMaxEnd, setQuantizePreviewMaxEnd] = useState(0);
   const [selectedCutBoundaryIndex, setSelectedCutBoundaryIndex] = useState<number | null>(null);
   const [playheadFrame, setPlayheadFrame] = useState(0);
   const [playheadDragging, setPlayheadDragging] = useState(false);
@@ -1248,13 +1270,17 @@ export default function GteWorkspace({
   const lastAddedNoteLengthRef = useRef(DEFAULT_NOTE_LENGTH);
   const applyingSharedScrollRef = useRef(false);
   const scaleSessionRef = useRef<ScaleSession | null>(null);
+  const quantizeSessionRef = useRef<QuantizeSession | null>(null);
   const scaleFactorTypingRef = useRef<string | null>(null);
   const scaleFactorTypingAtRef = useRef(0);
 
   const fps = fpsFromSecondsPerBar(secondsPerBar);
   const framesPerMeasure = FIXED_FRAMES_PER_BAR;
   const totalFrames = snapshot.totalFrames || 0;
-  const previewFrames = scaleToolActive ? Math.max(0, Math.round(scalePreviewMaxEnd)) : 0;
+  const previewFrames = Math.max(
+    scaleToolActive ? Math.max(0, Math.round(scalePreviewMaxEnd)) : 0,
+    quantizeDialogOpen ? Math.max(0, Math.round(quantizePreviewMaxEnd)) : 0
+  );
   const effectiveTotalFrames = Math.max(totalFrames, previewFrames);
   const maxFret = getMaxFret(snapshot);
   const stringLabels = useMemo(() => {
@@ -2811,6 +2837,260 @@ export default function GteWorkspace({
     snapToGridEnabled,
   ]);
 
+  const computeQuantizePreview = useCallback(
+    (session: QuantizeSession, subdivisionValue: number, preScaleValue: number, applyToLength: boolean) => {
+      const parsedSubdivision = Number(subdivisionValue);
+      const parsedPreScale = Number(preScaleValue);
+      const subdivisions = clamp(
+        Math.round(Number.isFinite(parsedSubdivision) ? parsedSubdivision : 4),
+        QUANTIZE_SUBDIVISION_MIN,
+        QUANTIZE_SUBDIVISION_MAX
+      );
+      const preScale = clamp(
+        Number.isFinite(parsedPreScale) ? parsedPreScale : 1,
+        SCALE_FACTOR_MIN,
+        SCALE_FACTOR_MAX
+      );
+      const beatsPerBar = Math.max(1, Math.round(timeSignature));
+      const beatFrames = framesPerMeasure / beatsPerBar;
+      const gridFrames = Math.max(1, beatFrames / subdivisions);
+      const notes: Record<number, QuantizePreviewEntity> = {};
+      const chords: Record<number, QuantizePreviewEntity> = {};
+      let maxEnd = 0;
+
+      const quantizeStart = (startTime: number) => {
+        const scaledStart = session.minTime + (startTime - session.minTime) * preScale;
+        return Math.max(0, Math.round(Math.round(scaledStart / gridFrames) * gridFrames));
+      };
+      const quantizeLength = (length: number) => {
+        if (!applyToLength) return Math.max(1, Math.round(length));
+        const scaledLength = Math.max(1, length * preScale);
+        return Math.max(1, Math.round(Math.round(scaledLength / gridFrames) * gridFrames));
+      };
+
+      session.notes.forEach((note) => {
+        const quantizedStart = quantizeStart(note.startTime);
+        const quantizedLength = quantizeLength(note.length);
+        notes[note.id] = { startTime: quantizedStart, length: quantizedLength };
+        maxEnd = Math.max(maxEnd, quantizedStart + quantizedLength);
+      });
+
+      session.chords.forEach((chord) => {
+        const quantizedStart = quantizeStart(chord.startTime);
+        const quantizedLength = quantizeLength(chord.length);
+        chords[chord.id] = { startTime: quantizedStart, length: quantizedLength };
+        maxEnd = Math.max(maxEnd, quantizedStart + quantizedLength);
+      });
+
+      return { notes, chords, maxEnd, subdivisions, preScale };
+    },
+    [clamp, framesPerMeasure, timeSignature]
+  );
+
+  const applyQuantizePreview = useCallback(
+    (
+      subdivisionValue: number,
+      preScaleValue: number,
+      applyToLength: boolean,
+      options?: { syncInputs?: boolean }
+    ) => {
+      const session = quantizeSessionRef.current;
+      if (!session) return;
+      const preview = computeQuantizePreview(session, subdivisionValue, preScaleValue, applyToLength);
+      setQuantizePreviewNotes(preview.notes);
+      setQuantizePreviewChords(preview.chords);
+      setQuantizePreviewMaxEnd(preview.maxEnd);
+      setQuantizeSubdivision(preview.subdivisions);
+      setQuantizePreScale(preview.preScale);
+      if (options?.syncInputs !== false) {
+        setQuantizeSubdivisionInput(String(preview.subdivisions));
+        setQuantizePreScaleInput(formatScaleFactor(preview.preScale));
+      }
+    },
+    [computeQuantizePreview]
+  );
+
+  const deactivateQuantizeTool = useCallback(() => {
+    setQuantizeDialogOpen(false);
+    setQuantizePreviewNotes({});
+    setQuantizePreviewChords({});
+    setQuantizePreviewMaxEnd(0);
+    quantizeSessionRef.current = null;
+  }, []);
+
+  const activateQuantizeTool = useCallback(() => {
+    const notes = snapshot.notes
+      .filter((note) => selectedNoteIds.includes(note.id))
+      .map((note) => ({ id: note.id, startTime: note.startTime, length: note.length }));
+    const chords = snapshot.chords
+      .filter((chord) => selectedChordIds.includes(chord.id))
+      .map((chord) => ({ id: chord.id, startTime: chord.startTime, length: chord.length }));
+    if (!notes.length && !chords.length) {
+      setError("Select at least one note/chord before using Quantize.");
+      return false;
+    }
+    setError(null);
+    const minTime = Math.min(...notes.map((note) => note.startTime), ...chords.map((chord) => chord.startTime));
+    quantizeSessionRef.current = {
+      notes,
+      chords,
+      minTime: Number.isFinite(minTime) ? minTime : 0,
+    };
+    deactivateScaleTool();
+    setCutToolActive(false);
+    setCutCursor(null);
+    setSliceToolActive(false);
+    setSliceCursor(null);
+    setQuantizeDialogOpen(true);
+    applyQuantizePreview(quantizeSubdivision, quantizePreScale, quantizeApplyToLength, { syncInputs: true });
+    return true;
+  }, [
+    applyQuantizePreview,
+    deactivateScaleTool,
+    quantizePreScale,
+    quantizeSubdivision,
+    quantizeApplyToLength,
+    selectedChordIds,
+    selectedNoteIds,
+    snapshot.chords,
+    snapshot.notes,
+  ]);
+
+  const commitQuantizeTool = useCallback(() => {
+    if (!quantizeDialogOpen) return false;
+    const session = quantizeSessionRef.current;
+    if (!session) {
+      deactivateQuantizeTool();
+      return false;
+    }
+    const preview = computeQuantizePreview(
+      session,
+      quantizeSubdivision,
+      quantizePreScale,
+      quantizeApplyToLength
+    );
+    const noteUpdates = session.notes
+      .map((note) => {
+        const next = preview.notes[note.id];
+        if (!next) return null;
+        const changedStart = next.startTime !== note.startTime;
+        const changedLength = next.length !== note.length;
+        if (!changedStart && !changedLength) return null;
+        return {
+          id: note.id,
+          startTime: next.startTime,
+          length: next.length,
+          changedStart,
+          changedLength,
+        };
+      })
+      .filter(
+        (
+          item
+        ): item is {
+          id: number;
+          startTime: number;
+          length: number;
+          changedStart: boolean;
+          changedLength: boolean;
+        } => Boolean(item)
+      );
+    const chordUpdates = session.chords
+      .map((chord) => {
+        const next = preview.chords[chord.id];
+        if (!next) return null;
+        const changedStart = next.startTime !== chord.startTime;
+        const changedLength = next.length !== chord.length;
+        if (!changedStart && !changedLength) return null;
+        return {
+          id: chord.id,
+          startTime: next.startTime,
+          length: next.length,
+          changedStart,
+          changedLength,
+        };
+      })
+      .filter(
+        (
+          item
+        ): item is {
+          id: number;
+          startTime: number;
+          length: number;
+          changedStart: boolean;
+          changedLength: boolean;
+        } => Boolean(item)
+      );
+
+    const nextTotalFrames =
+      preview.maxEnd > 0
+        ? Math.max(
+            framesPerMeasure,
+            Math.ceil(Math.max(preview.maxEnd, framesPerMeasure) / framesPerMeasure) * framesPerMeasure
+          )
+        : framesPerMeasure;
+
+    deactivateQuantizeTool();
+    if (!noteUpdates.length && !chordUpdates.length) return true;
+
+    enqueueOptimisticMutation({
+      label: "quantize",
+      apply: (draft) => {
+        noteUpdates.forEach((update) => {
+          const noteId = resolveNoteId(update.id);
+          const note = draft.notes.find((item) => item.id === noteId);
+          if (!note) return;
+          note.startTime = update.startTime;
+          note.length = update.length;
+        });
+        chordUpdates.forEach((update) => {
+          const chordId = resolveChordId(update.id);
+          const chord = draft.chords.find((item) => item.id === chordId);
+          if (!chord) return;
+          chord.startTime = update.startTime;
+          chord.length = update.length;
+        });
+        draft.totalFrames = Math.max(Number(draft.totalFrames || 0), nextTotalFrames);
+        return draft;
+      },
+      commit: async () => {
+        let last: { snapshot?: EditorSnapshot } | null = null;
+        for (const update of noteUpdates) {
+          const noteId = resolveNoteId(update.id);
+          if (update.changedStart) {
+            last = await gteApi.setNoteStartTime(editorId, noteId, update.startTime, false);
+          }
+          if (update.changedLength) {
+            last = await gteApi.setNoteLength(editorId, noteId, update.length, false);
+          }
+        }
+        for (const update of chordUpdates) {
+          const chordId = resolveChordId(update.id);
+          if (update.changedStart) {
+            last = await gteApi.setChordStartTime(editorId, chordId, update.startTime, false);
+          }
+          if (update.changedLength) {
+            last = await gteApi.setChordLength(editorId, chordId, update.length, false);
+          }
+        }
+        return last ?? {};
+      },
+    });
+    return true;
+  }, [
+    computeQuantizePreview,
+    deactivateQuantizeTool,
+    editorId,
+    enqueueOptimisticMutation,
+    framesPerMeasure,
+    quantizeDialogOpen,
+    quantizeApplyToLength,
+    quantizePreScale,
+    quantizeSubdivision,
+    resolveChordId,
+    resolveNoteId,
+  ]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -2837,6 +3117,19 @@ export default function GteWorkspace({
     if (!scaleSessionRef.current) return;
     applyScalePreview(scaleFactor, { mode: scaleToolMode, syncInput: false });
   }, [applyScalePreview, scaleFactor, scaleToolActive, scaleToolMode, snapToGridEnabled, timeSignature]);
+
+  useEffect(() => {
+    if (!quantizeDialogOpen) return;
+    if (!quantizeSessionRef.current) return;
+    applyQuantizePreview(quantizeSubdivision, quantizePreScale, quantizeApplyToLength, { syncInputs: false });
+  }, [
+    applyQuantizePreview,
+    quantizeApplyToLength,
+    quantizeDialogOpen,
+    quantizePreScale,
+    quantizeSubdivision,
+    timeSignature,
+  ]);
 
   useEffect(() => {
     if (!scaleToolActive) return;
@@ -2906,6 +3199,12 @@ export default function GteWorkspace({
     if (selectedNoteIds.length + selectedChordIds.length > 0) return;
     deactivateScaleTool();
   }, [deactivateScaleTool, scaleToolActive, selectedChordIds.length, selectedNoteIds.length]);
+
+  useEffect(() => {
+    if (!quantizeDialogOpen) return;
+    if (selectedNoteIds.length + selectedChordIds.length > 0) return;
+    deactivateQuantizeTool();
+  }, [deactivateQuantizeTool, quantizeDialogOpen, selectedChordIds.length, selectedNoteIds.length]);
 
   const getSpanSegments = (startTime: number, length: number) => {
     const safeLength = Math.max(1, Math.round(length));
@@ -6815,6 +7114,11 @@ export default function GteWorkspace({
           deactivateScaleTool();
           return;
         }
+        if (quantizeDialogOpen) {
+          event.preventDefault();
+          deactivateQuantizeTool();
+          return;
+        }
         if (cutToolActive) {
           event.preventDefault();
           setCutToolActive(false);
@@ -6849,6 +7153,12 @@ export default function GteWorkspace({
         if (isTyping && !target?.closest("[data-scale-hud='true']")) return;
         event.preventDefault();
         commitScaleTool();
+        return;
+      }
+      if (event.key === "Enter" && quantizeDialogOpen) {
+        if (isTyping && !target?.closest("[data-quantize-dialog='true']")) return;
+        event.preventDefault();
+        commitQuantizeTool();
         return;
       }
       if (event.key === "Enter" && editingChordId !== null) {
@@ -7560,11 +7870,14 @@ export default function GteWorkspace({
     canCreateNoteEffect,
     cycleScaleToolModeWithShortcut,
     commitScaleTool,
+    commitQuantizeTool,
     deactivateScaleTool,
+    deactivateQuantizeTool,
     handleAddNoteEffect,
     handleScaleFactorInputChange,
     setSnapToGridEnabled,
     scaleToolActive,
+    quantizeDialogOpen,
     cloneSnapshot,
     barClipboardAvailable,
     handleCopySelectedBars,
@@ -7982,6 +8295,26 @@ export default function GteWorkspace({
 
               <button
                 type="button"
+                data-gte-editor-control="true"
+                onClick={activateQuantizeTool}
+                disabled={selectedNoteIds.length + selectedChordIds.length === 0 || selectionActionsLocked}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Quantize selected notes/chords"
+                }
+                className={
+                  quantizeDialogOpen
+                    ? `${activeButtonClass} bg-sky-600`
+                    : textButtonClass
+                }
+              >
+                <span className={tooltipClass}>No shortcut</span>
+                Quantize
+              </button>
+
+              <button
+                type="button"
                 onClick={() => {
                   void handleJoinSelectedNotes();
                 }}
@@ -8259,6 +8592,134 @@ export default function GteWorkspace({
             />
           </div>
           <div className="mt-0.5 text-[9px] text-slate-500">Enter or click to apply</div>
+        </div>
+      )}
+      {quantizeDialogOpen && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          data-quantize-dialog="true"
+          className="fixed left-1/2 top-1/2 z-[10000] w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-sky-200 bg-white p-3 shadow-xl shadow-slate-900/15"
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="m-0 text-sm font-semibold text-slate-900">Quantize notes</h2>
+              <p className="mt-1 text-[11px] leading-4 text-slate-500">
+                Preview selected notes against beat subdivisions.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={deactivateQuantizeTool}
+              className="grid h-6 w-6 place-items-center rounded-md border border-slate-200 bg-white text-[12px] font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+              aria-label="Close quantize"
+              title="Close"
+            >
+              x
+            </button>
+          </div>
+
+          <div className="mt-3 grid gap-2">
+            <label className="grid gap-1 text-[11px] font-semibold text-slate-600">
+              Beat subdivision
+              <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                <span className="text-sm font-semibold text-slate-700">1 /</span>
+                <input
+                  type="number"
+                  min={QUANTIZE_SUBDIVISION_MIN}
+                  max={QUANTIZE_SUBDIVISION_MAX}
+                  step={1}
+                  value={quantizeSubdivisionInput}
+                  onChange={(event) => {
+                    const nextInput = event.target.value;
+                    setQuantizeSubdivisionInput(nextInput);
+                    const parsed = Number(nextInput);
+                    if (!Number.isFinite(parsed)) return;
+                    applyQuantizePreview(parsed, quantizePreScale, quantizeApplyToLength, { syncInputs: false });
+                  }}
+                  onBlur={() => {
+                    setQuantizeSubdivisionInput(String(quantizeSubdivision));
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      commitQuantizeTool();
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      deactivateQuantizeTool();
+                    }
+                  }}
+                  className="h-8 min-w-0 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none focus:border-sky-400"
+                />
+              </div>
+            </label>
+
+            <label className="grid gap-1 text-[11px] font-semibold text-slate-600">
+              Pre scaling
+              <input
+                type="number"
+                min={SCALE_FACTOR_MIN}
+                max={SCALE_FACTOR_MAX}
+                step={0.01}
+                value={quantizePreScaleInput}
+                onChange={(event) => {
+                  const nextInput = event.target.value;
+                  setQuantizePreScaleInput(nextInput);
+                  const parsed = Number(nextInput);
+                  if (!Number.isFinite(parsed)) return;
+                  applyQuantizePreview(quantizeSubdivision, parsed, quantizeApplyToLength, { syncInputs: false });
+                }}
+                onBlur={() => {
+                  setQuantizePreScaleInput(formatScaleFactor(quantizePreScale));
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    commitQuantizeTool();
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    deactivateQuantizeTool();
+                  }
+                }}
+                className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none focus:border-sky-400"
+              />
+            </label>
+
+            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-[11px] font-semibold text-slate-600">
+              <input
+                type="checkbox"
+                checked={quantizeApplyToLength}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setQuantizeApplyToLength(checked);
+                  applyQuantizePreview(quantizeSubdivision, quantizePreScale, checked, { syncInputs: false });
+                }}
+                className="h-4 w-4 accent-sky-600"
+              />
+              Apply to length
+            </label>
+          </div>
+
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={deactivateQuantizeTool}
+              className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={commitQuantizeTool}
+              className="h-8 rounded-lg bg-sky-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-sky-500"
+            >
+              Apply
+            </button>
+          </div>
         </div>
       )}
       {contextMenu && (
@@ -9591,18 +10052,23 @@ export default function GteWorkspace({
                 {snapshot.notes.flatMap((note) => {
                   const noteEffectEdges = noteEffectEdgeMap.get(note.id) || { left: false, right: false };
                   const scalePreview = scaleToolActive ? scalePreviewNotes[note.id] : undefined;
+                  const quantizePreview = quantizeDialogOpen ? quantizePreviewNotes[note.id] : undefined;
                   const preview =
                     dragging?.type === "note" && dragging.id === note.id ? dragPreview : null;
                   const multiDelta =
                     multiDragDelta !== null && selectedNoteIds.includes(note.id) ? multiDragDelta : null;
                   const displayStart = scalePreview
                     ? scalePreview.startTime
+                    : quantizePreview
+                    ? quantizePreview.startTime
                     : multiDelta !== null
                     ? note.startTime + multiDelta
                     : preview?.startTime ?? note.startTime;
                   const displayString = preview?.stringIndex ?? note.tab[0];
                   const displayLength = scalePreview
                     ? scalePreview.length
+                    : quantizePreview
+                    ? quantizePreview.length
                     : resizingNote?.id === note.id && resizePreviewLength !== null
                     ? resizePreviewLength
                     : note.length;
@@ -9741,17 +10207,22 @@ export default function GteWorkspace({
 
                 {snapshot.chords.flatMap((chord) => {
                   const scalePreview = scaleToolActive ? scalePreviewChords[chord.id] : undefined;
+                  const quantizePreview = quantizeDialogOpen ? quantizePreviewChords[chord.id] : undefined;
                   const preview =
                     dragging?.type === "chord" && dragging.id === chord.id ? dragPreview : null;
                   const multiDelta =
                     multiDragDelta !== null && selectedChordIds.includes(chord.id) ? multiDragDelta : null;
                   const displayStart = scalePreview
                     ? scalePreview.startTime
+                    : quantizePreview
+                    ? quantizePreview.startTime
                     : multiDelta !== null
                     ? chord.startTime + multiDelta
                     : preview?.startTime ?? chord.startTime;
                   const displayLength = scalePreview
                     ? scalePreview.length
+                    : quantizePreview
+                    ? quantizePreview.length
                     : resizingChord?.id === chord.id && resizeChordPreviewLength !== null
                     ? resizeChordPreviewLength
                     : chord.length;
