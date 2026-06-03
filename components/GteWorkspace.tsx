@@ -7080,6 +7080,7 @@ export default function GteWorkspace({
 
   useEffect(() => {
     if (!isActive) {
+      setToolbarOpen(false);
       return;
     }
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -8556,7 +8557,7 @@ export default function GteWorkspace({
           }`}
         />
       )}
-      {toolbarOpen && showToolbarUi && !mobileViewport && renderToolbarPanel(false)}
+      {toolbarOpen && isActive && showToolbarUi && !mobileViewport && renderToolbarPanel(false)}
       {scaleToolActive && scaleHudPosition && (
         <div
           ref={scaleHudRef}
