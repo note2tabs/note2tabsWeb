@@ -1002,6 +1002,13 @@ type QuantizePreviewEntity = {
   length: number;
 };
 
+type MoveSession = {
+  anchorX: number;
+  anchorStart: number;
+  notes: ScaleEntityBase[];
+  chords: ScaleEntityBase[];
+};
+
 type FloatingPanelDragState = {
   panel: "note" | "chord";
   offsetX: number;
@@ -1184,6 +1191,10 @@ export default function GteWorkspace({
   const [quantizePreviewNotes, setQuantizePreviewNotes] = useState<Record<number, QuantizePreviewEntity>>({});
   const [quantizePreviewChords, setQuantizePreviewChords] = useState<Record<number, QuantizePreviewEntity>>({});
   const [quantizePreviewMaxEnd, setQuantizePreviewMaxEnd] = useState(0);
+  const [moveToolActive, setMoveToolActive] = useState(false);
+  const [movePreviewNotes, setMovePreviewNotes] = useState<Record<number, QuantizePreviewEntity>>({});
+  const [movePreviewChords, setMovePreviewChords] = useState<Record<number, QuantizePreviewEntity>>({});
+  const [movePreviewMaxEnd, setMovePreviewMaxEnd] = useState(0);
   const [selectedCutBoundaryIndex, setSelectedCutBoundaryIndex] = useState<number | null>(null);
   const [playheadFrame, setPlayheadFrame] = useState(0);
   const [playheadDragging, setPlayheadDragging] = useState(false);
@@ -1271,6 +1282,12 @@ export default function GteWorkspace({
   const applyingSharedScrollRef = useRef(false);
   const scaleSessionRef = useRef<ScaleSession | null>(null);
   const quantizeSessionRef = useRef<QuantizeSession | null>(null);
+  const moveSessionRef = useRef<MoveSession | null>(null);
+  const movePreviewRef = useRef<{
+    notes: Record<number, QuantizePreviewEntity>;
+    chords: Record<number, QuantizePreviewEntity>;
+    maxEnd: number;
+  }>({ notes: {}, chords: {}, maxEnd: 0 });
   const scaleFactorTypingRef = useRef<string | null>(null);
   const scaleFactorTypingAtRef = useRef(0);
 
@@ -1279,7 +1296,8 @@ export default function GteWorkspace({
   const totalFrames = snapshot.totalFrames || 0;
   const previewFrames = Math.max(
     scaleToolActive ? Math.max(0, Math.round(scalePreviewMaxEnd)) : 0,
-    quantizeDialogOpen ? Math.max(0, Math.round(quantizePreviewMaxEnd)) : 0
+    quantizeDialogOpen ? Math.max(0, Math.round(quantizePreviewMaxEnd)) : 0,
+    moveToolActive ? Math.max(0, Math.round(movePreviewMaxEnd)) : 0
   );
   const effectiveTotalFrames = Math.max(totalFrames, previewFrames);
   const maxFret = getMaxFret(snapshot);
@@ -3091,6 +3109,175 @@ export default function GteWorkspace({
     resolveNoteId,
   ]);
 
+  const computeMovePreview = useCallback(
+    (session: MoveSession, deltaFrames: number) => {
+      const rawDelta = Math.round(deltaFrames);
+      const targetAnchor = snapToGridEnabled
+        ? snapStartTimeToGrid(session.anchorStart + rawDelta)
+        : Math.round(session.anchorStart + rawDelta);
+      const delta = Math.max(0, targetAnchor) - session.anchorStart;
+      const notes: Record<number, QuantizePreviewEntity> = {};
+      const chords: Record<number, QuantizePreviewEntity> = {};
+      let maxEnd = 0;
+
+      session.notes.forEach((note) => {
+        const startTime = Math.max(0, Math.round(note.startTime + delta));
+        const length = Math.max(1, Math.round(note.length));
+        notes[note.id] = { startTime, length };
+        maxEnd = Math.max(maxEnd, startTime + length);
+      });
+
+      session.chords.forEach((chord) => {
+        const startTime = Math.max(0, Math.round(chord.startTime + delta));
+        const length = Math.max(1, Math.round(chord.length));
+        chords[chord.id] = { startTime, length };
+        maxEnd = Math.max(maxEnd, startTime + length);
+      });
+
+      return { notes, chords, maxEnd, delta };
+    },
+    [snapStartTimeToGrid, snapToGridEnabled]
+  );
+
+  const applyMovePreview = useCallback(
+    (deltaFrames: number) => {
+      const session = moveSessionRef.current;
+      if (!session) return;
+      const preview = computeMovePreview(session, deltaFrames);
+      movePreviewRef.current = preview;
+      setMovePreviewNotes(preview.notes);
+      setMovePreviewChords(preview.chords);
+      setMovePreviewMaxEnd(preview.maxEnd);
+    },
+    [computeMovePreview]
+  );
+
+  const deactivateMoveTool = useCallback(() => {
+    setMoveToolActive(false);
+    setMovePreviewNotes({});
+    setMovePreviewChords({});
+    setMovePreviewMaxEnd(0);
+    movePreviewRef.current = { notes: {}, chords: {}, maxEnd: 0 };
+    moveSessionRef.current = null;
+  }, []);
+
+  const activateMoveTool = useCallback(
+    (anchor?: { x: number; y: number }) => {
+      const notes = snapshot.notes
+        .filter((note) => selectedNoteIds.includes(note.id))
+        .map((note) => ({ id: note.id, startTime: note.startTime, length: note.length }));
+      const chords = snapshot.chords
+        .filter((chord) => selectedChordIds.includes(chord.id))
+        .map((chord) => ({ id: chord.id, startTime: chord.startTime, length: chord.length }));
+      if (!notes.length && !chords.length) {
+        setError("Select at least one note/chord before using Move.");
+        return false;
+      }
+      setError(null);
+      const anchorStart = Math.min(
+        ...notes.map((item) => item.startTime),
+        ...chords.map((item) => item.startTime)
+      );
+      const nextAnchor = anchor ?? mousePosRef.current;
+      moveSessionRef.current = {
+        anchorX: nextAnchor.x,
+        anchorStart: Number.isFinite(anchorStart) ? anchorStart : 0,
+        notes,
+        chords,
+      };
+      deactivateScaleTool();
+      deactivateQuantizeTool();
+      setCutToolActive(false);
+      setCutCursor(null);
+      setSliceToolActive(false);
+      setSliceCursor(null);
+      setMoveToolActive(true);
+      applyMovePreview(0);
+      return true;
+    },
+    [
+      applyMovePreview,
+      deactivateQuantizeTool,
+      deactivateScaleTool,
+      selectedChordIds,
+      selectedNoteIds,
+      snapshot.chords,
+      snapshot.notes,
+    ]
+  );
+
+  const commitMoveTool = useCallback(() => {
+    if (!moveToolActive) return false;
+    const session = moveSessionRef.current;
+    if (!session) {
+      deactivateMoveTool();
+      return false;
+    }
+
+    const currentPreview = movePreviewRef.current;
+    const noteUpdates = session.notes
+      .map((note) => {
+        const next = currentPreview.notes[note.id];
+        if (!next || next.startTime === note.startTime) return null;
+        return { id: note.id, startTime: next.startTime, length: note.length };
+      })
+      .filter((item): item is { id: number; startTime: number; length: number } => Boolean(item));
+    const chordUpdates = session.chords
+      .map((chord) => {
+        const next = currentPreview.chords[chord.id];
+        if (!next || next.startTime === chord.startTime) return null;
+        return { id: chord.id, startTime: next.startTime, length: chord.length };
+      })
+      .filter((item): item is { id: number; startTime: number; length: number } => Boolean(item));
+    const nextTotalFrames = Math.max(
+      framesPerMeasure,
+      Math.ceil(Math.max(currentPreview.maxEnd, framesPerMeasure) / framesPerMeasure) * framesPerMeasure
+    );
+
+    deactivateMoveTool();
+    if (!noteUpdates.length && !chordUpdates.length) return true;
+
+    enqueueOptimisticMutation({
+      label: "move-selected",
+      apply: (draft) => {
+        noteUpdates.forEach((update) => {
+          const noteId = resolveNoteId(update.id);
+          const note = draft.notes.find((item) => item.id === noteId);
+          if (!note) return;
+          note.startTime = update.startTime;
+        });
+        chordUpdates.forEach((update) => {
+          const chordId = resolveChordId(update.id);
+          const chord = draft.chords.find((item) => item.id === chordId);
+          if (!chord) return;
+          chord.startTime = update.startTime;
+        });
+        draft.totalFrames = Math.max(Number(draft.totalFrames || 0), nextTotalFrames);
+        return draft;
+      },
+      commit: async () => {
+        let last: { snapshot?: EditorSnapshot } | null = null;
+        for (const update of noteUpdates) {
+          last = await gteApi.setNoteStartTime(editorId, resolveNoteId(update.id), update.startTime, snapToGridEnabled);
+        }
+        for (const update of chordUpdates) {
+          last = await gteApi.setChordStartTime(editorId, resolveChordId(update.id), update.startTime, snapToGridEnabled);
+        }
+        return last ?? {};
+      },
+    });
+    return true;
+  }, [
+    deactivateMoveTool,
+    editorId,
+    enqueueOptimisticMutation,
+    framesPerMeasure,
+    moveToolActive,
+    resolveChordId,
+    resolveNoteId,
+    snapToGridEnabled,
+  ]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -3151,6 +3338,19 @@ export default function GteWorkspace({
   }, [applyScalePreview, scaleToolActive, scaleToolMode]);
 
   useEffect(() => {
+    if (!moveToolActive) return;
+    const handleMove = (event: globalThis.MouseEvent) => {
+      const session = moveSessionRef.current;
+      if (!session) return;
+      applyMovePreview((event.clientX - session.anchorX) / Math.max(scale, 0.0001));
+    };
+    window.addEventListener("mousemove", handleMove);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+    };
+  }, [applyMovePreview, moveToolActive, scale]);
+
+  useEffect(() => {
     if (!scaleToolActive) return;
     const handleMouseDownCapture = (event: globalThis.MouseEvent) => {
       if (event.button !== 0) return;
@@ -3167,6 +3367,27 @@ export default function GteWorkspace({
       window.removeEventListener("mousedown", handleMouseDownCapture, true);
     };
   }, [commitScaleTool, scaleToolActive]);
+
+  useEffect(() => {
+    if (!moveToolActive) return;
+    const handleMouseDownCapture = (event: globalThis.MouseEvent) => {
+      if (event.button !== 0) return;
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (toolbarRef.current && toolbarRef.current.contains(target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const session = moveSessionRef.current;
+      if (session) {
+        applyMovePreview((event.clientX - session.anchorX) / Math.max(scale, 0.0001));
+      }
+      commitMoveTool();
+    };
+    window.addEventListener("mousedown", handleMouseDownCapture, true);
+    return () => {
+      window.removeEventListener("mousedown", handleMouseDownCapture, true);
+    };
+  }, [applyMovePreview, commitMoveTool, moveToolActive, scale]);
 
   useEffect(() => {
     if (!floatingPanelDrag) return;
@@ -3199,6 +3420,12 @@ export default function GteWorkspace({
     if (selectedNoteIds.length + selectedChordIds.length > 0) return;
     deactivateScaleTool();
   }, [deactivateScaleTool, scaleToolActive, selectedChordIds.length, selectedNoteIds.length]);
+
+  useEffect(() => {
+    if (!moveToolActive) return;
+    if (selectedNoteIds.length + selectedChordIds.length > 0) return;
+    deactivateMoveTool();
+  }, [deactivateMoveTool, moveToolActive, selectedChordIds.length, selectedNoteIds.length]);
 
   useEffect(() => {
     if (!quantizeDialogOpen) return;
@@ -7207,6 +7434,11 @@ export default function GteWorkspace({
           deactivateQuantizeTool();
           return;
         }
+        if (moveToolActive) {
+          event.preventDefault();
+          deactivateMoveTool();
+          return;
+        }
         if (cutToolActive) {
           event.preventDefault();
           setCutToolActive(false);
@@ -7249,6 +7481,12 @@ export default function GteWorkspace({
         commitQuantizeTool();
         return;
       }
+      if (event.key === "Enter" && moveToolActive) {
+        if (isTyping) return;
+        event.preventDefault();
+        commitMoveTool();
+        return;
+      }
       if (event.key === "Enter" && editingChordId !== null) {
         if (isTyping || chordNoteMenuIndex !== null) return;
         exitChordEdit();
@@ -7284,6 +7522,22 @@ export default function GteWorkspace({
           scaleModeSelect.blur();
         }
         cycleScaleToolModeWithShortcut();
+        return;
+      }
+      if (
+        event.code === "KeyM" &&
+        !event.shiftKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey
+      ) {
+        if (isTyping) return;
+        event.preventDefault();
+        if (moveToolActive) {
+          deactivateMoveTool();
+        } else {
+          activateMoveTool();
+        }
         return;
       }
       if (
@@ -7969,15 +8223,19 @@ export default function GteWorkspace({
     activateScaleTool,
     canCreateNoteEffect,
     cycleScaleToolModeWithShortcut,
+    activateMoveTool,
     commitScaleTool,
     commitQuantizeTool,
+    commitMoveTool,
     deactivateScaleTool,
     deactivateQuantizeTool,
+    deactivateMoveTool,
     handleAddNoteEffect,
     handleScaleFactorInputChange,
     setSnapToGridEnabled,
     scaleToolActive,
     quantizeDialogOpen,
+    moveToolActive,
     cloneSnapshot,
     barClipboardAvailable,
     handleCopySelectedBars,
@@ -8565,6 +8823,40 @@ export default function GteWorkspace({
                   }`}
                 />
                 Slicing Tool
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (moveToolActive) {
+                    deactivateMoveTool();
+                  } else {
+                    activateMoveTool();
+                  }
+                }}
+                disabled={
+                  !moveToolActive &&
+                  selectedNoteIds.length + selectedChordIds.length === 0
+                }
+                title="Move selected notes/chords with the mouse - Shortcut: M"
+                className={
+                  moveToolActive
+                    ? `${activeButtonClass} bg-slate-700`
+                    : iconButtonClass
+                }
+              >
+                <span className={tooltipClass}>M</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  className={`h-3.5 w-3.5 ${
+                    moveToolActive ? "fill-white" : "fill-current"
+                  }`}
+                  aria-hidden="true"
+                >
+                  <path d="M11 3h2v5h4l-5 5-5-5h4V3z" />
+                  <path d="M11 21h2v-5h4l-5-5-5 5h4v5z" />
+                </svg>
+                Move
               </button>
             </div>
           </div>
@@ -10155,6 +10447,7 @@ export default function GteWorkspace({
                   const noteEffectEdges = noteEffectEdgeMap.get(note.id) || { left: false, right: false };
                   const scalePreview = scaleToolActive ? scalePreviewNotes[note.id] : undefined;
                   const quantizePreview = quantizeDialogOpen ? quantizePreviewNotes[note.id] : undefined;
+                  const movePreview = moveToolActive ? movePreviewNotes[note.id] : undefined;
                   const preview =
                     dragging?.type === "note" && dragging.id === note.id ? dragPreview : null;
                   const multiDelta =
@@ -10163,6 +10456,8 @@ export default function GteWorkspace({
                     ? scalePreview.startTime
                     : quantizePreview
                     ? quantizePreview.startTime
+                    : movePreview
+                    ? movePreview.startTime
                     : multiDelta !== null
                     ? note.startTime + multiDelta
                     : preview?.startTime ?? note.startTime;
@@ -10171,6 +10466,8 @@ export default function GteWorkspace({
                     ? scalePreview.length
                     : quantizePreview
                     ? quantizePreview.length
+                    : movePreview
+                    ? movePreview.length
                     : resizingNote?.id === note.id && resizePreviewLength !== null
                     ? resizePreviewLength
                     : note.length;
@@ -10310,6 +10607,7 @@ export default function GteWorkspace({
                 {snapshot.chords.flatMap((chord) => {
                   const scalePreview = scaleToolActive ? scalePreviewChords[chord.id] : undefined;
                   const quantizePreview = quantizeDialogOpen ? quantizePreviewChords[chord.id] : undefined;
+                  const movePreview = moveToolActive ? movePreviewChords[chord.id] : undefined;
                   const preview =
                     dragging?.type === "chord" && dragging.id === chord.id ? dragPreview : null;
                   const multiDelta =
@@ -10318,6 +10616,8 @@ export default function GteWorkspace({
                     ? scalePreview.startTime
                     : quantizePreview
                     ? quantizePreview.startTime
+                    : movePreview
+                    ? movePreview.startTime
                     : multiDelta !== null
                     ? chord.startTime + multiDelta
                     : preview?.startTime ?? chord.startTime;
@@ -10325,6 +10625,8 @@ export default function GteWorkspace({
                     ? scalePreview.length
                     : quantizePreview
                     ? quantizePreview.length
+                    : movePreview
+                    ? movePreview.length
                     : resizingChord?.id === chord.id && resizeChordPreviewLength !== null
                     ? resizeChordPreviewLength
                     : chord.length;
