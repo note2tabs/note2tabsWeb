@@ -311,7 +311,7 @@ export default function HomePage() {
 
   const canSubmit = useMemo(() => {
     if (isSignedIn && !canUseUnverifiedTranscription) return false;
-    if (mode === "FILE") return Boolean(selectedFile) && !loading;
+    if (mode === "FILE") return !loading;
     return youtubeValid && youtubeTimeRangeValid && !loading;
   }, [
     mode,
@@ -326,6 +326,8 @@ export default function HomePage() {
     ? mode === "YOUTUBE"
       ? "Downloading..."
       : "Generating..."
+    : mode === "FILE" && !selectedFile
+    ? "Choose audio file"
     : mode === "YOUTUBE"
     ? "Download & generate tabs"
     : "Generate tabs";
@@ -708,6 +710,16 @@ export default function HomePage() {
     setShowInstrumentPrompt(true);
   };
 
+  const handleHeroPrimaryAction = () => {
+    if (mode === "FILE" && !selectedFile) {
+      trackCtaClick("choose_audio_file", { surface: "hero_funnel" });
+      fileInputRef.current?.click();
+      return;
+    }
+    trackCtaClick("convert_to_tabs", { surface: "hero_funnel", mode });
+    void handleConvert();
+  };
+
   const handleInstrumentChoice = (includesOtherInstruments: boolean) => {
     void startConvert(includesOtherInstruments);
   };
@@ -757,18 +769,21 @@ export default function HomePage() {
   const howSteps = [
     {
       title: "Upload or paste a YouTube link",
-      text: "Drop in a song, riff, or recording and let Note2Tabs transcribe the music to tabs.",
+      text: "Start with a riff, solo, rehearsal recording, or YouTube clip.",
       video: "/videos/upload.mp4",
+      poster: "/videos/posters/upload.jpg",
     },
     {
       title: "Edit your guitar tabs",
-      text: "Edit your generated tabs or make your own. Adjust timings, find the right fingerings, find new ways to play your chords, or try any of our other smart tools for guitar tabs!",
+      text: "Clean up timing, adjust fingerings, and shape the result into playable tab.",
       video: "/videos/edit.mp4",
+      poster: "/videos/posters/edit.jpg",
     },
     {
       title: "Practice and play",
-      text: "Adjust your tabs to suit your playing style and start playing. Listen to your tracks, add a drum beat and play along. You can even export as MIDI or ASCII text tabs!",
+      text: "Play it back, practice with the editor, and export when it feels right.",
       video: "/videos/play.mp4",
+      poster: "/videos/posters/play.jpg",
     },
   ];
 
@@ -952,11 +967,37 @@ export default function HomePage() {
       />
       <main className="page page-home">
         <section className="hero hero--landing-funnel" id="hero">
+          <div className="hero-doodle-field" aria-hidden="true">
+            <img
+              className="hero-doodle hero-doodle--guitar"
+              src="/images/doodles/hand-drawn-guitar.png"
+              alt=""
+            />
+            <img
+              className="hero-doodle hero-doodle--notes"
+              src="/images/doodles/music-notes.png"
+              alt=""
+            />
+            <img
+              className="hero-doodle hero-doodle--fretboard"
+              src="/images/doodles/fretboard-segment.png"
+              alt=""
+            />
+            <img
+              className="hero-doodle hero-doodle--picks"
+              src="/images/doodles/alternatives/guitar-picks.png"
+              alt=""
+            />
+          </div>
           <div className="container hero-stack hero-stack--centered">
             <div className="hero-heading" data-reveal>
+              <p className="hero-eyebrow">AI tabs built for guitarists</p>
               <div className="hero-title-row">
                 <h1 className="hero-title">Convert Any Song to Tabs</h1>
               </div>
+              <p className="hero-subtitle hero-subtitle--conversion">
+                Turn recordings into editable guitar tab you can clean up, practice, and export.
+              </p>
             </div>
             <form
               id="transcriber-start"
@@ -964,8 +1005,9 @@ export default function HomePage() {
               data-reveal
               onKeyDown={preventEnterSubmit}
             >
-              <div className="prompt-meta-row">
-                <span className="funnel-external-label">{mode === "YOUTUBE" ? "YouTube URL" : ""}</span>
+              {(mode === "YOUTUBE" || (isSignedIn && displayedCredits)) && (
+                <div className="prompt-meta-row">
+                  <span className="funnel-external-label">{mode === "YOUTUBE" ? "YouTube URL" : ""}</span>
                 {isSignedIn && displayedCredits && (
                   <p className="hero-credits-inline">
                     Credits: <strong>{creditsSummaryLabel}</strong>
@@ -980,7 +1022,8 @@ export default function HomePage() {
                     )}
                   </p>
                 )}
-              </div>
+                </div>
+              )}
 
               {showInstrumentPrompt ? (
                 <div className="instrument-prompt">
@@ -1074,12 +1117,9 @@ export default function HomePage() {
                         type="button"
                         className="button-primary funnel-submit"
                         disabled={!canSubmit}
-                        onClick={() => {
-                          trackCtaClick("convert_to_tabs", { surface: "hero_funnel", mode });
-                          void handleConvert();
-                        }}
+                        onClick={handleHeroPrimaryAction}
                       >
-                        {loading ? submitLabel : "Convert to Tabs"}
+                        {submitLabel}
                       </button>
                     </div>
                   </div>
@@ -1140,6 +1180,12 @@ export default function HomePage() {
                 </div>
               )}
             </form>
+
+            <div className="hero-outcome-row" data-reveal>
+              <span>Browser based</span>
+              <span>Built-in editor</span>
+              <span>Practice and export</span>
+            </div>
 
           </div>
         </section>
@@ -1261,6 +1307,7 @@ export default function HomePage() {
                   key={`${howSteps[activeHowStep].video}-${howManualPlayNonce}`}
                   className="how-video active"
                   src={howSteps[activeHowStep].video}
+                  poster={howSteps[activeHowStep].poster}
                   autoPlay={(hasViewedHowSection && howAutoAdvanceEnabled) || howManualPlayNonce > 0}
                   muted
                   loop={false}
@@ -1287,6 +1334,11 @@ export default function HomePage() {
 
         <section className="pricing" id="pricing">
           <div className="container">
+            <div className="pricing-intro" data-reveal>
+              <span className="pill">Plans</span>
+              <h2>Start small. Upgrade for full songs.</h2>
+              <p>Free handles quick checks. Premium removes the short-clip ceiling.</p>
+            </div>
             <div className="pricing-grid">
               <div className="pricing-card pricing-card--free" data-reveal>
                 <div className="pricing-header">
@@ -1296,10 +1348,14 @@ export default function HomePage() {
                     <span className="pricing-interval">/ month</span>
                   </div>
                 </div>
+                <div className="pricing-plan-copy">
+                  <h3>Start transcribing</h3>
+                  <p>Best for testing riffs, solos, and short ideas.</p>
+                </div>
                 <ul className="pricing-list">
                   <li>10 credits per month</li>
                   <li>Upload size: 50 MB</li>
-                  <li>Youtube length: 30s</li>
+                  <li>YouTube length: 30s</li>
                   <li>Standard speed</li>
                 </ul>
               </div>
@@ -1317,7 +1373,7 @@ export default function HomePage() {
                 }}
                 disabled={pricingBusy}
               >
-                <span className="pricing-trial-ribbon">7 days free trial</span>
+                <span className="pricing-trial-ribbon">7-day trial</span>
                 <div className="pricing-header">
                   <span className="pill">Premium</span>
                   <div className="pricing-price">
@@ -1325,12 +1381,17 @@ export default function HomePage() {
                     <span className="pricing-interval">/ month</span>
                   </div>
                 </div>
+                <div className="pricing-plan-copy">
+                  <h3>For full songs</h3>
+                  <p>Built for songs you plan to finish, not just test.</p>
+                </div>
                 <ul className="pricing-list">
-                  <li>50 credits per month (with rollover)</li>
+                  <li>50 credits/month, rollover included</li>
                   <li>Upload size: 200 MB</li>
-                  <li>Youtube length: unlimited</li>
+                  <li>YouTube length: unlimited</li>
                   <li>Extra speed</li>
                 </ul>
+                <span className="pricing-card-cta">Start 7-day trial</span>
               </button>
             </div>
             {pricingError && <div className="error">{pricingError}</div>}
@@ -1353,4 +1414,3 @@ export default function HomePage() {
     </>
   );
 }
-
