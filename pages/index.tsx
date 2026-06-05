@@ -952,6 +952,28 @@ export default function HomePage() {
       />
       <main className="page page-home">
         <section className="hero hero--landing-funnel" id="hero">
+          <div className="hero-doodle-field" aria-hidden="true">
+            <img
+              className="hero-doodle hero-doodle--guitar"
+              src="/images/doodles/hand-drawn-guitar.png"
+              alt=""
+            />
+            <img
+              className="hero-doodle hero-doodle--notes"
+              src="/images/doodles/music-notes.png"
+              alt=""
+            />
+            <img
+              className="hero-doodle hero-doodle--fretboard"
+              src="/images/doodles/fretboard-segment.png"
+              alt=""
+            />
+            <img
+              className="hero-doodle hero-doodle--picks"
+              src="/images/doodles/alternatives/guitar-picks.png"
+              alt=""
+            />
+          </div>
           <div className="container hero-stack hero-stack--centered">
             <div className="hero-heading" data-reveal>
               <div className="hero-title-row">

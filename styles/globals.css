@@ -1663,6 +1663,7 @@ input[type="number"] {
   min-height: calc(100svh - 56px);
   padding: 20px 0 28px;
   background: var(--bg);
+  isolation: isolate;
 }
 
 .hero--landing-funnel .hero-glow {
@@ -1674,8 +1675,88 @@ input[type="number"] {
 }
 
 .hero--landing-funnel .hero-stack {
+  position: relative;
+  z-index: 1;
   min-height: calc(100svh - 104px);
   align-content: center;
+}
+
+.hero-doodle-field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.hero-doodle {
+  position: absolute;
+  display: block;
+  width: var(--doodle-width);
+  max-width: none;
+  height: auto;
+  opacity: 0.2;
+  transform: translate3d(var(--doodle-x, 0), var(--doodle-y, 0), 0) rotate(var(--doodle-rotate, 0deg));
+  transform-origin: center;
+  user-select: none;
+}
+
+.hero-doodle--guitar {
+  --doodle-width: clamp(220px, 25vw, 380px);
+  --doodle-rotate: -13deg;
+  --doodle-y: -8px;
+  top: 15%;
+  left: max(14px, calc((100vw - var(--max-width)) / 2 - 112px));
+}
+
+.hero-doodle--notes {
+  --doodle-width: clamp(260px, 29vw, 440px);
+  --doodle-rotate: 3deg;
+  --doodle-y: 18px;
+  top: 8%;
+  right: max(8px, calc((100vw - var(--max-width)) / 2 - 126px));
+  opacity: 0.17;
+}
+
+.hero-doodle--fretboard {
+  --doodle-width: clamp(330px, 34vw, 520px);
+  --doodle-rotate: -17deg;
+  --doodle-y: 10px;
+  bottom: 7%;
+  left: max(-28px, calc((100vw - var(--max-width)) / 2 - 156px));
+  opacity: 0.13;
+}
+
+.hero-doodle--picks {
+  --doodle-width: clamp(145px, 14vw, 220px);
+  --doodle-rotate: 14deg;
+  --doodle-x: 12px;
+  right: max(92px, calc((100vw - var(--max-width)) / 2 + 136px));
+  top: 66%;
+  opacity: 0.12;
+}
+
+@media (max-width: 1100px) {
+  .hero-doodle--guitar {
+    left: -118px;
+    opacity: 0.14;
+  }
+
+  .hero-doodle--notes {
+    right: -158px;
+    opacity: 0.13;
+  }
+
+  .hero-doodle--fretboard {
+    left: -218px;
+    opacity: 0.12;
+  }
+
+  .hero-doodle--picks {
+    right: 18px;
+    top: 69%;
+    opacity: 0.08;
+  }
 }
 
 .hero-glow {
@@ -4283,6 +4364,27 @@ input[type="number"] {
     margin-top: 0;
   }
 
+  .hero-doodle {
+    opacity: 0.13;
+  }
+
+  .hero-doodle--guitar {
+    --doodle-width: clamp(180px, 42vw, 270px);
+    top: 12%;
+    left: -72px;
+  }
+
+  .hero-doodle--notes {
+    --doodle-width: clamp(210px, 48vw, 320px);
+    top: 7%;
+    right: -112px;
+  }
+
+  .hero-doodle--fretboard,
+  .hero-doodle--picks {
+    display: none;
+  }
+
   .hero--landing-funnel .hero-title {
     font-size: clamp(1.75rem, 7.2vw, 2.35rem);
     line-height: 1.08;
@@ -4364,6 +4466,24 @@ input[type="number"] {
   .review-intro-card,
   .review-preview-card {
     padding: 20px;
+  }
+}
+
+@media (max-width: 520px) {
+  .hero-doodle {
+    opacity: 0.1;
+  }
+
+  .hero-doodle--guitar {
+    --doodle-width: 210px;
+    top: 10%;
+    left: -116px;
+  }
+
+  .hero-doodle--notes {
+    --doodle-width: 230px;
+    top: 11%;
+    right: -142px;
   }
 }
 
