@@ -4725,13 +4725,12 @@ input[type="number"] {
   gap: 18px;
   align-content: start;
   padding: 28px;
-  border-radius: 24px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 251, 247, 0.92));
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(6, 17, 13, 0.1);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 24px 64px rgba(6, 17, 13, 0.1);
+    0 18px 46px rgba(6, 17, 13, 0.08);
   cursor: pointer;
   text-align: left;
   appearance: none;
@@ -4749,7 +4748,7 @@ input[type="number"] {
   transform: translateY(-2px);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 30px 74px rgba(6, 17, 13, 0.13);
+    0 22px 54px rgba(6, 17, 13, 0.1);
 }
 
 .pricing-card:disabled {
@@ -4763,31 +4762,27 @@ input[type="number"] {
   cursor: default;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 18px 44px rgba(6, 17, 13, 0.07);
+    0 14px 34px rgba(6, 17, 13, 0.06);
 }
 
 .pricing-card--free:hover {
   transform: none;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 18px 44px rgba(6, 17, 13, 0.07);
+    0 14px 34px rgba(6, 17, 13, 0.06);
 }
 
 .pricing-card--premium {
   color: #06110d;
-  background:
-    radial-gradient(circle at 15% 8%, rgba(255, 255, 255, 0.92), transparent 40%),
-    linear-gradient(155deg, rgba(255, 255, 255, 0.99), rgba(252, 250, 246, 0.97) 52%, rgba(245, 242, 235, 0.96));
-  border-color: rgba(6, 17, 13, 0.14);
+  background: rgba(252, 250, 246, 0.92);
+  border-color: rgba(6, 17, 13, 0.16);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.56),
-    0 34px 78px rgba(6, 17, 13, 0.1),
-    0 12px 30px rgba(6, 17, 13, 0.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 20px 52px rgba(6, 17, 13, 0.09);
 }
 
 .pricing-card--premium::before {
-  content: "";
+  content: none;
   position: absolute;
   inset: 0;
   z-index: -1;
@@ -4799,10 +4794,8 @@ input[type="number"] {
 
 .pricing-card--premium:hover {
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.62),
-    0 40px 88px rgba(6, 17, 13, 0.12),
-    0 16px 34px rgba(6, 17, 13, 0.1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    0 24px 60px rgba(6, 17, 13, 0.11);
 }
 
 .pricing-card--trial {
@@ -4818,17 +4811,15 @@ input[type="number"] {
   white-space: nowrap;
   margin-bottom: -8px;
   padding: 7px 11px;
-  border-radius: 999px;
+  border-radius: 7px;
   border: 1px solid rgba(6, 17, 13, 0.1);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(238, 235, 229, 0.78));
+  background: rgba(255, 255, 255, 0.56);
   color: rgba(6, 17, 13, 0.72);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.88),
-    0 8px 20px rgba(6, 17, 13, 0.06);
+  box-shadow: none;
 }
 
 .pricing-header {
@@ -4932,7 +4923,7 @@ input[type="number"] {
   justify-content: center;
   min-height: 42px;
   padding: 0 16px;
-  border-radius: 999px;
+  border-radius: 12px;
   background: #111111;
   color: #ffffff;
   font-size: 0.9rem;
@@ -4940,7 +4931,7 @@ input[type="number"] {
   border: 1px solid rgba(17, 17, 17, 0.16);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 12px 28px rgba(17, 17, 17, 0.14);
+    0 8px 18px rgba(17, 17, 17, 0.12);
   transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
@@ -4949,7 +4940,7 @@ input[type="number"] {
   background: #2a2926;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 14px 32px rgba(17, 17, 17, 0.17);
+    0 10px 22px rgba(17, 17, 17, 0.14);
 }
 
 .pricing-card--premium .pill {

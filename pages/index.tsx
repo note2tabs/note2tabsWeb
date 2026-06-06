@@ -1182,9 +1182,9 @@ export default function HomePage() {
             </form>
 
             <div className="hero-outcome-row" data-reveal>
-              <span>Browser based</span>
-              <span>Built-in editor</span>
-              <span>Practice and export</span>
+              <span>MP3, WAV, M4A</span>
+              <span>YouTube clips</span>
+              <span>Editable tab</span>
             </div>
 
           </div>
