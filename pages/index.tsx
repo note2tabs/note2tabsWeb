@@ -996,7 +996,7 @@ export default function HomePage() {
                 <h1 className="hero-title">Convert Any Song to Tabs</h1>
               </div>
               <p className="hero-subtitle hero-subtitle--conversion">
-                Turn recordings into editable guitar tab you can clean up, practice, and export.
+                Turn recordings into editable guitar tab you can edit, practice, and export.
               </p>
             </div>
             <form
@@ -1337,7 +1337,7 @@ export default function HomePage() {
             <div className="pricing-intro" data-reveal>
               <span className="pill">Plans</span>
               <h2>Start small. Upgrade for full songs.</h2>
-              <p>Free handles quick checks. Premium removes the short-clip ceiling.</p>
+              <p>Try out our transcriber and editor, upgrade if you like it.</p>
             </div>
             <div className="pricing-grid">
               <div className="pricing-card pricing-card--free" data-reveal>
@@ -1357,6 +1357,8 @@ export default function HomePage() {
                   <li>Upload size: 50 MB</li>
                   <li>YouTube length: 30s</li>
                   <li>Standard speed</li>
+                  <li>Full acsess to our guitar-tab editor</li>
+
                 </ul>
               </div>
               <button
