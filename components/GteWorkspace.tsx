@@ -7249,6 +7249,25 @@ export default function GteWorkspace({
 
   const getKeyboardGridTargetKey = useCallback((target: KeyboardGridTarget) => `${target.type}:${target.id}`, []);
 
+  const isKeyboardGridTargetSelected = useCallback((target: KeyboardGridTarget) => {
+    if (target.type === "note") {
+      const resolvedId = resolveNoteId(target.id);
+      return selectedNoteIdsRef.current.some((id) => resolveNoteId(id) === resolvedId);
+    }
+    const resolvedId = resolveChordId(target.id);
+    return selectedChordIdsRef.current.some((id) => resolveChordId(id) === resolvedId);
+  }, [resolveChordId, resolveNoteId]);
+
+  const playKeyboardGridTargetPreview = useCallback(
+    (target: KeyboardGridTarget | null) => {
+      if (!target || target.type !== "note") return;
+      const note = snapshotRef.current.notes.find((item) => item.id === resolveNoteId(target.id));
+      if (!note) return;
+      playNotePreview([note.tab[0], note.tab[1]]);
+    },
+    [playNotePreview, resolveNoteId]
+  );
+
   const applyKeyboardGridTargetSelection = useCallback((target: KeyboardGridTarget | null) => {
     if (!target) {
       setSelectedNoteIds([]);
@@ -7829,7 +7848,13 @@ export default function GteWorkspace({
           }
           if (orderedTargets.length <= 1) {
             enterGridCycleRef.current = null;
-            applyKeyboardGridTargetSelection(orderedTargets[0] ?? null);
+            const target = orderedTargets[0] ?? null;
+            if (target && isKeyboardGridTargetSelected(target)) {
+              applyKeyboardGridTargetSelection(null);
+              return;
+            }
+            applyKeyboardGridTargetSelection(target);
+            playKeyboardGridTargetPreview(target);
             return;
           }
           const gridKey = getGridCycleKey(cursor, step);
@@ -7849,7 +7874,9 @@ export default function GteWorkspace({
             order: orderedTargetKeys,
             index: nextIndex,
           };
-          applyKeyboardGridTargetSelection(orderedTargets[nextIndex]);
+          const target = orderedTargets[nextIndex];
+          applyKeyboardGridTargetSelection(target);
+          playKeyboardGridTargetPreview(target);
           return;
         }
 
@@ -7895,6 +7922,19 @@ export default function GteWorkspace({
 
           const selectedId = selectedNoteIdsRef.current.length === 1 ? selectedNoteIdsRef.current[0] : null;
           if (selectedId !== null) {
+            const cursor = keyboardGridCursorRef.current;
+            if (cursor && keyboardCursorVisible) {
+              const step = getKeyboardGridCellWidthFrames(cursor.time);
+              const targetsOnGrid = getCursorGridTargets(cursor, step);
+              if (targetsOnGrid.length === 0) {
+                noteFretTypingBufferRef.current = event.key;
+                noteFretTypingAtRef.current = Date.now();
+                setSelectedNoteIds([]);
+                setSelectedChordIds([]);
+                createKeyboardNoteAtCursor(cursor, event.key);
+                return;
+              }
+            }
             const now = Date.now();
             const withinTypingWindow = now - noteFretTypingAtRef.current <= KEYBOARD_FRET_TYPE_TIMEOUT_MS;
             const base = withinTypingWindow ? noteFretTypingBufferRef.current : "";
@@ -8462,9 +8502,12 @@ export default function GteWorkspace({
     getKeyboardGridCellWidthFrames,
     getKeyboardGridTargetKey,
     getOrderedCursorGridTargets,
+    isKeyboardGridTargetSelected,
+    keyboardCursorVisible,
     maxFret,
     mobileViewport,
     normalizeTypedFretText,
+    playKeyboardGridTargetPreview,
     playNotePreview,
     resolveKeyboardCursor,
     resolveChordId,
