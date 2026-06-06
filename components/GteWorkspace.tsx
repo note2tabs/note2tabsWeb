@@ -81,6 +81,8 @@ type Props = {
   playbackSpeed?: number;
   onPlaybackSpeedChange?: (speed: number) => void;
   showToolbarWhenInactive?: boolean;
+  toolbarOpen?: boolean;
+  onToolbarOpenChange?: (open: boolean) => void;
   selectionClearEpoch?: number;
   selectionClearExemptEditorId?: string | null;
   barSelectionClearEpoch?: number;
@@ -1158,6 +1160,8 @@ export default function GteWorkspace({
   playbackSpeed,
   onPlaybackSpeedChange,
   showToolbarWhenInactive = false,
+  toolbarOpen: controlledToolbarOpen,
+  onToolbarOpenChange,
   selectionClearEpoch,
   selectionClearExemptEditorId,
   barSelectionClearEpoch,
@@ -1257,7 +1261,7 @@ export default function GteWorkspace({
   const [segmentDragIndex, setSegmentDragIndex] = useState<number | null>(null);
   const [ioPayload, setIoPayload] = useState("");
   const [ioMessage, setIoMessage] = useState<string | null>(null);
-  const [toolbarOpen, setToolbarOpen] = useState(false);
+  const [localToolbarOpen, setLocalToolbarOpen] = useState(false);
   const [tabPreviewOpen, setTabPreviewOpen] = useState(false);
   const [sliceToolActive, setSliceToolActive] = useState(false);
   const [sliceCursor, setSliceCursor] = useState<{ time: number; rowIndex: number } | null>(null);
@@ -1428,8 +1432,23 @@ export default function GteWorkspace({
     () => buildTabTextFromSnapshot(snapshot, { barsPerRow: BARS_PER_ROW }),
     [snapshot]
   );
+  const toolbarOpen = controlledToolbarOpen ?? localToolbarOpen;
+  const setToolbarOpen = useCallback(
+    (nextValue: boolean | ((prev: boolean) => boolean)) => {
+      const next =
+        typeof nextValue === "function"
+          ? (nextValue as (prev: boolean) => boolean)(toolbarOpen)
+          : nextValue;
+      if (onToolbarOpenChange) {
+        onToolbarOpenChange(Boolean(next));
+        return;
+      }
+      setLocalToolbarOpen(Boolean(next));
+    },
+    [onToolbarOpenChange, toolbarOpen]
+  );
   const showFloatingUi = true;
-  const showPlaybackUi = true;
+  const showPlaybackUi = isActive || showToolbarWhenInactive;
   const showToolbarUi = showPlaybackUi && !isMobileCanvasMode;
   const compactEmbeddedMobile = embedded && mobileViewport;
   const selectedBarIndexSet = useMemo(() => new Set(selectedBarIndices), [selectedBarIndices]);
@@ -7572,7 +7591,9 @@ export default function GteWorkspace({
 
   useEffect(() => {
     if (!isActive) {
-      setToolbarOpen(false);
+      if (controlledToolbarOpen === undefined) {
+        setLocalToolbarOpen(false);
+      }
       return;
     }
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -8428,6 +8449,7 @@ export default function GteWorkspace({
     assignNoteFretById,
     assignSelectedChordFretsByDelta,
     assignSelectedNoteFretsByDelta,
+    controlledToolbarOpen,
     stepTabByFretOrKey,
     applyKeyboardGridTargetSelection,
     clamp,
@@ -8729,6 +8751,7 @@ export default function GteWorkspace({
         ref={toolbarRef}
         data-gte-floating-ui="true"
         data-gte-editor-control="true"
+        data-gte-toolbar-ui="true"
         className={panelClass}
         onMouseDown={(event) => event.stopPropagation()}
         onTouchStart={(event) => event.stopPropagation()}
@@ -9148,7 +9171,7 @@ export default function GteWorkspace({
           }`}
         />
       )}
-      {toolbarOpen && isActive && showToolbarUi && !mobileViewport && renderToolbarPanel(false)}
+      {toolbarOpen && showPlaybackUi && showToolbarUi && !mobileViewport && renderToolbarPanel(false)}
       {scaleToolActive && scaleHudPosition && (
         <div
           ref={scaleHudRef}
@@ -9396,6 +9419,7 @@ export default function GteWorkspace({
               <button
                 type="button"
                 data-gte-editor-control="true"
+                data-gte-toolbar-ui="true"
                 onClick={() => setToolbarOpen((prev) => !prev)}
                 aria-pressed={toolbarOpen}
                 title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
@@ -11666,6 +11690,7 @@ export default function GteWorkspace({
                     <button
                       type="button"
                       data-gte-editor-control="true"
+                      data-gte-toolbar-ui="true"
                       onClick={() => setToolbarOpen((prev) => !prev)}
                       aria-pressed={toolbarOpen}
                       title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}

@@ -827,6 +827,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [confirmDeleteTrackId, setConfirmDeleteTrackId] = useState<string | null>(null);
   const [openTrackMenuId, setOpenTrackMenuId] = useState<string | null>(null);
   const [openMobileBarMenuLaneId, setOpenMobileBarMenuLaneId] = useState<string | null>(null);
+  const [toolbarOpen, setToolbarOpen] = useState(false);
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
   const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabled] = useState(false);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
@@ -4468,6 +4469,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       const clickedEditorControl = Boolean(
                         target?.closest("[data-gte-editor-control='true']")
                       );
+                      const clickedToolbarUi = Boolean(target?.closest("[data-gte-toolbar-ui='true']"));
 
                       if (activeLaneId !== laneId && clickedBarSelector) {
                         setBarSelectionClearExemptEditorId(laneEditorRef);
@@ -4480,6 +4482,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       ) {
                         setSelectionClearExemptEditorId(laneEditorRef);
                         setSelectionClearEpoch((prev) => prev + 1);
+                      }
+                      if (clickedToolbarUi) {
+                        setPendingTrackReorder(null);
+                        return;
                       }
                       setActiveLaneId(laneId);
                       if (isMobileViewport) {
@@ -4509,6 +4515,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       const clickedEditorControl = Boolean(
                         target?.closest("[data-gte-editor-control='true']")
                       );
+                      const clickedToolbarUi = Boolean(target?.closest("[data-gte-toolbar-ui='true']"));
                       if (activeLaneId !== laneId && clickedBarSelector) {
                         setBarSelectionClearExemptEditorId(laneEditorRef);
                         setBarSelectionClearEpoch((prev) => prev + 1);
@@ -4517,6 +4524,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       if (activeLaneId !== laneId && !clickedEditorControl) {
                         setSelectionClearExemptEditorId(laneEditorRef);
                         setSelectionClearEpoch((prev) => prev + 1);
+                      }
+                      if (clickedToolbarUi) {
+                        setPendingTrackReorder(null);
+                        return;
                       }
                       setActiveLaneId(laneId);
                       setPendingTrackReorder(null);
@@ -4651,6 +4662,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
                               showToolbarWhenInactive={false}
+                              toolbarOpen={toolbarOpen}
+                              onToolbarOpenChange={setToolbarOpen}
                               multiTrackSelectionActive={multiTrackSelectionActive}
                               onSelectionStateChange={(selection) =>
                                 handleLaneSelectionStateChange(laneId, selection)
@@ -4910,6 +4923,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
                               showToolbarWhenInactive={index === 0 && activeLaneId === null}
+                              toolbarOpen={toolbarOpen}
+                              onToolbarOpenChange={setToolbarOpen}
                               multiTrackSelectionActive={multiTrackSelectionActive}
                               onSelectionStateChange={(selection) =>
                                 handleLaneSelectionStateChange(laneId, selection)
@@ -5190,6 +5205,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           showToolbarWhenInactive={
                             isMobileViewport ? index === 0 && !mobileEditLaneId : activeLaneId === null && index === 0
                           }
+                          toolbarOpen={toolbarOpen}
+                          onToolbarOpenChange={setToolbarOpen}
                           multiTrackSelectionActive={multiTrackSelectionActive}
                           onSelectionStateChange={(selection) =>
                             handleLaneSelectionStateChange(laneId, selection)
