@@ -42,6 +42,10 @@ type Props = {
   onFocusWorkspace?: () => void;
   globalSnapToGridEnabled?: boolean;
   onGlobalSnapToGridEnabledChange?: (enabled: boolean) => void;
+  globalSnapToKeyEnabled?: boolean;
+  onGlobalSnapToKeyEnabledChange?: (enabled: boolean) => void;
+  canvasKeyBase?: number;
+  canvasKeyType?: number;
   sharedTimeSignature?: number;
   sharedViewportBarCount?: number;
   sharedTimelineScrollRatio?: number;
@@ -158,6 +162,18 @@ const QUANTIZE_SUBDIVISION_MIN = 1;
 const QUANTIZE_SUBDIVISION_MAX = 64;
 const SINGLE_DRAG_ACTIVATION_DISTANCE_PX = 3;
 const SCALE_TOOL_MODES = ["length", "start", "both"] as const;
+const KEY_SCALE_INTERVALS = [
+  [0, 2, 4, 5, 7, 9, 11],
+  [0, 2, 3, 5, 7, 8, 10],
+  [0, 2, 3, 5, 7, 8, 11],
+  [0, 2, 3, 5, 7, 9, 11],
+  [0, 2, 3, 5, 7, 9, 10],
+  [0, 1, 3, 5, 7, 8, 10],
+  [0, 2, 4, 6, 7, 9, 11],
+  [0, 2, 4, 5, 7, 9, 10],
+  [0, 2, 3, 4, 7, 9],
+  [0, 3, 5, 6, 7, 10],
+] as const;
 
 const fpsFromSecondsPerBar = (secondsPerBar: number) => {
   const safeSeconds = Math.max(0.1, secondsPerBar);
@@ -1002,6 +1018,74 @@ type QuantizePreviewEntity = {
   length: number;
 };
 
+const getPlayableTabsForMidi = (snapshot: EditorSnapshot, midi: number): TabCoord[] => {
+  const result: TabCoord[] = [];
+  const maxFret = getMaxFret(snapshot);
+  if (snapshot.tabRef?.length) {
+    snapshot.tabRef.forEach((stringValues, stringIndex) => {
+      stringValues?.forEach((value, fret) => {
+        if (Number(value) === midi && fret >= 0 && fret <= maxFret) result.push([stringIndex, fret]);
+      });
+    });
+    return result;
+  }
+  const openStrings = getOpenStringMidiFromSnapshot(snapshot);
+  openStrings.forEach((openMidi, stringIndex) => {
+    const fret = midi - openMidi;
+    if (Number.isInteger(fret) && fret >= 0 && fret <= maxFret) result.push([stringIndex, fret]);
+  });
+  return result;
+};
+
+const normalizeKeyBaseValue = (value: unknown) =>
+  Math.max(0, Math.min(11, Math.round(Number(value) || 0)));
+
+const normalizeKeyTypeValue = (value: unknown) =>
+  Math.max(0, Math.min(KEY_SCALE_INTERVALS.length - 1, Math.round(Number(value) || 0)));
+
+const isMidiInKey = (midi: number, keyBase: number, keyType: number) => {
+  const pitchClass = ((Math.round(midi) % 12) + 12) % 12;
+  const root = normalizeKeyBaseValue(keyBase);
+  const intervals = KEY_SCALE_INTERVALS[normalizeKeyTypeValue(keyType)] || KEY_SCALE_INTERVALS[0];
+  const interval = (pitchClass - root + 12) % 12;
+  return intervals.some((candidate) => candidate === interval);
+};
+
+const getNearestMidiInKey = (midi: number, keyBase: number, keyType: number) => {
+  const rounded = Math.round(midi);
+  if (isMidiInKey(rounded, keyBase, keyType)) return rounded;
+  for (let delta = 1; delta <= 12; delta += 1) {
+    const down = rounded - delta;
+    const up = rounded + delta;
+    if (isMidiInKey(down, keyBase, keyType)) return down;
+    if (isMidiInKey(up, keyBase, keyType)) return up;
+  }
+  return rounded;
+};
+
+const getDirectionalMidiInKey = (midi: number, keyBase: number, keyType: number, direction: number) => {
+  const step = direction >= 0 ? 1 : -1;
+  const rounded = Math.round(midi);
+  for (let delta = 1; delta <= 48; delta += 1) {
+    const candidate = rounded + delta * step;
+    if (isMidiInKey(candidate, keyBase, keyType)) return candidate;
+  }
+  return rounded;
+};
+
+const chooseClosestTabForMidi = (snapshot: EditorSnapshot, midi: number, currentTab: TabCoord): TabCoord | null => {
+  const candidates = getPlayableTabsForMidi(snapshot, midi);
+  if (!candidates.length) return null;
+  return [...candidates].sort(
+    (left, right) =>
+      Math.abs(left[0] - currentTab[0]) * 4 +
+        Math.abs(left[1] - currentTab[1]) -
+        (Math.abs(right[0] - currentTab[0]) * 4 + Math.abs(right[1] - currentTab[1])) ||
+      left[0] - right[0] ||
+      left[1] - right[1]
+  )[0];
+};
+
 type MoveSession = {
   anchorX: number;
   anchorStart: number;
@@ -1035,6 +1119,10 @@ export default function GteWorkspace({
   onFocusWorkspace,
   globalSnapToGridEnabled,
   onGlobalSnapToGridEnabledChange,
+  globalSnapToKeyEnabled,
+  onGlobalSnapToKeyEnabledChange,
+  canvasKeyBase = 0,
+  canvasKeyType = 0,
   sharedTimeSignature,
   sharedViewportBarCount,
   sharedTimelineScrollRatio,
@@ -1096,6 +1184,7 @@ export default function GteWorkspace({
   const [timeSignatureInput, setTimeSignatureInput] = useState("8");
   const [keepNotesOnBeat, setKeepNotesOnBeat] = useState(false);
   const [localSnapToGridEnabled, setLocalSnapToGridEnabled] = useState(true);
+  const [localSnapToKeyEnabled, setLocalSnapToKeyEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playbackVolume, setPlaybackVolume] = useState(0.6);
@@ -1519,6 +1608,7 @@ export default function GteWorkspace({
   const effectiveRedoCount = useExternalHistory ? Math.max(0, historyRedoCount ?? 0) : redoCount;
   const selectionActionsLocked = Boolean(multiTrackSelectionActive);
   const snapToGridEnabled = globalSnapToGridEnabled ?? localSnapToGridEnabled;
+  const snapToKeyEnabled = globalSnapToKeyEnabled ?? localSnapToKeyEnabled;
   const setSnapToGridEnabled = useCallback(
     (nextValue: boolean | ((prev: boolean) => boolean)) => {
       const current = snapToGridEnabled;
@@ -1534,6 +1624,51 @@ export default function GteWorkspace({
       setLocalSnapToGridEnabled(normalized);
     },
     [snapToGridEnabled, onGlobalSnapToGridEnabledChange]
+  );
+  const setSnapToKeyEnabled = useCallback(
+    (nextValue: boolean | ((prev: boolean) => boolean)) => {
+      const current = snapToKeyEnabled;
+      const next =
+        typeof nextValue === "function"
+          ? (nextValue as (prev: boolean) => boolean)(current)
+          : nextValue;
+      const normalized = Boolean(next);
+      if (onGlobalSnapToKeyEnabledChange) {
+        onGlobalSnapToKeyEnabledChange(normalized);
+        return;
+      }
+      setLocalSnapToKeyEnabled(normalized);
+    },
+    [snapToKeyEnabled, onGlobalSnapToKeyEnabledChange]
+  );
+  const snapTabToKey = useCallback(
+    (snapshotValue: EditorSnapshot, tab: TabCoord) => {
+      const normalizedTab = clampTabCoordInSnapshot(snapshotValue, tab);
+      const currentMidi = getTabMidi(snapshotValue, normalizedTab);
+      const targetMidi = getNearestMidiInKey(currentMidi, canvasKeyBase, canvasKeyType);
+      return chooseClosestTabForMidi(snapshotValue, targetMidi, normalizedTab) ?? normalizedTab;
+    },
+    [canvasKeyBase, canvasKeyType]
+  );
+  const snapTabToKeyIfEnabled = useCallback(
+    (snapshotValue: EditorSnapshot, tab: TabCoord) => {
+      const normalizedTab = clampTabCoordInSnapshot(snapshotValue, tab);
+      return snapToKeyEnabled ? snapTabToKey(snapshotValue, normalizedTab) : normalizedTab;
+    },
+    [snapTabToKey, snapToKeyEnabled]
+  );
+  const stepTabByFretOrKey = useCallback(
+    (snapshotValue: EditorSnapshot, currentTab: TabCoord, delta: number) => {
+      const normalizedTab = clampTabCoordInSnapshot(snapshotValue, currentTab);
+      if (!snapToKeyEnabled) {
+        const nextFret = Math.max(0, Math.min(getMaxFret(snapshotValue), normalizedTab[1] + delta));
+        return [normalizedTab[0], nextFret] as TabCoord;
+      }
+      const currentMidi = getTabMidi(snapshotValue, normalizedTab);
+      const targetMidi = getDirectionalMidiInKey(currentMidi, canvasKeyBase, canvasKeyType, delta);
+      return chooseClosestTabForMidi(snapshotValue, targetMidi, normalizedTab) ?? normalizedTab;
+    },
+    [canvasKeyBase, canvasKeyType, snapToKeyEnabled]
   );
   const guardSingleTrackSelectionAction = useCallback(
     (actionLabel: string) => {
@@ -3825,7 +3960,7 @@ export default function GteWorkspace({
           return;
         }
         if (didChangeString || didChangeStart) {
-          const nextTab: TabCoord = [targetString, dragging.fret ?? 0];
+          const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [targetString, dragging.fret ?? 0]);
           enqueueOptimisticMutation({
             label: "drag-note",
             apply: (draft) => {
@@ -3833,8 +3968,8 @@ export default function GteWorkspace({
               const note = draft.notes.find((item) => item.id === noteId);
               if (!note) return draft;
               if (didChangeString) {
-                note.tab = [targetString, note.tab[1]];
-                note.midiNum = 0;
+                note.tab = [nextTab[0], nextTab[1]];
+                note.midiNum = getTabMidi(draft, note.tab);
               }
               if (didChangeStart) {
                 note.startTime = targetStart;
@@ -3926,6 +4061,7 @@ export default function GteWorkspace({
       rowFrames,
       rows,
       snapStartTimeToGrid,
+      snapTabToKeyIfEnabled,
       timelineHeight,
       timelineWidth,
     timelineEnd,
@@ -4981,7 +5117,8 @@ export default function GteWorkspace({
       return;
     }
     const snapped = snapNoteToGrid(draftNote.startTime, rawLength);
-    const tab: TabCoord = [draftNote.stringIndex, fret];
+    const rawTab: TabCoord = [draftNote.stringIndex, fret];
+    const tab = snapTabToKeyIfEnabled(snapshotRef.current, rawTab);
     const tempId = getTempNoteId();
     playNotePreview(tab);
     enqueueOptimisticMutation({
@@ -4992,7 +5129,7 @@ export default function GteWorkspace({
           id: tempId,
           startTime: snapped.startTime,
           length: snapped.length,
-          midiNum: 0,
+          midiNum: getTabMidi(draft, tab),
           tab: [tab[0], tab[1]],
           optimals: [],
         });
@@ -5066,6 +5203,46 @@ export default function GteWorkspace({
         serverMode: "local-first",
       }
     );
+  };
+
+  const handleSnapSelectedNotesToKey = () => {
+    if (!selectedNoteIds.length) return;
+    if (guardSingleTrackSelectionAction("Snap to key")) return;
+    const selectedIds = Array.from(new Set(selectedNoteIds.map((id) => resolveNoteId(id))));
+    const selectedIdSet = new Set(selectedIds);
+    const updates = snapshotRef.current.notes
+      .filter((note) => selectedIdSet.has(note.id))
+      .map((note) => {
+        const nextTab = snapTabToKey(snapshotRef.current, note.tab);
+        if (isSameTabCoord(note.tab, nextTab)) return null;
+        return { id: note.id, tab: nextTab };
+      })
+      .filter((item): item is { id: number; tab: TabCoord } => Boolean(item));
+    if (!updates.length) {
+      setError("Selected notes are already in key.");
+      return;
+    }
+    playNotePreview(updates[0].tab);
+    enqueueOptimisticMutation({
+      label: "snap-selected-to-key",
+      apply: (draft) => {
+        updates.forEach((update) => {
+          const note = draft.notes.find((item) => item.id === update.id);
+          if (!note) return;
+          note.tab = [update.tab[0], update.tab[1]];
+          note.midiNum = getTabMidi(draft, note.tab);
+        });
+        return draft;
+      },
+      commit: async () => {
+        let last: { snapshot?: EditorSnapshot } | null = null;
+        for (const update of updates) {
+          if (update.id < 0) continue;
+          last = await gteApi.assignNoteTab(editorId, update.id, update.tab);
+        }
+        return last ?? {};
+      },
+    });
   };
 
   const handleJoinSelectedNotes = () => {
@@ -5416,7 +5593,7 @@ export default function GteWorkspace({
       setError("No changes to save.");
       return;
     }
-    const nextTab: TabCoord = [stringValue, fretValue];
+    const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [stringValue, fretValue]);
     enqueueOptimisticMutation({
       label: "update-note",
       apply: (draft) => {
@@ -5425,7 +5602,7 @@ export default function GteWorkspace({
         if (!note) return draft;
         if (didChangeTab) {
           note.tab = [nextTab[0], nextTab[1]];
-          note.midiNum = 0;
+          note.midiNum = getTabMidi(draft, note.tab);
         }
         if (didChangeStart) {
           note.startTime = snappedStartValue;
@@ -5733,7 +5910,7 @@ export default function GteWorkspace({
         return;
       }
       if (selectedNote.tab[1] === fretValue) return;
-      const nextTab: TabCoord = [selectedNote.tab[0], fretValue];
+      const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [selectedNote.tab[0], fretValue]);
       playNotePreview(nextTab);
       enqueueOptimisticMutation({
         label: "note-menu-fret",
@@ -5742,13 +5919,13 @@ export default function GteWorkspace({
           const note = draft.notes.find((item) => item.id === noteId);
           if (!note) return draft;
           note.tab = [nextTab[0], nextTab[1]];
-          note.midiNum = 0;
+          note.midiNum = getTabMidi(draft, note.tab);
           return draft;
         },
         commit: () => gteApi.assignNoteTab(editorId, resolveNoteId(selectedNote.id), nextTab),
       });
     },
-    [editorId, enqueueOptimisticMutation, maxFret, selectedNote]
+    [editorId, enqueueOptimisticMutation, maxFret, selectedNote, snapTabToKeyIfEnabled]
   );
 
   const clearPendingNoteFretArrowCommit = useCallback(() => {
@@ -6408,7 +6585,7 @@ export default function GteWorkspace({
         const note = draft.notes.find((item) => item.id === noteId);
         if (!note) return draft;
         note.tab = [tab[0], tab[1]];
-        note.midiNum = 0;
+        note.midiNum = getTabMidi(draft, note.tab);
         return draft;
       },
       commit: () => gteApi.assignNoteTab(editorId, resolveNoteId(selectedNote.id), tab),
@@ -7123,7 +7300,7 @@ export default function GteWorkspace({
       const current = snapshotRef.current.notes.find((note) => note.id === resolvedCurrentId);
       if (!current) return false;
       if (current.tab[1] === fretValue) return true;
-      const nextTab: TabCoord = [current.tab[0], fretValue];
+      const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [current.tab[0], fretValue]);
       if (options?.playPreview) {
         playNotePreview(nextTab);
       }
@@ -7134,7 +7311,7 @@ export default function GteWorkspace({
           const note = draft.notes.find((item) => item.id === noteId);
           if (!note) return draft;
           note.tab = [nextTab[0], nextTab[1]];
-          note.midiNum = 0;
+          note.midiNum = getTabMidi(draft, note.tab);
           return draft;
         },
         commit: () => {
@@ -7144,7 +7321,7 @@ export default function GteWorkspace({
       });
       return true;
     },
-    [editorId, enqueueOptimisticMutation, maxFret, playNotePreview, resolveNoteId]
+    [editorId, enqueueOptimisticMutation, maxFret, playNotePreview, resolveNoteId, snapTabToKeyIfEnabled]
   );
 
   const assignSelectedNoteFretsByDelta = useCallback(
@@ -7154,12 +7331,12 @@ export default function GteWorkspace({
           const noteId = resolveNoteId(rawId);
           const current = snapshotRef.current.notes.find((note) => note.id === noteId);
           if (!current) return null;
-          const nextFret = clamp(current.tab[1] + delta, 0, maxFret);
-          if (nextFret === current.tab[1]) return null;
+          const tab = stepTabByFretOrKey(snapshotRef.current, current.tab, delta);
+          if (isSameTabCoord(current.tab, tab)) return null;
           return {
             rawId,
             noteId,
-            tab: [current.tab[0], nextFret] as TabCoord,
+            tab,
           };
         })
         .filter((item): item is { rawId: number; noteId: number; tab: TabCoord } => Boolean(item));
@@ -7177,7 +7354,7 @@ export default function GteWorkspace({
             const note = draft.notes.find((item) => item.id === noteId);
             if (!note) return;
             note.tab = [update.tab[0], update.tab[1]];
-            note.midiNum = 0;
+            note.midiNum = getTabMidi(draft, note.tab);
           });
           return draft;
         },
@@ -7191,7 +7368,7 @@ export default function GteWorkspace({
       });
       return true;
     },
-    [clamp, editorId, enqueueOptimisticMutation, maxFret, playNotePreview, resolveNoteId]
+    [editorId, enqueueOptimisticMutation, playNotePreview, resolveNoteId, stepTabByFretOrKey]
   );
 
   const assignSelectedChordFretsByDelta = useCallback(
@@ -7240,7 +7417,7 @@ export default function GteWorkspace({
       if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) return;
       const rawLength = clampEventLength(lastAddedNoteLengthRef.current);
       const snapped = snapNoteToGrid(cursor.time, rawLength);
-      const tab: TabCoord = [cursor.stringIndex, fretValue];
+      const tab = snapTabToKeyIfEnabled(snapshotRef.current, [cursor.stringIndex, fretValue]);
       const tempId = getTempNoteId();
       enqueueOptimisticMutation({
         label: "keyboard-add-note",
@@ -7250,7 +7427,7 @@ export default function GteWorkspace({
             id: tempId,
             startTime: snapped.startTime,
             length: snapped.length,
-            midiNum: 0,
+            midiNum: getTabMidi(draft, tab),
             tab: [tab[0], tab[1]],
             optimals: [],
           });
@@ -7286,6 +7463,7 @@ export default function GteWorkspace({
       noteSignature,
       showKeyboardCursor,
       snapNoteToGrid,
+      snapTabToKeyIfEnabled,
       snapToGridEnabled,
     ]
   );
@@ -7669,9 +7847,9 @@ export default function GteWorkspace({
             const selectedId = resolveNoteId(selectedIds[0]);
             const current = snapshotRef.current.notes.find((note) => note.id === selectedId);
             if (!current) return;
-            const nextFret = clamp(current.tab[1] + delta, 0, maxFret);
-            setNoteMenuDraft((prev) => (prev ? { ...prev, fret: String(nextFret) } : prev));
-            void assignNoteFretById(current.id, nextFret, { playPreview: true });
+            const nextTab = stepTabByFretOrKey(snapshotRef.current, current.tab, delta);
+            setNoteMenuDraft((prev) => (prev ? { ...prev, fret: String(nextTab[1]) } : prev));
+            assignSelectedNoteFretsByDelta([current.id], delta, { playPreview: true });
             return;
           }
           assignSelectedNoteFretsByDelta(selectedIds, delta, { playPreview: false });
@@ -7823,29 +8001,29 @@ export default function GteWorkspace({
             if (event.key === "ArrowUp" || event.key === "ArrowDown") {
               const deltaString = event.key === "ArrowUp" ? -1 : 1;
               const updates = selectedNoteGroup
-                .map((note) => ({
-                  id: note.id,
-                  nextString: clamp(note.tab[0] + deltaString, 0, 5),
-                  fret: note.tab[1],
-                }))
-                .filter((item, index) => item.nextString !== selectedNoteGroup[index].tab[0]);
+                .map((note) => {
+                  const nextString = clamp(note.tab[0] + deltaString, 0, 5);
+                  const tab = snapTabToKeyIfEnabled(snapshotRef.current, [nextString, note.tab[1]]);
+                  return { id: note.id, tab };
+                })
+                .filter((item, index) => !isSameTabCoord(item.tab, selectedNoteGroup[index].tab));
               if (!updates.length) return;
-              playNotePreview([updates[0].nextString, updates[0].fret]);
+              playNotePreview(updates[0].tab);
               enqueueOptimisticMutation({
                 label: "keyboard-shift-arrow-string-multi",
                 apply: (draft) => {
                   updates.forEach((update) => {
                     const note = draft.notes.find((item) => item.id === update.id);
                     if (!note) return;
-                    note.tab = [update.nextString, note.tab[1]];
-                    note.midiNum = 0;
+                    note.tab = [update.tab[0], update.tab[1]];
+                    note.midiNum = getTabMidi(draft, note.tab);
                   });
                   return draft;
                 },
                 commit: async () => {
                   let last: { snapshot?: EditorSnapshot } | null = null;
                   for (const update of updates) {
-                    last = await gteApi.assignNoteTab(editorId, update.id, [update.nextString, update.fret]);
+                    last = await gteApi.assignNoteTab(editorId, update.id, update.tab);
                   }
                   return last ?? {};
                 },
@@ -7910,7 +8088,8 @@ export default function GteWorkspace({
               const deltaString = event.key === "ArrowUp" ? -1 : 1;
               const nextString = clamp(selected.tab[0] + deltaString, 0, 5);
               if (nextString === selected.tab[0]) return;
-              const nextTab: TabCoord = [nextString, selected.tab[1]];
+              const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [nextString, selected.tab[1]]);
+              if (isSameTabCoord(selected.tab, nextTab)) return;
               playNotePreview(nextTab);
               enqueueOptimisticMutation({
                 label: "keyboard-shift-arrow-string",
@@ -7918,7 +8097,7 @@ export default function GteWorkspace({
                   const note = draft.notes.find((item) => item.id === resolvedId);
                   if (!note) return draft;
                   note.tab = [nextTab[0], nextTab[1]];
-                  note.midiNum = 0;
+                  note.midiNum = getTabMidi(draft, note.tab);
                   return draft;
                 },
                 commit: () => gteApi.assignNoteTab(editorId, resolvedId, nextTab),
@@ -8249,6 +8428,7 @@ export default function GteWorkspace({
     assignNoteFretById,
     assignSelectedChordFretsByDelta,
     assignSelectedNoteFretsByDelta,
+    stepTabByFretOrKey,
     applyKeyboardGridTargetSelection,
     clamp,
     createKeyboardNoteAtCursor,
@@ -8271,6 +8451,7 @@ export default function GteWorkspace({
     getDirectionalCursorFromSelectedNote,
     showKeyboardCursor,
     snapKeyboardCursorTimeToGrid,
+    snapTabToKeyIfEnabled,
     snapToGridEnabled,
     timelineEnd,
   ]);
@@ -8547,8 +8728,10 @@ export default function GteWorkspace({
       <div
         ref={toolbarRef}
         data-gte-floating-ui="true"
+        data-gte-editor-control="true"
         className={panelClass}
         onMouseDown={(event) => event.stopPropagation()}
+        onTouchStart={(event) => event.stopPropagation()}
       >
         <div className="mb-2 flex items-start justify-between gap-2">
           <div>
@@ -8651,6 +8834,21 @@ export default function GteWorkspace({
               >
                 <span className={tooltipClass}>O</span>
                 Optimize Notes
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSnapSelectedNotesToKey}
+                disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Snap selected notes to the current key"
+                }
+                className={textButtonClass}
+              >
+                <span className={tooltipClass}>No shortcut</span>
+                Snap to Key
               </button>
 
               <button
@@ -9197,6 +9395,7 @@ export default function GteWorkspace({
             {!mobileViewport && (
               <button
                 type="button"
+                data-gte-editor-control="true"
                 onClick={() => setToolbarOpen((prev) => !prev)}
                 aria-pressed={toolbarOpen}
                 title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
@@ -9692,6 +9891,20 @@ export default function GteWorkspace({
             title="Snap new notes to the beat grid"
           >
             Snap to grid: {snapToGridEnabled ? "On" : "Off"}
+          </button>
+        )}
+        {!embedded && (
+          <button
+            type="button"
+            onClick={() => setSnapToKeyEnabled((prev) => !prev)}
+            className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold ${
+              snapToKeyEnabled
+                ? "border-sky-300 bg-sky-100 text-sky-800"
+                : "border-slate-200 bg-white text-slate-600"
+            }`}
+            title="Auto-correct new and edited notes to the current key"
+          >
+            Snap to key: {snapToKeyEnabled ? "On" : "Off"}
           </button>
         )}
         {!embedded && (
@@ -11452,6 +11665,7 @@ export default function GteWorkspace({
                   <div className="flex h-full min-h-0 flex-col gap-2">
                     <button
                       type="button"
+                      data-gte-editor-control="true"
                       onClick={() => setToolbarOpen((prev) => !prev)}
                       aria-pressed={toolbarOpen}
                       title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}

@@ -828,6 +828,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [openTrackMenuId, setOpenTrackMenuId] = useState<string | null>(null);
   const [openMobileBarMenuLaneId, setOpenMobileBarMenuLaneId] = useState<string | null>(null);
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
+  const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabled] = useState(false);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
   const [sharedTimelineScrollRatio, setSharedTimelineScrollRatio] = useState(0);
   const [globalPlaybackFrame, setGlobalPlaybackFrame] = useState(0);
@@ -3579,6 +3580,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             >
               Snap {globalSnapToGridEnabled ? "On" : "Off"}
             </button>
+            <button
+              type="button"
+              onClick={() => setGlobalSnapToKeyEnabled((prev) => !prev)}
+              className={`rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm ${
+                globalSnapToKeyEnabled
+                  ? "border-sky-300 bg-sky-100 text-sky-800"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              Key {globalSnapToKeyEnabled ? "On" : "Off"}
+            </button>
             <div className="ml-auto flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
               <span className="text-slate-500">Time</span>
               <span className="font-semibold text-slate-700">{timelineZoomPercent}%</span>
@@ -4134,6 +4146,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </button>
                       <button
                         type="button"
+                        onClick={() => setGlobalSnapToKeyEnabled((prev) => !prev)}
+                        className={`rounded-md border px-3 py-2 text-xs font-semibold ${
+                          globalSnapToKeyEnabled
+                            ? "border-sky-300 bg-sky-100 text-sky-800"
+                            : "border-slate-200 bg-white text-slate-600"
+                        }`}
+                        title="Auto-correct notes to the current key for all tracks"
+                      >
+                        Snap to key: {globalSnapToKeyEnabled ? "On" : "Off"}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => void router.push(transcriberHref)}
                         className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                         title="Open the standalone transcriber"
@@ -4344,6 +4368,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   title="Global snap to grid for all tracks. shortcut 'G'"
                 >
                   Snap: {globalSnapToGridEnabled ? "On" : "Off"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGlobalSnapToKeyEnabled((prev) => !prev)}
+                  className={`rounded-md border px-2 py-1 text-xs font-semibold ${
+                    globalSnapToKeyEnabled
+                      ? "border-sky-300 bg-sky-100 text-sky-800"
+                      : "border-slate-200 bg-white text-slate-600"
+                  }`}
+                  title="Auto-correct notes to the current key for all tracks"
+                >
+                  Key: {globalSnapToKeyEnabled ? "On" : "Off"}
                 </button>
               </div>
               <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
@@ -4576,6 +4612,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onFocusWorkspace={() => setActiveLaneId(laneId)}
                               globalSnapToGridEnabled={globalSnapToGridEnabled}
                               onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
+                              globalSnapToKeyEnabled={globalSnapToKeyEnabled}
+                              onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
+                              canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
+                              canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                               sharedViewportBarCount={sharedViewportBarCount}
                               sharedTimelineScrollRatio={sharedTimelineScrollRatio}
@@ -4831,6 +4871,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onFocusWorkspace={() => setActiveLaneId(laneId)}
                               globalSnapToGridEnabled={globalSnapToGridEnabled}
                               onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
+                              globalSnapToKeyEnabled={globalSnapToKeyEnabled}
+                              onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
+                              canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
+                              canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                               sharedViewportBarCount={sharedViewportBarCount}
                               sharedTimelineScrollRatio={sharedTimelineScrollRatio}
@@ -5105,6 +5149,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onFocusWorkspace={() => activateLaneForEditing(laneId)}
                           globalSnapToGridEnabled={globalSnapToGridEnabled}
                           onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
+                          globalSnapToKeyEnabled={globalSnapToKeyEnabled}
+                          onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
+                          canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
+                          canvasKeyType={normalizeKeyType(canvas.keyType)}
                           sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                           sharedViewportBarCount={sharedViewportBarCount}
                           sharedTimelineScrollRatio={sharedTimelineScrollRatio}
