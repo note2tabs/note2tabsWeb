@@ -996,7 +996,7 @@ export default function HomePage() {
                 <h1 className="hero-title">Convert Any Song to Tabs</h1>
               </div>
               <p className="hero-subtitle hero-subtitle--conversion">
-                Turn recordings into guitar tab you can refine, practice, and export.
+                Turn recordings into guitar tab you can edit, practice, and export.
               </p>
             </div>
             <form
@@ -1357,7 +1357,7 @@ export default function HomePage() {
                   <li>Upload size: 50 MB</li>
                   <li>YouTube length: 30s</li>
                   <li>Standard speed</li>
-                  <li>Full acsess to our guitar-tab editor</li>
+                  <li>Full access to our guitar-tab editor</li>
 
                 </ul>
               </div>
