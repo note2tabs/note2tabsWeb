@@ -1753,9 +1753,11 @@ input[type="number"] {
   transform: translate3d(var(--doodle-x, 0), var(--doodle-y, 0), 0) rotate(var(--doodle-rotate, 0deg));
   transform-origin: center;
   user-select: none;
+  animation: hero-doodle-fade 0.8s ease 0.12s both;
 }
 
 .hero-doodle--guitar {
+  --doodle-opacity: 0.2;
   --doodle-width: clamp(220px, 25vw, 380px);
   --doodle-rotate: -13deg;
   --doodle-y: -8px;
@@ -1764,30 +1766,40 @@ input[type="number"] {
 }
 
 .hero-doodle--notes {
+  --doodle-opacity: 0.17;
   --doodle-width: clamp(260px, 29vw, 440px);
   --doodle-rotate: 3deg;
   --doodle-y: 18px;
   top: 8%;
   right: max(8px, calc((100vw - var(--max-width)) / 2 - 126px));
-  opacity: 0.17;
 }
 
 .hero-doodle--fretboard {
+  --doodle-opacity: 0.13;
   --doodle-width: clamp(330px, 34vw, 520px);
   --doodle-rotate: -17deg;
   --doodle-y: 10px;
   bottom: 7%;
   left: max(-28px, calc((100vw - var(--max-width)) / 2 - 156px));
-  opacity: 0.13;
 }
 
 .hero-doodle--picks {
+  --doodle-opacity: 0.12;
   --doodle-width: clamp(145px, 14vw, 220px);
   --doodle-rotate: 14deg;
   --doodle-x: 12px;
   right: max(92px, calc((100vw - var(--max-width)) / 2 + 136px));
   top: 66%;
-  opacity: 0.12;
+}
+
+@keyframes hero-doodle-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: var(--doodle-opacity, 0.2);
+  }
 }
 
 .hero-outcome-row {
@@ -4528,7 +4540,7 @@ input[type="number"] {
   }
 
   .hero-doodle {
-    opacity: 0.13;
+    --doodle-opacity: 0.13;
   }
 
   .hero-doodle--guitar {

@@ -11,11 +11,12 @@ export default function Document() {
               .hero--landing-funnel{min-height:calc(100svh - 56px);padding:20px 0 28px;background:#fbf8f1;isolation:isolate;overflow-anchor:none}
               .hero--landing-funnel .hero-stack{position:relative;z-index:1;min-height:calc(100svh - 104px);align-content:center}
               .hero-doodle-field{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-              .hero-doodle{position:absolute;display:block;width:var(--doodle-width);max-width:none;height:auto;opacity:.2;transform:translate3d(var(--doodle-x,0),var(--doodle-y,0),0) rotate(var(--doodle-rotate,0deg));transform-origin:center;user-select:none}
-              .hero-doodle--guitar{--doodle-width:clamp(220px,25vw,380px);--doodle-rotate:-13deg;--doodle-y:-8px;top:15%;left:max(14px,calc((100vw - var(--max-width,1160px))/2 - 112px))}
-              .hero-doodle--notes{--doodle-width:clamp(260px,29vw,440px);--doodle-rotate:3deg;--doodle-y:18px;top:8%;right:max(8px,calc((100vw - var(--max-width,1160px))/2 - 126px));opacity:.17}
-              .hero-doodle--fretboard{--doodle-width:clamp(330px,34vw,520px);--doodle-rotate:-17deg;--doodle-y:10px;bottom:7%;left:max(-28px,calc((100vw - var(--max-width,1160px))/2 - 156px));opacity:.13}
-              .hero-doodle--picks{--doodle-width:clamp(145px,14vw,220px);--doodle-rotate:14deg;--doodle-x:12px;right:max(92px,calc((100vw - var(--max-width,1160px))/2 + 136px));top:66%;opacity:.12}
+              .hero-doodle{position:absolute;display:block;width:var(--doodle-width);max-width:none;height:auto;opacity:0;transform:translate3d(var(--doodle-x,0),var(--doodle-y,0),0) rotate(var(--doodle-rotate,0deg));transform-origin:center;user-select:none;animation:hero-doodle-fade .8s ease .12s both}
+              .hero-doodle--guitar{--doodle-opacity:.2;--doodle-width:clamp(220px,25vw,380px);--doodle-rotate:-13deg;--doodle-y:-8px;top:15%;left:max(14px,calc((100vw - var(--max-width,1160px))/2 - 112px))}
+              .hero-doodle--notes{--doodle-opacity:.17;--doodle-width:clamp(260px,29vw,440px);--doodle-rotate:3deg;--doodle-y:18px;top:8%;right:max(8px,calc((100vw - var(--max-width,1160px))/2 - 126px))}
+              .hero-doodle--fretboard{--doodle-opacity:.13;--doodle-width:clamp(330px,34vw,520px);--doodle-rotate:-17deg;--doodle-y:10px;bottom:7%;left:max(-28px,calc((100vw - var(--max-width,1160px))/2 - 156px))}
+              .hero-doodle--picks{--doodle-opacity:.12;--doodle-width:clamp(145px,14vw,220px);--doodle-rotate:14deg;--doodle-x:12px;right:max(92px,calc((100vw - var(--max-width,1160px))/2 + 136px));top:66%}
+              @keyframes hero-doodle-fade{from{opacity:0}to{opacity:var(--doodle-opacity,.2)}}
               .prompt-shell--funnel{width:min(100%,760px);border-radius:24px;padding:14px;margin-top:22px;text-align:left;border:1px solid rgba(255,255,255,.75);background:rgba(247,248,241,.9);box-shadow:0 22px 52px rgba(15,23,42,.12)}
               .page-home .prompt-shell--funnel{border:1px solid rgba(6,17,13,.13);background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(251,253,249,.96));box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 34px 80px rgba(6,17,13,.18),0 12px 26px rgba(6,17,13,.09);backdrop-filter:blur(14px)}
               .prompt-meta-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:20px;line-height:1.25;margin-bottom:8px}
@@ -23,12 +24,13 @@ export default function Document() {
               .hero-credits-inline{min-width:0;margin:0;font-size:.85rem;color:#5a6b83;text-align:right;white-space:nowrap}
               .funnel-panel{display:grid;gap:12px}
               .funnel-row{display:block;margin-top:0}
-              .funnel-input{position:relative;min-height:112px;border-radius:20px;padding:16px;display:flex;align-items:flex-start;gap:12px;border:1px solid rgba(6,17,13,.11);background:linear-gradient(180deg,rgba(252,253,249,.98),rgba(246,248,243,.92))}
-              .funnel-icon{width:26px;height:26px;flex-shrink:0;margin-top:2px}
+              .funnel-input{position:relative;min-height:112px;border-radius:20px;padding:16px;display:flex;align-items:flex-start;gap:12px;border:1px solid rgba(6,17,13,.11);background:linear-gradient(180deg,rgba(252,253,249,.98),rgba(246,248,243,.92));box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(6,17,13,.035);cursor:text}
+              .funnel-icon{width:26px;height:26px;flex-shrink:0;margin-top:2px;border-radius:999px;display:grid;place-items:center}
+              .funnel-file-label,.funnel-input input{font-size:1.05rem}
               .mode-switch{display:inline-flex;gap:6px;padding:4px;margin-top:22px}
               .mode-switch--hero{margin-top:0}
               .funnel-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px}
-              .funnel-submit{min-height:42px;padding:0 16px;white-space:nowrap}
+              .funnel-submit{position:relative;overflow:hidden;min-height:42px;padding:0 18px;white-space:nowrap}
               @media (min-width:960px){
                 .hero--landing-funnel{min-height:calc(100dvh - 64px);padding:34px 0 40px}
                 .hero--landing-funnel .hero-stack{min-height:calc(100dvh - 138px)}
@@ -37,7 +39,7 @@ export default function Document() {
               @media (max-width:860px){
                 .hero--landing-funnel{min-height:calc(100svh - 56px);padding:20px 0 28px}
                 .hero--landing-funnel .hero-stack{min-height:calc(100svh - 104px);gap:16px;align-content:center}
-                .hero-doodle{opacity:.13}
+                .hero-doodle{--doodle-opacity:.13}
                 .hero-doodle--guitar{--doodle-width:clamp(180px,42vw,270px);top:12%;left:-72px}
                 .hero-doodle--notes{--doodle-width:clamp(210px,48vw,320px);top:7%;right:-112px}
                 .hero-doodle--fretboard,.hero-doodle--picks{display:none}
