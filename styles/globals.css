@@ -1370,11 +1370,11 @@ input[type="number"] {
 }
 
 .nav-auth-slot--profile {
-  width: 0;
-  min-width: 0;
-  min-height: 0;
+  min-width: 142px;
+  min-height: 38px;
   gap: 0;
-  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .nav-links--reading {
@@ -1715,6 +1715,7 @@ input[type="number"] {
   padding: 20px 0 28px;
   background: var(--bg);
   isolation: isolate;
+  overflow-anchor: none;
 }
 
 .hero--landing-funnel .hero-glow {
