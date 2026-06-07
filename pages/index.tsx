@@ -996,7 +996,7 @@ export default function HomePage() {
                 <h1 className="hero-title">Convert Any Song to Tabs</h1>
               </div>
               <p className="hero-subtitle hero-subtitle--conversion">
-                Turn recordings into editable guitar tab you can edit, practice, and export.
+                Turn recordings into guitar tab you can refine, practice, and export.
               </p>
             </div>
             <form
