@@ -1370,11 +1370,11 @@ input[type="number"] {
 }
 
 .nav-auth-slot--profile {
-  min-width: 142px;
-  min-height: 38px;
+  width: 0;
+  min-width: 0;
+  min-height: 0;
   gap: 0;
-  visibility: hidden;
-  pointer-events: none;
+  overflow: hidden;
 }
 
 .nav-links--reading {
