@@ -1351,6 +1351,118 @@ export default function HomePage() {
           </div>
         </section>
 
+        <section className="editor-showcase" id="editor-showcase">
+          <div className="container">
+            <div className="editor-showcase-header" data-reveal>
+              <span className="pill">Editor</span>
+              <h2>Shape clean, playable guitar tabs in minutes.</h2>
+              <p>
+                Move from generated transcription to polished tablature with a fast editor built around real guitar
+                decisions.
+              </p>
+            </div>
+
+            <div className="editor-showcase-sections">
+              <article className="editor-showcase-row" data-reveal>
+                <div className="editor-showcase-image editor-showcase-image--workspace" aria-label="Editor overview image placeholder" role="img">
+                  <div className="editor-showcase-browser-bar">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <div className="editor-showcase-workspace">
+                    <div className="editor-showcase-side-rail">
+                      <span />
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+                    <div className="editor-showcase-tab-sheet">
+                      <pre>{`e|----------------|-------------7-8-|
+B|---------5-6-8--|-------8-10------|
+G|-----5-7--------|-7-9-------------|
+D|-5-7------------|-----------------|
+A|----------------|-----------------|
+E|----------------|-----------------|`}</pre>
+                    </div>
+                  </div>
+                </div>
+                <div className="editor-showcase-text">
+                  <h3>A complete workspace for guitar tabs</h3>
+                  <p>
+                    Keep the whole song in one place: generated tab, editable sections, playback, and the tools you
+                    need to turn a rough idea into something clean and playable.
+                  </p>
+                </div>
+              </article>
+
+              <article className="editor-showcase-row editor-showcase-row--reverse" data-reveal>
+                <div className="editor-showcase-image editor-showcase-image--tools" aria-label="Tab-making tools image placeholder" role="img">
+                  <div className="editor-showcase-tool-strip">
+                    <span>Snap to key</span>
+                    <span>Fingering</span>
+                    <span>Optimize</span>
+                  </div>
+                  <div className="editor-showcase-fretboard">
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                </div>
+                <div className="editor-showcase-text">
+                  <h3>Tab-making tools that speed up decisions</h3>
+                  <p>
+                    Use snap-to-key, fingering selection, and optimizer tools to find cleaner positions faster instead
+                    of manually testing every string and fret combination.
+                  </p>
+                </div>
+              </article>
+
+              <article className="editor-showcase-row" data-reveal>
+                <div className="editor-showcase-image editor-showcase-image--training" aria-label="Training tools image placeholder" role="img">
+                  <div className="editor-showcase-training-meter">
+                    <span />
+                  </div>
+                  <div className="editor-showcase-training-lanes">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <div className="editor-showcase-training-controls">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                </div>
+                <div className="editor-showcase-text">
+                  <h3>Training tools for actually learning the part</h3>
+                  <p>
+                    Slow sections down, loop difficult phrases, follow the playback cursor, and practice the tab inside
+                    the same workspace where you edit it.
+                  </p>
+                </div>
+              </article>
+            </div>
+
+            <div className="editor-showcase-feature-list" data-reveal>
+              <h3>Editor features</h3>
+              <ul>
+                <li>Editable generated tabs</li>
+                <li>String and fret optimization</li>
+                <li>Snap notes to key</li>
+                <li>Fingering selection</li>
+                <li>Playback and practice loops</li>
+                <li>Section-based song workflow</li>
+                <li>Fast cleanup after transcription</li>
+                <li>Browser-based tab creation</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
         <section className="pricing" id="pricing">
           <div className="container">
             <div className="pricing-intro" data-reveal>
