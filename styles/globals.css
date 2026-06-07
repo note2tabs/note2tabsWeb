@@ -4949,9 +4949,10 @@ input[type="number"] {
 }
 
 .pricing-card--premium .pill {
-  background: rgba(255, 255, 255, 0.72);
-  border-color: rgba(6, 17, 13, 0.1);
-  color: rgba(6, 17, 13, 0.72);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(6, 17, 13, 0.2);
+  color: rgba(6, 17, 13, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .pricing-card--premium .pricing-price {
