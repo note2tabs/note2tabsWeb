@@ -329,7 +329,7 @@ export default function HomePage() {
     : mode === "FILE" && !selectedFile
     ? "Choose audio file"
     : mode === "YOUTUBE"
-    ? "Download & generate tabs"
+    ? "Generate tabs"
     : "Generate tabs";
   const buildTranscribingStatusLabel = (separateGuitar: boolean) =>
     separateGuitar ? "Separating guitar and transcribing audio..." : "Transcribing audio...";
