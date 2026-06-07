@@ -972,21 +972,37 @@ export default function HomePage() {
               className="hero-doodle hero-doodle--guitar"
               src="/images/doodles/hand-drawn-guitar.png"
               alt=""
+              width="644"
+              height="472"
+              loading="eager"
+              decoding="async"
             />
             <img
               className="hero-doodle hero-doodle--notes"
               src="/images/doodles/music-notes.png"
               alt=""
+              width="1095"
+              height="759"
+              loading="eager"
+              decoding="async"
             />
             <img
               className="hero-doodle hero-doodle--fretboard"
               src="/images/doodles/fretboard-segment.png"
               alt=""
+              width="1601"
+              height="690"
+              loading="eager"
+              decoding="async"
             />
             <img
               className="hero-doodle hero-doodle--picks"
               src="/images/doodles/alternatives/guitar-picks.png"
               alt=""
+              width="920"
+              height="739"
+              loading="eager"
+              decoding="async"
             />
           </div>
           <div className="container hero-stack hero-stack--centered">
@@ -1005,9 +1021,13 @@ export default function HomePage() {
               data-reveal
               onKeyDown={preventEnterSubmit}
             >
-              {(mode === "YOUTUBE" || (isSignedIn && displayedCredits)) && (
-                <div className="prompt-meta-row">
-                  <span className="funnel-external-label">{mode === "YOUTUBE" ? "YouTube URL" : ""}</span>
+              <div
+                className={`prompt-meta-row ${
+                  mode === "YOUTUBE" || (isSignedIn && displayedCredits) ? "" : "is-empty"
+                }`}
+                aria-hidden={mode === "YOUTUBE" || (isSignedIn && displayedCredits) ? undefined : "true"}
+              >
+                <span className="funnel-external-label">{mode === "YOUTUBE" ? "YouTube URL" : ""}</span>
                 {isSignedIn && displayedCredits && (
                   <p className="hero-credits-inline">
                     Credits: <strong>{creditsSummaryLabel}</strong>
@@ -1022,8 +1042,7 @@ export default function HomePage() {
                     )}
                   </p>
                 )}
-                </div>
-              )}
+              </div>
 
               {showInstrumentPrompt ? (
                 <div className="instrument-prompt">

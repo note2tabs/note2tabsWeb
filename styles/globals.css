@@ -3977,10 +3977,12 @@ input[type="number"] {
 }
 
 .hero-credits-inline {
+  min-width: 0;
   margin: 0;
   font-size: 0.85rem;
   color: #5a6b83;
   text-align: right;
+  white-space: nowrap;
 }
 
 .hero-credits-inline strong {
@@ -4064,7 +4066,12 @@ input[type="number"] {
   justify-content: space-between;
   gap: 12px;
   min-height: 20px;
+  line-height: 1.25;
   margin-bottom: 8px;
+}
+
+.prompt-meta-row.is-empty {
+  visibility: hidden;
 }
 
 .funnel-input {
