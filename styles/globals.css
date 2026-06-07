@@ -4807,9 +4807,11 @@ input[type="number"] {
 }
 
 .pricing-trial-ribbon {
-  justify-self: end;
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 1;
   white-space: nowrap;
-  margin-bottom: -8px;
   padding: 7px 11px;
   border-radius: 7px;
   border: 1px solid rgba(6, 17, 13, 0.1);
@@ -4820,6 +4822,10 @@ input[type="number"] {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   box-shadow: none;
+}
+
+.pricing-card--trial .pricing-header {
+  padding-right: 116px;
 }
 
 .pricing-header {
