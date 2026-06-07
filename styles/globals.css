@@ -4689,6 +4689,7 @@ input[type="number"] {
   gap: 18px;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   align-items: stretch;
+  padding-top: 14px;
 }
 
 .pricing-intro {
@@ -4799,7 +4800,7 @@ input[type="number"] {
 }
 
 .pricing-card--trial {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .pricing-card--trial:hover {
@@ -4808,8 +4809,8 @@ input[type="number"] {
 
 .pricing-trial-ribbon {
   position: absolute;
-  top: 14px;
-  right: 16px;
+  top: -15px;
+  right: 22px;
   z-index: 1;
   white-space: nowrap;
   padding: 8px 12px;
@@ -4824,10 +4825,6 @@ input[type="number"] {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
     0 8px 18px rgba(6, 17, 13, 0.08);
-}
-
-.pricing-card--trial .pricing-header {
-  padding-right: 126px;
 }
 
 .pricing-header {
