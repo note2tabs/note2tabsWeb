@@ -325,7 +325,7 @@ export default function TranscriberPage() {
       ? "Downloading..."
       : "Generating..."
     : mode === "YOUTUBE"
-    ? "Download & generate tabs"
+    ? "Generate tabs"
     : "Generate tabs";
   const transcribingStatusLabel = separateGuitar
     ? "Separating guitar and transcribing audio..."
