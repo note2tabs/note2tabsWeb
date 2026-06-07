@@ -7,14 +7,16 @@ export default function Document() {
         <style
           dangerouslySetInnerHTML={{
             __html: `
-              .hero--landing-funnel{min-height:calc(100svh - 56px);padding:20px 0 28px}
-              .hero--landing-funnel .hero-stack{min-height:calc(100svh - 104px);align-content:center}
+              .hero--landing-funnel{min-height:calc(100svh - 56px);padding:20px 0 28px;background:#fbf8f1;isolation:isolate;overflow-anchor:none}
+              .hero--landing-funnel .hero-stack{position:relative;z-index:1;min-height:calc(100svh - 104px);align-content:center}
               .prompt-shell--funnel{width:min(100%,760px);border-radius:24px;padding:14px;margin-top:22px;text-align:left;border:1px solid rgba(255,255,255,.75);background:rgba(247,248,241,.9);box-shadow:0 22px 52px rgba(15,23,42,.12)}
-              .page-home .prompt-shell--funnel{border:1px solid rgba(6,17,13,.18);background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(252,255,253,.96));box-shadow:0 30px 64px rgba(6,17,13,.22),0 10px 24px rgba(6,17,13,.12)}
-              .prompt-meta-row{min-height:20px;margin-bottom:8px}
+              .page-home .prompt-shell--funnel{border:1px solid rgba(6,17,13,.13);background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(251,253,249,.96));box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 34px 80px rgba(6,17,13,.18),0 12px 26px rgba(6,17,13,.09);backdrop-filter:blur(14px)}
+              .prompt-meta-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:20px;line-height:1.25;margin-bottom:8px}
+              .prompt-meta-row.is-empty{visibility:hidden}
+              .hero-credits-inline{min-width:0;margin:0;font-size:.85rem;color:#5a6b83;text-align:right;white-space:nowrap}
               .funnel-panel{display:grid;gap:12px}
               .funnel-row{display:block;margin-top:0}
-              .funnel-input{position:relative;min-height:112px;border-radius:20px;padding:16px;display:flex;align-items:flex-start;gap:12px;border:1px solid rgba(15,23,42,.1);background:rgba(249,249,245,.94)}
+              .funnel-input{position:relative;min-height:112px;border-radius:20px;padding:16px;display:flex;align-items:flex-start;gap:12px;border:1px solid rgba(6,17,13,.11);background:linear-gradient(180deg,rgba(252,253,249,.98),rgba(246,248,243,.92))}
               .funnel-icon{width:26px;height:26px;flex-shrink:0;margin-top:2px}
               .mode-switch{display:inline-flex;gap:6px;padding:4px;margin-top:22px}
               .mode-switch--hero{margin-top:0}
@@ -23,13 +25,18 @@ export default function Document() {
               @media (min-width:960px){
                 .hero--landing-funnel{min-height:calc(100dvh - 64px);padding:34px 0 40px}
                 .hero--landing-funnel .hero-stack{min-height:calc(100dvh - 138px)}
+                .hero--landing-funnel .hero-heading{margin-top:-18px}
               }
-              @media (max-width:720px){
+              @media (max-width:860px){
+                .hero--landing-funnel{min-height:calc(100svh - 56px);padding:20px 0 28px}
+                .hero--landing-funnel .hero-stack{min-height:calc(100svh - 104px);gap:16px;align-content:center}
                 .prompt-shell--funnel{border-radius:18px;padding:12px;margin-top:8px;box-shadow:0 8px 22px rgba(6,17,13,.12)}
                 .page-home .prompt-shell--funnel{box-shadow:0 8px 22px rgba(6,17,13,.12)}
                 .funnel-toolbar{flex-direction:column;align-items:stretch}
                 .funnel-input{min-height:86px;border-radius:16px;padding:14px}
                 .funnel-submit{width:100%;min-height:56px}
+              }
+              @media (max-width:720px){
                 .editor-landing-hero{min-height:calc(100svh - 56px);padding-top:34px;padding-bottom:40px;overflow:hidden;background:#f6faf8}
                 .editor-landing-shell{position:relative;min-height:calc(100svh - 130px);display:grid;align-items:center}
                 .hero-heading{text-align:center;max-width:980px}
