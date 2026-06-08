@@ -24,14 +24,7 @@ const PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "runnin
 
 type JobModeHint = "FILE" | "YOUTUBE";
 type PendingStageKey = "queue" | "download" | "prepare" | "separate" | "predict" | "note_events" | "format";
-type ReviewAction = "redo" | "finalize" | null;
-type ReviewParams = {
-  onsetThresh: number;
-  frameThresh: number;
-  minNoteLen: number;
-  minFreq: number;
-  maxFreq: number;
-};
+type ReviewAction = "finalize" | null;
 
 type StoredTabPayloadResponse = {
   id: string;
@@ -42,62 +35,6 @@ type StoredTabPayloadResponse = {
   backendJobId?: string | null;
 };
 
-const REVIEW_SLIDERS: Array<{
-  key: keyof ReviewParams;
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-  description: string;
-  format: (value: number) => string;
-}> = [
-  {
-    key: "onsetThresh",
-    label: "Note Start Sensitivity",
-    min: 0,
-    max: 1,
-    step: 0.01,
-    description: "Higher creates more notes, lower creates less.",
-    format: (value) => value.toFixed(2),
-  },
-  {
-    key: "frameThresh",
-    label: "Note hold sensitivity",
-    min: 0,
-    max: 1,
-    step: 0.01,
-    description: "Higher lets notes ring longer. Lower cuts them off sooner.",
-    format: (value) => value.toFixed(2),
-  },
-  {
-    key: "minNoteLen",
-    label: "Minimum note length",
-    min: 1,
-    max: 32,
-    step: 1,
-    description: "Minimum length that a note has to have to be registered",
-    format: (value) => `${Math.round(value)} frames`,
-  },
-  {
-    key: "minFreq",
-    label: "Lowest note",
-    min: 40,
-    max: 400,
-    step: 1,
-    description: "Ignore notes below this range.",
-    format: (value) => `${Math.round(value)} Hz`,
-  },
-  {
-    key: "maxFreq",
-    label: "Highest note",
-    min: 500,
-    max: 2000,
-    step: 1,
-    description: "Ignore notes above this range.",
-    format: (value) => `${Math.round(value)} Hz`,
-  },
-];
-
 function getQueryStringValue(value: string | string[] | undefined) {
   if (Array.isArray(value)) return value[0] || null;
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -105,43 +42,6 @@ function getQueryStringValue(value: string | string[] | undefined) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
-}
-
-function toDisplayOnsetThresh(value: number) {
-  return clamp(1 - value, 0, 1);
-}
-
-function toBackendOnsetThresh(value: number) {
-  return clamp(1 - value, 0, 1);
-}
-
-function toBackendReviewParams(params: ReviewParams): ReviewParams {
-  return {
-    ...params,
-    onsetThresh: toBackendOnsetThresh(params.onsetThresh),
-  };
-}
-
-function appendQueryParam(url: string, key: string, value: string) {
-  const separator = url.includes("?") ? "&" : "?";
-  return `${url}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-}
-
-function isSignedAssetUrl(url: string) {
-  try {
-    const parsed = new URL(url);
-    const params = parsed.searchParams;
-    return (
-      params.has("X-Goog-Algorithm") ||
-      params.has("X-Goog-Signature") ||
-      params.has("GoogleAccessId") ||
-      params.has("X-Amz-Algorithm") ||
-      params.has("X-Amz-Signature") ||
-      params.has("Signature")
-    );
-  } catch {
-    return false;
-  }
 }
 
 function parseBooleanFlag(value: string | null) {
@@ -357,33 +257,18 @@ function buildPendingPresentation(
   };
 }
 
-function defaultReviewParams(): ReviewParams {
-  return {
-    onsetThresh: toDisplayOnsetThresh(0.45),
-    frameThresh: 0.25,
-    minNoteLen: 8,
-    minFreq: 82.41,
-    maxFreq: 1318.51,
-  };
-}
-
-function areReviewParamsEqual(left: ReviewParams, right: ReviewParams) {
-  const keys: Array<keyof ReviewParams> = ["onsetThresh", "frameThresh", "minNoteLen", "minFreq", "maxFreq"];
-  return keys.every((key) => Math.abs(left[key] - right[key]) < 0.0001);
-}
-
 function getReviewBusyCopy(action: ReviewAction) {
   if (action === "finalize") {
     return {
-      badge: "Building tabs",
-      title: "Building tabs from your selected sound",
-      detail: "Preparing the tab options now.",
+      badge: "Importing",
+      title: "Importing your tabs",
+      detail: "Preparing the editor with your selected options.",
     };
   }
   return {
-    badge: "Updating sound",
-    title: "Refreshing your preview",
-    detail: "Generating a new preview with your current settings.",
+    badge: "Ready",
+    title: "Ready to import",
+    detail: "Choose an editor and continue.",
   };
 }
 
@@ -433,37 +318,6 @@ function getReviewInfo(job: JobResponse | null) {
   const raw = getFirstJobValue(job, ["review"]);
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   return raw as Record<string, unknown>;
-}
-
-function getReviewParams(job: JobResponse | null): ReviewParams | null {
-  const review = getReviewInfo(job);
-  const raw =
-    review && review.params && typeof review.params === "object" && !Array.isArray(review.params)
-      ? (review.params as Record<string, unknown>)
-      : getFirstJobValue(job, ["reviewParams", "params"]);
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const record = raw as Record<string, unknown>;
-  const onsetThresh = Number(record.onsetThresh);
-  const frameThresh = Number(record.frameThresh);
-  const minNoteLen = Number(record.minNoteLen);
-  const minFreq = Number(record.minFreq);
-  const maxFreq = Number(record.maxFreq);
-  if (
-    !Number.isFinite(onsetThresh) ||
-    !Number.isFinite(frameThresh) ||
-    !Number.isFinite(minNoteLen) ||
-    !Number.isFinite(minFreq) ||
-    !Number.isFinite(maxFreq)
-  ) {
-    return null;
-  }
-  return {
-    onsetThresh: toDisplayOnsetThresh(onsetThresh),
-    frameThresh,
-    minNoteLen,
-    minFreq,
-    maxFreq,
-  };
 }
 
 function getJobTranscriberGroups(job: JobResponse | null): TranscriberSegmentGroup[] {
@@ -618,12 +472,10 @@ export default function JobPage() {
   const [editorChoices, setEditorChoices] = useState<EditorListItem[]>([]);
   const [editorChoice, setEditorChoice] = useState<string>("new");
   const [editorLoading, setEditorLoading] = useState(false);
-  const [reviewParams, setReviewParams] = useState<ReviewParams>(defaultReviewParams);
   const [reviewMultipleGuitars, setReviewMultipleGuitars] = useState(true);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewAction, setReviewAction] = useState<ReviewAction>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
-  const [previewReloadToken, setPreviewReloadToken] = useState<string>("0");
   const [progressClock, setProgressClock] = useState(() => Date.now());
   const reviewMultipleGuitarsInitRef = useRef<string | null>(null);
   const displayJob = useMemo(() => normalizeJobForDisplay(job), [job]);
@@ -663,17 +515,17 @@ export default function JobPage() {
   const importButtonLabel = canOpenGuestEditor ? "Open in guest editor" : "Import to editor";
   const hasWorkflowState = Boolean(workflowState && workflowState.trim());
   const isWorkflowProcessing = workflowState === "processing";
+  const isDoneJob = displayJob?.status === "done";
   const isReviewReady = displayJob?.status === "done" && workflowState === "review_ready";
   const isRecoverableReview =
     displayJob?.status === "done" && workflowState === "processing" && Boolean(displayJob?.audio_preview_url);
+  const isFinalizedStatus = displayJob?.status === "done" && (workflowState === "finalized" || !hasWorkflowState);
   const isReopenedFinalizedReview =
     reviewModeRequested &&
-    displayJob?.status === "done" &&
-    workflowState === "finalized" &&
+    isFinalizedStatus &&
     (Boolean(displayJob?.audio_preview_url) || Boolean(reviewInfo));
-  const showReviewUi = isReviewReady || isRecoverableReview || isReopenedFinalizedReview;
-  const isFinalizedJob =
-    displayJob?.status === "done" && (workflowState === "finalized" || !hasWorkflowState) && !showReviewUi;
+  const showReviewUi = isReviewReady || isRecoverableReview || isReopenedFinalizedReview || isDoneJob;
+  const isFinalizedJob = isFinalizedStatus && !showReviewUi;
   const tabSegments = useMemo(() => getJobTabSegments(displayJob), [displayJob]);
   const transcriberGroups = useMemo(() => getJobTranscriberGroups(displayJob), [displayJob]);
   const canImportToEditor = isFinalizedJob && (tabSegments.length > 0 || transcriberGroups.length > 0);
@@ -682,41 +534,14 @@ export default function JobPage() {
     [displayJob, progressClock, modeHint, separateGuitarHint]
   );
   const reviewBusyCopy = useMemo(() => getReviewBusyCopy(reviewAction), [reviewAction]);
-  const loadedReviewParams = useMemo(
-    () => getReviewParams(displayJob) ?? defaultReviewParams(),
-    [displayJob]
-  );
   const loadedMultipleGuitars = useMemo(
     () => parseBooleanValue(getFirstJobValue(displayJob, ["multipleGuitars", "multiple_guitars"])),
     [displayJob]
   );
   const hasReviewChanges = useMemo(
-    () =>
-      !areReviewParamsEqual(reviewParams, loadedReviewParams) ||
-      loadedMultipleGuitars === null ||
-      reviewMultipleGuitars !== loadedMultipleGuitars,
-    [reviewMultipleGuitars, loadedMultipleGuitars, reviewParams, loadedReviewParams]
+    () => loadedMultipleGuitars === null || reviewMultipleGuitars !== loadedMultipleGuitars,
+    [reviewMultipleGuitars, loadedMultipleGuitars]
   );
-  const previewAudioUrl = useMemo(() => {
-    if (!displayJob?.audio_preview_url) return null;
-    if (isSignedAssetUrl(displayJob.audio_preview_url)) {
-      // Do not append custom query params to signed URLs or the signature becomes invalid.
-      return displayJob.audio_preview_url;
-    }
-    const versionSeed = [displayJob.updatedAt, displayJob.finishedAt, String(reviewNoteCount ?? ""), previewReloadToken]
-      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-      .join(":");
-    return versionSeed ? appendQueryParam(displayJob.audio_preview_url, "reload", versionSeed) : displayJob.audio_preview_url;
-  }, [displayJob?.audio_preview_url, displayJob?.finishedAt, displayJob?.updatedAt, previewReloadToken, reviewNoteCount]);
-
-  useEffect(() => {
-    const next = getReviewParams(displayJob);
-    if (next) {
-      setReviewParams(next);
-    } else if (showReviewUi) {
-      setReviewParams(defaultReviewParams());
-    }
-  }, [displayJob, showReviewUi]);
 
   useEffect(() => {
     if (!showReviewUi || typeof job_id !== "string") return;
@@ -869,7 +694,6 @@ export default function JobPage() {
     setReviewBusy(false);
     setReviewAction(null);
     setReviewMultipleGuitars(true);
-    setPreviewReloadToken("0");
     reviewMultipleGuitarsInitRef.current = null;
   }, [job_id, appendEditorId]);
 
@@ -1012,38 +836,6 @@ export default function JobPage() {
     }
   };
 
-  const handleReviewParamChange = (key: keyof ReviewParams, value: number) => {
-    setReviewParams((current) => ({ ...current, [key]: value }));
-  };
-
-  const handleRedoTranscription = async () => {
-    if (!showReviewUi || typeof job_id !== "string" || reviewBusy) return;
-    setReviewBusy(true);
-    setReviewAction("redo");
-    setReviewError(null);
-    let redoSucceeded = false;
-    try {
-      const response = await fetch(`/api/jobs/${encodeURIComponent(job_id)}/redo`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toBackendReviewParams(reviewParams)),
-      });
-      if (!response.ok) {
-        throw new Error(await readErrorMessage(response));
-      }
-      redoSucceeded = true;
-    } catch (err: any) {
-      setReviewError(err?.message || "Failed to regenerate note events.");
-    } finally {
-      if (redoSucceeded) {
-        setPreviewReloadToken(String(Date.now()));
-      }
-      setReviewBusy(false);
-      setReviewAction(null);
-      await fetchJob(job_id);
-    }
-  };
-
   const handleContinue = async () => {
     if (!showReviewUi || typeof job_id !== "string" || reviewBusy) return;
     setReviewBusy(true);
@@ -1053,7 +845,7 @@ export default function JobPage() {
     let importedSuccessfully = false;
     const targetEditorChoice = editorChoice;
     try {
-      if (isReopenedFinalizedReview && !hasReviewChanges) {
+      if (isFinalizedStatus && !hasReviewChanges) {
         importedSuccessfully = await importJobToEditor(displayJob, targetEditorChoice);
         return;
       }
@@ -1121,12 +913,8 @@ export default function JobPage() {
   const showAdGate = isFinalizedJob && !hasWatchedAd;
   const title = showReviewUi
     ? displayJob?.song_title
-      ? `Review ${displayJob.song_title} - Note2Tabs`
-      : "Review transcription - Note2Tabs"
-    : isFinalizedJob && displayJob?.song_title
-    ? `${displayJob.song_title} - Note2Tabs`
-    : isFinalizedJob
-    ? "Tabs Ready - Note2Tabs"
+      ? `Import ${displayJob.song_title} - Note2Tabs`
+      : "Import transcription - Note2Tabs"
     : "Preparing Tabs - Note2Tabs";
 
   return (
@@ -1146,10 +934,10 @@ export default function JobPage() {
         <div className="container stack">
           <div className="page-header">
             <div>
-              <h1 className="page-title">{showReviewUi ? "Tune your sound" : "Preparing your tabs"}</h1>
+              <h1 className="page-title">{showReviewUi ? "Choose where to import" : "Preparing your tabs"}</h1>
               <p className="page-subtitle">
                 {showReviewUi
-                  ? "Play the preview, tweak controls, then continue."
+                  ? "Pick an editor and choose how the notes should be organized."
                   : "Live updates while your tabs are processing."}
               </p>
             </div>
@@ -1160,66 +948,22 @@ export default function JobPage() {
 
           {showReviewUi ? (
             <div className="review-shell" aria-busy={reviewBusy}>
-              <div className="review-top-grid">
-                <section className="card review-intro-card">
-                  <div className="review-hero-copy">
-                    <div className="stack" style={{ gap: "8px" }}>
-                      <h2 className="review-hero-title">{displayJob?.song_title || "Adjust your transcription"}</h2>
-                      <p className="review-hero-lead">
-                        Listen to the preview sound, then continue once it sounds right.
-                      </p>
-                      {isRecoverableReview ? (
-                        <p className="muted text-small" style={{ margin: 0 }}>
-                          The last update did not finish cleanly. Your previous sound is still here, so you can try
-                          again or move on from this version.
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="review-guide">
-                      <div className="review-guide-step">
-                        <span className="review-guide-number">1</span>
-                        <p>Play the preview and listen to your transcription</p>
-                      </div>
-                      <div className="review-guide-step">
-                        <span className="review-guide-number">2</span>
-                        <p>Adjust controls, then press <strong>Update sound</strong>.</p>
-                      </div>
-                      <div className="review-guide-step">
-                        <span className="review-guide-number">3</span>
-                        <p>Pick an editor, then press <strong>Continue to tabs</strong> to import all tab groups.</p>
-                      </div>
-                    </div>
+              <section className="card review-import-card">
+                <div className="review-import-header">
+                  <span className="badge">Ready</span>
+                  <div className="stack" style={{ gap: "8px" }}>
+                    <h2 className="review-hero-title">{displayJob?.song_title || "Your transcription is ready"}</h2>
+                    <p className="review-hero-lead">
+                      Continue to import the generated notes directly into the guitar tab editor.
+                    </p>
                   </div>
-                </section>
-
-                <section className="sound-review-preview-card">
-                  <div className="review-preview-shell">
-                    <div className="review-audio-header">
-                      <div>
-                        <p className="review-audio-label">Preview sound</p>
-                        <p className="review-audio-caption">This is the preview sound which will be converted to tabs.</p>
-                      </div>
-                      {reviewNoteCount !== null ? (
-                        <span className="review-count-pill">{reviewNoteCount.toLocaleString()} notes</span>
-                      ) : null}
-                    </div>
-                    <div className="review-player-box">
-                      {previewAudioUrl ? (
-                        <audio key={previewAudioUrl} controls src={previewAudioUrl} className="review-audio-player">
-                          Your browser does not support the audio element.
-                        </audio>
-                      ) : (
-                        <p className="muted text-small" style={{ margin: 0 }}>
-                          Preview audio is not available yet.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </section>
-              </div>
+                  {reviewNoteCount !== null ? (
+                    <span className="review-count-pill">{reviewNoteCount.toLocaleString()} notes</span>
+                  ) : null}
+                </div>
 
               {reviewBusy ? (
-                <div className="card">
+                <div className="review-import-progress">
                   <div className="job-progress-shell">
                     <div className="job-progress-header">
                       <div className="stack" style={{ gap: "8px" }}>
@@ -1241,85 +985,16 @@ export default function JobPage() {
                       <div className="job-progress-fill" style={{ width: "100%" }} />
                     </div>
                     <div className="job-progress-meta">
-                      <span>Updating your preview</span>
-                      <span>Runs in background</span>
+                      <span>Importing into editor</span>
+                      <span>This can take a moment</span>
                     </div>
                   </div>
                 </div>
               ) : null}
 
-              <section
-                className="card review-controls-section"
-                style={{
-                  opacity: reviewBusy ? 0.72 : 1,
-                  transition: "opacity 0.2s ease",
-                }}
-              >
-                <div className="review-controls-header">
-                  <div className="stack" style={{ gap: "8px" }}>
-                    <span className="badge">Controls</span>
-                    <div>
-                      <h3 className="label" style={{ marginBottom: "6px" }}>
-                        Adjust the transcription
-                      </h3>
-                      <p className="muted text-small" style={{ margin: 0 }}>
-                        Adjust as needed, then continue.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="review-controls-body">
-                  <div className="review-slider-grid">
-                    {REVIEW_SLIDERS.map((slider) => (
-                      <div key={slider.key} className="review-slider-card">
-                        <div className="review-slider-header">
-                          <div className="stack" style={{ gap: "4px" }}>
-                            <p style={{ margin: 0, fontWeight: 600 }}>{slider.label}</p>
-                            <p className="muted text-small" style={{ margin: 0 }}>
-                              {slider.description}
-                            </p>
-                          </div>
-                          <span className="badge">{slider.format(reviewParams[slider.key])}</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={slider.min}
-                          max={slider.max}
-                          step={slider.step}
-                          value={reviewParams[slider.key]}
-                          disabled={reviewBusy}
-                          onChange={(event) => handleReviewParamChange(slider.key, Number(event.target.value))}
-                          className="review-slider-input"
-                        />
-                        <div className="job-progress-meta" style={{ justifyContent: "space-between" }}>
-                          <span>{slider.format(slider.min)}</span>
-                          <span>{slider.format(slider.max)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <aside className="review-update-panel">
-                    <div className="stack" style={{ gap: "4px" }}>
-                      <p className="review-update-title">Apply these changes</p>
-                      <p className="muted text-small" style={{ margin: 0 }}>
-                        Regenerate the preview with the current transcription settings.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleRedoTranscription()}
-                      className="button-secondary review-update-button"
-                      disabled={reviewBusy}
-                    >
-                      {reviewAction === "redo" ? "Updating..." : "Update sound"}
-                    </button>
-                  </aside>
-                </div>
-              </section>
-
               {reviewError ? <div className="error">{reviewError}</div> : null}
 
-              <div className="review-bottom-actions">
+              <div className="review-import-options">
                 <div className="review-track-toggle">
                   <div className="stack" style={{ gap: "6px" }}>
                     <p style={{ margin: 0, fontWeight: 600 }}>Track separation</p>
@@ -1361,20 +1036,22 @@ export default function JobPage() {
                     Tabs will be opened in the guest editor.
                   </p>
                 ) : null}
-                <div className="button-row review-actions">
+              </div>
+
+              <div className="button-row review-actions review-import-actions">
                 <button
                   type="button"
                   onClick={() => void handleContinue()}
                   className="button-primary button-small"
                   disabled={reviewBusy || editorLoading}
                 >
-                  {reviewAction === "finalize" ? "Building tabs..." : "Continue to tabs"}
+                  {reviewAction === "finalize" ? "Importing..." : "Continue to editor"}
                 </button>
                 <button type="button" onClick={handleRestart} className="button-ghost button-small" disabled={reviewBusy}>
                   Start over
                 </button>
-                </div>
               </div>
+              </section>
             </div>
           ) : (
             <JobStatusLayout
