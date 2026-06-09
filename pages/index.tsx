@@ -1355,10 +1355,9 @@ export default function HomePage() {
           <div className="container">
             <div className="editor-showcase-header" data-reveal>
               <span className="pill">Editor</span>
-              <h2>Shape clean, playable guitar tabs in minutes.</h2>
+              <h2>Create, edit and play your own guitar tabs.</h2>
               <p>
-                Move from generated transcription to polished tablature with a fast editor built around real guitar
-                decisions.
+                Note2Tabs guitar-tab editor is a web-based workspace for making guitar tabulature.
               </p>
             </div>
 
@@ -1390,8 +1389,9 @@ E|----------------|-----------------|`}</pre>
                 <div className="editor-showcase-text">
                   <h3>A complete workspace for guitar tabs</h3>
                   <p>
-                    Keep the whole song in one place: generated tab, editable sections, playback, and the tools you
-                    need to turn a rough idea into something clean and playable.
+                    Keep the whole song  in one place: unlimited songs, unlimited tracks.
+                    The editor has over 30 unique tools helping you create tabs your way.
+                    From quick fixes to detailed arrangements, everything you need is built into a single workflow.
                   </p>
                 </div>
               </article>
@@ -1413,10 +1413,13 @@ E|----------------|-----------------|`}</pre>
                   </div>
                 </div>
                 <div className="editor-showcase-text">
-                  <h3>Tab-making tools that speed up decisions</h3>
+                  <h3>Tab-making tools tailored to guitarists</h3>
                   <p>
-                    Use snap-to-key, fingering selection, and optimizer tools to find cleaner positions faster instead
-                    of manually testing every string and fret combination.
+                    What sets us appart from the standard guitar-tab editor are our specialised tools.
+                    Fingering selection, and optimizer tools help you find cleaner positions faster instead
+                    of manually testing every string and fret combination. Our unique "playing-coordinate" system
+                    lets you pick where on the fretboard you'd like to play and "snap to key" lets you quickly type out riffs
+                    without thinking about theory.
                   </p>
                 </div>
               </article>
@@ -1438,10 +1441,11 @@ E|----------------|-----------------|`}</pre>
                   </div>
                 </div>
                 <div className="editor-showcase-text">
-                  <h3>Training tools for actually learning the part</h3>
+                  <h3>Training tools for learning your riffs</h3>
                   <p>
-                    Slow sections down, loop difficult phrases, follow the playback cursor, and practice the tab inside
-                    the same workspace where you edit it.
+                    Import text-tabs, use your transcribed or own creations and learn the riffs.
+                    Playback with different guitar sounds, loop difficult sections and follow along with
+                    our train mode, on increasing speed.
                   </p>
                 </div>
               </article>
@@ -1450,10 +1454,10 @@ E|----------------|-----------------|`}</pre>
             <div className="editor-showcase-feature-list" data-reveal>
               <h3>Editor features</h3>
               <ul>
-                <li>Editable generated tabs</li>
+                <li>Keyboard shortcuts for everything</li>
                 <li>String and fret optimization</li>
                 <li>Snap notes to key</li>
-                <li>Fingering selection</li>
+                <li>automatic fingering selection</li>
                 <li>Playback and practice loops</li>
                 <li>Section-based song workflow</li>
                 <li>Fast cleanup after transcription</li>
