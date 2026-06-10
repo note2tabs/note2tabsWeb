@@ -1363,10 +1363,10 @@ export default function HomePage() {
 
             <div className="editor-showcase-sections">
               <article className="editor-showcase-row" data-reveal>
-                <div className="editor-showcase-image editor-showcase-image--workspace" aria-label="Editor overview image placeholder" role="img">
+                <div className="editor-showcase-image editor-showcase-image--workspace">
                   <img
                     src="/images/editor-previews/Editor-main.png"
-                    alt="Guitar tab editor"
+                    alt="Guitar tab editor workspace"
                   />
                 </div>
                 <div className="editor-showcase-text">
@@ -1380,10 +1380,10 @@ export default function HomePage() {
               </article>
 
               <article className="editor-showcase-row editor-showcase-row--reverse" data-reveal>
-                <div className="editor-showcase-image editor-showcase-image--tools" aria-label="Tab-making tools image placeholder" role="img">
+                <div className="editor-showcase-image editor-showcase-image--tools">
                   <img
                     src="/images/editor-previews/collage.png"
-                    alt="Guitar tab editor"
+                    alt="Guitar tab editing tools"
                   />
                 </div>
                 <div className="editor-showcase-text">
@@ -1399,10 +1399,10 @@ export default function HomePage() {
               </article>
 
               <article className="editor-showcase-row" data-reveal>
-                <div className="editor-showcase-image editor-showcase-image--training" aria-label="Training tools image placeholder" role="img">
+                <div className="editor-showcase-image editor-showcase-image--training">
                   <img
                     src="/images/editor-previews/collage-training.png"
-                    alt="Guitar tab editor"
+                    alt="Guitar tab practice and playback tools"
                   />
                 </div>
                 <div className="editor-showcase-text">
