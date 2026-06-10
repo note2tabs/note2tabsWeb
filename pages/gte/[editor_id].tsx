@@ -63,6 +63,19 @@ const TIMELINE_ZOOM_MIN = 15;
 const TIMELINE_ZOOM_MAX = 200;
 const TIMELINE_ZOOM_DEFAULT = 100;
 const CONTROL_COMMIT_DEBOUNCE_MS = 350;
+const KEY_BASE_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const KEY_TYPE_OPTIONS = [
+  "Major",
+  "Minor",
+  "Harmonic Minor",
+  "Melodic Minor",
+  "Dorian",
+  "Phyrigian",
+  "Lydian",
+  "Mixolydian",
+  "Major Blues",
+  "Minor Blues",
+];
 const MOBILE_EDITOR_BREAKPOINT_PX = 768;
 const GTE_GUEST_CANVAS_STORAGE_KEY = "note2tabs:gte:guest-canvas:v1";
 
@@ -102,6 +115,12 @@ const blurFocusedShortcutControl = (target: HTMLElement | null) => {
 
 const fpsFromSecondsPerBar = (secondsPerBar: number) =>
   Math.max(1, Math.round(FIXED_FRAMES_PER_BAR / Math.max(0.1, secondsPerBar)));
+
+const normalizeKeyBase = (value: unknown) =>
+  Math.max(0, Math.min(KEY_BASE_OPTIONS.length - 1, Math.round(toNumber(value, 0))));
+
+const normalizeKeyType = (value: unknown) =>
+  Math.max(0, Math.min(KEY_TYPE_OPTIONS.length - 1, Math.round(toNumber(value, 0))));
 
 const isCanvasSnapshot = (value: unknown): value is CanvasSnapshot =>
   Boolean(value && typeof value === "object" && Array.isArray((value as CanvasSnapshot).editors));
@@ -156,6 +175,8 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
       canvasSchemaVersion: raw.canvasSchemaVersion,
       version: raw.version,
       updatedAt: raw.updatedAt,
+      keyBase: normalizeKeyBase(raw.keyBase),
+      keyType: normalizeKeyType(raw.keyType),
       secondsPerBar: safeSeconds,
       editors: normalizedEditors.length
         ? normalizedEditors
@@ -176,6 +197,8 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
     canvasSchemaVersion: 1,
     version: lane.version || 1,
     updatedAt: lane.updatedAt,
+    keyBase: 0,
+    keyType: 0,
     secondsPerBar: lane.secondsPerBar || DEFAULT_SECONDS_PER_BAR,
     editors: [lane],
   };
@@ -804,7 +827,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [confirmDeleteTrackId, setConfirmDeleteTrackId] = useState<string | null>(null);
   const [openTrackMenuId, setOpenTrackMenuId] = useState<string | null>(null);
   const [openMobileBarMenuLaneId, setOpenMobileBarMenuLaneId] = useState<string | null>(null);
+  const [toolbarOpen, setToolbarOpen] = useState(false);
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
+  const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabled] = useState(false);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
   const [sharedTimelineScrollRatio, setSharedTimelineScrollRatio] = useState(0);
   const [globalPlaybackFrame, setGlobalPlaybackFrame] = useState(0);
@@ -1296,6 +1321,29 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       }
     },
     [recordCanvasHistory]
+  );
+
+  const commitCanvasKey = useCallback(
+    (nextKeyBase: number, nextKeyType: number) => {
+      if (!canvas) return;
+      const keyBase = normalizeKeyBase(nextKeyBase);
+      const keyType = normalizeKeyType(nextKeyType);
+      const currentKeyBase = normalizeKeyBase(canvas.keyBase);
+      const currentKeyType = normalizeKeyType(canvas.keyType);
+      if (keyBase === currentKeyBase && keyType === currentKeyType) return;
+      const nextCanvas = normalizeCanvas(
+        {
+          ...canvas,
+          keyBase,
+          keyType,
+          updatedAt: new Date().toISOString(),
+        },
+        editorId
+      );
+      applyCanvasUpdate(nextCanvas, { markDirty: true });
+      void syncCanvasDraftToBackend(nextCanvas, { silent: true });
+    },
+    [applyCanvasUpdate, canvas, editorId, syncCanvasDraftToBackend]
   );
 
   const commitName = async (rawValue: string = nameDraft, options?: { exitEdit?: boolean }) => {
@@ -3533,6 +3581,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             >
               Snap {globalSnapToGridEnabled ? "On" : "Off"}
             </button>
+            <button
+              type="button"
+              onClick={() => setGlobalSnapToKeyEnabled((prev) => !prev)}
+              className={`rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm ${
+                globalSnapToKeyEnabled
+                  ? "border-sky-300 bg-sky-100 text-sky-800"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              Key {globalSnapToKeyEnabled ? "On" : "Off"}
+            </button>
             <div className="ml-auto flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
               <span className="text-slate-500">Time</span>
               <span className="font-semibold text-slate-700">{timelineZoomPercent}%</span>
@@ -3648,6 +3707,42 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               className="page-subtitle"
               style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}
             >
+              <div
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 shadow-sm"
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                <span className="text-small muted">Key</span>
+                <select
+                  value={normalizeKeyBase(canvas?.keyBase)}
+                  onChange={(event) =>
+                    commitCanvasKey(Number(event.target.value), normalizeKeyType(canvas?.keyType))
+                  }
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
+                  title="Base note"
+                  aria-label="Base note"
+                >
+                  {KEY_BASE_OPTIONS.map((label, index) => (
+                    <option key={label} value={index}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={normalizeKeyType(canvas?.keyType)}
+                  onChange={(event) =>
+                    commitCanvasKey(normalizeKeyBase(canvas?.keyBase), Number(event.target.value))
+                  }
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
+                  title="Key extension"
+                  aria-label="Key extension"
+                >
+                  {KEY_TYPE_OPTIONS.map((label, index) => (
+                    <option key={label} value={index}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
                 BPM
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
@@ -4052,6 +4147,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </button>
                       <button
                         type="button"
+                        onClick={() => setGlobalSnapToKeyEnabled((prev) => !prev)}
+                        className={`rounded-md border px-3 py-2 text-xs font-semibold ${
+                          globalSnapToKeyEnabled
+                            ? "border-sky-300 bg-sky-100 text-sky-800"
+                            : "border-slate-200 bg-white text-slate-600"
+                        }`}
+                        title="Auto-correct notes to the current key for all tracks"
+                      >
+                        Snap to key: {globalSnapToKeyEnabled ? "On" : "Off"}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => void router.push(transcriberHref)}
                         className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                         title="Open the standalone transcriber"
@@ -4263,6 +4370,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 >
                   Snap: {globalSnapToGridEnabled ? "On" : "Off"}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setGlobalSnapToKeyEnabled((prev) => !prev)}
+                  className={`rounded-md border px-2 py-1 text-xs font-semibold ${
+                    globalSnapToKeyEnabled
+                      ? "border-sky-300 bg-sky-100 text-sky-800"
+                      : "border-slate-200 bg-white text-slate-600"
+                  }`}
+                  title="Auto-correct notes to the current key for all tracks"
+                >
+                  Key: {globalSnapToKeyEnabled ? "On" : "Off"}
+                </button>
               </div>
               <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
                 <span className="shrink-0">Time scale</span>
@@ -4350,6 +4469,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       const clickedEditorControl = Boolean(
                         target?.closest("[data-gte-editor-control='true']")
                       );
+                      const clickedToolbarUi = Boolean(target?.closest("[data-gte-toolbar-ui='true']"));
 
                       if (activeLaneId !== laneId && clickedBarSelector) {
                         setBarSelectionClearExemptEditorId(laneEditorRef);
@@ -4362,6 +4482,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       ) {
                         setSelectionClearExemptEditorId(laneEditorRef);
                         setSelectionClearEpoch((prev) => prev + 1);
+                      }
+                      if (clickedToolbarUi) {
+                        setPendingTrackReorder(null);
+                        return;
                       }
                       setActiveLaneId(laneId);
                       if (isMobileViewport) {
@@ -4391,6 +4515,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       const clickedEditorControl = Boolean(
                         target?.closest("[data-gte-editor-control='true']")
                       );
+                      const clickedToolbarUi = Boolean(target?.closest("[data-gte-toolbar-ui='true']"));
                       if (activeLaneId !== laneId && clickedBarSelector) {
                         setBarSelectionClearExemptEditorId(laneEditorRef);
                         setBarSelectionClearEpoch((prev) => prev + 1);
@@ -4399,6 +4524,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       if (activeLaneId !== laneId && !clickedEditorControl) {
                         setSelectionClearExemptEditorId(laneEditorRef);
                         setSelectionClearEpoch((prev) => prev + 1);
+                      }
+                      if (clickedToolbarUi) {
+                        setPendingTrackReorder(null);
+                        return;
                       }
                       setActiveLaneId(laneId);
                       setPendingTrackReorder(null);
@@ -4494,6 +4623,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onFocusWorkspace={() => setActiveLaneId(laneId)}
                               globalSnapToGridEnabled={globalSnapToGridEnabled}
                               onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
+                              globalSnapToKeyEnabled={globalSnapToKeyEnabled}
+                              onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
+                              canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
+                              canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                               sharedViewportBarCount={sharedViewportBarCount}
                               sharedTimelineScrollRatio={sharedTimelineScrollRatio}
@@ -4529,6 +4662,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
                               showToolbarWhenInactive={false}
+                              toolbarOpen={toolbarOpen}
+                              onToolbarOpenChange={setToolbarOpen}
                               multiTrackSelectionActive={multiTrackSelectionActive}
                               onSelectionStateChange={(selection) =>
                                 handleLaneSelectionStateChange(laneId, selection)
@@ -4749,6 +4884,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onFocusWorkspace={() => setActiveLaneId(laneId)}
                               globalSnapToGridEnabled={globalSnapToGridEnabled}
                               onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
+                              globalSnapToKeyEnabled={globalSnapToKeyEnabled}
+                              onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
+                              canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
+                              canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                               sharedViewportBarCount={sharedViewportBarCount}
                               sharedTimelineScrollRatio={sharedTimelineScrollRatio}
@@ -4784,6 +4923,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
                               showToolbarWhenInactive={index === 0 && activeLaneId === null}
+                              toolbarOpen={toolbarOpen}
+                              onToolbarOpenChange={setToolbarOpen}
                               multiTrackSelectionActive={multiTrackSelectionActive}
                               onSelectionStateChange={(selection) =>
                                 handleLaneSelectionStateChange(laneId, selection)
@@ -5023,6 +5164,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onFocusWorkspace={() => activateLaneForEditing(laneId)}
                           globalSnapToGridEnabled={globalSnapToGridEnabled}
                           onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
+                          globalSnapToKeyEnabled={globalSnapToKeyEnabled}
+                          onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
+                          canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
+                          canvasKeyType={normalizeKeyType(canvas.keyType)}
                           sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                           sharedViewportBarCount={sharedViewportBarCount}
                           sharedTimelineScrollRatio={sharedTimelineScrollRatio}
@@ -5060,6 +5205,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           showToolbarWhenInactive={
                             isMobileViewport ? index === 0 && !mobileEditLaneId : activeLaneId === null && index === 0
                           }
+                          toolbarOpen={toolbarOpen}
+                          onToolbarOpenChange={setToolbarOpen}
                           multiTrackSelectionActive={multiTrackSelectionActive}
                           onSelectionStateChange={(selection) =>
                             handleLaneSelectionStateChange(laneId, selection)
