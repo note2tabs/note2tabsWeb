@@ -1351,6 +1351,87 @@ export default function HomePage() {
           </div>
         </section>
 
+        <section className="editor-showcase" id="editor-showcase">
+          <div className="container">
+            <div className="editor-showcase-header" data-reveal>
+              <span className="pill">Editor</span>
+              <h2>Create, edit and play your own guitar tabs.</h2>
+              <p>
+                Note2Tabs guitar-tab editor is a web-based workspace for making guitar tabulature.
+              </p>
+            </div>
+
+            <div className="editor-showcase-sections">
+              <article className="editor-showcase-row" data-reveal>
+                <div className="editor-showcase-image editor-showcase-image--workspace">
+                  <img
+                    src="/images/editor-previews/Editor-main.png"
+                    alt="Guitar tab editor workspace"
+                  />
+                </div>
+                <div className="editor-showcase-text">
+                  <h3>A complete workspace for guitar tabs</h3>
+                  <p>
+                    Keep the whole song  in one place: unlimited songs, unlimited tracks.
+                    The editor has over 30 unique tools helping you create tabs your way.
+                    From quick fixes to detailed arrangements, everything you need is built into a single workflow.
+                  </p>
+                </div>
+              </article>
+
+              <article className="editor-showcase-row editor-showcase-row--reverse" data-reveal>
+                <div className="editor-showcase-image editor-showcase-image--tools">
+                  <img
+                    src="/images/editor-previews/collage.png"
+                    alt="Guitar tab editing tools"
+                  />
+                </div>
+                <div className="editor-showcase-text">
+                  <h3>Tab-making tools tailored to guitarists</h3>
+                  <p>
+                    What sets us appart from the standard guitar-tab editor are our specialised tools.
+                    Fingering selection, and optimizer tools help you find cleaner positions faster instead
+                    of manually testing every string and fret combination. Our unique "playing-coordinate" system
+                    lets you pick where on the fretboard you'd like to play and "snap to key" lets you quickly type out riffs
+                    without thinking about theory.
+                  </p>
+                </div>
+              </article>
+
+              <article className="editor-showcase-row" data-reveal>
+                <div className="editor-showcase-image editor-showcase-image--training">
+                  <img
+                    src="/images/editor-previews/collage-training.png"
+                    alt="Guitar tab practice and playback tools"
+                  />
+                </div>
+                <div className="editor-showcase-text">
+                  <h3>Training tools for learning your riffs</h3>
+                  <p>
+                    Import text-tabs, use your transcribed or own creations and learn the riffs.
+                    Playback with different guitar sounds, loop difficult sections and follow along with
+                    our train mode, on increasing speed.
+                  </p>
+                </div>
+              </article>
+            </div>
+
+            <div className="editor-showcase-feature-list" data-reveal>
+              <h3>Editor features</h3>
+              <ul>
+                <li>Keyboard shortcuts for everything</li>
+                <li>String and fret optimization</li>
+                <li>Snap notes to key</li>
+                <li>automatic fingering selection</li>
+                <li>Playback and practice loops</li>
+                <li>Section-based song workflow</li>
+                <li>Fast cleanup after transcription</li>
+                <li>Browser-based tab creation</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
         <section className="pricing" id="pricing">
           <div className="container">
             <div className="pricing-intro" data-reveal>
