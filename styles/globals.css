@@ -5351,12 +5351,24 @@ input[type="number"] {
 }
 
 .editor-showcase-image {
-  min-height: 360px;
+  min-height: 270px;
   overflow: hidden;
   border-radius: 24px;
-  background: #111827;
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: #fbf8f1;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.08);
+}
+
+.editor-showcase-image--workspace {
+  min-height: 0;
+  aspect-ratio: 1897 / 949;
+}
+
+.editor-showcase-image--workspace img {
+  display: block;
+  width: 106%;
+  height: 100%;
+  object-fit: cover;
+  object-position: left top;
 }
 
 .editor-showcase-browser-bar {
@@ -5460,11 +5472,6 @@ input[type="number"] {
   gap: 28px;
   align-content: center;
   padding: 34px;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    #111827;
-  background-size: 30px 30px;
 }
 
 .editor-showcase-tool-strip {

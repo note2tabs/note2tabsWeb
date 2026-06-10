@@ -1364,27 +1364,10 @@ export default function HomePage() {
             <div className="editor-showcase-sections">
               <article className="editor-showcase-row" data-reveal>
                 <div className="editor-showcase-image editor-showcase-image--workspace" aria-label="Editor overview image placeholder" role="img">
-                  <div className="editor-showcase-browser-bar">
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                  <div className="editor-showcase-workspace">
-                    <div className="editor-showcase-side-rail">
-                      <span />
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                    <div className="editor-showcase-tab-sheet">
-                      <pre>{`e|----------------|-------------7-8-|
-B|---------5-6-8--|-------8-10------|
-G|-----5-7--------|-7-9-------------|
-D|-5-7------------|-----------------|
-A|----------------|-----------------|
-E|----------------|-----------------|`}</pre>
-                    </div>
-                  </div>
+                  <img
+                    src="/images/editor-previews/Editor-main.png"
+                    alt="Guitar tab editor"
+                  />
                 </div>
                 <div className="editor-showcase-text">
                   <h3>A complete workspace for guitar tabs</h3>
@@ -1398,19 +1381,10 @@ E|----------------|-----------------|`}</pre>
 
               <article className="editor-showcase-row editor-showcase-row--reverse" data-reveal>
                 <div className="editor-showcase-image editor-showcase-image--tools" aria-label="Tab-making tools image placeholder" role="img">
-                  <div className="editor-showcase-tool-strip">
-                    <span>Snap to key</span>
-                    <span>Fingering</span>
-                    <span>Optimize</span>
-                  </div>
-                  <div className="editor-showcase-fretboard">
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                  </div>
+                  <img
+                    src="/images/editor-previews/collage.png"
+                    alt="Guitar tab editor"
+                  />
                 </div>
                 <div className="editor-showcase-text">
                   <h3>Tab-making tools tailored to guitarists</h3>
@@ -1426,19 +1400,10 @@ E|----------------|-----------------|`}</pre>
 
               <article className="editor-showcase-row" data-reveal>
                 <div className="editor-showcase-image editor-showcase-image--training" aria-label="Training tools image placeholder" role="img">
-                  <div className="editor-showcase-training-meter">
-                    <span />
-                  </div>
-                  <div className="editor-showcase-training-lanes">
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                  <div className="editor-showcase-training-controls">
-                    <span />
-                    <span />
-                    <span />
-                  </div>
+                  <img
+                    src="/images/editor-previews/collage-training.png"
+                    alt="Guitar tab editor"
+                  />
                 </div>
                 <div className="editor-showcase-text">
                   <h3>Training tools for learning your riffs</h3>
