@@ -1,9 +1,10 @@
-import type { PrismaClient } from "@prisma/client";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { prisma } from "../prisma";
-import { parseRequestCookies, ANALYTICS_ANON_COOKIE, ANALYTICS_SESSION_COOKIE } from "./cookies";
-import { hashFingerprint } from "./fingerprintHash";
-import { analyticsFlags } from "./flags";
+import { createPostHogServerClient } from "../posthogServer";
+import {
+  ANALYTICS_ANON_COOKIE,
+  ANALYTICS_SESSION_COOKIE,
+  parseRequestCookies,
+} from "./cookies";
 
 type IdentitySource = "signup" | "login";
 
@@ -15,147 +16,39 @@ type LinkIdentityInput = {
   rawFingerprint?: string;
   anonId?: string;
   sessionId?: string;
-  prismaClient?: PrismaClient;
 };
 
-async function resolveFingerprintHash(
-  prismaClient: PrismaClient,
-  userId: string,
-  anonId: string | undefined,
-  rawFingerprint: string | undefined
-): Promise<string | undefined> {
-  const hashed = hashFingerprint(rawFingerprint);
-  if (hashed) return hashed;
-
-  const subjectByUser = await prismaClient.analyticsConsentSubject.findUnique({
-    where: { userId },
-    select: { fingerprintHash: true },
-  });
-  if (subjectByUser?.fingerprintHash) return subjectByUser.fingerprintHash;
-
-  if (anonId) {
-    const subjectByAnon = await prismaClient.analyticsConsentSubject.findUnique({
-      where: { anonId },
-      select: { fingerprintHash: true },
-    });
-    if (subjectByAnon?.fingerprintHash) return subjectByAnon.fingerprintHash;
-
-    const recentEvent = await prismaClient.analyticsEventV2.findFirst({
-      where: { anonId, fingerprintHash: { not: null } },
-      orderBy: { ts: "desc" },
-      select: { fingerprintHash: true },
-    });
-    if (recentEvent?.fingerprintHash) return recentEvent.fingerprintHash;
-  }
-
-  return undefined;
-}
-
 export async function linkIdentityToUser(input: LinkIdentityInput) {
-  const prismaClient = input.prismaClient || prisma;
-  const now = new Date();
-  const linkDays = Math.max(1, analyticsFlags.fingerprintLinkDays);
-  const expiresAt = new Date(now.getTime() + linkDays * 24 * 60 * 60 * 1000);
-  const since = new Date(now.getTime() - linkDays * 24 * 60 * 60 * 1000);
-
   const cookies = input.req ? parseRequestCookies(input.req) : {};
   const anonId = input.anonId || cookies[ANALYTICS_ANON_COOKIE];
   const sessionId = input.sessionId || cookies[ANALYTICS_SESSION_COOKIE];
-  const fingerprintHash = await resolveFingerprintHash(
-    prismaClient,
-    input.userId,
-    anonId,
-    input.rawFingerprint
-  );
+  const client = createPostHogServerClient();
 
-  if (anonId) {
-    await prismaClient.analyticsIdentityLink.upsert({
-      where: {
-        userId_anonId: {
-          userId: input.userId,
-          anonId,
-        },
-      },
-      update: {
-        lastSeenAt: now,
-        expiresAt,
-        source: input.source,
-      },
-      create: {
-        userId: input.userId,
-        anonId,
-        firstSeenAt: now,
-        lastSeenAt: now,
-        expiresAt,
-        source: input.source,
-      },
-    });
+  if (!client) {
+    return {
+      ok: true,
+      reason: "posthog_not_configured",
+      userId: input.userId,
+      anonId: anonId || null,
+      sessionId: sessionId || null,
+    };
   }
 
-  if (fingerprintHash) {
-    await prismaClient.analyticsIdentityLink.upsert({
-      where: {
-        userId_fingerprintHash: {
-          userId: input.userId,
-          fingerprintHash,
-        },
-      },
-      update: {
-        lastSeenAt: now,
-        expiresAt,
-        source: input.source,
-      },
-      create: {
-        userId: input.userId,
-        fingerprintHash,
-        anonId: null,
-        firstSeenAt: now,
-        lastSeenAt: now,
-        expiresAt,
-        source: input.source,
-      },
-    });
-
-    await prismaClient.analyticsEventV2.updateMany({
-      where: {
-        accountId: null,
-        ts: { gte: since },
-        fingerprintHash,
-      },
-      data: {
-        accountId: input.userId,
-      },
-    });
-
-    if (analyticsFlags.dualWrite) {
-      await prismaClient.analyticsEvent.updateMany({
-        where: {
-          userId: null,
-          createdAt: { gte: since },
-          fingerprint: fingerprintHash,
-        },
-        data: {
-          userId: input.userId,
-        },
+  try {
+    if (anonId && anonId !== input.userId) {
+      client.alias({
+        distinctId: anonId,
+        alias: input.userId,
       });
     }
-  }
-
-  if (anonId) {
-    await prismaClient.analyticsConsentSubject.updateMany({
-      where: { anonId },
-      data: {
-        userId: input.userId,
-        ...(fingerprintHash ? { fingerprintHash } : {}),
+    client.identify({
+      distinctId: input.userId,
+      properties: {
+        last_identity_source: input.source,
       },
     });
-  } else {
-    await prismaClient.analyticsConsentSubject.updateMany({
-      where: { userId: input.userId },
-      data: {
-        ...(fingerprintHash ? { fingerprintHash } : {}),
-      },
-    });
+  } finally {
+    await client.shutdown();
   }
 
   return {
@@ -163,8 +56,6 @@ export async function linkIdentityToUser(input: LinkIdentityInput) {
     userId: input.userId,
     anonId: anonId || null,
     sessionId: sessionId || null,
-    fingerprintHash: fingerprintHash || null,
-    since,
-    expiresAt,
   };
 }
+
