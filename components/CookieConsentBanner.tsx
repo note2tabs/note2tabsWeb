@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { generateFingerprint } from "../lib/fingerprint";
+import { setPostHogConsent } from "../lib/posthogClient";
 
 const CONSENT_COOKIE = "analytics_consent";
 const SESSION_COOKIE = "analytics_session";
@@ -89,13 +89,8 @@ export default function CookieConsentBanner() {
     setProcessing(true);
     setCookie(CONSENT_COOKIE, "granted", 365 * 24 * 60 * 60);
     try {
-      const ids = ensureTrackingIds();
-      const { fingerprintId } = await generateFingerprint();
-      await fetch("/api/consent/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: "granted", fingerprintId, sessionId: ids?.sessionId }),
-      });
+      ensureTrackingIds();
+      setPostHogConsent("granted");
     } catch (error) {
       // ignore errors
     } finally {
@@ -111,10 +106,7 @@ export default function CookieConsentBanner() {
     deleteCookie(SESSION_COOKIE);
     deleteCookie(ANON_COOKIE);
     try {
-      await fetch("/api/consent/deny", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
+      setPostHogConsent("denied");
     } catch (error) {
       // ignore errors
     } finally {

@@ -73,7 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     buildInactiveSignupReminderIdentifier(userId)
   );
 
-  const [existingReminderMarkers, editorEventsV2, editorEventsLegacy] = await Promise.all([
+  const [existingReminderMarkers, editorSnapshots] = await Promise.all([
     prisma.verificationToken.findMany({
       where: {
         identifier: {
@@ -82,35 +82,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       select: { identifier: true },
     }),
-    prisma.analyticsEventV2.findMany({
+    prisma.editor_snapshots.findMany({
       where: {
-        name: "gte_editor_created",
-        accountId: {
+        user_id: {
           in: candidateIds,
         },
       },
-      select: { accountId: true },
-      distinct: ["accountId"],
-    }),
-    prisma.analyticsEvent.findMany({
-      where: {
-        event: "gte_editor_created",
-        userId: {
-          in: candidateIds,
-        },
-      },
-      select: { userId: true },
-      distinct: ["userId"],
+      select: { user_id: true },
+      distinct: ["user_id"],
     }),
   ]);
 
   const reminderSentSet = new Set(existingReminderMarkers.map((marker) => marker.identifier));
   const editorCreatedSet = new Set<string>();
-  for (const row of editorEventsV2) {
-    if (row.accountId) editorCreatedSet.add(row.accountId);
-  }
-  for (const row of editorEventsLegacy) {
-    if (row.userId) editorCreatedSet.add(row.userId);
+  for (const row of editorSnapshots) {
+    editorCreatedSet.add(row.user_id);
   }
 
   let sent = 0;

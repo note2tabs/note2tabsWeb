@@ -16,7 +16,7 @@ import {
   withBackendRemainingCredits,
 } from "../lib/backendCredits";
 import { prisma } from "../lib/prisma";
-import { generateFingerprint } from "../lib/fingerprint";
+import { setPostHogConsent } from "../lib/posthogClient";
 import NoIndexHead from "../components/NoIndexHead";
 
 type Props = {
@@ -228,25 +228,12 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     setConsentMessage(null);
     setError(null);
     try {
-      let fingerprintId: string | undefined;
-      if (state === "granted") {
-        try {
-          const fingerprint = await generateFingerprint();
-          fingerprintId = fingerprint.fingerprintId;
-        } catch {
-          // best effort
-        }
-      }
-      const endpoint = state === "denied" ? "/api/consent/deny" : "/api/consent/update";
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: state === "granted" ? JSON.stringify({ state: "granted", fingerprintId }) : undefined,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.error || "Could not update analytics consent.");
-      }
+      const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+      const secure = window.location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `analytics_consent=${state}; expires=${expires}; Max-Age=${
+        365 * 24 * 60 * 60
+      }; path=/; SameSite=Lax${secure}`;
+      setPostHogConsent(state);
       setConsentState(state);
       setConsentMessage(
         state === "granted"

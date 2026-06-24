@@ -31,11 +31,6 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const isHome = router.pathname === "/";
   const role = session?.user?.role || "";
   const isAdmin = role === "ADMIN";
-  const isModerator = role === "MODERATOR" || role === "MOD";
-  const analyticsHref = isAdmin
-    ? "/admin/analytics?view=overview&range=30d"
-    : "/admin/analytics?view=moderation&range=30d";
-  const analyticsLabel = isAdmin ? "Analytics" : "Moderation";
 
   useEffect(() => {
     setMenuOpen(false);
@@ -186,9 +181,9 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                 <Link href="/tabs" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
                   Transcriptions
                 </Link>
-                {(isAdmin || isModerator) && (
-                  <Link href={analyticsHref} role="menuitem" onClick={() => setProfileMenuOpen(false)}>
-                    {analyticsLabel}
+                {isAdmin && (
+                  <Link href="/admin/analytics" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
+                    Analytics
                   </Link>
                 )}
                 <button
