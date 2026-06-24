@@ -273,6 +273,38 @@ describe("stripe premium flow", () => {
       });
     });
 
+    it("does not downgrade when another Stripe customer for the same email has an active subscription", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        type: "customer.subscription.deleted",
+        data: {
+          object: {
+            customer: "cus_canceled",
+          },
+        },
+      });
+      stripeMock.customers.retrieve.mockResolvedValue({
+        id: "cus_canceled",
+        email: "user@example.com",
+      });
+      stripeMock.customers.list.mockResolvedValue({
+        data: [{ id: "cus_active", email: "user@example.com" }],
+      });
+      stripeMock.subscriptions.list.mockImplementation(({ customer }: { customer: string }) =>
+        Promise.resolve({
+          data: customer === "cus_active" ? [{ id: "sub_active", status: "active" }] : [],
+        })
+      );
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const req = buildWebhookReq();
+      const res = createResponse();
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
     it("adds monthly credits on renewal invoices without exceeding the rollover cap", async () => {
       stripeMock.webhooks.constructEvent.mockReturnValue({
         type: "invoice.payment_succeeded",

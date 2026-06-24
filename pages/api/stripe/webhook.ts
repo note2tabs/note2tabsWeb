@@ -107,6 +107,28 @@ async function customerHasEntitledSubscription(customerId: string) {
   );
 }
 
+async function emailHasEntitledSubscription(email: string, excludedCustomerId?: string | null) {
+  if (!stripeClient) return false;
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return false;
+  try {
+    const customers = await stripeClient.customers.list({
+      email: normalizedEmail,
+      limit: 100,
+    });
+    for (const customer of customers.data) {
+      if ("deleted" in customer) continue;
+      if (excludedCustomerId && customer.id === excludedCustomerId) continue;
+      if (await customerHasEntitledSubscription(customer.id)) {
+        return true;
+      }
+    }
+  } catch (error) {
+    console.error("Webhook customer subscription search failed.", error);
+  }
+  return false;
+}
+
 type PremiumCreditMode = "reset" | "preserve" | "renew";
 
 async function setPremiumForIdentifier(identifier: UserIdentifier, creditMode: PremiumCreditMode) {
@@ -133,6 +155,9 @@ async function setPremiumForIdentifier(identifier: UserIdentifier, creditMode: P
 
 async function downgradePremiumByEmail(email: string, customerId?: string | null) {
   if (customerId && (await customerHasEntitledSubscription(customerId))) {
+    return;
+  }
+  if (await emailHasEntitledSubscription(email, customerId)) {
     return;
   }
 
