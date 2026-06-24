@@ -354,7 +354,6 @@ const getCutCoordAtTime = (snapshot: EditorSnapshot, time: number): TabCoord => 
   return clampTabCoordInSnapshot(snapshot, hit?.[1] ?? cuts[0]?.[1] ?? DEFAULT_CUT_COORD);
 };
 
-const tabKey = (tab: TabCoord) => `${tab[0]}:${tab[1]}`;
 const noteEffectKey = (effect: Pick<NoteEffect, "startNoteId" | "endNoteId">) =>
   `${Math.min(effect.startNoteId, effect.endNoteId)}:${Math.max(effect.startNoteId, effect.endNoteId)}`;
 
@@ -375,20 +374,20 @@ const computeNoteAlternatesForSnapshot = (
   // so fall back to tab-derived MIDI unless midiNum is truthy.
   const midi = note.midiNum || getTabMidi(snapshot, note.tab);
   const candidates = getAllTabsForMidi(snapshot, midi);
-  const blocked = new Set<string>();
+  const blockedStrings = new Set<number>();
   snapshot.notes.forEach((item) => {
     if (item.id === note.id) return;
     const start = Math.round(item.startTime);
     const end = start + clampEventLength(item.length);
     if (start < noteEnd && noteStart < end) {
-      blocked.add(tabKey(item.tab));
+      blockedStrings.add(item.tab[0]);
     }
   });
   snapshot.chords.forEach((chord) => {
     const start = Math.round(chord.startTime);
     const end = start + clampEventLength(chord.length);
     if (start < noteEnd && noteStart < end) {
-      chord.currentTabs.forEach((tab) => blocked.add(tabKey(tab)));
+      chord.currentTabs.forEach((tab) => blockedStrings.add(tab[0]));
     }
   });
   const cutCoord = getCutCoordAtTime(snapshot, noteStart);
@@ -399,7 +398,7 @@ const computeNoteAlternatesForSnapshot = (
     .map((tab) => ({
       tab,
       score: scoreTabDistance(tab, cutCoord, isConnectedToEffect),
-      blocked: blocked.has(tabKey(tab)),
+      blocked: blockedStrings.has(tab[0]),
     }))
     .sort((left, right) => left.score - right.score || left.tab[0] - right.tab[0] || left.tab[1] - right.tab[1]);
   return {
@@ -5178,21 +5177,6 @@ export default function GteWorkspace({
             .filter((id) => id >= 0);
           if (!resolvedIds.length) return;
           const selectedIdSet = new Set(resolvedIds);
-          const reservedStringsByStart = new Map<number, Set<number>>();
-          const reserveString = (startTime: number, stringIndex: number) => {
-            const startKey = Math.round(startTime);
-            const current = reservedStringsByStart.get(startKey) ?? new Set<number>();
-            current.add(stringIndex);
-            reservedStringsByStart.set(startKey, current);
-          };
-
-          draft.notes.forEach((note) => {
-            if (selectedIdSet.has(note.id)) return;
-            reserveString(note.startTime, note.tab[0]);
-          });
-          draft.chords.forEach((chord) => {
-            chord.currentTabs.forEach((tab) => reserveString(chord.startTime, tab[0]));
-          });
 
           draft.notes
             .filter((note) => selectedIdSet.has(note.id))
@@ -5202,21 +5186,13 @@ export default function GteWorkspace({
             )
             .forEach((note) => {
               const alternates = computeNoteAlternatesForSnapshot(draft, note);
-              const reservedStrings = reservedStringsByStart.get(Math.round(note.startTime)) ?? new Set<number>();
-              const availablePossibleTabs = alternates.possibleTabs.filter((tab) => !reservedStrings.has(tab[0]));
-              const availableBlockedTabs = alternates.blockedTabs.filter((tab) => !reservedStrings.has(tab[0]));
-              const nextTab =
-                availablePossibleTabs[0] ||
-                availableBlockedTabs[0] ||
-                alternates.possibleTabs[0] ||
-                alternates.blockedTabs[0] ||
-                ([note.tab[0], note.tab[1]] as TabCoord);
-              note.tab = [nextTab[0], nextTab[1]];
-              note.midiNum = getTabMidi(draft, note.tab);
-              note.optimals = (availablePossibleTabs.length ? availablePossibleTabs : alternates.possibleTabs).map(
+              const nextTab = alternates.possibleTabs[0];
+              note.optimals = alternates.possibleTabs.map(
                 (tab) => [tab[0], tab[1]] as TabCoord
               );
-              reserveString(note.startTime, note.tab[0]);
+              if (!nextTab) return;
+              note.tab = [nextTab[0], nextTab[1]];
+              note.midiNum = getTabMidi(draft, note.tab);
             });
         },
         serverMode: "local-first",

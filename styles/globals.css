@@ -5330,6 +5330,307 @@ input[type="number"] {
   }
 }
 
+.editor-showcase {
+  padding: 52px 0 96px;
+  background: #fbf8f1;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1280px;
+}
+
+.editor-showcase-header {
+  max-width: 720px;
+  margin-bottom: 48px;
+}
+
+.editor-showcase-header h2 {
+  margin: 12px 0 10px;
+  max-width: 660px;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: 1.02;
+  font-weight: 760;
+}
+
+.editor-showcase-header p {
+  margin: 0;
+  max-width: 610px;
+  color: rgba(15, 23, 42, 0.68);
+  font-size: 1.05rem;
+  line-height: 1.58;
+}
+
+.editor-showcase-sections {
+  display: grid;
+  gap: 72px;
+}
+
+.editor-showcase-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(300px, 0.82fr);
+  gap: clamp(28px, 5vw, 64px);
+  align-items: center;
+}
+
+.editor-showcase-row--reverse {
+  grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.15fr);
+}
+
+.editor-showcase-row--reverse .editor-showcase-image {
+  order: 2;
+}
+
+.editor-showcase-row--reverse .editor-showcase-text {
+  order: 1;
+}
+
+.editor-showcase-image {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: #fffdf8;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9),
+    0 18px 44px rgba(15, 23, 42, 0.08);
+}
+
+.editor-showcase-image--workspace {
+  aspect-ratio: 1897 / 949;
+}
+
+.editor-showcase-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.editor-showcase-image--workspace img {
+  width: 106%;
+  object-fit: cover;
+  object-position: left top;
+}
+
+.editor-showcase-browser-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 16px;
+  background: #0f172a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.editor-showcase-browser-bar span {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #f87171;
+}
+
+.editor-showcase-browser-bar span:nth-child(2) {
+  background: #fbbf24;
+}
+
+.editor-showcase-browser-bar span:nth-child(3) {
+  background: #34d399;
+}
+
+.editor-showcase-workspace {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  min-height: 318px;
+}
+
+.editor-showcase-side-rail {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 20px 14px;
+  background: rgba(15, 23, 42, 0.52);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.editor-showcase-side-rail span {
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.editor-showcase-side-rail span:first-child {
+  background: rgba(52, 211, 153, 0.32);
+}
+
+.editor-showcase-tab-sheet {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.editor-showcase-tab-sheet pre {
+  width: min(100%, 620px);
+  margin: 0;
+  padding: 26px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.64);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  font-size: clamp(0.72rem, 1.55vw, 1.1rem);
+  line-height: 1.72;
+}
+
+.editor-showcase-text {
+  display: grid;
+  gap: 14px;
+  align-content: center;
+}
+
+.editor-showcase-text h3 {
+  margin: 0;
+  max-width: 460px;
+  font-size: clamp(1.45rem, 2.25vw, 2.2rem);
+  line-height: 1.08;
+  font-weight: 750;
+}
+
+.editor-showcase-text p {
+  margin: 0;
+  max-width: 520px;
+  color: rgba(15, 23, 42, 0.66);
+  font-size: 1rem;
+  line-height: 1.68;
+}
+
+.editor-showcase-image--tools {
+  aspect-ratio: 822 / 604;
+  background: #fffdf8;
+}
+
+.editor-showcase-image--training {
+  aspect-ratio: 1242 / 772;
+  background: #fffdf8;
+}
+
+.editor-showcase-image--tools img,
+.editor-showcase-image--training img {
+  padding: clamp(10px, 2vw, 18px);
+  object-fit: contain;
+  object-position: center;
+}
+
+.editor-showcase-feature-list {
+  margin-top: 56px;
+  padding: 28px 0 0;
+  border-top: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+.editor-showcase-feature-list h3 {
+  margin: 0 0 20px;
+  font-size: 1.45rem;
+  line-height: 1.2;
+  font-weight: 740;
+}
+
+.editor-showcase-feature-list ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 32px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  border-top: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.editor-showcase-feature-list li {
+  position: relative;
+  padding: 16px 0 16px 22px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+  color: rgba(15, 23, 42, 0.82);
+  font-size: 0.98rem;
+  font-weight: 640;
+}
+
+.editor-showcase-feature-list li::before {
+  content: "";
+  position: absolute;
+  top: 24px;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #34d399;
+}
+
+@media (max-width: 980px) {
+  .editor-showcase-row,
+  .editor-showcase-row--reverse {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .editor-showcase-row--reverse .editor-showcase-image,
+  .editor-showcase-row--reverse .editor-showcase-text {
+    order: initial;
+  }
+
+  .editor-showcase-feature-list ul {
+    gap: 0 22px;
+  }
+}
+
+@media (max-width: 620px) {
+  .editor-showcase {
+    padding: 18px 0 64px;
+  }
+
+  .editor-showcase-header h2 {
+    font-size: 1.8rem;
+    line-height: 1.08;
+  }
+
+  .editor-showcase-image {
+    min-height: 0;
+    border-radius: 12px;
+  }
+
+  .editor-showcase-workspace {
+    grid-template-columns: 68px minmax(0, 1fr);
+    min-height: 238px;
+  }
+
+  .editor-showcase-side-rail {
+    padding: 14px 10px;
+  }
+
+  .editor-showcase-side-rail span {
+    height: 28px;
+  }
+
+  .editor-showcase-tab-sheet {
+    padding: 14px;
+  }
+
+  .editor-showcase-tab-sheet pre {
+    padding: 16px;
+    font-size: 0.58rem;
+    line-height: 1.65;
+  }
+
+  .editor-showcase-image--tools,
+  .editor-showcase-image--training {
+    padding: 0;
+  }
+
+  .editor-showcase-feature-list ul {
+    grid-template-columns: 1fr;
+  }
+}
+
 .icon {
   width: 36px;
   height: 36px;

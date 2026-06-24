@@ -53,9 +53,9 @@ export default function PrivacyPage() {
             </li>
           </ul>
           <p>
-            With analytics enabled, we may collect page views, events, device type, browser, approximate location
-            (derived from an IP hash), session identifiers, and a server-salted hash of device fingerprint data to
-            improve Note2Tabs and prevent abuse.
+            With analytics enabled, PostHog may collect page views, product events, device and browser information,
+            approximate location, and anonymous session identifiers to help us improve Note2Tabs. When you sign in,
+            analytics activity may be associated with your Note2Tabs account ID.
           </p>
           <p>
             You can deny analytics and continue using core features (subject to rate limits and security protections).
