@@ -317,7 +317,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <div className="settingsRows">
         <SettingRow
           label="Plan"
-          value={isPremium ? `${user.role} - 50 credits/month (roll over)` : "Free - 10 credits/month"}
+          value={isPremium ? `${user.role} - 50 credits/month (rollover up to 100)` : "Free - 10 credits/month"}
         />
         <SettingRow label="Credits used" value={creditsUsedLabel} />
         <SettingRow label="Remaining" value={credits.remaining} />

@@ -1407,7 +1407,7 @@ export default function HomePage() {
                   <p>Built for songs you plan to finish, not just test.</p>
                 </div>
                 <ul className="pricing-list">
-                  <li>50 credits/month, rollover included</li>
+                  <li>50 credits/month, rollover up to 100</li>
                   <li>Upload size: 200 MB</li>
                   <li>YouTube length: unlimited</li>
                   <li>Extra speed</li>

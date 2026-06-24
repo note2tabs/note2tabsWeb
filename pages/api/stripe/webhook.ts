@@ -2,7 +2,13 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type Stripe from "stripe";
 import { stripeClient } from "../../../lib/stripe";
 import { prisma } from "../../../lib/prisma";
-import { STARTING_CREDITS } from "../../../lib/credits";
+import {
+  STARTING_CREDITS,
+  buildCreditsSummary,
+  calculateCreditsUsedFromDurationCounts,
+  getCreditWindow,
+  reconcileCreditsWithStoredBalance,
+} from "../../../lib/credits";
 
 export const config = {
   api: {
@@ -106,15 +112,33 @@ async function customerHasEntitledSubscription(customerId: string) {
 async function setPremiumForIdentifier(identifier: UserIdentifier) {
   const user = await prisma.user.findFirst({
     where: identifier,
-    select: { id: true, role: true },
+    select: { id: true, role: true, tokensRemaining: true, createdAt: true },
   });
   if (!user) return;
   if (user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD") {
     return;
   }
+  const creditWindow = getCreditWindow({ userCreatedAt: user.createdAt });
+  const creditDurationCounts = await prisma.tabJob.groupBy({
+    by: ["durationSec"],
+    where: { userId: user.id },
+    _count: { _all: true },
+  });
+  const computedCredits = buildCreditsSummary({
+    usedCredits: calculateCreditsUsedFromDurationCounts(
+      creditDurationCounts.map((item) => ({
+        durationSec: item.durationSec,
+        count: item._count._all,
+      }))
+    ),
+    resetAt: creditWindow.resetAt,
+    isPremium: true,
+    userCreatedAt: user.createdAt,
+  });
+  const credits = reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining);
   await prisma.user.update({
     where: { id: user.id },
-    data: { role: "PREMIUM", tokensRemaining: 99999 },
+    data: { role: "PREMIUM", tokensRemaining: credits.remaining },
   });
 }
 

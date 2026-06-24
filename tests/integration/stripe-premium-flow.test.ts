@@ -1,7 +1,7 @@
 import { Readable } from "stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMocks, createResponse } from "node-mocks-http";
-import { STARTING_CREDITS } from "../../lib/credits";
+import { PREMIUM_MONTHLY_CREDITS, STARTING_CREDITS } from "../../lib/credits";
 
 const { sessionMock, stripeMock, prismaMock } = vi.hoisted(() => {
   return {
@@ -19,6 +19,9 @@ const { sessionMock, stripeMock, prismaMock } = vi.hoisted(() => {
         list: vi.fn(),
         retrieve: vi.fn(),
       },
+      subscriptions: {
+        list: vi.fn(),
+      },
       billingPortal: {
         sessions: {
           create: vi.fn(),
@@ -29,6 +32,9 @@ const { sessionMock, stripeMock, prismaMock } = vi.hoisted(() => {
       user: {
         findFirst: vi.fn(),
         update: vi.fn(),
+      },
+      tabJob: {
+        groupBy: vi.fn(),
       },
     },
   };
@@ -71,9 +77,11 @@ describe("stripe premium flow", () => {
     });
     stripeMock.customers.list.mockResolvedValue({ data: [] });
     stripeMock.customers.retrieve.mockResolvedValue(null);
+    stripeMock.subscriptions.list.mockResolvedValue({ data: [] });
     stripeMock.billingPortal.sessions.create.mockResolvedValue({
       url: "https://billing.stripe.test/session_123",
     });
+    prismaMock.tabJob.groupBy.mockResolvedValue([]);
     stripeMock.webhooks.constructEvent.mockReturnValue({
       type: "payment_intent.created",
       data: { object: {} },
@@ -182,7 +190,12 @@ describe("stripe premium flow", () => {
           },
         },
       });
-      prismaMock.user.findFirst.mockResolvedValue({ id: "user_1", role: "FREE" });
+      prismaMock.user.findFirst.mockResolvedValue({
+        id: "user_1",
+        role: "FREE",
+        tokensRemaining: STARTING_CREDITS,
+        createdAt: new Date(),
+      });
 
       const handler = (await import("../../pages/api/stripe/webhook")).default;
       const req = buildWebhookReq();
@@ -193,11 +206,11 @@ describe("stripe premium flow", () => {
       expect(res._getStatusCode()).toBe(200);
       expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
         where: { id: "user_1" },
-        select: { id: true, role: true },
+        select: { id: true, role: true, tokensRemaining: true, createdAt: true },
       });
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: "user_1" },
-        data: { role: "PREMIUM", tokensRemaining: 99999 },
+        data: { role: "PREMIUM", tokensRemaining: STARTING_CREDITS + PREMIUM_MONTHLY_CREDITS },
       });
     });
 
@@ -210,7 +223,12 @@ describe("stripe premium flow", () => {
           },
         },
       });
-      prismaMock.user.findFirst.mockResolvedValue({ id: "user_1", role: "FREE" });
+      prismaMock.user.findFirst.mockResolvedValue({
+        id: "user_1",
+        role: "FREE",
+        tokensRemaining: STARTING_CREDITS,
+        createdAt: new Date(),
+      });
 
       const handler = (await import("../../pages/api/stripe/webhook")).default;
       const req = buildWebhookReq();
@@ -221,11 +239,11 @@ describe("stripe premium flow", () => {
       expect(res._getStatusCode()).toBe(200);
       expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
         where: { email: "user@example.com" },
-        select: { id: true, role: true },
+        select: { id: true, role: true, tokensRemaining: true, createdAt: true },
       });
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: "user_1" },
-        data: { role: "PREMIUM", tokensRemaining: 99999 },
+        data: { role: "PREMIUM", tokensRemaining: STARTING_CREDITS + PREMIUM_MONTHLY_CREDITS },
       });
     });
 

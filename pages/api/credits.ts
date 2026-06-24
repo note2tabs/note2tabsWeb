@@ -70,15 +70,15 @@ async function buildUserCredits(user: {
       if (typeof backendRemaining === "number") {
         credits = withBackendRemainingCredits(computedCredits, backendRemaining);
         source = "backend";
-        if (user.tokensRemaining !== credits.remaining) {
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { tokensRemaining: credits.remaining },
-          });
-        }
       }
     } catch (error) {
       console.warn("credits backend read failed", error);
+    }
+    if (user.tokensRemaining !== credits.remaining) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { tokensRemaining: credits.remaining },
+      });
     }
   } else if (user.tokensRemaining !== credits.remaining) {
     await prisma.user.update({

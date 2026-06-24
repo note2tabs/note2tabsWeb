@@ -9,9 +9,11 @@ export type CreditsSummary = {
 export const STARTING_CREDITS = 10;
 export const FREE_MONTHLY_CREDITS = 10;
 export const PREMIUM_MONTHLY_CREDITS = 50;
+export const PREMIUM_ROLLOVER_CREDIT_CAP = 100;
 export const CREDIT_INTERVAL_SEC = 30;
 export const DEFAULT_DURATION_SEC = 30;
 export const DEV_CREDITS_LIMIT = 9999;
+export const LEGACY_UNLIMITED_CREDIT_BALANCE = DEV_CREDITS_LIMIT;
 
 const toSafeDate = (value?: Date | null) => {
   if (!value) return null;
@@ -148,8 +150,9 @@ export function buildCreditsSummary({
   }
   const createdAt = userCreatedAt || new Date();
   const grants = countMonthlyGrants(createdAt, new Date());
-  const limit = STARTING_CREDITS + grants * PREMIUM_MONTHLY_CREDITS;
-  const remaining = Math.max(0, limit - used);
+  const earnedLimit = STARTING_CREDITS + grants * PREMIUM_MONTHLY_CREDITS;
+  const remaining = capCreditBalance(Math.max(0, earnedLimit - used));
+  const limit = used + remaining;
   return {
     used,
     limit,
@@ -159,6 +162,11 @@ export function buildCreditsSummary({
   };
 }
 
+export function capCreditBalance(value: number, cap = PREMIUM_ROLLOVER_CREDIT_CAP) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(cap, Math.max(0, Math.round(value)));
+}
+
 export function reconcileCreditsWithStoredBalance(
   credits: CreditsSummary,
   storedBalance?: number | null
@@ -166,7 +174,10 @@ export function reconcileCreditsWithStoredBalance(
   if (typeof storedBalance !== "number" || !Number.isFinite(storedBalance)) {
     return credits;
   }
-  const remaining = Math.max(0, Math.round(storedBalance));
+  if (storedBalance >= LEGACY_UNLIMITED_CREDIT_BALANCE) {
+    return credits;
+  }
+  const remaining = capCreditBalance(storedBalance);
   if (remaining <= credits.remaining) {
     return credits;
   }

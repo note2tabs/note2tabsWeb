@@ -288,17 +288,15 @@ export const authOptions: NextAuthOptions = {
           session.user.monthlyCreditsRemaining = credits.remaining;
           session.user.monthlyCreditsResetAt = credits.resetAt;
           session.user.monthlyCreditsUnlimited = credits.unlimited;
-          if (!isPremium) {
-            session.user.tokensRemaining = credits.remaining;
-            if (dbUser && dbUser.tokensRemaining !== credits.remaining) {
-              try {
-                await prisma.user.update({
-                  where: { id: dbUser.id },
-                  data: { tokensRemaining: credits.remaining },
-                });
-              } catch (error) {
-                console.warn("Session callback tokens sync failed", error);
-              }
+          session.user.tokensRemaining = credits.remaining;
+          if (dbUser && dbUser.tokensRemaining !== credits.remaining) {
+            try {
+              await prisma.user.update({
+                where: { id: dbUser.id },
+                data: { tokensRemaining: credits.remaining },
+              });
+            } catch (error) {
+              console.warn("Session callback tokens sync failed", error);
             }
           }
         } catch (error) {
