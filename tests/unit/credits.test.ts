@@ -1,8 +1,11 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   FREE_MONTHLY_CREDITS,
+  LEGACY_UNLIMITED_CREDIT_BALANCE,
+  PREMIUM_ROLLOVER_CREDIT_CAP,
   buildCreditsSummary,
   getCreditWindow,
+  reconcileCreditsWithStoredBalance,
 } from "../../lib/credits";
 
 describe("credits", () => {
@@ -38,7 +41,7 @@ describe("credits", () => {
     expect(marchCredits.remaining).toBe(FREE_MONTHLY_CREDITS);
   });
 
-  it("keeps premium rollovers on the account anniversary window", () => {
+  it("caps premium rollovers at 100 credits on the account anniversary window", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-13T12:00:00.000Z"));
 
@@ -55,7 +58,41 @@ describe("credits", () => {
 
     expect(premiumWindow.start.toISOString()).toBe("2026-02-15T08:00:00.000Z");
     expect(premiumWindow.resetAt.toISOString()).toBe("2026-03-15T08:00:00.000Z");
-    expect(credits.limit).toBe(110);
-    expect(credits.remaining).toBe(110);
+    expect(credits.limit).toBe(PREMIUM_ROLLOVER_CREDIT_CAP);
+    expect(credits.remaining).toBe(PREMIUM_ROLLOVER_CREDIT_CAP);
+  });
+
+  it("ignores legacy unlimited placeholder balances", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-03T12:00:00.000Z"));
+
+    const credits = buildCreditsSummary({
+      durations: [30],
+      resetAt: new Date("2026-07-03T08:00:00.000Z"),
+      isPremium: true,
+      userCreatedAt: new Date("2026-06-03T08:00:00.000Z"),
+    });
+    const reconciled = reconcileCreditsWithStoredBalance(
+      credits,
+      LEGACY_UNLIMITED_CREDIT_BALANCE
+    );
+
+    expect(reconciled.remaining).toBe(49);
+  });
+
+  it("caps stored premium rollover balances above 100", () => {
+    const reconciled = reconcileCreditsWithStoredBalance(
+      {
+        used: 0,
+        limit: 60,
+        remaining: 60,
+        resetAt: "2026-07-03T08:00:00.000Z",
+        unlimited: false,
+      },
+      150
+    );
+
+    expect(reconciled.limit).toBe(PREMIUM_ROLLOVER_CREDIT_CAP);
+    expect(reconciled.remaining).toBe(PREMIUM_ROLLOVER_CREDIT_CAP);
   });
 });

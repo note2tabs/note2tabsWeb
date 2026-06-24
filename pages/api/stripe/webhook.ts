@@ -2,7 +2,11 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type Stripe from "stripe";
 import { stripeClient } from "../../../lib/stripe";
 import { prisma } from "../../../lib/prisma";
-import { STARTING_CREDITS } from "../../../lib/credits";
+import {
+  PREMIUM_MONTHLY_CREDITS,
+  STARTING_CREDITS,
+  capCreditBalance,
+} from "../../../lib/credits";
 
 export const config = {
   api: {
@@ -19,6 +23,18 @@ async function readBuffer(req: NextApiRequest): Promise<Buffer> {
 }
 
 type UserIdentifier = { id: string } | { email: string };
+
+const ENTITLED_SUBSCRIPTION_STATUSES = new Set<Stripe.Subscription.Status>([
+  "active",
+  "trialing",
+  "past_due",
+]);
+
+const REVOKED_SUBSCRIPTION_STATUSES = new Set<Stripe.Subscription.Status>([
+  "canceled",
+  "incomplete_expired",
+  "unpaid",
+]);
 
 const normalizeEmail = (email?: string | null) => {
   if (!email || typeof email !== "string") return null;
@@ -79,22 +95,72 @@ async function resolveEmailFromCustomerRef(
   return null;
 }
 
-async function setPremiumForIdentifier(identifier: UserIdentifier) {
+async function customerHasEntitledSubscription(customerId: string) {
+  if (!stripeClient || !customerId.trim()) return false;
+  const subscriptions = await stripeClient.subscriptions.list({
+    customer: customerId,
+    status: "all",
+    limit: 100,
+  });
+  return subscriptions.data.some((subscription) =>
+    ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status)
+  );
+}
+
+async function emailHasEntitledSubscription(email: string, excludedCustomerId?: string | null) {
+  if (!stripeClient) return false;
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return false;
+  try {
+    const customers = await stripeClient.customers.list({
+      email: normalizedEmail,
+      limit: 100,
+    });
+    for (const customer of customers.data) {
+      if ("deleted" in customer) continue;
+      if (excludedCustomerId && customer.id === excludedCustomerId) continue;
+      if (await customerHasEntitledSubscription(customer.id)) {
+        return true;
+      }
+    }
+  } catch (error) {
+    console.error("Webhook customer subscription search failed.", error);
+  }
+  return false;
+}
+
+type PremiumCreditMode = "reset" | "preserve" | "renew";
+
+async function setPremiumForIdentifier(identifier: UserIdentifier, creditMode: PremiumCreditMode) {
   const user = await prisma.user.findFirst({
     where: identifier,
-    select: { id: true, role: true },
+    select: { id: true, role: true, tokensRemaining: true },
   });
   if (!user) return;
   if (user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD") {
     return;
   }
+  const isAlreadyPremium = user.role === "PREMIUM";
+  const tokensRemaining =
+    creditMode === "reset" || !isAlreadyPremium
+      ? PREMIUM_MONTHLY_CREDITS
+      : creditMode === "renew"
+        ? capCreditBalance(user.tokensRemaining + PREMIUM_MONTHLY_CREDITS)
+        : capCreditBalance(user.tokensRemaining);
   await prisma.user.update({
     where: { id: user.id },
-    data: { role: "PREMIUM", tokensRemaining: 99999 },
+    data: { role: "PREMIUM", tokensRemaining },
   });
 }
 
-async function downgradePremiumByEmail(email: string) {
+async function downgradePremiumByEmail(email: string, customerId?: string | null) {
+  if (customerId && (await customerHasEntitledSubscription(customerId))) {
+    return;
+  }
+  if (await emailHasEntitledSubscription(email, customerId)) {
+    return;
+  }
+
   const user = await prisma.user.findFirst({
     where: { email: email.toLowerCase() },
     select: { id: true, role: true },
@@ -135,7 +201,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const checkoutSession = event.data.object as Stripe.Checkout.Session;
       const identifier = await resolveUserIdentifierFromCheckoutSession(checkoutSession);
       if (identifier) {
-        await setPremiumForIdentifier(identifier);
+        await setPremiumForIdentifier(identifier, "reset");
       }
     }
 
@@ -143,16 +209,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const subscription = event.data.object as Stripe.Subscription;
       const email = await resolveEmailFromCustomerRef(subscription.customer);
       if (email) {
-        await downgradePremiumByEmail(email);
+        await downgradePremiumByEmail(
+          email,
+          typeof subscription.customer === "string" ? subscription.customer : null
+        );
       }
     }
 
     if (event.type === "customer.subscription.updated") {
       const subscription = event.data.object as Stripe.Subscription;
-      if (subscription.status === "canceled") {
-        const email = await resolveEmailFromCustomerRef(subscription.customer);
+      const email = await resolveEmailFromCustomerRef(subscription.customer);
+      if (email && ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
+        await setPremiumForIdentifier({ email }, "preserve");
+      }
+      if (email && REVOKED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
+        await downgradePremiumByEmail(
+          email,
+          typeof subscription.customer === "string" ? subscription.customer : null
+        );
+      }
+    }
+
+    if (event.type === "invoice.payment_succeeded") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const email =
+        normalizeEmail(invoice.customer_email) || (await resolveEmailFromCustomerRef(invoice.customer));
+      if (email) {
+        await setPremiumForIdentifier(
+          { email },
+          invoice.billing_reason === "subscription_cycle" ? "renew" : "preserve"
+        );
+      }
+    }
+
+    if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const customerId = typeof invoice.customer === "string" ? invoice.customer : null;
+      if (customerId && !(await customerHasEntitledSubscription(customerId))) {
+        const email =
+          normalizeEmail(invoice.customer_email) || (await resolveEmailFromCustomerRef(invoice.customer));
         if (email) {
-          await downgradePremiumByEmail(email);
+          await downgradePremiumByEmail(email, customerId);
         }
       }
     }

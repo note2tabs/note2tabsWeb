@@ -304,7 +304,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <div className="settingsRows">
         <SettingRow
           label="Plan"
-          value={isPremium ? `${user.role} - 50 credits/month (roll over)` : "Free - 10 credits/month"}
+          value={isPremium ? `${user.role} - 50 credits/month (rollover up to 100)` : "Free - 10 credits/month"}
         />
         <SettingRow label="Credits used" value={creditsUsedLabel} />
         <SettingRow label="Remaining" value={credits.remaining} />
@@ -663,11 +663,11 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     try {
       const backendRemaining = await raiseBackendCreditsToFloor(
         user.id,
-        computedCredits.remaining,
+        credits.remaining,
         buildBackendCreditHeaders(user.id)
       );
       if (typeof backendRemaining === "number") {
-        credits = withBackendRemainingCredits(computedCredits, backendRemaining);
+        credits = withBackendRemainingCredits(credits, backendRemaining);
       }
     } catch (error) {
       console.warn("settings backend credits read failed", error);

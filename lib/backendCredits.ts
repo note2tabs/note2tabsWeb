@@ -1,4 +1,8 @@
-import type { CreditsSummary } from "./credits";
+import {
+  LEGACY_UNLIMITED_CREDIT_BALANCE,
+  capCreditBalance,
+  type CreditsSummary,
+} from "./credits";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -75,14 +79,14 @@ export async function setBackendCredits(
     },
     body: JSON.stringify({
       userId,
-      credits: Math.max(0, Math.floor(credits)),
+      credits: capCreditBalance(credits),
     }),
   });
   if (!response.ok) {
     throw new Error(await response.text().catch(() => "Failed to sync backend credits."));
   }
   const payload = await response.json().catch(() => null);
-  return extractRemainingCredits(payload) ?? Math.max(0, Math.floor(credits));
+  return capCreditBalance(extractRemainingCredits(payload) ?? credits);
 }
 
 export async function raiseBackendCreditsToFloor(
@@ -92,9 +96,9 @@ export async function raiseBackendCreditsToFloor(
 ) {
   const read = await fetchBackendCredits(headers);
   if (!read.available) return null;
-  const floor = Math.max(0, Math.floor(minimumCredits));
-  if (typeof read.remainingCredits === "number" && read.remainingCredits >= floor) {
-    return read.remainingCredits;
+  const floor = capCreditBalance(minimumCredits);
+  if (typeof read.remainingCredits === "number" && read.remainingCredits === floor) {
+    return capCreditBalance(read.remainingCredits);
   }
   return setBackendCredits(userId, floor, headers);
 }
@@ -106,7 +110,10 @@ export function withBackendRemainingCredits(
   if (typeof backendRemaining !== "number" || !Number.isFinite(backendRemaining)) {
     return credits;
   }
-  const remaining = Math.max(0, Math.round(backendRemaining));
+  if (backendRemaining >= LEGACY_UNLIMITED_CREDIT_BALANCE) {
+    return credits;
+  }
+  const remaining = capCreditBalance(backendRemaining);
   return {
     ...credits,
     remaining,

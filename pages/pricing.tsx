@@ -94,7 +94,7 @@ export default function PricingPage() {
                 </div>
                 <ul className="pricing-list">
                   <li>No ads</li>
-                  <li>50 credits per month (with rollover)</li>
+                  <li>50 credits per month, rollover up to 100</li>
                   <li>Extra speed</li>
                   <li>Upload size 200 MB</li>
                 </ul>
