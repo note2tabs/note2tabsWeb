@@ -488,23 +488,25 @@ const buildAsciiTabText = (lane: EditorSnapshot) => {
 const getNoteOptimals = (lane: EditorSnapshot, note: EditorSnapshot["notes"][number]) => {
   const midi = note.midiNum || getTabMidi(lane, note.tab);
   const tabs = getAllTabsForMidi(lane, midi);
-  const blocked = new Set<string>();
+  const blockedStrings = new Set<number>();
   const noteStart = Math.round(toNumber(note.startTime, 0));
   const noteEnd = noteStart + clampEventLength(note.length);
   lane.notes.forEach((item) => {
     if (item.id === note.id) return;
     const start = Math.round(toNumber(item.startTime, 0));
     const end = start + clampEventLength(item.length);
-    if (start < noteEnd && noteStart < end) blocked.add(`${item.tab[0]}:${item.tab[1]}`);
+    if (start < noteEnd && noteStart < end) blockedStrings.add(item.tab[0]);
   });
   lane.chords.forEach((chord) => {
     const start = Math.round(toNumber(chord.startTime, 0));
     const end = start + clampEventLength(chord.length);
-    if (start < noteEnd && noteStart < end) chord.currentTabs.forEach((tab) => blocked.add(`${tab[0]}:${tab[1]}`));
+    if (start < noteEnd && noteStart < end) {
+      chord.currentTabs.forEach((tab) => blockedStrings.add(tab[0]));
+    }
   });
   return {
-    possibleTabs: tabs.filter((tab) => !blocked.has(`${tab[0]}:${tab[1]}`)),
-    blockedTabs: tabs.filter((tab) => blocked.has(`${tab[0]}:${tab[1]}`)),
+    possibleTabs: tabs.filter((tab) => !blockedStrings.has(tab[0])),
+    blockedTabs: tabs.filter((tab) => blockedStrings.has(tab[0])),
   };
 };
 
@@ -871,7 +873,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         if (!note) throw new Error("Note not found.");
         const optimals = getNoteOptimals(requireLane(canvas, laneId).lane, note);
         return res.status(200).json({
-          possibleTabs: optimals.possibleTabs.length ? optimals.possibleTabs : getAllTabsForMidi(requireLane(canvas, laneId).lane, note.midiNum || getTabMidi(requireLane(canvas, laneId).lane, note.tab)),
+          possibleTabs: optimals.possibleTabs,
           blockedTabs: optimals.blockedTabs,
         });
       }
@@ -883,10 +885,11 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         lane.notes.forEach((note) => {
           if (!ids.has(note.id)) return;
           const optimals = getNoteOptimals(lane, note);
-          const nextTab = (optimals.possibleTabs[0] || optimals.blockedTabs[0] || note.tab) as TabCoord;
+          const nextTab = optimals.possibleTabs[0];
+          note.optimals = [...optimals.possibleTabs];
+          if (!nextTab) return;
           note.tab = [nextTab[0], nextTab[1]];
           note.midiNum = getTabMidi(lane, note.tab);
-          note.optimals = [...optimals.possibleTabs];
         });
       });
       canvas = persistCanvas(sessionId, result.canvas);
