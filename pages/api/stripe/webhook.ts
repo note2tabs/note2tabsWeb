@@ -3,11 +3,9 @@ import type Stripe from "stripe";
 import { stripeClient } from "../../../lib/stripe";
 import { prisma } from "../../../lib/prisma";
 import {
+  PREMIUM_MONTHLY_CREDITS,
   STARTING_CREDITS,
-  buildCreditsSummary,
-  calculateCreditsUsedFromDurationCounts,
-  getCreditWindow,
-  reconcileCreditsWithStoredBalance,
+  capCreditBalance,
 } from "../../../lib/credits";
 
 export const config = {
@@ -109,36 +107,27 @@ async function customerHasEntitledSubscription(customerId: string) {
   );
 }
 
-async function setPremiumForIdentifier(identifier: UserIdentifier) {
+type PremiumCreditMode = "reset" | "preserve" | "renew";
+
+async function setPremiumForIdentifier(identifier: UserIdentifier, creditMode: PremiumCreditMode) {
   const user = await prisma.user.findFirst({
     where: identifier,
-    select: { id: true, role: true, tokensRemaining: true, createdAt: true },
+    select: { id: true, role: true, tokensRemaining: true },
   });
   if (!user) return;
   if (user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD") {
     return;
   }
-  const creditWindow = getCreditWindow({ userCreatedAt: user.createdAt });
-  const creditDurationCounts = await prisma.tabJob.groupBy({
-    by: ["durationSec"],
-    where: { userId: user.id },
-    _count: { _all: true },
-  });
-  const computedCredits = buildCreditsSummary({
-    usedCredits: calculateCreditsUsedFromDurationCounts(
-      creditDurationCounts.map((item) => ({
-        durationSec: item.durationSec,
-        count: item._count._all,
-      }))
-    ),
-    resetAt: creditWindow.resetAt,
-    isPremium: true,
-    userCreatedAt: user.createdAt,
-  });
-  const credits = reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining);
+  const isAlreadyPremium = user.role === "PREMIUM";
+  const tokensRemaining =
+    creditMode === "reset" || !isAlreadyPremium
+      ? PREMIUM_MONTHLY_CREDITS
+      : creditMode === "renew"
+        ? capCreditBalance(user.tokensRemaining + PREMIUM_MONTHLY_CREDITS)
+        : capCreditBalance(user.tokensRemaining);
   await prisma.user.update({
     where: { id: user.id },
-    data: { role: "PREMIUM", tokensRemaining: credits.remaining },
+    data: { role: "PREMIUM", tokensRemaining },
   });
 }
 
@@ -187,7 +176,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const checkoutSession = event.data.object as Stripe.Checkout.Session;
       const identifier = await resolveUserIdentifierFromCheckoutSession(checkoutSession);
       if (identifier) {
-        await setPremiumForIdentifier(identifier);
+        await setPremiumForIdentifier(identifier, "reset");
       }
     }
 
@@ -206,7 +195,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const subscription = event.data.object as Stripe.Subscription;
       const email = await resolveEmailFromCustomerRef(subscription.customer);
       if (email && ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
-        await setPremiumForIdentifier({ email });
+        await setPremiumForIdentifier({ email }, "preserve");
       }
       if (email && REVOKED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
         await downgradePremiumByEmail(
@@ -221,7 +210,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const email =
         normalizeEmail(invoice.customer_email) || (await resolveEmailFromCustomerRef(invoice.customer));
       if (email) {
-        await setPremiumForIdentifier({ email });
+        await setPremiumForIdentifier(
+          { email },
+          invoice.billing_reason === "subscription_cycle" ? "renew" : "preserve"
+        );
       }
     }
 

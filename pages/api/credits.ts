@@ -64,11 +64,11 @@ async function buildUserCredits(user: {
     try {
       const backendRemaining = await raiseBackendCreditsToFloor(
         user.id,
-        computedCredits.remaining,
+        credits.remaining,
         buildBackendCreditHeaders(user.id)
       );
       if (typeof backendRemaining === "number") {
-        credits = withBackendRemainingCredits(computedCredits, backendRemaining);
+        credits = withBackendRemainingCredits(credits, backendRemaining);
         source = "backend";
       }
     } catch (error) {

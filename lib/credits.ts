@@ -150,7 +150,7 @@ export function buildCreditsSummary({
   }
   const createdAt = userCreatedAt || new Date();
   const grants = countMonthlyGrants(createdAt, new Date());
-  const earnedLimit = STARTING_CREDITS + grants * PREMIUM_MONTHLY_CREDITS;
+  const earnedLimit = grants * PREMIUM_MONTHLY_CREDITS;
   const remaining = capCreditBalance(Math.max(0, earnedLimit - used));
   const limit = used + remaining;
   return {

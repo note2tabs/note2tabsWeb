@@ -1,6 +1,5 @@
 import {
   LEGACY_UNLIMITED_CREDIT_BALANCE,
-  PREMIUM_ROLLOVER_CREDIT_CAP,
   capCreditBalance,
   type CreditsSummary,
 } from "./credits";
@@ -98,12 +97,7 @@ export async function raiseBackendCreditsToFloor(
   const read = await fetchBackendCredits(headers);
   if (!read.available) return null;
   const floor = capCreditBalance(minimumCredits);
-  if (
-    typeof read.remainingCredits === "number" &&
-    read.remainingCredits >= floor &&
-    read.remainingCredits <= PREMIUM_ROLLOVER_CREDIT_CAP &&
-    read.remainingCredits < LEGACY_UNLIMITED_CREDIT_BALANCE
-  ) {
+  if (typeof read.remainingCredits === "number" && read.remainingCredits === floor) {
     return capCreditBalance(read.remainingCredits);
   }
   return setBackendCredits(userId, floor, headers);

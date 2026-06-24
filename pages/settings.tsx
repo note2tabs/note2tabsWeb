@@ -676,11 +676,11 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     try {
       const backendRemaining = await raiseBackendCreditsToFloor(
         user.id,
-        computedCredits.remaining,
+        credits.remaining,
         buildBackendCreditHeaders(user.id)
       );
       if (typeof backendRemaining === "number") {
-        credits = withBackendRemainingCredits(computedCredits, backendRemaining);
+        credits = withBackendRemainingCredits(credits, backendRemaining);
       }
     } catch (error) {
       console.warn("settings backend credits read failed", error);

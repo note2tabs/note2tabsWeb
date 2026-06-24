@@ -77,7 +77,7 @@ describe("credits", () => {
       LEGACY_UNLIMITED_CREDIT_BALANCE
     );
 
-    expect(reconciled.remaining).toBe(59);
+    expect(reconciled.remaining).toBe(49);
   });
 
   it("caps stored premium rollover balances above 100", () => {

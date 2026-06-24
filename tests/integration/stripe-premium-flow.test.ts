@@ -194,7 +194,6 @@ describe("stripe premium flow", () => {
         id: "user_1",
         role: "FREE",
         tokensRemaining: STARTING_CREDITS,
-        createdAt: new Date(),
       });
 
       const handler = (await import("../../pages/api/stripe/webhook")).default;
@@ -206,11 +205,11 @@ describe("stripe premium flow", () => {
       expect(res._getStatusCode()).toBe(200);
       expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
         where: { id: "user_1" },
-        select: { id: true, role: true, tokensRemaining: true, createdAt: true },
+        select: { id: true, role: true, tokensRemaining: true },
       });
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: "user_1" },
-        data: { role: "PREMIUM", tokensRemaining: STARTING_CREDITS + PREMIUM_MONTHLY_CREDITS },
+        data: { role: "PREMIUM", tokensRemaining: PREMIUM_MONTHLY_CREDITS },
       });
     });
 
@@ -227,7 +226,6 @@ describe("stripe premium flow", () => {
         id: "user_1",
         role: "FREE",
         tokensRemaining: STARTING_CREDITS,
-        createdAt: new Date(),
       });
 
       const handler = (await import("../../pages/api/stripe/webhook")).default;
@@ -239,11 +237,11 @@ describe("stripe premium flow", () => {
       expect(res._getStatusCode()).toBe(200);
       expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
         where: { email: "user@example.com" },
-        select: { id: true, role: true, tokensRemaining: true, createdAt: true },
+        select: { id: true, role: true, tokensRemaining: true },
       });
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: "user_1" },
-        data: { role: "PREMIUM", tokensRemaining: STARTING_CREDITS + PREMIUM_MONTHLY_CREDITS },
+        data: { role: "PREMIUM", tokensRemaining: PREMIUM_MONTHLY_CREDITS },
       });
     });
 
@@ -272,6 +270,35 @@ describe("stripe premium flow", () => {
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: "user_1" },
         data: { role: "FREE", tokensRemaining: STARTING_CREDITS },
+      });
+    });
+
+    it("adds monthly credits on renewal invoices without exceeding the rollover cap", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        type: "invoice.payment_succeeded",
+        data: {
+          object: {
+            billing_reason: "subscription_cycle",
+            customer_email: "user@example.com",
+          },
+        },
+      });
+      prismaMock.user.findFirst.mockResolvedValue({
+        id: "user_1",
+        role: "PREMIUM",
+        tokensRemaining: 80,
+      });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const req = buildWebhookReq();
+      const res = createResponse();
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: "user_1" },
+        data: { role: "PREMIUM", tokensRemaining: 100 },
       });
     });
   });
