@@ -22,6 +22,9 @@ export const ANALYTICS_EVENTS = {
   tabGenerationQueued: "transcription_queued",
   tabGenerationSucceeded: "transcription_succeeded",
   tabGenerationFailed: "transcription_failed",
+  transcriptionEditorImportStarted: "transcription_editor_import_started",
+  transcriptionImportedToEditor: "transcription_imported_to_editor",
+  transcriptionEditorImportFailed: "transcription_editor_import_failed",
 } as const;
 
 function getUtmParams() {
