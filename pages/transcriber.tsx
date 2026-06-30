@@ -118,6 +118,7 @@ export default function TranscriberPage() {
   const [editorChoice, setEditorChoice] = useState<string>("new");
   const [editorLoading, setEditorLoading] = useState(false);
   const [selectedSegments, setSelectedSegments] = useState<Set<number>>(new Set());
+  const [quantizeImportDialog, setQuantizeImportDialog] = useState<"saved" | "guest" | null>(null);
   const [localUnverifiedTranscriptionUsed, setLocalUnverifiedTranscriptionUsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
@@ -641,8 +642,9 @@ export default function TranscriberPage() {
     }
   };
 
-  const handleImportToEditor = async () => {
+  const handleImportToEditor = async (quantize: boolean) => {
     if (!tabsResult || importBusy) return;
+    setQuantizeImportDialog(null);
     setImportBusy(true);
     setImportError(null);
     const selectedTranscriberGroups = getSelectedTranscriberSegmentGroups();
@@ -655,6 +657,7 @@ export default function TranscriberPage() {
       selection,
       mode,
       source: "transcriber",
+      quantize,
     };
     sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportStarted, eventProperties);
     try {
@@ -667,6 +670,7 @@ export default function TranscriberPage() {
               ? targetEditorId
               : undefined,
           segmentGroups: selectedTranscriberGroups,
+          quantize,
         });
         sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
           ...eventProperties,
@@ -707,8 +711,9 @@ export default function TranscriberPage() {
     }
   };
 
-  const handleOpenGuestEditor = async () => {
+  const handleOpenGuestEditor = async (quantize: boolean) => {
     if (!tabsResult || importBusy) return;
+    setQuantizeImportDialog(null);
     setImportBusy(true);
     setImportError(null);
     const selectedTranscriberGroups = getSelectedTranscriberSegmentGroups();
@@ -720,6 +725,7 @@ export default function TranscriberPage() {
       selection,
       mode,
       source: "transcriber",
+      quantize,
     };
     sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportStarted, eventProperties);
     try {
@@ -727,6 +733,7 @@ export default function TranscriberPage() {
         const imported = await gteApi.importTranscriberToGuest({
           segmentGroups: selectedTranscriberGroups,
           editorId: GTE_GUEST_EDITOR_ID,
+          quantize,
         });
         sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
           ...eventProperties,
@@ -1013,7 +1020,7 @@ export default function TranscriberPage() {
                       <button
                         type="button"
                         className="button-primary"
-                        onClick={() => void handleImportToEditor()}
+                        onClick={() => setQuantizeImportDialog("saved")}
                         disabled={importBusy || editorLoading}
                       >
                         {importBusy ? "Importing..." : "Import to editor"}
@@ -1024,7 +1031,7 @@ export default function TranscriberPage() {
                     <button
                       type="button"
                       className="button-primary"
-                      onClick={() => void handleOpenGuestEditor()}
+                      onClick={() => setQuantizeImportDialog("guest")}
                       disabled={importBusy}
                     >
                       {importBusy ? "Opening..." : "Open in guest editor"}
@@ -1090,6 +1097,53 @@ export default function TranscriberPage() {
           </section>
         )}
       </main>
+      {quantizeImportDialog && (
+        <div className="dialog-scrim" onMouseDown={() => !importBusy && setQuantizeImportDialog(null)}>
+          <div className="dialog-card" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="stack-tight">
+              <h2 className="page-title" style={{ fontSize: "1.25rem" }}>Quantize import?</h2>
+              <p className="muted text-small">
+                Quantize sets the editor tempo from the detected beat length before importing. Existing editors may
+                have their current note timing shifted by the tempo change.
+              </p>
+            </div>
+            <div className="button-row" style={{ justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={() => setQuantizeImportDialog(null)}
+                disabled={importBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={() =>
+                  quantizeImportDialog === "saved"
+                    ? void handleImportToEditor(false)
+                    : void handleOpenGuestEditor(false)
+                }
+                disabled={importBusy}
+              >
+                Import without quantize
+              </button>
+              <button
+                type="button"
+                className="button-primary button-small"
+                onClick={() =>
+                  quantizeImportDialog === "saved"
+                    ? void handleImportToEditor(true)
+                    : void handleOpenGuestEditor(true)
+                }
+                disabled={importBusy}
+              >
+                Quantize
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

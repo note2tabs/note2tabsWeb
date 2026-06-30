@@ -26,6 +26,12 @@ export type TranscriberImportResponse = {
   editorId: string;
   importedEditorIds?: string[];
   canvas?: CanvasSnapshot;
+  quantization?: {
+    applied: boolean;
+    secondsPerBar?: number;
+    framesPerBeat?: number;
+    secondsPerBeat?: number;
+  };
 };
 
 type ImportTranscriberToSavedPayload = {
@@ -33,6 +39,7 @@ type ImportTranscriberToSavedPayload = {
   target?: "new" | "existing";
   editorId?: string;
   name?: string;
+  quantize?: boolean;
 };
 
 export const buildLaneEditorRef = (canvasId: string, laneId: string) =>
@@ -122,22 +129,25 @@ type TranscriberChunkImportResult = {
 
 async function postTranscriberImportChunk(
   editorId: string,
-  segmentGroups: TranscriberSegmentGroup[]
+  segmentGroups: TranscriberSegmentGroup[],
+  quantize?: boolean
 ): Promise<TranscriberImportResponse> {
   return postTranscriberImportSaved({
     segmentGroups,
     target: "existing",
     editorId,
+    quantize,
   });
 }
 
 async function importTranscriberChunkWithRetry(
   editorId: string,
   segmentGroups: TranscriberSegmentGroup[],
+  quantize?: boolean,
   depth: number = 0
 ): Promise<TranscriberChunkImportResult> {
   try {
-    const response = await postTranscriberImportChunk(editorId, segmentGroups);
+    const response = await postTranscriberImportChunk(editorId, segmentGroups, quantize);
     return {
       editorId: response.editorId || editorId,
       importedEditorIds: Array.isArray(response.importedEditorIds) ? response.importedEditorIds : [],
@@ -151,8 +161,8 @@ async function importTranscriberChunkWithRetry(
     const left = segmentGroups.slice(0, middle);
     const right = segmentGroups.slice(middle);
 
-    const leftResult = await importTranscriberChunkWithRetry(editorId, left, depth + 1);
-    const rightResult = await importTranscriberChunkWithRetry(leftResult.editorId, right, depth + 1);
+    const leftResult = await importTranscriberChunkWithRetry(editorId, left, quantize, depth + 1);
+    const rightResult = await importTranscriberChunkWithRetry(leftResult.editorId, right, quantize, depth + 1);
     return {
       editorId: rightResult.editorId,
       importedEditorIds: [...leftResult.importedEditorIds, ...rightResult.importedEditorIds],
@@ -190,7 +200,7 @@ async function importTranscriberToSaved(
   const importedEditorIds: string[] = [];
 
   for (let index = 0; index < chunks.length; index += 1) {
-    const result = await importTranscriberChunkWithRetry(currentEditorId, chunks[index]);
+    const result = await importTranscriberChunkWithRetry(currentEditorId, chunks[index], payload.quantize && index === 0);
     currentEditorId = result.editorId || currentEditorId;
     lastResponse = result.response;
     if (result.importedEditorIds.length > 0) {
@@ -207,6 +217,7 @@ async function importTranscriberToSaved(
     target: "existing",
     editorId: currentEditorId,
     importedEditorIds: importedEditorIds.length > 0 ? importedEditorIds : lastResponse.importedEditorIds,
+    quantization: lastResponse.quantization,
   };
 }
 
@@ -224,6 +235,7 @@ export const gteApi = {
     segmentGroups: TranscriberSegmentGroup[];
     editorId?: string;
     name?: string;
+    quantize?: boolean;
   }) =>
     request<TranscriberImportResponse>(
       "/transcriber/import",
