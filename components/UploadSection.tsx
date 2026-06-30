@@ -1,4 +1,9 @@
 import { useMemo, useRef, useState, DragEvent, FormEvent } from "react";
+import {
+  DEFAULT_TRANSCRIPTION_MODEL,
+  type TranscriptionModelChoice,
+} from "../lib/transcriptionModels";
+import TranscriptionModelDropdown from "./TranscriptionModelDropdown";
 
 type UploadSectionProps = {
   onResult: (segments: string[][], sourceLabel: string, audioUrl?: string) => void;
@@ -20,6 +25,8 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
   const [startTime, setStartTime] = useState<number | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
   const [separateGuitar, setSeparateGuitar] = useState(true);
+  const [transcriptionModel, setTranscriptionModel] =
+    useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
   const [dragActive, setDragActive] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +133,7 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
       mode: "FILE",
       s3Key,
       fileName: file.name,
+      transcriptionModel,
     };
     const response = await fetch("/api/transcribe", {
       method: "POST",
@@ -148,6 +156,7 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
       mode: "YOUTUBE",
       youtubeUrl: youtubeUrl.trim(),
       separateGuitar,
+      transcriptionModel,
     };
     if (startTime !== null) payload.startTime = startTime;
     if (duration !== null) payload.duration = duration;
@@ -288,7 +297,15 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
               disabled={processing}
             />
               Separate guitar (Demucs)
-            </label>
+          </label>
+          <div className="mt-3">
+            <TranscriptionModelDropdown
+              id="upload-section-transcription-model"
+              value={transcriptionModel}
+              onChange={setTranscriptionModel}
+              disabled={processing}
+            />
+          </div>
         </div>
       </div>
 

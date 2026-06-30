@@ -11,7 +11,12 @@ import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
+import {
+  DEFAULT_TRANSCRIPTION_MODEL,
+  type TranscriptionModelChoice,
+} from "../lib/transcriptionModels";
 import SeoHead, { SITE_NAME, absoluteUrl } from "../components/SeoHead";
+import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 
 type TabsResponse = {
   tabs: string[][];
@@ -103,6 +108,8 @@ export default function TranscriberPage() {
   const [ytEndInput, setYtEndInput] = useState(formatTimestamp(MAX_YT_SNIPPET_SEC));
   const [fileDuration, setFileDuration] = useState<number | null>(null);
   const [separateGuitar, setSeparateGuitar] = useState(true);
+  const [transcriptionModel, setTranscriptionModel] =
+    useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -491,6 +498,7 @@ export default function TranscriberPage() {
             fd.append("duration", String(fileDuration));
           }
           fd.append("separateGuitar", separateGuitar ? "true" : "false");
+          fd.append("transcriptionModel", transcriptionModel);
           if (shouldDeferEditorSync) {
             fd.append("skipAutoEditorSync", "true");
           }
@@ -534,6 +542,7 @@ export default function TranscriberPage() {
               s3Key: presignData.key,
               fileName: selectedFile.name,
               separateGuitar,
+              transcriptionModel,
             };
             if (fileDuration !== null) payload.duration = fileDuration;
             if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
@@ -552,6 +561,7 @@ export default function TranscriberPage() {
           startTime: Math.max(0, ytStartTime ?? 0),
           duration: resolvedYtDuration,
           separateGuitar,
+          transcriptionModel,
         };
         if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
         response = await fetch("/api/transcribe", {
@@ -574,6 +584,7 @@ export default function TranscriberPage() {
         const jobParams = new URLSearchParams();
         jobParams.set("mode", mode);
         jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
+        jobParams.set("model", transcriptionModel);
         if (appendEditorId) {
           jobParams.set("appendEditorId", appendEditorId);
         }
@@ -868,6 +879,14 @@ export default function TranscriberPage() {
                     />
                     <span>Does your audio include other instruments?</span>
                   </label>
+                </div>
+                <div className="model-choice">
+                  <TranscriptionModelDropdown
+                    id="transcriber-transcription-model"
+                    value={transcriptionModel}
+                    onChange={setTranscriptionModel}
+                    disabled={loading}
+                  />
                 </div>
               </div>
 

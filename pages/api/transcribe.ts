@@ -9,11 +9,17 @@ import {
   buildDevCreditsSummary,
   buildCreditsSummary,
   calculateCreditsUsedFromDurationCounts,
-  durationToCredits,
   getCreditWindow,
   DEFAULT_DURATION_SEC,
   reconcileCreditsWithStoredBalance,
 } from "../../lib/credits";
+import {
+  DEFAULT_TRANSCRIPTION_MODEL,
+  calculateTranscriptionCredits,
+  normalizeTranscriptionModel,
+  transcriptionModelToBackendMethod,
+  type TranscriptionModelChoice,
+} from "../../lib/transcriptionModels";
 import {
   isEmailVerificationRequiredServer,
   isLocalNoDbServerMode,
@@ -36,6 +42,9 @@ type YouTubePayload = {
   youtubeUrl: string;
   startTime: number;
   duration: number;
+  transcriptionModel?: TranscriptionModelChoice | string;
+  transcriptionMethod?: string;
+  transcription_method?: string;
   separateGuitar?: boolean;
   multipleGuitars?: boolean;
   skipAutoEditorSync?: boolean;
@@ -46,6 +55,9 @@ type FilePayload = {
   duration?: number;
   s3Key?: string;
   fileName?: string;
+  transcriptionModel?: TranscriptionModelChoice | string;
+  transcriptionMethod?: string;
+  transcription_method?: string;
   separateGuitar?: boolean;
   multipleGuitars?: boolean;
   skipAutoEditorSync?: boolean;
@@ -540,6 +552,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let filePayload: FilePayload | null = null;
     let uploadedFile: FormidableFile | undefined;
     let skipAutoEditorSync = false;
+    let transcriptionModel: TranscriptionModelChoice = DEFAULT_TRANSCRIPTION_MODEL;
     const backendHeaders: Record<string, string> = {};
     if (user?.id) {
       backendHeaders["X-User-Id"] = user.id;
@@ -563,6 +576,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           youtubeUrl: String(fields.youtubeUrl || fields.link || ""),
           startTime: Number(fields.startTime || fields.start_time || 0),
           duration: Number(fields.duration || 0),
+          transcriptionModel: String(fields.transcriptionModel || fields.model || ""),
+          transcriptionMethod: String(fields.transcriptionMethod || fields.transcription_method || ""),
           separateGuitar:
             fields.separateGuitar === "true" ||
             fields.separate_guitar === "true" ||
@@ -575,6 +590,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         filePayload = {
           mode: "FILE",
           duration: Number(fields.duration || fields.durationSec || 0) || undefined,
+          transcriptionModel: String(fields.transcriptionModel || fields.model || ""),
+          transcriptionMethod: String(fields.transcriptionMethod || fields.transcription_method || ""),
           separateGuitar: parseBooleanLike(fields.separateGuitar ?? fields.separate_guitar),
           multipleGuitars: parseOptionalBooleanLike(fields.multipleGuitars ?? fields.multiple_guitars),
           skipAutoEditorSync: parseBooleanLike(fields.skipAutoEditorSync),
@@ -612,6 +629,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       skipAutoEditorSync = parseBooleanLike((body as { skipAutoEditorSync?: unknown })?.skipAutoEditorSync);
     }
+    transcriptionModel = normalizeTranscriptionModel(
+      mode === "YOUTUBE"
+        ? youtubePayload?.transcriptionModel ?? youtubePayload?.transcriptionMethod ?? youtubePayload?.transcription_method
+        : filePayload?.transcriptionModel ?? filePayload?.transcriptionMethod ?? filePayload?.transcription_method
+    );
+    const backendTranscriptionMethod = transcriptionModelToBackendMethod(transcriptionModel);
 
     if (mode !== "FILE" && mode !== "YOUTUBE") {
       return res.status(400).json({ error: "Invalid mode" });
@@ -624,7 +647,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       mode === "YOUTUBE"
         ? Math.max(1, Math.ceil(youtubePayload?.duration || 0))
         : Math.max(1, Math.ceil(filePayload?.duration || DEFAULT_DURATION_SEC));
-    const requiredCredits = durationToCredits(durationSec);
+    const requiredCredits = calculateTranscriptionCredits(durationSec, transcriptionModel);
 
     if (user?.id) {
       if (isPremium) {
@@ -698,6 +721,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       fdYt.append("start_time", String(youtubePayload.startTime || 0));
       fdYt.append("duration", String(youtubePayload.duration || 0));
       fdYt.append("separate_guitar", youtubePayload.separateGuitar ? "true" : "false");
+      fdYt.append("transcription_method", backendTranscriptionMethod);
       if (youtubePayload.multipleGuitars !== undefined) {
         fdYt.append("multiple_guitars", youtubePayload.multipleGuitars ? "true" : "false");
       }
@@ -730,6 +754,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             fileName: filePayload.fileName,
             separate_guitar: Boolean(filePayload.separateGuitar),
             multiple_guitars: filePayload.multipleGuitars,
+            transcriptionMethod: backendTranscriptionMethod,
           }),
         });
         if (!processRes.ok) {
@@ -753,6 +778,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           uploadedFile.originalFilename || "upload"
         );
         fd.append("separate_guitar", filePayload?.separateGuitar ? "true" : "false");
+        fd.append("transcription_method", backendTranscriptionMethod);
         if (filePayload?.multipleGuitars !== undefined) {
           fd.append("multiple_guitars", filePayload.multipleGuitars ? "true" : "false");
         }
@@ -809,6 +835,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       credits: user ? creditsAfter : undefined,
       jobId: backendJobId,
       status: "processing",
+      transcriptionModel,
       unverifiedTranscriptionUsed: reservedUnverifiedTranscription || undefined,
     });
   } catch (error) {

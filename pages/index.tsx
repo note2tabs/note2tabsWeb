@@ -10,7 +10,12 @@ import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
+import {
+  DEFAULT_TRANSCRIPTION_MODEL,
+  type TranscriptionModelChoice,
+} from "../lib/transcriptionModels";
 import SeoHead, { SITE_NAME, SITE_URL, absoluteUrl } from "../components/SeoHead";
+import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 
 type TabsResponse = {
   tabs: string[][];
@@ -120,6 +125,8 @@ export default function HomePage() {
   const [pricingBusy, setPricingBusy] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
+  const [transcriptionModel, setTranscriptionModel] =
+    useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
   const [localUnverifiedTranscriptionUsed, setLocalUnverifiedTranscriptionUsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
@@ -517,6 +524,7 @@ export default function HomePage() {
       mode,
       sourceType: mode,
       separateGuitar,
+      transcriptionModel,
       fileSize: selectedFile?.size,
       durationSec: mode === "YOUTUBE" ? resolvedYtDuration : fileDuration,
       hasAppendEditorId: Boolean(appendEditorId),
@@ -532,6 +540,7 @@ export default function HomePage() {
             fd.append("duration", String(fileDuration));
           }
           fd.append("separateGuitar", separateGuitar ? "true" : "false");
+          fd.append("transcriptionModel", transcriptionModel);
           if (shouldDeferEditorSync) {
             fd.append("skipAutoEditorSync", "true");
           }
@@ -587,6 +596,7 @@ export default function HomePage() {
               s3Key: presignData.key,
               fileName: selectedFile.name,
               separateGuitar,
+              transcriptionModel,
             };
             if (fileDuration !== null) payload.duration = fileDuration;
             if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
@@ -605,6 +615,7 @@ export default function HomePage() {
           startTime: Math.max(0, ytStartTime ?? 0),
           duration: resolvedYtDuration,
           separateGuitar,
+          transcriptionModel,
         };
         if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
         response = await fetch("/api/transcribe", {
@@ -631,6 +642,7 @@ export default function HomePage() {
         const jobParams = new URLSearchParams();
         jobParams.set("mode", mode);
         jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
+        jobParams.set("model", transcriptionModel);
         if (appendEditorId) {
           jobParams.set("appendEditorId", appendEditorId);
         }
@@ -1068,6 +1080,14 @@ export default function HomePage() {
                 </div>
               ) : (
                 <>
+                  <div className="model-choice">
+                    <TranscriptionModelDropdown
+                      id="home-transcription-model"
+                      value={transcriptionModel}
+                      onChange={setTranscriptionModel}
+                      disabled={loading}
+                    />
+                  </div>
                   <div className="funnel-panel">
                     <div className="funnel-row">
                       <div
