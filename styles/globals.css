@@ -4495,6 +4495,7 @@ input[type="number"] {
 .model-dropdown {
   position: relative;
   width: 100%;
+  font-family: "Satoshi", var(--font-sans);
 }
 
 .model-dropdown summary {
@@ -4509,8 +4510,10 @@ input[type="number"] {
   background: rgba(255, 255, 255, 0.76);
   color: #253244;
   cursor: pointer;
-  font-size: 0.78rem;
-  font-weight: 650;
+  font-family: "Satoshi", var(--font-sans);
+  font-size: 0.76rem;
+  font-weight: 500;
+  letter-spacing: 0;
   list-style: none;
   padding: 0 10px 0 13px;
   box-shadow: 0 1px 6px rgba(15, 23, 42, 0.06);
@@ -4579,6 +4582,7 @@ input[type="number"] {
   border-radius: 9px;
   background: transparent;
   cursor: pointer;
+  font-family: "Satoshi", var(--font-sans);
   padding: 8px 9px;
   text-align: left;
 }
@@ -4597,13 +4601,16 @@ input[type="number"] {
 
 .model-dropdown-option-title {
   color: #263447;
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.76rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .model-dropdown-option-description {
   color: #7a8795;
   font-size: 0.68rem;
+  font-weight: 300;
+  letter-spacing: 0;
   line-height: 1.35;
 }
 
