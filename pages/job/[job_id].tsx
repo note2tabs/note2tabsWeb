@@ -502,6 +502,10 @@ export default function JobPage() {
     if (!router.isReady) return null;
     return parseBooleanFlag(getQueryStringValue(router.query.separateGuitar));
   }, [router.isReady, router.query.separateGuitar]);
+  const multipleGuitarsHint = useMemo(() => {
+    if (!router.isReady) return null;
+    return parseBooleanFlag(getQueryStringValue(router.query.multipleGuitars));
+  }, [router.isReady, router.query.multipleGuitars]);
   const appendEditorId = useMemo(() => {
     if (!router.isReady) return null;
     const value = router.query.appendEditorId;
@@ -552,12 +556,12 @@ export default function JobPage() {
   );
 
   useEffect(() => {
-    if (!showReviewUi || typeof job_id !== "string") return;
+    if (!router.isReady || !showReviewUi || typeof job_id !== "string") return;
     if (reviewMultipleGuitarsInitRef.current === job_id) return;
     const stored = parseBooleanValue(getFirstJobValue(displayJob, ["multipleGuitars", "multiple_guitars"]));
-    setReviewMultipleGuitars(stored ?? false);
+    setReviewMultipleGuitars(stored ?? multipleGuitarsHint ?? false);
     reviewMultipleGuitarsInitRef.current = job_id;
-  }, [displayJob, job_id, showReviewUi]);
+  }, [displayJob, job_id, multipleGuitarsHint, router.isReady, showReviewUi]);
 
   useEffect(() => {
     if (!showReviewUi || !isSignedIn) return;
@@ -923,7 +927,7 @@ export default function JobPage() {
         return;
       }
 
-      const finalizeMultipleGuitars = loadedMultipleGuitars ?? false;
+      const finalizeMultipleGuitars = loadedMultipleGuitars ?? multipleGuitarsHint ?? false;
       const response = await fetch(`/api/jobs/${encodeURIComponent(job_id)}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

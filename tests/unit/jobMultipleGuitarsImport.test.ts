@@ -7,13 +7,18 @@ describe("job multiple guitar import choice", () => {
 
   it("does not default missing multiple-guitar state to true", () => {
     expect(source).toContain("useState(false)");
-    expect(source).toContain("stored ?? false");
+    expect(source).toContain("stored ?? multipleGuitarsHint ?? false");
     expect(source).not.toContain("stored ?? true");
   });
 
   it("finalizes with the loaded backend multiple-guitar choice", () => {
-    expect(source).toContain("const finalizeMultipleGuitars = loadedMultipleGuitars ?? false");
+    expect(source).toContain("const finalizeMultipleGuitars = loadedMultipleGuitars ?? multipleGuitarsHint ?? false");
     expect(source).toContain("JSON.stringify({ multipleGuitars: finalizeMultipleGuitars })");
     expect(source).not.toContain("JSON.stringify({ multipleGuitars: reviewMultipleGuitars })");
+  });
+
+  it("uses the original submit choice as a fallback when the backend payload omits it", () => {
+    expect(source).toContain("router.query.multipleGuitars");
+    expect(source).toContain("parseBooleanFlag(getQueryStringValue(router.query.multipleGuitars))");
   });
 });

@@ -73,7 +73,7 @@ function makeRes() {
   return res as unknown as NextApiResponse & typeof res;
 }
 
-async function callTranscribe(role: string) {
+async function callTranscribe(role: string, multipleGuitars = false) {
   const handler = (await import("../../pages/api/transcribe")).default;
   mocks.session.mockResolvedValue({ user: { id: "user_1" } });
   mocks.prisma.user.findUnique.mockResolvedValue({
@@ -102,7 +102,7 @@ async function callTranscribe(role: string) {
     duration: 30,
     transcriptionModel: "heavy",
     separateGuitar: false,
-    multipleGuitars: false,
+    multipleGuitars,
   });
   const res = makeRes();
 
@@ -149,5 +149,15 @@ describe("transcribe credits", () => {
       data: { tokensRemaining: 7 },
     });
     expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(7);
+  });
+
+  it("forwards the multiple-guitar choice to the backend transcription job", async () => {
+    const res = await callTranscribe("FREE", true);
+
+    expect(res.statusCode).toBe(202);
+    const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
+    expect(requestInit.body).toBeInstanceOf(FormData);
+    const body = requestInit.body as FormData;
+    expect(body.get("multiple_guitars")).toBe("true");
   });
 });
