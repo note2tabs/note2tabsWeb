@@ -178,9 +178,6 @@ export function reconcileCreditsWithStoredBalance(
     return credits;
   }
   const remaining = capCreditBalance(storedBalance);
-  if (remaining <= credits.remaining) {
-    return credits;
-  }
   return {
     ...credits,
     remaining,

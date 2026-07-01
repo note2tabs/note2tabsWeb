@@ -114,9 +114,11 @@ export function withBackendRemainingCredits(
     return credits;
   }
   const remaining = capCreditBalance(backendRemaining);
+  if (remaining >= credits.remaining) {
+    return credits;
+  }
   return {
     ...credits,
     remaining,
-    limit: Math.max(credits.limit, credits.used + remaining),
   };
 }

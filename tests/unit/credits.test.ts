@@ -95,4 +95,20 @@ describe("credits", () => {
     expect(reconciled.limit).toBe(PREMIUM_ROLLOVER_CREDIT_CAP);
     expect(reconciled.remaining).toBe(PREMIUM_ROLLOVER_CREDIT_CAP);
   });
+
+  it("keeps lower stored premium balances after credits are spent", () => {
+    const reconciled = reconcileCreditsWithStoredBalance(
+      {
+        used: 0,
+        limit: 50,
+        remaining: 50,
+        resetAt: "2026-07-03T08:00:00.000Z",
+        unlimited: false,
+      },
+      7
+    );
+
+    expect(reconciled.remaining).toBe(7);
+    expect(reconciled.limit).toBe(50);
+  });
 });
