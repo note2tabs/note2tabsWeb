@@ -4679,12 +4679,18 @@ input[type="number"] {
   text-align: center;
 }
 
+.instrument-choice-group {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
 .instrument-choice-row {
   width: 100%;
   display: flex;
   justify-content: center;
   gap: 12px;
-  margin-top: 4px;
 }
 
 .instrument-choice-button {
@@ -4701,6 +4707,16 @@ input[type="number"] {
   background: #f1f5f9;
   border-color: rgba(15, 23, 42, 0.28);
   color: #1f2937;
+}
+
+.instrument-choice-button.active {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+
+.instrument-start-button {
+  margin-top: 2px;
 }
 
 @media (max-width: 860px) {

@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
-import { copyText } from "../lib/clipboard";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
@@ -121,12 +120,13 @@ export default function HomePage() {
   >([]);
   const [editorChoice, setEditorChoice] = useState<string>("new");
   const [editorLoading, setEditorLoading] = useState(false);
-  const [selectedSegments, setSelectedSegments] = useState<Set<number>>(new Set());
   const [pricingBusy, setPricingBusy] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
+  const [includesOtherInstruments, setIncludesOtherInstruments] = useState(true);
   const [transcriptionModel, setTranscriptionModel] =
     useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
+  const [multipleGuitars, setMultipleGuitars] = useState(false);
   const [localUnverifiedTranscriptionUsed, setLocalUnverifiedTranscriptionUsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
@@ -414,12 +414,7 @@ export default function HomePage() {
 
   const getSelectedTranscriberSegmentGroups = () => {
     if (!transcriberSegments || transcriberSegments.length === 0) return null;
-    const indexes =
-      selectedSegments.size > 0
-        ? Array.from(selectedSegments).sort((a, b) => a - b)
-        : transcriberSegments.map((_, idx) => idx);
-    const groups = indexes
-      .map((idx) => transcriberSegments[idx])
+    const groups = transcriberSegments
       .filter((group): group is TranscriberSegmentGroup => Array.isArray(group) && group.length > 0);
     return groups.length > 0 ? groups : null;
   };
@@ -524,6 +519,7 @@ export default function HomePage() {
       mode,
       sourceType: mode,
       separateGuitar,
+      multipleGuitars,
       transcriptionModel,
       fileSize: selectedFile?.size,
       durationSec: mode === "YOUTUBE" ? resolvedYtDuration : fileDuration,
@@ -540,6 +536,7 @@ export default function HomePage() {
             fd.append("duration", String(fileDuration));
           }
           fd.append("separateGuitar", separateGuitar ? "true" : "false");
+          fd.append("multipleGuitars", multipleGuitars ? "true" : "false");
           fd.append("transcriptionModel", transcriptionModel);
           if (shouldDeferEditorSync) {
             fd.append("skipAutoEditorSync", "true");
@@ -596,6 +593,7 @@ export default function HomePage() {
               s3Key: presignData.key,
               fileName: selectedFile.name,
               separateGuitar,
+              multipleGuitars,
               transcriptionModel,
             };
             if (fileDuration !== null) payload.duration = fileDuration;
@@ -615,6 +613,7 @@ export default function HomePage() {
           startTime: Math.max(0, ytStartTime ?? 0),
           duration: resolvedYtDuration,
           separateGuitar,
+          multipleGuitars,
           transcriptionModel,
         };
         if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
@@ -642,6 +641,7 @@ export default function HomePage() {
         const jobParams = new URLSearchParams();
         jobParams.set("mode", mode);
         jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
+        jobParams.set("multipleGuitars", multipleGuitars ? "1" : "0");
         jobParams.set("model", transcriptionModel);
         if (appendEditorId) {
           jobParams.set("appendEditorId", appendEditorId);
@@ -668,44 +668,43 @@ export default function HomePage() {
         setError("No tabs returned from server.");
         sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, { mode, error: "no tabs" });
         return;
-        }
-        const nextTabs = data.tabs;
-        setSelectedSegments(new Set());
-        setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
-        if (data.credits) {
-          setCredits(data.credits);
-        }
-        if (data.unverifiedTranscriptionUsed) {
-          setLocalUnverifiedTranscriptionUsed(true);
-        }
-        sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
-          mode,
-          jobId: data.jobId,
-          tabJobId: data.tabJobId,
-          segmentGroups: Array.isArray(data.transcriberSegments) ? data.transcriberSegments.length : undefined,
-        });
-        if (transcriberSession && data.tabJobId) {
-          setStatus("Tabs ready. Opening transcription...");
-          await router.push(
-            appendEditorId
-              ? `/tabs/${data.tabJobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
-              : `/tabs/${data.tabJobId}`
-          );
-          return;
-        }
-        if (!transcriberSession) {
-          if (disableDbInDev) {
-            setTabsResult(nextTabs);
-            setStatus("Tabs ready. Select tab blocks below.");
-            return;
-          }
+      }
+      const nextTabs = data.tabs;
+      setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
+      if (data.credits) {
+        setCredits(data.credits);
+      }
+      if (data.unverifiedTranscriptionUsed) {
+        setLocalUnverifiedTranscriptionUsed(true);
+      }
+      sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
+        mode,
+        jobId: data.jobId,
+        tabJobId: data.tabJobId,
+        segmentGroups: Array.isArray(data.transcriberSegments) ? data.transcriberSegments.length : undefined,
+      });
+      if (transcriberSession && data.tabJobId) {
+        setStatus("Tabs ready. Opening transcription...");
+        await router.push(
+          appendEditorId
+            ? `/tabs/${data.tabJobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
+            : `/tabs/${data.tabJobId}`
+        );
+        return;
+      }
+      if (!transcriberSession) {
+        if (disableDbInDev) {
           setTabsResult(nextTabs);
           setStatus("Tabs ready.");
           return;
         }
         setTabsResult(nextTabs);
-        setStatus("Tabs ready. Import into your editor below.");
+        setStatus("Tabs ready.");
         return;
+      }
+      setTabsResult(nextTabs);
+      setStatus("Tabs ready. Choose an editor below.");
+      return;
     } catch (err: any) {
       setError(err?.message || "Something went wrong. Please try again.");
       sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, { mode, error: err?.message || "unknown" });
@@ -732,10 +731,6 @@ export default function HomePage() {
     void handleConvert();
   };
 
-  const handleInstrumentChoice = (includesOtherInstruments: boolean) => {
-    void startConvert(includesOtherInstruments);
-  };
-
   const handleImportToEditor = async () => {
     if (!tabsResult || importBusy) return;
     setImportBusy(true);
@@ -755,11 +750,7 @@ export default function HomePage() {
         await router.push(`/gte/${imported.editorId}`);
         return;
       }
-      const segmentsToUse =
-        selectedSegments.size > 0
-          ? tabsResult.filter((_, idx) => selectedSegments.has(idx))
-          : tabsResult;
-      const { stamps, totalFrames } = tabSegmentsToStamps(segmentsToUse);
+      const { stamps, totalFrames } = tabSegmentsToStamps(tabsResult);
       if (stamps.length === 0) {
         setImportError("No tabs available to import.");
         return;
@@ -882,11 +873,7 @@ export default function HomePage() {
         await router.push(`/gte/${imported.editorId}?source=transcriber`);
         return;
       }
-      const segmentsToUse =
-        selectedSegments.size > 0
-          ? tabsResult.filter((_, idx) => selectedSegments.has(idx))
-          : tabsResult;
-      await openTabsInGuestEditor(segmentsToUse);
+      await openTabsInGuestEditor(tabsResult);
     } catch (err: any) {
       setImportError(err?.message || "Failed to open the guest editor.");
     } finally {
@@ -1075,25 +1062,60 @@ export default function HomePage() {
 
               {showInstrumentPrompt ? (
                 <div className="instrument-prompt">
-                  <p className="instrument-question">Does your audio include other instruments?</p>
-                  <div className="button-row instrument-choice-row">
-                    <button
-                      type="button"
-                      className="button-secondary instrument-choice-button"
-                      onClick={() => handleInstrumentChoice(true)}
-                      disabled={loading}
-                    >
-                      Yes
-                    </button>
-                    <button
-                      type="button"
-                      className="button-secondary instrument-choice-button"
-                      onClick={() => handleInstrumentChoice(false)}
-                      disabled={loading}
-                    >
-                      No
-                    </button>
+                  <div className="instrument-choice-group">
+                    <p className="instrument-question">Does your audio include other instruments?</p>
+                    <div className="button-row instrument-choice-row">
+                      <button
+                        type="button"
+                        className={`button-secondary instrument-choice-button ${
+                          includesOtherInstruments ? "active" : ""
+                        }`}
+                        onClick={() => setIncludesOtherInstruments(true)}
+                        disabled={loading}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        className={`button-secondary instrument-choice-button ${
+                          !includesOtherInstruments ? "active" : ""
+                        }`}
+                        onClick={() => setIncludesOtherInstruments(false)}
+                        disabled={loading}
+                      >
+                        No
+                      </button>
+                    </div>
                   </div>
+                  <div className="instrument-choice-group">
+                    <p className="instrument-question">Are there multiple guitars?</p>
+                    <div className="button-row instrument-choice-row">
+                      <button
+                        type="button"
+                        className={`button-secondary instrument-choice-button ${multipleGuitars ? "active" : ""}`}
+                        onClick={() => setMultipleGuitars(true)}
+                        disabled={loading}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        className={`button-secondary instrument-choice-button ${!multipleGuitars ? "active" : ""}`}
+                        onClick={() => setMultipleGuitars(false)}
+                        disabled={loading}
+                      >
+                        No
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="button-primary instrument-start-button"
+                    onClick={() => void startConvert(includesOtherInstruments)}
+                    disabled={loading}
+                  >
+                    Start transcription
+                  </button>
                 </div>
               ) : (
                 <>
@@ -1254,7 +1276,7 @@ export default function HomePage() {
               <div className="results-header">
                 <div>
                   <h2>Your tabs are ready</h2>
-                  <p>Pick the tab blocks you want to import or copy.</p>
+                  <p>Choose where to open the transcription.</p>
                 </div>
                 <div className="results-actions">
                   {isSignedIn && (
@@ -1292,62 +1314,9 @@ export default function HomePage() {
                       {importBusy ? "Opening..." : "Open in guest editor"}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className={!isSignedIn ? "button-primary" : "button-secondary"}
-                    onClick={() => {
-                      const segmentsToUse =
-                        selectedSegments.size > 0
-                          ? tabsResult.filter((_, idx) => selectedSegments.has(idx))
-                          : tabsResult;
-                      void copyText(segmentsToUse.map((segment) => segment.join("\n")).join("\n\n---\n\n"));
-                    }}
-                  >
-                    Copy tabs
-                  </button>
-                  {isSignedIn ? (
-                    <Link href="/settings" className="button-secondary">
-                      Open settings
-                    </Link>
-                  ) : disableDbInDev ? (
-                    <Link href={`/gte/${GTE_GUEST_EDITOR_ID}`} className="button-secondary">
-                      Open guest editor
-                    </Link>
-                  ) : (
-                    <Link href="/settings" className="button-secondary">
-                      Open settings
-                    </Link>
-                  )}
                 </div>
               </div>
               {importError && <div className="error">{importError}</div>}
-              <div className="results-grid">
-                {tabsResult.map((segment, idx) => {
-                  const selected = selectedSegments.has(idx);
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() =>
-                        setSelectedSegments((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(idx)) {
-                            next.delete(idx);
-                          } else {
-                            next.add(idx);
-                          }
-                          return next;
-                        })
-                      }
-                      className={`tab-block text-left transition ${
-                        selected ? "ring-2 ring-emerald-400/80 bg-emerald-50/60" : ""
-                      }`}
-                    >
-                      <pre className="tab-block-content">{segment.join("\n")}</pre>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
           </section>
         )}
