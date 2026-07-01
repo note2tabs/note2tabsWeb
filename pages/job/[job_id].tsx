@@ -10,6 +10,7 @@ import { isLocalNoDbClientMode } from "../../lib/clientDevMode";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../../lib/gteGuestDraft";
 import { saveJobToHistory } from "../../lib/history";
+import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
 import { normalizeTabSegments, tabSegmentsToStamps, tabsToTabText } from "../../lib/tabTextToStamps";
 import { getAppBaseUrl } from "../../lib/urls";
 import type { EditorListItem } from "../../types/gte";
@@ -25,6 +26,12 @@ const PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "runnin
 type JobModeHint = "FILE" | "YOUTUBE";
 type PendingStageKey = "queue" | "download" | "prepare" | "separate" | "predict" | "note_events" | "format";
 type ReviewAction = "finalize" | null;
+type ImportResult = {
+  editorId: string;
+  importFormat: "segment_groups" | "tab_stamps";
+  target: "new" | "existing" | "guest";
+  href: string;
+};
 
 type StoredTabPayloadResponse = {
   id: string;
@@ -476,6 +483,7 @@ export default function JobPage() {
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewAction, setReviewAction] = useState<ReviewAction>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [quantizeImportDialog, setQuantizeImportDialog] = useState<"job" | "review" | null>(null);
   const [progressClock, setProgressClock] = useState(() => Date.now());
   const reviewMultipleGuitarsInitRef = useRef<string | null>(null);
   const displayJob = useMemo(() => normalizeJobForDisplay(job), [job]);
@@ -738,10 +746,11 @@ export default function JobPage() {
     URL.revokeObjectURL(url);
   };
 
-  const importJobToEditor = async (
+  const performJobImportToEditor = async (
     jobToImport: JobResponse | null,
-    targetEditorChoice: string
-  ): Promise<boolean> => {
+    targetEditorChoice: string,
+    quantize: boolean
+  ): Promise<ImportResult | null> => {
     if (!jobToImport) {
       throw new Error("No importable tab groups are available for this transcription.");
     }
@@ -770,9 +779,14 @@ export default function JobPage() {
           editorId: GTE_GUEST_EDITOR_ID,
           name: importSourceLabel,
           segmentGroups: resolvedTranscriberGroups,
+          quantize,
         });
-        await router.push(`/gte/${imported.editorId}?source=job`);
-        return true;
+        return {
+          editorId: imported.editorId,
+          importFormat: "segment_groups",
+          target: "guest",
+          href: `/gte/${imported.editorId}?source=job`,
+        };
       }
 
       const { stamps, totalFrames } = tabSegmentsToStamps(resolvedTabSegments);
@@ -781,8 +795,12 @@ export default function JobPage() {
       }
       const guestLaneEditorId = buildLaneEditorRef(GTE_GUEST_EDITOR_ID, "ed-1");
       await gteApi.importTab(guestLaneEditorId, { stamps, totalFrames });
-      await router.push(`/gte/${GTE_GUEST_EDITOR_ID}?source=job`);
-      return true;
+      return {
+        editorId: GTE_GUEST_EDITOR_ID,
+        importFormat: "tab_stamps",
+        target: "guest",
+        href: `/gte/${GTE_GUEST_EDITOR_ID}?source=job`,
+      };
     }
 
     if (!isSignedIn) {
@@ -792,7 +810,7 @@ export default function JobPage() {
             ? window.location.href
             : `${getAppBaseUrl()}/job/${jobToImport.job_id}`,
       });
-      return false;
+      return null;
     }
 
     const targetEditorId = targetEditorChoice && targetEditorChoice !== "new" ? targetEditorChoice : null;
@@ -802,9 +820,14 @@ export default function JobPage() {
         editorId: targetEditorId ?? undefined,
         name: importSourceLabel,
         segmentGroups: resolvedTranscriberGroups,
+        quantize,
       });
-      await router.push(`/gte/${imported.editorId}?source=job`);
-      return true;
+      return {
+        editorId: imported.editorId,
+        importFormat: "segment_groups",
+        target: targetEditorId ? "existing" : "new",
+        href: `/gte/${imported.editorId}?source=job`,
+      };
     }
 
     const { stamps, totalFrames } = tabSegmentsToStamps(resolvedTabSegments);
@@ -813,22 +836,71 @@ export default function JobPage() {
     }
     if (targetEditorId) {
       await gteApi.appendImportTab(targetEditorId, { stamps, totalFrames });
-      await router.push(`/gte/${targetEditorId}?source=job`);
-      return true;
+      return {
+        editorId: targetEditorId,
+        importFormat: "tab_stamps",
+        target: "existing",
+        href: `/gte/${targetEditorId}?source=job`,
+      };
     }
 
     const created = await gteApi.createEditor(undefined, importSourceLabel);
     await gteApi.appendImportTab(created.editorId, { stamps, totalFrames });
-    await router.push(`/gte/${created.editorId}?source=job`);
-    return true;
+    return {
+      editorId: created.editorId,
+      importFormat: "tab_stamps",
+      target: "new",
+      href: `/gte/${created.editorId}?source=job`,
+    };
   };
 
-  const handleImportToEditor = async () => {
+  const importJobToEditor = async (
+    jobToImport: JobResponse | null,
+    targetEditorChoice: string,
+    quantize: boolean
+  ): Promise<boolean> => {
+    const target =
+      canOpenGuestEditor
+        ? "guest"
+        : targetEditorChoice && targetEditorChoice !== "new"
+        ? "existing"
+        : "new";
+    const eventProperties = {
+      target,
+      selection: "all",
+      mode: modeHint || undefined,
+      source: "job",
+      job_id: typeof job_id === "string" ? job_id : undefined,
+      quantize,
+    };
+    sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportStarted, eventProperties);
+    try {
+      const result = await performJobImportToEditor(jobToImport, targetEditorChoice, quantize);
+      if (!result) return false;
+      sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
+        ...eventProperties,
+        target: result.target,
+        import_format: result.importFormat,
+        editor_id: result.editorId,
+      });
+      await router.push(result.href);
+      return true;
+    } catch (error: any) {
+      sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
+        ...eventProperties,
+        error: error?.message || "Failed to import tabs into the editor.",
+      });
+      throw error;
+    }
+  };
+
+  const handleImportToEditor = async (quantize: boolean) => {
     if (importBusy) return;
+    setQuantizeImportDialog(null);
     setImportBusy(true);
     setImportError(null);
     try {
-      await importJobToEditor(displayJob, editorChoice);
+      await importJobToEditor(displayJob, editorChoice, quantize);
     } catch (err: any) {
       setImportError(err?.message || "Failed to import tabs into the editor.");
     } finally {
@@ -836,8 +908,9 @@ export default function JobPage() {
     }
   };
 
-  const handleContinue = async () => {
+  const handleContinue = async (quantize: boolean) => {
     if (!showReviewUi || typeof job_id !== "string" || reviewBusy) return;
+    setQuantizeImportDialog(null);
     setReviewBusy(true);
     setReviewAction("finalize");
     setReviewError(null);
@@ -846,7 +919,7 @@ export default function JobPage() {
     const targetEditorChoice = editorChoice;
     try {
       if (isFinalizedStatus && !hasReviewChanges) {
-        importedSuccessfully = await importJobToEditor(displayJob, targetEditorChoice);
+        importedSuccessfully = await importJobToEditor(displayJob, targetEditorChoice, quantize);
         return;
       }
 
@@ -886,7 +959,7 @@ export default function JobPage() {
         throw new Error("Tabs are still finalizing. Please try again in a moment.");
       }
 
-      importedSuccessfully = await importJobToEditor(finalizedJobForImport, targetEditorChoice);
+      importedSuccessfully = await importJobToEditor(finalizedJobForImport, targetEditorChoice, quantize);
     } catch (err: any) {
       setReviewError(err?.message || "Failed to finalize tab groups.");
     } finally {
@@ -1041,7 +1114,7 @@ export default function JobPage() {
               <div className="button-row review-actions review-import-actions">
                 <button
                   type="button"
-                  onClick={() => void handleContinue()}
+                  onClick={() => setQuantizeImportDialog("review")}
                   className="button-primary button-small"
                   disabled={reviewBusy || editorLoading}
                 >
@@ -1057,7 +1130,7 @@ export default function JobPage() {
             <JobStatusLayout
               job={displayJob}
               pendingPresentation={pendingPresentation}
-              onImportToEditor={canImportToEditor ? () => void handleImportToEditor() : null}
+              onImportToEditor={canImportToEditor ? () => setQuantizeImportDialog("job") : null}
               importBusy={importBusy}
               importButtonLabel={importButtonLabel}
               importError={importError}
@@ -1076,6 +1149,53 @@ export default function JobPage() {
           )}
         </div>
       </main>
+      {quantizeImportDialog && (
+        <div className="dialog-scrim" onMouseDown={() => !importBusy && !reviewBusy && setQuantizeImportDialog(null)}>
+          <div className="dialog-card" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="stack-tight">
+              <h2 className="page-title" style={{ fontSize: "1.25rem" }}>Quantize import?</h2>
+              <p className="muted text-small">
+                Quantize sets the editor tempo from the detected beat length before importing. Existing editors may
+                have their current note timing shifted by the tempo change.
+              </p>
+            </div>
+            <div className="button-row" style={{ justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={() => setQuantizeImportDialog(null)}
+                disabled={importBusy || reviewBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={() =>
+                  quantizeImportDialog === "review"
+                    ? void handleContinue(false)
+                    : void handleImportToEditor(false)
+                }
+                disabled={importBusy || reviewBusy}
+              >
+                Import without quantize
+              </button>
+              <button
+                type="button"
+                className="button-primary button-small"
+                onClick={() =>
+                  quantizeImportDialog === "review"
+                    ? void handleContinue(true)
+                    : void handleImportToEditor(true)
+                }
+                disabled={importBusy || reviewBusy}
+              >
+                Quantize
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

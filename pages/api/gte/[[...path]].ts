@@ -53,6 +53,12 @@ type UpstreamImportBody = {
   target?: string;
   editorId?: string;
   importedEditorIds?: string[];
+  quantization?: {
+    applied?: boolean;
+    secondsPerBar?: number;
+    framesPerBeat?: number;
+    secondsPerBeat?: number;
+  };
 };
 
 type GteEditorListItem = {
@@ -470,6 +476,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           target: typeof parsed.target === "string" ? parsed.target : target || undefined,
           editorId,
           importedEditorIds: Array.isArray(parsed.importedEditorIds) ? parsed.importedEditorIds : undefined,
+          quantization: parsed.quantization,
         } satisfies UpstreamImportBody);
         res.setHeader("Content-Type", "application/json; charset=utf-8");
       }

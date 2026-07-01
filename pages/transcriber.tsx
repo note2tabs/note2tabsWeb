@@ -4,7 +4,7 @@ import { useRouter } from "next/router";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
-import { sendEvent } from "../lib/analytics";
+import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { copyText } from "../lib/clipboard";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
@@ -125,6 +125,7 @@ export default function TranscriberPage() {
   const [editorChoice, setEditorChoice] = useState<string>("new");
   const [editorLoading, setEditorLoading] = useState(false);
   const [selectedSegments, setSelectedSegments] = useState<Set<number>>(new Set());
+  const [quantizeImportDialog, setQuantizeImportDialog] = useState<"saved" | "guest" | null>(null);
   const [localUnverifiedTranscriptionUsed, setLocalUnverifiedTranscriptionUsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
@@ -391,7 +392,7 @@ export default function TranscriberPage() {
     const guestLaneEditorId = buildLaneEditorRef(GTE_GUEST_EDITOR_ID, "ed-1");
     await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
     await gteApi.importTab(guestLaneEditorId, { stamps, totalFrames });
-    await router.push(`/gte/${GTE_GUEST_EDITOR_ID}?source=transcriber`);
+    return GTE_GUEST_EDITOR_ID;
   };
 
   const getSelectedTranscriberSegmentGroups = () => {
@@ -652,12 +653,25 @@ export default function TranscriberPage() {
     }
   };
 
-  const handleImportToEditor = async () => {
+  const handleImportToEditor = async (quantize: boolean) => {
     if (!tabsResult || importBusy) return;
+    setQuantizeImportDialog(null);
     setImportBusy(true);
     setImportError(null);
+    const selectedTranscriberGroups = getSelectedTranscriberSegmentGroups();
+    const target = !editorChoice || editorChoice === "new" ? "new" : "existing";
+    const importFormat = selectedTranscriberGroups ? "segment_groups" : "tab_stamps";
+    const selection = selectedSegments.size > 0 ? "selected" : "all";
+    const eventProperties = {
+      target,
+      import_format: importFormat,
+      selection,
+      mode,
+      source: "transcriber",
+      quantize,
+    };
+    sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportStarted, eventProperties);
     try {
-      const selectedTranscriberGroups = getSelectedTranscriberSegmentGroups();
       if (selectedTranscriberGroups) {
         const targetEditorId = editorChoice;
         const imported = await gteApi.importTranscriberToSaved({
@@ -667,6 +681,11 @@ export default function TranscriberPage() {
               ? targetEditorId
               : undefined,
           segmentGroups: selectedTranscriberGroups,
+          quantize,
+        });
+        sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
+          ...eventProperties,
+          editor_id: imported.editorId,
         });
         await router.push(`/gte/${imported.editorId}`);
         return;
@@ -686,24 +705,50 @@ export default function TranscriberPage() {
         targetEditorId = created.editorId;
       }
       await gteApi.appendImportTab(targetEditorId, { stamps, totalFrames });
+      sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
+        ...eventProperties,
+        editor_id: targetEditorId,
+      });
       await router.push(`/gte/${targetEditorId}`);
     } catch (err: any) {
-      setImportError(err?.message || "Failed to import tabs.");
+      const message = err?.message || "Failed to import tabs.";
+      setImportError(message);
+      sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
+        ...eventProperties,
+        error: message,
+      });
     } finally {
       setImportBusy(false);
     }
   };
 
-  const handleOpenGuestEditor = async () => {
+  const handleOpenGuestEditor = async (quantize: boolean) => {
     if (!tabsResult || importBusy) return;
+    setQuantizeImportDialog(null);
     setImportBusy(true);
     setImportError(null);
+    const selectedTranscriberGroups = getSelectedTranscriberSegmentGroups();
+    const importFormat = selectedTranscriberGroups ? "segment_groups" : "tab_stamps";
+    const selection = selectedSegments.size > 0 ? "selected" : "all";
+    const eventProperties = {
+      target: "guest",
+      import_format: importFormat,
+      selection,
+      mode,
+      source: "transcriber",
+      quantize,
+    };
+    sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportStarted, eventProperties);
     try {
-      const selectedTranscriberGroups = getSelectedTranscriberSegmentGroups();
       if (selectedTranscriberGroups) {
         const imported = await gteApi.importTranscriberToGuest({
           segmentGroups: selectedTranscriberGroups,
           editorId: GTE_GUEST_EDITOR_ID,
+          quantize,
+        });
+        sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
+          ...eventProperties,
+          editor_id: imported.editorId,
         });
         await router.push(`/gte/${imported.editorId}?source=transcriber`);
         return;
@@ -712,9 +757,19 @@ export default function TranscriberPage() {
         selectedSegments.size > 0
           ? tabsResult.filter((_, idx) => selectedSegments.has(idx))
           : tabsResult;
-      await openTabsInGuestEditor(segmentsToUse);
+      const editorId = await openTabsInGuestEditor(segmentsToUse);
+      sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
+        ...eventProperties,
+        editor_id: editorId,
+      });
+      await router.push(`/gte/${editorId}?source=transcriber`);
     } catch (err: any) {
-      setImportError(err?.message || "Failed to open the guest editor.");
+      const message = err?.message || "Failed to open the guest editor.";
+      setImportError(message);
+      sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
+        ...eventProperties,
+        error: message,
+      });
     } finally {
       setImportBusy(false);
     }
@@ -984,7 +1039,7 @@ export default function TranscriberPage() {
                       <button
                         type="button"
                         className="button-primary"
-                        onClick={() => void handleImportToEditor()}
+                        onClick={() => setQuantizeImportDialog("saved")}
                         disabled={importBusy || editorLoading}
                       >
                         {importBusy ? "Importing..." : "Import to editor"}
@@ -995,7 +1050,7 @@ export default function TranscriberPage() {
                     <button
                       type="button"
                       className="button-primary"
-                      onClick={() => void handleOpenGuestEditor()}
+                      onClick={() => setQuantizeImportDialog("guest")}
                       disabled={importBusy}
                     >
                       {importBusy ? "Opening..." : "Open in guest editor"}
@@ -1061,6 +1116,53 @@ export default function TranscriberPage() {
           </section>
         )}
       </main>
+      {quantizeImportDialog && (
+        <div className="dialog-scrim" onMouseDown={() => !importBusy && setQuantizeImportDialog(null)}>
+          <div className="dialog-card" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="stack-tight">
+              <h2 className="page-title" style={{ fontSize: "1.25rem" }}>Quantize import?</h2>
+              <p className="muted text-small">
+                Quantize sets the editor tempo from the detected beat length before importing. Existing editors may
+                have their current note timing shifted by the tempo change.
+              </p>
+            </div>
+            <div className="button-row" style={{ justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={() => setQuantizeImportDialog(null)}
+                disabled={importBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={() =>
+                  quantizeImportDialog === "saved"
+                    ? void handleImportToEditor(false)
+                    : void handleOpenGuestEditor(false)
+                }
+                disabled={importBusy}
+              >
+                Import without quantize
+              </button>
+              <button
+                type="button"
+                className="button-primary button-small"
+                onClick={() =>
+                  quantizeImportDialog === "saved"
+                    ? void handleImportToEditor(true)
+                    : void handleOpenGuestEditor(true)
+                }
+                disabled={importBusy}
+              >
+                Quantize
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
