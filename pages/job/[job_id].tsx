@@ -1068,23 +1068,6 @@ export default function JobPage() {
               {reviewError ? <div className="error">{reviewError}</div> : null}
 
               <div className="review-import-options">
-                <div className="review-track-toggle">
-                  <div className="stack" style={{ gap: "6px" }}>
-                    <p style={{ margin: 0, fontWeight: 600 }}>Track separation</p>
-                    <p className="muted text-small" style={{ margin: 0 }}>
-                      Split the generated notes into 2 separate tracks
-                    </p>
-                  </div>
-                  <label className="checkbox">
-                    <input
-                      type="checkbox"
-                      checked={reviewMultipleGuitars}
-                      onChange={(event) => setReviewMultipleGuitars(event.target.checked)}
-                      disabled={reviewBusy}
-                    />
-                    <span>There is more than one guitar playing</span>
-                  </label>
-                </div>
                 {isSignedIn ? (
                   <div className="review-editor-target">
                     <p className="label" style={{ margin: 0 }}>
