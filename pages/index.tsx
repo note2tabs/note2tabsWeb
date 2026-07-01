@@ -5,12 +5,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
-import { copyText } from "../lib/clipboard";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
+import {
+  DEFAULT_TRANSCRIPTION_MODEL,
+  type TranscriptionModelChoice,
+} from "../lib/transcriptionModels";
 import SeoHead, { SITE_NAME, SITE_URL, absoluteUrl } from "../components/SeoHead";
+import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 
 type TabsResponse = {
   tabs: string[][];
@@ -116,10 +120,13 @@ export default function HomePage() {
   >([]);
   const [editorChoice, setEditorChoice] = useState<string>("new");
   const [editorLoading, setEditorLoading] = useState(false);
-  const [selectedSegments, setSelectedSegments] = useState<Set<number>>(new Set());
   const [pricingBusy, setPricingBusy] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
+  const [includesOtherInstruments, setIncludesOtherInstruments] = useState<boolean | null>(null);
+  const [transcriptionModel, setTranscriptionModel] =
+    useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
+  const [multipleGuitars, setMultipleGuitars] = useState<boolean | null>(null);
   const [localUnverifiedTranscriptionUsed, setLocalUnverifiedTranscriptionUsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
@@ -407,12 +414,7 @@ export default function HomePage() {
 
   const getSelectedTranscriberSegmentGroups = () => {
     if (!transcriberSegments || transcriberSegments.length === 0) return null;
-    const indexes =
-      selectedSegments.size > 0
-        ? Array.from(selectedSegments).sort((a, b) => a - b)
-        : transcriberSegments.map((_, idx) => idx);
-    const groups = indexes
-      .map((idx) => transcriberSegments[idx])
+    const groups = transcriberSegments
       .filter((group): group is TranscriberSegmentGroup => Array.isArray(group) && group.length > 0);
     return groups.length > 0 ? groups : null;
   };
@@ -517,6 +519,8 @@ export default function HomePage() {
       mode,
       sourceType: mode,
       separateGuitar,
+      multipleGuitars,
+      transcriptionModel,
       fileSize: selectedFile?.size,
       durationSec: mode === "YOUTUBE" ? resolvedYtDuration : fileDuration,
       hasAppendEditorId: Boolean(appendEditorId),
@@ -532,6 +536,8 @@ export default function HomePage() {
             fd.append("duration", String(fileDuration));
           }
           fd.append("separateGuitar", separateGuitar ? "true" : "false");
+          fd.append("multipleGuitars", multipleGuitars ? "true" : "false");
+          fd.append("transcriptionModel", transcriptionModel);
           if (shouldDeferEditorSync) {
             fd.append("skipAutoEditorSync", "true");
           }
@@ -587,6 +593,8 @@ export default function HomePage() {
               s3Key: presignData.key,
               fileName: selectedFile.name,
               separateGuitar,
+              multipleGuitars,
+              transcriptionModel,
             };
             if (fileDuration !== null) payload.duration = fileDuration;
             if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
@@ -605,6 +613,8 @@ export default function HomePage() {
           startTime: Math.max(0, ytStartTime ?? 0),
           duration: resolvedYtDuration,
           separateGuitar,
+          multipleGuitars,
+          transcriptionModel,
         };
         if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
         response = await fetch("/api/transcribe", {
@@ -631,6 +641,8 @@ export default function HomePage() {
         const jobParams = new URLSearchParams();
         jobParams.set("mode", mode);
         jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
+        jobParams.set("multipleGuitars", multipleGuitars ? "1" : "0");
+        jobParams.set("model", transcriptionModel);
         if (appendEditorId) {
           jobParams.set("appendEditorId", appendEditorId);
         }
@@ -656,44 +668,43 @@ export default function HomePage() {
         setError("No tabs returned from server.");
         sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, { mode, error: "no tabs" });
         return;
-        }
-        const nextTabs = data.tabs;
-        setSelectedSegments(new Set());
-        setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
-        if (data.credits) {
-          setCredits(data.credits);
-        }
-        if (data.unverifiedTranscriptionUsed) {
-          setLocalUnverifiedTranscriptionUsed(true);
-        }
-        sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
-          mode,
-          jobId: data.jobId,
-          tabJobId: data.tabJobId,
-          segmentGroups: Array.isArray(data.transcriberSegments) ? data.transcriberSegments.length : undefined,
-        });
-        if (transcriberSession && data.tabJobId) {
-          setStatus("Tabs ready. Opening transcription...");
-          await router.push(
-            appendEditorId
-              ? `/tabs/${data.tabJobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
-              : `/tabs/${data.tabJobId}`
-          );
-          return;
-        }
-        if (!transcriberSession) {
-          if (disableDbInDev) {
-            setTabsResult(nextTabs);
-            setStatus("Tabs ready. Select tab blocks below.");
-            return;
-          }
+      }
+      const nextTabs = data.tabs;
+      setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
+      if (data.credits) {
+        setCredits(data.credits);
+      }
+      if (data.unverifiedTranscriptionUsed) {
+        setLocalUnverifiedTranscriptionUsed(true);
+      }
+      sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
+        mode,
+        jobId: data.jobId,
+        tabJobId: data.tabJobId,
+        segmentGroups: Array.isArray(data.transcriberSegments) ? data.transcriberSegments.length : undefined,
+      });
+      if (transcriberSession && data.tabJobId) {
+        setStatus("Tabs ready. Opening transcription...");
+        await router.push(
+          appendEditorId
+            ? `/tabs/${data.tabJobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
+            : `/tabs/${data.tabJobId}`
+        );
+        return;
+      }
+      if (!transcriberSession) {
+        if (disableDbInDev) {
           setTabsResult(nextTabs);
           setStatus("Tabs ready.");
           return;
         }
         setTabsResult(nextTabs);
-        setStatus("Tabs ready. Import into your editor below.");
+        setStatus("Tabs ready.");
         return;
+      }
+      setTabsResult(nextTabs);
+      setStatus("Tabs ready. Choose an editor below.");
+      return;
     } catch (err: any) {
       setError(err?.message || "Something went wrong. Please try again.");
       sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, { mode, error: err?.message || "unknown" });
@@ -707,6 +718,8 @@ export default function HomePage() {
     if (convertInFlightRef.current || loading) return;
     if (!validateConvertInputs()) return;
     setError(null);
+    setIncludesOtherInstruments(null);
+    setMultipleGuitars(null);
     setShowInstrumentPrompt(true);
   };
 
@@ -720,7 +733,10 @@ export default function HomePage() {
     void handleConvert();
   };
 
-  const handleInstrumentChoice = (includesOtherInstruments: boolean) => {
+  const instrumentPromptComplete = includesOtherInstruments !== null && multipleGuitars !== null;
+
+  const handleInstrumentPromptStart = () => {
+    if (includesOtherInstruments === null || multipleGuitars === null) return;
     void startConvert(includesOtherInstruments);
   };
 
@@ -743,11 +759,7 @@ export default function HomePage() {
         await router.push(`/gte/${imported.editorId}`);
         return;
       }
-      const segmentsToUse =
-        selectedSegments.size > 0
-          ? tabsResult.filter((_, idx) => selectedSegments.has(idx))
-          : tabsResult;
-      const { stamps, totalFrames } = tabSegmentsToStamps(segmentsToUse);
+      const { stamps, totalFrames } = tabSegmentsToStamps(tabsResult);
       if (stamps.length === 0) {
         setImportError("No tabs available to import.");
         return;
@@ -870,11 +882,7 @@ export default function HomePage() {
         await router.push(`/gte/${imported.editorId}?source=transcriber`);
         return;
       }
-      const segmentsToUse =
-        selectedSegments.size > 0
-          ? tabsResult.filter((_, idx) => selectedSegments.has(idx))
-          : tabsResult;
-      await openTabsInGuestEditor(segmentsToUse);
+      await openTabsInGuestEditor(tabsResult);
     } catch (err: any) {
       setImportError(err?.message || "Failed to open the guest editor.");
     } finally {
@@ -1023,11 +1031,28 @@ export default function HomePage() {
             >
               <div
                 className={`prompt-meta-row ${
-                  mode === "YOUTUBE" || (isSignedIn && displayedCredits) ? "" : "is-empty"
+                  !showInstrumentPrompt || mode === "YOUTUBE" || (isSignedIn && displayedCredits)
+                    ? ""
+                    : "is-empty"
                 }`}
-                aria-hidden={mode === "YOUTUBE" || (isSignedIn && displayedCredits) ? undefined : "true"}
+                aria-hidden={
+                  !showInstrumentPrompt || mode === "YOUTUBE" || (isSignedIn && displayedCredits)
+                    ? undefined
+                    : "true"
+                }
               >
-                <span className="funnel-external-label">{mode === "YOUTUBE" ? "YouTube URL" : ""}</span>
+                <div className="prompt-meta-left">
+                  {!showInstrumentPrompt && (
+                    <div className="model-choice model-choice--meta">
+                      <TranscriptionModelDropdown
+                        id="home-transcription-model"
+                        value={transcriptionModel}
+                        onChange={setTranscriptionModel}
+                        disabled={loading}
+                      />
+                    </div>
+                  )}
+                </div>
                 {isSignedIn && displayedCredits && (
                   <p className="hero-credits-inline">
                     Credits: <strong>{creditsSummaryLabel}</strong>
@@ -1046,25 +1071,64 @@ export default function HomePage() {
 
               {showInstrumentPrompt ? (
                 <div className="instrument-prompt">
-                  <p className="instrument-question">Does your audio include other instruments?</p>
-                  <div className="button-row instrument-choice-row">
-                    <button
-                      type="button"
-                      className="button-secondary instrument-choice-button"
-                      onClick={() => handleInstrumentChoice(true)}
-                      disabled={loading}
-                    >
-                      Yes
-                    </button>
-                    <button
-                      type="button"
-                      className="button-secondary instrument-choice-button"
-                      onClick={() => handleInstrumentChoice(false)}
-                      disabled={loading}
-                    >
-                      No
-                    </button>
+                  <div className="instrument-choice-group">
+                    <p className="instrument-question">Does your audio include other instruments?</p>
+                    <div className="button-row instrument-choice-row">
+                      <button
+                        type="button"
+                        className={`button-secondary instrument-choice-button ${
+                          includesOtherInstruments === true ? "active" : ""
+                        }`}
+                        onClick={() => setIncludesOtherInstruments(true)}
+                        disabled={loading}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        className={`button-secondary instrument-choice-button ${
+                          includesOtherInstruments === false ? "active" : ""
+                        }`}
+                        onClick={() => setIncludesOtherInstruments(false)}
+                        disabled={loading}
+                      >
+                        No
+                      </button>
+                    </div>
                   </div>
+                  <div className="instrument-choice-group">
+                    <p className="instrument-question">Are there multiple guitars?</p>
+                    <div className="button-row instrument-choice-row">
+                      <button
+                        type="button"
+                        className={`button-secondary instrument-choice-button ${
+                          multipleGuitars === true ? "active" : ""
+                        }`}
+                        onClick={() => setMultipleGuitars(true)}
+                        disabled={loading}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        className={`button-secondary instrument-choice-button ${
+                          multipleGuitars === false ? "active" : ""
+                        }`}
+                        onClick={() => setMultipleGuitars(false)}
+                        disabled={loading}
+                      >
+                        No
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="button-primary instrument-start-button"
+                    onClick={handleInstrumentPromptStart}
+                    disabled={loading || !instrumentPromptComplete}
+                  >
+                    Start transcription
+                  </button>
                 </div>
               ) : (
                 <>
@@ -1079,10 +1143,23 @@ export default function HomePage() {
                         onDragEnter={mode === "FILE" ? onDragEnter : undefined}
                         onDragLeave={mode === "FILE" ? onDragLeave : undefined}
                       >
-                        <span className="funnel-icon" aria-hidden="true">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M8 5.5v13l10-6.5-10-6.5z" />
-                          </svg>
+                        <span
+                          className={`funnel-icon ${mode === "YOUTUBE" ? "funnel-icon--youtube" : ""}`}
+                          aria-hidden="true"
+                        >
+                          {mode === "YOUTUBE" ? (
+                            <svg className="youtube-mark" viewBox="0 0 28 20" fill="none">
+                              <path
+                                d="M27.4 3.1c-.32-1.2-1.24-2.15-2.4-2.48C22.9 0 14 0 14 0S5.1 0 3 .62C1.84.95.92 1.9.6 3.1.03 5.28.03 10 .03 10s0 4.72.57 6.9c.32 1.2 1.24 2.15 2.4 2.48C5.1 20 14 20 14 20s8.9 0 11-.62c1.16-.33 2.08-1.28 2.4-2.48.57-2.18.57-6.9.57-6.9s0-4.72-.57-6.9Z"
+                                fill="currentColor"
+                              />
+                              <path d="M11.2 14.25V5.75L18.45 10l-7.25 4.25Z" fill="#fff" />
+                            </svg>
+                          ) : (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M8 5.5v13l10-6.5-10-6.5z" />
+                            </svg>
+                          )}
                         </span>
                         {mode === "FILE" ? (
                           <span className="funnel-file-label">
@@ -1215,7 +1292,7 @@ export default function HomePage() {
               <div className="results-header">
                 <div>
                   <h2>Your tabs are ready</h2>
-                  <p>Pick the tab blocks you want to import or copy.</p>
+                  <p>Choose where to open the transcription.</p>
                 </div>
                 <div className="results-actions">
                   {isSignedIn && (
@@ -1253,62 +1330,9 @@ export default function HomePage() {
                       {importBusy ? "Opening..." : "Open in guest editor"}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className={!isSignedIn ? "button-primary" : "button-secondary"}
-                    onClick={() => {
-                      const segmentsToUse =
-                        selectedSegments.size > 0
-                          ? tabsResult.filter((_, idx) => selectedSegments.has(idx))
-                          : tabsResult;
-                      void copyText(segmentsToUse.map((segment) => segment.join("\n")).join("\n\n---\n\n"));
-                    }}
-                  >
-                    Copy tabs
-                  </button>
-                  {isSignedIn ? (
-                    <Link href="/settings" className="button-secondary">
-                      Open settings
-                    </Link>
-                  ) : disableDbInDev ? (
-                    <Link href={`/gte/${GTE_GUEST_EDITOR_ID}`} className="button-secondary">
-                      Open guest editor
-                    </Link>
-                  ) : (
-                    <Link href="/settings" className="button-secondary">
-                      Open settings
-                    </Link>
-                  )}
                 </div>
               </div>
               {importError && <div className="error">{importError}</div>}
-              <div className="results-grid">
-                {tabsResult.map((segment, idx) => {
-                  const selected = selectedSegments.has(idx);
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() =>
-                        setSelectedSegments((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(idx)) {
-                            next.delete(idx);
-                          } else {
-                            next.add(idx);
-                          }
-                          return next;
-                        })
-                      }
-                      className={`tab-block text-left transition ${
-                        selected ? "ring-2 ring-emerald-400/80 bg-emerald-50/60" : ""
-                      }`}
-                    >
-                      <pre className="tab-block-content">{segment.join("\n")}</pre>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
           </section>
         )}

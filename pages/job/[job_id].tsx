@@ -483,6 +483,7 @@ export default function JobPage() {
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewAction, setReviewAction] = useState<ReviewAction>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [quantizeImportDialog, setQuantizeImportDialog] = useState<"job" | "review" | null>(null);
   const [progressClock, setProgressClock] = useState(() => Date.now());
   const reviewMultipleGuitarsInitRef = useRef<string | null>(null);
   const displayJob = useMemo(() => normalizeJobForDisplay(job), [job]);
@@ -747,7 +748,8 @@ export default function JobPage() {
 
   const performJobImportToEditor = async (
     jobToImport: JobResponse | null,
-    targetEditorChoice: string
+    targetEditorChoice: string,
+    quantize: boolean
   ): Promise<ImportResult | null> => {
     if (!jobToImport) {
       throw new Error("No importable tab groups are available for this transcription.");
@@ -777,6 +779,7 @@ export default function JobPage() {
           editorId: GTE_GUEST_EDITOR_ID,
           name: importSourceLabel,
           segmentGroups: resolvedTranscriberGroups,
+          quantize,
         });
         return {
           editorId: imported.editorId,
@@ -817,6 +820,7 @@ export default function JobPage() {
         editorId: targetEditorId ?? undefined,
         name: importSourceLabel,
         segmentGroups: resolvedTranscriberGroups,
+        quantize,
       });
       return {
         editorId: imported.editorId,
@@ -852,7 +856,8 @@ export default function JobPage() {
 
   const importJobToEditor = async (
     jobToImport: JobResponse | null,
-    targetEditorChoice: string
+    targetEditorChoice: string,
+    quantize: boolean
   ): Promise<boolean> => {
     const target =
       canOpenGuestEditor
@@ -866,10 +871,11 @@ export default function JobPage() {
       mode: modeHint || undefined,
       source: "job",
       job_id: typeof job_id === "string" ? job_id : undefined,
+      quantize,
     };
     sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportStarted, eventProperties);
     try {
-      const result = await performJobImportToEditor(jobToImport, targetEditorChoice);
+      const result = await performJobImportToEditor(jobToImport, targetEditorChoice, quantize);
       if (!result) return false;
       sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
         ...eventProperties,
@@ -888,12 +894,13 @@ export default function JobPage() {
     }
   };
 
-  const handleImportToEditor = async () => {
+  const handleImportToEditor = async (quantize: boolean) => {
     if (importBusy) return;
+    setQuantizeImportDialog(null);
     setImportBusy(true);
     setImportError(null);
     try {
-      await importJobToEditor(displayJob, editorChoice);
+      await importJobToEditor(displayJob, editorChoice, quantize);
     } catch (err: any) {
       setImportError(err?.message || "Failed to import tabs into the editor.");
     } finally {
@@ -901,8 +908,9 @@ export default function JobPage() {
     }
   };
 
-  const handleContinue = async () => {
+  const handleContinue = async (quantize: boolean) => {
     if (!showReviewUi || typeof job_id !== "string" || reviewBusy) return;
+    setQuantizeImportDialog(null);
     setReviewBusy(true);
     setReviewAction("finalize");
     setReviewError(null);
@@ -911,7 +919,7 @@ export default function JobPage() {
     const targetEditorChoice = editorChoice;
     try {
       if (isFinalizedStatus && !hasReviewChanges) {
-        importedSuccessfully = await importJobToEditor(displayJob, targetEditorChoice);
+        importedSuccessfully = await importJobToEditor(displayJob, targetEditorChoice, quantize);
         return;
       }
 
@@ -951,7 +959,7 @@ export default function JobPage() {
         throw new Error("Tabs are still finalizing. Please try again in a moment.");
       }
 
-      importedSuccessfully = await importJobToEditor(finalizedJobForImport, targetEditorChoice);
+      importedSuccessfully = await importJobToEditor(finalizedJobForImport, targetEditorChoice, quantize);
     } catch (err: any) {
       setReviewError(err?.message || "Failed to finalize tab groups.");
     } finally {
@@ -1060,23 +1068,6 @@ export default function JobPage() {
               {reviewError ? <div className="error">{reviewError}</div> : null}
 
               <div className="review-import-options">
-                <div className="review-track-toggle">
-                  <div className="stack" style={{ gap: "6px" }}>
-                    <p style={{ margin: 0, fontWeight: 600 }}>Track separation</p>
-                    <p className="muted text-small" style={{ margin: 0 }}>
-                      Split the generated notes into 2 separate tracks
-                    </p>
-                  </div>
-                  <label className="checkbox">
-                    <input
-                      type="checkbox"
-                      checked={reviewMultipleGuitars}
-                      onChange={(event) => setReviewMultipleGuitars(event.target.checked)}
-                      disabled={reviewBusy}
-                    />
-                    <span>There is more than one guitar playing</span>
-                  </label>
-                </div>
                 {isSignedIn ? (
                   <div className="review-editor-target">
                     <p className="label" style={{ margin: 0 }}>
@@ -1106,7 +1097,7 @@ export default function JobPage() {
               <div className="button-row review-actions review-import-actions">
                 <button
                   type="button"
-                  onClick={() => void handleContinue()}
+                  onClick={() => setQuantizeImportDialog("review")}
                   className="button-primary button-small"
                   disabled={reviewBusy || editorLoading}
                 >
@@ -1122,7 +1113,7 @@ export default function JobPage() {
             <JobStatusLayout
               job={displayJob}
               pendingPresentation={pendingPresentation}
-              onImportToEditor={canImportToEditor ? () => void handleImportToEditor() : null}
+              onImportToEditor={canImportToEditor ? () => setQuantizeImportDialog("job") : null}
               importBusy={importBusy}
               importButtonLabel={importButtonLabel}
               importError={importError}
@@ -1141,6 +1132,53 @@ export default function JobPage() {
           )}
         </div>
       </main>
+      {quantizeImportDialog && (
+        <div className="dialog-scrim" onMouseDown={() => !importBusy && !reviewBusy && setQuantizeImportDialog(null)}>
+          <div className="dialog-card" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="stack-tight">
+              <h2 className="page-title" style={{ fontSize: "1.25rem" }}>Quantize import?</h2>
+              <p className="muted text-small">
+                Quantize sets the editor tempo from the detected beat length before importing. Existing editors may
+                have their current note timing shifted by the tempo change.
+              </p>
+            </div>
+            <div className="button-row" style={{ justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={() => setQuantizeImportDialog(null)}
+                disabled={importBusy || reviewBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={() =>
+                  quantizeImportDialog === "review"
+                    ? void handleContinue(false)
+                    : void handleImportToEditor(false)
+                }
+                disabled={importBusy || reviewBusy}
+              >
+                Import without quantize
+              </button>
+              <button
+                type="button"
+                className="button-primary button-small"
+                onClick={() =>
+                  quantizeImportDialog === "review"
+                    ? void handleContinue(true)
+                    : void handleImportToEditor(true)
+                }
+                disabled={importBusy || reviewBusy}
+              >
+                Quantize
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

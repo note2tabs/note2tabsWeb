@@ -6,12 +6,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
-import { copyText } from "../lib/clipboard";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
+import {
+  DEFAULT_TRANSCRIPTION_MODEL,
+  type TranscriptionModelChoice,
+} from "../lib/transcriptionModels";
 import SeoHead, { SITE_NAME, absoluteUrl } from "../components/SeoHead";
+import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 
 type TabsResponse = {
   tabs: string[][];
@@ -103,6 +107,9 @@ export default function TranscriberPage() {
   const [ytEndInput, setYtEndInput] = useState(formatTimestamp(MAX_YT_SNIPPET_SEC));
   const [fileDuration, setFileDuration] = useState<number | null>(null);
   const [separateGuitar, setSeparateGuitar] = useState(true);
+  const [multipleGuitars, setMultipleGuitars] = useState(false);
+  const [transcriptionModel, setTranscriptionModel] =
+    useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +124,6 @@ export default function TranscriberPage() {
   >([]);
   const [editorChoice, setEditorChoice] = useState<string>("new");
   const [editorLoading, setEditorLoading] = useState(false);
-  const [selectedSegments, setSelectedSegments] = useState<Set<number>>(new Set());
   const [localUnverifiedTranscriptionUsed, setLocalUnverifiedTranscriptionUsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
@@ -389,12 +395,7 @@ export default function TranscriberPage() {
 
   const getSelectedTranscriberSegmentGroups = () => {
     if (!transcriberSegments || transcriberSegments.length === 0) return null;
-    const indexes =
-      selectedSegments.size > 0
-        ? Array.from(selectedSegments).sort((a, b) => a - b)
-        : transcriberSegments.map((_, idx) => idx);
-    const groups = indexes
-      .map((idx) => transcriberSegments[idx])
+    const groups = transcriberSegments
       .filter((group): group is TranscriberSegmentGroup => Array.isArray(group) && group.length > 0);
     return groups.length > 0 ? groups : null;
   };
@@ -491,6 +492,8 @@ export default function TranscriberPage() {
             fd.append("duration", String(fileDuration));
           }
           fd.append("separateGuitar", separateGuitar ? "true" : "false");
+          fd.append("multipleGuitars", multipleGuitars ? "true" : "false");
+          fd.append("transcriptionModel", transcriptionModel);
           if (shouldDeferEditorSync) {
             fd.append("skipAutoEditorSync", "true");
           }
@@ -534,6 +537,8 @@ export default function TranscriberPage() {
               s3Key: presignData.key,
               fileName: selectedFile.name,
               separateGuitar,
+              multipleGuitars,
+              transcriptionModel,
             };
             if (fileDuration !== null) payload.duration = fileDuration;
             if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
@@ -552,6 +557,8 @@ export default function TranscriberPage() {
           startTime: Math.max(0, ytStartTime ?? 0),
           duration: resolvedYtDuration,
           separateGuitar,
+          multipleGuitars,
+          transcriptionModel,
         };
         if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
         response = await fetch("/api/transcribe", {
@@ -574,6 +581,8 @@ export default function TranscriberPage() {
         const jobParams = new URLSearchParams();
         jobParams.set("mode", mode);
         jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
+        jobParams.set("multipleGuitars", multipleGuitars ? "1" : "0");
+        jobParams.set("model", transcriptionModel);
         if (appendEditorId) {
           jobParams.set("appendEditorId", appendEditorId);
         }
@@ -601,7 +610,6 @@ export default function TranscriberPage() {
         return;
       }
       const nextTabs = data.tabs;
-      setSelectedSegments(new Set());
       setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
       if (data.credits) {
         setCredits(data.credits);
@@ -641,20 +649,20 @@ export default function TranscriberPage() {
     }
   };
 
-  const handleImportToEditor = async () => {
+  const handleImportToEditor = async (quantize: boolean) => {
     if (!tabsResult || importBusy) return;
     setImportBusy(true);
     setImportError(null);
     const selectedTranscriberGroups = getSelectedTranscriberSegmentGroups();
     const target = !editorChoice || editorChoice === "new" ? "new" : "existing";
     const importFormat = selectedTranscriberGroups ? "segment_groups" : "tab_stamps";
-    const selection = selectedSegments.size > 0 ? "selected" : "all";
     const eventProperties = {
       target,
       import_format: importFormat,
-      selection,
+      selection: "all",
       mode,
       source: "transcriber",
+      quantize,
     };
     sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportStarted, eventProperties);
     try {
@@ -667,6 +675,7 @@ export default function TranscriberPage() {
               ? targetEditorId
               : undefined,
           segmentGroups: selectedTranscriberGroups,
+          quantize,
         });
         sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
           ...eventProperties,
@@ -675,11 +684,7 @@ export default function TranscriberPage() {
         await router.push(`/gte/${imported.editorId}`);
         return;
       }
-      const segmentsToUse =
-        selectedSegments.size > 0
-          ? tabsResult.filter((_, idx) => selectedSegments.has(idx))
-          : tabsResult;
-      const { stamps, totalFrames } = tabSegmentsToStamps(segmentsToUse);
+      const { stamps, totalFrames } = tabSegmentsToStamps(tabsResult);
       if (stamps.length === 0) {
         setImportError("No tabs available to import.");
         return;
@@ -707,19 +712,19 @@ export default function TranscriberPage() {
     }
   };
 
-  const handleOpenGuestEditor = async () => {
+  const handleOpenGuestEditor = async (quantize: boolean) => {
     if (!tabsResult || importBusy) return;
     setImportBusy(true);
     setImportError(null);
     const selectedTranscriberGroups = getSelectedTranscriberSegmentGroups();
     const importFormat = selectedTranscriberGroups ? "segment_groups" : "tab_stamps";
-    const selection = selectedSegments.size > 0 ? "selected" : "all";
     const eventProperties = {
       target: "guest",
       import_format: importFormat,
-      selection,
+      selection: "all",
       mode,
       source: "transcriber",
+      quantize,
     };
     sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportStarted, eventProperties);
     try {
@@ -727,6 +732,7 @@ export default function TranscriberPage() {
         const imported = await gteApi.importTranscriberToGuest({
           segmentGroups: selectedTranscriberGroups,
           editorId: GTE_GUEST_EDITOR_ID,
+          quantize,
         });
         sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
           ...eventProperties,
@@ -735,11 +741,7 @@ export default function TranscriberPage() {
         await router.push(`/gte/${imported.editorId}?source=transcriber`);
         return;
       }
-      const segmentsToUse =
-        selectedSegments.size > 0
-          ? tabsResult.filter((_, idx) => selectedSegments.has(idx))
-          : tabsResult;
-      const editorId = await openTabsInGuestEditor(segmentsToUse);
+      const editorId = await openTabsInGuestEditor(tabsResult);
       sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
         ...eventProperties,
         editor_id: editorId,
@@ -917,6 +919,25 @@ export default function TranscriberPage() {
                     <span>Does your audio include other instruments?</span>
                   </label>
                 </div>
+                <div className="transcriber-checkbox-row">
+                  <label className="checkbox">
+                    <input
+                      type="checkbox"
+                      checked={multipleGuitars}
+                      onChange={(event) => setMultipleGuitars(event.target.checked)}
+                      disabled={loading}
+                    />
+                    <span>Does your audio include more than one guitar?</span>
+                  </label>
+                </div>
+                <div className="model-choice">
+                  <TranscriptionModelDropdown
+                    id="transcriber-transcription-model"
+                    value={transcriptionModel}
+                    onChange={setTranscriptionModel}
+                    disabled={loading}
+                  />
+                </div>
               </div>
 
               {mode === "YOUTUBE" && (
@@ -992,7 +1013,7 @@ export default function TranscriberPage() {
               <div className="results-header">
                 <div>
                   <h2>Your tabs are ready</h2>
-                  <p>Pick blocks to import or copy.</p>
+                  <p>Choose where to open the transcription.</p>
                 </div>
                 <div className="results-actions">
                   {isSignedIn && (
@@ -1013,7 +1034,7 @@ export default function TranscriberPage() {
                       <button
                         type="button"
                         className="button-primary"
-                        onClick={() => void handleImportToEditor()}
+                        onClick={() => void handleImportToEditor(false)}
                         disabled={importBusy || editorLoading}
                       >
                         {importBusy ? "Importing..." : "Import to editor"}
@@ -1024,68 +1045,15 @@ export default function TranscriberPage() {
                     <button
                       type="button"
                       className="button-primary"
-                      onClick={() => void handleOpenGuestEditor()}
+                      onClick={() => void handleOpenGuestEditor(false)}
                       disabled={importBusy}
                     >
                       {importBusy ? "Opening..." : "Open in guest editor"}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className={!isSignedIn ? "button-primary" : "button-secondary"}
-                    onClick={() => {
-                      const segmentsToUse =
-                        selectedSegments.size > 0
-                          ? tabsResult.filter((_, idx) => selectedSegments.has(idx))
-                          : tabsResult;
-                      void copyText(segmentsToUse.map((segment) => segment.join("\n")).join("\n\n---\n\n"));
-                    }}
-                  >
-                    Copy tabs
-                  </button>
-                  {isSignedIn ? (
-                    <Link href="/settings" className="button-secondary">
-                      Open settings
-                    </Link>
-                  ) : disableDbInDev ? (
-                    <Link href={`/gte/${GTE_GUEST_EDITOR_ID}`} className="button-secondary">
-                      Open guest editor
-                    </Link>
-                  ) : (
-                    <Link href="/settings" className="button-secondary">
-                      Open settings
-                    </Link>
-                  )}
                 </div>
               </div>
               {importError && <div className="error">{importError}</div>}
-              <div className="results-grid">
-                {tabsResult.map((segment, idx) => {
-                  const selected = selectedSegments.has(idx);
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() =>
-                        setSelectedSegments((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(idx)) {
-                            next.delete(idx);
-                          } else {
-                            next.add(idx);
-                          }
-                          return next;
-                        })
-                      }
-                      className={`tab-block text-left transition ${
-                        selected ? "ring-2 ring-emerald-400/80 bg-emerald-50/60" : ""
-                      }`}
-                    >
-                      <pre className="tab-block-content">{segment.join("\n")}</pre>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
           </section>
         )}
