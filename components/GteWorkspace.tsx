@@ -1518,6 +1518,17 @@ export default function GteWorkspace({
       isLabel: second % 5 === 0,
     }));
   }, [playbackFps, scale, timelineEnd]);
+  const tabViewSecondMarks = useMemo(() => {
+    if (playbackFps <= 0 || framesPerMeasure <= 0 || editorTabView.barCount <= 0) return [];
+    const totalFrames = editorTabView.barCount * framesPerMeasure;
+    const tabContentWidth = editorTabView.barCount * editorTabView.barWidth;
+    const totalSeconds = Math.floor(totalFrames / playbackFps);
+    return Array.from({ length: totalSeconds + 1 }, (_, second) => ({
+      second,
+      left: 30 + (second * playbackFps / Math.max(1, totalFrames)) * tabContentWidth,
+      isLabel: second % 5 === 0,
+    }));
+  }, [editorTabView.barCount, editorTabView.barWidth, framesPerMeasure, playbackFps]);
   const setEffectivePracticeLoopEnabled = useCallback(
     (enabled: boolean) => {
       if (onPracticeLoopEnabledChange) {
@@ -1625,6 +1636,19 @@ export default function GteWorkspace({
       setEffectivePlayheadFrame(Math.round(localX / Math.max(0.0001, scale)));
     },
     [scale, setEffectivePlayheadFrame, timelineWidth]
+  );
+  const handleTabViewRulerMouseDown = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const totalFrames = Math.max(1, editorTabView.barCount * framesPerMeasure);
+      const tabContentWidth = Math.max(1, editorTabView.barCount * editorTabView.barWidth);
+      const localX = Math.max(30, Math.min(30 + tabContentWidth, event.clientX - rect.left));
+      const progress = (localX - 30) / tabContentWidth;
+      setEffectivePlayheadFrame(Math.round(progress * totalFrames));
+    },
+    [editorTabView.barCount, editorTabView.barWidth, framesPerMeasure, setEffectivePlayheadFrame]
   );
 
   useEffect(() => {
@@ -10124,7 +10148,7 @@ export default function GteWorkspace({
               className="relative min-w-full"
               style={{
                 width: editorTabView.width,
-                height: editorTabView.height + TIMELINE_BAR_HEADER_HEIGHT,
+                height: editorTabView.height + TIMELINE_BAR_HEADER_HEIGHT + CUT_SEGMENT_OFFSET,
               }}
             >
               {framesPerMeasure > 0 &&
@@ -10219,8 +10243,11 @@ export default function GteWorkspace({
               {editorTabView.strings.map((line, stringIndex) => (
                 <div key={`tab-string-${stringIndex}`}>
                   <div
-                    className="absolute left-0 flex w-7 -translate-y-1/2 justify-end pr-1 text-[12px] font-semibold text-slate-600"
-                    style={{ top: TIMELINE_BAR_HEADER_HEIGHT + line.y }}
+                    className="absolute z-30 flex w-7 -translate-y-1/2 justify-end bg-white pr-1 text-[12px] font-semibold text-slate-600"
+                    style={{
+                      left: tabViewEnabled ? timelineViewport.scrollLeft : 0,
+                      top: TIMELINE_BAR_HEADER_HEIGHT + line.y,
+                    }}
                   >
                     {line.label}
                   </div>
@@ -10264,6 +10291,41 @@ export default function GteWorkspace({
                 className="pointer-events-none absolute bottom-3 top-3 z-10 w-[2px] -translate-x-px rounded-full bg-rose-500"
                 style={{ left: editorTabView.cursorX, top: TIMELINE_BAR_HEADER_HEIGHT + 3 }}
               />
+              <div
+                role="button"
+                tabIndex={0}
+                className="absolute left-0 z-20 cursor-pointer border-t border-slate-300 bg-slate-50/80 text-[8px] text-slate-500"
+                style={{
+                  top: TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height,
+                  width: editorTabView.width,
+                  height: CUT_SEGMENT_OFFSET,
+                }}
+                title="Click to jump playback"
+                aria-label="Timeline seconds ruler"
+                onMouseDown={handleTabViewRulerMouseDown}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  setEffectivePlayheadFrame(effectivePlayheadFrame);
+                }}
+              >
+                {tabViewSecondMarks.map(({ second, left, isLabel }) => (
+                  <div
+                    key={`tab-view-timeline-second-${second}`}
+                    className="absolute bottom-0 border-l border-slate-300"
+                    style={{
+                      left,
+                      height: isLabel ? CUT_SEGMENT_OFFSET : 6,
+                    }}
+                  >
+                    {isLabel ? (
+                      <span className="absolute left-1 top-0.5 whitespace-nowrap font-medium leading-none text-slate-500">
+                        {formatTimelineSecondLabel(second)}
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
