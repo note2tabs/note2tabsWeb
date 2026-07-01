@@ -18,6 +18,7 @@ export type EditorTabViewEffect = {
   key: string;
   label: string;
   stringIndex: number;
+  x: number;
   x1: number;
   x2: number;
 };
@@ -140,10 +141,17 @@ const getRoundedX = (
   startTime: number,
   framesPerBar: number,
   slotsPerBar: number,
-  slotWidth: number
+  slotWidth: number,
+  barCount: number
 ) => {
-  const absoluteSlot = Math.max(0, Math.round((Math.max(0, startTime) / framesPerBar) * slotsPerBar));
-  return LEFT_LABEL_WIDTH + absoluteSlot * slotWidth;
+  const framesPerSlot = framesPerBar / Math.max(1, slotsPerBar);
+  const totalSlots = Math.max(1, barCount * slotsPerBar);
+  const absoluteSlot = clamp(
+    Math.round(Math.max(0, startTime) / Math.max(1, framesPerSlot) - 0.5),
+    0,
+    totalSlots - 1
+  );
+  return LEFT_LABEL_WIDTH + absoluteSlot * slotWidth + slotWidth / 2;
 };
 
 const getCursorX = (anchors: TimedVisualAnchor[], playheadFrame: number, timelineEnd: number, width: number) => {
@@ -216,7 +224,7 @@ export const buildEditorTabView = (
       startTime,
       stringIndex: tab[0],
       fret: tab[1],
-      x: getRoundedX(startTime, safeFramesPerBar, slotsPerBar, slotWidth),
+      x: getRoundedX(startTime, safeFramesPerBar, slotsPerBar, slotWidth, barCount),
     };
     notePlacements.set(note.id, placement);
     placements.push(placement);
@@ -224,7 +232,7 @@ export const buildEditorTabView = (
 
   snapshot.chords.forEach((chord) => {
     const startTime = Math.max(0, toSafeInt(chord.startTime, 0));
-    const x = getRoundedX(startTime, safeFramesPerBar, slotsPerBar, slotWidth);
+    const x = getRoundedX(startTime, safeFramesPerBar, slotsPerBar, slotWidth, barCount);
     chord.currentTabs.forEach((rawTab, tabIndex) => {
       const tab = normalizeTab(rawTab);
       if (!tab) return;
@@ -248,6 +256,7 @@ export const buildEditorTabView = (
         key: `effect-${effect.startNoteId}-${effect.endNoteId}`,
         label: (effect.noteEffectLabel || "b")[0],
         stringIndex: start.stringIndex,
+        x: (start.x + end.x) / 2,
         x1: start.x + NUMBER_WIDTH * 0.35,
         x2: end.x - NUMBER_WIDTH * 0.35,
       };

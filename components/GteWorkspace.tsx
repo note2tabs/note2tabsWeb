@@ -10268,7 +10268,10 @@ export default function GteWorkspace({
                     style={{ left, top: TIMELINE_BAR_HEADER_HEIGHT + y - 15, width }}
                   >
                     <div className="absolute left-0 right-0 top-2 h-[2px] bg-slate-600" />
-                    <span className="absolute left-1/2 top-0 -translate-x-1/2 bg-white px-1 text-[11px] font-bold text-slate-700">
+                    <span
+                      className="absolute top-0 -translate-x-1/2 bg-white px-1 text-[11px] font-bold text-slate-700"
+                      style={{ left: effect.x - left }}
+                    >
                       {effect.label}
                     </span>
                   </div>
