@@ -31,6 +31,7 @@ import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
 import type { CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
+import { buildEditorTabView } from "../lib/gteEditorTabView";
 
 type Props = {
   editorId: string;
@@ -40,6 +41,7 @@ type Props = {
   embedded?: boolean;
   isActive?: boolean;
   onFocusWorkspace?: () => void;
+  tabViewEnabled?: boolean;
   globalSnapToGridEnabled?: boolean;
   onGlobalSnapToGridEnabledChange?: (enabled: boolean) => void;
   globalSnapToKeyEnabled?: boolean;
@@ -1118,6 +1120,7 @@ export default function GteWorkspace({
   embedded = false,
   isActive = true,
   onFocusWorkspace,
+  tabViewEnabled = false,
   globalSnapToGridEnabled,
   onGlobalSnapToGridEnabledChange,
   globalSnapToKeyEnabled,
@@ -1331,6 +1334,8 @@ export default function GteWorkspace({
   const chordIdMapRef = useRef<Map<number, number>>(new Map());
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const timelineOuterRef = useRef<HTMLDivElement | null>(null);
+  const tabViewScrollRef = useRef<HTMLDivElement | null>(null);
+  const tabViewCursorRef = useRef<HTMLDivElement | null>(null);
   const draftFretRef = useRef<HTMLInputElement | null>(null);
   const draftHasFocusedRef = useRef(false);
   const draftPopupRef = useRef<HTMLDivElement | null>(null);
@@ -1448,7 +1453,7 @@ export default function GteWorkspace({
   );
   const showFloatingUi = true;
   const showPlaybackUi = isActive || showToolbarWhenInactive;
-  const showToolbarUi = showPlaybackUi && !isMobileCanvasMode;
+  const showToolbarUi = showPlaybackUi && !isMobileCanvasMode && !tabViewEnabled;
   const compactEmbeddedMobile = embedded && mobileViewport;
   const selectedBarIndexSet = useMemo(() => new Set(selectedBarIndices), [selectedBarIndices]);
   const localPracticeLoopRange = useMemo(
@@ -1487,6 +1492,17 @@ export default function GteWorkspace({
   );
   const effectivePlaybackSpeed = normalizePlaybackSpeed(
     useExternalPlayback ? playbackSpeed ?? localPlaybackSpeed : localPlaybackSpeed
+  );
+  const editorTabView = useMemo(
+    () =>
+      buildEditorTabView(snapshot, {
+        framesPerBar: framesPerMeasure,
+        beatsPerBar: timeSignature,
+        scale,
+        playheadFrame: effectivePlayheadFrame,
+        minBarCount: viewportBarCount,
+      }),
+    [effectivePlayheadFrame, framesPerMeasure, scale, snapshot, timeSignature, viewportBarCount]
   );
   const effectivePlaybackSpeedOptions = useMemo(() => {
     const values = new Set<number>(PLAYBACK_SPEED_OPTIONS.map((speed) => normalizePlaybackSpeed(speed)));
@@ -2039,7 +2055,7 @@ export default function GteWorkspace({
   }, [framesPerMeasure]);
 
   useEffect(() => {
-    const container = timelineOuterRef.current;
+    const container = tabViewEnabled ? tabViewScrollRef.current : timelineOuterRef.current;
     if (!container) return;
     if (effectiveIsPlaying) return;
     if (sharedTimelineScrollRatio === undefined || !Number.isFinite(sharedTimelineScrollRatio)) return;
@@ -2052,7 +2068,7 @@ export default function GteWorkspace({
     window.requestAnimationFrame(() => {
       applyingSharedScrollRef.current = false;
     });
-  }, [effectiveIsPlaying, sharedTimelineScrollRatio, viewportTimelineWidth]);
+  }, [effectiveIsPlaying, editorTabView.barCount, sharedTimelineScrollRatio, tabViewEnabled, viewportTimelineWidth]);
 
   const handleTimelineOuterScroll = useCallback(
     (event: ReactUiEvent<HTMLDivElement>) => {
@@ -7614,6 +7630,14 @@ export default function GteWorkspace({
         requestRedo();
         return;
       }
+      if (tabViewEnabled) {
+        if (event.code === "Space" && !isTyping) {
+          event.preventDefault();
+          togglePlayback();
+          return;
+        }
+        if (event.key !== "Escape") return;
+      }
       if (event.key === "Escape") {
         setKeyboardAddMode(null);
         noteFretTypingBufferRef.current = "";
@@ -8494,6 +8518,7 @@ export default function GteWorkspace({
     snapKeyboardCursorTimeToGrid,
     snapTabToKeyIfEnabled,
     snapToGridEnabled,
+    tabViewEnabled,
     timelineEnd,
   ]);
 
@@ -8562,6 +8587,25 @@ export default function GteWorkspace({
     };
   }, [commitSegmentEditIfActive, contextMenu, editingChordId, finalizeKeyboardAddMode]);
 
+  useEffect(() => {
+    if (!tabViewEnabled) return;
+    setToolbarOpen(false);
+    setSelectedNoteIds([]);
+    setSelectedChordIds([]);
+    setSelectedNoteEffectId(null);
+    setSelectedCutBoundaryIndex(null);
+    setKeyboardAddMode(null);
+    setKeyboardCursorVisible(false);
+    setDraftNote(null);
+    setDraftNoteAnchor(null);
+    setNoteMenuAnchor(null);
+    setNoteMenuNoteId(null);
+    setNoteMenuDraft(null);
+    setChordMenuAnchor(null);
+    setChordMenuChordId(null);
+    setChordMenuDraft(null);
+  }, [setToolbarOpen, tabViewEnabled]);
+
   const workspaceClass = embedded
     ? `relative w-full min-w-0 max-w-full border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${
         isMobileEditMode
@@ -8629,7 +8673,7 @@ export default function GteWorkspace({
       playbackScrollRafRef.current = null;
     }
     if (mobileViewport || !effectiveIsPlaying || (!isActive && !useExternalPlayback)) return;
-    const container = timelineOuterRef.current;
+    const container = tabViewEnabled ? tabViewScrollRef.current : timelineOuterRef.current;
     if (!container) return;
 
     const tick = () => {
@@ -8648,7 +8692,10 @@ export default function GteWorkspace({
         visibleStartInContainer + Math.max(48, Math.min(120, visibleWidth * 0.18));
       const followPlayheadOffset = visibleStartInContainer + visibleWidth * 0.45;
       const maxPlayheadOffset = visibleStartInContainer + visibleWidth * (2 / 3);
-      const playheadLeft = playheadFrameRef.current * scale;
+      const playheadLeft =
+        tabViewEnabled
+          ? (Math.max(0, playheadFrameRef.current) / Math.max(1, timelineEnd)) * maxScroll
+          : playheadFrameRef.current * scale;
       const playheadViewportX = playheadLeft - container.scrollLeft;
 
       let nextScrollLeft = container.scrollLeft;
@@ -8674,9 +8721,9 @@ export default function GteWorkspace({
         playbackScrollRafRef.current = null;
       }
     };
-  }, [effectiveIsPlaying, isActive, mobileViewport, scale, useExternalPlayback]);
+  }, [effectiveIsPlaying, isActive, mobileViewport, scale, tabViewEnabled, timelineEnd, useExternalPlayback]);
 
-  const showMobileEditRail = isMobileEditMode && isActive;
+  const showMobileEditRail = isMobileEditMode && isActive && !tabViewEnabled;
   const showMobileInlineNoteSettings =
     isMobileEditMode &&
     isActive &&
@@ -10049,8 +10096,81 @@ export default function GteWorkspace({
             : "space-y-4"
         }`}
       >
+        {tabViewEnabled && (
+          <div
+            ref={tabViewScrollRef}
+            className={`min-w-0 rounded-xl border border-slate-200 bg-white ${
+              embedded && !mobileViewport ? "overflow-x-hidden" : "overflow-x-auto"
+            } ${
+              isMobileEditMode ? "min-h-0 flex-1" : ""
+            }`}
+            data-gte-tab-view="true"
+            onScroll={handleTimelineOuterScroll}
+          >
+            <div
+              className="relative min-w-full"
+              style={{ width: editorTabView.width, height: editorTabView.height }}
+            >
+              {editorTabView.barLines.map((barLine) => (
+                <div
+                  key={barLine.key}
+                  className="absolute top-0 bottom-0 w-px bg-slate-300"
+                  style={{ left: barLine.x }}
+                />
+              ))}
+              {editorTabView.strings.map((line, stringIndex) => (
+                <div key={`tab-string-${stringIndex}`}>
+                  <div
+                    className="absolute left-0 flex w-7 -translate-y-1/2 justify-end pr-1 font-mono text-[12px] text-slate-500"
+                    style={{ top: line.y }}
+                  >
+                    {line.label}
+                  </div>
+                  <div
+                    className="absolute h-px bg-slate-400"
+                    style={{ left: 30, right: 16, top: line.y }}
+                  />
+                </div>
+              ))}
+              {editorTabView.effects.map((effect) => {
+                const y = editorTabView.strings[effect.stringIndex]?.y ?? 0;
+                const left = Math.min(effect.x1, effect.x2);
+                const width = Math.max(12, Math.abs(effect.x2 - effect.x1));
+                return (
+                  <div
+                    key={effect.key}
+                    className="pointer-events-none absolute"
+                    style={{ left, top: y - 15, width }}
+                  >
+                    <div className="absolute left-0 right-0 top-2 h-px bg-slate-500" />
+                    <span className="absolute left-1/2 top-0 -translate-x-1/2 bg-white px-1 font-mono text-[11px] font-semibold text-slate-700">
+                      {effect.label}
+                    </span>
+                  </div>
+                );
+              })}
+              {editorTabView.placements.map((placement) => {
+                const y = editorTabView.strings[placement.stringIndex]?.y ?? 0;
+                return (
+                  <div
+                    key={placement.key}
+                    className="absolute z-10 -translate-x-1/2 -translate-y-1/2 bg-white px-0.5 font-mono text-[13px] font-semibold leading-none text-slate-900"
+                    style={{ left: placement.x, top: y }}
+                  >
+                    {placement.fret}
+                  </div>
+                );
+              })}
+              <div
+                ref={tabViewCursorRef}
+                className="pointer-events-none absolute bottom-3 top-3 z-10 w-[2px] -translate-x-px rounded-full bg-rose-500"
+                style={{ left: editorTabView.cursorX }}
+              />
+            </div>
+          </div>
+        )}
         <div
-          className={`flex min-w-0 ${
+          className={`flex min-w-0 ${tabViewEnabled ? "hidden" : ""} ${
             isMobileEditMode ? "min-h-0 flex-1 items-center" : "items-start"
           } ${compactEmbeddedMobile ? "gap-1.5" : embedded ? "gap-2" : "gap-4"}`}
         >
