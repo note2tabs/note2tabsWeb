@@ -4110,14 +4110,26 @@ input[type="number"] {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   min-height: 20px;
   line-height: 1.25;
   margin-bottom: 8px;
 }
 
+.prompt-meta-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 .prompt-meta-row.is-empty {
   visibility: hidden;
+}
+
+.prompt-meta-row .hero-credits-inline {
+  margin-left: auto;
 }
 
 .funnel-input {
@@ -4167,6 +4179,12 @@ input[type="number"] {
   display: grid;
   place-items: center;
   margin-top: 2px;
+}
+
+.funnel-icon .youtube-mark {
+  width: 17px;
+  height: 13px;
+  color: #ef4444;
 }
 
 .funnel-file-label {
@@ -4490,6 +4508,12 @@ input[type="number"] {
 .model-choice {
   width: min(100%, 190px);
   margin: -2px 0 10px;
+}
+
+.model-choice--meta {
+  width: 168px;
+  flex: 0 0 auto;
+  margin: 0;
 }
 
 .model-dropdown {
