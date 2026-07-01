@@ -25,7 +25,8 @@ export default function Document() {
               .funnel-panel{display:grid;gap:12px}
               .funnel-row{display:block;margin-top:0}
               .funnel-input{position:relative;min-height:112px;border-radius:20px;padding:16px;display:flex;align-items:flex-start;gap:12px;border:1px solid rgba(6,17,13,.11);background:linear-gradient(180deg,rgba(252,253,249,.98),rgba(246,248,243,.92));box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(6,17,13,.035);cursor:text}
-              .funnel-icon{width:26px;height:26px;flex-shrink:0;margin-top:2px;border-radius:999px;color:#111;background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(244,241,234,.78));border:1px solid rgba(6,17,13,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.85);display:grid;place-items:center}
+              .funnel-icon{width:26px;height:26px;flex-shrink:0;margin-top:-2px;border-radius:999px;color:#111;background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(244,241,234,.78));border:1px solid rgba(6,17,13,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.85);display:grid;place-items:center}
+              .funnel-icon--youtube{background:transparent;border:0;box-shadow:none}
               .funnel-file-label{font-size:1.05rem;color:#334155;font-weight:400}
               .funnel-input input{width:100%;border:none;outline:none;background:transparent;font-size:1.05rem;color:#1e293b}
               .funnel-external-label{font-size:.75rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#64748b;padding-left:2px}

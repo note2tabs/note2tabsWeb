@@ -123,10 +123,10 @@ export default function HomePage() {
   const [pricingBusy, setPricingBusy] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
-  const [includesOtherInstruments, setIncludesOtherInstruments] = useState(true);
+  const [includesOtherInstruments, setIncludesOtherInstruments] = useState<boolean | null>(null);
   const [transcriptionModel, setTranscriptionModel] =
     useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
-  const [multipleGuitars, setMultipleGuitars] = useState(false);
+  const [multipleGuitars, setMultipleGuitars] = useState<boolean | null>(null);
   const [localUnverifiedTranscriptionUsed, setLocalUnverifiedTranscriptionUsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
@@ -718,6 +718,8 @@ export default function HomePage() {
     if (convertInFlightRef.current || loading) return;
     if (!validateConvertInputs()) return;
     setError(null);
+    setIncludesOtherInstruments(null);
+    setMultipleGuitars(null);
     setShowInstrumentPrompt(true);
   };
 
@@ -729,6 +731,13 @@ export default function HomePage() {
     }
     trackCtaClick("convert_to_tabs", { surface: "hero_funnel", mode });
     void handleConvert();
+  };
+
+  const instrumentPromptComplete = includesOtherInstruments !== null && multipleGuitars !== null;
+
+  const handleInstrumentPromptStart = () => {
+    if (includesOtherInstruments === null || multipleGuitars === null) return;
+    void startConvert(includesOtherInstruments);
   };
 
   const handleImportToEditor = async () => {
@@ -1068,7 +1077,7 @@ export default function HomePage() {
                       <button
                         type="button"
                         className={`button-secondary instrument-choice-button ${
-                          includesOtherInstruments ? "active" : ""
+                          includesOtherInstruments === true ? "active" : ""
                         }`}
                         onClick={() => setIncludesOtherInstruments(true)}
                         disabled={loading}
@@ -1078,7 +1087,7 @@ export default function HomePage() {
                       <button
                         type="button"
                         className={`button-secondary instrument-choice-button ${
-                          !includesOtherInstruments ? "active" : ""
+                          includesOtherInstruments === false ? "active" : ""
                         }`}
                         onClick={() => setIncludesOtherInstruments(false)}
                         disabled={loading}
@@ -1092,7 +1101,9 @@ export default function HomePage() {
                     <div className="button-row instrument-choice-row">
                       <button
                         type="button"
-                        className={`button-secondary instrument-choice-button ${multipleGuitars ? "active" : ""}`}
+                        className={`button-secondary instrument-choice-button ${
+                          multipleGuitars === true ? "active" : ""
+                        }`}
                         onClick={() => setMultipleGuitars(true)}
                         disabled={loading}
                       >
@@ -1100,7 +1111,9 @@ export default function HomePage() {
                       </button>
                       <button
                         type="button"
-                        className={`button-secondary instrument-choice-button ${!multipleGuitars ? "active" : ""}`}
+                        className={`button-secondary instrument-choice-button ${
+                          multipleGuitars === false ? "active" : ""
+                        }`}
                         onClick={() => setMultipleGuitars(false)}
                         disabled={loading}
                       >
@@ -1111,8 +1124,8 @@ export default function HomePage() {
                   <button
                     type="button"
                     className="button-primary instrument-start-button"
-                    onClick={() => void startConvert(includesOtherInstruments)}
-                    disabled={loading}
+                    onClick={handleInstrumentPromptStart}
+                    disabled={loading || !instrumentPromptComplete}
                   >
                     Start transcription
                   </button>
@@ -1130,7 +1143,10 @@ export default function HomePage() {
                         onDragEnter={mode === "FILE" ? onDragEnter : undefined}
                         onDragLeave={mode === "FILE" ? onDragLeave : undefined}
                       >
-                        <span className="funnel-icon" aria-hidden="true">
+                        <span
+                          className={`funnel-icon ${mode === "YOUTUBE" ? "funnel-icon--youtube" : ""}`}
+                          aria-hidden="true"
+                        >
                           {mode === "YOUTUBE" ? (
                             <svg className="youtube-mark" viewBox="0 0 28 20" fill="none">
                               <path

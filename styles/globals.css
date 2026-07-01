@@ -4178,13 +4178,24 @@ input[type="number"] {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
   display: grid;
   place-items: center;
-  margin-top: 2px;
+  margin-top: -2px;
 }
 
 .funnel-icon .youtube-mark {
   width: 17px;
   height: 13px;
   color: #ef4444;
+}
+
+.funnel-icon--youtube {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.funnel-icon--youtube .youtube-mark {
+  width: 24px;
+  height: 18px;
 }
 
 .funnel-file-label {
