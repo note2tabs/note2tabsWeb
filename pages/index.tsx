@@ -294,10 +294,8 @@ export default function HomePage() {
     setYtStartTime(nextStart);
     setYtStartInput(formatTimestamp(nextStart));
     if (ytEndTime === null) return;
-    const nextEnd = Math.min(
-      Math.min(MAX_YT_END_SEC, nextStart + MAX_YT_SNIPPET_SEC),
-      Math.max(nextStart + 1, ytEndTime)
-    );
+    const maxEnd = Math.min(MAX_YT_END_SEC, nextStart + MAX_YT_SNIPPET_SEC);
+    const nextEnd = ytEndTime <= nextStart ? maxEnd : Math.min(maxEnd, ytEndTime);
     setYtEndTime(nextEnd);
     setYtEndInput(formatTimestamp(nextEnd));
   };
