@@ -33,6 +33,7 @@ export type EditorTabViewModel = {
   placements: EditorTabViewPlacement[];
   effects: EditorTabViewEffect[];
   barCount: number;
+  barWidth: number;
   width: number;
   height: number;
   cursorX: number;
@@ -264,6 +265,7 @@ export const buildEditorTabView = (
     placements: placements.sort((a, b) => a.startTime - b.startTime || a.stringIndex - b.stringIndex || a.fret - b.fret),
     effects,
     barCount,
+    barWidth: slotsPerBar * slotWidth,
     width,
     height,
     cursorX: getCursorX(anchors, playheadFrame, barCount * safeFramesPerBar, width),
