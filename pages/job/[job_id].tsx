@@ -479,7 +479,7 @@ export default function JobPage() {
   const [editorChoices, setEditorChoices] = useState<EditorListItem[]>([]);
   const [editorChoice, setEditorChoice] = useState<string>("new");
   const [editorLoading, setEditorLoading] = useState(false);
-  const [reviewMultipleGuitars, setReviewMultipleGuitars] = useState(true);
+  const [reviewMultipleGuitars, setReviewMultipleGuitars] = useState(false);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewAction, setReviewAction] = useState<ReviewAction>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
@@ -547,7 +547,7 @@ export default function JobPage() {
     [displayJob]
   );
   const hasReviewChanges = useMemo(
-    () => loadedMultipleGuitars === null || reviewMultipleGuitars !== loadedMultipleGuitars,
+    () => loadedMultipleGuitars !== null && reviewMultipleGuitars !== loadedMultipleGuitars,
     [reviewMultipleGuitars, loadedMultipleGuitars]
   );
 
@@ -555,7 +555,7 @@ export default function JobPage() {
     if (!showReviewUi || typeof job_id !== "string") return;
     if (reviewMultipleGuitarsInitRef.current === job_id) return;
     const stored = parseBooleanValue(getFirstJobValue(displayJob, ["multipleGuitars", "multiple_guitars"]));
-    setReviewMultipleGuitars(stored ?? true);
+    setReviewMultipleGuitars(stored ?? false);
     reviewMultipleGuitarsInitRef.current = job_id;
   }, [displayJob, job_id, showReviewUi]);
 
@@ -701,7 +701,7 @@ export default function JobPage() {
     setReviewError(null);
     setReviewBusy(false);
     setReviewAction(null);
-    setReviewMultipleGuitars(true);
+    setReviewMultipleGuitars(false);
     reviewMultipleGuitarsInitRef.current = null;
   }, [job_id, appendEditorId]);
 
@@ -923,10 +923,11 @@ export default function JobPage() {
         return;
       }
 
+      const finalizeMultipleGuitars = loadedMultipleGuitars ?? false;
       const response = await fetch(`/api/jobs/${encodeURIComponent(job_id)}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ multipleGuitars: reviewMultipleGuitars }),
+        body: JSON.stringify({ multipleGuitars: finalizeMultipleGuitars }),
       });
       if (!response.ok) {
         throw new Error(await readErrorMessage(response));
