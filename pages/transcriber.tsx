@@ -70,6 +70,27 @@ const parseTimestampInput = (value: string): number | null => {
   return minutes * 60 + seconds;
 };
 
+const preserveTimestampColon = (value: string, previousValue: string) => {
+  if (!previousValue.includes(":")) return value;
+  return value.includes(":") ? value : previousValue;
+};
+
+const preventTimestampColonDelete = (event: KeyboardEvent<HTMLInputElement>) => {
+  if (event.key !== "Backspace" && event.key !== "Delete") return;
+  const input = event.currentTarget;
+  const colonIndex = input.value.indexOf(":");
+  if (colonIndex === -1 || input.selectionStart === null || input.selectionEnd === null) return;
+  const { selectionStart, selectionEnd } = input;
+  const deletesColon =
+    selectionStart !== selectionEnd
+      ? selectionStart <= colonIndex && selectionEnd > colonIndex
+      : (event.key === "Backspace" && selectionStart === colonIndex + 1) ||
+        (event.key === "Delete" && selectionStart === colonIndex);
+  if (deletesColon) {
+    event.preventDefault();
+  }
+};
+
 const parseYouTubeId = (value: string): string | null => {
   const trimmed = value.trim();
   if (!trimmed) return null;
@@ -261,9 +282,10 @@ export default function TranscriberPage() {
   }, [mode]);
 
   const handleYtStartInputChange = (value: string) => {
-    setYtStartInput(value);
+    const nextValue = preserveTimestampColon(value, ytStartInput);
+    setYtStartInput(nextValue);
     setError(null);
-    const parsed = parseTimestampInput(value);
+    const parsed = parseTimestampInput(nextValue);
     if (parsed === null) {
       setYtStartTime(null);
       return;
@@ -272,9 +294,10 @@ export default function TranscriberPage() {
   };
 
   const handleYtEndInputChange = (value: string) => {
-    setYtEndInput(value);
+    const nextValue = preserveTimestampColon(value, ytEndInput);
+    setYtEndInput(nextValue);
     setError(null);
-    const parsed = parseTimestampInput(value);
+    const parsed = parseTimestampInput(nextValue);
     if (parsed === null) {
       setYtEndTime(null);
       return;
@@ -950,6 +973,7 @@ export default function TranscriberPage() {
                       placeholder="0:00"
                       value={ytStartInput}
                       onChange={(event) => handleYtStartInputChange(event.target.value)}
+                      onKeyDown={preventTimestampColonDelete}
                       onBlur={handleYtStartInputBlur}
                       required
                     />
@@ -964,6 +988,7 @@ export default function TranscriberPage() {
                       placeholder="0:30"
                       value={ytEndInput}
                       onChange={(event) => handleYtEndInputChange(event.target.value)}
+                      onKeyDown={preventTimestampColonDelete}
                       onBlur={handleYtEndInputBlur}
                       required
                     />
