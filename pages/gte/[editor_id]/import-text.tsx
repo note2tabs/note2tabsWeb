@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 import { useState } from "react";
 import NoIndexHead from "../../../components/NoIndexHead";
 import { gteApi } from "../../../lib/gteApi";
+import { parseTextTabImport } from "../../../lib/gteTabImport";
 import { authOptions } from "../../api/auth/[...nextauth]";
 
 type Props = {
@@ -34,8 +35,9 @@ export default function ImportTextTabPage({ editorId }: Props) {
     setBusy(true);
     setError(null);
     try {
+      const parsed = parseTextTabImport(text);
       await gteApi.importAsciiTab(editorId, {
-        text,
+        text: parsed.text,
         name: name.trim() || "Imported text tab",
       });
       await router.push(`/gte/${editorId}`);

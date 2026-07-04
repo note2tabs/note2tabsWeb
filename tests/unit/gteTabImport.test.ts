@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  TAB_IMPORT_MAX_TEXT_FILE_SIZE_BYTES,
+  TAB_IMPORT_MAX_TEXT_CHARS,
   getImportNameFromFile,
   getUnsupportedTabImportMessage,
   parseMidiTabImport,
+  parseTabImportFile,
   parseMusicXmlTabImport,
   parseTextTabImport,
 } from "../../lib/gteTabImport";
@@ -22,6 +25,25 @@ function bytesToArrayBuffer(bytes: number[]) {
 describe("gte tab import helpers", () => {
   it("normalizes pasted text tab content", () => {
     expect(parseTextTabImport(`\r\n${asciiTab}\r\n`).text).toBe(asciiTab);
+  });
+
+  it("rejects random text files that do not look like guitar tabs", () => {
+    expect(() =>
+      parseTextTabImport("sessionid=abc123\ncsrftoken=secret\nanalytics_id=tracking-value")
+    ).toThrow("six-string guitar tab");
+  });
+
+  it("rejects oversized text files before parsing them", async () => {
+    const file = new File(["x".repeat(TAB_IMPORT_MAX_TEXT_FILE_SIZE_BYTES + 1)], "cookies.txt", {
+      type: "text/plain",
+    });
+
+    await expect(parseTabImportFile(file)).rejects.toThrow("too large");
+  });
+
+  it("rejects pasted text tabs that exceed safe import length", () => {
+    const hugeTab = `${asciiTab}\n${"e|0|\n".repeat(Math.ceil(TAB_IMPORT_MAX_TEXT_CHARS / 4))}`;
+    expect(() => parseTextTabImport(hugeTab)).toThrow("too long");
   });
 
   it("uses the filename stem as the default import name", () => {

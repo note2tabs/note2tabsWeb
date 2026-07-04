@@ -1,6 +1,13 @@
 const STANDARD_TUNING_MIDI_HIGH_TO_LOW = [64, 59, 55, 50, 45, 40];
 const ASCII_LINE_LABELS = ["e", "B", "G", "D", "A", "E"];
-export const TAB_IMPORT_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+export const TAB_IMPORT_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+export const TAB_IMPORT_MAX_TEXT_FILE_SIZE_BYTES = 256 * 1024;
+export const TAB_IMPORT_MAX_TEXT_CHARS = 120_000;
+export const TAB_IMPORT_MAX_LINES = 1_500;
+export const TAB_IMPORT_MAX_LINE_LENGTH = 2_000;
+export const TAB_IMPORT_MAX_GENERATED_NOTES = 5_000;
+export const TAB_IMPORT_MAX_GENERATED_COLUMNS = 20_000;
+export const TAB_IMPORT_MAX_FILENAME_LENGTH = 120;
 
 export const TAB_IMPORT_ACCEPT = [
   ".txt",
@@ -39,6 +46,7 @@ const MUSICXML_EXTENSIONS = new Set(["xml", "musicxml"]);
 const MIDI_EXTENSIONS = new Set(["mid", "midi"]);
 const ALPHATAB_EXTENSIONS = new Set(["gp", "gp3", "gp4", "gp5", "gpx", "gtp", "xml", "musicxml"]);
 const RECOGNIZED_BINARY_EXTENSIONS = new Set(["gp", "gp3", "gp4", "gp5", "gpx", "gtp", "ptb", "tef", "tg", "mxl"]);
+const TAB_TEXT_LABEL_RE = /^\s*([eEBDGA])\s*[\|:]/;
 
 type ParsedTabImport = {
   text: string;
@@ -70,6 +78,11 @@ export function getImportNameFromFile(fileName: string) {
   return (lastDot > 0 ? base.slice(0, lastDot) : base).trim() || "Imported tab";
 }
 
+export function getTabImportFileSizeLimit(fileName: string) {
+  const extension = getTabImportExtension(fileName);
+  return TEXT_EXTENSIONS.has(extension) ? TAB_IMPORT_MAX_TEXT_FILE_SIZE_BYTES : TAB_IMPORT_MAX_FILE_SIZE_BYTES;
+}
+
 export function isRecognizedTabImportExtension(extension: string) {
   const ext = extension.toLowerCase();
   return TEXT_EXTENSIONS.has(ext) || MUSICXML_EXTENSIONS.has(ext) || MIDI_EXTENSIONS.has(ext) || RECOGNIZED_BINARY_EXTENSIONS.has(ext);
@@ -91,12 +104,21 @@ export function parseTextTabImport(text: string): ParsedTabImport {
   if (!normalized) {
     throw new Error("The selected file is empty.");
   }
+  validateAsciiTabText(normalized);
   return { text: normalized };
 }
 
 export async function parseTabImportFile(file: File): Promise<ParsedTabFileImport> {
-  if (file.size > TAB_IMPORT_MAX_FILE_SIZE_BYTES) {
-    throw new Error("This tab file is too large. Choose a file under 10 MB.");
+  if (file.name.length > TAB_IMPORT_MAX_FILENAME_LENGTH) {
+    throw new Error("This filename is too long. Rename it and try again.");
+  }
+  const maxSize = getTabImportFileSizeLimit(file.name);
+  if (file.size <= 0) {
+    throw new Error("The selected file is empty.");
+  }
+  if (file.size > maxSize) {
+    const limitLabel = maxSize >= 1024 * 1024 ? `${Math.round(maxSize / 1024 / 1024)} MB` : `${Math.round(maxSize / 1024)} KB`;
+    throw new Error(`This tab file is too large. Choose a file under ${limitLabel}.`);
   }
 
   const extension = getTabImportExtension(file.name);
@@ -125,10 +147,44 @@ export async function parseTabImportFile(file: File): Promise<ParsedTabFileImpor
   }
 
   return {
-    ...parsed,
+    ...validateParsedImport(parsed),
     name: getImportNameFromFile(file.name),
     fileName: file.name,
   };
+}
+
+export function validateParsedImport(parsed: ParsedTabImport): ParsedTabImport {
+  validateImportTextBounds(parsed.text);
+  return parsed;
+}
+
+function validateImportTextBounds(text: string) {
+  if (text.length > TAB_IMPORT_MAX_TEXT_CHARS) {
+    throw new Error("This tab is too long to import safely.");
+  }
+  const lines = text.split("\n");
+  if (lines.length > TAB_IMPORT_MAX_LINES) {
+    throw new Error("This tab has too many lines to import safely.");
+  }
+  if (lines.some((line) => line.length > TAB_IMPORT_MAX_LINE_LENGTH)) {
+    throw new Error("This tab has a line that is too long to import safely.");
+  }
+}
+
+function validateAsciiTabText(text: string) {
+  validateImportTextBounds(text);
+  const labeledLines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => TAB_TEXT_LABEL_RE.test(line));
+  if (labeledLines.length < 6) {
+    throw new Error("This text file does not look like a six-string guitar tab.");
+  }
+  const labels = new Set(labeledLines.slice(0, 12).map((line) => line.match(TAB_TEXT_LABEL_RE)?.[1].toUpperCase()));
+  const hasTabCharacters = labeledLines.some((line) => /[-|:\d]/.test(line) && /\d/.test(line));
+  if (labels.size < 5 || !hasTabCharacters) {
+    throw new Error("This text file does not look like a six-string guitar tab.");
+  }
 }
 
 export function parseMusicXmlTabImport(xml: string): ParsedTabImport {
@@ -238,7 +294,7 @@ function extractMusicXmlNotes(xml: string): TabPosition[] {
     }
   });
 
-  return positions;
+  return limitTabPositions(positions);
 }
 
 function extractAlphaTabNotes(score: any): TabPosition[] {
@@ -282,7 +338,7 @@ function extractAlphaTabTrackNotes(track: any): TabPosition[] {
     }
   }
 
-  return positions;
+  return limitTabPositions(positions);
 }
 
 function readAscii(view: DataView, offset: number, length: number) {
@@ -377,18 +433,22 @@ function extractMidiNotes(buffer: ArrayBuffer): TabPosition[] {
 
   active.forEach((started) => noteStarts.push(started));
   const columnUnit = Math.max(1, Math.round(ticksPerQuarter / 4));
-  return noteStarts
+  return limitTabPositions(noteStarts
     .sort((left, right) => left.tick - right.tick || left.midi - right.midi)
     .flatMap((note) => {
       const tab = midiToTab(note.midi);
       return tab
         ? [{ column: Math.round(note.tick / columnUnit) * 2, stringIndex: tab.stringIndex, fret: tab.fret }]
         : [];
-    });
+    }));
 }
 
 function tabPositionsToAscii(positions: TabPosition[]) {
+  limitTabPositions(positions);
   const maxColumn = Math.max(16, ...positions.map((position) => position.column + String(position.fret).length + 1));
+  if (maxColumn > TAB_IMPORT_MAX_GENERATED_COLUMNS) {
+    throw new Error("This tab is too long to import safely.");
+  }
   const lines = ASCII_LINE_LABELS.map(() => Array.from({ length: maxColumn }, () => "-"));
   positions.forEach((position) => {
     const stringIndex = Math.max(0, Math.min(5, position.stringIndex));
@@ -399,4 +459,14 @@ function tabPositionsToAscii(positions: TabPosition[]) {
     }
   });
   return lines.map((line, index) => `${ASCII_LINE_LABELS[index]}|${line.join("")}|`).join("\n");
+}
+
+function limitTabPositions(positions: TabPosition[]) {
+  if (positions.length > TAB_IMPORT_MAX_GENERATED_NOTES) {
+    throw new Error("This tab has too many notes to import safely.");
+  }
+  if (positions.some((position) => position.column > TAB_IMPORT_MAX_GENERATED_COLUMNS)) {
+    throw new Error("This tab is too long to import safely.");
+  }
+  return positions;
 }
