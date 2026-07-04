@@ -14,6 +14,7 @@ export default function GteIndexPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [creatingImport, setCreatingImport] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -112,6 +113,18 @@ export default function GteIndexPage() {
     } catch (err: any) {
       setError(err?.message || "Could not create editor.");
       setCreating(false);
+    }
+  };
+
+  const handleCreateForImport = async () => {
+    setCreatingImport(true);
+    setError(null);
+    try {
+      const data = await gteApi.createEditor(undefined, "Imported tab");
+      await router.push(`/gte/${data.editorId}/import-tab`);
+    } catch (err: any) {
+      setError(err?.message || "Could not start tab import.");
+      setCreatingImport(false);
     }
   };
 
@@ -222,7 +235,20 @@ export default function GteIndexPage() {
             <p className="page-subtitle">Open transcriptions, start a new tab, or bring in a draft you made earlier.</p>
           </div>
           <div className="button-row">
-            <button type="button" onClick={handleCreate} disabled={creating} className="button-primary button-small">
+            <button
+              type="button"
+              onClick={handleCreateForImport}
+              disabled={creatingImport || creating}
+              className="button-secondary button-small"
+            >
+              {creatingImport ? "Opening..." : "Import tabs"}
+            </button>
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={creating || creatingImport}
+              className="button-primary button-small"
+            >
               {creating ? "Creating..." : "New tab"}
             </button>
           </div>

@@ -1,0 +1,65 @@
+import { describe, expect, it } from "vitest";
+import {
+  getImportNameFromFile,
+  getUnsupportedTabImportMessage,
+  parseMidiTabImport,
+  parseMusicXmlTabImport,
+  parseTextTabImport,
+} from "../../lib/gteTabImport";
+
+const asciiTab = `e|--0--|
+B|--1--|
+G|--0--|
+D|--2--|
+A|--3--|
+E|-----|`;
+
+function bytesToArrayBuffer(bytes: number[]) {
+  const array = Uint8Array.from(bytes);
+  return array.buffer.slice(array.byteOffset, array.byteOffset + array.byteLength);
+}
+
+describe("gte tab import helpers", () => {
+  it("normalizes pasted text tab content", () => {
+    expect(parseTextTabImport(`\r\n${asciiTab}\r\n`).text).toBe(asciiTab);
+  });
+
+  it("uses the filename stem as the default import name", () => {
+    expect(getImportNameFromFile("/tmp/Blackbird.gp5")).toBe("Blackbird");
+  });
+
+  it("parses MusicXML technical string and fret notation into ASCII tab", () => {
+    const xml = `
+      <score-partwise>
+        <part>
+          <measure>
+            <note>
+              <pitch><step>E</step><octave>4</octave></pitch>
+              <notations><technical><string>1</string><fret>0</fret></technical></notations>
+            </note>
+            <note>
+              <pitch><step>C</step><octave>4</octave></pitch>
+              <notations><technical><string>2</string><fret>1</fret></technical></notations>
+            </note>
+          </measure>
+        </part>
+      </score-partwise>`;
+
+    expect(parseMusicXmlTabImport(xml).text).toContain("e|0");
+    expect(parseMusicXmlTabImport(xml).text).toContain("B|---1");
+  });
+
+  it("parses simple MIDI note-on and note-off events into ASCII tab", () => {
+    const midi = bytesToArrayBuffer([
+      0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x01, 0x01, 0xe0,
+      0x4d, 0x54, 0x72, 0x6b, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x90, 0x40, 0x40, 0x83, 0x60,
+      0x80, 0x40, 0x00, 0x00, 0xff, 0x2f, 0x00,
+    ]);
+
+    expect(parseMidiTabImport(midi).text).toContain("e|0");
+  });
+
+  it("reports recognized Guitar Pro files as needing conversion", () => {
+    expect(getUnsupportedTabImportMessage("song.gp5")).toContain("recognized");
+  });
+});

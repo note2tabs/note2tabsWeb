@@ -3324,7 +3324,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onClick={() => void router.push(`/gte/${editorId}/import-tab`)}
                               className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm text-slate-700"
                             >
-                              Import tab
+                              Import tabs
                             </button>
                           </>
                         )}
@@ -4264,9 +4264,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 type="button"
                 onClick={() => void router.push(`/gte/${editorId}/import-tab`)}
                 className="button-secondary button-small"
-                title="Import a pasted text tab"
+                title="Import a tab file or pasted text tab"
               >
-                Import tab
+                Import tabs
               </button>
             )}
           </div>
