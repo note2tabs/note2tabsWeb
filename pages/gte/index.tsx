@@ -121,7 +121,7 @@ export default function GteIndexPage() {
     setError(null);
     try {
       const data = await gteApi.createEditor(undefined, "Imported tab");
-      await router.push(`/gte/${data.editorId}/import-tab`);
+      await router.push(`/gte/${data.editorId}/import-file`);
     } catch (err: any) {
       setError(err?.message || "Could not start tab import.");
       setCreatingImport(false);
