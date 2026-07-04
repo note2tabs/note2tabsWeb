@@ -228,7 +228,10 @@ export default function GteIndexPage() {
               disabled={creating}
               createEditor={async (name) => {
                 const data = await gteApi.createEditor(undefined, name || "Imported tab");
-                return data.editorId;
+                return {
+                  editorId: data.editorId,
+                  laneId: data.snapshot.editors[0]?.id || "ed-1",
+                };
               }}
               onImported={async (importedEditorId) => {
                 await router.push(`/gte/${importedEditorId}`);

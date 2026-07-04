@@ -24,7 +24,10 @@ function bytesToArrayBuffer(bytes: number[]) {
 
 describe("gte tab import helpers", () => {
   it("normalizes pasted text tab content", () => {
-    expect(parseTextTabImport(`\r\n${asciiTab}\r\n`).text).toBe(asciiTab);
+    const parsed = parseTextTabImport(`\r\n${asciiTab}\r\n`);
+    expect(parsed.text).toBe(asciiTab);
+    expect(parsed.stamps.length).toBeGreaterThan(0);
+    expect(parsed.totalFrames).toBeGreaterThan(0);
   });
 
   it("rejects random text files that do not look like guitar tabs", () => {
@@ -67,8 +70,15 @@ describe("gte tab import helpers", () => {
         </part>
       </score-partwise>`;
 
-    expect(parseMusicXmlTabImport(xml).text).toContain("e|0");
-    expect(parseMusicXmlTabImport(xml).text).toContain("B|---1");
+    const parsed = parseMusicXmlTabImport(xml);
+    expect(parsed.text).toContain("e|0");
+    expect(parsed.text).toContain("B|");
+    expect(parsed.stamps).toEqual(
+      expect.arrayContaining([
+        [0, [0, 0], 120],
+        [120, [1, 1], 120],
+      ])
+    );
   });
 
   it("parses simple MIDI note-on and note-off events into ASCII tab", () => {
@@ -78,7 +88,9 @@ describe("gte tab import helpers", () => {
       0x80, 0x40, 0x00, 0x00, 0xff, 0x2f, 0x00,
     ]);
 
-    expect(parseMidiTabImport(midi).text).toContain("e|0");
+    const parsed = parseMidiTabImport(midi);
+    expect(parsed.text).toContain("e|0");
+    expect(parsed.stamps[0]).toEqual([0, [0, 0], 120]);
   });
 
   it("reports recognized Guitar Pro files as needing conversion", () => {

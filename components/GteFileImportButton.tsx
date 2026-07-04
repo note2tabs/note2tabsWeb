@@ -1,10 +1,10 @@
 import { useRef, useState, type ReactNode } from "react";
-import { gteApi } from "../lib/gteApi";
+import { buildLaneEditorRef, gteApi } from "../lib/gteApi";
 import { TAB_IMPORT_ACCEPT, parseTabImportFile } from "../lib/gteTabImport";
 
 type Props = {
   editorId?: string;
-  createEditor?: (name: string) => Promise<string>;
+  createEditor?: (name: string) => Promise<{ editorId: string; laneId: string }>;
   onImported: (editorId: string) => void | Promise<void>;
   onError: (message: string) => void;
   className: string;
@@ -32,18 +32,40 @@ export default function GteFileImportButton({
     if (!file || busy) return;
     setBusy(true);
     onError("");
+    let createdEditorId: string | null = null;
+    let addedLaneId: string | null = null;
     try {
       const parsed = await parseTabImportFile(file);
-      const targetEditorId = editorId || (await createEditor?.(parsed.name));
-      if (!targetEditorId) {
+      let targetEditorId = editorId;
+      let targetLaneId: string | undefined;
+
+      if (targetEditorId) {
+        const added = await gteApi.addCanvasEditor(targetEditorId, parsed.name);
+        targetLaneId = added.editor.id;
+        addedLaneId = targetLaneId;
+      } else {
+        const created = await createEditor?.(parsed.name);
+        targetEditorId = created?.editorId;
+        targetLaneId = created?.laneId;
+        createdEditorId = targetEditorId || null;
+      }
+
+      if (!targetEditorId || !targetLaneId) {
         throw new Error("Could not create an editor for this tab.");
       }
-      await gteApi.importAsciiTab(targetEditorId, {
-        text: parsed.text,
-        name: parsed.name,
+      await gteApi.importTab(buildLaneEditorRef(targetEditorId, targetLaneId), {
+        stamps: parsed.stamps,
+        framesPerMessure: parsed.framesPerMessure,
+        fps: parsed.fps,
+        totalFrames: parsed.totalFrames,
       });
       await onImported(targetEditorId);
     } catch (err: unknown) {
+      if (editorId && addedLaneId) {
+        await gteApi.deleteCanvasEditor(editorId, addedLaneId).catch(() => {});
+      } else if (createdEditorId) {
+        await gteApi.deleteEditor(createdEditorId).catch(() => {});
+      }
       const message = err instanceof Error ? err.message : "Could not import this tab file.";
       onError(message);
     } finally {

@@ -1,12 +1,16 @@
 const STANDARD_TUNING_MIDI_HIGH_TO_LOW = [64, 59, 55, 50, 45, 40];
 const ASCII_LINE_LABELS = ["e", "B", "G", "D", "A", "E"];
+const FIXED_FRAMES_PER_BAR = 480;
+const DEFAULT_SECONDS_PER_BAR = 2;
+const DEFAULT_FPS = Math.round(FIXED_FRAMES_PER_BAR / DEFAULT_SECONDS_PER_BAR);
+const DEFAULT_ALPHA_TAB_TICKS_PER_QUARTER = 960;
 export const TAB_IMPORT_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 export const TAB_IMPORT_MAX_TEXT_FILE_SIZE_BYTES = 256 * 1024;
 export const TAB_IMPORT_MAX_TEXT_CHARS = 120_000;
 export const TAB_IMPORT_MAX_LINES = 1_500;
 export const TAB_IMPORT_MAX_LINE_LENGTH = 2_000;
 export const TAB_IMPORT_MAX_GENERATED_NOTES = 5_000;
-export const TAB_IMPORT_MAX_GENERATED_COLUMNS = 20_000;
+export const TAB_IMPORT_MAX_GENERATED_COLUMNS = 240_000;
 export const TAB_IMPORT_MAX_FILENAME_LENGTH = 120;
 
 export const TAB_IMPORT_ACCEPT = [
@@ -50,6 +54,10 @@ const TAB_TEXT_LABEL_RE = /^\s*([eEBDGA])\s*[\|:]/;
 
 type ParsedTabImport = {
   text: string;
+  stamps: Array<[number, [number, number], number]>;
+  framesPerMessure: number;
+  fps: number;
+  totalFrames: number;
   warning?: string;
 };
 
@@ -62,6 +70,7 @@ type TabPosition = {
   column: number;
   stringIndex: number;
   fret: number;
+  length?: number;
 };
 
 export function getTabImportExtension(fileName: string) {
@@ -105,7 +114,9 @@ export function parseTextTabImport(text: string): ParsedTabImport {
     throw new Error("The selected file is empty.");
   }
   validateAsciiTabText(normalized);
-  return { text: normalized };
+  return buildParsedImportFromPositions(extractAsciiTabNotes(normalized), normalized, {
+    warning: "ASCII tab timing is estimated from spacing.",
+  });
 }
 
 export async function parseTabImportFile(file: File): Promise<ParsedTabFileImport> {
@@ -155,6 +166,7 @@ export async function parseTabImportFile(file: File): Promise<ParsedTabFileImpor
 
 export function validateParsedImport(parsed: ParsedTabImport): ParsedTabImport {
   validateImportTextBounds(parsed.text);
+  limitStamps(parsed.stamps);
   return parsed;
 }
 
@@ -192,10 +204,9 @@ export function parseMusicXmlTabImport(xml: string): ParsedTabImport {
   if (!notes.length) {
     throw new Error("No guitar notes were found in this MusicXML file.");
   }
-  return {
-    text: tabPositionsToAscii(notes),
+  return buildParsedImportFromPositions(notes, undefined, {
     warning: "Imported MusicXML timing is approximated for the editor grid.",
-  };
+  });
 }
 
 export function parseMidiTabImport(buffer: ArrayBuffer): ParsedTabImport {
@@ -203,10 +214,9 @@ export function parseMidiTabImport(buffer: ArrayBuffer): ParsedTabImport {
   if (!notes.length) {
     throw new Error("No MIDI notes were found in this file.");
   }
-  return {
-    text: tabPositionsToAscii(notes),
+  return buildParsedImportFromPositions(notes, undefined, {
     warning: "MIDI does not store guitar string choices, so string and fret positions were estimated.",
-  };
+  });
 }
 
 export async function parseAlphaTabFileImport(buffer: ArrayBuffer): Promise<ParsedTabImport> {
@@ -217,10 +227,9 @@ export async function parseAlphaTabFileImport(buffer: ArrayBuffer): Promise<Pars
   if (!notes.length) {
     throw new Error("No guitar tablature notes were found in this file.");
   }
-  return {
-    text: tabPositionsToAscii(notes),
+  return buildParsedImportFromPositions(notes, undefined, {
     warning: "Imported notation timing is approximated for the editor grid.",
-  };
+  });
 }
 
 export function canParseWithAlphaTab(extension: string) {
@@ -271,7 +280,7 @@ function extractMusicXmlNotes(xml: string): TabPosition[] {
     const isRest = /<rest(?:\s[^>]*)?\/?>/i.test(noteXml);
     const isChord = /<chord(?:\s[^>]*)?\/?>/i.test(noteXml);
     if (!isChord && positions.length > 0) {
-      column += 3;
+      column += Math.round(FIXED_FRAMES_PER_BAR / 4);
     }
     if (isRest) return;
 
@@ -283,6 +292,7 @@ function extractMusicXmlNotes(xml: string): TabPosition[] {
         column,
         stringIndex: Math.max(0, Math.min(5, Math.round(musicXmlString) - 1)),
         fret: Math.max(0, Math.min(24, Math.round(fret))),
+        length: Math.round(FIXED_FRAMES_PER_BAR / 4),
       });
       return;
     }
@@ -290,7 +300,7 @@ function extractMusicXmlNotes(xml: string): TabPosition[] {
     const midi = pitchToMidi(noteXml);
     const tab = midi === null ? null : midiToTab(midi);
     if (tab) {
-      positions.push({ column, stringIndex: tab.stringIndex, fret: tab.fret });
+      positions.push({ column, stringIndex: tab.stringIndex, fret: tab.fret, length: Math.round(FIXED_FRAMES_PER_BAR / 4) });
     }
   });
 
@@ -310,7 +320,6 @@ function extractAlphaTabNotes(score: any): TabPosition[] {
 function extractAlphaTabTrackNotes(track: any): TabPosition[] {
   const positions: TabPosition[] = [];
   const staves = Array.isArray(track?.staves) ? track.staves : [];
-  let column = 0;
 
   for (const staff of staves) {
     if (staff?.isPercussion) continue;
@@ -318,27 +327,47 @@ function extractAlphaTabTrackNotes(track: any): TabPosition[] {
     const bars = Array.isArray(staff?.bars) ? staff.bars : [];
     for (const bar of bars) {
       const voices = Array.isArray(bar?.voices) ? bar.voices : [];
-      const primaryVoice = voices.find((voice: any) => Array.isArray(voice?.beats) && voice.beats.length);
-      if (!primaryVoice) continue;
-      for (const beat of primaryVoice.beats) {
+      const beats = voices.flatMap((voice: any) => (Array.isArray(voice?.beats) ? voice.beats : []));
+      if (!beats.length) continue;
+      const barTickLength = Math.max(
+        DEFAULT_ALPHA_TAB_TICKS_PER_QUARTER * 4,
+        ...beats.map((beat: any) => {
+          const start = getAlphaTabBeatStart(beat);
+          const duration = getAlphaTabBeatDuration(beat);
+          return start + duration;
+        })
+      );
+      const barStartFrame = Math.max(0, Math.round(Number(bar?.index) || 0)) * FIXED_FRAMES_PER_BAR;
+      for (const beat of beats) {
+        const startFrame = barStartFrame + Math.round((getAlphaTabBeatStart(beat) / barTickLength) * FIXED_FRAMES_PER_BAR);
+        const length = Math.max(1, Math.round((getAlphaTabBeatDuration(beat) / barTickLength) * FIXED_FRAMES_PER_BAR));
         const notes = Array.isArray(beat?.notes) ? beat.notes : [];
         notes.forEach((note: any) => {
           const fret = Number(note?.fret);
           const stringNumber = Number(note?.string);
           if (!Number.isFinite(fret) || !Number.isFinite(stringNumber) || stringNumber <= 0) return;
           positions.push({
-            column,
+            column: startFrame,
             stringIndex: Math.max(0, Math.min(5, Math.round(stringCount - stringNumber))),
             fret: Math.max(0, Math.min(24, Math.round(fret))),
+            length,
           });
         });
-        column += 3;
       }
-      column += 1;
     }
   }
 
   return limitTabPositions(positions);
+}
+
+function getAlphaTabBeatStart(beat: any) {
+  const value = Number(beat?.playbackStart ?? beat?.displayStart ?? 0);
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function getAlphaTabBeatDuration(beat: any) {
+  const value = Number(beat?.playbackDuration ?? beat?.displayDuration ?? 0);
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_ALPHA_TAB_TICKS_PER_QUARTER;
 }
 
 function readAscii(view: DataView, offset: number, length: number) {
@@ -370,7 +399,7 @@ function extractMidiNotes(buffer: ArrayBuffer): TabPosition[] {
   const ticksPerQuarter = Math.max(1, view.getUint16(12) & 0x7fff);
   let offset = 8 + headerLength;
   const active = new Map<string, { tick: number; midi: number }>();
-  const noteStarts: { tick: number; midi: number }[] = [];
+  const noteEvents: { startTick: number; endTick: number; midi: number }[] = [];
 
   while (offset + 8 <= view.byteLength) {
     const chunkType = readAscii(view, offset, 4);
@@ -423,7 +452,7 @@ function extractMidiNotes(buffer: ArrayBuffer): TabPosition[] {
       } else if (eventType === 0x80 || eventType === 0x90) {
         const started = active.get(key);
         if (started) {
-          noteStarts.push(started);
+          noteEvents.push({ startTick: started.tick, endTick: Math.max(tick, started.tick + 1), midi: started.midi });
           active.delete(key);
         }
       }
@@ -431,29 +460,138 @@ function extractMidiNotes(buffer: ArrayBuffer): TabPosition[] {
     offset = chunkEnd;
   }
 
-  active.forEach((started) => noteStarts.push(started));
-  const columnUnit = Math.max(1, Math.round(ticksPerQuarter / 4));
-  return limitTabPositions(noteStarts
-    .sort((left, right) => left.tick - right.tick || left.midi - right.midi)
+  active.forEach((started) => noteEvents.push({ startTick: started.tick, endTick: started.tick + ticksPerQuarter, midi: started.midi }));
+  const ticksPerBar = Math.max(1, ticksPerQuarter * 4);
+  return limitTabPositions(noteEvents
+    .sort((left, right) => left.startTick - right.startTick || left.midi - right.midi)
     .flatMap((note) => {
       const tab = midiToTab(note.midi);
       return tab
-        ? [{ column: Math.round(note.tick / columnUnit) * 2, stringIndex: tab.stringIndex, fret: tab.fret }]
+        ? [{
+            column: Math.round((note.startTick / ticksPerBar) * FIXED_FRAMES_PER_BAR),
+            stringIndex: tab.stringIndex,
+            fret: tab.fret,
+            length: Math.max(1, Math.round(((note.endTick - note.startTick) / ticksPerBar) * FIXED_FRAMES_PER_BAR)),
+          }]
         : [];
     }));
 }
 
+function stripAsciiTabPrefix(line: string) {
+  const trimmed = line.trim();
+  const match = trimmed.match(/^([eEBDGA])\s*[\|:]/);
+  return match ? trimmed.slice(match[0].length) : trimmed;
+}
+
+function extractAsciiTabNotes(text: string): TabPosition[] {
+  const labeled = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => TAB_TEXT_LABEL_RE.test(line));
+  const positions: TabPosition[] = [];
+  let globalBarIndex = 0;
+
+  for (let offset = 0; offset + 5 < labeled.length; offset += 6) {
+    const block = labeled.slice(offset, offset + 6).map(stripAsciiTabPrefix);
+    const splitLines = block.map((line) => line.split("|").filter((part) => part.length > 0));
+    const barCount = Math.max(...splitLines.map((parts) => parts.length), 0);
+
+    for (let barIndex = 0; barIndex < barCount; barIndex += 1) {
+      const segments = splitLines.map((parts) => parts[barIndex] ?? "");
+      const barWidth = Math.max(1, ...segments.map((segment) => segment.length));
+      segments.forEach((segment, stringIndex) => {
+        let column = 0;
+        while (column < segment.length) {
+          const char = segment[column];
+          if (char >= "0" && char <= "9") {
+            let end = column + 1;
+            while (end < segment.length && segment[end] >= "0" && segment[end] <= "9") {
+              end += 1;
+            }
+            const fret = Number(segment.slice(column, end));
+            if (Number.isFinite(fret)) {
+              const startFrame =
+                globalBarIndex * FIXED_FRAMES_PER_BAR +
+                Math.round((column / barWidth) * FIXED_FRAMES_PER_BAR);
+              const length = Math.max(1, Math.round(((end - column) / barWidth) * FIXED_FRAMES_PER_BAR));
+              positions.push({
+                column: startFrame,
+                stringIndex,
+                fret,
+                length,
+              });
+            }
+            column = end;
+            continue;
+          }
+          column += 1;
+        }
+      });
+      globalBarIndex += 1;
+    }
+  }
+
+  return limitTabPositions(positions);
+}
+
+function buildParsedImportFromPositions(
+  positions: TabPosition[],
+  sourceText?: string,
+  options?: { warning?: string }
+): ParsedTabImport {
+  const safePositions = limitTabPositions(positions);
+  const stamps = limitStamps(
+    safePositions
+      .map((position) => {
+        const start = Math.max(0, Math.round(position.column));
+        const length = Math.max(1, Math.round(position.length ?? Math.round(FIXED_FRAMES_PER_BAR / 16)));
+        const tab: [number, number] = [
+          Math.max(0, Math.min(5, Math.round(position.stringIndex))),
+          Math.max(0, Math.min(24, Math.round(position.fret))),
+        ];
+        return [start, tab, length] as [number, [number, number], number];
+      })
+      .sort((left, right) => left[0] - right[0] || left[1][0] - right[1][0] || left[1][1] - right[1][1])
+  );
+  const totalFrames = Math.max(
+    FIXED_FRAMES_PER_BAR,
+    ...stamps.map((stamp) => stamp[0] + Math.max(1, stamp[2]))
+  );
+  return {
+    text: sourceText ?? tabPositionsToAscii(safePositions),
+    stamps,
+    framesPerMessure: FIXED_FRAMES_PER_BAR,
+    fps: DEFAULT_FPS,
+    totalFrames,
+    warning: options?.warning,
+  };
+}
+
+function limitStamps(stamps: Array<[number, [number, number], number]>) {
+  if (stamps.length > TAB_IMPORT_MAX_GENERATED_NOTES) {
+    throw new Error("This tab has too many notes to import safely.");
+  }
+  if (stamps.some((stamp) => stamp[0] > TAB_IMPORT_MAX_GENERATED_COLUMNS || stamp[0] + stamp[2] > TAB_IMPORT_MAX_GENERATED_COLUMNS)) {
+    throw new Error("This tab is too long to import safely.");
+  }
+  return stamps;
+}
+
 function tabPositionsToAscii(positions: TabPosition[]) {
   limitTabPositions(positions);
-  const maxColumn = Math.max(16, ...positions.map((position) => position.column + String(position.fret).length + 1));
-  if (maxColumn > TAB_IMPORT_MAX_GENERATED_COLUMNS) {
+  const previewFrameUnit = Math.max(1, Math.round(FIXED_FRAMES_PER_BAR / 16));
+  const maxColumn = Math.max(
+    16,
+    ...positions.map((position) => Math.round(position.column / previewFrameUnit) + String(position.fret).length + 1)
+  );
+  if (maxColumn > TAB_IMPORT_MAX_TEXT_CHARS) {
     throw new Error("This tab is too long to import safely.");
   }
   const lines = ASCII_LINE_LABELS.map(() => Array.from({ length: maxColumn }, () => "-"));
   positions.forEach((position) => {
     const stringIndex = Math.max(0, Math.min(5, position.stringIndex));
     const fretText = String(Math.max(0, Math.min(24, Math.round(position.fret))));
-    const start = Math.max(0, Math.min(maxColumn - fretText.length, Math.round(position.column)));
+    const start = Math.max(0, Math.min(maxColumn - fretText.length, Math.round(position.column / previewFrameUnit)));
     for (let index = 0; index < fretText.length; index += 1) {
       lines[stringIndex][start + index] = fretText[index];
     }

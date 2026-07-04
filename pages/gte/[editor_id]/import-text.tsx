@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth/next";
 import { useRouter } from "next/router";
 import { useState } from "react";
 import NoIndexHead from "../../../components/NoIndexHead";
-import { gteApi } from "../../../lib/gteApi";
+import { buildLaneEditorRef, gteApi } from "../../../lib/gteApi";
 import { parseTextTabImport } from "../../../lib/gteTabImport";
 import { authOptions } from "../../api/auth/[...nextauth]";
 
@@ -36,9 +36,12 @@ export default function ImportTextTabPage({ editorId }: Props) {
     setError(null);
     try {
       const parsed = parseTextTabImport(text);
-      await gteApi.importAsciiTab(editorId, {
-        text: parsed.text,
-        name: name.trim() || "Imported text tab",
+      const added = await gteApi.addCanvasEditor(editorId, name.trim() || "Imported text tab");
+      await gteApi.importTab(buildLaneEditorRef(editorId, added.editor.id), {
+        stamps: parsed.stamps,
+        framesPerMessure: parsed.framesPerMessure,
+        fps: parsed.fps,
+        totalFrames: parsed.totalFrames,
       });
       await router.push(`/gte/${editorId}`);
     } catch (err: unknown) {
