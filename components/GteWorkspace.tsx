@@ -31,6 +31,12 @@ import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
 import type { CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
+import {
+  GTE_EXPORT_FORMAT_OPTIONS,
+  buildGteExportFile,
+  downloadGteExportFile,
+  type GteExportFormat,
+} from "../lib/gteTabExport";
 
 type Props = {
   editorId: string;
@@ -1260,6 +1266,7 @@ export default function GteWorkspace({
   const [segmentDragIndex, setSegmentDragIndex] = useState<number | null>(null);
   const [ioPayload, setIoPayload] = useState("");
   const [ioMessage, setIoMessage] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<GteExportFormat>("txt");
   const [localToolbarOpen, setLocalToolbarOpen] = useState(false);
   const [tabPreviewOpen, setTabPreviewOpen] = useState(false);
   const [sliceToolActive, setSliceToolActive] = useState(false);
@@ -5047,17 +5054,17 @@ export default function GteWorkspace({
   };
 
   const handleExport = async () => {
-    if (!allowBackend) {
-      setError("Export is available after saving this draft to your account.");
-      return;
-    }
     setBusy(true);
     setError(null);
     setIoMessage(null);
     try {
-      const data = await gteApi.exportTab(editorId);
-      setIoPayload(JSON.stringify(data, null, 2));
-      setIoMessage("Exported current tab JSON.");
+      if (allowBackend && exportFormat === "json") {
+        const data = await gteApi.exportTab(editorId);
+        setIoPayload(JSON.stringify(data, null, 2));
+      }
+      const file = buildGteExportFile(snapshot, exportFormat);
+      downloadGteExportFile(file);
+      setIoMessage(`Exported ${file.filename}.`);
     } catch (err: any) {
       setError(err?.message || "Could not export tab.");
     } finally {
@@ -9972,6 +9979,33 @@ export default function GteWorkspace({
           >
             {tabPreviewOpen ? "Hide tablature" : "View tablature"}
           </button>
+        )}
+        {!embedded && (
+          <div className="flex items-center gap-1.5">
+            <select
+              value={exportFormat}
+              onChange={(event) => setExportFormat(event.target.value as GteExportFormat)}
+              className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+              title="Export file type"
+              aria-label="Export file type"
+              disabled={busy}
+            >
+              {GTE_EXPORT_FORMAT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => void handleExport()}
+              disabled={busy}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Export this track"
+            >
+              {busy ? "Exporting..." : "Export"}
+            </button>
+          </div>
         )}
         {!embedded && <div className="text-xs text-slate-600">Scale: {scale}px/frame (auto)</div>}
         {!embedded && (

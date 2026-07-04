@@ -38,6 +38,12 @@ import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import GteWorkspace from "../../components/GteWorkspace";
 import GteFileImportButton from "../../components/GteFileImportButton";
 import {
+  GTE_EXPORT_FORMAT_OPTIONS,
+  buildGteExportFile,
+  downloadGteExportFile,
+  type GteExportFormat,
+} from "../../lib/gteTabExport";
+import {
   GTE_GUEST_EDITOR_ID,
   createGuestSnapshot,
   readGuestDraft,
@@ -820,6 +826,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [savingCanvas, setSavingCanvas] = useState(false);
+  const [exportingTrack, setExportingTrack] = useState(false);
+  const [exportFormat, setExportFormat] = useState<GteExportFormat>("txt");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [hasPendingCommit, setHasPendingCommit] = useState(false);
   const [lastCommittedAt, setLastCommittedAt] = useState<string | null>(null);
@@ -1528,6 +1536,27 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setAddingLane(false);
     }
   };
+
+  const getExportLane = useCallback(() => {
+    if (!canvas?.editors.length) return null;
+    const preferredLaneId = mobileEditLaneId || activeLaneId;
+    return canvas.editors.find((lane) => lane.id === preferredLaneId) || canvas.editors[0];
+  }, [activeLaneId, canvas, mobileEditLaneId]);
+
+  const handleExportTrack = useCallback(() => {
+    const lane = getExportLane();
+    if (!lane || exportingTrack) return;
+    setExportingTrack(true);
+    setError(null);
+    try {
+      const file = buildGteExportFile(lane, exportFormat);
+      downloadGteExportFile(file);
+    } catch (err: any) {
+      setError(err?.message || "Could not export this track.");
+    } finally {
+      setExportingTrack(false);
+    }
+  }, [exportFormat, exportingTrack, getExportLane]);
 
   const requestDeleteTrack = useCallback(
     (laneId: string) => {
@@ -3334,6 +3363,30 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             </GteFileImportButton>
                           </>
                         )}
+                        <div className="flex gap-2">
+                          <select
+                            value={exportFormat}
+                            onChange={(event) => setExportFormat(event.target.value as GteExportFormat)}
+                            className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                            aria-label="Export file type"
+                            title="Export file type"
+                            disabled={exportingTrack}
+                          >
+                            {GTE_EXPORT_FORMAT_OPTIONS.map((option) => (
+                              <option key={`mobile-export-${option.value}`} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={handleExportTrack}
+                            className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400"
+                            disabled={exportingTrack || !canvas?.editors.length}
+                          >
+                            {exportingTrack ? "Exporting..." : "Export"}
+                          </button>
+                        </div>
                         <button
                           type="button"
                           onClick={() => void commitCanvasToBackend({ force: true })}
@@ -4279,6 +4332,29 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 Import tabs
               </GteFileImportButton>
             )}
+            <select
+              value={exportFormat}
+              onChange={(event) => setExportFormat(event.target.value as GteExportFormat)}
+              className="button-secondary button-small min-h-[34px]"
+              aria-label="Export file type"
+              title="Export file type"
+              disabled={exportingTrack}
+            >
+              {GTE_EXPORT_FORMAT_OPTIONS.map((option) => (
+                <option key={`export-${option.value}`} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleExportTrack}
+              className="button-secondary button-small"
+              title="Export selected track"
+              disabled={exportingTrack || !canvas?.editors.length}
+            >
+              {exportingTrack ? "Exporting..." : "Export"}
+            </button>
           </div>
           <div
             className="button-row"
