@@ -10081,7 +10081,7 @@ export default function GteWorkspace({
           <div className={`min-w-0 flex-1 ${isMobileEditMode ? "min-h-0 overflow-hidden" : "overflow-y-visible"}`}>
             <div
               ref={timelineOuterRef}
-              className="min-w-0 overflow-x-auto overflow-y-hidden"
+              className="hide-scrollbar min-w-0 overflow-x-auto overflow-y-hidden"
               onScroll={handleTimelineOuterScroll}
             >
               <div className="relative" style={{ width: timelineChromeWidth, paddingTop: TIMELINE_BAR_HEADER_HEIGHT }}>
@@ -11738,4 +11738,3 @@ export default function GteWorkspace({
     </div>
   );
 }
-
