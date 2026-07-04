@@ -6039,3 +6039,37 @@ input[type="number"] {
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+.import-glow-text {
+  display: inline-block;
+  animation: import-text-glow 1.35s ease-in-out infinite alternate;
+  will-change: text-shadow, color;
+}
+
+@keyframes import-text-glow {
+  0% {
+    color: currentColor;
+    text-shadow:
+      -10px 0 18px rgba(14, 165, 233, 0.06),
+      0 0 0 rgba(14, 165, 233, 0);
+  }
+  50% {
+    color: #0f766e;
+    text-shadow:
+      0 0 12px rgba(20, 184, 166, 0.48),
+      0 0 24px rgba(14, 165, 233, 0.2);
+  }
+  100% {
+    color: currentColor;
+    text-shadow:
+      10px 0 18px rgba(14, 165, 233, 0.06),
+      0 0 0 rgba(14, 165, 233, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .import-glow-text {
+    animation: none;
+    text-shadow: 0 0 10px rgba(20, 184, 166, 0.35);
+  }
+}
