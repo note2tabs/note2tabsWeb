@@ -1,5 +1,6 @@
 const STANDARD_TUNING_MIDI_HIGH_TO_LOW = [64, 59, 55, 50, 45, 40];
 const ASCII_LINE_LABELS = ["e", "B", "G", "D", "A", "E"];
+export const TAB_IMPORT_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
 export const TAB_IMPORT_ACCEPT = [
   ".txt",
@@ -44,6 +45,11 @@ type ParsedTabImport = {
   warning?: string;
 };
 
+export type ParsedTabFileImport = ParsedTabImport & {
+  name: string;
+  fileName: string;
+};
+
 type TabPosition = {
   column: number;
   stringIndex: number;
@@ -86,6 +92,43 @@ export function parseTextTabImport(text: string): ParsedTabImport {
     throw new Error("The selected file is empty.");
   }
   return { text: normalized };
+}
+
+export async function parseTabImportFile(file: File): Promise<ParsedTabFileImport> {
+  if (file.size > TAB_IMPORT_MAX_FILE_SIZE_BYTES) {
+    throw new Error("This tab file is too large. Choose a file under 10 MB.");
+  }
+
+  const extension = getTabImportExtension(file.name);
+  if (!isRecognizedTabImportExtension(extension)) {
+    throw new Error(getUnsupportedTabImportMessage(file.name));
+  }
+
+  let parsed: ParsedTabImport;
+  if (extension === "mid" || extension === "midi") {
+    parsed = parseMidiTabImport(await file.arrayBuffer());
+  } else if (canParseWithAlphaTab(extension)) {
+    try {
+      parsed = await parseAlphaTabFileImport(await file.arrayBuffer());
+    } catch (alphaTabError) {
+      if (extension !== "xml" && extension !== "musicxml") {
+        throw alphaTabError;
+      }
+      parsed = parseMusicXmlTabImport(await file.text());
+    }
+  } else if (extension === "xml" || extension === "musicxml") {
+    parsed = parseMusicXmlTabImport(await file.text());
+  } else if (extension === "txt" || extension === "text" || extension === "tab" || extension === "asc") {
+    parsed = parseTextTabImport(await file.text());
+  } else {
+    throw new Error(getUnsupportedTabImportMessage(file.name));
+  }
+
+  return {
+    ...parsed,
+    name: getImportNameFromFile(file.name),
+    fileName: file.name,
+  };
 }
 
 export function parseMusicXmlTabImport(xml: string): ParsedTabImport {

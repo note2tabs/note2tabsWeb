@@ -8,13 +8,13 @@ import { gteApi } from "../../lib/gteApi";
 import type { EditorListItem, EditorSnapshot } from "../../types/gte";
 import { clearGuestDraft, GTE_GUEST_EDITOR_ID, readGuestDraft } from "../../lib/gteGuestDraft";
 import NoIndexHead from "../../components/NoIndexHead";
+import GteFileImportButton from "../../components/GteFileImportButton";
 
 export default function GteIndexPage() {
   const [editors, setEditors] = useState<EditorListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [creatingImport, setCreatingImport] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -113,18 +113,6 @@ export default function GteIndexPage() {
     } catch (err: any) {
       setError(err?.message || "Could not create editor.");
       setCreating(false);
-    }
-  };
-
-  const handleCreateForImport = async () => {
-    setCreatingImport(true);
-    setError(null);
-    try {
-      const data = await gteApi.createEditor(undefined, "Imported tab");
-      await router.push(`/gte/${data.editorId}/import-file`);
-    } catch (err: any) {
-      setError(err?.message || "Could not start tab import.");
-      setCreatingImport(false);
     }
   };
 
@@ -235,18 +223,26 @@ export default function GteIndexPage() {
             <p className="page-subtitle">Open transcriptions, start a new tab, or bring in a draft you made earlier.</p>
           </div>
           <div className="button-row">
-            <button
-              type="button"
-              onClick={handleCreateForImport}
-              disabled={creatingImport || creating}
+            <GteFileImportButton
               className="button-secondary button-small"
+              disabled={creating}
+              createEditor={async (name) => {
+                const data = await gteApi.createEditor(undefined, name || "Imported tab");
+                return data.editorId;
+              }}
+              onImported={async (importedEditorId) => {
+                await router.push(`/gte/${importedEditorId}`);
+              }}
+              onError={(message) => setError(message || null)}
+              busyLabel="Importing..."
+              title="Import a tab file"
             >
-              {creatingImport ? "Opening..." : "Import tabs"}
-            </button>
+              Import tabs
+            </GteFileImportButton>
             <button
               type="button"
               onClick={handleCreate}
-              disabled={creating || creatingImport}
+              disabled={creating}
               className="button-primary button-small"
             >
               {creating ? "Creating..." : "New tab"}

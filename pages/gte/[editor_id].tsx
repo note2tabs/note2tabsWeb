@@ -36,6 +36,7 @@ import {
 import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import GteWorkspace from "../../components/GteWorkspace";
+import GteFileImportButton from "../../components/GteFileImportButton";
 import {
   GTE_GUEST_EDITOR_ID,
   createGuestSnapshot,
@@ -3319,13 +3320,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             >
                               Back to editors
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => void router.push(`/gte/${editorId}/import-tab`)}
+                            <GteFileImportButton
+                              editorId={editorId}
+                              onImported={async () => {
+                                await loadEditor();
+                              }}
+                              onError={(message) => setError(message || null)}
                               className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm text-slate-700"
+                              busyLabel="Importing..."
+                              title="Import a tab file"
                             >
                               Import tabs
-                            </button>
+                            </GteFileImportButton>
                           </>
                         )}
                         <button
@@ -4260,14 +4266,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               View as tabs
             </button>
             {!isGuestMode && (
-              <button
-                type="button"
-                onClick={() => void router.push(`/gte/${editorId}/import-tab`)}
+              <GteFileImportButton
+                editorId={editorId}
+                onImported={async () => {
+                  await loadEditor();
+                }}
+                onError={(message) => setError(message || null)}
                 className="button-secondary button-small"
-                title="Import a tab file or pasted text tab"
+                busyLabel="Importing..."
+                title="Import a tab file"
               >
                 Import tabs
-              </button>
+              </GteFileImportButton>
             )}
           </div>
           <div

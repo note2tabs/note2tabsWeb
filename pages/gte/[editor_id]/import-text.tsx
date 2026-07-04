@@ -60,9 +60,6 @@ export default function ImportTextTabPage({ editorId }: Props) {
             >
               Back to editor
             </button>
-            <Link href={`/gte/${editorId}/import-tab`} className="button-secondary button-small">
-              Import options
-            </Link>
             <Link href="/gte" className="button-secondary button-small">
               Editors
             </Link>
