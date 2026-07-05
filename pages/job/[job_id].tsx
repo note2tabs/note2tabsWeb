@@ -477,6 +477,7 @@ export default function JobPage() {
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewAction, setReviewAction] = useState<ReviewAction>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [storedReviewTabPreviewText, setStoredReviewTabPreviewText] = useState("");
   const [quantizeImportDialog, setQuantizeImportDialog] = useState<"job" | "review" | null>(null);
   const [progressClock, setProgressClock] = useState(() => Date.now());
   const reviewMultipleGuitarsInitRef = useRef<string | null>(null);
@@ -533,10 +534,15 @@ export default function JobPage() {
   const showReviewUi = isReviewReady || isRecoverableReview || isReopenedFinalizedReview || isDoneJob;
   const isFinalizedJob = isFinalizedStatus && !showReviewUi;
   const tabSegments = useMemo(() => getJobTabSegments(displayJob), [displayJob]);
-  const reviewTabPreviewText = useMemo(() => {
+  const tabJobId = useMemo(() => {
+    const value = getFirstJobValue(displayJob, ["tab_job_id", "tabJobId", "tab_id", "tabId"]);
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  }, [displayJob]);
+  const localReviewTabPreviewText = useMemo(() => {
     const tabText = displayJob?.tab_text || (tabSegments.length > 0 ? tabsToTabText(tabSegments) : "");
     return getTabPreviewText(tabText);
   }, [displayJob?.tab_text, tabSegments]);
+  const reviewTabPreviewText = localReviewTabPreviewText || storedReviewTabPreviewText;
   const transcriberGroups = useMemo(() => getJobTranscriberGroups(displayJob), [displayJob]);
   const canImportToEditor = isFinalizedJob && (tabSegments.length > 0 || transcriberGroups.length > 0);
   const pendingPresentation = useMemo(
@@ -702,9 +708,34 @@ export default function JobPage() {
     setReviewError(null);
     setReviewBusy(false);
     setReviewAction(null);
+    setStoredReviewTabPreviewText("");
     setReviewMultipleGuitars(false);
     reviewMultipleGuitarsInitRef.current = null;
   }, [job_id, appendEditorId]);
+
+  useEffect(() => {
+    if (!showReviewUi || localReviewTabPreviewText || !tabJobId) {
+      setStoredReviewTabPreviewText("");
+      return;
+    }
+
+    let cancelled = false;
+    setStoredReviewTabPreviewText("");
+    fetchStoredTabPayload(tabJobId)
+      .then((storedTab) => {
+        if (cancelled) return;
+        setStoredReviewTabPreviewText(getTabPreviewText(tabsToTabText(storedTab.tabs)));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStoredReviewTabPreviewText("");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [localReviewTabPreviewText, showReviewUi, tabJobId]);
 
   useEffect(() => {
     if (!isFinalizedJob || !job_id) return;
@@ -1033,16 +1064,12 @@ export default function JobPage() {
                   ) : null}
                 </div>
 
-              <div className="review-value-preview" aria-label="Tab preview">
-                <p className="review-value-title">Preview</p>
-                {reviewTabPreviewText ? (
+              {reviewTabPreviewText ? (
+                <div className="review-value-preview" aria-label="Tab preview">
+                  <p className="review-value-title">Preview</p>
                   <pre>{reviewTabPreviewText}</pre>
-                ) : (
-                  <p className="muted text-small" style={{ margin: 0 }}>
-                    No tab preview is available yet.
-                  </p>
-                )}
-              </div>
+                </div>
+              ) : null}
 
               {reviewError ? <div className="error">{reviewError}</div> : null}
 
