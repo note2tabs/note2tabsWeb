@@ -385,8 +385,10 @@ input[type="number"] {
     rgba(15, 23, 42, 0.98) 52%,
     rgba(15, 23, 42, 0.86) 100%
   );
+  background-size: 220% 100%;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
   transition: width 600ms ease;
+  animation: job-progress-fill-drift 5.6s ease-in-out infinite;
 }
 
 .job-progress-fill::after {
@@ -394,7 +396,7 @@ input[type="number"] {
   position: absolute;
   inset: 0;
   background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.48) 42%, transparent 72%);
-  animation: job-progress-shimmer 1.35s linear infinite;
+  animation: job-progress-shimmer 3.4s linear infinite;
 }
 
 .job-progress-meta {
@@ -801,6 +803,16 @@ input[type="number"] {
   }
   100% {
     transform: translateX(120%);
+  }
+}
+
+@keyframes job-progress-fill-drift {
+  0%,
+  100% {
+    background-position: 0% center;
+  }
+  50% {
+    background-position: 100% center;
   }
 }
 
@@ -6247,6 +6259,7 @@ input[type="number"] {
 
   .transcription-start-dot,
   .job-progress-fill,
+  .job-progress-fill::after,
   .job-progress-staff,
   .job-progress-wave,
   .transcription-start-progress span {
