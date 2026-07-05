@@ -428,9 +428,12 @@ input[type="number"] {
 
 .job-progress-art {
   position: absolute;
-  inset: 0;
+  top: clamp(155px, 31%, 210px);
+  right: 0;
+  bottom: clamp(120px, 24%, 170px);
+  left: 0;
   overflow: hidden;
-  opacity: 0.62;
+  opacity: 0.5;
   pointer-events: none;
 }
 
@@ -456,13 +459,13 @@ input[type="number"] {
 }
 
 .job-progress-staff-one {
-  top: 43%;
+  top: 8%;
   transform: translateX(-50%) rotate(-4deg);
   animation: job-progress-staff-drift 9s ease-in-out infinite;
 }
 
 .job-progress-staff-two {
-  bottom: 8%;
+  bottom: 0;
   transform: translateX(-50%) rotate(3deg);
   animation: job-progress-staff-drift 10s ease-in-out infinite reverse;
 }
@@ -486,13 +489,13 @@ input[type="number"] {
 }
 
 .job-progress-wave-one {
-  top: 52%;
+  top: 22%;
   transform: translateX(-50%) scaleY(0.62);
   animation: job-progress-wave-scan 3.8s ease-in-out infinite;
 }
 
 .job-progress-wave-two {
-  top: 65%;
+  top: 48%;
   transform: translateX(-50%) scaleY(0.38);
   opacity: 0.7;
   animation: job-progress-wave-scan 4.8s ease-in-out infinite reverse;
