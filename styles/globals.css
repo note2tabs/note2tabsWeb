@@ -6043,7 +6043,7 @@ input[type="number"] {
 .import-thinking-text,
 .transcription-thinking-text {
   --import-thinking-base: #0f172a;
-  --import-thinking-highlight: #2563eb;
+  --import-thinking-highlight: #020617;
   --import-thinking-mid: #64748b;
   display: inline-block;
   background-image: linear-gradient(
@@ -6063,7 +6063,7 @@ input[type="number"] {
   background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  animation: import-thinking-shimmer var(--thinking-shimmer-duration, 2.6s) ease-in-out infinite;
+  animation: import-thinking-shimmer var(--thinking-shimmer-duration, 3s) ease-in-out infinite;
   filter: saturate(var(--thinking-shimmer-saturation, 1.2)) contrast(var(--thinking-shimmer-contrast, 1.08));
   will-change: background-position, filter;
 }
@@ -6078,14 +6078,14 @@ input[type="number"] {
 .button-secondary .import-thinking-text,
 .button-save .import-thinking-text {
   --import-thinking-base: #0f172a;
-  --import-thinking-highlight: #0b5cff;
-  --import-thinking-mid: #2563eb;
+  --import-thinking-highlight: #020617;
+  --import-thinking-mid: #475569;
 }
 
 .transcription-thinking-text {
-  --import-thinking-base: #1f3d8b;
-  --import-thinking-highlight: #071a4a;
-  --import-thinking-mid: #0b5cff;
+  --import-thinking-base: #334155;
+  --import-thinking-highlight: #020617;
+  --import-thinking-mid: #64748b;
 }
 
 @keyframes import-thinking-shimmer {

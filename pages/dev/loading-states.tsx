@@ -10,7 +10,7 @@ const STATUS_MESSAGES = [
 
 export default function LoadingStatesPreviewPage() {
   const [message, setMessage] = useState(STATUS_MESSAGES[1]);
-  const [duration, setDuration] = useState(2.6);
+  const [duration, setDuration] = useState(3);
   const [contrast, setContrast] = useState(1.08);
   const [saturation, setSaturation] = useState(1.2);
 
