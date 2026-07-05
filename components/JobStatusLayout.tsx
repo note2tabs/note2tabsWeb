@@ -101,20 +101,17 @@ export default function JobStatusLayout({
       pending?.stages.find((stage) => stage.state === "active") ||
       pending?.stages.find((stage) => stage.state === "complete") ||
       null;
-    const nextStage = pending?.stages.find((stage) => stage.state === "upcoming") || null;
     const workingOnLabel = job?.song_title
       ? `${job.song_title}${job.artist ? ` - ${job.artist}` : ""}`
       : "Your track";
     const currentStepLabel = currentStage?.label || pending?.phaseLabel || "Preparing";
-    const nextStepLabel =
-      nextStage?.label || (pending?.progressPercent && pending.progressPercent >= 92 ? "Almost there" : "Next step");
     const updateLabel =
       pending?.badgeLabel === "In line"
-        ? "Queue status updates automatically."
-        : "Updates every few seconds. The next screen opens when ready.";
+        ? "Your transcription is queued and will start automatically."
+        : "The backend is still working. This page updates automatically.";
     return (
       <div className="card">
-        <div className="job-progress-shell">
+        <div className="job-progress-shell" aria-busy="true">
           <div className="job-progress-header">
             <div className="stack" style={{ gap: "8px" }}>
               <span className="badge">{pending?.badgeLabel || "Working"}</span>
@@ -123,24 +120,16 @@ export default function JobStatusLayout({
                 {pending?.detail || "This usually takes under a minute."}
               </p>
             </div>
-            {pending ? (
-              <div className="job-progress-stat">
-                <span className="job-progress-value">{pending.progressPercent}%</span>
-                {pending.stepSummary ? <span className="muted text-small">{pending.stepSummary}</span> : null}
-              </div>
-            ) : null}
           </div>
           {pending ? (
             <>
               <div
                 className="job-progress-track"
                 role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={pending.progressPercent}
-                aria-label="Job progress"
+                aria-valuetext={pending.phaseLabel || "Transcription is running"}
+                aria-label="Transcription activity"
               >
-                <div className="job-progress-fill" style={{ width: `${pending.progressPercent}%` }} />
+                <div className="job-progress-fill" />
               </div>
               <div className="job-progress-meta">
                 <span>{pending.elapsedLabel}</span>
@@ -156,11 +145,8 @@ export default function JobStatusLayout({
                   <strong className="job-progress-fact-value">{currentStepLabel}</strong>
                 </div>
                 <div className="job-progress-fact">
-                  <span className="job-progress-fact-label">Up next</span>
-                  <strong className="job-progress-fact-value">{nextStepLabel}</strong>
-                  {pending.typicalDurationLabel ? (
-                    <span className="job-progress-fact-note">{pending.typicalDurationLabel}</span>
-                  ) : null}
+                  <span className="job-progress-fact-label">Status</span>
+                  <strong className="job-progress-fact-value">{pending.stepSummary || pending.badgeLabel}</strong>
                 </div>
               </div>
               <div className="job-progress-note">
