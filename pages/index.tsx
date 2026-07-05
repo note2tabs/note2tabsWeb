@@ -15,6 +15,7 @@ import {
 } from "../lib/transcriptionModels";
 import SeoHead, { SITE_NAME, SITE_URL, absoluteUrl } from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
+import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 
 type TabsResponse = {
   tabs: string[][];
@@ -1295,7 +1296,9 @@ export default function HomePage() {
                 </>
               )}
 
-              {status && <div className="status">{status}</div>}
+              {status && (
+                loading ? <TranscriptionStartStatus status={status} /> : <div className="status">{status}</div>
+              )}
               {error && <div className="error">{error}</div>}
               {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
                 <div className="notice">

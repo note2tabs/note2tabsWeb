@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import TabViewer from "./TabViewer";
 import StemsList from "./StemsList";
 
@@ -76,6 +77,65 @@ type JobStatusLayoutProps = {
   shareUrls?: { twitter: string; reddit: string } | null;
 };
 
+function normalizeProgressPercent(value: unknown) {
+  const progress = Number(value);
+  if (!Number.isFinite(progress)) return null;
+  if (progress <= 1) return Math.min(100, Math.max(0, Math.round(progress * 100)));
+  return Math.min(100, Math.max(0, Math.round(progress)));
+}
+
+function getFriendlyProgressMessages(progressPercent: number) {
+  if (progressPercent < 15) {
+    return [
+      "Getting everything ready.",
+      "Making room for your song.",
+      "Setting up the workspace.",
+      "Warming up the tab maker.",
+      "Getting ready to listen.",
+    ];
+  }
+  if (progressPercent < 35) {
+    return [
+      "Reading your audio.",
+      "Finding the shape of the song.",
+      "Checking where the music starts.",
+      "Getting a clear listen.",
+      "Sorting through the sound.",
+      "Following the rhythm.",
+    ];
+  }
+  if (progressPercent < 65) {
+    return [
+      "Listening for the guitar part.",
+      "Picking out the notes.",
+      "Following the melody.",
+      "Catching the little details.",
+      "Looking for the main guitar line.",
+      "Matching notes to the beat.",
+      "Listening closely now.",
+    ];
+  }
+  if (progressPercent < 88) {
+    return [
+      "Turning the music into a tab.",
+      "Laying the notes onto strings.",
+      "Shaping the first draft.",
+      "Putting the notes in order.",
+      "Making the tab easier to read.",
+      "Checking how the phrases line up.",
+      "Building something you can edit.",
+    ];
+  }
+  return [
+    "Getting your tab ready to open.",
+    "Polishing the final result.",
+    "Almost ready to show you.",
+    "Preparing your preview.",
+    "Putting the last pieces in place.",
+    "Getting the editor ready.",
+  ];
+}
+
 export default function JobStatusLayout({
   job,
   pendingPresentation,
@@ -95,92 +155,55 @@ export default function JobStatusLayout({
   onVideoComplete,
   shareUrls,
 }: JobStatusLayoutProps) {
-  if (!job || job.status === "queued" || job.status === "pending" || job.status === "processing" || job.status === "running") {
-    const pending = pendingPresentation;
-    const currentStage =
-      pending?.stages.find((stage) => stage.state === "active") ||
-      pending?.stages.find((stage) => stage.state === "complete") ||
-      null;
-    const nextStage = pending?.stages.find((stage) => stage.state === "upcoming") || null;
-    const workingOnLabel = job?.song_title
-      ? `${job.song_title}${job.artist ? ` - ${job.artist}` : ""}`
-      : "Your track";
-    const currentStepLabel = currentStage?.label || pending?.phaseLabel || "Preparing";
-    const nextStepLabel =
-      nextStage?.label || (pending?.progressPercent && pending.progressPercent >= 92 ? "Almost there" : "Next step");
-    const updateLabel =
-      pending?.badgeLabel === "In line"
-        ? "Queue status updates automatically."
-        : "Updates every few seconds. The next screen opens when ready.";
+  const isPendingJob =
+    !job || job.status === "queued" || job.status === "pending" || job.status === "processing" || job.status === "running";
+  const [messageIndex, setMessageIndex] = useState(0);
+
+  useEffect(() => {
+    if (!isPendingJob) return undefined;
+    const intervalId = window.setInterval(() => {
+      setMessageIndex((current) => current + 1);
+    }, 6500);
+    return () => window.clearInterval(intervalId);
+  }, [isPendingJob]);
+
+  if (isPendingJob) {
+    const progressPercent =
+      normalizeProgressPercent(job?.progress) ?? normalizeProgressPercent(pendingPresentation?.progressPercent) ?? 0;
+    const progressMessages = getFriendlyProgressMessages(progressPercent);
+    const progressMessage = progressMessages[messageIndex % progressMessages.length] || progressMessages[0];
+
     return (
-      <div className="card">
-        <div className="job-progress-shell">
-          <div className="job-progress-header">
-            <div className="stack" style={{ gap: "8px" }}>
-              <span className="badge">{pending?.badgeLabel || "Working"}</span>
-              <p className="job-progress-phase">{pending?.phaseLabel || "Preparing tabs"}</p>
-              <p className="muted text-small" style={{ margin: 0 }}>
-                {pending?.detail || "This usually takes under a minute."}
-              </p>
-            </div>
-            {pending ? (
-              <div className="job-progress-stat">
-                <span className="job-progress-value">{pending.progressPercent}%</span>
-                {pending.stepSummary ? <span className="muted text-small">{pending.stepSummary}</span> : null}
-              </div>
-            ) : null}
+      <div className="card job-progress-card">
+        <div className="job-progress-shell" aria-busy="true">
+          <div className="job-progress-art" aria-hidden="true">
+            <span className="job-progress-wave job-progress-wave-one" />
+            <span className="job-progress-wave job-progress-wave-two" />
           </div>
-          {pending ? (
-            <>
-              <div
-                className="job-progress-track"
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={pending.progressPercent}
-                aria-label="Job progress"
-              >
-                <div className="job-progress-fill" style={{ width: `${pending.progressPercent}%` }} />
-              </div>
-              <div className="job-progress-meta">
-                <span>{pending.elapsedLabel}</span>
-                {pending.typicalDurationLabel ? <span>{pending.typicalDurationLabel}</span> : null}
-              </div>
-              <div className="job-progress-facts" aria-label="Processing details">
-                <div className="job-progress-fact">
-                  <span className="job-progress-fact-label">Working on</span>
-                  <strong className="job-progress-fact-value">{workingOnLabel}</strong>
-                </div>
-                <div className="job-progress-fact">
-                  <span className="job-progress-fact-label">Current step</span>
-                  <strong className="job-progress-fact-value">{currentStepLabel}</strong>
-                </div>
-                <div className="job-progress-fact">
-                  <span className="job-progress-fact-label">Up next</span>
-                  <strong className="job-progress-fact-value">{nextStepLabel}</strong>
-                  {pending.typicalDurationLabel ? (
-                    <span className="job-progress-fact-note">{pending.typicalDurationLabel}</span>
-                  ) : null}
-                </div>
-              </div>
-              <div className="job-progress-note">
-                <p>{updateLabel}</p>
-              </div>
-              {pending.attemptLabel ? (
-                <p className="muted text-small" style={{ margin: 0 }}>
-                  {pending.attemptLabel}
-                </p>
-              ) : null}
-              {pending.warningLabel ? <p className="job-progress-warning">{pending.warningLabel}</p> : null}
-              <div className="job-progress-steps" aria-label="Processing stages">
-                {pending.stages.map((stage) => (
-                  <span key={stage.label} className={`job-progress-step is-${stage.state}`}>
-                    {stage.label}
-                  </span>
-                ))}
-              </div>
-            </>
-          ) : null}
+
+          <div className="job-progress-copy">
+            <p className="job-progress-phase">Creating your tab</p>
+            <p className="job-progress-subtitle">Keep this tab open.</p>
+          </div>
+
+          <div className="job-progress-bottom">
+            <p className="job-progress-message">{progressMessage}</p>
+            <div
+              className="job-progress-track"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progressPercent}
+              aria-valuetext={progressMessage}
+              aria-label="Transcription activity"
+            >
+              <div className="job-progress-fill" style={{ width: `${progressPercent}%` }} />
+            </div>
+          </div>
+
+          <p className="sr-only">
+            {progressMessage} Progress is {progressPercent}% and this page updates automatically.
+          </p>
         </div>
       </div>
     );

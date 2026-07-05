@@ -8,6 +8,7 @@ import { gteApi } from "../../lib/gteApi";
 import type { EditorListItem, EditorSnapshot } from "../../types/gte";
 import { clearGuestDraft, GTE_GUEST_EDITOR_ID, readGuestDraft } from "../../lib/gteGuestDraft";
 import NoIndexHead from "../../components/NoIndexHead";
+import GteFileImportButton from "../../components/GteFileImportButton";
 
 export default function GteIndexPage() {
   const [editors, setEditors] = useState<EditorListItem[]>([]);
@@ -222,7 +223,31 @@ export default function GteIndexPage() {
             <p className="page-subtitle">Open transcriptions, start a new tab, or bring in a draft you made earlier.</p>
           </div>
           <div className="button-row">
-            <button type="button" onClick={handleCreate} disabled={creating} className="button-primary button-small">
+            <GteFileImportButton
+              className="button-secondary button-small"
+              disabled={creating}
+              createEditor={async (name) => {
+                const data = await gteApi.createEditor(undefined, name || "Imported tab");
+                return {
+                  editorId: data.editorId,
+                  laneId: data.snapshot.editors[0]?.id || "ed-1",
+                };
+              }}
+              onImported={async (importedEditorId) => {
+                await router.push(`/gte/${importedEditorId}`);
+              }}
+              onError={(message) => setError(message || null)}
+              busyLabel="Importing..."
+              title="Import a tab file"
+            >
+              Import tabs
+            </GteFileImportButton>
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={creating}
+              className="button-primary button-small"
+            >
               {creating ? "Creating..." : "New tab"}
             </button>
           </div>
