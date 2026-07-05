@@ -312,8 +312,9 @@ input[type="number"] {
 
 .job-progress-card .job-progress-shell {
   min-height: inherit;
-  align-content: center;
+  align-content: start;
   justify-items: center;
+  padding-top: clamp(22px, 7vh, 72px);
   gap: clamp(18px, 3vw, 30px);
 }
 
@@ -437,13 +438,13 @@ input[type="number"] {
 }
 
 .job-progress-staff-one {
-  top: 15%;
+  top: 43%;
   transform: translateX(-50%) rotate(-4deg);
   animation: job-progress-staff-drift 9s ease-in-out infinite;
 }
 
 .job-progress-staff-two {
-  bottom: 12%;
+  bottom: 8%;
   transform: translateX(-50%) rotate(3deg);
   animation: job-progress-staff-drift 10s ease-in-out infinite reverse;
 }
@@ -467,13 +468,13 @@ input[type="number"] {
 }
 
 .job-progress-wave-one {
-  top: 30%;
+  top: 52%;
   transform: translateX(-50%) scaleY(0.62);
   animation: job-progress-wave-scan 3.8s ease-in-out infinite;
 }
 
 .job-progress-wave-two {
-  top: 43%;
+  top: 65%;
   transform: translateX(-50%) scaleY(0.38);
   opacity: 0.7;
   animation: job-progress-wave-scan 4.8s ease-in-out infinite reverse;
