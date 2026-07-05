@@ -90,7 +90,7 @@ export default function GteFileImportButton({
         disabled={disabled || busy}
         title={title}
       >
-        {busy ? <span className="import-glow-text">{busyLabel}</span> : children}
+        {busy ? <span className="import-thinking-text">{busyLabel}</span> : children}
       </button>
     </>
   );
