@@ -140,17 +140,14 @@ export async function parseTabImportFile(file: File): Promise<ParsedTabFileImpor
   let parsed: ParsedTabImport;
   if (extension === "mid" || extension === "midi") {
     parsed = parseMidiTabImport(await file.arrayBuffer());
+  } else if (extension === "xml" || extension === "musicxml") {
+    parsed = parseMusicXmlTabImport(await file.text());
   } else if (canParseWithAlphaTab(extension)) {
     try {
       parsed = await parseAlphaTabFileImport(await file.arrayBuffer());
     } catch (alphaTabError) {
-      if (extension !== "xml" && extension !== "musicxml") {
-        throw alphaTabError;
-      }
-      parsed = parseMusicXmlTabImport(await file.text());
+      throw alphaTabError;
     }
-  } else if (extension === "xml" || extension === "musicxml") {
-    parsed = parseMusicXmlTabImport(await file.text());
   } else if (extension === "txt" || extension === "text" || extension === "tab" || extension === "asc") {
     parsed = parseTextTabImport(await file.text());
   } else {
@@ -250,6 +247,42 @@ function getTagText(source: string, tagName: string) {
   return match ? decodeXmlEntities(match[1].trim()) : "";
 }
 
+function getTagBlocks(source: string, tagName: string) {
+  const blocks: string[] = [];
+  const pattern = new RegExp(`<${tagName}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tagName}>`, "gi");
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(source))) {
+    blocks.push(match[0]);
+  }
+  return blocks;
+}
+
+function getMusicXmlMeasureDurationFrames(measureXml: string, state: { divisions: number; beats: number; beatType: number }) {
+  const attributes = measureXml.match(/<attributes(?:\s[^>]*)?>([\s\S]*?)<\/attributes>/i)?.[1] || "";
+  const divisions = Number(getTagText(attributes, "divisions"));
+  const beats = Number(getTagText(attributes, "beats"));
+  const beatType = Number(getTagText(attributes, "beat-type"));
+  if (Number.isFinite(divisions) && divisions > 0) state.divisions = divisions;
+  if (Number.isFinite(beats) && beats > 0) state.beats = beats;
+  if (Number.isFinite(beatType) && beatType > 0) state.beatType = beatType;
+
+  return Math.max(1, state.divisions * state.beats * (4 / state.beatType));
+}
+
+function getMusicXmlDurationFrames(noteXml: string, measureDuration: number) {
+  const duration = Number(getTagText(noteXml, "duration"));
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return Math.round(FIXED_FRAMES_PER_BAR / 4);
+  }
+  return Math.max(1, Math.round((duration / measureDuration) * FIXED_FRAMES_PER_BAR));
+}
+
+function getMusicXmlCursorDeltaFrames(xml: string, measureDuration: number) {
+  const duration = Number(getTagText(xml, "duration"));
+  if (!Number.isFinite(duration) || duration <= 0) return 0;
+  return Math.round((duration / measureDuration) * FIXED_FRAMES_PER_BAR);
+}
+
 function pitchToMidi(noteXml: string) {
   const pitch = noteXml.match(/<pitch(?:\s[^>]*)?>([\s\S]*?)<\/pitch>/i)?.[1] || "";
   if (!pitch) return null;
@@ -272,39 +305,68 @@ function midiToTab(midi: number): { stringIndex: number; fret: number } | null {
 }
 
 function extractMusicXmlNotes(xml: string): TabPosition[] {
-  const noteMatches = xml.match(/<note(?:\s[^>]*)?>[\s\S]*?<\/note>/gi) || [];
   const positions: TabPosition[] = [];
-  let column = 0;
+  const parts = getTagBlocks(xml, "part");
+  const sources = parts.length ? parts : [xml];
 
-  noteMatches.forEach((noteXml) => {
-    const isRest = /<rest(?:\s[^>]*)?\/?>/i.test(noteXml);
-    const isChord = /<chord(?:\s[^>]*)?\/?>/i.test(noteXml);
-    if (!isChord && positions.length > 0) {
-      column += Math.round(FIXED_FRAMES_PER_BAR / 4);
-    }
-    if (isRest) return;
+  sources.forEach((partXml) => {
+    const state = { divisions: 1, beats: 4, beatType: 4 };
+    const measures = getTagBlocks(partXml, "measure");
+    const measureSources = measures.length ? measures : [partXml];
+    let measureStartFrame = 0;
 
-    const technical = noteXml.match(/<technical(?:\s[^>]*)?>([\s\S]*?)<\/technical>/i)?.[1] || noteXml;
-    const musicXmlString = Number(getTagText(technical, "string"));
-    const fret = Number(getTagText(technical, "fret"));
-    if (Number.isFinite(musicXmlString) && Number.isFinite(fret)) {
-      positions.push({
-        column,
-        stringIndex: Math.max(0, Math.min(5, Math.round(musicXmlString) - 1)),
-        fret: Math.max(0, Math.min(24, Math.round(fret))),
-        length: Math.round(FIXED_FRAMES_PER_BAR / 4),
+    measureSources.forEach((measureXml) => {
+      const measureDuration = getMusicXmlMeasureDurationFrames(measureXml, state);
+      let cursorFrame = measureStartFrame;
+      let lastNoteStartFrame = measureStartFrame;
+      const tokens = measureXml.match(/<(?:note|backup|forward)(?:\s[^>]*)?>[\s\S]*?<\/(?:note|backup|forward)>/gi) || [];
+
+      tokens.forEach((token) => {
+        if (/^<backup/i.test(token)) {
+          cursorFrame = Math.max(measureStartFrame, cursorFrame - getMusicXmlCursorDeltaFrames(token, measureDuration));
+          return;
+        }
+        if (/^<forward/i.test(token)) {
+          cursorFrame += getMusicXmlCursorDeltaFrames(token, measureDuration);
+          return;
+        }
+
+        const isRest = /<rest(?:\s[^>]*)?\/?>/i.test(token);
+        const isChord = /<chord(?:\s[^>]*)?\/?>/i.test(token);
+        const length = getMusicXmlDurationFrames(token, measureDuration);
+        const noteStartFrame = isChord ? lastNoteStartFrame : cursorFrame;
+        if (!isChord) lastNoteStartFrame = noteStartFrame;
+
+        if (!isRest) {
+          const technical = token.match(/<technical(?:\s[^>]*)?>([\s\S]*?)<\/technical>/i)?.[1] || token;
+          const musicXmlString = Number(getTagText(technical, "string"));
+          const fret = Number(getTagText(technical, "fret"));
+          if (Number.isFinite(musicXmlString) && Number.isFinite(fret)) {
+            positions.push({
+              column: noteStartFrame,
+              stringIndex: Math.max(0, Math.min(5, Math.round(musicXmlString) - 1)),
+              fret: Math.max(0, Math.min(24, Math.round(fret))),
+              length,
+            });
+          } else {
+            const midi = pitchToMidi(token);
+            const tab = midi === null ? null : midiToTab(midi);
+            if (tab) {
+              positions.push({ column: noteStartFrame, stringIndex: tab.stringIndex, fret: tab.fret, length });
+            }
+          }
+        }
+
+        if (!isChord) cursorFrame += length;
       });
-      return;
-    }
 
-    const midi = pitchToMidi(noteXml);
-    const tab = midi === null ? null : midiToTab(midi);
-    if (tab) {
-      positions.push({ column, stringIndex: tab.stringIndex, fret: tab.fret, length: Math.round(FIXED_FRAMES_PER_BAR / 4) });
-    }
+      measureStartFrame += FIXED_FRAMES_PER_BAR;
+    });
   });
 
-  return limitTabPositions(positions);
+  return limitTabPositions(
+    positions.sort((left, right) => left.column - right.column || left.stringIndex - right.stringIndex || left.fret - right.fret)
+  );
 }
 
 function extractAlphaTabNotes(score: any): TabPosition[] {
