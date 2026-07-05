@@ -312,9 +312,11 @@ input[type="number"] {
 
 .job-progress-card .job-progress-shell {
   min-height: inherit;
-  align-content: start;
+  grid-template-rows: auto 1fr auto;
+  align-content: stretch;
   justify-items: center;
   padding-top: clamp(22px, 7vh, 72px);
+  padding-bottom: clamp(12px, 3vh, 32px);
   gap: clamp(18px, 3vw, 30px);
 }
 
@@ -351,6 +353,22 @@ input[type="number"] {
   line-height: 1.5;
 }
 
+.job-progress-bottom {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  width: min(100%, 720px);
+  align-self: end;
+}
+
+.job-progress-message {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
 .job-progress-track {
   position: relative;
   overflow: hidden;
@@ -363,9 +381,8 @@ input[type="number"] {
 }
 
 .job-progress-card .job-progress-track {
-  width: min(100%, 720px);
+  width: 100%;
   height: 16px;
-  margin-top: clamp(34px, 8vh, 86px);
   background:
     linear-gradient(180deg, rgba(15, 23, 42, 0.11), rgba(15, 23, 42, 0.045)),
     rgba(255, 255, 255, 0.58);

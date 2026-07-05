@@ -83,6 +83,14 @@ function normalizeProgressPercent(value: unknown) {
   return Math.min(100, Math.max(0, Math.round(progress)));
 }
 
+function getFriendlyProgressMessage(progressPercent: number) {
+  if (progressPercent < 15) return "Getting everything ready.";
+  if (progressPercent < 35) return "Reading your audio.";
+  if (progressPercent < 65) return "Listening for the guitar part.";
+  if (progressPercent < 88) return "Turning the music into a tab.";
+  return "Getting your tab ready to open.";
+}
+
 export default function JobStatusLayout({
   job,
   pendingPresentation,
@@ -105,6 +113,7 @@ export default function JobStatusLayout({
   if (!job || job.status === "queued" || job.status === "pending" || job.status === "processing" || job.status === "running") {
     const progressPercent =
       normalizeProgressPercent(job?.progress) ?? normalizeProgressPercent(pendingPresentation?.progressPercent) ?? 0;
+    const progressMessage = getFriendlyProgressMessage(progressPercent);
 
     return (
       <div className="card job-progress-card">
@@ -121,20 +130,23 @@ export default function JobStatusLayout({
             <p className="job-progress-subtitle">Keep this tab open.</p>
           </div>
 
-          <div
-            className="job-progress-track"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={progressPercent}
-            aria-valuetext="Transcription is running"
-            aria-label="Transcription activity"
-          >
-            <div className="job-progress-fill" style={{ width: `${progressPercent}%` }} />
+          <div className="job-progress-bottom">
+            <p className="job-progress-message">{progressMessage}</p>
+            <div
+              className="job-progress-track"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progressPercent}
+              aria-valuetext={progressMessage}
+              aria-label="Transcription activity"
+            >
+              <div className="job-progress-fill" style={{ width: `${progressPercent}%` }} />
+            </div>
           </div>
 
           <p className="sr-only">
-            Your transcription is still running. Progress is {progressPercent}% and this page updates automatically.
+            {progressMessage} Progress is {progressPercent}% and this page updates automatically.
           </p>
         </div>
       </div>
