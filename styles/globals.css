@@ -376,19 +376,17 @@ input[type="number"] {
 .job-progress-fill {
   position: absolute;
   inset: 0 auto 0 0;
-  width: 42%;
+  width: 0%;
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(
     90deg,
-    rgba(15, 23, 42, 0.1) 0%,
-    rgba(15, 23, 42, 0.7) 34%,
+    rgba(15, 23, 42, 0.82) 0%,
     rgba(15, 23, 42, 0.98) 52%,
-    rgba(15, 23, 42, 0.7) 68%,
-    rgba(15, 23, 42, 0.1) 100%
+    rgba(15, 23, 42, 0.86) 100%
   );
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
-  animation: job-progress-indeterminate 1.85s ease-in-out infinite;
+  transition: width 600ms ease;
 }
 
 .job-progress-fill::after {
@@ -803,18 +801,6 @@ input[type="number"] {
   }
   100% {
     transform: translateX(120%);
-  }
-}
-
-@keyframes job-progress-indeterminate {
-  0% {
-    transform: translateX(-115%);
-  }
-  52% {
-    transform: translateX(130%);
-  }
-  100% {
-    transform: translateX(275%);
   }
 }
 
@@ -6267,9 +6253,12 @@ input[type="number"] {
     animation: none;
   }
 
-  .job-progress-fill,
   .transcription-start-progress span {
     transform: none;
     width: 100%;
+  }
+
+  .job-progress-fill {
+    transform: none;
   }
 }

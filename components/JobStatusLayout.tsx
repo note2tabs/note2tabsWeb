@@ -76,8 +76,16 @@ type JobStatusLayoutProps = {
   shareUrls?: { twitter: string; reddit: string } | null;
 };
 
+function normalizeProgressPercent(value: unknown) {
+  const progress = Number(value);
+  if (!Number.isFinite(progress)) return null;
+  if (progress <= 1) return Math.min(100, Math.max(0, Math.round(progress * 100)));
+  return Math.min(100, Math.max(0, Math.round(progress)));
+}
+
 export default function JobStatusLayout({
   job,
+  pendingPresentation,
   onRestart,
   onDownloadTabs,
   onImportToEditor,
@@ -95,6 +103,9 @@ export default function JobStatusLayout({
   shareUrls,
 }: JobStatusLayoutProps) {
   if (!job || job.status === "queued" || job.status === "pending" || job.status === "processing" || job.status === "running") {
+    const progressPercent =
+      normalizeProgressPercent(job?.progress) ?? normalizeProgressPercent(pendingPresentation?.progressPercent) ?? 0;
+
     return (
       <div className="card job-progress-card">
         <div className="job-progress-shell" aria-busy="true">
@@ -113,13 +124,18 @@ export default function JobStatusLayout({
           <div
             className="job-progress-track"
             role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progressPercent}
             aria-valuetext="Transcription is running"
             aria-label="Transcription activity"
           >
-            <div className="job-progress-fill" />
+            <div className="job-progress-fill" style={{ width: `${progressPercent}%` }} />
           </div>
 
-          <p className="sr-only">Your transcription is still running. This page updates automatically.</p>
+          <p className="sr-only">
+            Your transcription is still running. Progress is {progressPercent}% and this page updates automatically.
+          </p>
         </div>
       </div>
     );
