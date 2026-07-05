@@ -828,6 +828,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [openTrackMenuId, setOpenTrackMenuId] = useState<string | null>(null);
   const [openMobileBarMenuLaneId, setOpenMobileBarMenuLaneId] = useState<string | null>(null);
   const [toolbarOpen, setToolbarOpen] = useState(false);
+  const [tabViewEnabled, setTabViewEnabled] = useState(false);
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
   const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabled] = useState(false);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
@@ -4421,6 +4422,20 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               isMobileEditMode ? "flex-1 min-h-0 space-y-0" : "space-y-2"
             }`}
           >
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setTabViewEnabled((prev) => !prev)}
+                aria-pressed={tabViewEnabled}
+                className={`rounded-md border px-3 py-2 text-xs font-semibold shadow-sm ${
+                  tabViewEnabled
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                tab-view
+              </button>
+            </div>
             {canvas.editors.map((lane, index) => {
               const laneId = lane.id || `ed-${index + 1}`;
               if (isMobileViewport && mobileEditLaneId && laneId !== mobileEditLaneId) {
@@ -4621,6 +4636,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               mobileViewport
                               mobileMode="edit"
                               onFocusWorkspace={() => setActiveLaneId(laneId)}
+                              tabViewEnabled={tabViewEnabled}
                               globalSnapToGridEnabled={globalSnapToGridEnabled}
                               onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
                               globalSnapToKeyEnabled={globalSnapToKeyEnabled}
@@ -4882,6 +4898,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               mobileViewport
                               mobileMode="canvas"
                               onFocusWorkspace={() => setActiveLaneId(laneId)}
+                              tabViewEnabled={tabViewEnabled}
                               globalSnapToGridEnabled={globalSnapToGridEnabled}
                               onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
                               globalSnapToKeyEnabled={globalSnapToKeyEnabled}
@@ -5162,6 +5179,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           isActive={isActive}
                           mobileViewport={isMobileViewport}
                           onFocusWorkspace={() => activateLaneForEditing(laneId)}
+                          tabViewEnabled={tabViewEnabled}
                           globalSnapToGridEnabled={globalSnapToGridEnabled}
                           onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
                           globalSnapToKeyEnabled={globalSnapToKeyEnabled}
