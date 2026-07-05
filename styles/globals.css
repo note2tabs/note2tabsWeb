@@ -6040,7 +6040,8 @@ input[type="number"] {
   display: none;
 }
 
-.import-thinking-text {
+.import-thinking-text,
+.transcription-thinking-text {
   --import-thinking-base: #0f172a;
   --import-thinking-highlight: #2563eb;
   --import-thinking-mid: #64748b;
@@ -6079,6 +6080,12 @@ input[type="number"] {
   --import-thinking-mid: #64748b;
 }
 
+.transcription-thinking-text {
+  --import-thinking-base: #1f3d8b;
+  --import-thinking-highlight: #0f172a;
+  --import-thinking-mid: #2563eb;
+}
+
 @keyframes import-thinking-shimmer {
   from {
     background-position: 120% center;
@@ -6089,7 +6096,8 @@ input[type="number"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .import-thinking-text {
+  .import-thinking-text,
+  .transcription-thinking-text {
     animation: none;
     background: none;
     color: currentColor;

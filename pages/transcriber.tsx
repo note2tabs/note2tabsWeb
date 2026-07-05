@@ -1008,7 +1008,11 @@ export default function TranscriberPage() {
                 </button>
               </div>
 
-              {status && <div className="status">{status}</div>}
+              {status && (
+                <div className="status">
+                  {loading ? <span className="transcription-thinking-text">{status}</span> : status}
+                </div>
+              )}
               {error && <div className="error">{error}</div>}
               {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
                 <div className="notice">
