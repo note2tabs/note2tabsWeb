@@ -9,6 +9,7 @@ import {
   parseMusicXmlTabImport,
   parseTextTabImport,
 } from "../../lib/gteTabImport";
+import { buildMusicXmlFromSnapshot } from "../../lib/gteTabExport";
 
 const asciiTab = `e|--0--|
 B|--1--|
@@ -168,6 +169,42 @@ describe("gte tab import helpers", () => {
       expect(result.text).toContain("e|0");
       expect(result.text).toContain("G|");
     }
+  });
+
+  it("round-trips exported MusicXML chord notes without staggering them", () => {
+    const xml = buildMusicXmlFromSnapshot({
+      id: "roundtrip",
+      name: "Roundtrip",
+      version: 1,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      timeSignature: 4,
+      timeSignatureBottom: 4,
+      framesPerMessure: 480,
+      fps: 240,
+      totalFrames: 480,
+      secondsPerBar: 2,
+      notes: [
+        { id: 1, startTime: 0, length: 480, midiNum: 42, tab: [5, 2], optimals: [] },
+        { id: 2, startTime: 0, length: 120, midiNum: 54, tab: [3, 4], optimals: [] },
+        { id: 3, startTime: 0, length: 120, midiNum: 57, tab: [2, 2], optimals: [] },
+        { id: 4, startTime: 120, length: 120, midiNum: 61, tab: [1, 2], optimals: [] },
+      ],
+      chords: [],
+      noteEffects: [],
+      cutPositionsWithCoords: [],
+      optimalsByTime: {},
+      tabRef: [],
+    } as any);
+
+    const parsed = parseMusicXmlTabImport(xml);
+    expect(parsed.stamps).toEqual(
+      expect.arrayContaining([
+        [0, [5, 2], 480],
+        [0, [3, 4], 120],
+        [0, [2, 2], 120],
+        [120, [1, 2], 120],
+      ])
+    );
   });
 
   it("imports MIDI formats deterministically", async () => {
