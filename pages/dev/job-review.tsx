@@ -55,11 +55,8 @@ export default function JobReviewPreviewPage() {
 
           <div className="page-header">
             <div>
-              <h1 className="page-title">Choose where to import</h1>
+              <h1 className="page-title">Your tab is ready</h1>
             </div>
-            <button type="button" className="button-ghost button-small">
-              Back
-            </button>
           </div>
 
           <div className="review-shell" aria-busy={isImporting}>
@@ -69,6 +66,14 @@ export default function JobReviewPreviewPage() {
                   <h2 className="review-hero-title">Midnight Practice Loop</h2>
                 </div>
                 <span className="review-count-pill">{noteCount.toLocaleString()} notes</span>
+              </div>
+
+              <div className="review-value-preview" aria-label="Tab preview">
+                <p className="review-value-title">Preview</p>
+                <pre>{`e|----------------|
+B|------5---7-----|
+G|--4h6---6---4---|
+D|----------------|`}</pre>
               </div>
 
               {reviewBusyCopy ? (
@@ -133,8 +138,9 @@ export default function JobReviewPreviewPage() {
 
               <div className="button-row review-actions review-import-actions">
                 <button type="button" className="button-primary button-small" disabled={isImporting}>
-                  {isImporting ? "Importing..." : "Continue to editor"}
+                  {isImporting ? "Opening..." : "Open in editor"}
                 </button>
+                <p className="review-cta-note">You can edit everything after opening.</p>
               </div>
             </section>
           </div>

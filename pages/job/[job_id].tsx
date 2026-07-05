@@ -1012,33 +1012,32 @@ export default function JobPage() {
         <div className="container stack">
           <div className="page-header">
             <div>
-              <h1 className="page-title">{showReviewUi ? "Choose where to import" : "Preparing your tabs"}</h1>
-              <p className="page-subtitle">
-                {showReviewUi
-                  ? "Pick an editor and choose how the notes should be organized."
-                  : "Live updates while your tabs are processing."}
-              </p>
+              <h1 className="page-title">{showReviewUi ? "Your tab is ready" : "Preparing your tabs"}</h1>
+              {!showReviewUi ? <p className="page-subtitle">Live updates while your tabs are processing.</p> : null}
             </div>
-            <button type="button" onClick={() => void router.push("/")} className="button-ghost button-small">
-              Back
-            </button>
+            {!showReviewUi ? (
+              <button type="button" onClick={() => void router.push("/")} className="button-ghost button-small">
+                Back
+              </button>
+            ) : null}
           </div>
 
           {showReviewUi ? (
             <div className="review-shell" aria-busy={reviewBusy}>
               <section className="card review-import-card">
                 <div className="review-import-header">
-                  <span className="badge">Ready</span>
                   <div className="stack" style={{ gap: "8px" }}>
                     <h2 className="review-hero-title">{displayJob?.song_title || "Your transcription is ready"}</h2>
-                    <p className="review-hero-lead">
-                      Continue to import the generated notes directly into the guitar tab editor.
-                    </p>
                   </div>
                   {reviewNoteCount !== null ? (
                     <span className="review-count-pill">{reviewNoteCount.toLocaleString()} notes</span>
                   ) : null}
                 </div>
+
+              <div className="review-value-preview" aria-label="Tab preview">
+                <p className="review-value-title">Preview</p>
+                <pre>{(displayJob?.tab_text || "e|----------------|\nB|------5---7-----|\nG|--4h6---6---4---|\nD|----------------|").split("\n").slice(0, 4).join("\n")}</pre>
+              </div>
 
               {reviewBusy ? (
                 <div className="review-import-progress">
@@ -1106,11 +1105,9 @@ export default function JobPage() {
                   className="button-primary button-small"
                   disabled={reviewBusy || editorLoading}
                 >
-                  {reviewAction === "finalize" ? "Importing..." : "Continue to editor"}
+                  {reviewAction === "finalize" ? "Opening..." : "Open in editor"}
                 </button>
-                <button type="button" onClick={handleRestart} className="button-ghost button-small" disabled={reviewBusy}>
-                  Start over
-                </button>
+                <p className="review-cta-note">You can edit everything after opening.</p>
               </div>
               </section>
             </div>
