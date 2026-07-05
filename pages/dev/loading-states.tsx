@@ -1,5 +1,6 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import NoIndexHead from "../../components/NoIndexHead";
+import TranscriptionStartStatus from "../../components/TranscriptionStartStatus";
 
 const STATUS_MESSAGES = [
   "Uploading audio...",
@@ -93,6 +94,7 @@ export default function LoadingStatesPreviewPage() {
 
           <section className="card stack">
             <h2 className="section-title">Transcription Status</h2>
+            <TranscriptionStartStatus status={message} />
             <div className="status">
               <span className="transcription-thinking-text">{message}</span>
             </div>
