@@ -437,37 +437,11 @@ input[type="number"] {
   pointer-events: none;
 }
 
-.job-progress-staff,
 .job-progress-wave {
   position: absolute;
   left: 50%;
   width: min(920px, 128vw);
   transform: translateX(-50%);
-}
-
-.job-progress-staff {
-  height: 96px;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(15, 23, 42, 0.24) 0,
-    rgba(15, 23, 42, 0.24) 1px,
-    transparent 1px,
-    transparent 18px
-  );
-  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
-}
-
-.job-progress-staff-one {
-  top: 8%;
-  transform: translateX(-50%) rotate(-4deg);
-  animation: job-progress-staff-drift 9s ease-in-out infinite;
-}
-
-.job-progress-staff-two {
-  bottom: 0;
-  transform: translateX(-50%) rotate(3deg);
-  animation: job-progress-staff-drift 10s ease-in-out infinite reverse;
 }
 
 .job-progress-wave {
@@ -835,16 +809,6 @@ input[type="number"] {
   }
   50% {
     background-position: 100% center;
-  }
-}
-
-@keyframes job-progress-staff-drift {
-  0%,
-  100% {
-    margin-left: -12px;
-  }
-  50% {
-    margin-left: 12px;
   }
 }
 
@@ -6282,7 +6246,6 @@ input[type="number"] {
   .transcription-start-dot,
   .job-progress-fill,
   .job-progress-fill::after,
-  .job-progress-staff,
   .job-progress-wave,
   .transcription-start-progress span {
     animation: none;

@@ -177,8 +177,6 @@ export default function JobStatusLayout({
       <div className="card job-progress-card">
         <div className="job-progress-shell" aria-busy="true">
           <div className="job-progress-art" aria-hidden="true">
-            <span className="job-progress-staff job-progress-staff-one" />
-            <span className="job-progress-staff job-progress-staff-two" />
             <span className="job-progress-wave job-progress-wave-one" />
             <span className="job-progress-wave job-progress-wave-two" />
           </div>
