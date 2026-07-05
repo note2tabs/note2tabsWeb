@@ -95,9 +95,6 @@ export default function LoadingStatesPreviewPage() {
           <section className="card stack">
             <h2 className="section-title">Transcription Status</h2>
             <TranscriptionStartStatus status={message} />
-            <div className="status">
-              <span className="transcription-thinking-text">{message}</span>
-            </div>
           </section>
 
           <section className="card stack">
