@@ -4304,7 +4304,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               <button
                 type="button"
                 onClick={() => void router.push(transcriberHref)}
-                className="button-secondary button-small"
+                className="button-secondary button-small min-h-[34px]"
                 title="Open the standalone transcriber"
               >
                 Generate tabs
@@ -4313,7 +4313,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             <button
               type="button"
               onClick={() => void router.push(`/gte/${editorId}/tabs`)}
-              className="button-secondary button-small"
+              className="button-secondary button-small min-h-[34px]"
               title="View current editor as ASCII tabs"
             >
               View as tabs
@@ -4325,7 +4325,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   await loadEditor();
                 }}
                 onError={(message) => setError(message || null)}
-                className="button-secondary button-small"
+                className="button-secondary button-small min-h-[34px]"
                 busyLabel="Importing..."
                 title="Import a tab file"
               >
@@ -4349,7 +4349,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             <button
               type="button"
               onClick={handleExportTrack}
-              className="button-secondary button-small"
+              className="button-secondary button-small min-h-[34px]"
               title="Export selected track"
               disabled={exportingTrack || !canvas?.editors.length}
             >
