@@ -6063,8 +6063,8 @@ input[type="number"] {
   background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  animation: import-thinking-shimmer 2.6s ease-in-out infinite;
-  filter: saturate(1.2) contrast(1.08);
+  animation: import-thinking-shimmer var(--thinking-shimmer-duration, 2.6s) ease-in-out infinite;
+  filter: saturate(var(--thinking-shimmer-saturation, 1.2)) contrast(var(--thinking-shimmer-contrast, 1.08));
   will-change: background-position, filter;
 }
 
