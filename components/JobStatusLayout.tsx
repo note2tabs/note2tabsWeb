@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import TabViewer from "./TabViewer";
 import StemsList from "./StemsList";
 
@@ -83,12 +84,56 @@ function normalizeProgressPercent(value: unknown) {
   return Math.min(100, Math.max(0, Math.round(progress)));
 }
 
-function getFriendlyProgressMessage(progressPercent: number) {
-  if (progressPercent < 15) return "Getting everything ready.";
-  if (progressPercent < 35) return "Reading your audio.";
-  if (progressPercent < 65) return "Listening for the guitar part.";
-  if (progressPercent < 88) return "Turning the music into a tab.";
-  return "Getting your tab ready to open.";
+function getFriendlyProgressMessages(progressPercent: number) {
+  if (progressPercent < 15) {
+    return [
+      "Getting everything ready.",
+      "Making room for your song.",
+      "Setting up the workspace.",
+      "Warming up the tab maker.",
+      "Getting ready to listen.",
+    ];
+  }
+  if (progressPercent < 35) {
+    return [
+      "Reading your audio.",
+      "Finding the shape of the song.",
+      "Checking where the music starts.",
+      "Getting a clear listen.",
+      "Sorting through the sound.",
+      "Following the rhythm.",
+    ];
+  }
+  if (progressPercent < 65) {
+    return [
+      "Listening for the guitar part.",
+      "Picking out the notes.",
+      "Following the melody.",
+      "Catching the little details.",
+      "Looking for the main guitar line.",
+      "Matching notes to the beat.",
+      "Listening closely now.",
+    ];
+  }
+  if (progressPercent < 88) {
+    return [
+      "Turning the music into a tab.",
+      "Laying the notes onto strings.",
+      "Shaping the first draft.",
+      "Putting the notes in order.",
+      "Making the tab easier to read.",
+      "Checking how the phrases line up.",
+      "Building something you can edit.",
+    ];
+  }
+  return [
+    "Getting your tab ready to open.",
+    "Polishing the final result.",
+    "Almost ready to show you.",
+    "Preparing your preview.",
+    "Putting the last pieces in place.",
+    "Getting the editor ready.",
+  ];
 }
 
 export default function JobStatusLayout({
@@ -110,10 +155,23 @@ export default function JobStatusLayout({
   onVideoComplete,
   shareUrls,
 }: JobStatusLayoutProps) {
-  if (!job || job.status === "queued" || job.status === "pending" || job.status === "processing" || job.status === "running") {
+  const isPendingJob =
+    !job || job.status === "queued" || job.status === "pending" || job.status === "processing" || job.status === "running";
+  const [messageIndex, setMessageIndex] = useState(0);
+
+  useEffect(() => {
+    if (!isPendingJob) return undefined;
+    const intervalId = window.setInterval(() => {
+      setMessageIndex((current) => current + 1);
+    }, 6500);
+    return () => window.clearInterval(intervalId);
+  }, [isPendingJob]);
+
+  if (isPendingJob) {
     const progressPercent =
       normalizeProgressPercent(job?.progress) ?? normalizeProgressPercent(pendingPresentation?.progressPercent) ?? 0;
-    const progressMessage = getFriendlyProgressMessage(progressPercent);
+    const progressMessages = getFriendlyProgressMessages(progressPercent);
+    const progressMessage = progressMessages[messageIndex % progressMessages.length] || progressMessages[0];
 
     return (
       <div className="card job-progress-card">
