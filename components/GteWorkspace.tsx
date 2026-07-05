@@ -149,6 +149,7 @@ const CUT_SEGMENT_OFFSET = 20;
 const CUT_SEGMENT_MIN_WIDTH = 28;
 const CUT_BOUNDARY_OVERHANG = 12;
 const TIMELINE_BAR_HEADER_HEIGHT = 20;
+const TIMELINE_RENDER_OVERSCAN_PX = 900;
 const MAX_HISTORY = 16;
 const AUTOSAVE_DEBOUNCE_MS = 2500;
 const AUTOSAVE_INTERVAL_MS = 20000;
@@ -1660,6 +1661,48 @@ export default function GteWorkspace({
       isLabel: second % 5 === 0,
     }));
   }, [editorTabView.barCount, editorTabView.barWidth, framesPerMeasure, playbackFps]);
+  const timelineRenderWindow = useMemo(() => {
+    const safeScale = Math.max(0.0001, scale);
+    const fallbackClientWidth = Math.min(
+      viewportTimelineWidth,
+      Math.max(framesPerMeasure * TARGET_VISIBLE_BARS * safeScale, 1)
+    );
+    const clientWidth = timelineViewport.clientWidth > 0 ? timelineViewport.clientWidth : fallbackClientWidth;
+    const leftPx = Math.max(0, timelineViewport.scrollLeft - TIMELINE_RENDER_OVERSCAN_PX);
+    const rightPx = timelineViewport.scrollLeft + clientWidth + TIMELINE_RENDER_OVERSCAN_PX;
+    return {
+      startFrame: Math.max(0, Math.floor(leftPx / safeScale)),
+      endFrame: Math.min(timelineEnd, Math.ceil(rightPx / safeScale)),
+    };
+  }, [framesPerMeasure, scale, timelineEnd, timelineViewport.clientWidth, timelineViewport.scrollLeft, viewportTimelineWidth]);
+  const selectedNoteIdSet = useMemo(() => new Set(selectedNoteIds), [selectedNoteIds]);
+  const selectedChordIdSet = useMemo(() => new Set(selectedChordIds), [selectedChordIds]);
+  const visibleNotes = useMemo(() => {
+    const { startFrame, endFrame } = timelineRenderWindow;
+    return snapshot.notes.filter((note) => {
+      if (selectedNoteIdSet.has(note.id)) return true;
+      if (resizingNote?.id === note.id) return true;
+      if (dragging?.type === "note" && dragging.id === note.id) return true;
+      if (noteMenuNoteId === note.id) return true;
+      const start = Math.round(note.startTime);
+      const end = start + Math.max(1, Math.round(note.length));
+      return end >= startFrame && start <= endFrame;
+    });
+  }, [dragging, noteMenuNoteId, resizingNote, selectedNoteIdSet, snapshot.notes, timelineRenderWindow]);
+  const visibleChords = useMemo(() => {
+    const { startFrame, endFrame } = timelineRenderWindow;
+    return snapshot.chords.filter((chord) => {
+      if (selectedChordIdSet.has(chord.id)) return true;
+      if (resizingChord?.id === chord.id) return true;
+      if (dragging?.type === "chord" && dragging.id === chord.id) return true;
+      if (editingChordId === chord.id) return true;
+      if (chordMenuChordId === chord.id) return true;
+      const start = Math.round(chord.startTime);
+      const end = start + Math.max(1, Math.round(chord.length));
+      return end >= startFrame && start <= endFrame;
+    });
+  }, [chordMenuChordId, dragging, editingChordId, resizingChord, selectedChordIdSet, snapshot.chords, timelineRenderWindow]);
+  const visibleNoteIdSet = useMemo(() => new Set(visibleNotes.map((note) => note.id)), [visibleNotes]);
   const setEffectivePracticeLoopEnabled = useCallback(
     (enabled: boolean) => {
       if (onPracticeLoopEnabledChange) {
@@ -9013,14 +9056,24 @@ export default function GteWorkspace({
   }, [snapshot.noteEffects, snapshot.notes]);
 
   const renderableNoteEffects = useMemo(() => {
+    const notesById = new Map(snapshot.notes.map((note) => [note.id, note] as const));
+    const { startFrame, endFrame } = timelineRenderWindow;
     return (snapshot.noteEffects || [])
       .map((effect) => {
-        const startNote = snapshot.notes.find((note) => note.id === effect.startNoteId);
-        const endNote = snapshot.notes.find((note) => note.id === effect.endNoteId);
+        const startNote = notesById.get(effect.startNoteId);
+        const endNote = notesById.get(effect.endNoteId);
         if (!startNote || !endNote) return null;
         const startEnd = startNote.startTime + Math.max(1, Math.round(startNote.length));
         const effectStart = Math.min(startEnd, endNote.startTime);
         const effectLength = Math.max(1, Math.round(endNote.startTime - effectStart));
+        const effectEnd = effectStart + effectLength;
+        if (
+          !visibleNoteIdSet.has(startNote.id) &&
+          !visibleNoteIdSet.has(endNote.id) &&
+          (effectEnd < startFrame || effectStart > endFrame)
+        ) {
+          return null;
+        }
         return {
           effect,
           startNote,
@@ -9038,7 +9091,7 @@ export default function GteWorkspace({
           connectorSegments: ReturnType<typeof getSpanSegments>;
         } => Boolean(item)
       );
-  }, [getSpanSegments, snapshot.noteEffects, snapshot.notes]);
+  }, [getSpanSegments, snapshot.noteEffects, snapshot.notes, timelineRenderWindow, visibleNoteIdSet]);
 
   const renderToolbarPanel = (inlineMobile: boolean) => {
     const panelClass = inlineMobile
@@ -11234,7 +11287,7 @@ export default function GteWorkspace({
                   });
                 })}
 
-                {snapshot.notes.flatMap((note) => {
+                {visibleNotes.flatMap((note) => {
                   const noteEffectEdges = noteEffectEdgeMap.get(note.id) || { left: false, right: false };
                   const scalePreview = scaleToolActive ? scalePreviewNotes[note.id] : undefined;
                   const quantizePreview = quantizeDialogOpen ? quantizePreviewNotes[note.id] : undefined;
@@ -11395,7 +11448,7 @@ export default function GteWorkspace({
                   });
                 })}
 
-                {snapshot.chords.flatMap((chord) => {
+                {visibleChords.flatMap((chord) => {
                   const scalePreview = scaleToolActive ? scalePreviewChords[chord.id] : undefined;
                   const quantizePreview = quantizeDialogOpen ? quantizePreviewChords[chord.id] : undefined;
                   const movePreview = moveToolActive ? movePreviewChords[chord.id] : undefined;
