@@ -144,6 +144,18 @@ input[type="number"] {
   font-size: 0.85rem;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .stack {
   display: grid;
   gap: 18px;
@@ -271,9 +283,38 @@ input[type="number"] {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
+.job-progress-card {
+  position: relative;
+  overflow: hidden;
+  min-height: clamp(360px, 56vh, 520px);
+  padding: clamp(28px, 5vw, 56px);
+  background:
+    linear-gradient(150deg, rgba(255, 253, 248, 0.96), rgba(244, 239, 228, 0.72)),
+    var(--surface);
+}
+
+.job-progress-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.74), transparent 34%),
+    linear-gradient(115deg, transparent 0%, rgba(15, 23, 42, 0.05) 52%, transparent 100%);
+  pointer-events: none;
+}
+
 .job-progress-shell {
+  position: relative;
+  z-index: 1;
   display: grid;
   gap: 18px;
+}
+
+.job-progress-card .job-progress-shell {
+  min-height: inherit;
+  align-content: center;
+  justify-items: center;
+  gap: clamp(18px, 3vw, 30px);
 }
 
 .job-progress-header {
@@ -284,11 +325,29 @@ input[type="number"] {
   flex-wrap: wrap;
 }
 
+.job-progress-copy {
+  display: grid;
+  gap: 8px;
+  text-align: center;
+}
+
 .job-progress-phase {
   margin: 0;
   font-size: 1.1rem;
   font-weight: 700;
   line-height: 1.35;
+}
+
+.job-progress-card .job-progress-phase {
+  font-size: clamp(1.65rem, 4vw, 2.45rem);
+  letter-spacing: 0;
+}
+
+.job-progress-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
 }
 
 .job-progress-track {
@@ -302,28 +361,42 @@ input[type="number"] {
   border: 1px solid rgba(15, 23, 42, 0.1);
 }
 
+.job-progress-card .job-progress-track {
+  width: min(100%, 720px);
+  height: 16px;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.11), rgba(15, 23, 42, 0.045)),
+    rgba(255, 255, 255, 0.58);
+  border-color: rgba(15, 23, 42, 0.14);
+  box-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.12),
+    0 20px 44px rgba(15, 23, 42, 0.11);
+}
+
 .job-progress-fill {
   position: absolute;
   inset: 0 auto 0 0;
-  width: 36%;
+  width: 42%;
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(
     90deg,
-    rgba(15, 23, 42, 0.12) 0%,
-    rgba(15, 23, 42, 0.92) 48%,
-    rgba(15, 23, 42, 0.12) 100%
+    rgba(15, 23, 42, 0.1) 0%,
+    rgba(15, 23, 42, 0.7) 34%,
+    rgba(15, 23, 42, 0.98) 52%,
+    rgba(15, 23, 42, 0.7) 68%,
+    rgba(15, 23, 42, 0.1) 100%
   );
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
-  animation: job-progress-indeterminate 1.75s ease-in-out infinite;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
+  animation: job-progress-indeterminate 1.85s ease-in-out infinite;
 }
 
 .job-progress-fill::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.36) 42%, transparent 72%);
-  animation: job-progress-shimmer 1.2s linear infinite;
+  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.48) 42%, transparent 72%);
+  animation: job-progress-shimmer 1.35s linear infinite;
 }
 
 .job-progress-meta {
@@ -334,102 +407,76 @@ input[type="number"] {
   font-size: 0.85rem;
 }
 
-.job-progress-facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
+.job-progress-art {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0.62;
+  pointer-events: none;
 }
 
-.job-progress-fact {
-  display: grid;
-  gap: 6px;
-  padding: 14px 15px;
-  border-radius: 18px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: var(--surface);
+.job-progress-staff,
+.job-progress-wave {
+  position: absolute;
+  left: 50%;
+  width: min(920px, 128vw);
+  transform: translateX(-50%);
 }
 
-.job-progress-fact-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #5f6f86;
+.job-progress-staff {
+  height: 96px;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(15, 23, 42, 0.16) 0,
+    rgba(15, 23, 42, 0.16) 1px,
+    transparent 1px,
+    transparent 18px
+  );
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
 }
 
-.job-progress-fact-value {
-  font-size: 0.98rem;
-  line-height: 1.35;
-  color: var(--text);
+.job-progress-staff-one {
+  top: 15%;
+  transform: translateX(-50%) rotate(-4deg);
+  animation: job-progress-staff-drift 9s ease-in-out infinite;
 }
 
-.job-progress-fact-note {
-  font-size: 0.82rem;
-  line-height: 1.45;
-  color: var(--muted);
+.job-progress-staff-two {
+  bottom: 12%;
+  transform: translateX(-50%) rotate(3deg);
+  animation: job-progress-staff-drift 10s ease-in-out infinite reverse;
 }
 
-.job-progress-note {
-  display: grid;
-  gap: 6px;
-  padding: 14px 15px;
-  border-radius: 18px;
-  background: var(--surface);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-}
-
-.job-progress-note p {
-  margin: 0;
-  color: var(--text);
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-
-.job-progress-warning {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: rgba(249, 115, 22, 0.12);
-  border: 1px solid rgba(249, 115, 22, 0.18);
-  color: #9a3412;
-  font-size: 0.9rem;
-  line-height: 1.45;
-}
-
-.job-progress-steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.job-progress-step {
-  display: inline-flex;
-  align-items: center;
-  padding: 7px 12px;
+.job-progress-wave {
+  height: 132px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: rgba(15, 23, 42, 0.04);
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  background:
+    linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.11), transparent),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 18px,
+      rgba(15, 23, 42, 0.13) 18px,
+      rgba(15, 23, 42, 0.13) 22px,
+      transparent 22px,
+      transparent 38px
+    );
+  mask-image: radial-gradient(ellipse at center, #000 0%, #000 42%, transparent 72%);
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 0%, #000 42%, transparent 72%);
 }
 
-.job-progress-step.is-complete {
-  background: rgba(31, 191, 159, 0.12);
-  border-color: rgba(31, 191, 159, 0.24);
-  color: #0e6d5c;
+.job-progress-wave-one {
+  top: 30%;
+  transform: translateX(-50%) scaleY(0.62);
+  animation: job-progress-wave-scan 3.8s ease-in-out infinite;
 }
 
-.job-progress-step.is-active {
-  background: rgba(15, 23, 42, 0.08);
-  border-color: rgba(15, 23, 42, 0.22);
-  color: var(--text);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
-}
-
-.job-progress-step.is-upcoming {
-  opacity: 0.72;
+.job-progress-wave-two {
+  top: 43%;
+  transform: translateX(-50%) scaleY(0.38);
+  opacity: 0.7;
+  animation: job-progress-wave-scan 4.8s ease-in-out infinite reverse;
 }
 
 .review-shell {
@@ -768,6 +815,26 @@ input[type="number"] {
   }
   100% {
     transform: translateX(275%);
+  }
+}
+
+@keyframes job-progress-staff-drift {
+  0%,
+  100% {
+    margin-left: -12px;
+  }
+  50% {
+    margin-left: 12px;
+  }
+}
+
+@keyframes job-progress-wave-scan {
+  0%,
+  100% {
+    background-position: -34px 0, 0 0;
+  }
+  50% {
+    background-position: 34px 0, 22px 0;
   }
 }
 
@@ -6194,6 +6261,8 @@ input[type="number"] {
 
   .transcription-start-dot,
   .job-progress-fill,
+  .job-progress-staff,
+  .job-progress-wave,
   .transcription-start-progress span {
     animation: none;
   }

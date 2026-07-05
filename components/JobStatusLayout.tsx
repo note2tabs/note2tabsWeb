@@ -78,7 +78,6 @@ type JobStatusLayoutProps = {
 
 export default function JobStatusLayout({
   job,
-  pendingPresentation,
   onRestart,
   onDownloadTabs,
   onImportToEditor,
@@ -96,77 +95,31 @@ export default function JobStatusLayout({
   shareUrls,
 }: JobStatusLayoutProps) {
   if (!job || job.status === "queued" || job.status === "pending" || job.status === "processing" || job.status === "running") {
-    const pending = pendingPresentation;
-    const currentStage =
-      pending?.stages.find((stage) => stage.state === "active") ||
-      pending?.stages.find((stage) => stage.state === "complete") ||
-      null;
-    const workingOnLabel = job?.song_title
-      ? `${job.song_title}${job.artist ? ` - ${job.artist}` : ""}`
-      : "Your track";
-    const currentStepLabel = currentStage?.label || pending?.phaseLabel || "Preparing";
-    const updateLabel =
-      pending?.badgeLabel === "In line"
-        ? "Your transcription is queued and will start automatically."
-        : "The backend is still working. This page updates automatically.";
     return (
-      <div className="card">
+      <div className="card job-progress-card">
         <div className="job-progress-shell" aria-busy="true">
-          <div className="job-progress-header">
-            <div className="stack" style={{ gap: "8px" }}>
-              <span className="badge">{pending?.badgeLabel || "Working"}</span>
-              <p className="job-progress-phase">{pending?.phaseLabel || "Preparing tabs"}</p>
-              <p className="muted text-small" style={{ margin: 0 }}>
-                {pending?.detail || "This usually takes under a minute."}
-              </p>
-            </div>
+          <div className="job-progress-art" aria-hidden="true">
+            <span className="job-progress-staff job-progress-staff-one" />
+            <span className="job-progress-staff job-progress-staff-two" />
+            <span className="job-progress-wave job-progress-wave-one" />
+            <span className="job-progress-wave job-progress-wave-two" />
           </div>
-          {pending ? (
-            <>
-              <div
-                className="job-progress-track"
-                role="progressbar"
-                aria-valuetext={pending.phaseLabel || "Transcription is running"}
-                aria-label="Transcription activity"
-              >
-                <div className="job-progress-fill" />
-              </div>
-              <div className="job-progress-meta">
-                <span>{pending.elapsedLabel}</span>
-                {pending.typicalDurationLabel ? <span>{pending.typicalDurationLabel}</span> : null}
-              </div>
-              <div className="job-progress-facts" aria-label="Processing details">
-                <div className="job-progress-fact">
-                  <span className="job-progress-fact-label">Working on</span>
-                  <strong className="job-progress-fact-value">{workingOnLabel}</strong>
-                </div>
-                <div className="job-progress-fact">
-                  <span className="job-progress-fact-label">Current step</span>
-                  <strong className="job-progress-fact-value">{currentStepLabel}</strong>
-                </div>
-                <div className="job-progress-fact">
-                  <span className="job-progress-fact-label">Status</span>
-                  <strong className="job-progress-fact-value">{pending.stepSummary || pending.badgeLabel}</strong>
-                </div>
-              </div>
-              <div className="job-progress-note">
-                <p>{updateLabel}</p>
-              </div>
-              {pending.attemptLabel ? (
-                <p className="muted text-small" style={{ margin: 0 }}>
-                  {pending.attemptLabel}
-                </p>
-              ) : null}
-              {pending.warningLabel ? <p className="job-progress-warning">{pending.warningLabel}</p> : null}
-              <div className="job-progress-steps" aria-label="Processing stages">
-                {pending.stages.map((stage) => (
-                  <span key={stage.label} className={`job-progress-step is-${stage.state}`}>
-                    {stage.label}
-                  </span>
-                ))}
-              </div>
-            </>
-          ) : null}
+
+          <div className="job-progress-copy">
+            <p className="job-progress-phase">Creating your tab</p>
+            <p className="job-progress-subtitle">Keep this tab open.</p>
+          </div>
+
+          <div
+            className="job-progress-track"
+            role="progressbar"
+            aria-valuetext="Transcription is running"
+            aria-label="Transcription activity"
+          >
+            <div className="job-progress-fill" />
+          </div>
+
+          <p className="sr-only">Your transcription is still running. This page updates automatically.</p>
         </div>
       </div>
     );

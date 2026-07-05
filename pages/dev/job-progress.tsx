@@ -8,71 +8,31 @@ import NoIndexHead from "../../components/NoIndexHead";
 const PREVIEW_STATES = [
   {
     key: "queued",
-    label: "Queued",
+    label: "Preview 1",
     jobStatus: "queued",
-    badgeLabel: "In line",
-    phaseLabel: "Waiting for transcription worker",
-    detail: "Your request is saved and will start automatically when a worker is ready.",
+    phaseLabel: "Transcription is running",
     progressPercent: 8,
-    elapsedLabel: "Just started",
-    stepSummary: "Queued",
-    stages: [
-      { label: "Queued", state: "active" },
-      { label: "Preparing audio", state: "upcoming" },
-      { label: "Finding notes", state: "upcoming" },
-      { label: "Writing tabs", state: "upcoming" },
-    ],
   },
   {
     key: "preparing",
-    label: "Preparing audio",
+    label: "Preview 2",
     jobStatus: "processing",
-    badgeLabel: "Working",
-    phaseLabel: "Preparing audio",
-    detail: "We are reading the audio and preparing it for transcription.",
+    phaseLabel: "Transcription is running",
     progressPercent: 28,
-    elapsedLabel: "About 12 seconds elapsed",
-    stepSummary: "Audio setup",
-    stages: [
-      { label: "Queued", state: "complete" },
-      { label: "Preparing audio", state: "active" },
-      { label: "Finding notes", state: "upcoming" },
-      { label: "Writing tabs", state: "upcoming" },
-    ],
   },
   {
     key: "transcribing",
-    label: "Transcribing",
+    label: "Preview 3",
     jobStatus: "running",
-    badgeLabel: "Working",
-    phaseLabel: "Finding guitar notes",
-    detail: "The backend is listening for notes and estimating timing.",
+    phaseLabel: "Transcription is running",
     progressPercent: 62,
-    elapsedLabel: "About 38 seconds elapsed",
-    stepSummary: "Note detection",
-    stages: [
-      { label: "Queued", state: "complete" },
-      { label: "Preparing audio", state: "complete" },
-      { label: "Finding notes", state: "active" },
-      { label: "Writing tabs", state: "upcoming" },
-    ],
   },
   {
     key: "tabs",
-    label: "Writing tabs",
+    label: "Preview 4",
     jobStatus: "processing",
-    badgeLabel: "Almost there",
-    phaseLabel: "Writing guitar tabs",
-    detail: "We are arranging the detected notes into editable guitar tablature.",
+    phaseLabel: "Transcription is running",
     progressPercent: 88,
-    elapsedLabel: "About 56 seconds elapsed",
-    stepSummary: "Tab generation",
-    stages: [
-      { label: "Queued", state: "complete" },
-      { label: "Preparing audio", state: "complete" },
-      { label: "Finding notes", state: "complete" },
-      { label: "Writing tabs", state: "active" },
-    ],
   },
 ] as const;
 
@@ -88,7 +48,7 @@ export default function JobProgressPreviewPage() {
       artist: "Note2Tabs",
       progress: previewState.progressPercent,
       currentStepLabel: previewState.phaseLabel,
-      currentStepDetail: previewState.detail,
+      currentStepDetail: "Your transcription is still running. This page updates automatically.",
       createdAt: new Date(Date.now() - 38_000).toISOString(),
       updatedAt: new Date().toISOString(),
     }),
@@ -97,17 +57,14 @@ export default function JobProgressPreviewPage() {
 
   const pendingPresentation = useMemo<PendingJobPresentation>(
     () => ({
-      badgeLabel: previewState.badgeLabel,
+      badgeLabel: "Loading",
       phaseLabel: previewState.phaseLabel,
-      detail: previewState.detail,
+      detail: "Your transcription is still running. This page updates automatically.",
       progressPercent: previewState.progressPercent,
-      elapsedLabel: previewState.elapsedLabel,
-      typicalDurationLabel: "Usually under a minute",
-      stepSummary: previewState.stepSummary,
-      stages: previewState.stages.map((stage) => ({
-        label: stage.label,
-        state: stage.state,
-      })),
+      elapsedLabel: "",
+      typicalDurationLabel: "",
+      stepSummary: null,
+      stages: [],
     }),
     [previewState]
   );
@@ -130,7 +87,7 @@ export default function JobProgressPreviewPage() {
 
           <section className="card stack">
             <label className="form-group">
-              <span className="label">Progress state</span>
+              <span className="label">Preview timing</span>
               <select
                 className="form-select"
                 value={stateKey}
