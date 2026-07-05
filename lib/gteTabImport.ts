@@ -1,3 +1,5 @@
+import { unzipSync } from "fflate";
+
 const STANDARD_TUNING_MIDI_HIGH_TO_LOW = [64, 59, 55, 50, 45, 40];
 const ASCII_LINE_LABELS = ["e", "B", "G", "D", "A", "E"];
 const FIXED_FRAMES_PER_BAR = 480;
@@ -108,9 +110,6 @@ export function getUnsupportedTabImportMessage(fileName: string) {
   if (!isRecognizedTabImportExtension(extension)) {
     return "This file type is not recognized as a common tab format.";
   }
-  if (extension === "mxl") {
-    return "Compressed MusicXML (.mxl) is recognized, but this browser importer cannot unzip it yet. Export as .musicxml or .xml and import that file.";
-  }
   return "This format is recognized, but it needs a PowerTab/TablEdit/TuxGuitar converter before it can be imported into this editor. Export it as Guitar Pro, MusicXML, MIDI, or ASCII tab first.";
 }
 
@@ -146,6 +145,8 @@ export async function parseTabImportFile(file: File): Promise<ParsedTabFileImpor
   let parsed: ParsedTabImport;
   if (extension === "mid" || extension === "midi") {
     parsed = parseMidiTabImport(await file.arrayBuffer());
+  } else if (extension === "mxl") {
+    parsed = parseCompressedMusicXmlTabImport(await file.arrayBuffer());
   } else if (extension === "xml" || extension === "musicxml") {
     parsed = parseMusicXmlTabImport(await file.text());
   } else if (canParseWithAlphaTab(extension)) {
@@ -216,6 +217,31 @@ export function parseMusicXmlTabImport(xml: string): ParsedTabImport {
   });
 }
 
+export function parseCompressedMusicXmlTabImport(buffer: ArrayBuffer): ParsedTabImport {
+  let entries: Record<string, Uint8Array>;
+  try {
+    entries = unzipSync(new Uint8Array(buffer));
+  } catch {
+    throw new Error("This does not look like a valid compressed MusicXML file.");
+  }
+  const decoder = new TextDecoder();
+  const normalizedEntries = new Map(Object.entries(entries).map(([name, value]) => [name.replace(/\\/g, "/"), value]));
+  const containerXml = normalizedEntries.get("META-INF/container.xml");
+  const rootFile = containerXml
+    ? getMusicXmlContainerRootFile(decoder.decode(containerXml))
+    : "";
+  const musicXmlEntry =
+    (rootFile ? normalizedEntries.get(rootFile) : undefined) ??
+    Array.from(normalizedEntries.entries()).find(
+      ([name]) => !name.startsWith("META-INF/") && /\.(?:xml|musicxml)$/i.test(name)
+    )?.[1];
+
+  if (!musicXmlEntry) {
+    throw new Error("No MusicXML score was found inside this .mxl file.");
+  }
+  return parseMusicXmlTabImport(decoder.decode(musicXmlEntry));
+}
+
 export function parseMidiTabImport(buffer: ArrayBuffer): ParsedTabImport {
   const tracks = extractMidiTracks(buffer);
   if (!tracks.length) {
@@ -268,13 +294,24 @@ function decodeXmlEntities(value: string) {
 }
 
 function getTagText(source: string, tagName: string) {
-  const match = source.match(new RegExp(`<${tagName}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tagName}>`, "i"));
+  const match = source.match(new RegExp(`<${tagName}\\b(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tagName}>`, "i"));
   return match ? decodeXmlEntities(match[1].trim()) : "";
+}
+
+function getOptionalTagNumber(source: string, tagName: string) {
+  const text = getTagText(source, tagName);
+  if (!text) return NaN;
+  return Number(text);
+}
+
+function getMusicXmlContainerRootFile(containerXml: string) {
+  const rootfile = containerXml.match(/<rootfile\b[^>]*\bfull-path=(["'])(.*?)\1/i);
+  return rootfile ? decodeXmlEntities(rootfile[2]).replace(/\\/g, "/") : "";
 }
 
 function getTagBlocks(source: string, tagName: string) {
   const blocks: string[] = [];
-  const pattern = new RegExp(`<${tagName}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tagName}>`, "gi");
+  const pattern = new RegExp(`<${tagName}\\b(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tagName}>`, "gi");
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(source))) {
     blocks.push(match[0]);
@@ -344,7 +381,7 @@ function extractMusicXmlNotes(xml: string): TabPosition[] {
       const measureDuration = getMusicXmlMeasureDurationFrames(measureXml, state);
       let cursorFrame = measureStartFrame;
       let lastNoteStartFrame = measureStartFrame;
-      const tokens = measureXml.match(/<(?:note|backup|forward)(?:\s[^>]*)?>[\s\S]*?<\/(?:note|backup|forward)>/gi) || [];
+      const tokens = measureXml.match(/<(?:note|backup|forward)\b(?:\s[^>]*)?>[\s\S]*?<\/(?:note|backup|forward)>/gi) || [];
 
       tokens.forEach((token) => {
         if (/^<backup/i.test(token)) {
@@ -363,9 +400,9 @@ function extractMusicXmlNotes(xml: string): TabPosition[] {
         if (!isChord) lastNoteStartFrame = noteStartFrame;
 
         if (!isRest) {
-          const technical = token.match(/<technical(?:\s[^>]*)?>([\s\S]*?)<\/technical>/i)?.[1] || token;
-          const musicXmlString = Number(getTagText(technical, "string"));
-          const fret = Number(getTagText(technical, "fret"));
+          const technical = token.match(/<technical\b(?:\s[^>]*)?>([\s\S]*?)<\/technical>/i)?.[1] || "";
+          const musicXmlString = getOptionalTagNumber(technical, "string");
+          const fret = getOptionalTagNumber(technical, "fret");
           if (Number.isFinite(musicXmlString) && Number.isFinite(fret)) {
             positions.push({
               column: noteStartFrame,

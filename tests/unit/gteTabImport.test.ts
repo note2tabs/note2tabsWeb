@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { zipSync } from "fflate";
 import {
   TAB_IMPORT_MAX_TEXT_FILE_SIZE_BYTES,
   TAB_IMPORT_MAX_TEXT_CHARS,
   getImportNameFromFile,
   getUnsupportedTabImportMessage,
+  parseCompressedMusicXmlTabImport,
   parseMidiTabImport,
   parseTabImportFile,
   parseMusicXmlTabImport,
@@ -60,6 +62,37 @@ const musicXml = `
       </measure>
     </part>
   </score-partwise>`;
+
+const pitchedMusicXml = `
+  <score-partwise>
+    <part id="P1">
+      <measure number="1">
+        <attributes>
+          <divisions>4</divisions>
+          <time><beats>4</beats><beat-type>4</beat-type></time>
+        </attributes>
+        <note>
+          <pitch><step>A</step><octave>4</octave></pitch>
+          <duration>4</duration>
+        </note>
+        <note>
+          <pitch><step>G</step><alter>1</alter><octave>4</octave></pitch>
+          <duration>4</duration>
+        </note>
+      </measure>
+    </part>
+  </score-partwise>`;
+
+const compressedMusicXmlBytes = () =>
+  zipSync({
+    "META-INF/container.xml": new TextEncoder().encode(`<?xml version="1.0" encoding="UTF-8"?>
+      <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+        <rootfiles>
+          <rootfile full-path="score.musicxml" media-type="application/vnd.recordare.musicxml+xml"/>
+        </rootfiles>
+      </container>`),
+    "score.musicxml": new TextEncoder().encode(musicXml),
+  });
 
 const simpleMidiBytes = [
   0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x01, 0x01, 0xe0,
@@ -163,6 +196,14 @@ describe("gte tab import helpers", () => {
     expect(parsed.stamps[0]).toEqual([0, [0, 0], 120]);
   });
 
+  it("falls back to pitch-derived tabs when MusicXML has no tablature data", () => {
+    const parsed = parseMusicXmlTabImport(pitchedMusicXml);
+    expect(parsed.stamps).toEqual([
+      [0, [0, 5], 120],
+      [120, [0, 4], 120],
+    ]);
+  });
+
   it("keeps instrumental MIDI tracks separate", () => {
     const parsed = parseMidiTabImport(bytesToArrayBuffer(multiTrackMidiBytes));
 
@@ -222,6 +263,21 @@ describe("gte tab import helpers", () => {
     }
   });
 
+  it("imports compressed MusicXML files", async () => {
+    const parsed = parseCompressedMusicXmlTabImport(bytesToArrayBuffer(Array.from(compressedMusicXmlBytes())));
+    expect(parsed.stamps).toEqual([
+      [0, [0, 0], 120],
+      [0, [1, 1], 120],
+      [240, [2, 2], 240],
+      [480, [3, 0], 120],
+    ]);
+
+    const fileResult = await parseTabImportFile(
+      new File([bytesToArrayBuffer(Array.from(compressedMusicXmlBytes()))], "compressed.mxl")
+    );
+    expect(fileResult.stamps).toEqual(parsed.stamps);
+  });
+
   it("round-trips exported MusicXML chord notes without staggering them", () => {
     const xml = buildMusicXmlFromSnapshot({
       id: "roundtrip",
@@ -269,7 +325,7 @@ describe("gte tab import helpers", () => {
   });
 
   it("rejects recognized wrapper or converter formats consistently when no browser parser is available", async () => {
-    for (const extension of ["mxl", "ptb", "tef", "tg"]) {
+    for (const extension of ["ptb", "tef", "tg"]) {
       const file = new File([new Uint8Array([1, 2, 3, 4])], `unsupported.${extension}`);
       await expect(parseTabImportFile(file)).rejects.toThrow();
     }
