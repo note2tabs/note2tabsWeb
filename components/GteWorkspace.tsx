@@ -143,6 +143,7 @@ const DEFAULT_SECONDS_PER_BAR = 2;
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
 const NOTE_LENGTH_FRACTION_DENOMINATORS = Array.from({ length: 64 }, (_, index) => index + 1);
+const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 4, 8, 16, 32, 64];
 const DEFAULT_CUT_COORD: TabCoord = [2, 0];
 const CUT_SEGMENT_HEIGHT = 20;
 const CUT_SEGMENT_OFFSET = 20;
@@ -241,6 +242,13 @@ const parseScaleFactorInput = (value: string) => {
     return denominator > 0 ? 1 / denominator : null;
   }
   return parsed;
+};
+
+const getNearestCursorSizeDenominator = (value: number) => {
+  const safeValue = Math.max(1, Number(value) || 1);
+  return CURSOR_SIZE_FRACTION_DENOMINATORS.reduce((best, candidate) =>
+    Math.abs(candidate - safeValue) < Math.abs(best - safeValue) ? candidate : best
+  );
 };
 
 const formatScaleFactorInputDraft = (value: string) => {
@@ -1271,6 +1279,7 @@ export default function GteWorkspace({
   const [timeSignatureInput, setTimeSignatureInput] = useState("8");
   const [timeSignatureBottom, setTimeSignatureBottom] = useState(4);
   const [defaultNoteLengthDenominator, setDefaultNoteLengthDenominator] = useState(4);
+  const [cursorSizeDenominator, setCursorSizeDenominator] = useState(4);
   const [keepNotesOnBeat, setKeepNotesOnBeat] = useState(false);
   const [localSnapToGridEnabled, setLocalSnapToGridEnabled] = useState(true);
   const [localSnapToKeyEnabled, setLocalSnapToKeyEnabled] = useState(false);
@@ -1455,6 +1464,8 @@ export default function GteWorkspace({
   const noteFretTypingBufferRef = useRef("");
   const noteFretTypingAtRef = useRef(0);
   const defaultNoteLengthUserChangedRef = useRef(false);
+  const previousTimeSignatureRef = useRef(8);
+  const previousTimeSignatureBottomRef = useRef(4);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosaveInFlightRef = useRef(false);
   const autosaveQueuedRef = useRef(false);
@@ -1542,6 +1553,15 @@ export default function GteWorkspace({
     },
     [framesPerMeasure, timeSignature, timeSignatureBottom]
   );
+  const cursorSizeDenominatorToFrames = useCallback(
+    (denominator: number) => {
+      const safeDenominator = getNearestCursorSizeDenominator(denominator);
+      const beatsPerBar = Math.max(1, Math.round(timeSignature));
+      const beatUnit = Math.max(1, Math.round(timeSignatureBottom));
+      return Math.max(1, Math.round((framesPerMeasure * beatUnit) / (beatsPerBar * safeDenominator)));
+    },
+    [framesPerMeasure, timeSignature, timeSignatureBottom]
+  );
   const getNearestNoteFractionDenominator = useCallback(
     (frames: number) => {
       const safeFrames = clampEventLength(frames);
@@ -1561,6 +1581,18 @@ export default function GteWorkspace({
     if (defaultNoteLengthUserChangedRef.current) return;
     setDefaultNoteLengthDenominator(Math.max(1, Math.min(64, Math.round(timeSignatureBottom))));
   }, [timeSignatureBottom]);
+  useEffect(() => {
+    const previousTop = Math.max(1, Math.round(previousTimeSignatureRef.current));
+    const previousBottom = Math.max(1, Math.round(previousTimeSignatureBottomRef.current));
+    const nextTop = Math.max(1, Math.round(timeSignature));
+    const nextBottom = Math.max(1, Math.round(timeSignatureBottom));
+    previousTimeSignatureRef.current = nextTop;
+    previousTimeSignatureBottomRef.current = nextBottom;
+    if (previousTop === nextTop && previousBottom === nextBottom) return;
+    setCursorSizeDenominator((prev) =>
+      getNearestCursorSizeDenominator((Math.max(1, prev) * nextBottom * previousTop) / (previousBottom * nextTop))
+    );
+  }, [timeSignature, timeSignatureBottom]);
   useEffect(() => {
     lastAddedNoteLengthRef.current = noteFractionDenominatorToFrames(defaultNoteLengthDenominator);
   }, [defaultNoteLengthDenominator, noteFractionDenominatorToFrames]);
@@ -7413,31 +7445,26 @@ export default function GteWorkspace({
     (time: number, direction: -1 | 1) => {
       const maxTime = Math.max(0, timelineEnd - 1);
       const safeTime = clamp(Math.round(time), 0, maxTime);
-      const current = getBeatGridTime(safeTime, timeSignature, "round");
-      const nudge = direction > 0 ? current + 1 : current - 1;
-      return clamp(getBeatGridTime(nudge, timeSignature, direction > 0 ? "ceil" : "floor"), 0, maxTime);
+      const step = cursorSizeDenominatorToFrames(cursorSizeDenominator);
+      const current = Math.round(Math.round(safeTime / step) * step);
+      return clamp(current + direction * step, 0, maxTime);
     },
-    [clamp, timeSignature, timelineEnd]
+    [clamp, cursorSizeDenominator, cursorSizeDenominatorToFrames, timelineEnd]
   );
 
   const snapKeyboardCursorTimeToGrid = useCallback(
     (time: number) => {
       const maxTime = Math.max(0, timelineEnd - 1);
       const safeTime = clamp(Math.round(time), 0, maxTime);
-      return clamp(getBeatGridTime(safeTime, timeSignature, "round"), 0, maxTime);
+      const step = cursorSizeDenominatorToFrames(cursorSizeDenominator);
+      return clamp(Math.round(Math.round(safeTime / step) * step), 0, maxTime);
     },
-    [clamp, timeSignature, timelineEnd]
+    [clamp, cursorSizeDenominator, cursorSizeDenominatorToFrames, timelineEnd]
   );
 
   const getKeyboardGridCellWidthFrames = useCallback(
-    (time: number) => {
-      const current = snapKeyboardCursorTimeToGrid(time);
-      const next = getAdjacentKeyboardGridTime(current, 1);
-      if (next > current) return next - current;
-      const previous = getAdjacentKeyboardGridTime(current, -1);
-      return Math.max(1, current - previous);
-    },
-    [getAdjacentKeyboardGridTime, snapKeyboardCursorTimeToGrid]
+    (_time?: number) => cursorSizeDenominatorToFrames(cursorSizeDenominator),
+    [cursorSizeDenominator, cursorSizeDenominatorToFrames]
   );
 
   const getCenteredKeyboardCursor = useCallback((): KeyboardGridCursor => {
@@ -9546,6 +9573,29 @@ export default function GteWorkspace({
     </label>
   );
 
+  const renderCursorSizeControl = (compact = false) => (
+    <label
+      className={`pointer-events-auto flex ${
+        compact ? "h-8" : "h-9"
+      } items-center gap-1 rounded-full border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500 shadow-sm backdrop-blur`}
+    >
+      <span className="whitespace-nowrap">cursor size</span>
+      <select
+        value={cursorSizeDenominator}
+        onChange={(event) => setCursorSizeDenominator(getNearestCursorSizeDenominator(Number(event.target.value)))}
+        className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
+        title="Cursor size"
+        aria-label="Cursor size"
+      >
+        {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
+          <option key={denominator} value={denominator}>
+            1/{denominator}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
   return (
     <div
       className={workspaceClass}
@@ -9833,6 +9883,7 @@ export default function GteWorkspace({
             {mobileViewport ? (
               <div className="pointer-events-auto flex w-full items-center gap-2">
                 {renderDefaultNoteLengthControl(true)}
+                {renderCursorSizeControl(true)}
               <div
                 data-gte-floating-ui="true"
                 className="flex min-w-0 flex-1 items-center justify-between gap-1 rounded-2xl border border-slate-200 bg-white/96 px-2 py-2 text-slate-700 shadow-lg backdrop-blur"
@@ -9994,6 +10045,7 @@ export default function GteWorkspace({
             ) : (
               <div className="pointer-events-auto flex items-center gap-2">
                 {renderDefaultNoteLengthControl(false)}
+                {renderCursorSizeControl(false)}
               <div
                 data-gte-floating-ui="true"
                 className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur"
