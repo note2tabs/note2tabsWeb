@@ -78,13 +78,6 @@ export default function JobProgressPreviewPage() {
       />
       <main className="page page-tight">
         <div className="container stack">
-          <div className="page-header">
-            <div>
-              <h1 className="page-title">Job Progress Preview</h1>
-              <p className="page-subtitle">Preview the backend transcription progress page without starting a job.</p>
-            </div>
-          </div>
-
           <section className="card stack">
             <label className="form-group">
               <span className="label">Preview timing</span>
