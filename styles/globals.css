@@ -1404,6 +1404,11 @@ input[type="number"] {
     0 12px 26px rgba(17, 17, 17, 0.06);
 }
 
+.transcription-start-panel--compact {
+  width: 100%;
+  margin-top: 0;
+}
+
 .transcription-start-dot {
   width: 9px;
   height: 9px;

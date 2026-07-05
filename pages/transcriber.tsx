@@ -896,7 +896,9 @@ export default function TranscriberPage() {
               </div>
 
               <div className="prompt-field">
-                {mode === "FILE" ? (
+                {loading && status ? (
+                  <TranscriptionStartStatus status={status} compact />
+                ) : mode === "FILE" ? (
                   <div
                     className={`dropzone ${dragActive ? "active" : ""}`}
                     onDrop={onDrop}
@@ -1009,9 +1011,7 @@ export default function TranscriberPage() {
                 </button>
               </div>
 
-              {status && (
-                loading ? <TranscriptionStartStatus status={status} /> : <div className="status">{status}</div>
-              )}
+              {status && !loading && <div className="status">{status}</div>}
               {error && <div className="error">{error}</div>}
               {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
                 <div className="notice">

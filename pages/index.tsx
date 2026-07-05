@@ -1165,35 +1165,41 @@ export default function HomePage() {
                         onDragEnter={mode === "FILE" ? onDragEnter : undefined}
                         onDragLeave={mode === "FILE" ? onDragLeave : undefined}
                       >
-                        <span
-                          className={`funnel-icon ${mode === "YOUTUBE" ? "funnel-icon--youtube" : ""}`}
-                          aria-hidden="true"
-                        >
-                          {mode === "YOUTUBE" ? (
-                            <svg className="youtube-mark" viewBox="0 0 28 20" fill="none">
-                              <path
-                                d="M27.4 3.1c-.32-1.2-1.24-2.15-2.4-2.48C22.9 0 14 0 14 0S5.1 0 3 .62C1.84.95.92 1.9.6 3.1.03 5.28.03 10 .03 10s0 4.72.57 6.9c.32 1.2 1.24 2.15 2.4 2.48C5.1 20 14 20 14 20s8.9 0 11-.62c1.16-.33 2.08-1.28 2.4-2.48.57-2.18.57-6.9.57-6.9s0-4.72-.57-6.9Z"
-                                fill="currentColor"
-                              />
-                              <path d="M11.2 14.25V5.75L18.45 10l-7.25 4.25Z" fill="#fff" />
-                            </svg>
-                          ) : (
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M8 5.5v13l10-6.5-10-6.5z" />
-                            </svg>
-                          )}
-                        </span>
-                        {mode === "FILE" ? (
-                          <span className="funnel-file-label">
-                            {selectedFile ? selectedFile.name : "Upload audio file or drop it here"}
-                          </span>
+                        {loading && status ? (
+                          <TranscriptionStartStatus status={status} compact />
                         ) : (
-                          <input
-                            type="url"
-                            value={youtubeUrl}
-                            onChange={(event) => setYoutubeUrl(event.target.value)}
-                            placeholder="https://www.youtube.com/..."
-                          />
+                          <>
+                            <span
+                              className={`funnel-icon ${mode === "YOUTUBE" ? "funnel-icon--youtube" : ""}`}
+                              aria-hidden="true"
+                            >
+                              {mode === "YOUTUBE" ? (
+                                <svg className="youtube-mark" viewBox="0 0 28 20" fill="none">
+                                  <path
+                                    d="M27.4 3.1c-.32-1.2-1.24-2.15-2.4-2.48C22.9 0 14 0 14 0S5.1 0 3 .62C1.84.95.92 1.9.6 3.1.03 5.28.03 10 .03 10s0 4.72.57 6.9c.32 1.2 1.24 2.15 2.4 2.48C5.1 20 14 20 14 20s8.9 0 11-.62c1.16-.33 2.08-1.28 2.4-2.48.57-2.18.57-6.9.57-6.9s0-4.72-.57-6.9Z"
+                                    fill="currentColor"
+                                  />
+                                  <path d="M11.2 14.25V5.75L18.45 10l-7.25 4.25Z" fill="#fff" />
+                                </svg>
+                              ) : (
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M8 5.5v13l10-6.5-10-6.5z" />
+                                </svg>
+                              )}
+                            </span>
+                            {mode === "FILE" ? (
+                              <span className="funnel-file-label">
+                                {selectedFile ? selectedFile.name : "Upload audio file or drop it here"}
+                              </span>
+                            ) : (
+                              <input
+                                type="url"
+                                value={youtubeUrl}
+                                onChange={(event) => setYoutubeUrl(event.target.value)}
+                                placeholder="https://www.youtube.com/..."
+                              />
+                            )}
+                          </>
                         )}
                         <input
                           ref={fileInputRef}
@@ -1282,9 +1288,7 @@ export default function HomePage() {
                 </>
               )}
 
-              {status && (
-                loading ? <TranscriptionStartStatus status={status} /> : <div className="status">{status}</div>
-              )}
+              {status && !loading && <div className="status">{status}</div>}
               {error && <div className="error">{error}</div>}
               {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
                 <div className="notice">
