@@ -56,7 +56,6 @@ export default function JobReviewPreviewPage() {
           <div className="page-header">
             <div>
               <h1 className="page-title">Choose where to import</h1>
-              <p className="page-subtitle">Pick an editor and choose how the notes should be organized.</p>
             </div>
             <button type="button" className="button-ghost button-small">
               Back
@@ -66,12 +65,8 @@ export default function JobReviewPreviewPage() {
           <div className="review-shell" aria-busy={isImporting}>
             <section className="card review-import-card">
               <div className="review-import-header">
-                <span className="badge">Ready</span>
                 <div className="stack" style={{ gap: "8px" }}>
                   <h2 className="review-hero-title">Midnight Practice Loop</h2>
-                  <p className="review-hero-lead">
-                    Continue to import the generated notes directly into the guitar tab editor.
-                  </p>
                 </div>
                 <span className="review-count-pill">{noteCount.toLocaleString()} notes</span>
               </div>
@@ -139,9 +134,6 @@ export default function JobReviewPreviewPage() {
               <div className="button-row review-actions review-import-actions">
                 <button type="button" className="button-primary button-small" disabled={isImporting}>
                   {isImporting ? "Importing..." : "Continue to editor"}
-                </button>
-                <button type="button" className="button-ghost button-small" disabled={isImporting}>
-                  Start over
                 </button>
               </div>
             </section>
