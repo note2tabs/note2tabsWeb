@@ -36,6 +36,13 @@ import {
 import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import GteWorkspace from "../../components/GteWorkspace";
+import GteFileImportButton from "../../components/GteFileImportButton";
+import {
+  GTE_EXPORT_FORMAT_OPTIONS,
+  buildGteExportFile,
+  downloadGteExportFile,
+  type GteExportFormat,
+} from "../../lib/gteTabExport";
 import {
   GTE_GUEST_EDITOR_ID,
   createGuestSnapshot,
@@ -819,6 +826,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [savingCanvas, setSavingCanvas] = useState(false);
+  const [exportingTrack, setExportingTrack] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [hasPendingCommit, setHasPendingCommit] = useState(false);
   const [lastCommittedAt, setLastCommittedAt] = useState<string | null>(null);
@@ -1528,6 +1537,28 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setAddingLane(false);
     }
   };
+
+  const getExportLane = useCallback(() => {
+    if (!canvas?.editors.length) return null;
+    const preferredLaneId = mobileEditLaneId || activeLaneId;
+    return canvas.editors.find((lane) => lane.id === preferredLaneId) || canvas.editors[0];
+  }, [activeLaneId, canvas, mobileEditLaneId]);
+
+  const handleExportTrack = useCallback((format: GteExportFormat) => {
+    const lane = getExportLane();
+    if (!lane || exportingTrack) return;
+    setExportingTrack(true);
+    setExportMenuOpen(false);
+    setError(null);
+    try {
+      const file = buildGteExportFile(lane, format);
+      downloadGteExportFile(file);
+    } catch (err: any) {
+      setError(err?.message || "Could not export this track.");
+    } finally {
+      setExportingTrack(false);
+    }
+  }, [exportingTrack, getExportLane]);
 
   const requestDeleteTrack = useCallback(
     (laneId: string) => {
@@ -3320,14 +3351,43 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             >
                               Back to editors
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => void router.push(`/gte/${editorId}/import-tab`)}
+                            <GteFileImportButton
+                              editorId={editorId}
+                              onImported={async () => {
+                                await loadEditor();
+                              }}
+                              onError={(message) => setError(message || null)}
                               className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm text-slate-700"
+                              busyLabel="Importing..."
+                              title="Import a tab file"
                             >
-                              Import tab
-                            </button>
+                              Import tabs
+                            </GteFileImportButton>
                           </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setExportMenuOpen((prev) => !prev)}
+                          className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400"
+                          disabled={exportingTrack || !canvas?.editors.length}
+                          aria-expanded={exportMenuOpen}
+                        >
+                          {exportingTrack ? "Exporting..." : "Export"}
+                        </button>
+                        {exportMenuOpen && (
+                          <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                            {GTE_EXPORT_FORMAT_OPTIONS.map((option) => (
+                              <button
+                                key={`mobile-export-${option.value}`}
+                                type="button"
+                                onClick={() => handleExportTrack(option.value)}
+                                className="rounded-lg bg-white px-3 py-2 text-left text-sm text-slate-700 shadow-sm hover:bg-slate-50"
+                                disabled={exportingTrack}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
                         )}
                         <button
                           type="button"
@@ -3639,7 +3699,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           <div style={{ flex: "1 1 0", minWidth: 0 }}>
             <div
               className="page-title"
-              style={{ display: "flex", alignItems: "baseline", gap: "14px", flexWrap: "wrap" }}
+              style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}
             >
               <span
                 style={{
@@ -3901,7 +3961,108 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </span>
                 </span>
               </label>
-              <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+              <div className="ml-auto flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white/55 p-1 shadow-sm">
+                {!isGuestMode && (
+                  <button
+                    type="button"
+                    onClick={() => void router.push(transcriberHref)}
+                    className="button-secondary button-small min-h-[34px]"
+                    title="Open the standalone transcriber"
+                  >
+                    Generate tabs
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void router.push(`/gte/${editorId}/tabs`)}
+                  className="button-secondary button-small min-h-[34px]"
+                  title="View current editor as ASCII tabs"
+                >
+                  View as tabs
+                </button>
+                {!isGuestMode && (
+                  <GteFileImportButton
+                    editorId={editorId}
+                    onImported={async () => {
+                      await loadEditor();
+                    }}
+                    onError={(message) => setError(message || null)}
+                    className="button-secondary button-small min-h-[34px]"
+                    busyLabel="Importing..."
+                    title="Import a tab file"
+                  >
+                    Import tabs
+                  </GteFileImportButton>
+                )}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setExportMenuOpen((prev) => !prev)}
+                    className="button-secondary button-small min-h-[34px]"
+                    title="Export selected track"
+                    disabled={exportingTrack || !canvas?.editors.length}
+                    aria-expanded={exportMenuOpen}
+                  >
+                    {exportingTrack ? "Exporting..." : "Export"}
+                  </button>
+                  {exportMenuOpen && (
+                    <div className="absolute right-0 top-[calc(100%+8px)] z-[10000] grid min-w-44 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                      {GTE_EXPORT_FORMAT_OPTIONS.map((option) => (
+                        <button
+                          key={`export-${option.value}`}
+                          type="button"
+                          onClick={() => handleExportTrack(option.value)}
+                          className="rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+                          disabled={exportingTrack}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="button-row shrink-0 rounded-xl border border-slate-200 bg-white/55 p-1 shadow-sm">
+                {isGuestMode ? (
+                  <>
+                    <Link href="/" className="button-secondary button-small min-h-[34px]">
+                      Back home
+                    </Link>
+                    {session?.user?.id ? (
+                      <button
+                        type="button"
+                        onClick={() => void router.push(saveToAccountPath)}
+                        className="button-primary button-small min-h-[34px]"
+                      >
+                        Save draft to account
+                      </button>
+                    ) : (
+                      <>
+                        <Link href={loginSaveHref} className="button-secondary button-small min-h-[34px]">
+                          Log in to save
+                        </Link>
+                        <Link href={signupSaveHref} className="button-primary button-small min-h-[34px]">
+                          Create account
+                        </Link>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => router.push("/gte")}
+                    className="button-secondary button-small min-h-[34px]"
+                  >
+                    Back to editors
+                  </button>
+                )}
+              </div>
+            </div>
+            <div
+              className="text-small"
+              style={{ minHeight: "1.25rem", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}
+            >
+              <label className="muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
                 <input
                   type="checkbox"
                   checked={keepNotesOnBeat}
@@ -3910,11 +4071,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 />
                 Keep notes on beat
               </label>
-            </div>
-            <div
-              className="text-small"
-              style={{ minHeight: "1.25rem", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}
-            >
               <span className="muted">{saveStatus}</span>
               {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
               {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
@@ -4240,118 +4396,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </div>
               </div>
             )}
-          </div>
-          <div className="mt-1 flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white/55 p-1 shadow-sm">
-            {!isGuestMode && (
-              <button
-                type="button"
-                onClick={() => void router.push(transcriberHref)}
-                className="button-secondary button-small"
-                title="Open the standalone transcriber"
-              >
-                Generate tabs
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => void router.push(`/gte/${editorId}/tabs`)}
-              className="button-secondary button-small"
-              title="View current editor as ASCII tabs"
-            >
-              View as tabs
-            </button>
-            {!isGuestMode && (
-              <button
-                type="button"
-                onClick={() => void router.push(`/gte/${editorId}/import-tab`)}
-                className="button-secondary button-small"
-                title="Import a pasted text tab"
-              >
-                Import tab
-              </button>
-            )}
-          </div>
-          <div
-            className="button-row"
-            style={
-              isMobileViewport
-                ? {
-                    flex: "0 0 auto",
-                    alignSelf: "flex-start",
-                    position: "absolute",
-                    top: 0,
-                    right: 0,
-                    gap: 6,
-                  }
-                : { flex: "0 0 auto", alignSelf: "flex-start", marginTop: 4 }
-            }
-          >
-            {isGuestMode ? (
-              <>
-                <Link
-                  href="/"
-                  className={`button-secondary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
-                  style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
-                >
-                  {isMobileViewport ? "Home" : "Back home"}
-                </Link>
-                {session?.user?.id ? (
-                  <button
-                    type="button"
-                    onClick={() => void router.push(saveToAccountPath)}
-                    className={`button-primary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
-                    style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
-                  >
-                    {isMobileViewport ? "Save" : "Save draft to account"}
-                  </button>
-                ) : (
-                  <>
-                    <Link
-                      href={loginSaveHref}
-                      className={`button-secondary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
-                      style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
-                    >
-                      {isMobileViewport ? "Log in" : "Log in to save"}
-                    </Link>
-                    <Link
-                      href={signupSaveHref}
-                      className={`button-primary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
-                      style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
-                    >
-                      {isMobileViewport ? "Sign up" : "Create account"}
-                    </Link>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => router.push("/gte")}
-                  className={`button-secondary button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
-                  style={isMobileViewport ? { borderRadius: 10, padding: "6px 8px", fontSize: 11 } : undefined}
-                >
-                  {isMobileViewport ? "Editors" : "Back to editors"}
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => void commitCanvasToBackend({ force: true })}
-              className={`button-save button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
-              disabled={savingCanvas || isGuestMode}
-              aria-label={savingCanvas ? "Saving..." : "Save now"}
-              title={savingCanvas ? "Saving..." : "Save now"}
-              style={isMobileViewport ? { paddingInline: 8, minWidth: 32, minHeight: 32 } : { paddingInline: 10, minWidth: 40 }}
-            >
-              <img
-                src="/icons/save-now.png"
-                alt=""
-                aria-hidden="true"
-                draggable={false}
-                style={{ width: 16, height: 16, display: "block" }}
-              />
-            </button>
           </div>
         </div>
         )}

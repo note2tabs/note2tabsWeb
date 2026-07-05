@@ -16,6 +16,7 @@ import {
 } from "../lib/transcriptionModels";
 import SeoHead, { SITE_NAME, absoluteUrl } from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
+import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 
 type TabsResponse = {
   tabs: string[][];
@@ -43,9 +44,6 @@ const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 const MAX_YT_SNIPPET_SEC = 30;
 const MAX_YT_START_SEC = 9 * 60;
 const MAX_YT_END_SEC = 10 * 60;
-const YOUTUBE_DOWNLOAD_DISABLED = true;
-const YOUTUBE_DOWNLOAD_OUTAGE_MESSAGE =
-  "YouTube downloads are temporarily unavailable. Our developers are working on a fix.";
 
 const isYouTubeId = (value: string) => /^[a-zA-Z0-9_-]{11}$/.test(value);
 
@@ -340,7 +338,6 @@ export default function TranscriberPage() {
   const canSubmit = useMemo(() => {
     if (isSignedIn && !canUseUnverifiedTranscription) return false;
     if (mode === "FILE") return Boolean(selectedFile) && !loading;
-    if (YOUTUBE_DOWNLOAD_DISABLED) return false;
     return youtubeValid && youtubeTimeRangeValid && !loading;
   }, [
     mode,
@@ -355,8 +352,6 @@ export default function TranscriberPage() {
     ? mode === "YOUTUBE"
       ? "Downloading..."
       : "Generating..."
-    : mode === "YOUTUBE" && YOUTUBE_DOWNLOAD_DISABLED
-    ? "YouTube unavailable"
     : mode === "YOUTUBE"
     ? "Generate tabs"
     : "Generate tabs";
@@ -447,10 +442,6 @@ export default function TranscriberPage() {
 
     if (mode === "YOUTUBE" && !youtubeValid) {
       setError("Please paste a valid YouTube link.");
-      return;
-    }
-    if (mode === "YOUTUBE" && YOUTUBE_DOWNLOAD_DISABLED) {
-      setError(YOUTUBE_DOWNLOAD_OUTAGE_MESSAGE);
       return;
     }
     if (mode === "YOUTUBE" && (ytStartTime === null || ytEndTime === null)) {
@@ -905,7 +896,9 @@ export default function TranscriberPage() {
               </div>
 
               <div className="prompt-field">
-                {mode === "FILE" ? (
+                {loading && status ? (
+                  <TranscriptionStartStatus status={status} compact />
+                ) : mode === "FILE" ? (
                   <div
                     className={`dropzone ${dragActive ? "active" : ""}`}
                     onDrop={onDrop}
@@ -937,12 +930,6 @@ export default function TranscriberPage() {
                       placeholder="https://www.youtube.com/..."
                     />
                   </label>
-                )}
-
-                {mode === "YOUTUBE" && (
-                  <div className="youtube-outage-notice" role="status">
-                    {YOUTUBE_DOWNLOAD_OUTAGE_MESSAGE}
-                  </div>
                 )}
 
                 <div className="transcriber-checkbox-row">
@@ -1024,7 +1011,7 @@ export default function TranscriberPage() {
                 </button>
               </div>
 
-              {status && <div className="status">{status}</div>}
+              {status && !loading && <div className="status">{status}</div>}
               {error && <div className="error">{error}</div>}
               {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
                 <div className="notice">

@@ -15,6 +15,7 @@ import {
 } from "../lib/transcriptionModels";
 import SeoHead, { SITE_NAME, SITE_URL, absoluteUrl } from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
+import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 
 type TabsResponse = {
   tabs: string[][];
@@ -42,9 +43,6 @@ const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 const MAX_YT_SNIPPET_SEC = 30;
 const MAX_YT_START_SEC = 9 * 60;
 const MAX_YT_END_SEC = 10 * 60;
-const YOUTUBE_DOWNLOAD_DISABLED = true;
-const YOUTUBE_DOWNLOAD_OUTAGE_MESSAGE =
-  "YouTube downloads are temporarily unavailable. Our developers are working on a fix.";
 const HOW_STEP_DURATION_MS = 4000;
 
 const isYouTubeId = (value: string) => /^[a-zA-Z0-9_-]{11}$/.test(value);
@@ -343,7 +341,6 @@ export default function HomePage() {
   const canSubmit = useMemo(() => {
     if (isSignedIn && !canUseUnverifiedTranscription) return false;
     if (mode === "FILE") return !loading;
-    if (YOUTUBE_DOWNLOAD_DISABLED) return false;
     return youtubeValid && youtubeTimeRangeValid && !loading;
   }, [
     mode,
@@ -358,8 +355,6 @@ export default function HomePage() {
     ? mode === "YOUTUBE"
       ? "Downloading..."
       : "Generating..."
-    : mode === "YOUTUBE" && YOUTUBE_DOWNLOAD_DISABLED
-    ? "YouTube unavailable"
     : mode === "FILE" && !selectedFile
     ? "Choose audio file"
     : mode === "YOUTUBE"
@@ -468,11 +463,6 @@ export default function HomePage() {
     if (mode === "YOUTUBE" && !youtubeValid) {
       setError("Please paste a valid YouTube link.");
       sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "invalid_youtube_url", mode });
-      return false;
-    }
-    if (mode === "YOUTUBE" && YOUTUBE_DOWNLOAD_DISABLED) {
-      setError(YOUTUBE_DOWNLOAD_OUTAGE_MESSAGE);
-      sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "youtube_downloader_unavailable", mode });
       return false;
     }
     if (mode === "YOUTUBE" && (ytStartTime === null || ytEndTime === null)) {
@@ -1175,35 +1165,41 @@ export default function HomePage() {
                         onDragEnter={mode === "FILE" ? onDragEnter : undefined}
                         onDragLeave={mode === "FILE" ? onDragLeave : undefined}
                       >
-                        <span
-                          className={`funnel-icon ${mode === "YOUTUBE" ? "funnel-icon--youtube" : ""}`}
-                          aria-hidden="true"
-                        >
-                          {mode === "YOUTUBE" ? (
-                            <svg className="youtube-mark" viewBox="0 0 28 20" fill="none">
-                              <path
-                                d="M27.4 3.1c-.32-1.2-1.24-2.15-2.4-2.48C22.9 0 14 0 14 0S5.1 0 3 .62C1.84.95.92 1.9.6 3.1.03 5.28.03 10 .03 10s0 4.72.57 6.9c.32 1.2 1.24 2.15 2.4 2.48C5.1 20 14 20 14 20s8.9 0 11-.62c1.16-.33 2.08-1.28 2.4-2.48.57-2.18.57-6.9.57-6.9s0-4.72-.57-6.9Z"
-                                fill="currentColor"
-                              />
-                              <path d="M11.2 14.25V5.75L18.45 10l-7.25 4.25Z" fill="#fff" />
-                            </svg>
-                          ) : (
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M8 5.5v13l10-6.5-10-6.5z" />
-                            </svg>
-                          )}
-                        </span>
-                        {mode === "FILE" ? (
-                          <span className="funnel-file-label">
-                            {selectedFile ? selectedFile.name : "Upload audio file or drop it here"}
-                          </span>
+                        {loading && status ? (
+                          <TranscriptionStartStatus status={status} compact />
                         ) : (
-                          <input
-                            type="url"
-                            value={youtubeUrl}
-                            onChange={(event) => setYoutubeUrl(event.target.value)}
-                            placeholder="https://www.youtube.com/..."
-                          />
+                          <>
+                            <span
+                              className={`funnel-icon ${mode === "YOUTUBE" ? "funnel-icon--youtube" : ""}`}
+                              aria-hidden="true"
+                            >
+                              {mode === "YOUTUBE" ? (
+                                <svg className="youtube-mark" viewBox="0 0 28 20" fill="none">
+                                  <path
+                                    d="M27.4 3.1c-.32-1.2-1.24-2.15-2.4-2.48C22.9 0 14 0 14 0S5.1 0 3 .62C1.84.95.92 1.9.6 3.1.03 5.28.03 10 .03 10s0 4.72.57 6.9c.32 1.2 1.24 2.15 2.4 2.48C5.1 20 14 20 14 20s8.9 0 11-.62c1.16-.33 2.08-1.28 2.4-2.48.57-2.18.57-6.9.57-6.9s0-4.72-.57-6.9Z"
+                                    fill="currentColor"
+                                  />
+                                  <path d="M11.2 14.25V5.75L18.45 10l-7.25 4.25Z" fill="#fff" />
+                                </svg>
+                              ) : (
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M8 5.5v13l10-6.5-10-6.5z" />
+                                </svg>
+                              )}
+                            </span>
+                            {mode === "FILE" ? (
+                              <span className="funnel-file-label">
+                                {selectedFile ? selectedFile.name : "Upload audio file or drop it here"}
+                              </span>
+                            ) : (
+                              <input
+                                type="url"
+                                value={youtubeUrl}
+                                onChange={(event) => setYoutubeUrl(event.target.value)}
+                                placeholder="https://www.youtube.com/..."
+                              />
+                            )}
+                          </>
                         )}
                         <input
                           ref={fileInputRef}
@@ -1254,9 +1250,6 @@ export default function HomePage() {
 
                   {mode === "YOUTUBE" && (
                     <div className="prompt-field prompt-field--compact">
-                      <div className="youtube-outage-notice" role="status">
-                        {YOUTUBE_DOWNLOAD_OUTAGE_MESSAGE}
-                      </div>
                       <div className="advanced-grid">
                         <label>
                           Start time
@@ -1295,7 +1288,7 @@ export default function HomePage() {
                 </>
               )}
 
-              {status && <div className="status">{status}</div>}
+              {status && !loading && <div className="status">{status}</div>}
               {error && <div className="error">{error}</div>}
               {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
                 <div className="notice">

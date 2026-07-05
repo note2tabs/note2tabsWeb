@@ -7,6 +7,7 @@ import {
   persistTrackInstrumentsFromSnapshot,
 } from "../../../lib/gteTrackInstrumentStore";
 import type { GteAnalyticsEvent } from "../../../lib/gteAnalytics";
+import { parseTextTabImport } from "../../../lib/gteTabImport";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -150,6 +151,10 @@ function isSnapshotSaveRequest(method: string, path: string) {
   return method === "POST" && /(^|\/)editors\/[^/]+\/snapshot$/.test(path);
 }
 
+function isAsciiTabImportRequest(method: string, path: string) {
+  return method === "POST" && /^editors\/[^/]+\/canvas\/import_ascii$/.test(path);
+}
+
 function getRenameEditorId(method: string, path: string) {
   if (method !== "POST") return undefined;
   const match = path.match(/^editors\/([^/]+)\/name$/);
@@ -252,6 +257,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!["GET", "HEAD"].includes(method)) {
     headers["Content-Type"] = "application/json";
     let requestBody = req.body ?? {};
+    if (isAsciiTabImportRequest(method, path)) {
+      const text = typeof requestBody?.text === "string" ? requestBody.text : "";
+      try {
+        parseTextTabImport(text);
+      } catch (error: any) {
+        return res.status(400).json({
+          error: error?.message || "Invalid tab import.",
+        });
+      }
+    }
     const renameEditorId = getRenameEditorId(method, path);
     const importTarget = isTranscriberImport ? getRequestedImportTarget(req) : "";
     const importEditorId = isTranscriberImport ? getRequestedImportEditorId(req) : undefined;
