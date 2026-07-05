@@ -503,13 +503,6 @@ input[type="number"] {
   gap: 16px;
 }
 
-.review-import-progress {
-  padding: 18px;
-  border-radius: 18px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.74);
-}
-
 .review-import-actions {
   align-items: center;
   justify-content: flex-start;

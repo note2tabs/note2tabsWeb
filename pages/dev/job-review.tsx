@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import NoIndexHead from "../../components/NoIndexHead";
 
 const EDITOR_CHOICES = [
@@ -9,21 +9,16 @@ const EDITOR_CHOICES = [
 
 type PreviewState = "ready" | "importing" | "error" | "guest";
 
-function getReviewBusyCopy(state: PreviewState) {
-  if (state === "importing") {
-    return {
-      badge: "Importing",
-      title: "Opening your tab",
-      detail: "We are putting the notes into the editor.",
-    };
-  }
-  return null;
-}
+const TAB_PREVIEW = `e|----------------|----------------|--------3---5---|7---5---3-------|
+B|--------3---5---|6---5---3-------|----3-----------|----------6---5-|
+G|----4-----------|----------5---4-|4h5---5---4-----|----------------|
+D|5---------------|----------------|------------5---|----------------|
+A|----------------|----------------|----------------|----------------|
+E|----------------|----------------|----------------|----------------|`;
 
 export default function JobReviewPreviewPage() {
   const [previewState, setPreviewState] = useState<PreviewState>("ready");
   const [editorChoice, setEditorChoice] = useState("new");
-  const reviewBusyCopy = useMemo(() => getReviewBusyCopy(previewState), [previewState]);
   const isImporting = previewState === "importing";
   const isGuest = previewState === "guest";
   const noteCount = 184;
@@ -70,41 +65,8 @@ export default function JobReviewPreviewPage() {
 
               <div className="review-value-preview" aria-label="Tab preview">
                 <p className="review-value-title">Preview</p>
-                <pre>{`e|----------------|
-B|------5---7-----|
-G|--4h6---6---4---|
-D|----------------|`}</pre>
+                <pre>{TAB_PREVIEW}</pre>
               </div>
-
-              {reviewBusyCopy ? (
-                <div className="review-import-progress">
-                  <div className="job-progress-shell">
-                    <div className="job-progress-header">
-                      <div className="stack" style={{ gap: "8px" }}>
-                        <span className="badge">{reviewBusyCopy.badge}</span>
-                        <p className="job-progress-phase">{reviewBusyCopy.title}</p>
-                        <p className="muted text-small" style={{ margin: 0 }}>
-                          {reviewBusyCopy.detail}
-                        </p>
-                      </div>
-                    </div>
-                    <div
-                      className="job-progress-track"
-                      role="progressbar"
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuetext={reviewBusyCopy.title}
-                      aria-label={reviewBusyCopy.title}
-                    >
-                      <div className="job-progress-fill" style={{ width: "100%" }} />
-                    </div>
-                    <div className="job-progress-meta">
-                      <span>Importing into editor</span>
-                      <span>This can take a moment</span>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
 
               {previewState === "error" ? (
                 <div className="error">We could not open the editor. Please try again.</div>
