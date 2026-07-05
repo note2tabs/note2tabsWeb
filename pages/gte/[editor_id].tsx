@@ -63,6 +63,8 @@ const TIMELINE_ZOOM_MIN = 15;
 const TIMELINE_ZOOM_MAX = 200;
 const TIMELINE_ZOOM_DEFAULT = 100;
 const CONTROL_COMMIT_DEBOUNCE_MS = 350;
+const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
+const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
 const KEY_BASE_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const KEY_TYPE_OPTIONS = [
   "Major",
@@ -146,6 +148,7 @@ const normalizeLane = (
     fps: fpsFromSecondsPerBar(safeSeconds),
     totalFrames,
     timeSignature: Math.max(1, Math.min(64, Math.round(toNumber(lane.timeSignature, 8)))),
+    timeSignatureBottom: Math.max(1, Math.min(64, Math.round(toNumber(lane.timeSignatureBottom, 4)))),
     notes: Array.isArray(lane.notes) ? lane.notes : [],
     chords: Array.isArray(lane.chords) ? lane.chords : [],
     noteEffects: Array.isArray(lane.noteEffects) ? lane.noteEffects : [],
@@ -230,6 +233,12 @@ const getLaneBarCount = (lane: EditorSnapshot) =>
   );
 
 const normalizeTimeSignature = (value: unknown) => {
+  const next = Number(value);
+  if (!Number.isFinite(next)) return null;
+  return Math.max(1, Math.min(64, Math.round(next)));
+};
+
+const normalizeTimeSignatureBottom = (value: unknown) => {
   const next = Number(value);
   if (!Number.isFinite(next)) return null;
   return Math.max(1, Math.min(64, Math.round(next)));
@@ -810,6 +819,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [bpmSaving, setBpmSaving] = useState(false);
   const [bpmError, setBpmError] = useState<string | null>(null);
   const [timeSignatureDraft, setTimeSignatureDraft] = useState("8");
+  const [timeSignatureBottomDraft, setTimeSignatureBottomDraft] = useState("4");
   const [keepNotesOnBeat, setKeepNotesOnBeat] = useState(false);
   const [timeSignatureSaving, setTimeSignatureSaving] = useState(false);
   const [timeSignatureError, setTimeSignatureError] = useState<string | null>(null);
@@ -1106,6 +1116,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (queuedTimeSignatureValueRef.current === null) {
       setTimeSignatureDraft(String(beatsPerBar));
     }
+    setTimeSignatureBottomDraft(String(normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4));
     if (activeLaneId && !canvas.editors.some((lane) => lane.id === activeLaneId)) {
       setActiveLaneId(canvas.editors[0]?.id || null);
     }
@@ -1447,8 +1458,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setTimeSignatureDraft(String(normalized));
     const current = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
     const allTracksMatch = canvas.editors.every((lane) => (normalizeTimeSignature(lane.timeSignature) ?? 8) === normalized);
-    const secondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
-    setBpmDraft(formatBpm(secondsPerBarToBpm(secondsPerBar, normalized)));
+    const currentSecondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
+    const currentBpm = secondsPerBarToBpm(currentSecondsPerBar, current);
+    const secondsPerBar = keepNotesOnBeat
+      ? bpmToSecondsPerBar(currentBpm, normalized) ?? currentSecondsPerBar
+      : currentSecondsPerBar;
+    setBpmDraft(formatBpm(keepNotesOnBeat ? currentBpm : secondsPerBarToBpm(secondsPerBar, normalized)));
     if (normalized === current && allTracksMatch) return;
 
     setTimeSignatureSaving(true);
@@ -1482,7 +1497,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         markDirty: !isGuestMode,
       });
     } catch (err: any) {
-      setTimeSignatureError(err?.message || "Could not update beats per bar.");
+      setTimeSignatureError(err?.message || "Could not update time signature.");
     } finally {
       setTimeSignatureSaving(false);
     }
@@ -1499,6 +1514,51 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }, CONTROL_COMMIT_DEBOUNCE_MS);
   };
 
+  const commitTimeSignatureBottom = async (rawValue: string | number = timeSignatureBottomDraft) => {
+    if (!canvas) return;
+    const normalized = normalizeTimeSignatureBottom(rawValue);
+    if (!normalized) {
+      setTimeSignatureBottomDraft(String(normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4));
+      return;
+    }
+    setTimeSignatureBottomDraft(String(normalized));
+    const allTracksMatch = canvas.editors.every(
+      (lane) => (normalizeTimeSignatureBottom(lane.timeSignatureBottom) ?? 4) === normalized
+    );
+    if (allTracksMatch) return;
+    setTimeSignatureSaving(true);
+    setTimeSignatureError(null);
+    try {
+      const secondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
+      const nextCanvas = normalizeCanvas(
+        {
+          ...canvas,
+          updatedAt: new Date().toISOString(),
+          editors: canvas.editors.map((lane, index) =>
+            normalizeLane(
+              {
+                ...lane,
+                timeSignatureBottom: normalized,
+              },
+              lane.id || `ed-${index + 1}`,
+              secondsPerBar,
+              index
+            )
+          ),
+        },
+        editorId
+      );
+      const res = await gteApi.applySnapshot(editorId, nextCanvas);
+      applyCanvasUpdate(normalizeCanvas((res as any).canvas ?? (res as any).snapshot ?? nextCanvas, editorId), {
+        markDirty: !isGuestMode,
+      });
+    } catch (err: any) {
+      setTimeSignatureError(err?.message || "Could not update time signature.");
+    } finally {
+      setTimeSignatureSaving(false);
+    }
+  };
+
   const handleAddLane = async () => {
     if (!canvas || addingLane) return;
     setAddingLane(true);
@@ -1506,6 +1566,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     try {
       const res = await gteApi.addCanvasEditor(editorId);
       const currentTimeSignature = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
+      const currentTimeSignatureBottom = normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4;
       const currentSecondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
       const nextCanvas = normalizeCanvas(
         {
@@ -1515,6 +1576,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             ...lane,
             secondsPerBar: currentSecondsPerBar,
             timeSignature: currentTimeSignature,
+            timeSignatureBottom: currentTimeSignatureBottom,
           })),
         },
         editorId
@@ -1600,6 +1662,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         toNumber(prev.secondsPerBar, toNumber(nextLaneSnapshot.secondsPerBar, DEFAULT_SECONDS_PER_BAR))
       );
       const sharedTimeSignature = normalizeTimeSignature(prev.editors[0]?.timeSignature) ?? 8;
+      const sharedTimeSignatureBottom = normalizeTimeSignatureBottom(prev.editors[0]?.timeSignatureBottom) ?? 4;
       const nextEditors = prev.editors.map((lane, index) =>
         lane.id === laneId
           ? normalizeLane(
@@ -1607,6 +1670,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 ...nextLaneSnapshot,
                 secondsPerBar,
                 timeSignature: sharedTimeSignature,
+                timeSignatureBottom: sharedTimeSignatureBottom,
                 instrumentId:
                   normalizeTrackInstrumentId(nextLaneSnapshot.instrumentId) !== DEFAULT_TRACK_INSTRUMENT_ID ||
                   normalizeTrackInstrumentId(lane.instrumentId) === DEFAULT_TRACK_INSTRUMENT_ID
@@ -1618,7 +1682,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               index
             )
           : normalizeLane(
-              { ...lane, secondsPerBar, timeSignature: sharedTimeSignature },
+              { ...lane, secondsPerBar, timeSignature: sharedTimeSignature, timeSignatureBottom: sharedTimeSignatureBottom },
               lane.id || `ed-${index + 1}`,
               secondsPerBar,
               index
@@ -2082,7 +2146,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [sharedViewportBarCount]
   );
 
-  const mobileControlsSummary = `${nameDraft || "Untitled"} - ${bpmDraft} BPM - ${timeSignatureDraft}/bar`;
+  const mobileControlsSummary = `${nameDraft || "Untitled"} - ${bpmDraft} BPM - ${timeSignatureDraft}/${timeSignatureBottomDraft}`;
   const isMobileCanvasMode = isMobileViewport && mobileEditLaneId === null;
   const isMobileEditMode = isMobileViewport && mobileEditLaneId !== null;
 
@@ -3474,66 +3538,36 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </span>
                     </label>
                     <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      Beats/bar
+                      Time signature
                       <span className="mt-2 flex items-center gap-2">
-                        <input
-                          type="number"
-                          step={1}
-                          min={1}
-                          max={64}
-                          value={timeSignatureDraft}
+                        <select
+                          value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
                           onChange={(event) => {
-                            if (timeSignatureCommitTimerRef.current !== null) {
-                              window.clearTimeout(timeSignatureCommitTimerRef.current);
-                              timeSignatureCommitTimerRef.current = null;
-                            }
-                            queuedTimeSignatureValueRef.current = null;
                             setTimeSignatureDraft(event.target.value);
-                          }}
-                          onBlur={() => void commitTimeSignature()}
-                          onKeyDown={(event) => {
-                            if (event.key !== "Enter") return;
-                            event.preventDefault();
-                            void commitTimeSignature();
+                            scheduleTimeSignatureCommit(Number(event.target.value));
                           }}
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
-                        />
-                        <span className="inline-flex flex-col gap-1">
-                          <button
-                            type="button"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => {
-                              const current =
-                                normalizeTimeSignature(timeSignatureDraft) ??
-                                normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ??
-                                8;
-                              const next = current + 1;
-                              setTimeSignatureDraft(String(Math.min(64, next)));
-                              scheduleTimeSignatureCommit(next);
-                            }}
-                            className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
-                            aria-label="Increase beats per bar"
-                          >
-                            &#9650;
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => {
-                              const current =
-                                normalizeTimeSignature(timeSignatureDraft) ??
-                                normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ??
-                                8;
-                              const next = Math.max(1, current - 1);
-                              setTimeSignatureDraft(String(next));
-                              scheduleTimeSignatureCommit(next);
-                            }}
-                            className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
-                            aria-label="Decrease beats per bar"
-                          >
-                            &#9660;
-                          </button>
-                        </span>
+                          aria-label="Time signature top number"
+                        >
+                          {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
+                            <option key={value} value={value}>
+                              {value}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="text-slate-400">/</span>
+                        <select
+                          value={normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
+                          onChange={(event) => void commitTimeSignatureBottom(Number(event.target.value))}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
+                          aria-label="Time signature bottom number"
+                        >
+                          {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
+                            <option key={value} value={value}>
+                              {value}
+                            </option>
+                          ))}
+                        </select>
                       </span>
                       <span className="mt-2 flex items-center gap-1.5 text-[11px] font-medium normal-case tracking-normal text-slate-600">
                         <input
@@ -3552,7 +3586,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
                     {(timeSignatureSaving || timeSignatureError) && (
                       <span className={timeSignatureError ? "error" : "muted"}>
-                        {timeSignatureError || "Saving beats..."}
+                        {timeSignatureError || "Saving time signature..."}
                       </span>
                     )}
                   </div>
@@ -3831,74 +3865,36 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </span>
               </label>
               <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                Beats/bar
+                Time signature
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                    <input
-                      type="number"
-                      step={1}
-                      min={1}
-                      max={64}
-                      value={timeSignatureDraft}
-                      onChange={(event) => {
-                        if (timeSignatureCommitTimerRef.current !== null) {
-                          window.clearTimeout(timeSignatureCommitTimerRef.current);
-                          timeSignatureCommitTimerRef.current = null;
-                        }
-                        queuedTimeSignatureValueRef.current = null;
-                        setTimeSignatureDraft(event.target.value);
-                      }}
-                      onBlur={() => void commitTimeSignature()}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          void commitTimeSignature();
-                        }
-                        if (event.key === "Escape") {
-                          event.preventDefault();
-                          if (timeSignatureCommitTimerRef.current !== null) {
-                            window.clearTimeout(timeSignatureCommitTimerRef.current);
-                            timeSignatureCommitTimerRef.current = null;
-                          }
-                          queuedTimeSignatureValueRef.current = null;
-                          setTimeSignatureDraft(String(normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8));
-                        }
-                      }}
-                    className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
-                  />
-                  <span style={{ display: "inline-flex", flexDirection: "column", gap: "2px" }}>
-                    <button
-                      type="button"
-                      onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => {
-                          const current = normalizeTimeSignature(timeSignatureDraft) ?? normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
-                          const next = current + 1;
-                          setTimeSignatureDraft(String(Math.min(64, next)));
-                          scheduleTimeSignatureCommit(next);
-                        }}
-                      className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
-                      title="Increase beats per bar"
-                      aria-label="Increase beats per bar"
-                      disabled={(normalizeTimeSignature(timeSignatureDraft) ?? 8) >= 64}
-                    >
-                      &#9650;
-                    </button>
-                    <button
-                      type="button"
-                      onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => {
-                          const current = normalizeTimeSignature(timeSignatureDraft) ?? normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
-                          const next = Math.max(1, current - 1);
-                          setTimeSignatureDraft(String(next));
-                          scheduleTimeSignatureCommit(next);
-                        }}
-                      className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
-                      title="Decrease beats per bar"
-                      aria-label="Decrease beats per bar"
-                      disabled={(normalizeTimeSignature(timeSignatureDraft) ?? 8) <= 1}
-                    >
-                      &#9660;
-                    </button>
-                  </span>
+                  <select
+                    value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
+                    onChange={(event) => {
+                      setTimeSignatureDraft(event.target.value);
+                      scheduleTimeSignatureCommit(Number(event.target.value));
+                    }}
+                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
+                    aria-label="Time signature top number"
+                  >
+                    {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                  <span>/</span>
+                  <select
+                    value={normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
+                    onChange={(event) => void commitTimeSignatureBottom(Number(event.target.value))}
+                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
+                    aria-label="Time signature bottom number"
+                  >
+                    {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
                 </span>
               </label>
               <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
@@ -3920,7 +3916,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
               {(timeSignatureSaving || timeSignatureError) && (
                 <span className={timeSignatureError ? "error" : "muted"}>
-                  {timeSignatureError || "Saving beats..."}
+                  {timeSignatureError || "Saving time signature..."}
                 </span>
               )}
             </div>
@@ -4047,80 +4043,36 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         </span>
                       </label>
                       <label className="min-w-[172px] rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-medium text-slate-600">
-                        <span className="mb-1 block">Beats/bar</span>
+                        <span className="mb-1 block">Time signature</span>
                         <span className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            step={1}
-                            min={1}
-                            max={64}
-                            value={timeSignatureDraft}
+                          <select
+                            value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
                             onChange={(event) => {
-                              if (timeSignatureCommitTimerRef.current !== null) {
-                                window.clearTimeout(timeSignatureCommitTimerRef.current);
-                                timeSignatureCommitTimerRef.current = null;
-                              }
-                              queuedTimeSignatureValueRef.current = null;
                               setTimeSignatureDraft(event.target.value);
-                            }}
-                            onBlur={() => void commitTimeSignature()}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                void commitTimeSignature();
-                              }
-                              if (event.key === "Escape") {
-                                event.preventDefault();
-                                if (timeSignatureCommitTimerRef.current !== null) {
-                                  window.clearTimeout(timeSignatureCommitTimerRef.current);
-                                  timeSignatureCommitTimerRef.current = null;
-                                }
-                                queuedTimeSignatureValueRef.current = null;
-                                setTimeSignatureDraft(String(normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8));
-                              }
+                              scheduleTimeSignatureCommit(Number(event.target.value));
                             }}
                             className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-                          />
-                          <span className="inline-flex flex-col gap-1">
-                            <button
-                              type="button"
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => {
-                                const current =
-                                  normalizeTimeSignature(timeSignatureDraft) ??
-                                  normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ??
-                                  8;
-                                const next = current + 1;
-                                setTimeSignatureDraft(String(Math.min(64, next)));
-                                scheduleTimeSignatureCommit(next);
-                              }}
-                              className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] leading-none text-slate-600"
-                              title="Increase beats per bar"
-                              aria-label="Increase beats per bar"
-                              disabled={(normalizeTimeSignature(timeSignatureDraft) ?? 8) >= 64}
-                            >
-                              &#9650;
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => {
-                                const current =
-                                  normalizeTimeSignature(timeSignatureDraft) ??
-                                  normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ??
-                                  8;
-                                const next = Math.max(1, current - 1);
-                                setTimeSignatureDraft(String(next));
-                                scheduleTimeSignatureCommit(next);
-                              }}
-                              className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] leading-none text-slate-600"
-                              title="Decrease beats per bar"
-                              aria-label="Decrease beats per bar"
-                              disabled={(normalizeTimeSignature(timeSignatureDraft) ?? 8) <= 1}
-                            >
-                              &#9660;
-                            </button>
-                          </span>
+                            aria-label="Time signature top number"
+                          >
+                            {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
+                              <option key={value} value={value}>
+                                {value}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="text-slate-400">/</span>
+                          <select
+                            value={normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
+                            onChange={(event) => void commitTimeSignatureBottom(Number(event.target.value))}
+                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                            aria-label="Time signature bottom number"
+                          >
+                            {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
+                              <option key={value} value={value}>
+                                {value}
+                              </option>
+                            ))}
+                          </select>
                         </span>
                         <span className="mt-2 flex items-center gap-1.5 text-xs font-medium text-slate-600">
                           <input
@@ -4175,7 +4127,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
                   {(timeSignatureSaving || timeSignatureError) && (
                     <span className={timeSignatureError ? "error" : "muted"}>
-                      {timeSignatureError || "Saving beats..."}
+                      {timeSignatureError || "Saving time signature..."}
                     </span>
                   )}
                 </div>
@@ -4644,6 +4596,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
+                              sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                               sharedViewportBarCount={sharedViewportBarCount}
                               sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
@@ -4906,6 +4859,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
+                              sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                               sharedViewportBarCount={sharedViewportBarCount}
                               sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
@@ -5187,6 +5141,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                           canvasKeyType={normalizeKeyType(canvas.keyType)}
                           sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
+                          sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                           sharedViewportBarCount={sharedViewportBarCount}
                           sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                           onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}

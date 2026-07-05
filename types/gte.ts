@@ -44,6 +44,7 @@ export type EditorSnapshot = {
   version?: number;
   updatedAt?: string;
   timeSignature?: number;
+  timeSignatureBottom?: number;
   framesPerMessure: number;
   fps: number;
   totalFrames: number;
