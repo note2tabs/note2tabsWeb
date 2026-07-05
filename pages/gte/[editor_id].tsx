@@ -3697,7 +3697,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           <div style={{ flex: "1 1 0", minWidth: 0 }}>
             <div
               className="page-title"
-              style={{ display: "flex", alignItems: "baseline", gap: "14px", flexWrap: "wrap" }}
+              style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}
             >
               <span
                 style={{
@@ -4299,7 +4299,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               </div>
             )}
           </div>
-          <div className="mt-1 flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white/55 p-1 shadow-sm">
+          <div className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white/55 p-1 shadow-sm">
             {!isGuestMode && (
               <button
                 type="button"
@@ -4368,7 +4368,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     right: 0,
                     gap: 6,
                   }
-                : { flex: "0 0 auto", alignSelf: "flex-start", marginTop: 4 }
+                : { flex: "0 0 auto", alignSelf: "flex-start", marginTop: 0 }
             }
           >
             {isGuestMode ? (
