@@ -4420,23 +4420,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </button>
               </>
             )}
-            <button
-              type="button"
-              onClick={() => void commitCanvasToBackend({ force: true })}
-              className={`button-save button-small ${isMobileViewport ? "rounded-md px-2 py-1 text-[11px]" : ""}`}
-              disabled={savingCanvas || isGuestMode}
-              aria-label={savingCanvas ? "Saving..." : "Save now"}
-              title={savingCanvas ? "Saving..." : "Save now"}
-              style={isMobileViewport ? { paddingInline: 8, minWidth: 32, minHeight: 32 } : { paddingInline: 10, minWidth: 40 }}
-            >
-              <img
-                src="/icons/save-now.png"
-                alt=""
-                aria-hidden="true"
-                draggable={false}
-                style={{ width: 16, height: 16, display: "block" }}
-              />
-            </button>
           </div>
         </div>
         )}
