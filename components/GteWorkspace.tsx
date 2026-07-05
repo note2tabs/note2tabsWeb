@@ -55,6 +55,7 @@ type Props = {
   canvasKeyBase?: number;
   canvasKeyType?: number;
   sharedTimeSignature?: number;
+  sharedTimeSignatureBottom?: number;
   sharedViewportBarCount?: number;
   sharedTimelineScrollRatio?: number;
   onSharedTimelineScrollRatioChange?: (next: number) => void;
@@ -139,6 +140,9 @@ const DEFAULT_MAX_FRET = 22;
 const MAX_EVENT_LENGTH_FRAMES = 800;
 const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
+const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
+const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
+const NOTE_LENGTH_FRACTION_DENOMINATORS = Array.from({ length: 64 }, (_, index) => index + 1);
 const DEFAULT_CUT_COORD: TabCoord = [2, 0];
 const CUT_SEGMENT_HEIGHT = 20;
 const CUT_SEGMENT_OFFSET = 20;
@@ -222,11 +226,40 @@ const formatScaleFactor = (value: number) => {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 };
 
+const parseScaleFactorInput = (value: string) => {
+  const trimmed = value.trim();
+  const reciprocalMatch = trimmed.match(/^1\/(\d+(?:\.\d+)?)$/);
+  if (reciprocalMatch) {
+    const denominator = Number(reciprocalMatch[1]);
+    return Number.isFinite(denominator) && denominator > 0 ? 1 / denominator : null;
+  }
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed < 0) {
+    const denominator = Math.abs(parsed);
+    return denominator > 0 ? 1 / denominator : null;
+  }
+  return parsed;
+};
+
+const formatScaleFactorInputDraft = (value: string) => {
+  const trimmed = value.trim();
+  if (trimmed === "-") return value;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed >= 0) return value;
+  return `1/${Math.abs(parsed)}`;
+};
+
 const formatTimelineSecondLabel = (seconds: number) => {
   const safeSeconds = Math.max(0, Math.round(seconds));
   const minutes = Math.floor(safeSeconds / 60);
   const remainder = safeSeconds % 60;
   return `${minutes}:${String(remainder).padStart(2, "0")}`;
+};
+
+const formatDurationSeconds = (seconds: number) => {
+  const rounded = Math.round(Math.max(0, seconds) * 10000) / 10000;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded).replace(/0+$/, "").replace(/\.$/, "");
 };
 
 const clampEventLength = (length: number) =>
@@ -254,6 +287,42 @@ const getBeatGridLength = (length: number, beatsPerBar: number, mode: "floor" | 
   const beatCount =
     mode === "floor" ? Math.floor(rawBeatCount) : mode === "ceil" ? Math.ceil(rawBeatCount) : Math.round(rawBeatCount);
   return clampEventLength(Math.round((Math.max(1, beatCount) * FIXED_FRAMES_PER_BAR) / beats));
+};
+
+const getBeatSubdivisionGridTime = (
+  time: number,
+  beatsPerBar: number,
+  subdivisionsPerBeat = 4,
+  mode: "floor" | "round" | "ceil" = "round"
+) => {
+  const beats = normalizeBeatsPerBar(beatsPerBar);
+  const unitsPerBar = Math.max(1, beats * Math.max(1, Math.round(subdivisionsPerBeat)));
+  const safeTime = Math.max(0, Math.round(time));
+  const barIndex = Math.floor(safeTime / FIXED_FRAMES_PER_BAR);
+  const barStart = barIndex * FIXED_FRAMES_PER_BAR;
+  const inBar = safeTime - barStart;
+  const rawUnit = (inBar / FIXED_FRAMES_PER_BAR) * unitsPerBar;
+  const unitIndex =
+    mode === "floor" ? Math.floor(rawUnit) : mode === "ceil" ? Math.ceil(rawUnit) : Math.round(rawUnit);
+  return Math.max(
+    0,
+    barStart + Math.round((Math.max(0, Math.min(unitsPerBar, unitIndex)) * FIXED_FRAMES_PER_BAR) / unitsPerBar)
+  );
+};
+
+const getBeatSubdivisionGridLength = (
+  length: number,
+  beatsPerBar: number,
+  subdivisionsPerBeat = 4,
+  mode: "floor" | "round" | "ceil" = "round"
+) => {
+  const beats = normalizeBeatsPerBar(beatsPerBar);
+  const unitsPerBar = Math.max(1, beats * Math.max(1, Math.round(subdivisionsPerBeat)));
+  const safeLength = clampEventLength(length);
+  const rawUnitCount = (safeLength / FIXED_FRAMES_PER_BAR) * unitsPerBar;
+  const unitCount =
+    mode === "floor" ? Math.floor(rawUnitCount) : mode === "ceil" ? Math.ceil(rawUnitCount) : Math.round(rawUnitCount);
+  return clampEventLength(Math.round((Math.max(1, unitCount) * FIXED_FRAMES_PER_BAR) / unitsPerBar));
 };
 
 const NON_TEXT_INPUT_TYPES = new Set([
@@ -767,6 +836,10 @@ const setTimeSignatureInSnapshot = (draft: EditorSnapshot, timeSignature: number
   draft.timeSignature = Math.max(1, Math.min(64, Math.round(timeSignature)));
 };
 
+const setTimeSignatureBottomInSnapshot = (draft: EditorSnapshot, timeSignatureBottom: number) => {
+  draft.timeSignatureBottom = Math.max(1, Math.min(64, Math.round(timeSignatureBottom)));
+};
+
 const scaleEventsForTimeSignatureChangeInSnapshot = (
   draft: EditorSnapshot,
   previousTimeSignature: number,
@@ -1134,6 +1207,7 @@ export default function GteWorkspace({
   canvasKeyBase = 0,
   canvasKeyType = 0,
   sharedTimeSignature,
+  sharedTimeSignatureBottom,
   sharedViewportBarCount,
   sharedTimelineScrollRatio,
   onSharedTimelineScrollRatioChange,
@@ -1194,6 +1268,8 @@ export default function GteWorkspace({
   const [bpmInput, setBpmInput] = useState(formatBpm(secondsPerBarToBpm(2, 8)));
   const [timeSignature, setTimeSignature] = useState(8);
   const [timeSignatureInput, setTimeSignatureInput] = useState("8");
+  const [timeSignatureBottom, setTimeSignatureBottom] = useState(4);
+  const [defaultNoteLengthDenominator, setDefaultNoteLengthDenominator] = useState(4);
   const [keepNotesOnBeat, setKeepNotesOnBeat] = useState(false);
   const [localSnapToGridEnabled, setLocalSnapToGridEnabled] = useState(true);
   const [localSnapToKeyEnabled, setLocalSnapToKeyEnabled] = useState(false);
@@ -1377,6 +1453,7 @@ export default function GteWorkspace({
   const keyboardAddModeRef = useRef<KeyboardAddMode | null>(null);
   const noteFretTypingBufferRef = useRef("");
   const noteFretTypingAtRef = useRef(0);
+  const defaultNoteLengthUserChangedRef = useRef(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosaveInFlightRef = useRef(false);
   const autosaveQueuedRef = useRef(false);
@@ -1439,6 +1516,53 @@ export default function GteWorkspace({
   const timelineEnd = barCount * framesPerMeasure;
   const snapThresholdFrames = Math.max(1, Math.round(4 / Math.max(1, scale)));
   const playbackFps = fps;
+  const framesToDurationSeconds = useCallback(
+    (frames: number) => Math.max(0, Number(frames) || 0) / Math.max(1, playbackFps),
+    [playbackFps]
+  );
+  const formatLengthFramesAsSeconds = useCallback(
+    (frames: number) => formatDurationSeconds(framesToDurationSeconds(frames)),
+    [framesToDurationSeconds]
+  );
+  const parseLengthSecondsToFrames = useCallback(
+    (value: unknown) => {
+      const seconds = Number(value);
+      if (!Number.isFinite(seconds) || seconds <= 0) return null;
+      return clampEventLength(Math.round(seconds * Math.max(1, playbackFps)));
+    },
+    [playbackFps]
+  );
+  const noteFractionDenominatorToFrames = useCallback(
+    (denominator: number) => {
+      const safeDenominator = Math.max(1, Math.min(64, Math.round(Number(denominator) || 1)));
+      const beatsPerBar = Math.max(1, Math.round(timeSignature));
+      const beatUnit = Math.max(1, Math.round(timeSignatureBottom));
+      return clampEventLength(Math.round((framesPerMeasure * beatUnit) / (beatsPerBar * safeDenominator)));
+    },
+    [framesPerMeasure, timeSignature, timeSignatureBottom]
+  );
+  const getNearestNoteFractionDenominator = useCallback(
+    (frames: number) => {
+      const safeFrames = clampEventLength(frames);
+      const beatsPerBar = Math.max(1, Math.round(timeSignature));
+      const beatUnit = Math.max(1, Math.round(timeSignatureBottom));
+      const rawDenominator = (framesPerMeasure * beatUnit) / (beatsPerBar * safeFrames);
+      if (!Number.isFinite(rawDenominator)) return 1;
+      return Math.max(1, Math.min(64, Math.round(rawDenominator)));
+    },
+    [framesPerMeasure, timeSignature, timeSignatureBottom]
+  );
+  const formatLengthFramesAsFraction = useCallback(
+    (frames: number) => `1/${getNearestNoteFractionDenominator(frames)}`,
+    [getNearestNoteFractionDenominator]
+  );
+  useEffect(() => {
+    if (defaultNoteLengthUserChangedRef.current) return;
+    setDefaultNoteLengthDenominator(Math.max(1, Math.min(64, Math.round(timeSignatureBottom))));
+  }, [timeSignatureBottom]);
+  useEffect(() => {
+    lastAddedNoteLengthRef.current = noteFractionDenominatorToFrames(defaultNoteLengthDenominator);
+  }, [defaultNoteLengthDenominator, noteFractionDenominatorToFrames]);
   const tabPreviewText = useMemo(
     () => buildTabTextFromSnapshot(snapshot, { barsPerRow: BARS_PER_ROW }),
     [snapshot]
@@ -2067,6 +2191,13 @@ export default function GteWorkspace({
       }
     }
   }, [sharedTimeSignature, snapshot.timeSignature]);
+
+  useEffect(() => {
+    const source = sharedTimeSignatureBottom ?? snapshot.timeSignatureBottom ?? 4;
+    const next = Number(source);
+    if (!Number.isFinite(next) || next < 1) return;
+    setTimeSignatureBottom(Math.max(1, Math.min(64, Math.round(next))));
+  }, [sharedTimeSignatureBottom, snapshot.timeSignatureBottom]);
 
   useEffect(() => {
     const container = timelineOuterRef.current;
@@ -2773,6 +2904,17 @@ export default function GteWorkspace({
     [snapToGridEnabled, timeSignature]
   );
 
+  const snapMoveStartTimeToGrid = useCallback(
+    (startTime: number) => {
+      const safeStart = Math.max(0, Math.round(startTime));
+      if (!snapToGridEnabled) {
+        return safeStart;
+      }
+      return getBeatSubdivisionGridTime(safeStart, timeSignature, 4, "round");
+    },
+    [snapToGridEnabled, timeSignature]
+  );
+
   const snapNoteToGrid = useCallback(
     (startTime: number, length: number) => {
       const safeLength = clampEventLength(length);
@@ -2786,6 +2928,14 @@ export default function GteWorkspace({
       return { startTime: snappedStart, length: getBeatGridLength(safeLength, timeSignature, "floor") };
     },
     [snapStartTimeToGrid, snapToGridEnabled, timeSignature]
+  );
+
+  const snapNewNoteToGrid = useCallback(
+    (startTime: number, length: number) => ({
+      startTime: snapStartTimeToGrid(startTime),
+      length: clampEventLength(length),
+    }),
+    [snapStartTimeToGrid]
   );
 
   const snapLengthToGrid = useCallback(
@@ -2811,14 +2961,14 @@ export default function GteWorkspace({
       const scaleStartTime = (value: number) => {
         let next = Math.trunc((value - session.minTime) * normalizedFactor + session.minTime);
         if (snapToGridEnabled) {
-          next = getBeatGridTime(next, timeSignature, "floor");
+          next = getBeatSubdivisionGridTime(next, timeSignature, 4, "round");
         }
         return Math.max(0, next);
       };
 
       const scaleItemLength = (value: number) => {
         if (snapToGridEnabled) {
-          return getBeatGridLength(value * normalizedFactor, timeSignature, "round");
+          return getBeatSubdivisionGridLength(value * normalizedFactor, timeSignature, 4, "round");
         }
         return clampEventLength(Math.trunc(value * normalizedFactor));
       };
@@ -3313,7 +3463,7 @@ export default function GteWorkspace({
     (session: MoveSession, deltaFrames: number) => {
       const rawDelta = Math.round(deltaFrames);
       const targetAnchor = snapToGridEnabled
-        ? snapStartTimeToGrid(session.anchorStart + rawDelta)
+        ? getBeatSubdivisionGridTime(session.anchorStart + rawDelta, timeSignature, 4, "round")
         : Math.round(session.anchorStart + rawDelta);
       const delta = Math.max(0, targetAnchor) - session.anchorStart;
       const notes: Record<number, QuantizePreviewEntity> = {};
@@ -3336,7 +3486,7 @@ export default function GteWorkspace({
 
       return { notes, chords, maxEnd, delta };
     },
-    [snapStartTimeToGrid, snapToGridEnabled]
+    [snapToGridEnabled, timeSignature]
   );
 
   const applyMovePreview = useCallback(
@@ -3458,10 +3608,10 @@ export default function GteWorkspace({
       commit: async () => {
         let last: { snapshot?: EditorSnapshot } | null = null;
         for (const update of noteUpdates) {
-          last = await gteApi.setNoteStartTime(editorId, resolveNoteId(update.id), update.startTime, snapToGridEnabled);
+          last = await gteApi.setNoteStartTime(editorId, resolveNoteId(update.id), update.startTime, false);
         }
         for (const update of chordUpdates) {
-          last = await gteApi.setChordStartTime(editorId, resolveChordId(update.id), update.startTime, snapToGridEnabled);
+          last = await gteApi.setChordStartTime(editorId, resolveChordId(update.id), update.startTime, false);
         }
         return last ?? {};
       },
@@ -3475,7 +3625,6 @@ export default function GteWorkspace({
     moveToolActive,
     resolveChordId,
     resolveNoteId,
-    snapToGridEnabled,
   ]);
 
   useEffect(() => {
@@ -3738,10 +3887,10 @@ export default function GteWorkspace({
 
   const handleScaleFactorInputChange = useCallback(
     (value: string) => {
-      setScaleFactorInput(value);
+      setScaleFactorInput(formatScaleFactorInputDraft(value));
       if (value.trim() === "") return;
-      const parsed = Number(value);
-      if (!Number.isFinite(parsed)) return;
+      const parsed = parseScaleFactorInput(value);
+      if (parsed === null) return;
       applyScalePreview(parsed, { mode: scaleToolMode, syncInput: false });
       scaleFactorTypingRef.current = value;
       scaleFactorTypingAtRef.current = Date.now();
@@ -3964,8 +4113,8 @@ export default function GteWorkspace({
       const clampedStart = clamp(snappedStart, 0, maxStart);
       const startTime =
         dragging.type === "note"
-          ? clamp(snapStartTimeToGrid(clampedStart), 0, maxStart)
-          : clamp(snapStartTimeToGrid(clampedStart), 0, maxStart);
+          ? clamp(snapMoveStartTimeToGrid(clampedStart), 0, maxStart)
+          : clamp(snapMoveStartTimeToGrid(clampedStart), 0, maxStart);
       if (dragging.type === "note") {
         const localY = y - rowIndex * rowStride;
         const stringIndex = multiTrackSelectionActive
@@ -4010,7 +4159,7 @@ export default function GteWorkspace({
         const rawStart = Math.round(preview.startTime ?? dragging.startTime);
         const maxStart = Math.max(0, timelineEnd - safeLength);
         const clampedStart = clamp(rawStart, 0, maxStart);
-        const targetStart = clamp(snapStartTimeToGrid(clampedStart), 0, maxStart);
+        const targetStart = clamp(snapMoveStartTimeToGrid(clampedStart), 0, maxStart);
         const didChangeString = targetString !== dragging.stringIndex;
         const didChangeStart = targetStart !== dragging.startTime;
         if (
@@ -4053,7 +4202,7 @@ export default function GteWorkspace({
                   editorId,
                   resolvedId,
                   targetStart,
-                  snapToGridEnabled
+                  false
                 );
               }
               return last ?? {};
@@ -4064,7 +4213,7 @@ export default function GteWorkspace({
         const safeLength = Math.max(1, Math.round(dragging.length));
         const rawStart = Math.round(preview.startTime ?? dragging.startTime);
         const maxStart = Math.max(0, timelineEnd - safeLength);
-        const targetStart = clamp(snapStartTimeToGrid(rawStart), 0, maxStart);
+        const targetStart = clamp(snapMoveStartTimeToGrid(rawStart), 0, maxStart);
         if (targetStart !== dragging.startTime) {
           if (
             multiTrackSelectionActive &&
@@ -4090,7 +4239,7 @@ export default function GteWorkspace({
                 editorId,
                 resolveChordId(dragging.id),
                 targetStart,
-                snapToGridEnabled
+                false
               ),
           });
         }
@@ -4120,12 +4269,11 @@ export default function GteWorkspace({
       resolveNoteId,
       onRequestGlobalSelectedShift,
       multiTrackSelectionActive,
-      snapToGridEnabled,
       scale,
       totalFrames,
       rowFrames,
       rows,
-      snapStartTimeToGrid,
+      snapMoveStartTimeToGrid,
       snapTabToKeyIfEnabled,
       timelineHeight,
       timelineWidth,
@@ -4167,7 +4315,7 @@ export default function GteWorkspace({
         maxDelta = Math.min(maxDelta, timelineEnd - chord.length - chord.startTime);
       });
       const anchorCandidate = shouldGridSnapStarts
-        ? snapStartTimeToGrid(snappedStart)
+        ? snapMoveStartTimeToGrid(snappedStart)
         : snappedStart;
       const targetAnchorStart = clamp(
         anchorCandidate,
@@ -4210,7 +4358,7 @@ export default function GteWorkspace({
               if (target) {
                 const rawStart = note.startTime + delta;
                 const maxStart = Math.max(0, timelineEnd - note.length);
-                const snappedStart = shouldGridSnapStarts ? snapStartTimeToGrid(rawStart) : rawStart;
+                const snappedStart = shouldGridSnapStarts ? snapMoveStartTimeToGrid(rawStart) : rawStart;
                 target.startTime = clamp(snappedStart, 0, maxStart);
               }
             });
@@ -4220,7 +4368,7 @@ export default function GteWorkspace({
               if (target) {
                 const rawStart = chord.startTime + delta;
                 const maxStart = Math.max(0, timelineEnd - chord.length);
-                const snappedStart = snapStartTimeToGrid(rawStart);
+                const snappedStart = shouldGridSnapStarts ? snapMoveStartTimeToGrid(rawStart) : rawStart;
                 target.startTime = clamp(snappedStart, 0, maxStart);
               }
             });
@@ -4231,25 +4379,25 @@ export default function GteWorkspace({
             for (const note of multiDrag.notes) {
               const rawStart = note.startTime + delta;
               const maxStart = Math.max(0, timelineEnd - note.length);
-              const snappedStart = shouldGridSnapStarts ? snapStartTimeToGrid(rawStart) : rawStart;
+              const snappedStart = shouldGridSnapStarts ? snapMoveStartTimeToGrid(rawStart) : rawStart;
               const nextStart = clamp(snappedStart, 0, maxStart);
               last = await gteApi.setNoteStartTime(
                 editorId,
                 resolveNoteId(note.id),
                 nextStart,
-                snapToGridEnabled
+                false
               );
             }
             for (const chord of multiDrag.chords) {
               const rawStart = chord.startTime + delta;
               const maxStart = Math.max(0, timelineEnd - chord.length);
-              const snappedStart = snapStartTimeToGrid(rawStart);
+              const snappedStart = shouldGridSnapStarts ? snapMoveStartTimeToGrid(rawStart) : rawStart;
               const nextStart = clamp(snappedStart, 0, maxStart);
               last = await gteApi.setChordStartTime(
                 editorId,
                 resolveChordId(chord.id),
                 nextStart,
-                snapToGridEnabled
+                false
               );
             }
             return last ?? {};
@@ -4281,7 +4429,7 @@ export default function GteWorkspace({
       onRequestGlobalSelectedShift,
       multiTrackSelectionActive,
       snapToGridEnabled,
-      snapStartTimeToGrid,
+      snapMoveStartTimeToGrid,
       clamp,
       scale,
       rowFrames,
@@ -5181,7 +5329,7 @@ export default function GteWorkspace({
       setError(`Fret must be between 0 and ${maxFret}.`);
       return;
     }
-    const snapped = snapNoteToGrid(draftNote.startTime, rawLength);
+    const snapped = snapNewNoteToGrid(draftNote.startTime, rawLength);
     const rawTab: TabCoord = [draftNote.stringIndex, fret];
     const tab = snapTabToKeyIfEnabled(snapshotRef.current, rawTab);
     const tempId = getTempNoteId();
@@ -5205,10 +5353,9 @@ export default function GteWorkspace({
           tab,
           startTime: snapped.startTime,
           length: snapped.length,
-          snapToGrid: snapToGridEnabled,
+          snapToGrid: false,
         }),
     });
-    lastAddedNoteLengthRef.current = clampEventLength(snapped.length);
     setDraftNote(null);
     setDraftNoteAnchor(null);
   };
@@ -5897,7 +6044,7 @@ export default function GteWorkspace({
       setNoteMenuAnchor({ x, y });
     }
     setNoteMenuNoteId(noteId);
-    setNoteMenuDraft({ fret: String(fret), length: String(length) });
+    setNoteMenuDraft({ fret: String(fret), length: formatLengthFramesAsSeconds(length) });
   };
 
   const openChordMenu = (chordId: number, length: number, event: ReactMouseEvent) => {
@@ -5905,7 +6052,7 @@ export default function GteWorkspace({
     const { x, y } = getSideMenuAnchor(event, 240, 230);
     setChordMenuAnchor({ x, y });
     setChordMenuChordId(chordId);
-    setChordMenuDraft({ length: String(length) });
+    setChordMenuDraft({ length: formatLengthFramesAsSeconds(length) });
   };
 
   const openChordEdit = (chordId: number, event: ReactMouseEvent) => {
@@ -5941,7 +6088,7 @@ export default function GteWorkspace({
     const { x, y } = getSideMenuAnchor(event, 224, 210);
     setChordNoteMenuAnchor({ x, y });
     setChordNoteMenuIndex(tabIndex);
-    setChordNoteMenuDraft({ fret: String(fret), length: String(length) });
+    setChordNoteMenuDraft({ fret: String(fret), length: formatLengthFramesAsSeconds(length) });
   };
 
   const commitNoteMenuFretValue = useCallback(
@@ -6048,50 +6195,66 @@ export default function GteWorkspace({
 
   const commitNoteMenuLength = () => {
     if (!noteMenuDraft) return;
-    const rawLength = Number(noteMenuDraft.length);
-    if (!Number.isInteger(rawLength) || rawLength < 1) {
-      setError(`Invalid length. Use 1-${MAX_EVENT_LENGTH_FRAMES}.`);
+    const rawLength = parseLengthSecondsToFrames(noteMenuDraft.length);
+    if (rawLength === null) {
+      setError(`Invalid length. Use seconds greater than 0.`);
       return;
     }
     commitNoteMenuLengthValue(rawLength);
   };
 
-  const setMobileNoteFieldValue = useCallback(
-    (field: "fret" | "length", value: number) => {
-      setNoteMenuDraft((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          [field]: String(value),
-        };
-      });
+  const commitNoteMenuFractionLength = useCallback(
+    (rawDenominator: string | number) => {
+      const denominator = Number(rawDenominator);
+      if (!Number.isInteger(denominator) || denominator < 1 || denominator > 64) {
+        setError("Invalid note length.");
+        return;
+      }
+      const nextLength = noteFractionDenominatorToFrames(denominator);
+      setNoteMenuDraft((prev) =>
+        prev ? { ...prev, length: formatLengthFramesAsSeconds(nextLength) } : prev
+      );
+      commitNoteMenuLengthValue(nextLength);
     },
-    []
+    [commitNoteMenuLengthValue, formatLengthFramesAsSeconds, noteFractionDenominatorToFrames]
   );
 
   const adjustMobileNoteField = useCallback(
     (field: "fret" | "length", delta: number) => {
       const fallbackValue =
         field === "fret" ? selectedNote?.tab[1] ?? 0 : selectedNote?.length ?? lastAddedNoteLengthRef.current;
-      const currentValue = Number(noteMenuDraft?.[field] ?? fallbackValue);
-      const min = field === "fret" ? 0 : 1;
-      const max = field === "fret" ? maxFret : MAX_EVENT_LENGTH_FRAMES;
-      const nextValue = Math.max(min, Math.min(max, (Number.isFinite(currentValue) ? currentValue : fallbackValue) + delta));
-      setMobileNoteFieldValue(field, nextValue);
+      const currentValue = Number(noteMenuDraft?.[field] ?? (field === "fret" ? fallbackValue : formatLengthFramesAsSeconds(fallbackValue)));
+      const nextValue =
+        field === "fret"
+          ? Math.max(0, Math.min(maxFret, (Number.isFinite(currentValue) ? currentValue : fallbackValue) + delta))
+          : Math.max(
+              framesToDurationSeconds(1),
+              Math.min(
+                framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES),
+                (Number.isFinite(currentValue) ? currentValue : framesToDurationSeconds(fallbackValue)) + delta * 0.1
+              )
+            );
+      const nextDraftValue = field === "fret" ? String(nextValue) : formatDurationSeconds(nextValue);
+      setNoteMenuDraft((prev) => (prev ? { ...prev, [field]: nextDraftValue } : prev));
       if (field === "fret") {
         if (!selectedNote) return;
         scheduleNoteFretArrowCommit(selectedNote.id, nextValue);
       } else {
-        commitNoteMenuLengthValue(nextValue);
+        const nextLengthFrames = parseLengthSecondsToFrames(nextDraftValue);
+        if (nextLengthFrames !== null) {
+          commitNoteMenuLengthValue(nextLengthFrames);
+        }
       }
     },
     [
       commitNoteMenuLengthValue,
+      formatLengthFramesAsSeconds,
+      framesToDurationSeconds,
       maxFret,
       noteMenuDraft,
+      parseLengthSecondsToFrames,
       scheduleNoteFretArrowCommit,
       selectedNote,
-      setMobileNoteFieldValue,
     ]
   );
 
@@ -6110,9 +6273,9 @@ export default function GteWorkspace({
 
   const commitChordMenuLength = () => {
     if (!selectedChord || !chordMenuDraft) return;
-    const rawLength = Number(chordMenuDraft.length);
-    if (!Number.isInteger(rawLength) || rawLength < 1) {
-      setError(`Invalid length. Use 1-${MAX_EVENT_LENGTH_FRAMES}.`);
+    const rawLength = parseLengthSecondsToFrames(chordMenuDraft.length);
+    if (rawLength === null) {
+      setError(`Invalid length. Use seconds greater than 0.`);
       return;
     }
     const lengthValue = allowBackend ? clampEventLength(rawLength) : snapLengthToGrid(rawLength);
@@ -6159,9 +6322,9 @@ export default function GteWorkspace({
 
   const commitChordNoteLength = () => {
     if (!selectedChord || !chordNoteMenuDraft) return;
-    const rawLength = Number(chordNoteMenuDraft.length);
-    if (!Number.isInteger(rawLength) || rawLength < 1) {
-      setError(`Invalid length. Use 1-${MAX_EVENT_LENGTH_FRAMES}.`);
+    const rawLength = parseLengthSecondsToFrames(chordNoteMenuDraft.length);
+    if (rawLength === null) {
+      setError(`Invalid length. Use seconds greater than 0.`);
       return;
     }
     const lengthValue = allowBackend ? clampEventLength(rawLength) : snapLengthToGrid(rawLength);
@@ -6427,17 +6590,60 @@ export default function GteWorkspace({
       if (normalized === previousTimeSignature) {
         return true;
       }
-      void runMutation(() => gteApi.setTimeSignature(editorId, normalized), {
-        localApply: (draft) => {
-          if (keepNotesOnBeat) {
-            scaleEventsForTimeSignatureChangeInSnapshot(draft, previousTimeSignature, normalized);
-          }
-          setTimeSignatureInSnapshot(draft, normalized);
+      const currentBpm = secondsPerBarToBpm(secondsPerBar, previousTimeSignature);
+      const nextSecondsPerBar = keepNotesOnBeat
+        ? bpmToSecondsPerBar(currentBpm, normalized) ?? secondsPerBar
+        : secondsPerBar;
+      if (keepNotesOnBeat) {
+        setSecondsPerBar(nextSecondsPerBar);
+        setBpmInput(formatBpm(currentBpm));
+      }
+      void runMutation(
+        () => {
+          if (!keepNotesOnBeat) return gteApi.setTimeSignature(editorId, normalized);
+          const nextSnapshot = cloneSnapshot(snapshotRef.current);
+          scaleEventsForTimeSignatureChangeInSnapshot(nextSnapshot, previousTimeSignature, normalized);
+          setSecondsPerBarInSnapshot(nextSnapshot, nextSecondsPerBar);
+          setTimeSignatureInSnapshot(nextSnapshot, normalized);
+          return gteApi.applySnapshot(editorId, nextSnapshot);
         },
-      });
+        {
+          localApply: (draft) => {
+            if (keepNotesOnBeat) {
+              scaleEventsForTimeSignatureChangeInSnapshot(draft, previousTimeSignature, normalized);
+              setSecondsPerBarInSnapshot(draft, nextSecondsPerBar);
+            }
+            setTimeSignatureInSnapshot(draft, normalized);
+          },
+        }
+      );
       return true;
     },
-    [editorId, keepNotesOnBeat, runMutation, timeSignature]
+    [cloneSnapshot, editorId, keepNotesOnBeat, runMutation, secondsPerBar, timeSignature]
+  );
+
+  const commitTimeSignatureBottomValue = useCallback(
+    (rawValue: number | string) => {
+      const next = Number(rawValue);
+      if (!Number.isFinite(next) || next < 1 || next > 64) return false;
+      const normalized = Math.max(1, Math.min(64, Math.round(next)));
+      setTimeSignatureBottom(normalized);
+      if (normalized === timeSignatureBottom) return true;
+      void runMutation(
+        () => {
+          const nextSnapshot = cloneSnapshot(snapshotRef.current);
+          setTimeSignatureBottomInSnapshot(nextSnapshot, normalized);
+          return gteApi.applySnapshot(editorId, nextSnapshot);
+        },
+        {
+          localApply: (draft) => {
+            setTimeSignatureBottomInSnapshot(draft, normalized);
+          },
+        }
+      );
+      return true;
+    },
+    [cloneSnapshot, editorId, runMutation, timeSignatureBottom]
   );
 
   const handleBarSelection = useCallback(
@@ -7477,7 +7683,7 @@ export default function GteWorkspace({
       const fretValue = Number(fretDigit);
       if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) return;
       const rawLength = clampEventLength(lastAddedNoteLengthRef.current);
-      const snapped = snapNoteToGrid(cursor.time, rawLength);
+      const snapped = snapNewNoteToGrid(cursor.time, rawLength);
       const tab = snapTabToKeyIfEnabled(snapshotRef.current, [cursor.stringIndex, fretValue]);
       const tempId = getTempNoteId();
       enqueueOptimisticMutation({
@@ -7499,10 +7705,9 @@ export default function GteWorkspace({
             tab,
             startTime: snapped.startTime,
             length: snapped.length,
-            snapToGrid: snapToGridEnabled,
+            snapToGrid: false,
           }),
       });
-      lastAddedNoteLengthRef.current = clampEventLength(snapped.length);
       showKeyboardCursor({ time: snapped.startTime, stringIndex: cursor.stringIndex });
       setKeyboardAddMode({ noteId: tempId, fretText: String(fretValue) });
       setSelectedNoteIds([]);
@@ -7523,9 +7728,8 @@ export default function GteWorkspace({
       maxFret,
       noteSignature,
       showKeyboardCursor,
-      snapNoteToGrid,
+      snapNewNoteToGrid,
       snapTabToKeyIfEnabled,
-      snapToGridEnabled,
     ]
   );
 
@@ -7795,7 +7999,7 @@ export default function GteWorkspace({
         !event.ctrlKey &&
         !event.metaKey &&
         !event.altKey &&
-        (/^\d$/.test(event.key) || event.key === "." || event.key === "Backspace")
+        (/^\d$/.test(event.key) || event.key === "." || event.key === "-" || event.key === "Backspace")
       ) {
         event.preventDefault();
         const now = Date.now();
@@ -7809,6 +8013,9 @@ export default function GteWorkspace({
         } else if (event.key === ".") {
           if (buffer.includes(".")) return;
           buffer = buffer.length ? `${buffer}.` : "0.";
+        } else if (event.key === "-") {
+          if (buffer.length > 0) return;
+          buffer = "-";
         } else {
           buffer += event.key;
         }
@@ -9260,6 +9467,32 @@ export default function GteWorkspace({
     );
   };
 
+  const renderDefaultNoteLengthControl = (compact = false) => (
+    <label
+      className={`pointer-events-auto flex ${
+        compact ? "h-8" : "h-9"
+      } items-center gap-1 rounded-full border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500 shadow-sm backdrop-blur`}
+    >
+      <span className="whitespace-nowrap">add note size</span>
+      <select
+        value={defaultNoteLengthDenominator}
+        onChange={(event) => {
+          defaultNoteLengthUserChangedRef.current = true;
+          setDefaultNoteLengthDenominator(Number(event.target.value));
+        }}
+        className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
+        title="Add note size"
+        aria-label="Add note size"
+      >
+        {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+          <option key={denominator} value={denominator}>
+            1/{denominator}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
   return (
     <div
       className={workspaceClass}
@@ -9545,9 +9778,11 @@ export default function GteWorkspace({
               </button>
             )}
             {mobileViewport ? (
+              <div className="pointer-events-auto flex w-full items-center gap-2">
+                {renderDefaultNoteLengthControl(true)}
               <div
                 data-gte-floating-ui="true"
-                className="pointer-events-auto flex w-full items-center justify-between gap-1 rounded-2xl border border-slate-200 bg-white/96 px-2 py-2 text-slate-700 shadow-lg backdrop-blur"
+                className="flex min-w-0 flex-1 items-center justify-between gap-1 rounded-2xl border border-slate-200 bg-white/96 px-2 py-2 text-slate-700 shadow-lg backdrop-blur"
               >
                 <button
                   type="button"
@@ -9702,10 +9937,13 @@ export default function GteWorkspace({
                   </>
                 )}
               </div>
+              </div>
             ) : (
+              <div className="pointer-events-auto flex items-center gap-2">
+                {renderDefaultNoteLengthControl(false)}
               <div
                 data-gte-floating-ui="true"
-                className="pointer-events-auto flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur"
+                className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur"
               >
                 <button
                   type="button"
@@ -9898,6 +10136,7 @@ export default function GteWorkspace({
                   </>
                 )}
               </div>
+              </div>
             )}
           </div>
         </div>
@@ -9952,54 +10191,35 @@ export default function GteWorkspace({
         {!embedded && (
           <div className="flex items-center gap-3 text-xs text-slate-600">
             <div className="flex items-center gap-2">
-              <span>Beats/bar</span>
+              <span>Time signature</span>
               <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min={1}
-                  max={64}
-                  step={1}
-                  inputMode="numeric"
-                  value={timeSignatureInput}
-                  onChange={(e) => setTimeSignatureInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Enter") return;
-                    e.preventDefault();
-                    commitTimeSignatureValue(timeSignatureInput);
-                  }}
-                  onBlur={() => {
-                    commitTimeSignatureValue(timeSignatureInput);
-                  }}
-                  className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-                />
-                <div className="flex flex-col gap-0.5">
-                  <button
-                    type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                      commitTimeSignatureValue(timeSignature + 1);
-                    }}
-                    className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
-                    title="Increase beats per bar"
-                    aria-label="Increase beats per bar"
-                    disabled={timeSignature >= 64}
-                  >
-                    &#9650;
-                  </button>
-                  <button
-                    type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                      commitTimeSignatureValue(timeSignature - 1);
-                    }}
-                    className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
-                    title="Decrease beats per bar"
-                    aria-label="Decrease beats per bar"
-                    disabled={timeSignature <= 1}
-                  >
-                    &#9660;
-                  </button>
-                </div>
+                <select
+                  value={timeSignature}
+                  onChange={(event) => commitTimeSignatureValue(Number(event.target.value))}
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
+                  aria-label="Time signature top number"
+                  title="Top number"
+                >
+                  {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-slate-400">/</span>
+                <select
+                  value={timeSignatureBottom}
+                  onChange={(event) => commitTimeSignatureBottomValue(Number(event.target.value))}
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
+                  aria-label="Time signature bottom number"
+                  title="Bottom number"
+                >
+                  {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             <label className="flex items-center gap-1.5 whitespace-nowrap">
@@ -10094,7 +10314,7 @@ export default function GteWorkspace({
         {!embedded && <div className="text-xs text-slate-600">Scale: {scale}px/frame (auto)</div>}
         {!embedded && (
           <div className="text-xs text-slate-500">
-              FPS: {fps} - Beats/bar: {timeSignature}
+              FPS: {fps} - Time signature: {timeSignature}/{timeSignatureBottom}
             </div>
         )}
       </div>
@@ -11419,34 +11639,65 @@ export default function GteWorkspace({
                             </div>
                           </div>
                         </label>
-                        <label className="block text-[10px] text-slate-500">
-                          Length
-                          <input
-                            type="number"
-                            min={1}
-                            max={MAX_EVENT_LENGTH_FRAMES}
-                            className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                            value={noteMenuDraft.length}
-                            onChange={(event) =>
-                              setNoteMenuDraft((prev) =>
-                                prev ? { ...prev, length: event.target.value } : prev
-                              )
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                commitNoteMenuLength();
+                        <div className="grid grid-cols-[1fr_80px] gap-2">
+                          <label className="block text-[10px] text-slate-500">
+                            Length (sec)
+                            <input
+                              type="number"
+                              min={framesToDurationSeconds(1)}
+                              max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
+                              step={0.01}
+                              inputMode="decimal"
+                              className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                              value={noteMenuDraft.length}
+                              onChange={(event) =>
+                                setNoteMenuDraft((prev) =>
+                                  prev ? { ...prev, length: event.target.value } : prev
+                                )
                               }
-                              if (event.key === "Escape") {
-                                event.preventDefault();
-                                setNoteMenuAnchor(null);
-                                setNoteMenuNoteId(null);
-                                setNoteMenuDraft(null);
-                              }
-                            }}
-                            onBlur={() => commitNoteMenuLength()}
-                          />
-                        </label>
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  commitNoteMenuLength();
+                                }
+                                if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  setNoteMenuAnchor(null);
+                                  setNoteMenuNoteId(null);
+                                  setNoteMenuDraft(null);
+                                }
+                              }}
+                              onBlur={() => commitNoteMenuLength()}
+                            />
+                          </label>
+                          <label className="block text-[10px] text-slate-500">
+                            Length
+                            <select
+                              className="mt-1 h-[26px] w-full rounded border border-slate-200 bg-white px-1 text-xs"
+                              value={getNearestNoteFractionDenominator(selectedNote.length)}
+                              onChange={(event) => commitNoteMenuFractionLength(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  commitNoteMenuFractionLength(event.currentTarget.value);
+                                }
+                                if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  setNoteMenuAnchor(null);
+                                  setNoteMenuNoteId(null);
+                                  setNoteMenuDraft(null);
+                                }
+                              }}
+                              aria-label={`Musical note length ${formatLengthFramesAsFraction(selectedNote.length)}`}
+                            >
+                              {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+                                <option key={denominator} value={denominator}>
+                                  1/{denominator}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
                       </div>
                       {noteAlternates?.possibleTabs?.length ||
                       noteAlternates?.blockedTabs?.length ? (
@@ -11516,11 +11767,13 @@ export default function GteWorkspace({
                       </div>
                       <div className="mt-2 space-y-2">
                         <label className="block text-[10px] text-slate-500">
-                          Length
+                          Length (sec)
                           <input
                             type="number"
-                            min={1}
-                            max={MAX_EVENT_LENGTH_FRAMES}
+                            min={framesToDurationSeconds(1)}
+                            max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
+                            step={0.01}
+                            inputMode="decimal"
                             className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
                             value={chordMenuDraft.length}
                             onChange={(event) =>
@@ -11683,11 +11936,13 @@ export default function GteWorkspace({
                           />
                         </label>
                         <label className="block text-[10px] text-slate-500">
-                          Length
+                          Length (sec)
                           <input
                             type="number"
-                            min={1}
-                            max={MAX_EVENT_LENGTH_FRAMES}
+                            min={framesToDurationSeconds(1)}
+                            max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
+                            step={0.01}
+                            inputMode="decimal"
                             className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
                             value={chordNoteMenuDraft.length}
                             onChange={(event) =>
@@ -11837,16 +12092,18 @@ export default function GteWorkspace({
                       <div className="flex flex-col items-start gap-1">
                         <input
                           type="number"
-                          min={1}
-                          max={MAX_EVENT_LENGTH_FRAMES}
-                          value={draftNote.length ?? ""}
+                          min={framesToDurationSeconds(1)}
+                          max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
+                          step={0.01}
+                          inputMode="decimal"
+                          value={draftNote.length === null ? "" : formatLengthFramesAsSeconds(draftNote.length)}
                           onChange={(e) =>
                             setDraftNote((prev) => {
                               if (!prev) return prev;
-                              const parsed = parseOptionalNumber(e.target.value);
+                              const parsed = e.target.value === "" ? null : parseLengthSecondsToFrames(e.target.value);
                               return {
                                 ...prev,
-                                length: parsed === null ? null : clampEventLength(parsed),
+                                length: parsed,
                               };
                             })
                           }
@@ -11862,9 +12119,9 @@ export default function GteWorkspace({
                             }
                           }}
                           className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-                          placeholder="Length"
+                          placeholder="Sec"
                         />
-                        <span className="text-[10px] text-slate-500">Length</span>
+                        <span className="text-[10px] text-slate-500">Length sec</span>
                       </div>
                       <button
                         type="button"
@@ -11924,7 +12181,7 @@ export default function GteWorkspace({
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       {(["fret", "length"] as const).map((field) => {
-                        const label = field === "fret" ? "Fret" : "Length";
+                        const label = field === "fret" ? "Fret" : "Length sec";
                         const value = field === "fret" ? noteMenuDraft.fret : noteMenuDraft.length;
                         const commitField = field === "fret" ? commitNoteMenuFret : commitNoteMenuLength;
                         return (
@@ -11935,9 +12192,10 @@ export default function GteWorkspace({
                             <div className="mt-1 flex items-stretch gap-1.5">
                               <input
                                 type="number"
-                                min={field === "fret" ? 0 : 1}
-                                max={field === "fret" ? maxFret : MAX_EVENT_LENGTH_FRAMES}
-                                inputMode="numeric"
+                                min={field === "fret" ? 0 : framesToDurationSeconds(1)}
+                                max={field === "fret" ? maxFret : framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
+                                step={field === "fret" ? 1 : 0.01}
+                                inputMode={field === "fret" ? "numeric" : "decimal"}
                                 enterKeyHint="done"
                                 value={value}
                                 onChange={(event) =>
@@ -11978,6 +12236,28 @@ export default function GteWorkspace({
                           </div>
                         );
                       })}
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-1.5">
+                        <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                          Length
+                        </div>
+                        <select
+                          value={getNearestNoteFractionDenominator(selectedNote.length)}
+                          onChange={(event) => commitNoteMenuFractionLength(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter") return;
+                            event.preventDefault();
+                            commitNoteMenuFractionLength(event.currentTarget.value);
+                          }}
+                          className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-[13px] font-semibold text-slate-900 outline-none"
+                          aria-label={`Musical note length ${formatLengthFramesAsFraction(selectedNote.length)}`}
+                        >
+                          {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+                            <option key={denominator} value={denominator}>
+                              1/{denominator}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <label className="mt-2 block text-[9px] font-semibold uppercase tracking-wide text-slate-500">
                       Fingering

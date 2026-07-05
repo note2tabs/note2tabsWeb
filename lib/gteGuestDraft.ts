@@ -182,6 +182,7 @@ export const createGuestSnapshot = (editorId: string = GTE_GUEST_EDITOR_ID): Edi
     version: 1,
     updatedAt: new Date().toISOString(),
     timeSignature: DEFAULT_TIME_SIGNATURE,
+    timeSignatureBottom: 4,
     framesPerMessure: FIXED_FRAMES_PER_BAR,
     fps: DEFAULT_FPS,
     totalFrames: DEFAULT_TOTAL_FRAMES,
@@ -215,6 +216,7 @@ export const normalizeGuestSnapshot = (
     )
   );
   const timeSignature = clampInt(raw.timeSignature, base.timeSignature || DEFAULT_TIME_SIGNATURE, 1, 64);
+  const timeSignatureBottom = clampInt(raw.timeSignatureBottom, base.timeSignatureBottom || 4, 1, 64);
 
   const notes = Array.isArray(raw.notes)
     ? raw.notes
@@ -288,6 +290,7 @@ export const normalizeGuestSnapshot = (
     fps,
     totalFrames,
     timeSignature,
+    timeSignatureBottom,
     secondsPerBar,
     notes,
     chords,
