@@ -22,6 +22,7 @@ const FINALIZE_IMPORT_POLL_MS = 1200;
 const PRIMIS_CHANNEL_ID = "YOUR_PRIMIS_CHANNEL_ID";
 const ADS_AVAILABLE = PRIMIS_CHANNEL_ID && PRIMIS_CHANNEL_ID !== "YOUR_PRIMIS_CHANNEL_ID";
 const PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "running"]);
+const TAB_JOB_ID_KEYS = ["tab_job_id", "tabJobId", "tab_id", "tabId"];
 
 type JobModeHint = "FILE" | "YOUTUBE";
 type JobModelHint = "light" | "heavy";
@@ -447,6 +448,17 @@ function getJobTabSegments(job: JobResponse | null): string[][] {
   return tabTextToSegments(tabText);
 }
 
+function getJobTabJobId(job: JobResponse | null) {
+  const value = getFirstJobValue(job, TAB_JOB_ID_KEYS);
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function mergeJobImportFallback(job: JobResponse | null, fallback: JobResponse | null) {
+  if (!job) return fallback;
+  if (!fallback) return job;
+  return normalizeJobForDisplay({ ...(fallback as Record<string, unknown>), ...(job as Record<string, unknown>) } as JobResponse);
+}
+
 function normalizeJobForDisplay(job: JobResponse | null): JobResponse | null {
   if (!job) return null;
   const tabText =
@@ -498,6 +510,34 @@ async function fetchStoredTabPayload(tabId: string): Promise<StoredTabPayloadRes
     throw new Error(await readErrorMessage(response));
   }
   return (await response.json()) as StoredTabPayloadResponse;
+}
+
+async function resolveImportableJob(job: JobResponse | null): Promise<JobResponse | null> {
+  const normalized = normalizeJobForDisplay(job);
+  if (!normalized) return null;
+  if (getJobTranscriberGroups(normalized).length > 0 || getJobTabSegments(normalized).length > 0) {
+    return normalized;
+  }
+
+  const tabJobId = getJobTabJobId(normalized);
+  if (!tabJobId) return null;
+
+  try {
+    const storedTab = await fetchStoredTabPayload(tabJobId);
+    if (storedTab.transcriberSegments.length === 0 && storedTab.tabs.length === 0) return null;
+    return normalizeJobForDisplay({
+      ...(normalized as Record<string, unknown>),
+      tab_job_id: tabJobId,
+      tabJobId,
+      tab_id: tabJobId,
+      tabId: tabJobId,
+      tabs: storedTab.tabs,
+      transcriberSegments: storedTab.transcriberSegments,
+      song_title: normalized.song_title || storedTab.sourceLabel,
+    } as unknown as JobResponse);
+  } catch {
+    return null;
+  }
 }
 
 async function readJsonResponse(response: Response) {
@@ -626,12 +666,13 @@ export default function JobPage() {
   const showReviewUi = isReviewReady || isRecoverableReview || isReopenedFinalizedReview || isDoneJob;
   const isFinalizedJob = isFinalizedStatus && !showReviewUi;
   const tabSegments = useMemo(() => getJobTabSegments(displayJob), [displayJob]);
+  const tabJobId = useMemo(() => getJobTabJobId(displayJob), [displayJob]);
   const reviewTabPreviewText = useMemo(() => {
     const tabText = displayJob?.tab_text || (tabSegments.length > 0 ? tabsToTabText(tabSegments) : "");
     return getTabPreviewText(tabText);
   }, [displayJob?.tab_text, tabSegments]);
   const transcriberGroups = useMemo(() => getJobTranscriberGroups(displayJob), [displayJob]);
-  const canImportToEditor = isFinalizedJob && (tabSegments.length > 0 || transcriberGroups.length > 0);
+  const canImportToEditor = isFinalizedJob && (tabSegments.length > 0 || transcriberGroups.length > 0 || Boolean(tabJobId));
   const pendingPresentation = useMemo(
     () => buildPendingPresentation(displayJob, progressClock, modeHint, separateGuitarHint, durationHintSeconds, modelHint),
     [displayJob, progressClock, modeHint, separateGuitarHint, durationHintSeconds, modelHint]
@@ -685,9 +726,11 @@ export default function JobPage() {
     };
   }, [showReviewUi, isSignedIn, appendEditorId]);
 
-  const fetchJob = async (id: string): Promise<JobResponse | null> => {
+  const fetchJob = async (id: string, options?: { includeOutput?: boolean }): Promise<JobResponse | null> => {
     try {
-      const response = await fetch(`/api/jobs/${id}`, { cache: "no-store" });
+      const response = await fetch(`/api/jobs/${id}${options?.includeOutput ? "?include_output=1" : ""}`, {
+        cache: "no-store",
+      });
       if (!response.ok) throw new Error("Failed to fetch");
       const data: JobResponse = await response.json();
       setJob(data);
@@ -853,8 +896,8 @@ export default function JobPage() {
     let importSourceLabel = jobToImport.song_title || "Imported transcription";
     let resolvedTranscriberGroups = getJobTranscriberGroups(jobToImport);
     let resolvedTabSegments = getJobTabSegments(jobToImport);
-    const tabJobId = getFirstJobValue(jobToImport, ["tab_job_id", "tabJobId", "tab_id", "tabId"]);
-    if ((resolvedTranscriberGroups.length === 0 || resolvedTabSegments.length === 0) && typeof tabJobId === "string" && tabJobId) {
+    const tabJobId = getJobTabJobId(jobToImport);
+    if ((resolvedTranscriberGroups.length === 0 || resolvedTabSegments.length === 0) && tabJobId) {
       const storedTab = await fetchStoredTabPayload(tabJobId);
       resolvedTranscriberGroups =
         resolvedTranscriberGroups.length > 0 ? resolvedTranscriberGroups : storedTab.transcriberSegments;
@@ -1014,7 +1057,11 @@ export default function JobPage() {
     const targetEditorChoice = editorChoice;
     try {
       if (isFinalizedStatus && !hasReviewChanges) {
-        importedSuccessfully = await importJobToEditor(displayJob, targetEditorChoice, quantize);
+        const importableJob = await resolveImportableJob(displayJob);
+        if (!importableJob) {
+          throw new Error("Tabs are still getting ready for the editor. Please try again in a moment.");
+        }
+        importedSuccessfully = await importJobToEditor(importableJob, targetEditorChoice, quantize);
         return;
       }
 
@@ -1030,24 +1077,30 @@ export default function JobPage() {
       finalizeSucceeded = true;
 
       const finalizePayload = await readJsonResponse(response);
-      let finalizedJobForImport = getFinalizedJobFromResponse(finalizePayload);
-      if (finalizedJobForImport) {
-        setJob(finalizedJobForImport);
+      const finalizedResponseJob = mergeJobImportFallback(getFinalizedJobFromResponse(finalizePayload), displayJob);
+      let finalizedJobForImport = await resolveImportableJob(finalizedResponseJob);
+      if (finalizedResponseJob) {
+        setJob(finalizedResponseJob);
       }
 
       const deadline = Date.now() + FINALIZE_IMPORT_TIMEOUT_MS;
       while (Date.now() < deadline) {
         if (finalizedJobForImport) break;
         const latestJob = await fetchJob(job_id);
-        const normalizedLatest = normalizeJobForDisplay(latestJob);
+        const normalizedLatest = mergeJobImportFallback(normalizeJobForDisplay(latestJob), displayJob);
         const latestWorkflowState = getWorkflowState(normalizedLatest);
         const hasLatestWorkflowState = Boolean(latestWorkflowState && latestWorkflowState.trim());
         const isLatestFinalized =
           normalizedLatest?.status === "done" &&
           (latestWorkflowState === "finalized" || !hasLatestWorkflowState);
         if (isLatestFinalized) {
-          finalizedJobForImport = normalizedLatest;
-          break;
+          finalizedJobForImport = await resolveImportableJob(normalizedLatest);
+          if (finalizedJobForImport) break;
+
+          const fullLatestJob = await fetchJob(job_id, { includeOutput: true });
+          const normalizedFullLatest = mergeJobImportFallback(normalizeJobForDisplay(fullLatestJob), normalizedLatest);
+          finalizedJobForImport = await resolveImportableJob(normalizedFullLatest);
+          if (finalizedJobForImport) break;
         }
         if (normalizedLatest?.status === "error" || normalizedLatest?.status === "failed") {
           throw new Error(normalizedLatest.error_message || "Transcription failed during finalization.");
