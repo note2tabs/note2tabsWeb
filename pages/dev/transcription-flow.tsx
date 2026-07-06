@@ -44,8 +44,8 @@ function buildPendingPresentation(stage: PreviewStage): PendingJobPresentation {
     phaseLabel: "Transcription is running",
     detail: "Your transcription is still running. This page updates automatically.",
     progressPercent: progress,
-    elapsedLabel: "",
-    typicalDurationLabel: "",
+    elapsedLabel: "Elapsed 38s",
+    typicalDurationLabel: `${progress}%`,
     stepSummary: null,
     stages: [],
   };

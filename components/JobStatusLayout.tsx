@@ -169,9 +169,11 @@ export default function JobStatusLayout({
 
   if (isPendingJob) {
     const progressPercent =
-      normalizeProgressPercent(job?.progress) ?? normalizeProgressPercent(pendingPresentation?.progressPercent) ?? 0;
+      normalizeProgressPercent(pendingPresentation?.progressPercent) ?? normalizeProgressPercent(job?.progress) ?? 0;
     const progressMessages = getFriendlyProgressMessages(progressPercent);
     const progressMessage = progressMessages[messageIndex % progressMessages.length] || progressMessages[0];
+    const elapsedLabel = pendingPresentation?.elapsedLabel;
+    const typicalDurationLabel = pendingPresentation?.typicalDurationLabel;
 
     return (
       <div className="card job-progress-card">
@@ -199,6 +201,12 @@ export default function JobStatusLayout({
             >
               <div className="job-progress-fill" style={{ width: `${progressPercent}%` }} />
             </div>
+            {(elapsedLabel || typicalDurationLabel) && (
+              <div className="job-progress-meta" aria-label="Transcription timing">
+                {elapsedLabel && <span>{elapsedLabel}</span>}
+                {typicalDurationLabel && <span>{typicalDurationLabel}</span>}
+              </div>
+            )}
           </div>
 
           <p className="sr-only">

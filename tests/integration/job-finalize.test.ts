@@ -43,4 +43,26 @@ describe("job finalize endpoint", () => {
       })
     );
   });
+
+  it("preserves successful upstream finalize payloads", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ job: { job_id: "job_123", status: "done", workflowState: "finalized" } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    const handler = (await import("../../pages/api/jobs/[job_id]/finalize")).default;
+    const { req, res } = createMocks({
+      method: "POST",
+      query: { job_id: "job_123" },
+      body: { multipleGuitars: false },
+    });
+
+    await handler(req as any, res as any);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(JSON.parse(res._getData())).toEqual({
+      job: { job_id: "job_123", status: "done", workflowState: "finalized" },
+    });
+  });
 });

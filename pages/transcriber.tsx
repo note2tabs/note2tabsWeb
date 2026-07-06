@@ -14,6 +14,14 @@ import {
   DEFAULT_TRANSCRIPTION_MODEL,
   type TranscriptionModelChoice,
 } from "../lib/transcriptionModels";
+import {
+  DEFAULT_FILE_SNIPPET_SEC,
+  MAX_FREE_FILE_SNIPPET_SEC,
+  clampFileClipEnd,
+  clampFileClipStart,
+  getDefaultFileClipRange,
+  isFileClipRangeValid,
+} from "../lib/transcriptionClip";
 import SeoHead, { SITE_NAME, absoluteUrl } from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
@@ -92,6 +100,24 @@ const preventTimestampColonDelete = (event: KeyboardEvent<HTMLInputElement>) => 
   }
 };
 
+const getAudioFileDuration = (file: File): Promise<number | null> =>
+  new Promise((resolve) => {
+    const audio = document.createElement("audio");
+    const url = URL.createObjectURL(file);
+    const cleanup = () => URL.revokeObjectURL(url);
+    audio.preload = "metadata";
+    audio.onloadedmetadata = () => {
+      const duration = Number.isFinite(audio.duration) ? audio.duration : null;
+      cleanup();
+      resolve(duration);
+    };
+    audio.onerror = () => {
+      cleanup();
+      resolve(null);
+    };
+    audio.src = url;
+  });
+
 const parseYouTubeId = (value: string): string | null => {
   const trimmed = value.trim();
   if (!trimmed) return null;
@@ -128,6 +154,10 @@ export default function TranscriberPage() {
   const [ytStartInput, setYtStartInput] = useState("0:00");
   const [ytEndInput, setYtEndInput] = useState(formatTimestamp(MAX_YT_SNIPPET_SEC));
   const [fileDuration, setFileDuration] = useState<number | null>(null);
+  const [fileStartTime, setFileStartTime] = useState<number | null>(0);
+  const [fileEndTime, setFileEndTime] = useState<number | null>(DEFAULT_FILE_SNIPPET_SEC);
+  const [fileStartInput, setFileStartInput] = useState("0:00");
+  const [fileEndInput, setFileEndInput] = useState(formatTimestamp(DEFAULT_FILE_SNIPPET_SEC));
   const [separateGuitar, setSeparateGuitar] = useState(true);
   const [multipleGuitars, setMultipleGuitars] = useState(false);
   const [transcriptionModel, setTranscriptionModel] =
@@ -153,6 +183,7 @@ export default function TranscriberPage() {
   const disableDbInDev = isLocalNoDbClientMode;
   const transcriberSession = session ?? null;
   const isSignedIn = Boolean(transcriberSession);
+  const isPremiumUser = isPremiumRole(transcriberSession?.user?.role);
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
   const unverifiedTranscriptionUsed =
@@ -195,6 +226,14 @@ export default function TranscriberPage() {
     if (ytEndTime - ytStartTime > MAX_YT_SNIPPET_SEC) return false;
     return true;
   }, [ytStartTime, ytEndTime]);
+  const resolvedFileDuration = useMemo(() => {
+    if (fileStartTime === null || fileEndTime === null) return 0;
+    return Math.max(1, fileEndTime - fileStartTime);
+  }, [fileStartTime, fileEndTime]);
+  const fileTimeRangeValid = useMemo(() => {
+    if (!selectedFile) return false;
+    return isFileClipRangeValid(fileStartTime, fileEndTime, fileDuration, isPremiumUser);
+  }, [fileDuration, fileEndTime, fileStartTime, isPremiumUser, selectedFile]);
   const shouldDeferEditorSync = Boolean(appendEditorId);
 
   useEffect(() => {
@@ -282,6 +321,40 @@ export default function TranscriberPage() {
     }
   }, [mode]);
 
+  const applyFileClipDefaults = (duration: number | null) => {
+    const nextRange = getDefaultFileClipRange(duration, isPremiumUser);
+    setFileStartTime(nextRange.start);
+    setFileStartInput("0:00");
+    setFileEndTime(nextRange.end);
+    setFileEndInput(formatTimestamp(nextRange.end));
+  };
+
+  const selectAudioFile = (file: File | null) => {
+    setSelectedFile(file);
+    setFileDuration(null);
+    applyFileClipDefaults(null);
+    if (!file) return;
+    void getAudioFileDuration(file).then((duration) => {
+      setFileDuration(duration);
+      applyFileClipDefaults(duration);
+    });
+  };
+
+  useEffect(() => {
+    if (!selectedFile || fileDuration === null || fileStartTime !== 0 || fileEndTime === null) return;
+    const fileLength = Math.max(1, Math.ceil(fileDuration));
+    const freeDefaultEnd = Math.min(fileLength, MAX_FREE_FILE_SNIPPET_SEC);
+    if (isPremiumUser && fileEndTime === freeDefaultEnd && fileLength > freeDefaultEnd) {
+      setFileEndTime(fileLength);
+      setFileEndInput(formatTimestamp(fileLength));
+      return;
+    }
+    if (!isPremiumUser && fileEndTime > freeDefaultEnd) {
+      setFileEndTime(freeDefaultEnd);
+      setFileEndInput(formatTimestamp(freeDefaultEnd));
+    }
+  }, [fileDuration, fileEndTime, fileStartTime, isPremiumUser, selectedFile]);
+
   const handleYtStartInputChange = (value: string) => {
     const nextValue = preserveTimestampColon(value, ytStartInput);
     setYtStartInput(nextValue);
@@ -333,15 +406,72 @@ export default function TranscriberPage() {
     setYtEndInput(formatTimestamp(nextEnd));
   };
 
+  const handleFileStartInputChange = (value: string) => {
+    const nextValue = preserveTimestampColon(value, fileStartInput);
+    setFileStartInput(nextValue);
+    setError(null);
+    const parsed = parseTimestampInput(nextValue);
+    if (parsed === null) {
+      setFileStartTime(null);
+      return;
+    }
+    const nextRange = clampFileClipStart(parsed, fileEndTime, fileDuration, isPremiumUser);
+    setFileStartTime(nextRange.start);
+    if (nextRange.start !== parsed) {
+      setFileStartInput(formatTimestamp(nextRange.start));
+    }
+    setFileEndTime(nextRange.end);
+    setFileEndInput(formatTimestamp(nextRange.end));
+  };
+
+  const handleFileEndInputChange = (value: string) => {
+    const nextValue = preserveTimestampColon(value, fileEndInput);
+    setFileEndInput(nextValue);
+    setError(null);
+    const parsed = parseTimestampInput(nextValue);
+    if (parsed === null) {
+      setFileEndTime(null);
+      return;
+    }
+    const nextEnd = clampFileClipEnd(fileStartTime, parsed, fileDuration, isPremiumUser);
+    setFileEndTime(nextEnd);
+    if (nextEnd !== parsed) {
+      setFileEndInput(formatTimestamp(nextEnd));
+    }
+  };
+
+  const handleFileStartInputBlur = () => {
+    if (fileStartTime === null) {
+      setFileStartInput("");
+      return;
+    }
+    const nextRange = clampFileClipStart(fileStartTime, fileEndTime, fileDuration, isPremiumUser);
+    setFileStartTime(nextRange.start);
+    setFileStartInput(formatTimestamp(nextRange.start));
+    setFileEndTime(nextRange.end);
+    setFileEndInput(formatTimestamp(nextRange.end));
+  };
+
+  const handleFileEndInputBlur = () => {
+    if (fileEndTime === null) {
+      setFileEndInput("");
+      return;
+    }
+    const nextEnd = clampFileClipEnd(fileStartTime, fileEndTime, fileDuration, isPremiumUser);
+    setFileEndTime(nextEnd);
+    setFileEndInput(formatTimestamp(nextEnd));
+  };
+
   const youtubeValid = useMemo(() => Boolean(youtubeId), [youtubeId]);
 
   const canSubmit = useMemo(() => {
     if (isSignedIn && !canUseUnverifiedTranscription) return false;
-    if (mode === "FILE") return Boolean(selectedFile) && !loading;
+    if (mode === "FILE") return Boolean(selectedFile) && fileTimeRangeValid && !loading;
     return youtubeValid && youtubeTimeRangeValid && !loading;
   }, [
     mode,
     selectedFile,
+    fileTimeRangeValid,
     youtubeValid,
     youtubeTimeRangeValid,
     loading,
@@ -364,7 +494,7 @@ export default function TranscriberPage() {
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
-    setSelectedFile(file);
+    selectAudioFile(file);
     setMode("FILE");
     setError(null);
     setImportError(null);
@@ -391,7 +521,7 @@ export default function TranscriberPage() {
     setDragActive(false);
     const file = event.dataTransfer.files?.[0];
     if (file) {
-      setSelectedFile(file);
+      selectAudioFile(file);
       setMode("FILE");
       setError(null);
       setImportError(null);
@@ -472,8 +602,8 @@ export default function TranscriberPage() {
       }
     }
 
-    if (mode === "FILE" && fileDuration !== null && fileDuration <= 0) {
-      setError("Duration must be greater than 0.");
+    if (mode === "FILE" && selectedFile && !fileTimeRangeValid) {
+      setError("Selected file clip must be greater than 0 and within the file length.");
       return;
     }
     if (mode === "YOUTUBE") {
@@ -510,9 +640,8 @@ export default function TranscriberPage() {
         const postFileDirectly = async () => {
           const fd = new FormData();
           fd.append("mode", "FILE");
-          if (fileDuration !== null) {
-            fd.append("duration", String(fileDuration));
-          }
+          fd.append("startTime", String(Math.max(0, fileStartTime ?? 0)));
+          fd.append("duration", String(resolvedFileDuration));
           fd.append("separateGuitar", separateGuitar ? "true" : "false");
           fd.append("multipleGuitars", multipleGuitars ? "true" : "false");
           fd.append("transcriptionModel", transcriptionModel);
@@ -562,7 +691,8 @@ export default function TranscriberPage() {
               multipleGuitars,
               transcriptionModel,
             };
-            if (fileDuration !== null) payload.duration = fileDuration;
+            payload.startTime = Math.max(0, fileStartTime ?? 0);
+            payload.duration = resolvedFileDuration;
             if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
             response = await fetch("/api/transcribe", {
               method: "POST",
@@ -605,6 +735,10 @@ export default function TranscriberPage() {
         jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
         jobParams.set("multipleGuitars", multipleGuitars ? "1" : "0");
         jobParams.set("model", transcriptionModel);
+        const selectedDuration = mode === "YOUTUBE" ? resolvedYtDuration : resolvedFileDuration;
+        if (Number.isFinite(selectedDuration) && selectedDuration > 0) {
+          jobParams.set("duration", String(Math.round(selectedDuration)));
+        }
         if (appendEditorId) {
           jobParams.set("appendEditorId", appendEditorId);
         }
@@ -997,6 +1131,43 @@ export default function TranscriberPage() {
                     />
                   </label>
                   <p className="advanced-note">Max length is 30 s.</p>
+                </div>
+              )}
+              {mode === "FILE" && selectedFile && (
+                <div className="advanced-grid">
+                  <label>
+                    Start time
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9:]*"
+                      autoComplete="off"
+                      placeholder="0:00"
+                      value={fileStartInput}
+                      onChange={(event) => handleFileStartInputChange(event.target.value)}
+                      onKeyDown={preventTimestampColonDelete}
+                      onBlur={handleFileStartInputBlur}
+                      required
+                    />
+                  </label>
+                  <label>
+                    End time
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9:]*"
+                      autoComplete="off"
+                      placeholder="1:00"
+                      value={fileEndInput}
+                      onChange={(event) => handleFileEndInputChange(event.target.value)}
+                      onKeyDown={preventTimestampColonDelete}
+                      onBlur={handleFileEndInputBlur}
+                      required
+                    />
+                  </label>
+                  <p className="advanced-note">
+                    {isPremiumUser ? "Pick any section within the file." : "Free file uploads are limited to 60 s."}
+                  </p>
                 </div>
               )}
 

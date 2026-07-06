@@ -24,6 +24,7 @@ const ADS_AVAILABLE = PRIMIS_CHANNEL_ID && PRIMIS_CHANNEL_ID !== "YOUR_PRIMIS_CH
 const PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "running"]);
 
 type JobModeHint = "FILE" | "YOUTUBE";
+type JobModelHint = "light" | "heavy";
 type PendingStageKey = "queue" | "download" | "prepare" | "separate" | "predict" | "note_events" | "format";
 type ReviewAction = "finalize" | null;
 type ImportResult = {
@@ -79,6 +80,11 @@ function normalizeProgressValue(value: unknown) {
   return clamp(Math.round(num), 0, 100);
 }
 
+function parsePositiveNumber(value: unknown) {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
+
 function formatDuration(seconds: number) {
   const safeSeconds = Math.max(0, Math.round(seconds));
   const minutes = Math.floor(safeSeconds / 60);
@@ -97,11 +103,50 @@ function formatStageLabel(stageKey: PendingStageKey) {
   return "In line";
 }
 
+function estimatePendingJobDurationSeconds(
+  clipDurationSeconds: number | null,
+  modeHint: JobModeHint | null,
+  separateGuitar: boolean,
+  modelHint: JobModelHint | null
+) {
+  const clipSeconds = clamp(clipDurationSeconds ?? 30, 1, 600);
+  const isHeavyModel = modelHint === "heavy";
+  const baseSeconds = isHeavyModel ? 32 : 18;
+  const modeSeconds = modeHint === "YOUTUBE" ? 16 : 8;
+  const separationSeconds = separateGuitar ? 28 : 0;
+  const clipSecondsCost = clipSeconds * (isHeavyModel ? 0.72 : 0.46);
+  const rawEstimate = baseSeconds + modeSeconds + separationSeconds + clipSecondsCost;
+
+  return clamp(Math.round(rawEstimate), 25, isHeavyModel || separateGuitar ? 210 : 150);
+}
+
+function estimateMovingProgress(elapsedSeconds: number, estimatedDurationSeconds: number, isQueued: boolean) {
+  if (isQueued) {
+    return clamp(5 + (elapsedSeconds / 14) * 7, 5, 12);
+  }
+
+  const safeEstimate = Math.max(1, estimatedDurationSeconds);
+  const ratio = elapsedSeconds / safeEstimate;
+  if (ratio <= 0.32) {
+    return clamp(12 + (ratio / 0.32) * 46, 12, 58);
+  }
+  if (ratio <= 0.72) {
+    return clamp(58 + ((ratio - 0.32) / 0.4) * 22, 58, 80);
+  }
+  if (ratio <= 1) {
+    return clamp(80 + ((ratio - 0.72) / 0.28) * 14, 80, 94);
+  }
+
+  return clamp(94 + Math.min((ratio - 1) / 4, 1) * 5, 94, 99);
+}
+
 function buildPendingPresentation(
   job: JobResponse | null,
   nowMs: number,
   modeHint: JobModeHint | null,
-  separateGuitarHint: boolean | null
+  separateGuitarHint: boolean | null,
+  durationHintSeconds: number | null,
+  modelHint: JobModelHint | null
 ): PendingJobPresentation | null {
   const workflowState = getWorkflowState(job);
   const isWorkflowProcessing = workflowState === "processing";
@@ -117,6 +162,13 @@ function buildPendingPresentation(
   const elapsedSeconds = Math.max(0, Math.round((nowMs - (startedMs ?? createdMs)) / 1000));
   const attempts = Number.isFinite(Number(job.attempts)) ? Math.max(0, Number(job.attempts)) : 0;
   const attemptLabel = attempts > 1 ? "Trying again after a hiccup." : null;
+  const estimatedDurationSeconds = estimatePendingJobDurationSeconds(
+    durationHintSeconds,
+    modeHint,
+    separateGuitar,
+    modelHint
+  );
+  const movingProgress = estimateMovingProgress(elapsedSeconds, estimatedDurationSeconds, isQueued);
 
   if (exactStages.length > 0) {
     const activeStageIndex = exactStages.findIndex((stage) => stage.state === "active");
@@ -137,7 +189,12 @@ function buildPendingPresentation(
           ? 100
           : Math.round((completedCount / exactStages.length) * 100)
         : 0;
-    const progressPercent = progressValue ?? clamp(stageBasedProgress, isQueued ? 4 : 8, 100);
+    const progressPercent = clamp(
+      Math.round(Math.max(progressValue ?? 0, stageBasedProgress, movingProgress)),
+      isQueued ? 4 : 8,
+      99
+    );
+    const progressLabel = `${progressPercent}%`;
     const phaseLabel =
       (typeof getFirstJobValue(job, ["currentStepLabel"]) === "string"
         ? (getFirstJobValue(job, ["currentStepLabel"]) as string)
@@ -156,9 +213,12 @@ function buildPendingPresentation(
       detail,
       progressPercent,
       elapsedLabel: `Elapsed ${formatDuration(elapsedSeconds)}`,
-      typicalDurationLabel: "",
+      typicalDurationLabel: progressLabel,
       attemptLabel,
-      warningLabel: null,
+      warningLabel:
+        !isQueued && elapsedSeconds > estimatedDurationSeconds * 1.35
+          ? "This is taking longer than usual, but it is still moving."
+          : null,
       stepSummary: `Step ${currentStepNumber} of ${exactStages.length}`,
       stages: exactStages,
     };
@@ -172,21 +232,12 @@ function buildPendingPresentation(
     ? (["download", "predict", "note_events", "format"] as PendingStageKey[])
     : (["prepare", "predict", "note_events", "format"] as PendingStageKey[]);
   const stageThresholds = stageKeys.length === 5 ? [14, 38, 68, 88, 100] : [18, 58, 86, 100];
-  const estimatedDurationSeconds = isYoutube
-    ? separateGuitar
-      ? 90
-      : 55
-    : separateGuitar
-    ? 70
-    : 40;
-
-  let progressPercent = isQueued ? 8 : 12;
-  if (progressValue !== null && !isQueued) {
-    progressPercent = clamp(progressValue, 8, 96);
-  } else if (!isQueued) {
-    const normalized = estimatedDurationSeconds > 0 ? elapsedSeconds / estimatedDurationSeconds : 0;
-    progressPercent = clamp(Math.round(12 + Math.min(normalized, 0.94) * 82), 12, 96);
-  }
+  const progressPercent = clamp(
+    Math.round(Math.max(progressValue ?? 0, movingProgress)),
+    isQueued ? 4 : 8,
+    99
+  );
+  const progressLabel = `${progressPercent}%`;
 
   let activeStageIndex = 0;
   if (!isQueued) {
@@ -239,13 +290,7 @@ function buildPendingPresentation(
     detail: phaseCopy[activeStage].detail,
     progressPercent,
     elapsedLabel: `Elapsed ${formatDuration(elapsedSeconds)}`,
-    typicalDurationLabel: separateGuitar
-      ? isYoutube
-        ? "Typical time: 60-120 seconds"
-        : "Typical time: 45-90 seconds"
-      : isYoutube
-      ? "Typical time: 35-60 seconds"
-      : "Typical time: 25-45 seconds",
+    typicalDurationLabel: progressLabel,
     attemptLabel,
     warningLabel,
     stepSummary: isQueued ? `Step 1 of ${stageKeys.length}` : `Step ${activeStageIndex + 1} of ${stageKeys.length}`,
@@ -455,6 +500,40 @@ async function fetchStoredTabPayload(tabId: string): Promise<StoredTabPayloadRes
   return (await response.json()) as StoredTabPayloadResponse;
 }
 
+async function readJsonResponse(response: Response) {
+  const text = await response.text();
+  if (!text.trim()) return null;
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function getFinalizedJobFromResponse(payload: Record<string, unknown> | null): JobResponse | null {
+  if (!payload) return null;
+  const candidates = [
+    payload.job,
+    payload.result,
+    payload.output,
+    (payload.result as Record<string, unknown> | undefined)?.job,
+    (payload.output as Record<string, unknown> | undefined)?.job,
+    payload,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
+    const normalized = normalizeJobForDisplay(candidate as JobResponse);
+    const workflowState = getWorkflowState(normalized);
+    const hasWorkflowState = Boolean(workflowState && workflowState.trim());
+    if (normalized?.status === "done" && (workflowState === "finalized" || !hasWorkflowState)) {
+      return normalized;
+    }
+  }
+
+  return null;
+}
+
 export default function JobPage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -500,6 +579,20 @@ export default function JobPage() {
     if (!router.isReady) return null;
     return parseBooleanFlag(getQueryStringValue(router.query.multipleGuitars));
   }, [router.isReady, router.query.multipleGuitars]);
+  const modelHint = useMemo<JobModelHint | null>(() => {
+    if (!router.isReady) return null;
+    const rawModel = getQueryStringValue(router.query.model)?.toLowerCase();
+    return rawModel === "heavy" || rawModel === "light" ? rawModel : null;
+  }, [router.isReady, router.query.model]);
+  const durationHintSeconds = useMemo(() => {
+    const queryDuration =
+      parsePositiveNumber(getQueryStringValue(router.query.duration)) ??
+      parsePositiveNumber(getQueryStringValue(router.query.durationSec));
+    const jobDuration = parsePositiveNumber(
+      getFirstJobValue(displayJob, ["durationSec", "durationSeconds", "duration_sec", "duration"])
+    );
+    return queryDuration ?? jobDuration;
+  }, [displayJob, router.query.duration, router.query.durationSec]);
   const appendEditorId = useMemo(() => {
     if (!router.isReady) return null;
     const value = router.query.appendEditorId;
@@ -540,9 +633,10 @@ export default function JobPage() {
   const transcriberGroups = useMemo(() => getJobTranscriberGroups(displayJob), [displayJob]);
   const canImportToEditor = isFinalizedJob && (tabSegments.length > 0 || transcriberGroups.length > 0);
   const pendingPresentation = useMemo(
-    () => buildPendingPresentation(displayJob, progressClock, modeHint, separateGuitarHint),
-    [displayJob, progressClock, modeHint, separateGuitarHint]
+    () => buildPendingPresentation(displayJob, progressClock, modeHint, separateGuitarHint, durationHintSeconds, modelHint),
+    [displayJob, progressClock, modeHint, separateGuitarHint, durationHintSeconds, modelHint]
   );
+  const hasPendingPresentation = Boolean(pendingPresentation);
   const loadedMultipleGuitars = useMemo(
     () => parseBooleanValue(getFirstJobValue(displayJob, ["multipleGuitars", "multiple_guitars"])),
     [displayJob]
@@ -666,11 +760,11 @@ export default function JobPage() {
   }, [job_id, showReviewUi, isFinalizedJob]);
 
   useEffect(() => {
-    if (!pendingPresentation) return;
+    if (!hasPendingPresentation) return;
     setProgressClock(Date.now());
     const tick = window.setInterval(() => setProgressClock(Date.now()), 1000);
     return () => window.clearInterval(tick);
-  }, [pendingPresentation, job_id]);
+  }, [hasPendingPresentation, job_id]);
 
   useEffect(() => {
     if (!isFinalizedJob) return;
@@ -935,9 +1029,15 @@ export default function JobPage() {
       }
       finalizeSucceeded = true;
 
+      const finalizePayload = await readJsonResponse(response);
+      let finalizedJobForImport = getFinalizedJobFromResponse(finalizePayload);
+      if (finalizedJobForImport) {
+        setJob(finalizedJobForImport);
+      }
+
       const deadline = Date.now() + FINALIZE_IMPORT_TIMEOUT_MS;
-      let finalizedJobForImport: JobResponse | null = null;
       while (Date.now() < deadline) {
+        if (finalizedJobForImport) break;
         const latestJob = await fetchJob(job_id);
         const normalizedLatest = normalizeJobForDisplay(latestJob);
         const latestWorkflowState = getWorkflowState(normalizedLatest);
