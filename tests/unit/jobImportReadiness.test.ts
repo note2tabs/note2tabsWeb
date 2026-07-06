@@ -12,8 +12,14 @@ describe("job editor import readiness", () => {
   });
 
   it("does not import immediately when the finalized job payload is missing tabs", () => {
-    expect(source).toContain("finalizedJobForImport = await resolveImportableJob(normalizedLatest)");
+    expect(source).toContain("finalizedJobForImport = await waitForImportableJob(normalizedLatest, displayJob)");
     expect(source).toContain("fetchJob(job_id, { includeOutput: true })");
-    expect(source).toContain("finalizedJobForImport = await resolveImportableJob(normalizedFullLatest)");
+    expect(source).toContain("finalizedJobForImport = await waitForImportableJob(normalizedFullLatest, normalizedLatest)");
+  });
+
+  it("waits for importable tabs before the finalized import button opens the editor", () => {
+    expect(source).toContain("const waitForImportableJob = async");
+    expect(source).toContain("const importableJob = await waitForImportableJob(displayJob)");
+    expect(source).toContain("await importJobToEditor(importableJob, editorChoice, quantize)");
   });
 });
