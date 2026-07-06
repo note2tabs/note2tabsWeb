@@ -52,6 +52,7 @@ type YouTubePayload = {
 
 type FilePayload = {
   mode: "FILE";
+  startTime?: number;
   duration?: number;
   s3Key?: string;
   fileName?: string;
@@ -74,6 +75,7 @@ type SerializedTranscriberSegmentGroup = SerializedTranscriberSegment[];
 
 const JOB_POLL_INTERVAL_MS = 1500;
 const JOB_POLL_TIMEOUT_MS = 15000;
+const MAX_FREE_FILE_DURATION_SEC = 60;
 const BACKEND_PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "running"]);
 const BACKEND_FINISHED_JOB_STATUSES = new Set(["done", "completed", "succeeded", "success"]);
 const BACKEND_FAILED_JOB_STATUSES = new Set(["error", "failed", "cancelled", "canceled"]);
@@ -589,6 +591,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } else {
         filePayload = {
           mode: "FILE",
+          startTime: Number(fields.startTime || fields.start_time || 0) || 0,
           duration: Number(fields.duration || fields.durationSec || 0) || undefined,
           transcriptionModel: String(fields.transcriptionModel || fields.model || ""),
           transcriptionMethod: String(fields.transcriptionMethod || fields.transcription_method || ""),
@@ -647,6 +650,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       mode === "YOUTUBE"
         ? Math.max(1, Math.ceil(youtubePayload?.duration || 0))
         : Math.max(1, Math.ceil(filePayload?.duration || DEFAULT_DURATION_SEC));
+    const fileStartSec = Math.max(0, Math.floor(filePayload?.startTime || 0));
+    if (mode === "FILE" && !isPremium && durationSec > MAX_FREE_FILE_DURATION_SEC) {
+      return res.status(403).json({
+        error: `Free file uploads are limited to ${MAX_FREE_FILE_DURATION_SEC} seconds.`,
+        maxDurationSec: MAX_FREE_FILE_DURATION_SEC,
+      });
+    }
     const requiredCredits = calculateTranscriptionCredits(durationSec, transcriptionModel);
 
     if (user?.id) {
@@ -752,6 +762,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           body: JSON.stringify({
             s3Key: filePayload.s3Key,
             fileName: filePayload.fileName,
+            startTime: fileStartSec,
+            start_time: fileStartSec,
+            duration: durationSec,
             separate_guitar: Boolean(filePayload.separateGuitar),
             multiple_guitars: filePayload.multipleGuitars,
             transcriptionMethod: backendTranscriptionMethod,
@@ -777,6 +790,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }),
           uploadedFile.originalFilename || "upload"
         );
+        fd.append("start_time", String(fileStartSec));
+        fd.append("duration", String(durationSec));
         fd.append("separate_guitar", filePayload?.separateGuitar ? "true" : "false");
         fd.append("transcription_method", backendTranscriptionMethod);
         if (filePayload?.multipleGuitars !== undefined) {

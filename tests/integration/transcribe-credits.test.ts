@@ -160,4 +160,81 @@ describe("transcribe credits", () => {
     const body = requestInit.body as FormData;
     expect(body.get("multiple_guitars")).toBe("true");
   });
+
+  it("limits free file uploads to one minute", async () => {
+    const handler = (await import("../../pages/api/transcribe")).default;
+    mocks.session.mockResolvedValue({ user: { id: "user_1" } });
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      id: "user_1",
+      role: "FREE",
+      tokensRemaining: 10,
+      emailVerified: new Date("2026-01-01T00:00:00.000Z"),
+      emailVerifiedBool: true,
+      unverifiedTranscriptionUsed: false,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    mocks.prisma.tabJob.groupBy.mockResolvedValue([]);
+    mocks.setBackendCredits.mockResolvedValue(10);
+
+    const req = makeJsonReq({
+      mode: "FILE",
+      s3Key: "uploads/test.mp3",
+      fileName: "test.mp3",
+      startTime: 0,
+      duration: 61,
+      transcriptionModel: "light",
+      separateGuitar: false,
+    });
+    const res = makeRes();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatchObject({ maxDurationSec: 60 });
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
+  it("forwards premium file clip ranges to the backend", async () => {
+    const handler = (await import("../../pages/api/transcribe")).default;
+    mocks.session.mockResolvedValue({ user: { id: "user_1" } });
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      id: "user_1",
+      role: "ADMIN",
+      tokensRemaining: 10,
+      emailVerified: new Date("2026-01-01T00:00:00.000Z"),
+      emailVerifiedBool: true,
+      unverifiedTranscriptionUsed: false,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    mocks.prisma.tabJob.groupBy.mockResolvedValue([]);
+    mocks.raiseBackendCreditsToFloor.mockResolvedValue(10);
+    mocks.fetch.mockResolvedValue(
+      new Response(JSON.stringify({ job_id: "job_123" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+
+    const req = makeJsonReq({
+      mode: "FILE",
+      s3Key: "uploads/test.mp3",
+      fileName: "test.mp3",
+      startTime: 15,
+      duration: 90,
+      transcriptionModel: "light",
+      separateGuitar: false,
+    });
+    const res = makeRes();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(202);
+    const [url, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://backend.test/process_audio_s3");
+    expect(JSON.parse(String(requestInit.body))).toMatchObject({
+      startTime: 15,
+      start_time: 15,
+      duration: 90,
+    });
+  });
 });
