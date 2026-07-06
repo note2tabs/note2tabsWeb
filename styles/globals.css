@@ -422,9 +422,11 @@ input[type="number"] {
 .job-progress-meta {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 10px 18px;
   color: var(--muted);
   font-size: 0.85rem;
+  text-align: center;
 }
 
 .job-progress-art {

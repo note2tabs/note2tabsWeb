@@ -4,8 +4,8 @@ import { GTE_GUEST_EDITOR_ID } from "./gteGuestDraft";
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
 const LANE_DELIMITER = "__ed__";
-const TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES = 16_000;
-const TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS = 6;
+export const TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES = 96_000;
+export const TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS = 24;
 const TRANSCRIBER_IMPORT_MAX_SPLIT_DEPTH = 6;
 export type EditorOrCanvasSnapshot = EditorSnapshot | CanvasSnapshot;
 export type TranscriberSegment = {
@@ -82,7 +82,7 @@ async function requestForEditor<T>(
   return request<T>(path, options, getBaseForEditor(editorId));
 }
 
-function chunkTranscriberSegmentGroups(
+export function chunkTranscriberSegmentGroups(
   groups: TranscriberSegmentGroup[],
   maxBytes: number = TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES,
   maxGroups: number = TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS

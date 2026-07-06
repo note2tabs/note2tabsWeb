@@ -7,10 +7,10 @@ const BACKEND_SECRET =
   process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 const MAX_ERROR_MESSAGE_LENGTH = 2000;
 
-async function readUpstreamError(upstream: Response): Promise<string> {
-  const text = (await upstream.text()).trim();
+function readUpstreamErrorFromText(rawText: string, status: number): string {
+  const text = rawText.trim();
   if (!text) {
-    return `Finalize request failed with status ${upstream.status}.`;
+    return `Finalize request failed with status ${status}.`;
   }
 
   try {
@@ -55,9 +55,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(502).json({ error: "Unable to reach transcription backend." });
   }
 
+  const text = await upstream.text();
   if (upstream.ok) {
-    return res.status(200).json({ ok: true });
+    if (!text.trim()) {
+      return res.status(200).json({ ok: true });
+    }
+    const contentType = upstream.headers.get("content-type");
+    if (contentType) {
+      res.setHeader("Content-Type", contentType);
+    }
+    return res.status(200).send(text);
   }
 
-  return res.status(upstream.status).json({ error: await readUpstreamError(upstream) });
+  return res.status(upstream.status).json({ error: await readUpstreamErrorFromText(text, upstream.status) });
 }

@@ -22,8 +22,10 @@ const FINALIZE_IMPORT_POLL_MS = 1200;
 const PRIMIS_CHANNEL_ID = "YOUR_PRIMIS_CHANNEL_ID";
 const ADS_AVAILABLE = PRIMIS_CHANNEL_ID && PRIMIS_CHANNEL_ID !== "YOUR_PRIMIS_CHANNEL_ID";
 const PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "running"]);
+const TAB_JOB_ID_KEYS = ["tab_job_id", "tabJobId", "tab_id", "tabId"];
 
 type JobModeHint = "FILE" | "YOUTUBE";
+type JobModelHint = "light" | "heavy";
 type PendingStageKey = "queue" | "download" | "prepare" | "separate" | "predict" | "note_events" | "format";
 type ReviewAction = "finalize" | null;
 type ImportResult = {
@@ -79,6 +81,11 @@ function normalizeProgressValue(value: unknown) {
   return clamp(Math.round(num), 0, 100);
 }
 
+function parsePositiveNumber(value: unknown) {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
+
 function formatDuration(seconds: number) {
   const safeSeconds = Math.max(0, Math.round(seconds));
   const minutes = Math.floor(safeSeconds / 60);
@@ -97,11 +104,50 @@ function formatStageLabel(stageKey: PendingStageKey) {
   return "In line";
 }
 
+function estimatePendingJobDurationSeconds(
+  clipDurationSeconds: number | null,
+  modeHint: JobModeHint | null,
+  separateGuitar: boolean,
+  modelHint: JobModelHint | null
+) {
+  const clipSeconds = clamp(clipDurationSeconds ?? 30, 1, 600);
+  const isHeavyModel = modelHint === "heavy";
+  const baseSeconds = isHeavyModel ? 32 : 18;
+  const modeSeconds = modeHint === "YOUTUBE" ? 16 : 8;
+  const separationSeconds = separateGuitar ? 28 : 0;
+  const clipSecondsCost = clipSeconds * (isHeavyModel ? 0.72 : 0.46);
+  const rawEstimate = baseSeconds + modeSeconds + separationSeconds + clipSecondsCost;
+
+  return clamp(Math.round(rawEstimate), 25, isHeavyModel || separateGuitar ? 210 : 150);
+}
+
+function estimateMovingProgress(elapsedSeconds: number, estimatedDurationSeconds: number, isQueued: boolean) {
+  if (isQueued) {
+    return clamp(5 + (elapsedSeconds / 14) * 7, 5, 12);
+  }
+
+  const safeEstimate = Math.max(1, estimatedDurationSeconds);
+  const ratio = elapsedSeconds / safeEstimate;
+  if (ratio <= 0.32) {
+    return clamp(12 + (ratio / 0.32) * 46, 12, 58);
+  }
+  if (ratio <= 0.72) {
+    return clamp(58 + ((ratio - 0.32) / 0.4) * 22, 58, 80);
+  }
+  if (ratio <= 1) {
+    return clamp(80 + ((ratio - 0.72) / 0.28) * 14, 80, 94);
+  }
+
+  return clamp(94 + Math.min((ratio - 1) / 4, 1) * 5, 94, 99);
+}
+
 function buildPendingPresentation(
   job: JobResponse | null,
   nowMs: number,
   modeHint: JobModeHint | null,
-  separateGuitarHint: boolean | null
+  separateGuitarHint: boolean | null,
+  durationHintSeconds: number | null,
+  modelHint: JobModelHint | null
 ): PendingJobPresentation | null {
   const workflowState = getWorkflowState(job);
   const isWorkflowProcessing = workflowState === "processing";
@@ -117,6 +163,13 @@ function buildPendingPresentation(
   const elapsedSeconds = Math.max(0, Math.round((nowMs - (startedMs ?? createdMs)) / 1000));
   const attempts = Number.isFinite(Number(job.attempts)) ? Math.max(0, Number(job.attempts)) : 0;
   const attemptLabel = attempts > 1 ? "Trying again after a hiccup." : null;
+  const estimatedDurationSeconds = estimatePendingJobDurationSeconds(
+    durationHintSeconds,
+    modeHint,
+    separateGuitar,
+    modelHint
+  );
+  const movingProgress = estimateMovingProgress(elapsedSeconds, estimatedDurationSeconds, isQueued);
 
   if (exactStages.length > 0) {
     const activeStageIndex = exactStages.findIndex((stage) => stage.state === "active");
@@ -137,7 +190,12 @@ function buildPendingPresentation(
           ? 100
           : Math.round((completedCount / exactStages.length) * 100)
         : 0;
-    const progressPercent = progressValue ?? clamp(stageBasedProgress, isQueued ? 4 : 8, 100);
+    const progressPercent = clamp(
+      Math.round(Math.max(progressValue ?? 0, stageBasedProgress, movingProgress)),
+      isQueued ? 4 : 8,
+      99
+    );
+    const progressLabel = `${progressPercent}%`;
     const phaseLabel =
       (typeof getFirstJobValue(job, ["currentStepLabel"]) === "string"
         ? (getFirstJobValue(job, ["currentStepLabel"]) as string)
@@ -156,9 +214,12 @@ function buildPendingPresentation(
       detail,
       progressPercent,
       elapsedLabel: `Elapsed ${formatDuration(elapsedSeconds)}`,
-      typicalDurationLabel: "",
+      typicalDurationLabel: progressLabel,
       attemptLabel,
-      warningLabel: null,
+      warningLabel:
+        !isQueued && elapsedSeconds > estimatedDurationSeconds * 1.35
+          ? "This is taking longer than usual, but it is still moving."
+          : null,
       stepSummary: `Step ${currentStepNumber} of ${exactStages.length}`,
       stages: exactStages,
     };
@@ -172,21 +233,12 @@ function buildPendingPresentation(
     ? (["download", "predict", "note_events", "format"] as PendingStageKey[])
     : (["prepare", "predict", "note_events", "format"] as PendingStageKey[]);
   const stageThresholds = stageKeys.length === 5 ? [14, 38, 68, 88, 100] : [18, 58, 86, 100];
-  const estimatedDurationSeconds = isYoutube
-    ? separateGuitar
-      ? 90
-      : 55
-    : separateGuitar
-    ? 70
-    : 40;
-
-  let progressPercent = isQueued ? 8 : 12;
-  if (progressValue !== null && !isQueued) {
-    progressPercent = clamp(progressValue, 8, 96);
-  } else if (!isQueued) {
-    const normalized = estimatedDurationSeconds > 0 ? elapsedSeconds / estimatedDurationSeconds : 0;
-    progressPercent = clamp(Math.round(12 + Math.min(normalized, 0.94) * 82), 12, 96);
-  }
+  const progressPercent = clamp(
+    Math.round(Math.max(progressValue ?? 0, movingProgress)),
+    isQueued ? 4 : 8,
+    99
+  );
+  const progressLabel = `${progressPercent}%`;
 
   let activeStageIndex = 0;
   if (!isQueued) {
@@ -239,13 +291,7 @@ function buildPendingPresentation(
     detail: phaseCopy[activeStage].detail,
     progressPercent,
     elapsedLabel: `Elapsed ${formatDuration(elapsedSeconds)}`,
-    typicalDurationLabel: separateGuitar
-      ? isYoutube
-        ? "Typical time: 60-120 seconds"
-        : "Typical time: 45-90 seconds"
-      : isYoutube
-      ? "Typical time: 35-60 seconds"
-      : "Typical time: 25-45 seconds",
+    typicalDurationLabel: progressLabel,
     attemptLabel,
     warningLabel,
     stepSummary: isQueued ? `Step 1 of ${stageKeys.length}` : `Step ${activeStageIndex + 1} of ${stageKeys.length}`,
@@ -402,6 +448,17 @@ function getJobTabSegments(job: JobResponse | null): string[][] {
   return tabTextToSegments(tabText);
 }
 
+function getJobTabJobId(job: JobResponse | null) {
+  const value = getFirstJobValue(job, TAB_JOB_ID_KEYS);
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function mergeJobImportFallback(job: JobResponse | null, fallback: JobResponse | null) {
+  if (!job) return fallback;
+  if (!fallback) return job;
+  return normalizeJobForDisplay({ ...(fallback as Record<string, unknown>), ...(job as Record<string, unknown>) } as JobResponse);
+}
+
 function normalizeJobForDisplay(job: JobResponse | null): JobResponse | null {
   if (!job) return null;
   const tabText =
@@ -455,6 +512,68 @@ async function fetchStoredTabPayload(tabId: string): Promise<StoredTabPayloadRes
   return (await response.json()) as StoredTabPayloadResponse;
 }
 
+async function resolveImportableJob(job: JobResponse | null): Promise<JobResponse | null> {
+  const normalized = normalizeJobForDisplay(job);
+  if (!normalized) return null;
+  if (getJobTranscriberGroups(normalized).length > 0 || getJobTabSegments(normalized).length > 0) {
+    return normalized;
+  }
+
+  const tabJobId = getJobTabJobId(normalized);
+  if (!tabJobId) return null;
+
+  try {
+    const storedTab = await fetchStoredTabPayload(tabJobId);
+    if (storedTab.transcriberSegments.length === 0 && storedTab.tabs.length === 0) return null;
+    return normalizeJobForDisplay({
+      ...(normalized as Record<string, unknown>),
+      tab_job_id: tabJobId,
+      tabJobId,
+      tab_id: tabJobId,
+      tabId: tabJobId,
+      tabs: storedTab.tabs,
+      transcriberSegments: storedTab.transcriberSegments,
+      song_title: normalized.song_title || storedTab.sourceLabel,
+    } as unknown as JobResponse);
+  } catch {
+    return null;
+  }
+}
+
+async function readJsonResponse(response: Response) {
+  const text = await response.text();
+  if (!text.trim()) return null;
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function getFinalizedJobFromResponse(payload: Record<string, unknown> | null): JobResponse | null {
+  if (!payload) return null;
+  const candidates = [
+    payload.job,
+    payload.result,
+    payload.output,
+    (payload.result as Record<string, unknown> | undefined)?.job,
+    (payload.output as Record<string, unknown> | undefined)?.job,
+    payload,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
+    const normalized = normalizeJobForDisplay(candidate as JobResponse);
+    const workflowState = getWorkflowState(normalized);
+    const hasWorkflowState = Boolean(workflowState && workflowState.trim());
+    if (normalized?.status === "done" && (workflowState === "finalized" || !hasWorkflowState)) {
+      return normalized;
+    }
+  }
+
+  return null;
+}
+
 export default function JobPage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -501,6 +620,20 @@ export default function JobPage() {
     if (!router.isReady) return null;
     return parseBooleanFlag(getQueryStringValue(router.query.multipleGuitars));
   }, [router.isReady, router.query.multipleGuitars]);
+  const modelHint = useMemo<JobModelHint | null>(() => {
+    if (!router.isReady) return null;
+    const rawModel = getQueryStringValue(router.query.model)?.toLowerCase();
+    return rawModel === "heavy" || rawModel === "light" ? rawModel : null;
+  }, [router.isReady, router.query.model]);
+  const durationHintSeconds = useMemo(() => {
+    const queryDuration =
+      parsePositiveNumber(getQueryStringValue(router.query.duration)) ??
+      parsePositiveNumber(getQueryStringValue(router.query.durationSec));
+    const jobDuration = parsePositiveNumber(
+      getFirstJobValue(displayJob, ["durationSec", "durationSeconds", "duration_sec", "duration"])
+    );
+    return queryDuration ?? jobDuration;
+  }, [displayJob, router.query.duration, router.query.durationSec]);
   const appendEditorId = useMemo(() => {
     if (!router.isReady) return null;
     const value = router.query.appendEditorId;
@@ -534,21 +667,19 @@ export default function JobPage() {
   const showReviewUi = isReviewReady || isRecoverableReview || isReopenedFinalizedReview || isDoneJob;
   const isFinalizedJob = isFinalizedStatus && !showReviewUi;
   const tabSegments = useMemo(() => getJobTabSegments(displayJob), [displayJob]);
-  const tabJobId = useMemo(() => {
-    const value = getFirstJobValue(displayJob, ["tab_job_id", "tabJobId", "tab_id", "tabId"]);
-    return typeof value === "string" && value.trim() ? value.trim() : null;
-  }, [displayJob]);
+  const tabJobId = useMemo(() => getJobTabJobId(displayJob), [displayJob]);
   const localReviewTabPreviewText = useMemo(() => {
     const tabText = displayJob?.tab_text || (tabSegments.length > 0 ? tabsToTabText(tabSegments) : "");
     return getTabPreviewText(tabText);
   }, [displayJob?.tab_text, tabSegments]);
   const reviewTabPreviewText = localReviewTabPreviewText || storedReviewTabPreviewText;
   const transcriberGroups = useMemo(() => getJobTranscriberGroups(displayJob), [displayJob]);
-  const canImportToEditor = isFinalizedJob && (tabSegments.length > 0 || transcriberGroups.length > 0);
+  const canImportToEditor = isFinalizedJob && (tabSegments.length > 0 || transcriberGroups.length > 0 || Boolean(tabJobId));
   const pendingPresentation = useMemo(
-    () => buildPendingPresentation(displayJob, progressClock, modeHint, separateGuitarHint),
-    [displayJob, progressClock, modeHint, separateGuitarHint]
+    () => buildPendingPresentation(displayJob, progressClock, modeHint, separateGuitarHint, durationHintSeconds, modelHint),
+    [displayJob, progressClock, modeHint, separateGuitarHint, durationHintSeconds, modelHint]
   );
+  const hasPendingPresentation = Boolean(pendingPresentation);
   const loadedMultipleGuitars = useMemo(
     () => parseBooleanValue(getFirstJobValue(displayJob, ["multipleGuitars", "multiple_guitars"])),
     [displayJob]
@@ -597,9 +728,35 @@ export default function JobPage() {
     };
   }, [showReviewUi, isSignedIn, appendEditorId]);
 
-  const fetchJob = async (id: string): Promise<JobResponse | null> => {
+  useEffect(() => {
+    if (!showReviewUi || localReviewTabPreviewText || !tabJobId) {
+      setStoredReviewTabPreviewText("");
+      return;
+    }
+
+    let cancelled = false;
+    setStoredReviewTabPreviewText("");
+    fetchStoredTabPayload(tabJobId)
+      .then((storedTab) => {
+        if (cancelled) return;
+        setStoredReviewTabPreviewText(getTabPreviewText(tabsToTabText(storedTab.tabs)));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStoredReviewTabPreviewText("");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [localReviewTabPreviewText, showReviewUi, tabJobId]);
+
+  const fetchJob = async (id: string, options?: { includeOutput?: boolean }): Promise<JobResponse | null> => {
     try {
-      const response = await fetch(`/api/jobs/${id}`, { cache: "no-store" });
+      const response = await fetch(`/api/jobs/${id}${options?.includeOutput ? "?include_output=1" : ""}`, {
+        cache: "no-store",
+      });
       if (!response.ok) throw new Error("Failed to fetch");
       const data: JobResponse = await response.json();
       setJob(data);
@@ -672,11 +829,11 @@ export default function JobPage() {
   }, [job_id, showReviewUi, isFinalizedJob]);
 
   useEffect(() => {
-    if (!pendingPresentation) return;
+    if (!hasPendingPresentation) return;
     setProgressClock(Date.now());
     const tick = window.setInterval(() => setProgressClock(Date.now()), 1000);
     return () => window.clearInterval(tick);
-  }, [pendingPresentation, job_id]);
+  }, [hasPendingPresentation, job_id]);
 
   useEffect(() => {
     if (!isFinalizedJob) return;
@@ -712,30 +869,6 @@ export default function JobPage() {
     setReviewMultipleGuitars(false);
     reviewMultipleGuitarsInitRef.current = null;
   }, [job_id, appendEditorId]);
-
-  useEffect(() => {
-    if (!showReviewUi || localReviewTabPreviewText || !tabJobId) {
-      setStoredReviewTabPreviewText("");
-      return;
-    }
-
-    let cancelled = false;
-    setStoredReviewTabPreviewText("");
-    fetchStoredTabPayload(tabJobId)
-      .then((storedTab) => {
-        if (cancelled) return;
-        setStoredReviewTabPreviewText(getTabPreviewText(tabsToTabText(storedTab.tabs)));
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setStoredReviewTabPreviewText("");
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [localReviewTabPreviewText, showReviewUi, tabJobId]);
 
   useEffect(() => {
     if (!isFinalizedJob || !job_id) return;
@@ -790,8 +923,8 @@ export default function JobPage() {
     let importSourceLabel = jobToImport.song_title || "Imported transcription";
     let resolvedTranscriberGroups = getJobTranscriberGroups(jobToImport);
     let resolvedTabSegments = getJobTabSegments(jobToImport);
-    const tabJobId = getFirstJobValue(jobToImport, ["tab_job_id", "tabJobId", "tab_id", "tabId"]);
-    if ((resolvedTranscriberGroups.length === 0 || resolvedTabSegments.length === 0) && typeof tabJobId === "string" && tabJobId) {
+    const tabJobId = getJobTabJobId(jobToImport);
+    if ((resolvedTranscriberGroups.length === 0 || resolvedTabSegments.length === 0) && tabJobId) {
       const storedTab = await fetchStoredTabPayload(tabJobId);
       resolvedTranscriberGroups =
         resolvedTranscriberGroups.length > 0 ? resolvedTranscriberGroups : storedTab.transcriberSegments;
@@ -951,7 +1084,11 @@ export default function JobPage() {
     const targetEditorChoice = editorChoice;
     try {
       if (isFinalizedStatus && !hasReviewChanges) {
-        importedSuccessfully = await importJobToEditor(displayJob, targetEditorChoice, quantize);
+        const importableJob = await resolveImportableJob(displayJob);
+        if (!importableJob) {
+          throw new Error("Tabs are still getting ready for the editor. Please try again in a moment.");
+        }
+        importedSuccessfully = await importJobToEditor(importableJob, targetEditorChoice, quantize);
         return;
       }
 
@@ -966,19 +1103,31 @@ export default function JobPage() {
       }
       finalizeSucceeded = true;
 
+      const finalizePayload = await readJsonResponse(response);
+      const finalizedResponseJob = mergeJobImportFallback(getFinalizedJobFromResponse(finalizePayload), displayJob);
+      let finalizedJobForImport = await resolveImportableJob(finalizedResponseJob);
+      if (finalizedResponseJob) {
+        setJob(finalizedResponseJob);
+      }
+
       const deadline = Date.now() + FINALIZE_IMPORT_TIMEOUT_MS;
-      let finalizedJobForImport: JobResponse | null = null;
       while (Date.now() < deadline) {
+        if (finalizedJobForImport) break;
         const latestJob = await fetchJob(job_id);
-        const normalizedLatest = normalizeJobForDisplay(latestJob);
+        const normalizedLatest = mergeJobImportFallback(normalizeJobForDisplay(latestJob), displayJob);
         const latestWorkflowState = getWorkflowState(normalizedLatest);
         const hasLatestWorkflowState = Boolean(latestWorkflowState && latestWorkflowState.trim());
         const isLatestFinalized =
           normalizedLatest?.status === "done" &&
           (latestWorkflowState === "finalized" || !hasLatestWorkflowState);
         if (isLatestFinalized) {
-          finalizedJobForImport = normalizedLatest;
-          break;
+          finalizedJobForImport = await resolveImportableJob(normalizedLatest);
+          if (finalizedJobForImport) break;
+
+          const fullLatestJob = await fetchJob(job_id, { includeOutput: true });
+          const normalizedFullLatest = mergeJobImportFallback(normalizeJobForDisplay(fullLatestJob), normalizedLatest);
+          finalizedJobForImport = await resolveImportableJob(normalizedFullLatest);
+          if (finalizedJobForImport) break;
         }
         if (normalizedLatest?.status === "error" || normalizedLatest?.status === "failed") {
           throw new Error(normalizedLatest.error_message || "Transcription failed during finalization.");
@@ -1064,12 +1213,16 @@ export default function JobPage() {
                   ) : null}
                 </div>
 
-              {reviewTabPreviewText ? (
-                <div className="review-value-preview" aria-label="Tab preview">
-                  <p className="review-value-title">Preview</p>
+              <div className="review-value-preview" aria-label="Tab preview">
+                <p className="review-value-title">Preview</p>
+                {reviewTabPreviewText ? (
                   <pre>{reviewTabPreviewText}</pre>
-                </div>
-              ) : null}
+                ) : (
+                  <p className="muted text-small" style={{ margin: 0 }}>
+                    No tab preview is available yet.
+                  </p>
+                )}
+              </div>
 
               {reviewError ? <div className="error">{reviewError}</div> : null}
 

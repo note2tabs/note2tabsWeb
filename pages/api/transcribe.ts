@@ -34,6 +34,7 @@ import {
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
   process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
+const MAX_FREE_FILE_DURATION_SEC = 60;
 
 type Mode = "FILE" | "YOUTUBE";
 
@@ -75,7 +76,6 @@ type SerializedTranscriberSegmentGroup = SerializedTranscriberSegment[];
 
 const JOB_POLL_INTERVAL_MS = 1500;
 const JOB_POLL_TIMEOUT_MS = 15000;
-const MAX_FREE_FILE_DURATION_SEC = 60;
 const BACKEND_PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "running"]);
 const BACKEND_FINISHED_JOB_STATUSES = new Set(["done", "completed", "succeeded", "success"]);
 const BACKEND_FAILED_JOB_STATUSES = new Set(["error", "failed", "cancelled", "canceled"]);
@@ -591,7 +591,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } else {
         filePayload = {
           mode: "FILE",
-          startTime: Number(fields.startTime || fields.start_time || 0) || 0,
+          startTime: Number(fields.startTime || fields.start_time || 0),
           duration: Number(fields.duration || fields.durationSec || 0) || undefined,
           transcriptionModel: String(fields.transcriptionModel || fields.model || ""),
           transcriptionMethod: String(fields.transcriptionMethod || fields.transcription_method || ""),
@@ -644,6 +644,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (mode === "YOUTUBE" && (!youtubePayload?.youtubeUrl || youtubePayload.youtubeUrl === "")) {
       return res.status(400).json({ error: "YouTube URL is required." });
+    }
+    if (mode === "FILE" && (!filePayload?.duration || !Number.isFinite(Number(filePayload.duration)) || Number(filePayload.duration) <= 0)) {
+      return res.status(400).json({ error: "A positive transcription duration is required." });
     }
 
     const durationSec =
@@ -762,8 +765,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           body: JSON.stringify({
             s3Key: filePayload.s3Key,
             fileName: filePayload.fileName,
-            startTime: fileStartSec,
             start_time: fileStartSec,
+            startTime: fileStartSec,
             duration: durationSec,
             separate_guitar: Boolean(filePayload.separateGuitar),
             multiple_guitars: filePayload.multipleGuitars,
