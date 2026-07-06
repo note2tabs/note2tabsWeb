@@ -52,6 +52,7 @@ type YouTubePayload = {
 
 type FilePayload = {
   mode: "FILE";
+  startTime?: number;
   duration?: number;
   s3Key?: string;
   fileName?: string;
@@ -589,6 +590,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } else {
         filePayload = {
           mode: "FILE",
+          startTime: Number(fields.startTime || fields.start_time || 0),
           duration: Number(fields.duration || fields.durationSec || 0) || undefined,
           transcriptionModel: String(fields.transcriptionModel || fields.model || ""),
           transcriptionMethod: String(fields.transcriptionMethod || fields.transcription_method || ""),
@@ -641,6 +643,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (mode === "YOUTUBE" && (!youtubePayload?.youtubeUrl || youtubePayload.youtubeUrl === "")) {
       return res.status(400).json({ error: "YouTube URL is required." });
+    }
+    if (mode === "FILE" && (!filePayload?.duration || !Number.isFinite(Number(filePayload.duration)) || Number(filePayload.duration) <= 0)) {
+      return res.status(400).json({ error: "A positive transcription duration is required." });
     }
 
     const durationSec =
@@ -752,6 +757,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           body: JSON.stringify({
             s3Key: filePayload.s3Key,
             fileName: filePayload.fileName,
+            start_time: Math.max(0, Number(filePayload.startTime || 0)),
+            startTime: Math.max(0, Number(filePayload.startTime || 0)),
+            duration: Number(filePayload.duration),
             separate_guitar: Boolean(filePayload.separateGuitar),
             multiple_guitars: filePayload.multipleGuitars,
             transcriptionMethod: backendTranscriptionMethod,
@@ -777,6 +785,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }),
           uploadedFile.originalFilename || "upload"
         );
+        fd.append("start_time", String(Math.max(0, Number(filePayload?.startTime || 0))));
+        fd.append("duration", String(Number(filePayload?.duration || 0)));
         fd.append("separate_guitar", filePayload?.separateGuitar ? "true" : "false");
         fd.append("transcription_method", backendTranscriptionMethod);
         if (filePayload?.multipleGuitars !== undefined) {
