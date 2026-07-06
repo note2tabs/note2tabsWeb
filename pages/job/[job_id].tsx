@@ -783,6 +783,39 @@ export default function JobPage() {
     }
   };
 
+  const waitForImportableJob = async (
+    initialJob: JobResponse | null,
+    fallbackJob: JobResponse | null = displayJob
+  ): Promise<JobResponse | null> => {
+    const deadline = Date.now() + FINALIZE_IMPORT_TIMEOUT_MS;
+    let latestJob = mergeJobImportFallback(initialJob, fallbackJob);
+
+    while (Date.now() < deadline) {
+      const importableJob = await resolveImportableJob(latestJob);
+      if (importableJob) return importableJob;
+
+      if (typeof job_id !== "string") return null;
+
+      const fullLatestJob = await fetchJob(job_id, { includeOutput: true });
+      latestJob = mergeJobImportFallback(normalizeJobForDisplay(fullLatestJob), latestJob);
+      const fullImportableJob = await resolveImportableJob(latestJob);
+      if (fullImportableJob) return fullImportableJob;
+
+      if (latestJob?.status === "error" || latestJob?.status === "failed") {
+        throw new Error(latestJob.error_message || "Transcription failed before the tabs were ready.");
+      }
+
+      await new Promise<void>((resolve) => {
+        setTimeout(() => resolve(), FINALIZE_IMPORT_POLL_MS);
+      });
+
+      const refreshedJob = await fetchJob(job_id);
+      latestJob = mergeJobImportFallback(normalizeJobForDisplay(refreshedJob), latestJob);
+    }
+
+    return null;
+  };
+
   useEffect(() => {
     if (!job_id || typeof job_id !== "string") return;
     const pollFetchJob = async () => {
@@ -1065,9 +1098,17 @@ export default function JobPage() {
     setImportBusy(true);
     setImportError(null);
     try {
-      await importJobToEditor(displayJob, editorChoice, quantize);
+      const importableJob = await waitForImportableJob(displayJob);
+      if (!importableJob) {
+        throw new Error("Tabs are still getting ready for the editor. Please try again in a moment.");
+      }
+      await importJobToEditor(importableJob, editorChoice, quantize);
     } catch (err: any) {
-      setImportError(err?.message || "Failed to import tabs into the editor.");
+      const message =
+        err?.message === "No importable tab groups are available for this transcription."
+          ? "Tabs are still getting ready for the editor. Please try again in a moment."
+          : err?.message || "Failed to import tabs into the editor.";
+      setImportError(message);
     } finally {
       setImportBusy(false);
     }
@@ -1084,7 +1125,7 @@ export default function JobPage() {
     const targetEditorChoice = editorChoice;
     try {
       if (isFinalizedStatus && !hasReviewChanges) {
-        const importableJob = await resolveImportableJob(displayJob);
+        const importableJob = await waitForImportableJob(displayJob);
         if (!importableJob) {
           throw new Error("Tabs are still getting ready for the editor. Please try again in a moment.");
         }
@@ -1105,7 +1146,7 @@ export default function JobPage() {
 
       const finalizePayload = await readJsonResponse(response);
       const finalizedResponseJob = mergeJobImportFallback(getFinalizedJobFromResponse(finalizePayload), displayJob);
-      let finalizedJobForImport = await resolveImportableJob(finalizedResponseJob);
+      let finalizedJobForImport = await waitForImportableJob(finalizedResponseJob, displayJob);
       if (finalizedResponseJob) {
         setJob(finalizedResponseJob);
       }
@@ -1121,12 +1162,12 @@ export default function JobPage() {
           normalizedLatest?.status === "done" &&
           (latestWorkflowState === "finalized" || !hasLatestWorkflowState);
         if (isLatestFinalized) {
-          finalizedJobForImport = await resolveImportableJob(normalizedLatest);
+          finalizedJobForImport = await waitForImportableJob(normalizedLatest, displayJob);
           if (finalizedJobForImport) break;
 
           const fullLatestJob = await fetchJob(job_id, { includeOutput: true });
           const normalizedFullLatest = mergeJobImportFallback(normalizeJobForDisplay(fullLatestJob), normalizedLatest);
-          finalizedJobForImport = await resolveImportableJob(normalizedFullLatest);
+          finalizedJobForImport = await waitForImportableJob(normalizedFullLatest, normalizedLatest);
           if (finalizedJobForImport) break;
         }
         if (normalizedLatest?.status === "error" || normalizedLatest?.status === "failed") {
@@ -1143,7 +1184,11 @@ export default function JobPage() {
 
       importedSuccessfully = await importJobToEditor(finalizedJobForImport, targetEditorChoice, quantize);
     } catch (err: any) {
-      setReviewError(err?.message || "Failed to finalize tab groups.");
+      const message =
+        err?.message === "No importable tab groups are available for this transcription."
+          ? "Tabs are still getting ready for the editor. Please try again in a moment."
+          : err?.message || "Failed to finalize tab groups.";
+      setReviewError(message);
     } finally {
       setReviewBusy(false);
       setReviewAction(null);
