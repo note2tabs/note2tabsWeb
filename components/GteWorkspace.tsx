@@ -142,8 +142,8 @@ const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
-const NOTE_LENGTH_FRACTION_DENOMINATORS = Array.from({ length: 64 }, (_, index) => index + 1);
-const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 4, 8, 16, 32, 64];
+const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32];
+const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 3, 4, 8, 16, 32, 64];
 const DEFAULT_CUT_COORD: TabCoord = [2, 0];
 const CUT_SEGMENT_HEIGHT = 20;
 const CUT_SEGMENT_OFFSET = 20;
@@ -249,6 +249,19 @@ const getNearestCursorSizeDenominator = (value: number) => {
   return CURSOR_SIZE_FRACTION_DENOMINATORS.reduce((best, candidate) =>
     Math.abs(candidate - safeValue) < Math.abs(best - safeValue) ? candidate : best
   );
+};
+
+const getNearestNoteLengthDenominator = (value: number) => {
+  const safeValue = Math.max(0.5, Number(value) || 1);
+  return NOTE_LENGTH_FRACTION_DENOMINATORS.reduce((best, candidate) =>
+    Math.abs(candidate - safeValue) < Math.abs(best - safeValue) ? candidate : best
+  );
+};
+
+const formatNoteLengthOption = (denominator: number) => {
+  if (denominator === 0.5) return "2";
+  if (denominator === 1) return "1";
+  return `1/${denominator}`;
 };
 
 const formatScaleFactorInputDraft = (value: string) => {
@@ -1546,7 +1559,7 @@ export default function GteWorkspace({
   );
   const noteFractionDenominatorToFrames = useCallback(
     (denominator: number) => {
-      const safeDenominator = Math.max(1, Math.min(64, Math.round(Number(denominator) || 1)));
+      const safeDenominator = Math.max(0.5, Math.min(64, Number(denominator) || 1));
       const beatsPerBar = Math.max(1, Math.round(timeSignature));
       const beatUnit = Math.max(1, Math.round(timeSignatureBottom));
       return clampEventLength(Math.round((framesPerMeasure * beatUnit) / (beatsPerBar * safeDenominator)));
@@ -1569,17 +1582,17 @@ export default function GteWorkspace({
       const beatUnit = Math.max(1, Math.round(timeSignatureBottom));
       const rawDenominator = (framesPerMeasure * beatUnit) / (beatsPerBar * safeFrames);
       if (!Number.isFinite(rawDenominator)) return 1;
-      return Math.max(1, Math.min(64, Math.round(rawDenominator)));
+      return getNearestNoteLengthDenominator(rawDenominator);
     },
     [framesPerMeasure, timeSignature, timeSignatureBottom]
   );
   const formatLengthFramesAsFraction = useCallback(
-    (frames: number) => `1/${getNearestNoteFractionDenominator(frames)}`,
+    (frames: number) => formatNoteLengthOption(getNearestNoteFractionDenominator(frames)),
     [getNearestNoteFractionDenominator]
   );
   useEffect(() => {
     if (defaultNoteLengthUserChangedRef.current) return;
-    setDefaultNoteLengthDenominator(Math.max(1, Math.min(64, Math.round(timeSignatureBottom))));
+    setDefaultNoteLengthDenominator(getNearestNoteLengthDenominator(timeSignatureBottom));
   }, [timeSignatureBottom]);
   useEffect(() => {
     const previousTop = Math.max(1, Math.round(previousTimeSignatureRef.current));
@@ -2068,6 +2081,13 @@ export default function GteWorkspace({
       max?: number;
     }
   ) => {
+    if (snapToGridEnabled) {
+      const step = Math.max(1, cursorSizeDenominatorToFrames(cursorSizeDenominator));
+      const min = options?.min ?? 0;
+      const max = options?.max ?? Infinity;
+      const snapped = Math.floor(Math.max(0, Math.round(rawTime)) / step) * step;
+      return Math.max(min, Math.min(snapped, max));
+    }
     if (!snapCandidates.length) return rawTime;
     const excludeNotes = new Set(options?.excludeNoteIds ?? []);
     const excludeChords = new Set(options?.excludeChordIds ?? []);
@@ -2974,9 +2994,10 @@ export default function GteWorkspace({
       if (!snapToGridEnabled) {
         return safeStart;
       }
-      return getBeatGridTime(safeStart, timeSignature, "floor");
+      const step = Math.max(1, cursorSizeDenominatorToFrames(cursorSizeDenominator));
+      return Math.floor(safeStart / step) * step;
     },
-    [snapToGridEnabled, timeSignature]
+    [cursorSizeDenominator, cursorSizeDenominatorToFrames, snapToGridEnabled]
   );
 
   const snapMoveStartTimeToGrid = useCallback(
@@ -2985,9 +3006,10 @@ export default function GteWorkspace({
       if (!snapToGridEnabled) {
         return safeStart;
       }
-      return getBeatSubdivisionGridTime(safeStart, timeSignature, 4, "round");
+      const step = Math.max(1, cursorSizeDenominatorToFrames(cursorSizeDenominator));
+      return Math.floor(safeStart / step) * step;
     },
-    [snapToGridEnabled, timeSignature]
+    [cursorSizeDenominator, cursorSizeDenominatorToFrames, snapToGridEnabled]
   );
 
   const snapNoteToGrid = useCallback(
@@ -4758,11 +4780,8 @@ export default function GteWorkspace({
         const rowBarCount = getRowBarCount(rowIndex);
         const availableFrames = Math.max(1, rowBarCount * framesPerMeasure);
         const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, 5);
-        const startTime = clamp(
-          Math.round(current.startX / scale) + rowStart,
-          rowStart,
-          rowStart + availableFrames - 1
-        );
+        const rawStartTime = Math.round(current.startX / scale) + rowStart;
+        const startTime = clamp(snapStartTimeToGrid(rawStartTime), rowStart, rowStart + availableFrames - 1);
         const defaultLength = lastAddedNoteLengthRef.current;
         setDraftNote({
           stringIndex,
@@ -4871,6 +4890,7 @@ export default function GteWorkspace({
     snapshot.notes,
     snapshot.chords,
     clamp,
+    snapStartTimeToGrid,
   ]);
 
   useEffect(() => {
@@ -6281,7 +6301,7 @@ export default function GteWorkspace({
   const commitNoteMenuFractionLength = useCallback(
     (rawDenominator: string | number) => {
       const denominator = Number(rawDenominator);
-      if (!Number.isInteger(denominator) || denominator < 1 || denominator > 64) {
+      if (!NOTE_LENGTH_FRACTION_DENOMINATORS.includes(denominator)) {
         setError("Invalid note length.");
         return;
       }
@@ -9547,6 +9567,11 @@ export default function GteWorkspace({
     );
   };
 
+  const releaseSizeSelectFocus = (select: HTMLSelectElement) => {
+    select.blur();
+    onFocusWorkspace?.();
+  };
+
   const renderDefaultNoteLengthControl = (compact = false) => (
     <label
       className={`pointer-events-auto flex ${
@@ -9559,6 +9584,7 @@ export default function GteWorkspace({
         onChange={(event) => {
           defaultNoteLengthUserChangedRef.current = true;
           setDefaultNoteLengthDenominator(Number(event.target.value));
+          releaseSizeSelectFocus(event.currentTarget);
         }}
         className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
         title="Add note size"
@@ -9566,7 +9592,7 @@ export default function GteWorkspace({
       >
         {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
           <option key={denominator} value={denominator}>
-            1/{denominator}
+            {formatNoteLengthOption(denominator)}
           </option>
         ))}
       </select>
@@ -9582,7 +9608,10 @@ export default function GteWorkspace({
       <span className="whitespace-nowrap">cursor size</span>
       <select
         value={cursorSizeDenominator}
-        onChange={(event) => setCursorSizeDenominator(getNearestCursorSizeDenominator(Number(event.target.value)))}
+        onChange={(event) => {
+          setCursorSizeDenominator(getNearestCursorSizeDenominator(Number(event.target.value)));
+          releaseSizeSelectFocus(event.currentTarget);
+        }}
         className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
         title="Cursor size"
         aria-label="Cursor size"
@@ -11797,7 +11826,7 @@ export default function GteWorkspace({
                             >
                               {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
                                 <option key={denominator} value={denominator}>
-                                  1/{denominator}
+                                  {formatNoteLengthOption(denominator)}
                                 </option>
                               ))}
                             </select>
@@ -12358,7 +12387,7 @@ export default function GteWorkspace({
                         >
                           {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
                             <option key={denominator} value={denominator}>
-                              1/{denominator}
+                              {formatNoteLengthOption(denominator)}
                             </option>
                           ))}
                         </select>
