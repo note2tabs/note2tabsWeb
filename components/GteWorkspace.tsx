@@ -28,7 +28,7 @@ import {
 } from "../lib/gteSoundfonts";
 import { getOpenStringMidiFromSnapshot, getStringLabelsForSnapshot } from "../lib/gteTuning";
 import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
-import type { CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
+import type { Chord, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
 import { buildEditorTabView } from "../lib/gteEditorTabView";
@@ -140,6 +140,29 @@ const DEFAULT_MAX_FRET = 22;
 const MAX_EVENT_LENGTH_FRAMES = 800;
 const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
+const CHORD_EDITOR_ROW_HEIGHT = 70;
+const CHORD_EDITOR_MIN_BLOCK_WIDTH = 24;
+const CHORD_EDITOR_SNAP_DENOMINATORS = [1, 2, 4, 8, 16, 32] as const;
+const CHORD_EDITOR_ROOTS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
+const CHORD_EDITOR_QUALITIES = [
+  { name: "major", display: "", intervals: [0, 4, 7] },
+  { name: "minor", display: "m", intervals: [0, 3, 7] },
+  { name: "augmentet", display: "+", intervals: [0, 4, 8] },
+  { name: "diminished", display: "dim", intervals: [0, 3, 6] },
+  { name: "sus2", display: "sus2", intervals: [0, 2, 7] },
+  { name: "sus4", display: "sus4", intervals: [0, 5, 7] },
+  { name: "power", display: "5", intervals: [0, 7] },
+] as const;
+const CHORD_EDITOR_EXTENSIONS = [
+  { name: "", display: "", intervals: [] },
+  { name: "6", display: "6", intervals: [9] },
+  { name: "7", display: "7", intervals: [10] },
+  { name: "maj7", display: "maj7", intervals: [11] },
+  { name: "9", display: "9", intervals: [10, 14] },
+  { name: "maj9", display: "maj9", intervals: [11, 14] },
+  { name: "11", display: "11", intervals: [10, 14, 17] },
+  { name: "13", display: "13", intervals: [10, 14, 17, 21] },
+] as const;
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
 const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32];
@@ -345,6 +368,97 @@ const getBeatSubdivisionGridLength = (
   const unitCount =
     mode === "floor" ? Math.floor(rawUnitCount) : mode === "ceil" ? Math.ceil(rawUnitCount) : Math.round(rawUnitCount);
   return clampEventLength(Math.round((Math.max(1, unitCount) * FIXED_FRAMES_PER_BAR) / unitsPerBar));
+};
+
+const normalizeEditorKind = (value: unknown) => {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor"
+    ? "chords"
+    : "tab";
+};
+
+const isChordEditorSnapshot = (snapshot: EditorSnapshot) =>
+  normalizeEditorKind(snapshot.editorType ?? snapshot.trackType ?? snapshot.type) === "chords";
+
+const getChordEditorQuality = (quality: unknown) => {
+  const raw = typeof quality === "string" ? quality : "major";
+  return CHORD_EDITOR_QUALITIES.find((item) => item.name === raw) ?? CHORD_EDITOR_QUALITIES[0];
+};
+
+const getChordEditorExtension = (extension: unknown) => {
+  const raw = typeof extension === "string" ? extension : "";
+  return CHORD_EDITOR_EXTENSIONS.find((item) => item.name === raw) ?? CHORD_EDITOR_EXTENSIONS[0];
+};
+
+const getChordEditorLabel = (root: string, quality: string, extension: string = "") => {
+  const qualityDisplay = getChordEditorQuality(quality).display;
+  const extensionDisplay = getChordEditorExtension(extension).display;
+  return `${root}${qualityDisplay}${extensionDisplay}`;
+};
+
+const getChordEditorRootMidi = (root: unknown) => {
+  const rootIndex = CHORD_EDITOR_ROOTS.findIndex((item) => item === root);
+  return 48 + (rootIndex >= 0 ? rootIndex : 0);
+};
+
+const inferChordEditorMetadataFromMidi = (midis: unknown) => {
+  if (!Array.isArray(midis) || !midis.length) return null;
+  const pitchClasses = Array.from(
+    new Set(
+      midis
+        .map((midi) => Number(midi))
+        .filter((midi) => Number.isFinite(midi))
+        .map((midi) => ((Math.round(midi) % 12) + 12) % 12)
+    )
+  );
+  if (!pitchClasses.length) return null;
+  for (const rootIndex of pitchClasses) {
+    const intervals = new Set(pitchClasses.map((pitchClass) => (pitchClass - rootIndex + 12) % 12));
+    const quality = CHORD_EDITOR_QUALITIES.find((candidate) =>
+      candidate.intervals.every((interval) => intervals.has(interval % 12))
+    );
+    if (!quality) continue;
+    const root = CHORD_EDITOR_ROOTS[rootIndex] || "C";
+    return {
+      root,
+      quality: quality.name,
+      extension: "",
+      label: getChordEditorLabel(root, quality.name),
+    };
+  }
+  const root = CHORD_EDITOR_ROOTS[pitchClasses[0]] || "C";
+  return {
+    root,
+    quality: "major",
+    extension: "",
+    label: root,
+  };
+};
+
+export const getChordEditorMidiNotes = (chord: Pick<Chord, "root" | "quality"> & { extension?: unknown }) => {
+  const rootMidi = getChordEditorRootMidi(chord.root);
+  const quality = getChordEditorQuality(chord.quality);
+  const extension = getChordEditorExtension(chord.extension);
+  return [...quality.intervals, ...extension.intervals]
+    .map((interval) => rootMidi + interval)
+    .filter((midi, index, values) => Number.isFinite(midi) && values.indexOf(midi) === index);
+};
+
+const normalizeChordEditorStrums = (strums: unknown): NonNullable<Chord["strums"]> => {
+  if (!Array.isArray(strums)) return [{ id: 1, time: 0, direction: "down" }];
+  const normalized = strums
+    .map((entry, index): NonNullable<Chord["strums"]>[number] | null => {
+      if (!entry || typeof entry !== "object") return null;
+      const raw = entry as Record<string, unknown>;
+      const direction: "down" | "up" = raw.direction === "up" ? "up" : "down";
+      return {
+        id: Number.isFinite(Number(raw.id)) ? Math.round(Number(raw.id)) : index + 1,
+        time: Math.max(0, Math.round(Number(raw.time) || 0)),
+        direction,
+      };
+    })
+    .filter((entry): entry is NonNullable<Chord["strums"]>[number] => entry !== null);
+  return normalized.length ? normalized : [{ id: 1, time: 0, direction: "down" }];
 };
 
 const NON_TEXT_INPUT_TYPES = new Set([
@@ -1213,6 +1327,659 @@ type DragPointerEventLike = {
   stopPropagation: () => void;
 };
 
+type ChordPalettePayload = {
+  root: string;
+  quality: string;
+  extension: string;
+  label: string;
+};
+
+type ChordEditorDragState =
+  | {
+      kind: "move";
+      chordId: number;
+      anchorX: number;
+      originalStart: number;
+    }
+  | {
+      kind: "resize-left" | "resize-right";
+      chordId: number;
+      anchorX: number;
+      originalStart: number;
+      originalLength: number;
+    };
+
+function ChordLaneWorkspace({
+  editorId,
+  snapshot,
+  onSnapshotChange,
+  allowBackend = true,
+  embedded = false,
+  isActive = true,
+  onFocusWorkspace,
+  sharedViewportBarCount,
+  sharedTimelineScrollRatio,
+  onSharedTimelineScrollRatioChange,
+  timelineZoomFactor,
+  onRequestUndo,
+  onRequestRedo,
+  globalPlaybackFrame,
+  globalPlaybackIsPlaying,
+  globalPlaybackTimelineEnd,
+  onGlobalPlaybackFrameChange,
+  selectionClearEpoch,
+  selectionClearExemptEditorId,
+  barSelectionClearEpoch,
+  barSelectionClearExemptEditorId,
+  onSelectionStateChange,
+  onBarSelectionStateChange,
+  tabViewEnabled = false,
+  sharedTimeSignature,
+  activeBarDrag,
+  onBarDragStart,
+  onBarDragEnd,
+  onRequestBarDrop,
+  mobileViewport = false,
+  mobileMode,
+}: Props) {
+  const timelineRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<ChordEditorDragState | null>(null);
+  const dragHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [baseScale, setBaseScale] = useState(4);
+  const [selectedChordIds, setSelectedChordIds] = useState<number[]>([]);
+  const [selectedBarIndices, setSelectedBarIndices] = useState<number[]>([]);
+  const [snapDenominator, setSnapDenominator] = useState<(typeof CHORD_EDITOR_SNAP_DENOMINATORS)[number]>(4);
+  const [chordMenuOpen, setChordMenuOpen] = useState(false);
+  const [dragRevision, setDragRevision] = useState(0);
+  const isMobileCanvasMode = mobileViewport && mobileMode === "canvas";
+  const normalizedTimelineZoomFactor =
+    timelineZoomFactor !== undefined && Number.isFinite(timelineZoomFactor)
+      ? Math.max(MIN_TIMELINE_ZOOM, Math.min(MAX_TIMELINE_ZOOM, timelineZoomFactor))
+      : 1;
+  const scale = baseScale * normalizedTimelineZoomFactor;
+  const timelineEnd = Math.max(
+    FIXED_FRAMES_PER_BAR,
+    globalPlaybackTimelineEnd ?? snapshot.totalFrames ?? FIXED_FRAMES_PER_BAR
+  );
+  const barCount = Math.max(
+    sharedViewportBarCount ?? 1,
+    Math.ceil(timelineEnd / FIXED_FRAMES_PER_BAR),
+    Math.ceil((snapshot.totalFrames || timelineEnd) / FIXED_FRAMES_PER_BAR)
+  );
+  const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, barCount * FIXED_FRAMES_PER_BAR);
+  const beatsPerBar = Math.max(1, Math.round(Number(sharedTimeSignature ?? snapshot.timeSignature ?? 8) || 8));
+  const editorTabView = useMemo(
+    () =>
+      buildEditorTabView(snapshot, {
+        framesPerBar: FIXED_FRAMES_PER_BAR,
+        beatsPerBar,
+        scale,
+        playheadFrame: Math.round(globalPlaybackFrame ?? 0),
+        minBarCount: barCount,
+      }),
+    [barCount, beatsPerBar, globalPlaybackFrame, scale, snapshot]
+  );
+  const pxPerFrame = tabViewEnabled
+    ? editorTabView.barWidth / FIXED_FRAMES_PER_BAR
+    : scale;
+  const timelineContentOffset = tabViewEnabled ? 30 : 0;
+  const timelineWidth = tabViewEnabled
+    ? editorTabView.width
+    : Math.max(320, Math.round(totalFrames * pxPerFrame));
+  const effectivePlayheadFrame = Math.max(0, Math.min(totalFrames, Math.round(globalPlaybackFrame ?? 0)));
+  const playheadLeft = timelineContentOffset + effectivePlayheadFrame * pxPerFrame;
+
+  const snapFrame = useCallback(
+    (frame: number, mode: "floor" | "round" | "ceil" = "round") => {
+      const unit = FIXED_FRAMES_PER_BAR / snapDenominator;
+      const raw = Math.max(0, Number(frame) || 0) / unit;
+      const snapped = mode === "floor" ? Math.floor(raw) : mode === "ceil" ? Math.ceil(raw) : Math.round(raw);
+      return Math.max(0, Math.round(snapped * unit));
+    },
+    [snapDenominator]
+  );
+
+  const snapLength = useCallback(
+    (length: number) => {
+      const unit = FIXED_FRAMES_PER_BAR / snapDenominator;
+      return clampEventLength(Math.max(unit, Math.round((Math.max(1, length) / unit)) * unit));
+    },
+    [snapDenominator]
+  );
+
+  const commitSnapshot = useCallback(
+    (nextSnapshot: EditorSnapshot, options?: { recordHistory?: boolean; persist?: boolean }) => {
+      const updated = {
+        ...nextSnapshot,
+        editorType: "chords",
+        type: "chords",
+        trackType: "chords",
+        chordEditor: {
+          ...(nextSnapshot.chordEditor || {}),
+          snapDenominator,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      onSnapshotChange(updated, { recordHistory: options?.recordHistory ?? true });
+      if (allowBackend && options?.persist !== false) {
+        void gteApi.applySnapshot(editorId, updated).catch(() => undefined);
+      }
+    },
+    [allowBackend, editorId, onSnapshotChange, snapDenominator]
+  );
+
+  const updateChord = useCallback(
+    (chordId: number, updater: (chord: Chord) => Chord, options?: { recordHistory?: boolean; persist?: boolean }) => {
+      commitSnapshot(
+        {
+          ...snapshot,
+          chords: snapshot.chords.map((chord) => (chord.id === chordId ? updater(chord) : chord)),
+        },
+        options
+      );
+    },
+    [commitSnapshot, snapshot]
+  );
+
+  const addChordAtFrame = useCallback(
+    (payload: ChordPalettePayload, rawFrame: number) => {
+      const startTime = snapFrame(rawFrame);
+      const length = snapLength(FIXED_FRAMES_PER_BAR / 4);
+      const nextChord: Chord = {
+        id: nextLocalChordId(snapshot),
+        startTime,
+        length,
+        originalMidi: getChordEditorMidiNotes(payload),
+        currentTabs: [],
+        ogTabs: [],
+        root: payload.root,
+        quality: payload.quality,
+        extension: payload.extension,
+        label: payload.label,
+        strums: [{ id: 1, time: 0, direction: "down" }],
+      };
+      commitSnapshot(
+        {
+          ...snapshot,
+          totalFrames: Math.max(snapshot.totalFrames || FIXED_FRAMES_PER_BAR, startTime + length, totalFrames),
+          chords: [...snapshot.chords, nextChord].sort((left, right) => left.startTime - right.startTime),
+        },
+        { recordHistory: true }
+      );
+      setSelectedChordIds([nextChord.id]);
+    },
+    [commitSnapshot, snapFrame, snapLength, snapshot, totalFrames]
+  );
+
+  useEffect(() => {
+    if (selectionClearEpoch === undefined || selectionClearExemptEditorId === editorId) return;
+    setSelectedChordIds([]);
+  }, [editorId, selectionClearEpoch, selectionClearExemptEditorId]);
+
+  useEffect(() => {
+    if (barSelectionClearEpoch === undefined || barSelectionClearExemptEditorId === editorId) return;
+    setSelectedBarIndices([]);
+  }, [barSelectionClearEpoch, barSelectionClearExemptEditorId, editorId]);
+
+  useEffect(() => {
+    onSelectionStateChange?.({
+      noteCount: 0,
+      chordCount: selectedChordIds.length,
+      noteIds: [],
+      chordIds: selectedChordIds,
+    });
+  }, [onSelectionStateChange, selectedChordIds]);
+
+  useEffect(() => {
+    onBarSelectionStateChange?.(selectedBarIndices);
+  }, [onBarSelectionStateChange, selectedBarIndices]);
+
+  useEffect(() => {
+    const container = timelineRef.current;
+    if (!container) return;
+
+    const computeScale = () => {
+      const availableWidth = Math.max(240, container.clientWidth - 16);
+      const rawScale = availableWidth / Math.max(1, FIXED_FRAMES_PER_BAR * TARGET_VISIBLE_BARS);
+      const nextScale = Math.max(0.5, Math.min(4, rawScale));
+      setBaseScale((prev) => (Math.abs(prev - nextScale) < 0.01 ? prev : nextScale));
+    };
+
+    computeScale();
+    const observer = new ResizeObserver(computeScale);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  const deleteSelectedChords = useCallback(() => {
+    if (!selectedChordIds.length) return;
+    const selectedIds = new Set(selectedChordIds);
+    commitSnapshot(
+      {
+        ...snapshot,
+        chords: snapshot.chords.filter((chord) => !selectedIds.has(chord.id)),
+      },
+      { recordHistory: true }
+    );
+    setSelectedChordIds([]);
+  }, [commitSnapshot, selectedChordIds, snapshot]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (isShortcutTextEntryTarget(target)) return;
+      if ((event.ctrlKey || event.metaKey) && (event.key === "z" || event.key === "Z")) {
+        event.preventDefault();
+        if (event.shiftKey) {
+          onRequestRedo?.();
+        } else {
+          onRequestUndo?.();
+        }
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && (event.key === "y" || event.key === "Y")) {
+        event.preventDefault();
+        onRequestRedo?.();
+        return;
+      }
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      if (!selectedChordIds.length) return;
+      event.preventDefault();
+      deleteSelectedChords();
+    };
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [deleteSelectedChords, isActive, onRequestRedo, onRequestUndo, selectedChordIds.length]);
+
+  useEffect(() => {
+    const element = timelineRef.current;
+    if (!element || sharedTimelineScrollRatio === undefined) return;
+    const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
+    element.scrollLeft = maxScroll * Math.max(0, Math.min(1, sharedTimelineScrollRatio));
+  }, [sharedTimelineScrollRatio, timelineWidth]);
+
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      const dragState = dragStateRef.current;
+      if (!dragState) return;
+      const chord = snapshot.chords.find((item) => item.id === dragState.chordId);
+      if (!chord) return;
+      const deltaFrames = Math.round((event.clientX - dragState.anchorX) / pxPerFrame);
+      if (dragState.kind === "move") {
+        const startTime = Math.max(0, snapFrame(dragState.originalStart + deltaFrames));
+        updateChord(
+          chord.id,
+          (item) => ({ ...item, startTime }),
+          { recordHistory: false, persist: false }
+        );
+        setDragRevision((value) => value + 1);
+        return;
+      }
+      if (dragState.kind === "resize-left") {
+        const originalEnd = dragState.originalStart + dragState.originalLength;
+        const nextStart = Math.min(originalEnd - 1, Math.max(0, snapFrame(dragState.originalStart + deltaFrames)));
+        const nextLength = snapLength(originalEnd - nextStart);
+        updateChord(
+          chord.id,
+          (item) => ({ ...item, startTime: originalEnd - nextLength, length: nextLength }),
+          { recordHistory: false, persist: false }
+        );
+        setDragRevision((value) => value + 1);
+        return;
+      }
+      const nextLength = snapLength(dragState.originalLength + deltaFrames);
+      updateChord(
+        chord.id,
+        (item) => ({ ...item, length: nextLength }),
+        { recordHistory: false, persist: false }
+      );
+      setDragRevision((value) => value + 1);
+    };
+
+    const handleMouseUp = () => {
+      if (dragHoldTimeoutRef.current) {
+        clearTimeout(dragHoldTimeoutRef.current);
+        dragHoldTimeoutRef.current = null;
+      }
+      if (!dragStateRef.current) return;
+      dragStateRef.current = null;
+      commitSnapshot({ ...snapshot, chords: snapshot.chords }, { recordHistory: true });
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      if (dragHoldTimeoutRef.current) {
+        clearTimeout(dragHoldTimeoutRef.current);
+        dragHoldTimeoutRef.current = null;
+      }
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [commitSnapshot, dragRevision, pxPerFrame, snapFrame, snapLength, snapshot, updateChord]);
+
+  const handlePaletteDragStart = (event: ReactDragEvent<HTMLButtonElement>, payload: ChordPalettePayload) => {
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("application/x-gte-chord", JSON.stringify(payload));
+  };
+
+  const getFrameFromClientX = (clientX: number) => {
+    const element = timelineRef.current;
+    if (!element) return 0;
+    const rect = element.getBoundingClientRect();
+    return Math.max(0, Math.round((clientX - rect.left + element.scrollLeft - timelineContentOffset) / pxPerFrame));
+  };
+
+  const handleTimelineDrop = (event: ReactDragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const raw = event.dataTransfer.getData("application/x-gte-chord");
+    if (!raw) return;
+    try {
+      const payload = JSON.parse(raw) as ChordPalettePayload;
+      if (!payload.root || !payload.quality || !payload.label) return;
+      addChordAtFrame(payload, getFrameFromClientX(event.clientX));
+    } catch {
+      return;
+    }
+  };
+
+  const toggleBarSelection = (barIndex: number, event: ReactMouseEvent<HTMLButtonElement>) => {
+    setSelectedChordIds([]);
+    setSelectedBarIndices((prev) => {
+      if (event.shiftKey && prev.length) {
+        const anchor = prev[prev.length - 1];
+        const start = Math.min(anchor, barIndex);
+        const end = Math.max(anchor, barIndex);
+        return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+      }
+      if (event.ctrlKey || event.metaKey) {
+        return prev.includes(barIndex) ? prev.filter((item) => item !== barIndex) : [...prev, barIndex].sort((a, b) => a - b);
+      }
+      return [barIndex];
+    });
+  };
+
+  const handleTimelineScroll = (event: ReactUiEvent<HTMLDivElement>) => {
+    const element = event.currentTarget;
+    const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
+    onSharedTimelineScrollRatioChange?.(maxScroll > 0 ? element.scrollLeft / maxScroll : 0);
+  };
+
+  return (
+    <div
+      className={`w-full ${embedded ? "" : "rounded-xl border border-slate-200 bg-white shadow-sm"} ${
+        isActive ? "ring-0" : ""
+      }`}
+      onMouseDown={onFocusWorkspace}
+    >
+      {chordMenuOpen && !isMobileCanvasMode && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          className="fixed right-4 top-1/2 z-[9998] max-h-[calc(100vh-6rem)] w-[min(18rem,calc(100vw-5rem))] -translate-y-1/2 overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2.5 shadow-xl shadow-slate-900/10 backdrop-blur"
+          onMouseDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
+        >
+          <div className="mb-2 flex items-start justify-between gap-2">
+            <div className="text-[11px] font-bold text-slate-800">Chords</div>
+            <button
+              type="button"
+              onClick={() => setChordMenuOpen(false)}
+              className="grid h-6 w-6 place-items-center rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
+              aria-label="Close chords"
+            >
+              x
+            </button>
+          </div>
+          <div className="space-y-2">
+            {CHORD_EDITOR_QUALITIES.map((quality) => (
+              <details key={quality.name} open={quality.name === "major" || quality.name === "minor"}>
+                <summary className="cursor-pointer select-none text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  {quality.name}
+                </summary>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {CHORD_EDITOR_ROOTS.map((root) => {
+                    const label = getChordEditorLabel(root, quality.name);
+                    const payload = { root, quality: quality.name, extension: "", label };
+                    return (
+                      <button
+                        key={`${quality.name}-${root}`}
+                        type="button"
+                        draggable
+                        onDragStart={(event) => handlePaletteDragStart(event, payload)}
+                        onClick={() => addChordAtFrame(payload, effectivePlayheadFrame)}
+                        className="min-w-11 rounded border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800 shadow-sm hover:border-sky-400 hover:bg-sky-50"
+                        title={`Drag ${label} to the chord editor`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      )}
+      {!isMobileCanvasMode && (
+        <div data-gte-floating-ui="true" className="fixed bottom-28 right-4 z-[9997] pointer-events-none">
+          <button
+            type="button"
+            data-gte-editor-control="true"
+            onClick={() => setChordMenuOpen((open) => !open)}
+            aria-pressed={chordMenuOpen}
+            className={`pointer-events-auto flex h-10 items-center justify-center rounded-full border px-3 text-xs font-semibold shadow-md backdrop-blur transition ${
+              chordMenuOpen
+                ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
+                : "border-sky-300 bg-sky-100/95 text-sky-900 hover:bg-sky-50"
+            }`}
+          >
+            Chords
+          </button>
+        </div>
+      )}
+      <div
+        ref={timelineRef}
+        className="relative overflow-x-auto bg-white"
+        onScroll={handleTimelineScroll}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={handleTimelineDrop}
+        onMouseDown={() => {
+          setSelectedChordIds([]);
+          setSelectedBarIndices([]);
+        }}
+      >
+        <div className="relative" style={{ width: timelineWidth, minHeight: TIMELINE_BAR_HEADER_HEIGHT + CHORD_EDITOR_ROW_HEIGHT + 18 }}>
+          <div className="sticky top-0 z-10 flex h-5 bg-slate-100" style={{ paddingLeft: timelineContentOffset }}>
+            {Array.from({ length: barCount }, (_, barIndex) => {
+              const selected = selectedBarIndices.includes(barIndex);
+              const draggingOver = activeBarDrag && activeBarDrag.sourceLaneId !== editorId;
+              return (
+                <button
+                  key={barIndex}
+                  type="button"
+                  draggable={selected && selectedBarIndices.length > 0}
+                  onClick={(event) => toggleBarSelection(barIndex, event)}
+                  onDragStart={() => {
+                    const indices = selected ? selectedBarIndices : [barIndex];
+                    setSelectedBarIndices(indices);
+                    onBarDragStart?.(indices);
+                  }}
+                  onDragEnd={onBarDragEnd}
+                  onDragOver={(event) => {
+                    if (!draggingOver) return;
+                    event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    if (!draggingOver) return;
+                    event.preventDefault();
+                    onRequestBarDrop?.(barIndex);
+                  }}
+                  className={`h-5 border-r border-slate-300 text-[10px] font-semibold ${
+                    selected ? "bg-sky-500 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  }`}
+                  style={{ width: FIXED_FRAMES_PER_BAR * pxPerFrame }}
+                >
+                  {barIndex + 1}
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            className="relative border-t border-slate-300 bg-white"
+            style={{ height: CHORD_EDITOR_ROW_HEIGHT }}
+            onClick={(event) => {
+              if (event.currentTarget !== event.target) return;
+              onGlobalPlaybackFrameChange?.(snapFrame(getFrameFromClientX(event.clientX)));
+            }}
+          >
+            {Array.from({ length: barCount + 1 }, (_, index) => (
+              <div
+                key={`bar-line-${index}`}
+                className="pointer-events-none absolute top-0 h-full border-l border-slate-300"
+                style={{ left: timelineContentOffset + index * FIXED_FRAMES_PER_BAR * pxPerFrame }}
+              />
+            ))}
+            {Array.from({ length: barCount * snapDenominator }, (_, index) => (
+              <div
+                key={`grid-line-${index}`}
+                className="pointer-events-none absolute top-0 h-full border-l border-slate-100"
+                style={{ left: timelineContentOffset + (index * FIXED_FRAMES_PER_BAR * pxPerFrame) / snapDenominator }}
+              />
+            ))}
+            <div
+              className="pointer-events-none absolute top-0 z-20 h-full w-px bg-rose-500"
+              style={{ left: playheadLeft }}
+            />
+            {snapshot.chords.map((chord) => {
+              const start = Math.max(0, Math.round(chord.startTime));
+              const length = clampEventLength(chord.length);
+              const isSelected = selectedChordIds.includes(chord.id);
+              const strums = normalizeChordEditorStrums(chord.strums);
+              const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+              const chordLabel =
+                chord.label ||
+                inferred?.label ||
+                getChordEditorLabel(
+                  chord.root || inferred?.root || "C",
+                  chord.quality || inferred?.quality || "major",
+                  chord.extension || inferred?.extension || ""
+                );
+              return (
+                <div
+                  key={chord.id}
+                  data-track-reorder-block="true"
+                  className={`absolute top-3 flex h-8 cursor-pointer select-none items-center justify-center rounded border px-2 text-sm font-semibold shadow-sm ${
+                    isSelected
+                      ? "border-sky-500 bg-sky-100 text-sky-950"
+                      : "border-slate-300 bg-emerald-50 text-slate-900"
+                  }`}
+                  style={{
+                    left: timelineContentOffset + start * pxPerFrame,
+                    width: Math.max(CHORD_EDITOR_MIN_BLOCK_WIDTH, length * pxPerFrame),
+                  }}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (dragHoldTimeoutRef.current) {
+                      clearTimeout(dragHoldTimeoutRef.current);
+                      dragHoldTimeoutRef.current = null;
+                    }
+                    setSelectedBarIndices([]);
+                    if (event.shiftKey) {
+                      setSelectedChordIds((previousSelected) =>
+                        previousSelected.includes(chord.id)
+                          ? previousSelected.filter((value) => value !== chord.id)
+                          : [...previousSelected, chord.id]
+                      );
+                      return;
+                    }
+                    setSelectedChordIds([chord.id]);
+                    const anchorX = event.clientX;
+                    const originalStart = chord.startTime;
+                    dragHoldTimeoutRef.current = setTimeout(() => {
+                      dragHoldTimeoutRef.current = null;
+                      dragStateRef.current = {
+                        kind: "move",
+                        chordId: chord.id,
+                        anchorX,
+                        originalStart,
+                      };
+                    }, TOUCH_DRAG_HOLD_MS);
+                  }}
+                >
+                  <button
+                    type="button"
+                    data-track-reorder-block="true"
+                    className="absolute left-0 top-0 h-full w-2 cursor-ew-resize rounded-l bg-slate-900/10"
+                    aria-label="Resize chord start"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (dragHoldTimeoutRef.current) {
+                        clearTimeout(dragHoldTimeoutRef.current);
+                        dragHoldTimeoutRef.current = null;
+                      }
+                      setSelectedBarIndices([]);
+                      setSelectedChordIds([chord.id]);
+                      dragStateRef.current = {
+                        kind: "resize-left",
+                        chordId: chord.id,
+                        anchorX: event.clientX,
+                        originalStart: chord.startTime,
+                        originalLength: chord.length,
+                      };
+                    }}
+                  />
+                  {strums.map((strum) => (
+                    <span
+                      key={`${chord.id}-${strum.id ?? strum.time}-${strum.direction}`}
+                      className="absolute top-1/2 -translate-y-1/2 text-base leading-none text-slate-700"
+                      style={{ left: Math.max(8, Math.min(length - 8, strum.time) * pxPerFrame) }}
+                    >
+                      {strum.direction === "up" ? "↑" : "↓"}
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    data-track-reorder-block="true"
+                    className="absolute right-0 top-0 h-full w-2 cursor-ew-resize rounded-r bg-slate-900/10"
+                    aria-label="Resize chord end"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (dragHoldTimeoutRef.current) {
+                        clearTimeout(dragHoldTimeoutRef.current);
+                        dragHoldTimeoutRef.current = null;
+                      }
+                      setSelectedBarIndices([]);
+                      setSelectedChordIds([chord.id]);
+                      dragStateRef.current = {
+                        kind: "resize-right",
+                        chordId: chord.id,
+                        anchorX: event.clientX,
+                        originalStart: chord.startTime,
+                        originalLength: chord.length,
+                      };
+                    }}
+                  />
+                  <span className="pointer-events-none absolute left-0 top-full mt-1 w-full truncate text-center text-[11px] font-semibold leading-none text-slate-700">
+                    {chordLabel}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function GteWorkspace({
   editorId,
   snapshot,
@@ -1285,6 +2052,83 @@ export default function GteWorkspace({
   mobileViewport = false,
   mobileMode,
 }: Props) {
+  if (isChordEditorSnapshot(snapshot)) {
+    return (
+      <ChordLaneWorkspace
+        editorId={editorId}
+        snapshot={snapshot}
+        onSnapshotChange={onSnapshotChange}
+        allowBackend={allowBackend}
+        embedded={embedded}
+        isActive={isActive}
+        onFocusWorkspace={onFocusWorkspace}
+        tabViewEnabled={tabViewEnabled}
+        globalSnapToGridEnabled={globalSnapToGridEnabled}
+        onGlobalSnapToGridEnabledChange={onGlobalSnapToGridEnabledChange}
+        globalSnapToKeyEnabled={globalSnapToKeyEnabled}
+        onGlobalSnapToKeyEnabledChange={onGlobalSnapToKeyEnabledChange}
+        canvasKeyBase={canvasKeyBase}
+        canvasKeyType={canvasKeyType}
+        sharedTimeSignature={sharedTimeSignature}
+        sharedTimeSignatureBottom={sharedTimeSignatureBottom}
+        sharedViewportBarCount={sharedViewportBarCount}
+        sharedTimelineScrollRatio={sharedTimelineScrollRatio}
+        onSharedTimelineScrollRatioChange={onSharedTimelineScrollRatioChange}
+        timelineZoomFactor={timelineZoomFactor}
+        historyUndoCount={historyUndoCount}
+        historyRedoCount={historyRedoCount}
+        onRequestUndo={onRequestUndo}
+        onRequestRedo={onRequestRedo}
+        globalPlaybackFrame={globalPlaybackFrame}
+        globalPlaybackIsPlaying={globalPlaybackIsPlaying}
+        globalPlaybackVolume={globalPlaybackVolume}
+        globalPlaybackTimelineEnd={globalPlaybackTimelineEnd}
+        onGlobalPlaybackToggle={onGlobalPlaybackToggle}
+        onGlobalPlaybackFrameChange={onGlobalPlaybackFrameChange}
+        onGlobalPlaybackVolumeChange={onGlobalPlaybackVolumeChange}
+        onGlobalPlaybackSkipToStart={onGlobalPlaybackSkipToStart}
+        onGlobalPlaybackSkipBackwardBar={onGlobalPlaybackSkipBackwardBar}
+        onGlobalPlaybackSkipForwardBar={onGlobalPlaybackSkipForwardBar}
+        practiceLoopEnabled={practiceLoopEnabled}
+        practiceLoopRange={practiceLoopRange}
+        onPracticeLoopEnabledChange={onPracticeLoopEnabledChange}
+        metronomeEnabled={metronomeEnabled}
+        onMetronomeEnabledChange={onMetronomeEnabledChange}
+        countInEnabled={countInEnabled}
+        onCountInEnabledChange={onCountInEnabledChange}
+        speedTrainerEnabled={speedTrainerEnabled}
+        onSpeedTrainerEnabledChange={onSpeedTrainerEnabledChange}
+        speedTrainerTarget={speedTrainerTarget}
+        onSpeedTrainerTargetChange={onSpeedTrainerTargetChange}
+        speedTrainerStep={speedTrainerStep}
+        onSpeedTrainerStepChange={onSpeedTrainerStepChange}
+        playbackSpeed={playbackSpeed}
+        onPlaybackSpeedChange={onPlaybackSpeedChange}
+        showToolbarWhenInactive={showToolbarWhenInactive}
+        toolbarOpen={controlledToolbarOpen}
+        onToolbarOpenChange={onToolbarOpenChange}
+        selectionClearEpoch={selectionClearEpoch}
+        selectionClearExemptEditorId={selectionClearExemptEditorId}
+        barSelectionClearEpoch={barSelectionClearEpoch}
+        barSelectionClearExemptEditorId={barSelectionClearExemptEditorId}
+        multiTrackSelectionActive={multiTrackSelectionActive}
+        onSelectionStateChange={onSelectionStateChange}
+        onRequestGlobalSelectedShift={onRequestGlobalSelectedShift}
+        onBarSelectionStateChange={onBarSelectionStateChange}
+        onRequestSelectedBarsCopy={onRequestSelectedBarsCopy}
+        onRequestSelectedBarsPaste={onRequestSelectedBarsPaste}
+        onRequestSelectedBarsDelete={onRequestSelectedBarsDelete}
+        barClipboardAvailable={barClipboardAvailable}
+        activeBarDrag={activeBarDrag}
+        onBarDragStart={onBarDragStart}
+        onBarDragEnd={onBarDragEnd}
+        onRequestBarDrop={onRequestBarDrop}
+        mobileViewport={mobileViewport}
+        mobileMode={mobileMode}
+      />
+    );
+  }
+
   const [baseScale, setBaseScale] = useState(4);
   const [secondsPerBar, setSecondsPerBar] = useState(2);
   const [bpmInput, setBpmInput] = useState(formatBpm(secondsPerBarToBpm(2, 8)));
@@ -9911,8 +10755,10 @@ export default function GteWorkspace({
             )}
             {mobileViewport ? (
               <div className="pointer-events-auto flex w-full items-center gap-2">
-                {renderDefaultNoteLengthControl(true)}
-                {renderCursorSizeControl(true)}
+                <div className="flex shrink-0 flex-col gap-1">
+                  {renderDefaultNoteLengthControl(true)}
+                  {renderCursorSizeControl(true)}
+                </div>
               <div
                 data-gte-floating-ui="true"
                 className="flex min-w-0 flex-1 items-center justify-between gap-1 rounded-2xl border border-slate-200 bg-white/96 px-2 py-2 text-slate-700 shadow-lg backdrop-blur"
@@ -10073,8 +10919,10 @@ export default function GteWorkspace({
               </div>
             ) : (
               <div className="pointer-events-auto flex items-center gap-2">
-                {renderDefaultNoteLengthControl(false)}
-                {renderCursorSizeControl(false)}
+                <div className="flex shrink-0 flex-col gap-1">
+                  {renderDefaultNoteLengthControl(false)}
+                  {renderCursorSizeControl(false)}
+                </div>
               <div
                 data-gte-floating-ui="true"
                 className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur"

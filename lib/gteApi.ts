@@ -278,14 +278,23 @@ export const gteApi = {
       body: JSON.stringify({ name }),
       }
     ),
-  addCanvasEditor: (editorId: string, name?: string) =>
+  addCanvasEditor: (
+    editorId: string,
+    name?: string,
+    options?: {
+      editorType?: "tab" | "chords" | string;
+      trackType?: "tab" | "chords" | string;
+      type?: "tab" | "chords" | string;
+      chordEditor?: Record<string, unknown>;
+    }
+  ) =>
     requestForEditor<{ ok: true; canvas: CanvasSnapshot; editor: EditorSnapshot }>(
       editorId,
       `/editors/${editorId}/canvas/editors`,
       {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, ...options }),
       }
     ),
   deleteCanvasEditor: (editorId: string, laneId: string) =>

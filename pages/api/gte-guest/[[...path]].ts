@@ -33,6 +33,11 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const clampEventLength = (value: number) => clamp(Math.round(toNumber(value, 1)), 1, MAX_EVENT_LENGTH_FRAMES);
 const getStoreKey = (sessionId: string, canvasId: string) => `${sessionId}:${canvasId}`;
+const normalizeEditorType = (value: unknown) => {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor") return "chords";
+  return "tab";
+};
 const getLaneOpenStringMidi = (lane: Pick<EditorSnapshot, "tabRef" | "tuning">) => {
   const tuningOpen =
     Array.isArray(lane.tuning?.openStringMidi) &&
@@ -710,11 +715,20 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         const existing = new Set(canvas.editors.map((lane) => lane.id));
         let laneNumber = canvas.editors.length + 1;
         while (existing.has(`ed-${laneNumber}`)) laneNumber += 1;
+        const editorType = normalizeEditorType(body.editorType ?? body.trackType ?? body.type);
+        const chordEditor =
+          body.chordEditor && typeof body.chordEditor === "object" && !Array.isArray(body.chordEditor)
+            ? { ...(body.chordEditor as Record<string, unknown>) }
+            : undefined;
         const nextLane = normalizeLane(
           {
             ...createGuestSnapshot(`ed-${laneNumber}`),
             id: `ed-${laneNumber}`,
             name: typeof body.name === "string" && body.name.trim() ? body.name.trim() : `Editor ${laneNumber}`,
+            editorType,
+            type: editorType,
+            trackType: editorType,
+            ...(chordEditor ? { chordEditor } : {}),
             secondsPerBar: canvas.secondsPerBar,
           },
           `ed-${laneNumber}`,

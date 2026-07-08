@@ -24,6 +24,15 @@ export type Chord = {
   originalMidi: number[];
   currentTabs: TabCoord[];
   ogTabs: TabCoord[];
+  root?: string;
+  quality?: string;
+  extension?: string;
+  label?: string;
+  strums?: Array<{
+    id?: number;
+    time: number;
+    direction: "down" | "up";
+  }>;
 };
 
 export type CutRegion = [number, number];
@@ -33,6 +42,10 @@ export type CutWithCoord = [CutRegion, TabCoord];
 export type EditorSnapshot = {
   id: string;
   name?: string;
+  editorType?: "tab" | "chords" | string;
+  type?: "tab" | "chords" | string;
+  trackType?: "tab" | "chords" | string;
+  chordEditor?: Record<string, unknown>;
   instrumentId?: string;
   tuning?: {
     presetId?: string;
