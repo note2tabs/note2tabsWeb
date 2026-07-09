@@ -148,7 +148,7 @@ const CHORD_EDITOR_ROOTS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A"
 const CHORD_EDITOR_QUALITIES = [
   { name: "major", display: "", intervals: [0, 4, 7] },
   { name: "minor", display: "m", intervals: [0, 3, 7] },
-  { name: "augmentet", display: "+", intervals: [0, 4, 8] },
+  { name: "augmented", display: "aug", intervals: [0, 4, 8] },
   { name: "diminished", display: "dim", intervals: [0, 3, 6] },
   { name: "sus2", display: "sus2", intervals: [0, 2, 7] },
   { name: "sus4", display: "sus4", intervals: [0, 5, 7] },
@@ -1386,6 +1386,7 @@ function ChordLaneWorkspace({
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<ChordEditorDragState | null>(null);
   const dragHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressChordClickRef = useRef(false);
   const playbackScrollRafRef = useRef<number | null>(null);
   const [baseScale, setBaseScale] = useState(4);
   const [selectedChordIds, setSelectedChordIds] = useState<number[]>([]);
@@ -1701,6 +1702,7 @@ function ChordLaneWorkspace({
       }
       if (!dragStateRef.current) return;
       dragStateRef.current = null;
+      suppressChordClickRef.current = true;
       commitSnapshot({ ...snapshot, chords: snapshot.chords }, { recordHistory: true });
     };
 
@@ -1953,7 +1955,9 @@ function ChordLaneWorkspace({
                       );
                       return;
                     }
-                    setSelectedChordIds([chord.id]);
+                    if (!isSelected) {
+                      setSelectedChordIds([chord.id]);
+                    }
                     const anchorX = event.clientX;
                     const originalStart = chord.startTime;
                     dragHoldTimeoutRef.current = setTimeout(() => {
@@ -1965,6 +1969,17 @@ function ChordLaneWorkspace({
                         originalStart,
                       };
                     }, TOUCH_DRAG_HOLD_MS);
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (suppressChordClickRef.current) {
+                      suppressChordClickRef.current = false;
+                      return;
+                    }
+                    if (isSelected) {
+                      setSelectedChordIds([]);
+                    }
                   }}
                 >
                   <button
