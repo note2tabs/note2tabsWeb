@@ -142,6 +142,7 @@ const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
 const CHORD_EDITOR_ROW_HEIGHT = 70;
 const CHORD_EDITOR_MIN_BLOCK_WIDTH = 24;
+const CHORD_EDITOR_LABEL_GUTTER_WIDTH = 30;
 const CHORD_EDITOR_SNAP_DENOMINATORS = [1, 2, 4, 8, 16, 32] as const;
 const CHORD_EDITOR_ROOTS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
 const CHORD_EDITOR_QUALITIES = [
@@ -1385,6 +1386,7 @@ function ChordLaneWorkspace({
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<ChordEditorDragState | null>(null);
   const dragHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playbackScrollRafRef = useRef<number | null>(null);
   const [baseScale, setBaseScale] = useState(4);
   const [selectedChordIds, setSelectedChordIds] = useState<number[]>([]);
   const [selectedBarIndices, setSelectedBarIndices] = useState<number[]>([]);
@@ -1422,10 +1424,10 @@ function ChordLaneWorkspace({
   const pxPerFrame = tabViewEnabled
     ? editorTabView.barWidth / FIXED_FRAMES_PER_BAR
     : scale;
-  const timelineContentOffset = tabViewEnabled ? 30 : 0;
+  const timelineContentOffset = CHORD_EDITOR_LABEL_GUTTER_WIDTH;
   const timelineWidth = tabViewEnabled
     ? editorTabView.width
-    : Math.max(320, Math.round(totalFrames * pxPerFrame));
+    : Math.max(320, Math.round(timelineContentOffset + totalFrames * pxPerFrame));
   const effectivePlayheadFrame = Math.max(0, Math.min(totalFrames, Math.round(globalPlaybackFrame ?? 0)));
   const playheadLeft = timelineContentOffset + effectivePlayheadFrame * pxPerFrame;
 
@@ -1597,9 +1599,62 @@ function ChordLaneWorkspace({
   useEffect(() => {
     const element = timelineRef.current;
     if (!element || sharedTimelineScrollRatio === undefined) return;
+    if (globalPlaybackIsPlaying) return;
     const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
     element.scrollLeft = maxScroll * Math.max(0, Math.min(1, sharedTimelineScrollRatio));
-  }, [sharedTimelineScrollRatio, timelineWidth]);
+  }, [globalPlaybackIsPlaying, sharedTimelineScrollRatio, timelineWidth]);
+
+  useEffect(() => {
+    if (playbackScrollRafRef.current !== null) {
+      window.cancelAnimationFrame(playbackScrollRafRef.current);
+      playbackScrollRafRef.current = null;
+    }
+    if (mobileViewport || !globalPlaybackIsPlaying) return;
+    const container = timelineRef.current;
+    if (!container) return;
+
+    const tick = () => {
+      const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+      if (maxScroll <= 0) {
+        playbackScrollRafRef.current = window.requestAnimationFrame(tick);
+        return;
+      }
+
+      const rect = container.getBoundingClientRect();
+      const visibleLeft = Math.max(rect.left, 0);
+      const visibleRight = Math.min(rect.right, window.innerWidth);
+      const visibleWidth = Math.max(1, visibleRight - visibleLeft);
+      const visibleStartInContainer = Math.max(0, visibleLeft - rect.left);
+      const minPlayheadOffset =
+        visibleStartInContainer + Math.max(48, Math.min(120, visibleWidth * 0.18));
+      const followPlayheadOffset = visibleStartInContainer + visibleWidth * 0.45;
+      const maxPlayheadOffset = visibleStartInContainer + visibleWidth * (2 / 3);
+      const playheadViewportX = playheadLeft - container.scrollLeft;
+
+      let nextScrollLeft = container.scrollLeft;
+      if (playheadViewportX < minPlayheadOffset) {
+        nextScrollLeft = Math.max(0, playheadLeft - minPlayheadOffset);
+      } else if (playheadViewportX > followPlayheadOffset) {
+        const targetScrollLeft = Math.max(0, Math.min(maxScroll, playheadLeft - followPlayheadOffset));
+        const hardLimitScrollLeft = Math.max(0, Math.min(maxScroll, playheadLeft - maxPlayheadOffset));
+        const easedScrollLeft = container.scrollLeft + (targetScrollLeft - container.scrollLeft) * 0.22;
+        nextScrollLeft = Math.max(hardLimitScrollLeft, Math.min(maxScroll, easedScrollLeft));
+      }
+
+      if (Math.abs(nextScrollLeft - container.scrollLeft) >= 0.5) {
+        container.scrollLeft = nextScrollLeft;
+      }
+      playbackScrollRafRef.current = window.requestAnimationFrame(tick);
+    };
+
+    playbackScrollRafRef.current = window.requestAnimationFrame(tick);
+    return () => {
+      if (playbackScrollRafRef.current !== null) {
+        window.cancelAnimationFrame(playbackScrollRafRef.current);
+        playbackScrollRafRef.current = null;
+      }
+    };
+  }, [globalPlaybackIsPlaying, mobileViewport, playheadLeft]);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
