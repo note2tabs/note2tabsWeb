@@ -2922,6 +2922,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 ? chord.strums
                 : [{ time: 0, direction: "down" as const }];
             strums.forEach((strum) => {
+              if (strum.direction === "mute") return;
               const direction = strum.direction === "up" ? "up" : "down";
               const orderedNotes = direction === "up" ? [...midiNotes].reverse() : midiNotes;
               const strumStart = Math.max(0, Math.round(chord.startTime + (Number(strum.time) || 0)));

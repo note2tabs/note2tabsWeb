@@ -190,7 +190,8 @@ const normalizeChordStrums = (value: unknown): NonNullable<EditorSnapshot["chord
     .map((entry, index): NonNullable<EditorSnapshot["chords"][number]["strums"]>[number] | null => {
       if (!entry || typeof entry !== "object") return null;
       const raw = entry as Record<string, unknown>;
-      const direction: "down" | "up" = raw.direction === "up" ? "up" : "down";
+      const direction: "down" | "up" | "mute" =
+        raw.direction === "up" ? "up" : raw.direction === "mute" || raw.direction === "x" ? "mute" : "down";
       return {
         id: clampInt(raw.id, index + 1, -2147483648, 2147483647),
         time: clampInt(raw.time, 0, 0, 100000000),

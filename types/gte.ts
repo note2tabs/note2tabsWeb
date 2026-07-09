@@ -31,7 +31,7 @@ export type Chord = {
   strums?: Array<{
     id?: number;
     time: number;
-    direction: "down" | "up";
+    direction: "down" | "up" | "mute";
   }>;
 };
 
