@@ -24,6 +24,8 @@ export type Chord = {
   originalMidi: number[];
   currentTabs: TabCoord[];
   ogTabs: TabCoord[];
+  fingering?: ChordFingering;
+  fingeringIndex?: number;
   root?: string;
   quality?: string;
   extension?: string;
@@ -33,6 +35,15 @@ export type Chord = {
     time: number;
     direction: "down" | "up" | "mute";
   }>;
+};
+
+export type ChordFingering = {
+  root: string;
+  type: string;
+  positions: Array<number | null>;
+  noteNames?: string[];
+  midiNotes?: number[];
+  tabs?: TabCoord[];
 };
 
 export type CutRegion = [number, number];

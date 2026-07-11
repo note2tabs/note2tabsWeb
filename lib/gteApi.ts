@@ -1,4 +1,4 @@
-import type { CanvasSnapshot, EditorListItem, EditorSnapshot, TabCoord } from "../types/gte";
+import type { CanvasSnapshot, ChordFingering, EditorListItem, EditorSnapshot, TabCoord } from "../types/gte";
 import { GTE_GUEST_EDITOR_ID } from "./gteGuestDraft";
 
 const AUTH_BASE = "/api/gte";
@@ -515,6 +515,12 @@ export const gteApi = {
     }),
   getChordAlternatives: (editorId: string, chordId: number) =>
     requestForEditor<{ alternatives: TabCoord[][] }>(editorId, `/editors/${editorId}/chords/${chordId}/alternatives`),
+  getChordFingerings: (root: string, type: string) =>
+    request<{ fingerings: ChordFingering[] }>(
+      `/api/chord-fingerings?root=${encodeURIComponent(root)}&type=${encodeURIComponent(type)}`,
+      {},
+      ""
+    ),
   shiftChordOctave: (editorId: string, chordId: number, direction: number) =>
     requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/chords/${chordId}/octave`, {
       method: "POST",

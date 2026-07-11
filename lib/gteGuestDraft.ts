@@ -1,4 +1,5 @@
 import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
+import { hydrateChordFingering } from "./gteChordFingerings";
 import { DEFAULT_TRACK_INSTRUMENT_ID, normalizeTrackInstrumentId } from "./gteSoundfonts";
 import { getTuningPreset, normalizeCapo } from "./gteTuning";
 
@@ -285,6 +286,10 @@ export const normalizeGuestSnapshot = (
           const extension =
             typeof chord.extension === "string" && chord.extension.trim() ? chord.extension.trim() : undefined;
           const label = typeof chord.label === "string" && chord.label.trim() ? chord.label.trim() : undefined;
+          const fingering =
+            chord.fingering && typeof chord.fingering === "object" && !Array.isArray(chord.fingering)
+              ? hydrateChordFingering(chord.fingering as any)
+              : undefined;
           if (!currentTabs.length && !root && !quality && !label) return null;
           const ogTabs = Array.isArray(chord.ogTabs)
             ? chord.ogTabs
@@ -305,6 +310,10 @@ export const normalizeGuestSnapshot = (
             ...(quality ? { quality } : {}),
             ...(extension ? { extension } : {}),
             ...(label ? { label } : {}),
+            ...(fingering ? { fingering } : {}),
+            ...(Number.isFinite(Number(chord.fingeringIndex))
+              ? { fingeringIndex: clampInt(chord.fingeringIndex, 0, 0, 1000000) }
+              : {}),
             strums: normalizeChordStrums(chord.strums),
           };
         })

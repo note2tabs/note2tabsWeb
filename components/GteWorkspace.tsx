@@ -28,7 +28,13 @@ import {
 } from "../lib/gteSoundfonts";
 import { getOpenStringMidiFromSnapshot, getStringLabelsForSnapshot } from "../lib/gteTuning";
 import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
-import type { Chord, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
+import {
+  getChordFingeringCsvType,
+  getChordFingeringMidiNotes,
+  getChordFingeringTabs,
+  hydrateChordFingering,
+} from "../lib/gteChordFingerings";
+import type { Chord, ChordFingering, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
 import { buildEditorTabView } from "../lib/gteEditorTabView";
@@ -144,7 +150,7 @@ const CHORD_EDITOR_ROW_HEIGHT = 70;
 const CHORD_EDITOR_MIN_BLOCK_WIDTH = 24;
 const CHORD_EDITOR_LABEL_GUTTER_WIDTH = 30;
 const CHORD_STRUM_EDITOR_HEIGHT = 78;
-const CHORD_STRUM_EDITOR_TOP = 50;
+const CHORD_FINGERING_ROW_HEIGHT = 126;
 const CHORD_EDITOR_SNAP_DENOMINATORS = [1, 2, 4, 8, 16, 32] as const;
 const CHORD_EDITOR_ROOTS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
 const CHORD_EDITOR_QUALITIES = [
@@ -438,7 +444,17 @@ const inferChordEditorMetadataFromMidi = (midis: unknown) => {
   };
 };
 
-export const getChordEditorMidiNotes = (chord: Pick<Chord, "root" | "quality"> & { extension?: unknown }) => {
+export const getChordEditorMidiNotes = (
+  chord: Pick<Chord, "root" | "quality"> & {
+    extension?: unknown;
+    fingering?: Chord["fingering"];
+    currentTabs?: Chord["currentTabs"];
+  }
+) => {
+  if (chord.fingering) {
+    const fingering = hydrateChordFingering(chord.fingering);
+    if (fingering.midiNotes?.length) return fingering.midiNotes;
+  }
   const rootMidi = getChordEditorRootMidi(chord.root);
   const quality = getChordEditorQuality(chord.quality);
   const extension = getChordEditorExtension(chord.extension);
@@ -1372,6 +1388,76 @@ type ChordContextMenuState = {
   y: number;
 };
 
+function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
+  const positions = hydrateChordFingering(fingering).positions;
+  const fretted = positions.filter((value): value is number => typeof value === "number" && value > 0);
+  const minFret = fretted.length ? Math.min(...fretted) : 1;
+  const maxFret = fretted.length ? Math.max(...fretted) : 4;
+  const baseFret = maxFret <= 4 ? 1 : Math.max(1, minFret);
+  const fretCount = 4;
+  const visibleFrets = Array.from({ length: fretCount }, (_, index) => baseFret + index);
+
+  return (
+    <div className="relative h-[76px] w-[82px] select-none">
+      {baseFret > 1 ? (
+        <span className="absolute left-0 top-[19px] w-4 text-right text-[9px] font-semibold text-slate-500">
+          {baseFret}
+        </span>
+      ) : null}
+      <div className="absolute left-5 top-4 h-[54px] w-[54px]">
+        {Array.from({ length: 6 }, (_, stringIndex) => (
+          <span
+            key={`string-${stringIndex}`}
+            className="absolute bottom-0 top-0 border-l border-slate-500"
+            style={{ left: `${(stringIndex / 5) * 100}%` }}
+          />
+        ))}
+        {Array.from({ length: fretCount + 1 }, (_, fretIndex) => (
+          <span
+            key={`fret-${fretIndex}`}
+            className={`absolute left-0 right-0 border-t ${fretIndex === 0 && baseFret === 1 ? "border-slate-900" : "border-slate-300"}`}
+            style={{ top: `${(fretIndex / fretCount) * 100}%` }}
+          />
+        ))}
+        {positions.map((fret, index) => {
+          const x = ((index / 5) * 100);
+          if (fret === null) {
+            return (
+              <span
+                key={`mute-${index}`}
+                className="absolute -top-4 -translate-x-1/2 text-[10px] font-bold leading-none text-slate-500"
+                style={{ left: `${x}%` }}
+              >
+                x
+              </span>
+            );
+          }
+          if (fret === 0) {
+            return (
+              <span
+                key={`open-${index}`}
+                className="absolute -top-4 -translate-x-1/2 text-[10px] font-bold leading-none text-slate-500"
+                style={{ left: `${x}%` }}
+              >
+                o
+              </span>
+            );
+          }
+          if (fret < baseFret || fret > visibleFrets[visibleFrets.length - 1]) return null;
+          const y = (((fret - baseFret) + 0.5) / fretCount) * 100;
+          return (
+            <span
+              key={`dot-${index}`}
+              className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-900"
+              style={{ left: `${x}%`, top: `${y}%` }}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ChordLaneWorkspace({
   editorId,
   snapshot,
@@ -1422,6 +1508,8 @@ function ChordLaneWorkspace({
   const [strumEditor, setStrumEditor] = useState<ChordStrumEditorState | null>(null);
   const [chordClipboard, setChordClipboard] = useState<ChordClipboardItem[]>([]);
   const [chordContextMenu, setChordContextMenu] = useState<ChordContextMenuState | null>(null);
+  const [fingeringsVisible, setFingeringsVisible] = useState(false);
+  const [fingeringOptionsByChordKey, setFingeringOptionsByChordKey] = useState<Record<string, ChordFingering[]>>({});
   const [dragRevision, setDragRevision] = useState(0);
   const isMobileCanvasMode = mobileViewport && mobileMode === "canvas";
   const snapToKeyEnabled = Boolean(globalSnapToKeyEnabled);
@@ -1461,7 +1549,12 @@ function ChordLaneWorkspace({
     : Math.max(320, Math.round(timelineContentOffset + totalFrames * pxPerFrame));
   const effectivePlayheadFrame = Math.max(0, Math.min(totalFrames, Math.round(globalPlaybackFrame ?? 0)));
   const playheadLeft = timelineContentOffset + effectivePlayheadFrame * pxPerFrame;
-  const timelineRowHeight = CHORD_EDITOR_ROW_HEIGHT + (strumEditor ? CHORD_STRUM_EDITOR_HEIGHT + 12 : 0);
+  const fingeringRowTop = CHORD_EDITOR_ROW_HEIGHT;
+  const strumEditorTop = CHORD_EDITOR_ROW_HEIGHT + (fingeringsVisible ? CHORD_FINGERING_ROW_HEIGHT : 0);
+  const timelineRowHeight =
+    CHORD_EDITOR_ROW_HEIGHT +
+    (fingeringsVisible ? CHORD_FINGERING_ROW_HEIGHT : 0) +
+    (strumEditor ? CHORD_STRUM_EDITOR_HEIGHT + 12 : 0);
 
   const snapFrame = useCallback(
     (frame: number, mode: "floor" | "round" | "ceil" = "round") => {
@@ -1513,6 +1606,40 @@ function ChordLaneWorkspace({
       );
     },
     [commitSnapshot, snapshot]
+  );
+
+  const getChordFingeringLookup = useCallback((chord: Chord) => {
+    const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+    const root = chord.root || inferred?.root || "C";
+    const quality = chord.quality || inferred?.quality || "major";
+    const extension = chord.extension || inferred?.extension || "";
+    const type = getChordFingeringCsvType({ quality, extension });
+    return { root, quality, extension, type, key: `${root}:${type}` };
+  }, []);
+
+  const applyChordFingering = useCallback(
+    (chordId: number, fingering: ChordFingering, index: number) => {
+      const hydrated = hydrateChordFingering(fingering);
+      const originalMidi = hydrated.midiNotes?.length ? hydrated.midiNotes : getChordFingeringMidiNotes(hydrated.positions);
+      const currentTabs = hydrated.tabs?.length ? hydrated.tabs : getChordFingeringTabs(hydrated.positions);
+      updateChord(
+        chordId,
+        (chord) => ({
+          ...chord,
+          fingering: {
+            ...hydrated,
+            midiNotes: originalMidi,
+            tabs: currentTabs,
+          },
+          fingeringIndex: index,
+          originalMidi,
+          currentTabs,
+          ogTabs: currentTabs.map((tab) => [...tab] as TabCoord),
+        }),
+        { recordHistory: true }
+      );
+    },
+    [updateChord]
   );
 
   const getStrumGridStep = useCallback(
@@ -1603,6 +1730,7 @@ function ChordLaneWorkspace({
           originalMidi: [...chord.originalMidi],
           currentTabs: chord.currentTabs.map((tab) => [...tab] as TabCoord),
           ogTabs: chord.ogTabs.map((tab) => [...tab] as TabCoord),
+          fingering: chord.fingering ? hydrateChordFingering(chord.fingering) : undefined,
           strums: normalizeChordEditorStrums(chord.strums).map((strum) => ({ ...strum })),
         }))
       );
@@ -1626,6 +1754,8 @@ function ChordLaneWorkspace({
           originalMidi: [...item.originalMidi],
           currentTabs: item.currentTabs.map((tab) => [...tab] as TabCoord),
           ogTabs: item.ogTabs.map((tab) => [...tab] as TabCoord),
+          fingering: item.fingering ? hydrateChordFingering(item.fingering) : undefined,
+          fingeringIndex: item.fingeringIndex,
           strums: normalizeChordEditorStrums(item.strums).map((strum, index) => ({ ...strum, id: index + 1 })),
         };
         nextId += 1;
@@ -1738,6 +1868,34 @@ function ChordLaneWorkspace({
     if (selectionClearEpoch === undefined || selectionClearExemptEditorId === editorId) return;
     setSelectedChordIds([]);
   }, [editorId, selectionClearEpoch, selectionClearExemptEditorId]);
+
+  useEffect(() => {
+    if (!fingeringsVisible) return;
+    const lookups = snapshot.chords.map((chord) => getChordFingeringLookup(chord));
+    const missing = Array.from(new Map(lookups.map((lookup) => [lookup.key, lookup])).values()).filter(
+      (lookup) => fingeringOptionsByChordKey[lookup.key] === undefined
+    );
+    if (!missing.length) return;
+    let cancelled = false;
+    missing.forEach((lookup) => {
+      void gteApi
+        .getChordFingerings(lookup.root, lookup.type)
+        .then((response) => {
+          if (cancelled) return;
+          setFingeringOptionsByChordKey((previous) => ({
+            ...previous,
+            [lookup.key]: (response.fingerings || []).map(hydrateChordFingering),
+          }));
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setFingeringOptionsByChordKey((previous) => ({ ...previous, [lookup.key]: [] }));
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fingeringOptionsByChordKey, fingeringsVisible, getChordFingeringLookup, snapshot.chords]);
 
   useEffect(() => {
     if (barSelectionClearEpoch === undefined || barSelectionClearExemptEditorId === editorId) return;
@@ -2156,6 +2314,23 @@ function ChordLaneWorkspace({
           </button>
         </div>
       )}
+      <div className="flex items-center justify-end border-b border-slate-100 bg-white px-3 py-2">
+        <button
+          type="button"
+          data-gte-editor-control="true"
+          onClick={(event) => {
+            event.stopPropagation();
+            setFingeringsVisible((visible) => !visible);
+          }}
+          className={`rounded-full border px-3 py-1 text-xs font-semibold shadow-sm transition ${
+            fingeringsVisible
+              ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
+              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          Fingerings
+        </button>
+      </div>
       <div
         ref={timelineRef}
         className="relative overflow-x-auto bg-white"
@@ -2249,6 +2424,15 @@ function ChordLaneWorkspace({
               const isStrumEditing = strumEditor?.chordId === chord.id;
               const strumGridStep = getStrumGridStep(length);
               const beatGridStep = Math.max(1, Math.round(FIXED_FRAMES_PER_BAR / Math.max(1, beatsPerBar)));
+              const fingeringLookup = getChordFingeringLookup(chord);
+              const fingeringOptions = fingeringOptionsByChordKey[fingeringLookup.key] || [];
+              const savedFingeringIndex =
+                Number.isFinite(Number(chord.fingeringIndex)) && fingeringOptions.length
+                  ? Math.max(0, Math.min(fingeringOptions.length - 1, Math.round(Number(chord.fingeringIndex))))
+                  : 0;
+              const visibleFingering =
+                chord.fingering ||
+                (fingeringOptions.length ? fingeringOptions[savedFingeringIndex] : undefined);
               return (
                 <div
                   key={chord.id}
@@ -2400,12 +2584,63 @@ function ChordLaneWorkspace({
                   <span className="pointer-events-none absolute left-0 top-full mt-1 w-full truncate text-center text-[11px] font-semibold leading-none text-slate-700">
                     {chordLabel}
                   </span>
+                  {fingeringsVisible ? (
+                    <div
+                      data-track-reorder-block="true"
+                      className="absolute left-1/2 z-30 flex w-[122px] -translate-x-1/2 flex-col items-center rounded-md border border-slate-200 bg-white px-1.5 py-1 shadow-sm"
+                      style={{ top: fingeringRowTop }}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <div className="flex w-full items-center justify-between gap-1">
+                        <button
+                          type="button"
+                          className="grid h-6 w-6 place-items-center rounded border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          disabled={fingeringOptions.length <= 1}
+                          aria-label={`Previous ${chordLabel} fingering`}
+                          onClick={() => {
+                            if (!fingeringOptions.length) return;
+                            const nextIndex = (savedFingeringIndex - 1 + fingeringOptions.length) % fingeringOptions.length;
+                            applyChordFingering(chord.id, fingeringOptions[nextIndex], nextIndex);
+                          }}
+                        >
+                          {"<"}
+                        </button>
+                        <span className="max-w-[58px] truncate text-center text-[10px] font-semibold text-slate-700">
+                          {fingeringOptions.length ? `${savedFingeringIndex + 1}/${fingeringOptions.length}` : "0/0"}
+                        </span>
+                        <button
+                          type="button"
+                          className="grid h-6 w-6 place-items-center rounded border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          disabled={fingeringOptions.length <= 1}
+                          aria-label={`Next ${chordLabel} fingering`}
+                          onClick={() => {
+                            if (!fingeringOptions.length) return;
+                            const nextIndex = (savedFingeringIndex + 1) % fingeringOptions.length;
+                            applyChordFingering(chord.id, fingeringOptions[nextIndex], nextIndex);
+                          }}
+                        >
+                          {">"}
+                        </button>
+                      </div>
+                      {visibleFingering ? (
+                        <ChordFingeringDiagram fingering={visibleFingering} />
+                      ) : (
+                        <div className="grid h-[76px] place-items-center text-[10px] font-semibold text-slate-400">
+                          No shape
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
                   {isStrumEditing && strumEditor ? (
                     <div
                       data-track-reorder-block="true"
                       className="absolute left-0 z-50 rounded-md border border-slate-300 bg-white shadow-lg"
                       style={{
-                        top: CHORD_STRUM_EDITOR_TOP,
+                        top: strumEditorTop,
                         width: chordWidth,
                         minWidth: 80,
                         height: CHORD_STRUM_EDITOR_HEIGHT,
