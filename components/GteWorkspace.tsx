@@ -1396,12 +1396,38 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
   const baseFret = maxFret <= 4 ? 1 : Math.max(1, minFret);
   const fretCount = 4;
   const visibleFrets = Array.from({ length: fretCount }, (_, index) => baseFret + index);
+  const maxVisibleFret = visibleFrets[visibleFrets.length - 1] ?? baseFret + fretCount - 1;
+  const barreRuns: Array<{ fret: number; startIndex: number; endIndex: number }> = [];
+  const barredPositions = new Set<number>();
+
+  visibleFrets.forEach((fret) => {
+    let runStart: number | null = null;
+    positions.forEach((position, index) => {
+      if (position === fret) {
+        if (runStart === null) runStart = index;
+        return;
+      }
+      if (runStart !== null && index - runStart >= 2) {
+        barreRuns.push({ fret, startIndex: runStart, endIndex: index - 1 });
+      }
+      runStart = null;
+    });
+    if (runStart !== null && positions.length - runStart >= 2) {
+      barreRuns.push({ fret, startIndex: runStart, endIndex: positions.length - 1 });
+    }
+  });
+
+  barreRuns.forEach((barre) => {
+    for (let index = barre.startIndex; index <= barre.endIndex; index += 1) {
+      barredPositions.add(index);
+    }
+  });
 
   return (
     <div className="relative h-[76px] w-[82px] select-none">
       {baseFret > 1 ? (
-        <span className="absolute left-0 top-[19px] w-4 text-right text-[9px] font-semibold text-slate-500">
-          {baseFret}
+        <span className="absolute left-0 top-[19px] w-5 text-right text-[9px] font-semibold text-slate-500">
+          {baseFret}fr
         </span>
       ) : null}
       <div className="absolute left-5 top-4 h-[54px] w-[54px]">
@@ -1419,6 +1445,20 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
             style={{ top: `${(fretIndex / fretCount) * 100}%` }}
           />
         ))}
+        {barreRuns.map((barre) => {
+          const y = (((barre.fret - baseFret) + 0.5) / fretCount) * 100;
+          return (
+            <span
+              key={`barre-${barre.fret}-${barre.startIndex}-${barre.endIndex}`}
+              className="absolute z-10 h-2.5 -translate-y-1/2 rounded-full bg-slate-900"
+              style={{
+                left: `calc(${(barre.startIndex / 5) * 100}% - 5px)`,
+                top: `${y}%`,
+                width: `calc(${((barre.endIndex - barre.startIndex) / 5) * 100}% + 10px)`,
+              }}
+            />
+          );
+        })}
         {positions.map((fret, index) => {
           const x = ((index / 5) * 100);
           if (fret === null) {
@@ -1443,12 +1483,12 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
               </span>
             );
           }
-          if (fret < baseFret || fret > visibleFrets[visibleFrets.length - 1]) return null;
+          if (fret < baseFret || fret > maxVisibleFret || barredPositions.has(index)) return null;
           const y = (((fret - baseFret) + 0.5) / fretCount) * 100;
           return (
             <span
               key={`dot-${index}`}
-              className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-900"
+              className="absolute z-10 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-900"
               style={{ left: `${x}%`, top: `${y}%` }}
             />
           );
@@ -2594,6 +2634,10 @@ function ChordLaneWorkspace({
                         event.stopPropagation();
                       }}
                       onClick={(event) => event.stopPropagation()}
+                      onDoubleClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
                     >
                       <div className="flex w-full items-center justify-between gap-1">
                         <button

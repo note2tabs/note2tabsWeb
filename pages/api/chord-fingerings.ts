@@ -79,6 +79,6 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
   const fingerings = loadFingerings()
     .filter((item) => item.root === root && item.type === type)
-    .slice(0, 32);
+    .slice(0, 96);
   return res.status(200).json({ fingerings });
 }
