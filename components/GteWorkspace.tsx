@@ -1397,6 +1397,9 @@ function ChordLaneWorkspace({
   onSelectionStateChange,
   onBarSelectionStateChange,
   tabViewEnabled = false,
+  globalSnapToKeyEnabled,
+  canvasKeyBase = 0,
+  canvasKeyType = 0,
   sharedTimeSignature,
   activeBarDrag,
   onBarDragStart,
@@ -1421,6 +1424,7 @@ function ChordLaneWorkspace({
   const [chordContextMenu, setChordContextMenu] = useState<ChordContextMenuState | null>(null);
   const [dragRevision, setDragRevision] = useState(0);
   const isMobileCanvasMode = mobileViewport && mobileMode === "canvas";
+  const snapToKeyEnabled = Boolean(globalSnapToKeyEnabled);
   const normalizedTimelineZoomFactor =
     timelineZoomFactor !== undefined && Number.isFinite(timelineZoomFactor)
       ? Math.max(MIN_TIMELINE_ZOOM, Math.min(MAX_TIMELINE_ZOOM, timelineZoomFactor))
@@ -2094,15 +2098,36 @@ function ChordLaneWorkspace({
                   {CHORD_EDITOR_ROOTS.map((root) => {
                     const label = getChordEditorLabel(root, quality.name);
                     const payload = { root, quality: quality.name, extension: "", label };
+                    const chordInKey =
+                      !snapToKeyEnabled ||
+                      getChordEditorMidiNotes(payload).every((midi) => isMidiInKey(midi, canvasKeyBase, canvasKeyType));
                     return (
                       <button
                         key={`${quality.name}-${root}`}
                         type="button"
-                        draggable
-                        onDragStart={(event) => handlePaletteDragStart(event, payload)}
-                        onClick={() => addChordAtFrame(payload, effectivePlayheadFrame)}
-                        className="min-w-11 rounded border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800 shadow-sm hover:border-sky-400 hover:bg-sky-50"
-                        title={`Drag ${label} to the chord editor`}
+                        draggable={chordInKey}
+                        disabled={!chordInKey}
+                        onDragStart={(event) => {
+                          if (!chordInKey) {
+                            event.preventDefault();
+                            return;
+                          }
+                          handlePaletteDragStart(event, payload);
+                        }}
+                        onClick={() => {
+                          if (!chordInKey) return;
+                          addChordAtFrame(payload, effectivePlayheadFrame);
+                        }}
+                        className={`min-w-11 rounded border px-2 py-1 text-xs font-semibold shadow-sm ${
+                          chordInKey
+                            ? "border-slate-300 bg-white text-slate-800 hover:border-sky-400 hover:bg-sky-50"
+                            : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-60"
+                        }`}
+                        title={
+                          chordInKey
+                            ? `Drag ${label} to the chord editor`
+                            : `${label} is outside the current key`
+                        }
                       >
                         {label}
                       </button>
