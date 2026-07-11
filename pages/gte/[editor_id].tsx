@@ -35,7 +35,7 @@ import {
 } from "../../lib/gteSoundfonts";
 import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
-import GteWorkspace from "../../components/GteWorkspace";
+import GteWorkspace, { getChordEditorMidiNotes } from "../../components/GteWorkspace";
 import GteFileImportButton from "../../components/GteFileImportButton";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
@@ -134,6 +134,16 @@ const normalizeKeyType = (value: unknown) =>
 const isCanvasSnapshot = (value: unknown): value is CanvasSnapshot =>
   Boolean(value && typeof value === "object" && Array.isArray((value as CanvasSnapshot).editors));
 
+const normalizeEditorKind = (value: unknown) => {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor"
+    ? "chords"
+    : "tab";
+};
+
+const isChordLane = (lane: Pick<EditorSnapshot, "editorType" | "trackType" | "type">) =>
+  normalizeEditorKind(lane.editorType ?? lane.trackType ?? lane.type) === "chords";
+
 const normalizeLane = (
   lane: EditorSnapshot,
   laneId: string,
@@ -144,11 +154,15 @@ const normalizeLane = (
   const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)));
   const rawName = typeof lane.name === "string" ? lane.name.trim() : "";
   const defaultNamePattern = /^(editor|transcription)\s+\d+$/i;
-  const laneName = !rawName || defaultNamePattern.test(rawName) ? `Tab ${index + 1}` : rawName;
+  const editorKind = normalizeEditorKind(lane.editorType ?? lane.trackType ?? lane.type);
+  const laneName = !rawName || defaultNamePattern.test(rawName) ? `${editorKind === "chords" ? "Chords" : "Tab"} ${index + 1}` : rawName;
   return {
     ...lane,
     id: laneId,
     name: laneName,
+    editorType: editorKind,
+    type: editorKind,
+    trackType: editorKind,
     instrumentId: normalizeTrackInstrumentId(lane.instrumentId),
     framesPerMessure: FIXED_FRAMES_PER_BAR,
     secondsPerBar: safeSeconds,
@@ -842,6 +856,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [hasPendingCommit, setHasPendingCommit] = useState(false);
   const [lastCommittedAt, setLastCommittedAt] = useState<string | null>(null);
   const [addingLane, setAddingLane] = useState(false);
+  const [addTrackMenuOpen, setAddTrackMenuOpen] = useState(false);
   const [deletingLaneId, setDeletingLaneId] = useState<string | null>(null);
   const [confirmDeleteTrackId, setConfirmDeleteTrackId] = useState<string | null>(null);
   const [openTrackMenuId, setOpenTrackMenuId] = useState<string | null>(null);
@@ -1568,12 +1583,26 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
   };
 
-  const handleAddLane = async () => {
+  const handleAddLane = async (kind: "tab" | "chords" = "tab") => {
     if (!canvas || addingLane) return;
     setAddingLane(true);
+    setAddTrackMenuOpen(false);
     setError(null);
     try {
-      const res = await gteApi.addCanvasEditor(editorId);
+      const res = await gteApi.addCanvasEditor(editorId, undefined, {
+        editorType: kind,
+        trackType: kind,
+        type: kind,
+        ...(kind === "chords"
+          ? {
+              chordEditor: {
+                roots: ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"],
+                qualities: ["major", "minor", "augmentet", "diminished", "sus2", "sus4", "power"],
+                extensions: ["", "6", "7", "maj7", "9", "maj9", "11", "13"],
+              },
+            }
+          : {}),
+      });
       const currentTimeSignature = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
       const currentTimeSignatureBottom = normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4;
       const currentSecondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
@@ -1586,6 +1615,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             secondsPerBar: currentSecondsPerBar,
             timeSignature: currentTimeSignature,
             timeSignatureBottom: currentTimeSignatureBottom,
+            ...(!lane.editorType && lane.id === res.editor?.id
+              ? { editorType: kind, type: kind, trackType: kind }
+              : {}),
           })),
         },
         editorId
@@ -2180,6 +2212,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const mobileControlsSummary = `${nameDraft || "Untitled"} - ${bpmDraft} BPM - ${timeSignatureDraft}/${timeSignatureBottomDraft}`;
   const isMobileCanvasMode = isMobileViewport && mobileEditLaneId === null;
   const isMobileEditMode = isMobileViewport && mobileEditLaneId !== null;
+  const globalControlsLaneId = useMemo(() => {
+    if (!canvas?.editors.length) return null;
+    return canvas.editors.find((lane) => !isChordLane(lane))?.id || canvas.editors[0]?.id || null;
+  }, [canvas?.editors]);
+  const activeLaneIsChord = useMemo(() => {
+    if (!activeLaneId || !canvas?.editors.length) return false;
+    const activeLane = canvas.editors.find((lane) => lane.id === activeLaneId);
+    return activeLane ? isChordLane(activeLane) : false;
+  }, [activeLaneId, canvas?.editors]);
 
   useEffect(() => {
     const scrollbar = globalTimelineScrollbarRef.current;
@@ -2871,6 +2912,34 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             slideSegments.length > 0 ? slideSegments : undefined
           );
         });
+
+        if (isChordLane(lane)) {
+          lane.chords.forEach((chord) => {
+            const midiNotes = getChordEditorMidiNotes(chord);
+            if (!midiNotes.length) return;
+            const strums =
+              Array.isArray(chord.strums) && chord.strums.length
+                ? chord.strums
+                : [{ time: 0, direction: "down" as const }];
+            strums.forEach((strum) => {
+              if (strum.direction === "mute") return;
+              const direction = strum.direction === "up" ? "up" : "down";
+              const orderedNotes = direction === "up" ? [...midiNotes].reverse() : midiNotes;
+              const strumStart = Math.max(0, Math.round(chord.startTime + (Number(strum.time) || 0)));
+              orderedNotes.forEach((midi, noteIndex) => {
+                pushEvent(
+                  strumStart + noteIndex * 4,
+                  Math.max(24, Math.min(chord.length, FIXED_FRAMES_PER_BAR / 3)),
+                  midi,
+                  0.42 * laneVolume,
+                  instrumentId,
+                  lanePan
+                );
+              });
+            });
+          });
+          return;
+        }
 
         lane.chords.forEach((chord) => {
           chord.currentTabs.forEach((tab, tabIndex) => {
@@ -3990,6 +4059,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     Import tabs
                   </GteFileImportButton>
                 )}
+                {!isGuestMode && (
+                  <button
+                    type="button"
+                    onClick={() => void commitCanvasToBackend({ force: true })}
+                    className="button-secondary button-small min-h-[34px]"
+                    title="Save editor now"
+                    disabled={savingCanvas}
+                  >
+                    {savingCanvas ? "Saving..." : "Save now"}
+                  </button>
+                )}
                 <div className="relative">
                   <button
                     type="button"
@@ -4937,7 +5017,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSpeedTrainerStepChange={setSpeedTrainerStep}
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
-                              showToolbarWhenInactive={index === 0 && activeLaneId === null}
+                              showToolbarWhenInactive={
+                                laneId === globalControlsLaneId && (activeLaneId === null || activeLaneIsChord)
+                              }
                               toolbarOpen={toolbarOpen}
                               onToolbarOpenChange={setToolbarOpen}
                               multiTrackSelectionActive={multiTrackSelectionActive}
@@ -5220,7 +5302,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           playbackSpeed={normalizedPlaybackSpeed}
                           onPlaybackSpeedChange={setPlaybackSpeed}
                           showToolbarWhenInactive={
-                            isMobileViewport ? index === 0 && !mobileEditLaneId : activeLaneId === null && index === 0
+                            isMobileViewport
+                              ? laneId === globalControlsLaneId && (!mobileEditLaneId || activeLaneIsChord)
+                              : laneId === globalControlsLaneId && (activeLaneId === null || activeLaneIsChord)
                           }
                           toolbarOpen={toolbarOpen}
                           onToolbarOpenChange={setToolbarOpen}
@@ -5276,17 +5360,40 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               );
             })}
             {(!isMobileViewport || !mobileEditLaneId) && (
-              <div className="flex justify-center pt-1">
+              <div className="relative flex justify-center pt-1">
                 <button
                   type="button"
-                  onClick={() => void handleAddLane()}
+                  onClick={() => setAddTrackMenuOpen((open) => !open)}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
                   disabled={addingLane}
                   title={addingLane ? "Adding track..." : "Add track"}
                   aria-label={addingLane ? "Adding track" : "Add track"}
+                  aria-expanded={addTrackMenuOpen}
                 >
                   +
                 </button>
+                {addTrackMenuOpen && (
+                  <div className="absolute bottom-11 z-30 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
+                      onClick={() => void handleAddLane("tab")}
+                      disabled={addingLane}
+                    >
+                      <span>Tab</span>
+                      <span className="text-xs text-slate-400">Track</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
+                      onClick={() => void handleAddLane("chords")}
+                      disabled={addingLane}
+                    >
+                      <span>Chords</span>
+                      <span className="text-xs text-slate-400">Track</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
