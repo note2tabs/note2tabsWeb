@@ -1710,7 +1710,6 @@ function ChordLaneWorkspace({
         }))
         .sort((left, right) => left.time - right.time || left.id - right.id);
       setSelectedBarIndices([]);
-      setSelectedChordIds([chord.id]);
       setStrumEditor({
         chordId: chord.id,
         draft,
@@ -2017,20 +2016,22 @@ function ChordLaneWorkspace({
         return;
       }
       if (event.key !== "Delete" && event.key !== "Backspace") return;
-      if (strumEditor?.selectedIds.length) {
+      if (strumEditor) {
         event.preventDefault();
         const selectedIds = new Set(strumEditor.selectedIds);
-        setStrumEditor((prev) =>
-          prev
-            ? {
-                ...prev,
-                draft: prev.draft.filter((strum) => !selectedIds.has(strum.id)),
-                selectedIds: [],
-                menu: null,
-                drag: null,
-              }
-            : prev
-        );
+        if (selectedIds.size > 0) {
+          setStrumEditor((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  draft: prev.draft.filter((strum) => !selectedIds.has(strum.id)),
+                  selectedIds: [],
+                  menu: null,
+                  drag: null,
+                }
+              : prev
+          );
+        }
         return;
       }
       if (!selectedChordIds.length) return;
@@ -2692,6 +2693,7 @@ function ChordLaneWorkspace({
                       onMouseDown={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
+                        chordMouseDownSelectionRef.current = null;
                       }}
                       onClick={(event) => event.stopPropagation()}
                     >
