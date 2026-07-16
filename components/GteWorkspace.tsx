@@ -3732,8 +3732,29 @@ export default function GteWorkspace({
     (snapshotValue: EditorSnapshot, currentTab: TabCoord, delta: number) => {
       const normalizedTab = clampTabCoordInSnapshot(snapshotValue, currentTab);
       if (!snapToKeyEnabled) {
-        const nextFret = Math.max(0, Math.min(getMaxFret(snapshotValue), normalizedTab[1] + delta));
-        return [normalizedTab[0], nextFret] as TabCoord;
+        const maxSnapshotFret = getMaxFret(snapshotValue);
+        const nextFret = normalizedTab[1] + delta;
+        if (nextFret >= 0 && nextFret <= maxSnapshotFret) {
+          return [normalizedTab[0], nextFret] as TabCoord;
+        }
+
+        const currentMidi = getTabMidi(snapshotValue, normalizedTab);
+        const stringStep = delta < 0 ? 1 : -1;
+        for (
+          let stringIndex = normalizedTab[0] + stringStep;
+          stringIndex >= 0 && stringIndex < DEFAULT_STRING_LABELS.length;
+          stringIndex += stringStep
+        ) {
+          const samePitchFret =
+            snapshotValue.tabRef?.[stringIndex]?.findIndex((midi) => Number(midi) === currentMidi) ?? -1;
+          if (samePitchFret < 0) continue;
+          const crossedFret = samePitchFret + delta;
+          if (crossedFret >= 0 && crossedFret <= maxSnapshotFret) {
+            return [stringIndex, crossedFret] as TabCoord;
+          }
+        }
+
+        return normalizedTab;
       }
       const currentMidi = getTabMidi(snapshotValue, normalizedTab);
       const targetMidi = getDirectionalMidiInKey(currentMidi, canvasKeyBase, canvasKeyType, delta);
