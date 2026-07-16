@@ -1516,6 +1516,7 @@ function ChordLaneWorkspace({
   onRequestRedo,
   globalPlaybackFrame,
   globalPlaybackIsPlaying,
+  globalPlaybackVolume,
   globalPlaybackTimelineEnd,
   onGlobalPlaybackFrameChange,
   selectionClearEpoch,
@@ -1542,6 +1543,8 @@ function ChordLaneWorkspace({
   const suppressChordClickRef = useRef(false);
   const chordMouseDownSelectionRef = useRef<{ chordId: number; wasSelected: boolean; shiftKey: boolean } | null>(null);
   const playbackScrollRafRef = useRef<number | null>(null);
+  const chordPreviewAudioRef = useRef<AudioContext | null>(null);
+  const chordPreviewGainRef = useRef<GainNode | null>(null);
   const [autoBaseScale, setAutoBaseScale] = useState(4);
   const [selectedChordIds, setSelectedChordIds] = useState<number[]>([]);
   const [selectedBarIndices, setSelectedBarIndices] = useState<number[]>([]);
@@ -1875,6 +1878,48 @@ function ChordLaneWorkspace({
     [buildQuickStrums, commitSnapshot, snapshot]
   );
 
+  const ensureChordPreviewAudio = useCallback(() => {
+    let ctx = chordPreviewAudioRef.current;
+    let master = chordPreviewGainRef.current;
+    if (!ctx || ctx.state === "closed" || !master) {
+      ctx = new AudioContext();
+      master = ctx.createGain();
+      master.connect(ctx.destination);
+      chordPreviewAudioRef.current = ctx;
+      chordPreviewGainRef.current = master;
+    }
+    master.gain.value = Math.max(0, Math.min(1, Number(globalPlaybackVolume ?? 0.6)));
+    return { ctx, master };
+  }, [globalPlaybackVolume]);
+
+  const playChordPalettePreview = useCallback(
+    async (payload: ChordPalettePayload) => {
+      const volume = Math.max(0, Math.min(1, Number(globalPlaybackVolume ?? 0.6)));
+      if (volume <= 0) return;
+
+      const midiNotes = getChordEditorMidiNotes(payload).filter((midi) => Number.isFinite(midi) && midi > 0);
+      if (!midiNotes.length) return;
+
+      const instrument = await prepareTrackInstrument("jazz-guitar");
+      const { ctx, master } = ensureChordPreviewAudio();
+      void ctx.resume();
+      const startTime = ctx.currentTime + 0.005;
+      const gain = Math.min(0.5, 0.9 / Math.sqrt(midiNotes.length));
+      midiNotes.forEach((midi, index) => {
+        schedulePreparedTrackNote({
+          ctx,
+          destination: master,
+          instrument,
+          midi,
+          gain,
+          startTime: startTime + index * 0.012,
+          duration: 0.75,
+        });
+      });
+    },
+    [ensureChordPreviewAudio, globalPlaybackVolume]
+  );
+
   const addChordAtFrame = useCallback(
     (payload: ChordPalettePayload, rawFrame: number) => {
       const startTime = snapFrame(rawFrame);
@@ -1909,6 +1954,23 @@ function ChordLaneWorkspace({
     if (selectionClearEpoch === undefined || selectionClearExemptEditorId === editorId) return;
     setSelectedChordIds([]);
   }, [editorId, selectionClearEpoch, selectionClearExemptEditorId]);
+
+  useEffect(() => {
+    if (chordMenuOpen) {
+      void warmTrackInstrument("jazz-guitar");
+    }
+  }, [chordMenuOpen]);
+
+  useEffect(
+    () => () => {
+      if (chordPreviewAudioRef.current) {
+        void chordPreviewAudioRef.current.close();
+        chordPreviewAudioRef.current = null;
+      }
+      chordPreviewGainRef.current = null;
+    },
+    []
+  );
 
   useEffect(() => {
     if (!fingeringsVisible) return;
@@ -2324,7 +2386,7 @@ function ChordLaneWorkspace({
                         }}
                         onClick={() => {
                           if (!chordInKey) return;
-                          addChordAtFrame(payload, effectivePlayheadFrame);
+                          void playChordPalettePreview(payload);
                         }}
                         className={`min-w-11 rounded border px-2 py-1 text-xs font-semibold shadow-sm ${
                           chordInKey
