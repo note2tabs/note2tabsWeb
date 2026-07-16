@@ -244,14 +244,27 @@ type PendingLaneTuningChange = {
   capo: number;
 };
 
-const getLaneBarCount = (lane: EditorSnapshot) =>
-  Math.max(
-    1,
-    Math.ceil(
-      Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR))) /
-        FIXED_FRAMES_PER_BAR
-    )
+const getLaneTimelineEnd = (lane: EditorSnapshot) => {
+  const noteEnd = (Array.isArray(lane.notes) ? lane.notes : []).reduce((max, note) => {
+    const start = Math.max(0, Math.round(toNumber(note.startTime, 0)));
+    const length = Math.max(1, Math.round(toNumber(note.length, 1)));
+    return Math.max(max, start + length);
+  }, 0);
+  const chordEnd = (Array.isArray(lane.chords) ? lane.chords : []).reduce((max, chord) => {
+    const start = Math.max(0, Math.round(toNumber(chord.startTime, 0)));
+    const length = Math.max(1, Math.round(toNumber(chord.length, 1)));
+    return Math.max(max, start + length);
+  }, 0);
+  return Math.max(
+    FIXED_FRAMES_PER_BAR,
+    Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)),
+    noteEnd,
+    chordEnd
   );
+};
+
+const getLaneBarCount = (lane: EditorSnapshot) =>
+  Math.max(1, Math.ceil(getLaneTimelineEnd(lane) / FIXED_FRAMES_PER_BAR));
 
 const normalizeTimeSignature = (value: unknown) => {
   const next = Number(value);
@@ -1677,11 +1690,26 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setDeletingLaneId(laneId);
     setError(null);
     try {
-      const res = await gteApi.deleteCanvasEditor(editorId, laneId);
-      const nextCanvas = normalizeCanvas(res.canvas, editorId);
+      const nextEditors = canvas.editors.filter((lane) => lane.id !== laneId);
+      if (nextEditors.length === canvas.editors.length) {
+        throw new Error("Track not found.");
+      }
+      const nextCanvas = normalizeCanvas(
+        {
+          ...canvas,
+          editors: nextEditors,
+          updatedAt: new Date().toISOString(),
+          version: Math.max(1, Math.round(toNumber(canvas.version, 1))) + 1,
+        },
+        editorId
+      );
+      await gteApi.applySnapshot(editorId, nextCanvas);
       applyCanvasUpdate(nextCanvas, { markDirty: !isGuestMode });
       if (activeLaneId === laneId) {
         setActiveLaneId(nextCanvas.editors[0]?.id || null);
+      }
+      if (mobileEditLaneId === laneId) {
+        setMobileEditLaneId(null);
       }
     } catch (err: any) {
       setError(err?.message || "Could not remove track.");
@@ -2192,8 +2220,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!canvas) return 1;
     let maxBars = 1;
     for (const lane of canvas.editors) {
-      const totalFrames = Math.max(1, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)));
-      const bars = Math.max(1, Math.ceil(totalFrames / FIXED_FRAMES_PER_BAR));
+      const bars = getLaneBarCount(lane);
       if (bars > maxBars) maxBars = bars;
     }
     return maxBars;
@@ -2214,13 +2241,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const isMobileEditMode = isMobileViewport && mobileEditLaneId !== null;
   const globalControlsLaneId = useMemo(() => {
     if (!canvas?.editors.length) return null;
-    return canvas.editors.find((lane) => !isChordLane(lane))?.id || canvas.editors[0]?.id || null;
-  }, [canvas?.editors]);
-  const activeLaneIsChord = useMemo(() => {
-    if (!activeLaneId || !canvas?.editors.length) return false;
-    const activeLane = canvas.editors.find((lane) => lane.id === activeLaneId);
-    return activeLane ? isChordLane(activeLane) : false;
-  }, [activeLaneId, canvas?.editors]);
+    if (activeLaneId && canvas.editors.some((lane) => lane.id === activeLaneId)) return activeLaneId;
+    if (mobileEditLaneId && canvas.editors.some((lane) => lane.id === mobileEditLaneId)) return mobileEditLaneId;
+    return canvas.editors[0]?.id || null;
+  }, [activeLaneId, canvas?.editors, mobileEditLaneId]);
 
   useEffect(() => {
     const scrollbar = globalTimelineScrollbarRef.current;
@@ -2253,7 +2277,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!canvas) return FIXED_FRAMES_PER_BAR;
     let maxFrames = FIXED_FRAMES_PER_BAR;
     canvas.editors.forEach((lane) => {
-      maxFrames = Math.max(maxFrames, Math.max(1, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR))));
+      maxFrames = Math.max(maxFrames, getLaneTimelineEnd(lane));
     });
     return maxFrames;
   }, [canvas]);
@@ -5017,9 +5041,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSpeedTrainerStepChange={setSpeedTrainerStep}
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
-                              showToolbarWhenInactive={
-                                laneId === globalControlsLaneId && (activeLaneId === null || activeLaneIsChord)
-                              }
+                              showToolbarWhenInactive={laneId === globalControlsLaneId}
                               toolbarOpen={toolbarOpen}
                               onToolbarOpenChange={setToolbarOpen}
                               multiTrackSelectionActive={multiTrackSelectionActive}
@@ -5301,11 +5323,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onSpeedTrainerStepChange={setSpeedTrainerStep}
                           playbackSpeed={normalizedPlaybackSpeed}
                           onPlaybackSpeedChange={setPlaybackSpeed}
-                          showToolbarWhenInactive={
-                            isMobileViewport
-                              ? laneId === globalControlsLaneId && (!mobileEditLaneId || activeLaneIsChord)
-                              : laneId === globalControlsLaneId && (activeLaneId === null || activeLaneIsChord)
-                          }
+                          showToolbarWhenInactive={laneId === globalControlsLaneId}
                           toolbarOpen={toolbarOpen}
                           onToolbarOpenChange={setToolbarOpen}
                           multiTrackSelectionActive={multiTrackSelectionActive}
