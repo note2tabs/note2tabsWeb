@@ -2181,7 +2181,13 @@ function ChordLaneWorkspace({
       const nextLength = snapLength(dragState.originalLength + deltaFrames);
       updateChord(
         chord.id,
-        (item) => ({ ...item, length: nextLength }),
+        (item) => ({
+          ...item,
+          length: nextLength,
+          strums: normalizeChordEditorStrums(item.strums)
+            .filter((strum) => Math.max(0, Math.round(Number(strum.time) || 0)) < nextLength)
+            .map((strum) => ({ ...strum, time: snapStrumTime(strum.time, nextLength) })),
+        }),
         { recordHistory: false, persist: false }
       );
       setDragRevision((value) => value + 1);
