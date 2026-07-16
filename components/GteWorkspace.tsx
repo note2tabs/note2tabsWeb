@@ -1545,6 +1545,7 @@ function ChordLaneWorkspace({
   const playbackScrollRafRef = useRef<number | null>(null);
   const chordPreviewAudioRef = useRef<AudioContext | null>(null);
   const chordPreviewGainRef = useRef<GainNode | null>(null);
+  const chordContextMenuRef = useRef<HTMLDivElement | null>(null);
   const [autoBaseScale, setAutoBaseScale] = useState(4);
   const [selectedChordIds, setSelectedChordIds] = useState<number[]>([]);
   const [selectedBarIndices, setSelectedBarIndices] = useState<number[]>([]);
@@ -2004,6 +2005,23 @@ function ChordLaneWorkspace({
     if (barSelectionClearEpoch === undefined || barSelectionClearExemptEditorId === editorId) return;
     setSelectedBarIndices([]);
   }, [barSelectionClearEpoch, barSelectionClearExemptEditorId, editorId]);
+
+  useEffect(() => {
+    if (!chordContextMenu) return;
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (target && chordContextMenuRef.current?.contains(target)) return;
+      setChordContextMenu(null);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown, true);
+    document.addEventListener("touchstart", handlePointerDown, true);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown, true);
+      document.removeEventListener("touchstart", handlePointerDown, true);
+    };
+  }, [chordContextMenu]);
 
   useEffect(() => {
     onSelectionStateChange?.({
@@ -2919,6 +2937,7 @@ function ChordLaneWorkspace({
               "block w-full rounded px-3 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300";
             return (
               <div
+                ref={chordContextMenuRef}
                 data-gte-floating-ui="true"
                 data-gte-editor-control="true"
                 className="fixed z-[10000] w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl"
