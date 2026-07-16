@@ -15,6 +15,9 @@ import { authOptions } from "../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
 import { buildLaneEditorRef, gteApi } from "../../lib/gteApi";
 import {
+  PLAYBACK_SPEED_OPTIONS,
+  SPEED_TRAINER_STEP_OPTIONS,
+  SPEED_TRAINER_TARGET_OPTIONS,
   buildMetronomeClicks,
   equalPowerPanGains,
   frameDeltaToSeconds,
@@ -73,6 +76,8 @@ const TIMELINE_ZOOM_DEFAULT = 100;
 const CONTROL_COMMIT_DEBOUNCE_MS = 350;
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
+const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32];
+const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 3, 4, 8, 16, 32, 64];
 const KEY_BASE_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const KEY_TYPE_OPTIONS = [
   "Major",
@@ -131,6 +136,17 @@ const normalizeKeyBase = (value: unknown) =>
 
 const normalizeKeyType = (value: unknown) =>
   Math.max(0, Math.min(KEY_TYPE_OPTIONS.length - 1, Math.round(toNumber(value, 0))));
+
+const getNearestCursorSizeDenominator = (value: unknown) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 4;
+  return CURSOR_SIZE_FRACTION_DENOMINATORS.reduce((best, current) =>
+    Math.abs(current - numeric) < Math.abs(best - numeric) ? current : best
+  );
+};
+
+const formatNoteLengthOption = (denominator: number) =>
+  denominator === 0.5 ? "2/1" : denominator === 1 ? "1/1" : `1/${denominator}`;
 
 const isCanvasSnapshot = (value: unknown): value is CanvasSnapshot =>
   Boolean(value && typeof value === "object" && Array.isArray((value as CanvasSnapshot).editors));
@@ -879,6 +895,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [tabViewEnabled, setTabViewEnabled] = useState(false);
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
   const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabled] = useState(false);
+  const [chordOnlyDefaultNoteLengthDenominator, setChordOnlyDefaultNoteLengthDenominator] = useState(4);
+  const [chordOnlyCursorSizeDenominator, setChordOnlyCursorSizeDenominator] = useState(4);
   const [findKeyDialogOpen, setFindKeyDialogOpen] = useState(false);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
   const [sharedTimelineScrollRatio, setSharedTimelineScrollRatio] = useState(0);
@@ -2290,6 +2308,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (tabLane) return tabLane.id || null;
     return canvas.editors[0]?.id || null;
   }, [canvas?.editors, mobileEditLaneId]);
+  const chordOnlyCanvas = useMemo(
+    () => Boolean(canvas?.editors.length) && canvas!.editors.every((lane) => isChordLane(lane)),
+    [canvas]
+  );
 
   useEffect(() => {
     const scrollbar = globalTimelineScrollbarRef.current;
@@ -5573,6 +5595,242 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               >
                 Continue
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {!isMobileViewport && chordOnlyCanvas && (
+        <div
+          data-gte-floating-ui="true"
+          className="pointer-events-none fixed bottom-16 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2"
+        >
+          <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
+            <button
+              type="button"
+              data-gte-toolbar-ui="true"
+              onClick={() => setToolbarOpen((prev) => !prev)}
+              aria-pressed={toolbarOpen}
+              title={toolbarOpen ? "Hide toolbar" : "Show toolbar"}
+              className={`pointer-events-auto flex h-10 items-center justify-center rounded-full border px-3 text-xs font-semibold shadow-md backdrop-blur md:absolute md:right-0 ${
+                toolbarOpen
+                  ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
+                  : "border-sky-300 bg-sky-100/95 text-sky-900 hover:bg-sky-50"
+              }`}
+            >
+              Toolbar
+            </button>
+            <div className="pointer-events-auto flex items-center gap-2">
+              <div className="flex shrink-0 flex-col gap-1">
+                <label className="flex h-9 items-center gap-1 rounded-full border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500 shadow-sm backdrop-blur">
+                  <span className="whitespace-nowrap">add note size</span>
+                  <select
+                    value={chordOnlyDefaultNoteLengthDenominator}
+                    onChange={(event) => setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))}
+                    className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
+                    title="Add note size"
+                    aria-label="Add note size"
+                  >
+                    {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+                      <option key={denominator} value={denominator}>
+                        {formatNoteLengthOption(denominator)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex h-9 items-center gap-1 rounded-full border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500 shadow-sm backdrop-blur">
+                  <span className="whitespace-nowrap">cursor size</span>
+                  <select
+                    value={chordOnlyCursorSizeDenominator}
+                    onChange={(event) =>
+                      setChordOnlyCursorSizeDenominator(getNearestCursorSizeDenominator(event.target.value))
+                    }
+                    className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
+                    title="Cursor size"
+                    aria-label="Cursor size"
+                  >
+                    {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
+                      <option key={denominator} value={denominator}>
+                        1/{denominator}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
+                <button
+                  type="button"
+                  onClick={handleCanvasUndo}
+                  disabled={canvasUndoCount === 0}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Undo"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCanvasRedo}
+                  disabled={canvasRedoCount === 0}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Redo"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
+                  </svg>
+                </button>
+                <span className="mx-1 whitespace-nowrap text-[10px] text-slate-500">{saveStatus}</span>
+                <button
+                  type="button"
+                  onClick={skipGlobalPlaybackToStart}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Go to start"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <rect x="4" y="5" width="2" height="14" />
+                    <polygon points="18,5 8,12 18,19" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={skipGlobalPlaybackBackwardBar}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Previous bar"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <polygon points="17,5 7,12 17,19" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleGlobalPlayback}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
+                  title={globalPlaybackIsPlaying ? "Pause" : "Play"}
+                >
+                  {globalPlaybackIsPlaying ? (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                      <rect x="6" y="5" width="4" height="14" />
+                      <rect x="14" y="5" width="4" height="14" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                      <polygon points="8,5 19,12 8,19" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={skipGlobalPlaybackForwardBar}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Next bar"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <polygon points="7,5 17,12 7,19" />
+                  </svg>
+                </button>
+                <div className="flex items-center gap-1 px-1">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
+                    <path d="M4 10v4h4l5 4V6L8 10H4z" />
+                    <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
+                  </svg>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={globalPlaybackVolume}
+                    onChange={(event) => handleGlobalPlaybackVolumeChange(Number(event.target.value))}
+                    className="w-20 accent-slate-700"
+                    title="Volume"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPracticeLoopEnabled((enabled) => !enabled)}
+                  disabled={!globalPracticeLoopRange}
+                  aria-pressed={practiceLoopEnabled}
+                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+                    practiceLoopEnabled ? "bg-emerald-100 text-emerald-800" : "hover:bg-slate-100"
+                  }`}
+                  title="Loop selected bars"
+                >
+                  Loop
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMetronomeEnabled((enabled) => !enabled)}
+                  aria-pressed={metronomeEnabled}
+                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold ${
+                    metronomeEnabled ? "bg-sky-100 text-sky-800" : "hover:bg-slate-100"
+                  }`}
+                  title="Metronome"
+                >
+                  Met
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCountInEnabled((enabled) => !enabled)}
+                  aria-pressed={countInEnabled}
+                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold ${
+                    countInEnabled ? "bg-amber-100 text-amber-800" : "hover:bg-slate-100"
+                  }`}
+                  title="One-bar count-in"
+                >
+                  Count
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSpeedTrainerEnabled((enabled) => !enabled)}
+                  disabled={!practiceLoopEnabled}
+                  aria-pressed={speedTrainerEnabled}
+                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+                    speedTrainerEnabled ? "bg-violet-100 text-violet-800" : "hover:bg-slate-100"
+                  }`}
+                  title="Speed trainer"
+                >
+                  Train
+                </button>
+                <select
+                  value={normalizedPlaybackSpeed}
+                  onChange={(event) => setPlaybackSpeed(Number(event.target.value))}
+                  className="h-8 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                  title="Playback speed"
+                >
+                  {PLAYBACK_SPEED_OPTIONS.map((speed) => (
+                    <option key={speed} value={speed}>
+                      {Math.round(speed * 100)}%
+                    </option>
+                  ))}
+                </select>
+                {speedTrainerEnabled && (
+                  <>
+                    <select
+                      value={speedTrainerTarget}
+                      onChange={(event) => setSpeedTrainerTarget(Number(event.target.value))}
+                      className="h-8 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
+                      title="Speed trainer target"
+                    >
+                      {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
+                        <option key={speed} value={speed}>
+                          to {Math.round(speed * 100)}%
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={speedTrainerStep}
+                      onChange={(event) => setSpeedTrainerStep(Number(event.target.value))}
+                      className="h-8 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
+                      title="Speed trainer step"
+                    >
+                      {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
+                        <option key={step} value={step}>
+                          +{Math.round(step * 100)}%
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
