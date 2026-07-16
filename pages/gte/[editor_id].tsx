@@ -931,6 +931,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const telemetryStartedAtRef = useRef<number | null>(null);
   const telemetryClosedRef = useRef(false);
   const globalTimelineScrollbarRef = useRef<HTMLDivElement | null>(null);
+  const sharedTimelineMeasureRef = useRef<HTMLDivElement | null>(null);
   const applyingGlobalTimelineScrollbarRef = useRef(false);
   const globalPlaybackAudioRef = useRef<AudioContext | null>(null);
   const globalPlaybackMasterGainRef = useRef<GainNode | null>(null);
@@ -946,6 +947,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const canvasUndoRef = useRef<CanvasSnapshot[]>([]);
   const canvasRedoRef = useRef<CanvasSnapshot[]>([]);
   const trackSectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const [sharedTimelineBaseScale, setSharedTimelineBaseScale] = useState<number | undefined>(undefined);
   const router = useRouter();
   const saveToAccountPath = "/gte?importGuest=1";
   const loginSaveHref = `/auth/login?next=${encodeURIComponent(saveToAccountPath)}`;
@@ -2225,6 +2227,30 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
     return maxBars;
   }, [canvas]);
+
+  useEffect(() => {
+    if (isMobileViewport || !canvas) {
+      setSharedTimelineBaseScale(undefined);
+      return;
+    }
+
+    const container = sharedTimelineMeasureRef.current;
+    if (!container) return;
+
+    const computeScale = () => {
+      const availableWidth = Math.max(240, container.clientWidth - 16);
+      const rawScale = availableWidth / Math.max(1, FIXED_FRAMES_PER_BAR * 4);
+      const nextScale = Math.max(0.5, Math.min(4, rawScale));
+      setSharedTimelineBaseScale((prev) =>
+        prev !== undefined && Math.abs(prev - nextScale) < 0.01 ? prev : nextScale
+      );
+    };
+
+    computeScale();
+    const observer = new ResizeObserver(computeScale);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [canvas, isMobileViewport]);
 
   const handleSharedTimelineScrollRatioChange = useCallback((next: number) => {
     const clamped = Math.max(0, Math.min(1, next));
@@ -5270,7 +5296,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           </div>
                         </div>
                       </aside>
-                      <div className="min-w-0 flex-1">
+                      <div ref={sharedTimelineMeasureRef} className="min-w-0 flex-1">
                         <GteWorkspace
                           editorId={laneEditorRef}
                           snapshot={lane}
@@ -5292,6 +5318,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                           sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                           sharedViewportBarCount={sharedViewportBarCount}
+                          sharedTimelineBaseScale={sharedTimelineBaseScale}
                           sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                           onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                           timelineZoomFactor={timelineZoomPercent / 100}

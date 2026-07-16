@@ -63,6 +63,7 @@ type Props = {
   sharedTimeSignature?: number;
   sharedTimeSignatureBottom?: number;
   sharedViewportBarCount?: number;
+  sharedTimelineBaseScale?: number;
   sharedTimelineScrollRatio?: number;
   onSharedTimelineScrollRatioChange?: (next: number) => void;
   timelineZoomFactor?: number;
@@ -1507,6 +1508,7 @@ function ChordLaneWorkspace({
   isActive = true,
   onFocusWorkspace,
   sharedViewportBarCount,
+  sharedTimelineBaseScale,
   sharedTimelineScrollRatio,
   onSharedTimelineScrollRatioChange,
   timelineZoomFactor,
@@ -1540,7 +1542,7 @@ function ChordLaneWorkspace({
   const suppressChordClickRef = useRef(false);
   const chordMouseDownSelectionRef = useRef<{ chordId: number; wasSelected: boolean; shiftKey: boolean } | null>(null);
   const playbackScrollRafRef = useRef<number | null>(null);
-  const [baseScale, setBaseScale] = useState(4);
+  const [autoBaseScale, setAutoBaseScale] = useState(4);
   const [selectedChordIds, setSelectedChordIds] = useState<number[]>([]);
   const [selectedBarIndices, setSelectedBarIndices] = useState<number[]>([]);
   const [snapDenominator, setSnapDenominator] = useState<(typeof CHORD_EDITOR_SNAP_DENOMINATORS)[number]>(4);
@@ -1557,7 +1559,7 @@ function ChordLaneWorkspace({
     timelineZoomFactor !== undefined && Number.isFinite(timelineZoomFactor)
       ? Math.max(MIN_TIMELINE_ZOOM, Math.min(MAX_TIMELINE_ZOOM, timelineZoomFactor))
       : 1;
-  const scale = baseScale * normalizedTimelineZoomFactor;
+  const scale = (sharedTimelineBaseScale ?? autoBaseScale) * normalizedTimelineZoomFactor;
   const timelineEnd = Math.max(
     FIXED_FRAMES_PER_BAR,
     globalPlaybackTimelineEnd ?? snapshot.totalFrames ?? FIXED_FRAMES_PER_BAR
@@ -1955,6 +1957,7 @@ function ChordLaneWorkspace({
   }, [onBarSelectionStateChange, selectedBarIndices]);
 
   useEffect(() => {
+    if (sharedTimelineBaseScale !== undefined) return;
     const container = timelineRef.current;
     if (!container) return;
 
@@ -1962,14 +1965,14 @@ function ChordLaneWorkspace({
       const availableWidth = Math.max(240, container.clientWidth - 16);
       const rawScale = availableWidth / Math.max(1, FIXED_FRAMES_PER_BAR * TARGET_VISIBLE_BARS);
       const nextScale = Math.max(0.5, Math.min(4, rawScale));
-      setBaseScale((prev) => (Math.abs(prev - nextScale) < 0.01 ? prev : nextScale));
+      setAutoBaseScale((prev) => (Math.abs(prev - nextScale) < 0.01 ? prev : nextScale));
     };
 
     computeScale();
     const observer = new ResizeObserver(computeScale);
     observer.observe(container);
     return () => observer.disconnect();
-  }, []);
+  }, [sharedTimelineBaseScale]);
 
   const deleteSelectedChords = useCallback(() => {
     if (!selectedChordIds.length) return;
@@ -2943,6 +2946,7 @@ export default function GteWorkspace({
   sharedTimeSignature,
   sharedTimeSignatureBottom,
   sharedViewportBarCount,
+  sharedTimelineBaseScale,
   sharedTimelineScrollRatio,
   onSharedTimelineScrollRatioChange,
   timelineZoomFactor,
@@ -3017,6 +3021,7 @@ export default function GteWorkspace({
         sharedTimeSignature={sharedTimeSignature}
         sharedTimeSignatureBottom={sharedTimeSignatureBottom}
         sharedViewportBarCount={sharedViewportBarCount}
+        sharedTimelineBaseScale={sharedTimelineBaseScale}
         sharedTimelineScrollRatio={sharedTimelineScrollRatio}
         onSharedTimelineScrollRatioChange={onSharedTimelineScrollRatioChange}
         timelineZoomFactor={timelineZoomFactor}
@@ -3074,7 +3079,7 @@ export default function GteWorkspace({
     );
   }
 
-  const [baseScale, setBaseScale] = useState(4);
+  const [autoBaseScale, setAutoBaseScale] = useState(4);
   const [secondsPerBar, setSecondsPerBar] = useState(2);
   const [bpmInput, setBpmInput] = useState(formatBpm(secondsPerBarToBpm(2, 8)));
   const [timeSignature, setTimeSignature] = useState(8);
@@ -3318,7 +3323,7 @@ export default function GteWorkspace({
     timelineZoomFactor !== undefined && Number.isFinite(timelineZoomFactor)
       ? Math.max(MIN_TIMELINE_ZOOM, Math.min(MAX_TIMELINE_ZOOM, timelineZoomFactor))
       : 1;
-  const scale = baseScale * normalizedTimelineZoomFactor;
+  const scale = (sharedTimelineBaseScale ?? autoBaseScale) * normalizedTimelineZoomFactor;
   const timelineWidth = Math.max(1, computedTotalFrames) * scale;
   const viewportTimelineWidth = Math.max(1, viewportTotalFrames) * scale;
   const timelineChromeWidth = viewportTimelineWidth + 40;
@@ -4084,6 +4089,7 @@ export default function GteWorkspace({
   }, [sharedTimeSignatureBottom, snapshot.timeSignatureBottom]);
 
   useEffect(() => {
+    if (sharedTimelineBaseScale !== undefined) return;
     const container = timelineOuterRef.current;
     if (!container || framesPerMeasure <= 0) return;
 
@@ -4091,14 +4097,14 @@ export default function GteWorkspace({
       const availableWidth = Math.max(240, container.clientWidth - 16);
       const rawScale = availableWidth / Math.max(1, framesPerMeasure * TARGET_VISIBLE_BARS);
       const nextScale = Math.max(0.5, Math.min(4, rawScale));
-      setBaseScale((prev) => (Math.abs(prev - nextScale) < 0.01 ? prev : nextScale));
+      setAutoBaseScale((prev) => (Math.abs(prev - nextScale) < 0.01 ? prev : nextScale));
     };
 
     computeScale();
     const observer = new ResizeObserver(computeScale);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [framesPerMeasure]);
+  }, [framesPerMeasure, sharedTimelineBaseScale]);
 
   useEffect(() => {
     const container = tabViewEnabled ? tabViewScrollRef.current : timelineOuterRef.current;
