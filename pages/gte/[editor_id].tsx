@@ -43,6 +43,7 @@ import {
   downloadGteExportFile,
   type GteExportFormat,
 } from "../../lib/gteTabExport";
+import { detectGteScale } from "../../lib/gteScaleDetection";
 import {
   GTE_GUEST_EDITOR_ID,
   createGuestSnapshot,
@@ -878,6 +879,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [tabViewEnabled, setTabViewEnabled] = useState(false);
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
   const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabled] = useState(false);
+  const [findKeyDialogOpen, setFindKeyDialogOpen] = useState(false);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
   const [sharedTimelineScrollRatio, setSharedTimelineScrollRatio] = useState(0);
   const [globalPlaybackFrame, setGlobalPlaybackFrame] = useState(0);
@@ -1396,6 +1398,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     },
     [applyCanvasUpdate, canvas, editorId, syncCanvasDraftToBackend]
   );
+
+  const handleContinueFindKey = useCallback(() => {
+    if (!canvas) {
+      setFindKeyDialogOpen(false);
+      return;
+    }
+
+    const detected = detectGteScale(canvas);
+    if (detected) {
+      const detectedKeyBase = normalizeKeyBase(detected.rootKey - 1);
+      const detectedKeyTypeIndex = KEY_TYPE_OPTIONS.findIndex((label) => label === detected.scaleType);
+      commitCanvasKey(detectedKeyBase, detectedKeyTypeIndex >= 0 ? detectedKeyTypeIndex : 0);
+    }
+
+    setFindKeyDialogOpen(false);
+  }, [canvas, commitCanvasKey]);
 
   const commitName = async (rawValue: string = nameDraft, options?: { exitEdit?: boolean }) => {
     if (!canvas) return;
@@ -3798,6 +3816,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             </button>
             <button
               type="button"
+              onClick={() => setFindKeyDialogOpen(true)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+            >
+              find key
+            </button>
+            <button
+              type="button"
               onClick={() => setGlobalSnapToKeyEnabled((prev) => !prev)}
               className={`rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm ${
                 globalSnapToKeyEnabled
@@ -4497,6 +4522,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   title="Global snap to grid for all tracks. shortcut 'G'"
                 >
                   Snap: {globalSnapToGridEnabled ? "On" : "Off"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFindKeyDialogOpen(true)}
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700"
+                  title="Detect the key from all notes and chords"
+                >
+                  find key
                 </button>
                 <button
                   type="button"
@@ -5509,6 +5542,41 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         )}
       </div>
+      {findKeyDialogOpen && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/30 px-4"
+          role="presentation"
+          onMouseDown={() => setFindKeyDialogOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="find-key-dialog-title"
+            className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-2xl"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div id="find-key-dialog-title" className="text-sm font-semibold text-slate-900">
+              placeholder
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setFindKeyDialogOpen(false)}
+                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleContinueFindKey}
+                className="rounded-md border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {!isMobileViewport && canvas && (
         <div className="fixed bottom-0 left-0 right-0 z-40 border-slate-200">
           <div className="container gte-wide py-1">
