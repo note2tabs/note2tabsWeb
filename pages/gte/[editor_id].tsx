@@ -2241,10 +2241,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const isMobileEditMode = isMobileViewport && mobileEditLaneId !== null;
   const globalControlsLaneId = useMemo(() => {
     if (!canvas?.editors.length) return null;
-    if (activeLaneId && canvas.editors.some((lane) => lane.id === activeLaneId)) return activeLaneId;
     if (mobileEditLaneId && canvas.editors.some((lane) => lane.id === mobileEditLaneId)) return mobileEditLaneId;
+    const tabLane = canvas.editors.find((lane) => !isChordLane(lane));
+    if (tabLane) return tabLane.id || null;
     return canvas.editors[0]?.id || null;
-  }, [activeLaneId, canvas?.editors, mobileEditLaneId]);
+  }, [canvas?.editors, mobileEditLaneId]);
 
   useEffect(() => {
     const scrollbar = globalTimelineScrollbarRef.current;
