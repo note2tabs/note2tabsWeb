@@ -2641,7 +2641,7 @@ function ChordLaneWorkspace({
                   <button
                     type="button"
                     data-track-reorder-block="true"
-                    className="absolute left-0 top-0 h-full w-2 cursor-ew-resize rounded-l bg-slate-900/10"
+                    className="absolute left-0 top-0 z-20 h-full w-2 cursor-ew-resize rounded-l bg-transparent"
                     aria-label="Resize chord start"
                     onMouseDown={(event) => {
                       event.preventDefault();
@@ -2661,11 +2661,12 @@ function ChordLaneWorkspace({
                       };
                     }}
                   />
+                  <div className="pointer-events-none absolute inset-0 rounded bg-sky-100/45" />
                   {strums.map((strum) => (
                     <span
                       key={`${chord.id}-${strum.id ?? strum.time}-${strum.direction}`}
-                      className="absolute top-1/2 -translate-y-1/2 text-base leading-none text-slate-700"
-                      style={{ left: Math.max(8, Math.min(length - 8, strum.time) * pxPerFrame) }}
+                      className="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 text-base leading-none text-slate-700"
+                      style={{ left: Math.max(0, Math.min(chordWidth, strum.time * pxPerFrame)) }}
                     >
                       {strum.direction === "mute" ? "x" : strum.direction === "up" ? "↑" : "↓"}
                     </span>
@@ -2673,7 +2674,7 @@ function ChordLaneWorkspace({
                   <button
                     type="button"
                     data-track-reorder-block="true"
-                    className="absolute right-0 top-0 h-full w-2 cursor-ew-resize rounded-r bg-slate-900/10"
+                    className="absolute right-0 top-0 z-20 h-full w-2 cursor-ew-resize rounded-r bg-transparent"
                     aria-label="Resize chord end"
                     onMouseDown={(event) => {
                       event.preventDefault();
