@@ -1849,7 +1849,6 @@ export default function HomePage() {
         <section className="home-workflow-links" aria-labelledby="home-workflow-links-title">
           <div className="container">
             <div className="home-workflow-links-header">
-              <span className="pill">Choose your source</span>
               <h2 id="home-workflow-links-title">A focused path for every source</h2>
               <p>Choose the workflow that matches your recording, then finish the result in the same editor.</p>
             </div>
