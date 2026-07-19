@@ -1872,7 +1872,7 @@ export default function HomePage() {
         <section className="editor-showcase" id="editor-showcase">
           <div className="container">
             <div className="editor-showcase-header" data-reveal>
-              <span className="pill">Editor</span>
+              <span className="editor-showcase-kicker">Editor</span>
               <h2>Create, edit and play your own guitar tabs.</h2>
               <p>
                 Note2Tabs guitar-tab editor is a web-based workspace for making guitar tablature.
