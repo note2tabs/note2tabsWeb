@@ -2401,6 +2401,7 @@ input[type="number"] {
 }
 
 .seo-landing-detail,
+.seo-landing-content,
 .seo-landing-faq,
 .seo-landing-related {
   padding: 72px 0;
@@ -2453,6 +2454,57 @@ input[type="number"] {
   font-size: 1.08rem;
 }
 
+.seo-landing-content {
+  background: #f5f8fb;
+}
+
+.seo-landing-content-list {
+  display: grid;
+  gap: 0;
+}
+
+.seo-landing-content-section {
+  display: grid;
+  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
+  gap: clamp(28px, 6vw, 72px);
+  padding: 38px 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.seo-landing-content-section:first-child {
+  padding-top: 0;
+}
+
+.seo-landing-content-section:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.seo-landing-content-section h2 {
+  margin: 0;
+  font-size: clamp(1.55rem, 2.5vw, 2.2rem);
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+.seo-landing-content-section > div {
+  display: grid;
+  gap: 14px;
+}
+
+.seo-landing-content-section p,
+.seo-landing-content-section ul {
+  margin: 0;
+  color: #415065;
+  line-height: 1.72;
+}
+
+.seo-landing-content-section ul {
+  display: grid;
+  gap: 8px;
+  padding-left: 20px;
+}
+
 .seo-landing-faq {
   background: #fbf8f1;
 }
@@ -2492,6 +2544,68 @@ input[type="number"] {
   font-weight: 650;
 }
 
+.seo-landing-resource-grid,
+.editor-resource-links,
+.home-workflow-link-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+  text-align: left;
+}
+
+.seo-landing-resource-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.seo-landing-resource-card,
+.editor-resource-links a,
+.home-workflow-link-grid a {
+  display: grid;
+  gap: 8px;
+  padding: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.11);
+  border-radius: 16px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.seo-landing-resource-card span,
+.editor-resource-links span,
+.home-workflow-link-grid span {
+  color: #53606d;
+  line-height: 1.55;
+}
+
+.seo-landing-resource-card:hover,
+.editor-resource-links a:hover,
+.home-workflow-link-grid a:hover {
+  border-color: rgba(15, 23, 42, 0.24);
+  transform: translateY(-2px);
+}
+
+.home-workflow-links {
+  padding: 72px 0;
+  background: #fff;
+}
+
+.home-workflow-links-header {
+  max-width: 720px;
+}
+
+.home-workflow-links-header h2 {
+  margin: 14px 0 10px;
+  font-size: clamp(1.8rem, 3.4vw, 2.8rem);
+  letter-spacing: -0.035em;
+}
+
+.home-workflow-links-header p {
+  margin: 0;
+  color: #53606d;
+  line-height: 1.65;
+}
+
 .recovery-page {
   min-height: calc(100svh - 120px);
   display: grid;
@@ -2528,7 +2642,14 @@ input[type="number"] {
 
 @media (max-width: 760px) {
   .seo-landing-detail-layout,
-  .seo-landing-faq-layout {
+  .seo-landing-faq-layout,
+  .seo-landing-content-section {
+    grid-template-columns: 1fr;
+  }
+
+  .seo-landing-resource-grid,
+  .editor-resource-links,
+  .home-workflow-link-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -2544,8 +2665,7 @@ input[type="number"] {
   gap: 14px;
 }
 
-.editor-seo-intro p,
-.editor-keyword-panel p {
+.editor-seo-intro p {
   margin: 0;
   color: #475569;
   font-size: 0.98rem;
@@ -2559,8 +2679,7 @@ input[type="number"] {
 }
 
 .editor-seo-card,
-.editor-workflow-item,
-.editor-keyword-panel {
+.editor-workflow-item {
   border: 1px solid rgba(15, 23, 42, 0.1);
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.92);
@@ -2599,12 +2718,6 @@ input[type="number"] {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
-}
-
-.editor-keyword-panel {
-  margin-top: 18px;
-  padding: 20px 22px;
-  background: #fffdfa;
 }
 
 .hero-subtitle {

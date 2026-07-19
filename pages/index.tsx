@@ -1846,6 +1846,30 @@ export default function HomePage() {
           </div>
         </section>
 
+        <section className="home-workflow-links" aria-labelledby="home-workflow-links-title">
+          <div className="container">
+            <div className="home-workflow-links-header">
+              <span className="pill">Start with what you have</span>
+              <h2 id="home-workflow-links-title">A focused path for every source</h2>
+              <p>Choose the workflow that matches your recording, then finish the result in the same editor.</p>
+            </div>
+            <div className="home-workflow-link-grid">
+              <Link href="/audio-to-guitar-tab-converter">
+                <strong>Convert an audio file</strong>
+                <span>Upload MP3, WAV, or another recording and generate an editable tab draft.</span>
+              </Link>
+              <Link href="/youtube-to-guitar-tabs">
+                <strong>Convert a YouTube clip</strong>
+                <span>Paste a public link, choose a riff or solo, and transcribe the focused section.</span>
+              </Link>
+              <Link href="/ai-guitar-tab-generator">
+                <strong>Understand the AI workflow</strong>
+                <span>See what affects accuracy and how to turn the first draft into playable tab.</span>
+              </Link>
+            </div>
+          </div>
+        </section>
+
         <section className="editor-showcase" id="editor-showcase">
           <div className="container">
             <div className="editor-showcase-header" data-reveal>

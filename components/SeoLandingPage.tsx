@@ -23,7 +23,17 @@ type SeoLandingPageProps = {
     paragraphs: string[];
     benefits: Array<{ title: string; body: string }>;
   };
+  contentSections?: Array<{
+    title: string;
+    paragraphs: string[];
+    bullets?: string[];
+  }>;
   faqs?: Array<{ question: string; answer: string }>;
+  relatedLinks?: Array<{
+    label: string;
+    href: string;
+    description: string;
+  }>;
 };
 
 export default function SeoLandingPage({
@@ -35,7 +45,9 @@ export default function SeoLandingPage({
   secondaryCta,
   steps,
   detail,
+  contentSections = [],
   faqs = [],
+  relatedLinks = [],
 }: SeoLandingPageProps) {
   const jsonLd = [
     {
@@ -158,6 +170,30 @@ export default function SeoLandingPage({
           </section>
         )}
 
+        {contentSections.length > 0 && (
+          <section className="seo-landing-content">
+            <div className="container seo-landing-content-list">
+              {contentSections.map((section) => (
+                <article className="seo-landing-content-section" key={section.title}>
+                  <h2>{section.title}</h2>
+                  <div>
+                    {section.paragraphs.map((paragraph) => (
+                      <p key={paragraph}>{paragraph}</p>
+                    ))}
+                    {section.bullets && section.bullets.length > 0 && (
+                      <ul>
+                        {section.bullets.map((bullet) => (
+                          <li key={bullet}>{bullet}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
         {faqs.length > 0 && (
           <section className="seo-landing-faq">
             <div className="container seo-landing-faq-layout">
@@ -179,13 +215,24 @@ export default function SeoLandingPage({
 
         <section className="seo-landing-related">
           <div className="container">
-            <h2>Keep creating</h2>
-            <div className="seo-landing-related-links">
-              <Link href="/transcribe">Audio transcriber</Link>
-              <Link href="/editor">Guitar tab editor</Link>
-              <Link href="/pricing">Plans and limits</Link>
-              <Link href="/blog">Guitar tab guides</Link>
-            </div>
+            <h2>{relatedLinks.length > 0 ? "Related guides and tools" : "Keep creating"}</h2>
+            {relatedLinks.length > 0 ? (
+              <div className="seo-landing-resource-grid">
+                {relatedLinks.map((link) => (
+                  <Link href={link.href} className="seo-landing-resource-card" key={link.href}>
+                    <strong>{link.label}</strong>
+                    <span>{link.description}</span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="seo-landing-related-links">
+                <Link href="/transcribe">Audio transcriber</Link>
+                <Link href="/editor">Guitar tab editor</Link>
+                <Link href="/pricing">Plans and limits</Link>
+                <Link href="/blog">Guitar tab guides</Link>
+              </div>
+            )}
           </div>
         </section>
       </main>

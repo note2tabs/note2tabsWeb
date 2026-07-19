@@ -27,6 +27,24 @@ That separation matters because the search intent is different. This page explai
 `,
   },
   {
+    slug: "how-to-convert-audio-to-guitar-tabs",
+    seoTitle: "Convert Audio to Guitar Tabs: MP3 & WAV Guide",
+    seoDescription:
+      "Learn how to convert MP3, WAV, and YouTube audio into editable guitar tabs, improve source quality, and fix notes, timing, and fingerings.",
+    insertBefore: "## Best workflow for converting audio to guitar tabs",
+    section: `## Choose the right source format
+
+The format matters less than the clarity of the guitar, but the source you have should determine the workflow:
+
+- **MP3:** convenient for smaller uploads and common song files. Use the [MP3-to-guitar-tabs workflow](/mp3-to-guitar-tabs) when the file is ready on your device.
+- **WAV or FLAC:** useful when you have a cleaner lossless export, isolated stem, or direct recording.
+- **YouTube:** best when the clearest source is a public cover, lesson, or performance. Use the [YouTube-to-guitar-tabs converter](/youtube-to-guitar-tabs) and select only the section you need.
+- **Rehearsal or phone recording:** workable when the guitar is audible, but expect more cleanup if the room adds noise or other instruments overlap.
+
+If your goal is to start converting immediately, open the [audio-to-guitar-tab converter](/audio-to-guitar-tab-converter). Continue with this guide when you want to prepare the source and review the draft more carefully.
+`,
+  },
+  {
     slug: "ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
     insertBefore: "## How AI turns audio into guitar tabs",
     section: `## Best use case for this workflow
@@ -139,6 +157,23 @@ async function main() {
     });
 
     results.push(`updated: ${update.slug}`);
+  }
+
+  const legacyEditorLinks = await prisma.post.findMany({
+    where: { content: { contains: "/online-guitar-tab-editor" } },
+    select: { id: true, slug: true, content: true },
+  });
+
+  for (const post of legacyEditorLinks) {
+    await prisma.post.update({
+      where: { id: post.id },
+      data: {
+        content: post.content.replaceAll("/online-guitar-tab-editor", "/editor"),
+        contentHtml: null,
+        contentToc: undefined,
+      },
+    });
+    results.push(`consolidated editor links: ${post.slug}`);
   }
 
   console.log(results.join("\n"));
