@@ -3077,6 +3077,27 @@ input[type="number"] {
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
 }
 
+.home-workflow-link-grid a {
+  position: relative;
+  padding-right: 48px;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.home-workflow-link-grid a::after {
+  content: "→";
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  font-size: 0.9rem;
+  transition: background 180ms ease, transform 180ms ease;
+}
+
 .seo-landing-resource-card span,
 .editor-resource-links span,
 .home-workflow-link-grid span {
@@ -3088,7 +3109,18 @@ input[type="number"] {
 .editor-resource-links a:hover,
 .home-workflow-link-grid a:hover {
   border-color: rgba(15, 23, 42, 0.24);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
   transform: translateY(-2px);
+}
+
+.home-workflow-link-grid a:hover::after {
+  background: rgba(15, 23, 42, 0.1);
+  transform: translateX(2px);
+}
+
+.home-workflow-link-grid a:focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 3px;
 }
 
 .home-workflow-links {
