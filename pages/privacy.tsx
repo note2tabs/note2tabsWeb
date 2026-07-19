@@ -31,10 +31,18 @@ export default function PrivacyPage() {
             server logs. This logging does not depend on analytics consent and is used solely to protect the service.
           </p>
 
+          <h2>Feedback and support messages</h2>
+          <p>
+            When you send product feedback, we store the message, a broad feedback category, the type of page it
+            came from, the submission time, and a link to your account. We use this first-party information to answer
+            support requests and improve Note2Tabs, even when optional analytics are disabled. We do not add the
+            free-text message to PostHog, and feedback linked to your account is deleted when you delete the account.
+          </p>
+
           <h2>Cookies and similar technologies</h2>
           <p>
-            We use cookies to run the service and to measure usage and improve performance. Analytics is enabled by
-            default unless you explicitly deny it from the cookie settings button in the footer or from settings.
+            We use essential cookies to run the service. Optional analytics cookies are disabled until you choose to
+            allow them. You can change that choice from the cookie settings button in the footer or from settings.
           </p>
           <ul>
             <li>

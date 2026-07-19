@@ -1,6 +1,7 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import { prisma } from "../../../lib/prisma";
+import { withPrismaReadRetry } from "../../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
 import BlogPostCard from "../../../components/blog/BlogPostCard";
 import SeoHead, { absoluteUrl } from "../../../components/SeoHead";
@@ -49,7 +50,7 @@ export default function BlogTagPage({ tag, posts }: TagPageProps) {
   return (
     <main className="page blog-page">
       <SeoHead
-        title={`${tag.name} | Note2Tabs Blog`}
+        title={`${tag.name} Articles | Note2Tabs Blog`}
         description={description}
         canonicalPath={canonicalPath}
         noindex={posts.length === 0}
@@ -97,16 +98,16 @@ export default function BlogTagPage({ tag, posts }: TagPageProps) {
 
 export const getServerSideProps: GetServerSideProps<TagPageProps> = async (ctx) => {
   const slug = ctx.params?.slug as string;
-  const tag = await prisma.tag.findUnique({
+  const tag = await withPrismaReadRetry(() => prisma.tag.findUnique({
     where: { slug },
     select: { id: true, name: true, slug: true },
-  });
+  }));
   if (!tag) {
     return { notFound: true };
   }
   ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
 
-  const postsRaw = await prisma.post.findMany({
+  const postsRaw = await withPrismaReadRetry(() => prisma.post.findMany({
     where: {
       ...getPublishedWhere(),
       tags: { some: { tagId: tag.id } },
@@ -121,7 +122,7 @@ export const getServerSideProps: GetServerSideProps<TagPageProps> = async (ctx) 
       coverImageUrl: true,
       publishedAt: true,
     },
-  });
+  }));
 
   return {
     props: {

@@ -27,7 +27,7 @@ export function buildInactiveSignupReminderIdentifier(userId: string) {
 export function buildInactiveSignupReminderEmail(input: BuildReminderEmailInput = {}) {
   const firstName = (input.name || "").trim() || "there";
   const safeName = escapeHtml(firstName);
-  const transcriberUrl = `${baseUrl()}/transcriber`;
+  const transcriberUrl = `${baseUrl()}/transcribe`;
   const subject = "Still interested in transcribing a song?";
   const text = `Hi ${firstName},
 

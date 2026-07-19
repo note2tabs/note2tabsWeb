@@ -45,9 +45,11 @@ export default function RequestResetPage() {
           </div>
           <form className="stack" onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="label">Email</label>
+              <label className="label" htmlFor="reset-email">Email</label>
               <input
+                id="reset-email"
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

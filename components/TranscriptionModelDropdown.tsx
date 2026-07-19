@@ -47,7 +47,7 @@ export default function TranscriptionModelDropdown({
     >
       <summary
         id={id}
-        aria-label="Transcription model"
+        aria-label={`Transcription model: ${selected.label}`}
         aria-disabled={disabled}
         onClick={(event) => {
           if (disabled) event.preventDefault();

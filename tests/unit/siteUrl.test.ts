@@ -19,7 +19,7 @@ describe("site URL resolution", () => {
     expect(getConfiguredSiteUrl()).toBe("https://www.note2tabs.com");
   });
 
-  it("uses the Vercel preview URL when no explicit app URL is configured", async () => {
+  it("keeps public metadata canonical while auth uses the Vercel preview URL", async () => {
     (process.env as Record<string, string | undefined>).NODE_ENV = "production";
     delete process.env.NEXTAUTH_URL;
     delete process.env.NEXT_PUBLIC_APP_URL;
@@ -29,7 +29,7 @@ describe("site URL resolution", () => {
     const { getAuthSiteUrl, getConfiguredSiteUrl } = await import("../../lib/siteUrl");
 
     expect(getAuthSiteUrl()).toBe("https://note2tabs-git-feature-note2tabs.vercel.app");
-    expect(getConfiguredSiteUrl()).toBe("https://note2tabs-git-feature-note2tabs.vercel.app");
+    expect(getConfiguredSiteUrl()).toBe("https://www.note2tabs.com");
   });
 
   it("prefers the Vercel preview URL for auth even when NEXTAUTH_URL is production", async () => {

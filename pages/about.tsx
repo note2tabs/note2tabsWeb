@@ -55,21 +55,21 @@ export default function AboutPage() {
                   How Note2Tabs started
                 </p>
                 <p className="about-story-paragraph">
-                  In 2024, while I was still new to guitar, I wanted to find the tabs for a cover of "Space Oddity" by David Bowie called "Space Oddity" by David Matthews. 
-                  I already knew how to play the MFDOOM sample of the song but I couldnt find any tabs for the original. 
-                  So I started searching for automatic transcriber option, but I couldnt find one that was good enough or practical to use.
-                  I then decided I was going to create my own transcriber and editor and with the help of my friend we finished our first analytic-transcriber in early 2025.
-                  While figuring out how to get the optimal fingerings, we had the idea for the guitar tab editor, which together with the transcriber became the base of Note2Tabs.
+                  In 2024, while I was still new to guitar, I wanted tabs for David Matthews' cover of David Bowie's "Space Oddity."
+                  I already knew how to play the MF DOOM sample, but I couldn't find tabs for the original recording.
+                  I searched for an automatic transcriber and couldn't find one that was both accurate enough and practical to use.
+                  So, with the help of a friend, I built my own transcriber. We finished our first analytical version in early 2025.
+                  While working out how to choose playable fingerings, we had the idea for the guitar tab editor. Together, the transcriber and editor became the foundation of Note2Tabs.
                 </p>
                 <p className="about-story-paragraph">
-                  In August 2025 both of us started studying engineering at KTH and on the side of our studies we started working on the website.
-                  We are still woring on this project every day, to make it the best transcriber and editor possible.
+                  In August 2025, both of us started studying engineering at KTH and continued building the website alongside our studies.
+                  We still work on the project every day to make the transcriber and editor as useful as possible.
                   Our goal is to make transcribing and creating your own guitar music as easy as possible,
                   and we want to provide guitar players with the best tools imaginable to make the guitar playing experience actually about guitar.
                 </p>
                 <p className="about-story-paragraph">
-                  We are constantly working on new features, design fixes and tools that could improve the experience of the avrage guitarist. 
-                  If you have anything on your mind about what you would like to see from us, feedback or any ideas you might have, feel free to write to us!
+                  We are constantly working on new features, design improvements, and tools for everyday guitarists.
+                  If there is something you would like to see, or you have feedback or an idea, please write to us.
                   <Link href="/feedback"> <strong>We'd love to hear from you.</strong></Link>
                 </p>
               </div>

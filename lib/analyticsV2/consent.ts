@@ -21,7 +21,7 @@ type EnsureConsentSubjectInput = {
 
 export async function ensureConsentSubject(input: EnsureConsentSubjectInput) {
   const { prismaClient, userId, anonId, fingerprintHash } = input;
-  const state = input.state || "granted";
+  const state = input.state || "denied";
 
   let subject =
     (userId
@@ -125,5 +125,5 @@ export async function persistConsentState(input: PersistConsentInput) {
 }
 
 export function isConsentDenied(cookies: Record<string, string>) {
-  return cookies[ANALYTICS_CONSENT_COOKIE] === "denied";
+  return cookies[ANALYTICS_CONSENT_COOKIE] !== "granted";
 }

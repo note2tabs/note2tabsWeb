@@ -18,6 +18,12 @@ type SeoLandingPageProps = {
     title: string;
     body: string;
   }>;
+  detail?: {
+    title: string;
+    paragraphs: string[];
+    benefits: Array<{ title: string; body: string }>;
+  };
+  faqs?: Array<{ question: string; answer: string }>;
 };
 
 export default function SeoLandingPage({
@@ -28,6 +34,8 @@ export default function SeoLandingPage({
   primaryCta,
   secondaryCta,
   steps,
+  detail,
+  faqs = [],
 }: SeoLandingPageProps) {
   const jsonLd = [
     {
@@ -74,6 +82,19 @@ export default function SeoLandingPage({
         },
       ],
     },
+    ...(faqs.length
+      ? [
+          {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: faqs.map((faq) => ({
+              "@type": "Question",
+              name: faq.question,
+              acceptedAnswer: { "@type": "Answer", text: faq.answer },
+            })),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -112,6 +133,58 @@ export default function SeoLandingPage({
                   <p>{step.body}</p>
                 </article>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {detail && (
+          <section className="seo-landing-detail">
+            <div className="container seo-landing-detail-layout">
+              <div className="seo-landing-copy">
+                <h2>{detail.title}</h2>
+                {detail.paragraphs.map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+              </div>
+              <div className="seo-landing-benefits">
+                {detail.benefits.map((benefit) => (
+                  <article key={benefit.title}>
+                    <h3>{benefit.title}</h3>
+                    <p>{benefit.body}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {faqs.length > 0 && (
+          <section className="seo-landing-faq">
+            <div className="container seo-landing-faq-layout">
+              <div>
+                <span className="pill">Questions</span>
+                <h2>Frequently asked questions</h2>
+              </div>
+              <div className="seo-landing-faq-list">
+                {faqs.map((faq) => (
+                  <details key={faq.question}>
+                    <summary>{faq.question}</summary>
+                    <p>{faq.answer}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        <section className="seo-landing-related">
+          <div className="container">
+            <h2>Keep creating</h2>
+            <div className="seo-landing-related-links">
+              <Link href="/transcribe">Audio transcriber</Link>
+              <Link href="/editor">Guitar tab editor</Link>
+              <Link href="/pricing">Plans and limits</Link>
+              <Link href="/blog">Guitar tab guides</Link>
             </div>
           </div>
         </section>

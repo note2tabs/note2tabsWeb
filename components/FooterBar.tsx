@@ -51,7 +51,7 @@ export default function FooterBar() {
 
         <div className="footer-sections">
           <section className="footer-section">
-            <h3>Terms & Policies</h3>
+            <h2>Terms & Policies</h2>
             <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
             <button type="button" onClick={openCookieSettings} className="footer-link-button">
@@ -60,22 +60,25 @@ export default function FooterBar() {
           </section>
 
           <section className="footer-section">
-            <h3>Contact</h3>
+            <h2>Contact</h2>
             <a href="mailto:note2tabs@gmail.com">note2tabs@gmail.com</a>
             <Link href="/feedback">Send feedback</Link>
           </section>
 
           <section className="footer-section">
-            <h3>Products</h3>
-            <Link href="/#hero">Transcriber</Link>
-            <Link href="/gte">Editor</Link>
+            <h2>Products</h2>
+            <Link href="/transcribe">Transcriber</Link>
+            <Link href="/editor">Editor</Link>
+            <Link href="/pricing">Pricing</Link>
           </section>
 
           <section className="footer-section">
-            <h3>Resources</h3>
+            <h2>Resources</h2>
             <Link href="/about">About us</Link>
             <Link href="/blog">Blog</Link>
-            <Link href="/blog/tag/tutorial">Tutorials</Link>
+            <Link href="/audio-to-guitar-tab-converter">Audio-to-tab guide</Link>
+            <Link href="/youtube-to-guitar-tabs">YouTube-to-tab guide</Link>
+            <Link href="/free-guitar-tab-maker">Free tab maker</Link>
           </section>
         </div>
       </div>

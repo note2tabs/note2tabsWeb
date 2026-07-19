@@ -2,8 +2,16 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth/[...nextauth]";
 import { ingestAnalyticsEvents } from "../../lib/analyticsV2/ingest";
+import { sanitizeAnalyticsPathname } from "../../lib/analyticsPrivacy";
+import { prisma } from "../../lib/prisma";
 
 const FEEDBACK_MAX_LENGTH = 2000;
+const FEEDBACK_CATEGORIES = new Set(["general", "bug", "feature", "ui"]);
+
+function normalizeFeedbackCategory(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return FEEDBACK_CATEGORIES.has(normalized) ? normalized : "general";
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -29,6 +37,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: `Feedback must be ${FEEDBACK_MAX_LENGTH} characters or less.` });
   }
 
+  const safeCategory = normalizeFeedbackCategory(category || "general");
+  const safePagePath = sanitizeAnalyticsPathname(pagePath || "/feedback");
+
+  try {
+    await prisma.feedbackSubmission.create({
+      data: {
+        userId: accountId,
+        message,
+        category: safeCategory,
+        pagePath: safePagePath,
+      },
+    });
+  } catch (error) {
+    console.error("feedback persistence error", error);
+    return res.status(500).json({ error: "Could not submit feedback." });
+  }
+
+  // Product feedback is persisted above regardless of analytics consent.
+  // Analytics is best-effort and deliberately excludes the free-text message.
   try {
     await ingestAnalyticsEvents({
       req,
@@ -39,16 +66,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         name: "user_feedback_submitted",
         path: "/feedback",
         props: {
-          message,
-          category: category || "general",
-          pagePath,
+          category: safeCategory,
+          pagePath: safePagePath,
         },
       },
     });
-    return res.status(200).json({ ok: true });
-  } catch (error: any) {
-    console.error("feedback submit error", error);
-    return res.status(500).json({ error: error?.message || "Could not submit feedback." });
+  } catch (error) {
+    console.error("feedback analytics error", error);
   }
-}
 
+  return res.status(200).json({ ok: true });
+}

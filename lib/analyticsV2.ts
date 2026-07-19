@@ -1,4 +1,9 @@
 import { generateFingerprint } from "./fingerprint";
+import {
+  sanitizeAnalyticsPathname,
+  sanitizeAnalyticsProperties,
+  sanitizeAnalyticsReferrer,
+} from "./analyticsPrivacy";
 
 export const ANALYTICS_CONSENT_COOKIE = "analytics_consent";
 export const ANALYTICS_SESSION_COOKIE = "analytics_session";
@@ -60,7 +65,7 @@ function randomId() {
 function shouldTrack() {
   if (typeof document === "undefined") return false;
   const consent = getCookie(ANALYTICS_CONSENT_COOKIE);
-  return consent !== "denied";
+  return consent === "granted";
 }
 
 function ensureIds() {
@@ -140,9 +145,11 @@ export async function track(name: string, props: EventProps = {}) {
     schema_version: 2,
     name,
     ts: new Date().toISOString(),
-    props,
-    path: window.location.pathname,
-    referrer: document.referrer || undefined,
+    props: sanitizeAnalyticsProperties(props),
+    path: sanitizeAnalyticsPathname(window.location.pathname),
+    referrer: document.referrer
+      ? sanitizeAnalyticsReferrer(document.referrer)
+      : undefined,
     session_id: sessionId,
     anon_id: anonId,
     fingerprint_id: fingerprintId,
@@ -158,7 +165,9 @@ export async function track(name: string, props: EventProps = {}) {
 
 export function trackPageView(path?: string) {
   void track("page_viewed", {
-    path: path || (typeof window !== "undefined" ? window.location.pathname : undefined),
+    path: sanitizeAnalyticsPathname(
+      path || (typeof window !== "undefined" ? window.location.pathname : undefined)
+    ),
   });
 }
 

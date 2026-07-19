@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
+import { withPrismaReadRetry } from "../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../lib/blog";
 import { compilePostContent } from "../../lib/blogContent";
 import { normalizeCanonicalUrl } from "../../lib/canonical";
@@ -42,6 +43,7 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
   const published = post.publishedAt || post.publishAt || undefined;
   const displayDate = formatBlogDate(post.publishedAt ?? post.publishAt);
   const hasTaxonomy = post.categories.length > 0 || post.tags.length > 0 || post.clusters.length > 0;
+  const pageTitle = /\bNote2Tabs\b/i.test(title) ? title : `${title} | Note2Tabs`;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -85,7 +87,7 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
   return (
     <main className="page blog-post">
       <SeoHead
-        title={`${title} | Note2Tabs`}
+        title={pageTitle}
         description={description}
         canonicalUrl={canonical}
         imageUrl={ogImage}
@@ -120,7 +122,7 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
 
         {post.coverImageUrl && (
           <figure className="post-cover-shell">
-            <img src={post.coverImageUrl} alt={post.title} className="post-cover" />
+            <img src={post.coverImageUrl} alt={post.title} className="post-cover" loading="eager" decoding="async" />
           </figure>
         )}
 
@@ -134,7 +136,7 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
           <section className="post-taxonomy post-taxonomy--inline">
             {post.categories.length > 0 && (
               <>
-                <h4>Categories</h4>
+                <h2>Categories</h2>
                 <div className="tag-row">
                   {post.categories.map((cat) => (
                     <Link key={cat.id} href={`/blog/category/${cat.slug}`}>
@@ -146,7 +148,7 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
             )}
             {post.tags.length > 0 && (
               <>
-                <h4>Tags</h4>
+                <h2>Tags</h2>
                 <div className="tag-row">
                   {post.tags.map((tag) => (
                     <Link key={tag.id} href={`/blog/tag/${tag.slug}`}>
@@ -158,7 +160,7 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
             )}
             {post.clusters.length > 0 && (
               <>
-                <h4>Topic clusters</h4>
+                <h2>Topic clusters</h2>
                 <div className="tag-row">
                   {post.clusters.map((cluster) => (
                     <Link key={cluster.id} href={`/blog/cluster/${cluster.slug}`}>
@@ -193,17 +195,7 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
     return { notFound: true };
   }
 
-  const session = await getServerSession(ctx.req, ctx.res, authOptions);
-  const isAdmin = session?.user?.role === "ADMIN";
-  const allowDraft = Boolean(ctx.preview || isAdmin);
-
-  const where = allowDraft
-    ? { slug }
-    : { slug, ...getPublishedWhere() };
-
-  const post = await prisma.post.findFirst({
-    where,
-    select: {
+  const postSelect = {
       id: true,
       title: true,
       slug: true,
@@ -237,8 +229,29 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
           cluster: { select: { id: true, name: true, slug: true } },
         },
       },
-    },
-  });
+  } as const;
+
+  let post = await withPrismaReadRetry(() => prisma.post.findFirst({
+    where: { slug, ...getPublishedWhere() },
+    select: postSelect,
+  }));
+  let allowDraft = false;
+
+  if (!post) {
+    const hasSessionCookie = Boolean(
+      ctx.req.cookies["next-auth.session-token"] ||
+      ctx.req.cookies["__Secure-next-auth.session-token"]
+    );
+    if (ctx.preview || hasSessionCookie) {
+      const session = await getServerSession(ctx.req, ctx.res, authOptions);
+      allowDraft = Boolean(ctx.preview || session?.user?.role === "ADMIN");
+      if (allowDraft) {
+        post = await withPrismaReadRetry(() =>
+          prisma.post.findFirst({ where: { slug }, select: postSelect })
+        );
+      }
+    }
+  }
 
   if (!post) {
     return { notFound: true };
@@ -260,7 +273,7 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
   const tagIds = post.tags.map((tag) => tag.tagId);
   const clusterIds = post.clusters.map((cluster) => cluster.clusterId);
 
-  const relatedPosts = await prisma.post.findMany({
+  const relatedPosts = await withPrismaReadRetry(() => prisma.post.findMany({
     where: {
       id: { not: post.id },
       ...getPublishedWhere(),
@@ -272,7 +285,7 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
     orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
     take: 4,
     select: { id: true, title: true, slug: true },
-  });
+  }));
 
   return {
     props: {

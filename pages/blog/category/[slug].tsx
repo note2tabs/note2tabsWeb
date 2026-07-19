@@ -1,6 +1,7 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import { prisma } from "../../../lib/prisma";
+import { withPrismaReadRetry } from "../../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
 import BlogPostCard from "../../../components/blog/BlogPostCard";
 import SeoHead, { absoluteUrl } from "../../../components/SeoHead";
@@ -57,7 +58,7 @@ export default function BlogCategoryPage({ category, posts, pillarPost }: Catego
   return (
     <main className="page blog-page">
       <SeoHead
-        title={`${category.name} | Note2Tabs Blog`}
+        title={`${category.name} Guides | Note2Tabs Blog`}
         description={description}
         canonicalPath={canonicalPath}
         noindex={posts.length === 0}
@@ -123,16 +124,16 @@ export default function BlogCategoryPage({ category, posts, pillarPost }: Catego
 
 export const getServerSideProps: GetServerSideProps<CategoryPageProps> = async (ctx) => {
   const slug = ctx.params?.slug as string;
-  const category = await prisma.category.findUnique({
+  const category = await withPrismaReadRetry(() => prisma.category.findUnique({
     where: { slug },
     select: { id: true, name: true, slug: true, description: true },
-  });
+  }));
   if (!category) {
     return { notFound: true };
   }
   ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
 
-  const postsRaw = await prisma.post.findMany({
+  const postsRaw = await withPrismaReadRetry(() => prisma.post.findMany({
     where: {
       ...getPublishedWhere(),
       categories: { some: { categoryId: category.id } },
@@ -150,7 +151,7 @@ export const getServerSideProps: GetServerSideProps<CategoryPageProps> = async (
         select: { isPillar: true },
       },
     },
-  });
+  }));
 
   const pillarCandidate = postsRaw.find((post) => post.clusters.some((cluster) => cluster.isPillar));
 

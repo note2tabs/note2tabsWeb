@@ -24,7 +24,6 @@ import {
 import {
   prepareTrackInstrument,
   schedulePreparedTrackNote,
-  warmTrackInstrument,
 } from "../lib/gteSoundfonts";
 import { getOpenStringMidiFromSnapshot, getStringLabelsForSnapshot } from "../lib/gteTuning";
 import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
@@ -38,6 +37,30 @@ import {
   downloadGteExportFile,
   type GteExportFormat,
 } from "../lib/gteTabExport";
+
+const AUDIO_CONTEXT_RESUME_ERROR =
+  "Your browser blocked audio playback. Tap Play again to allow sound.";
+
+function resumeAudioContext(ctx: AudioContext): Promise<void> {
+  try {
+    return Promise.resolve(ctx.resume())
+      .then(() => {
+        if (ctx.state !== "running") {
+          throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
+        }
+      })
+      .catch(() => {
+        throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
+      });
+  } catch {
+    return Promise.reject(new Error(AUDIO_CONTEXT_RESUME_ERROR));
+  }
+}
+
+function closeAudioContext(ctx: AudioContext) {
+  if (ctx.state === "closed") return;
+  void ctx.close().catch(() => undefined);
+}
 
 type Props = {
   editorId: string;
@@ -65,6 +88,7 @@ type Props = {
   onRequestRedo?: () => void;
   globalPlaybackFrame?: number;
   globalPlaybackIsPlaying?: boolean;
+  globalPlaybackIsPreparing?: boolean;
   globalPlaybackVolume?: number;
   globalPlaybackTimelineEnd?: number;
   onGlobalPlaybackToggle?: () => void;
@@ -1144,6 +1168,7 @@ export default function GteWorkspace({
   onRequestRedo,
   globalPlaybackFrame,
   globalPlaybackIsPlaying,
+  globalPlaybackIsPreparing,
   globalPlaybackVolume,
   globalPlaybackTimelineEnd,
   onGlobalPlaybackToggle,
@@ -1233,6 +1258,7 @@ export default function GteWorkspace({
   const [deleteBoundaryIndex, setDeleteBoundaryIndex] = useState<OptionalNumber>(null);
   const [showGenerateCutsConfirm, setShowGenerateCutsConfirm] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackPreparing, setPlaybackPreparing] = useState(false);
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
   const [multiDrag, setMultiDrag] = useState<MultiDragState | null>(null);
@@ -1476,6 +1502,9 @@ export default function GteWorkspace({
     typeof onGlobalPlaybackFrameChange === "function";
   const effectivePlayheadFrame = useExternalPlayback ? globalPlaybackFrame ?? 0 : playheadFrame;
   const effectiveIsPlaying = useExternalPlayback ? Boolean(globalPlaybackIsPlaying) : isPlaying;
+  const effectivePlaybackPreparing = useExternalPlayback
+    ? Boolean(globalPlaybackIsPreparing)
+    : playbackPreparing;
   const effectivePlaybackVolume = useExternalPlayback
     ? Math.max(0, Math.min(1, globalPlaybackVolume ?? playbackVolume))
     : playbackVolume;
@@ -1813,10 +1842,6 @@ export default function GteWorkspace({
   }, [effectivePlaybackVolume]);
 
   useEffect(() => {
-    void warmTrackInstrument(snapshot.instrumentId);
-  }, [snapshot.instrumentId]);
-
-  useEffect(() => {
     if (useExternalPlayback) return;
     if (playheadFrame > timelineEnd) {
       setPlayheadFrame(timelineEnd);
@@ -1830,7 +1855,7 @@ export default function GteWorkspace({
         autosaveTimerRef.current = null;
       }
       if (previewAudioRef.current) {
-        void previewAudioRef.current.close();
+        closeAudioContext(previewAudioRef.current);
         previewAudioRef.current = null;
       }
       previewGainRef.current = null;
@@ -2263,7 +2288,7 @@ export default function GteWorkspace({
   useEffect(() => {
     return () => {
       if (audioRef.current) {
-        void audioRef.current.close();
+        closeAudioContext(audioRef.current);
         audioRef.current = null;
       }
     };
@@ -6692,24 +6717,46 @@ export default function GteWorkspace({
     const midi = getMidiFromTab(tab, midiOverride);
     if (!Number.isFinite(midi) || midi <= 0) return;
 
-    const instrument = await prepareTrackInstrument(snapshot.instrumentId);
-    const { ctx, master } = ensurePreviewAudio();
-    void ctx.resume();
+    let preview: ReturnType<typeof ensurePreviewAudio> | null = null;
+    try {
+      // resume() must be invoked before the first await so Safari keeps the user gesture.
+      preview = ensurePreviewAudio();
+      const audioReady = resumeAudioContext(preview.ctx);
+      const [instrument] = await Promise.all([
+        prepareTrackInstrument(snapshot.instrumentId),
+        audioReady,
+      ]);
+      if (
+        previewAudioRef.current !== preview.ctx ||
+        previewGainRef.current !== preview.master ||
+        preview.ctx.state !== "running"
+      ) {
+        return;
+      }
 
-    schedulePreparedTrackNote({
-      ctx,
-      destination: master,
-      instrument,
-      midi,
-      gain: 0.6,
-      startTime: ctx.currentTime + 0.005,
-      duration: 0.16,
-    });
+      schedulePreparedTrackNote({
+        ctx: preview.ctx,
+        destination: preview.master,
+        instrument,
+        midi,
+        gain: 0.6,
+        startTime: preview.ctx.currentTime + 0.005,
+        duration: 0.16,
+      });
+    } catch (error) {
+      if (preview && previewAudioRef.current !== preview.ctx) return;
+      if (preview && preview.ctx.state !== "running") {
+        closeAudioContext(preview.ctx);
+        previewAudioRef.current = null;
+        previewGainRef.current = null;
+      }
+      setError(error instanceof Error ? error.message : "Could not play the selected guitar sound.");
+    }
   }
 
   const stopAudio = () => {
     if (audioRef.current) {
-      void audioRef.current.close();
+      closeAudioContext(audioRef.current);
       audioRef.current = null;
     }
     masterGainRef.current = null;
@@ -6734,7 +6781,13 @@ export default function GteWorkspace({
     oscillator.stop(startTime + 0.06);
   };
 
-  const schedulePlayback = async (startFrame: number, speedOverride?: number) => {
+  const schedulePlayback = async (
+    ctx: AudioContext,
+    audioReady: Promise<void>,
+    isCurrentRequest: () => boolean,
+    startFrame: number,
+    speedOverride?: number
+  ) => {
     const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? effectivePlaybackSpeed);
     const playbackStartFrame =
       effectivePracticeLoopEnabled && effectivePracticeLoopRange
@@ -6935,9 +6988,13 @@ export default function GteWorkspace({
       });
     });
 
-    const instrument = await prepareTrackInstrument(snapshot.instrumentId);
-    const ctx = new AudioContext();
-    void ctx.resume();
+    const [instrument] = await Promise.all([
+      prepareTrackInstrument(snapshot.instrumentId),
+      audioReady,
+    ]);
+    if (!isCurrentRequest() || ctx.state !== "running") {
+      throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
+    }
     const latencySec =
       (Number.isFinite(ctx.baseLatency) ? ctx.baseLatency : 0) +
       (Number.isFinite((ctx as AudioContext).outputLatency)
@@ -7007,6 +7064,7 @@ export default function GteWorkspace({
   const stopPlayback = () => {
     playbackStartRequestRef.current += 1;
     playbackStartPendingRef.current = false;
+    setPlaybackPreparing(false);
     if (playheadRafRef.current !== null) {
       window.cancelAnimationFrame(playheadRafRef.current);
       playheadRafRef.current = null;
@@ -7021,6 +7079,7 @@ export default function GteWorkspace({
   const startPlayback = async (startFrameOverride?: number, speedOverride?: number) => {
     if (playheadRafRef.current !== null || playbackStartPendingRef.current) return;
     playbackStartPendingRef.current = true;
+    setPlaybackPreparing(true);
     const requestId = playbackStartRequestRef.current + 1;
     playbackStartRequestRef.current = requestId;
     const requestedStartFrame = clamp(
@@ -7034,16 +7093,45 @@ export default function GteWorkspace({
         : requestedStartFrame;
     stopAudio();
     const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? effectivePlaybackSpeed);
-    const scheduled = await schedulePlayback(startFrame, runPlaybackSpeed);
-    playbackStartPendingRef.current = false;
-    if (playbackStartRequestRef.current !== requestId) {
-      if (scheduled?.ctx) {
-        void scheduled.ctx.close();
+    let scheduled: Awaited<ReturnType<typeof schedulePlayback>>;
+    let playbackContext: AudioContext | null = null;
+    try {
+      // Creating and resuming the context here preserves the transient click/key activation.
+      playbackContext = new AudioContext();
+      audioRef.current = playbackContext;
+      const audioReady = resumeAudioContext(playbackContext);
+      scheduled = await schedulePlayback(
+        playbackContext,
+        audioReady,
+        () =>
+          playbackStartRequestRef.current === requestId &&
+          audioRef.current === playbackContext,
+        startFrame,
+        runPlaybackSpeed
+      );
+    } catch (error) {
+      if (playbackContext) {
+        closeAudioContext(playbackContext);
+        if (audioRef.current === playbackContext) {
+          audioRef.current = null;
+          masterGainRef.current = null;
+        }
+      }
+      if (playbackStartRequestRef.current === requestId) {
+        setError(error instanceof Error ? error.message : "Could not load the selected guitar sound.");
       }
       return;
+    } finally {
+      if (playbackStartRequestRef.current === requestId) {
+        playbackStartPendingRef.current = false;
+        setPlaybackPreparing(false);
+      }
     }
-    if (scheduled?.ctx) {
-      audioRef.current = scheduled.ctx;
+    if (playbackStartRequestRef.current !== requestId) {
+      if (scheduled?.ctx) {
+        closeAudioContext(scheduled.ctx);
+      }
+      return;
     }
     playheadAudioStartRef.current = scheduled?.startTimeSec ?? null;
     setEffectivePlayheadFrame(startFrame);
@@ -9547,13 +9635,14 @@ export default function GteWorkspace({
             {mobileViewport ? (
               <div
                 data-gte-floating-ui="true"
-                className="pointer-events-auto flex w-full items-center justify-between gap-1 rounded-2xl border border-slate-200 bg-white/96 px-2 py-2 text-slate-700 shadow-lg backdrop-blur"
+                className="pointer-events-auto flex w-full items-center justify-start gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white/96 px-2 py-2 text-slate-700 shadow-lg backdrop-blur"
               >
                 <button
                   type="button"
                   onClick={skipToStart}
-                  className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Go to start"
+                  aria-label="Go to start"
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <rect x="4" y="5" width="2" height="14" />
@@ -9563,8 +9652,9 @@ export default function GteWorkspace({
                 <button
                   type="button"
                   onClick={skipBackwardBar}
-                  className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Previous bar"
+                  aria-label="Previous bar"
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="17,5 7,12 17,19" />
@@ -9575,10 +9665,15 @@ export default function GteWorkspace({
                   onClick={() => {
                     togglePlayback();
                   }}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
-                  title={effectiveIsPlaying ? "Pause" : "Play"}
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:cursor-wait disabled:bg-slate-700"
+                  title={effectivePlaybackPreparing ? "Loading guitar sound" : effectiveIsPlaying ? "Pause" : "Play"}
+                  aria-label={effectivePlaybackPreparing ? "Loading guitar sound" : effectiveIsPlaying ? "Pause" : "Play"}
+                  aria-busy={effectivePlaybackPreparing}
+                  disabled={effectivePlaybackPreparing}
                 >
-                  {effectiveIsPlaying ? (
+                  {effectivePlaybackPreparing ? (
+                    <span className="animate-pulse text-xs font-bold" aria-hidden="true">•••</span>
+                  ) : effectiveIsPlaying ? (
                     <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                       <rect x="6" y="5" width="4" height="14" />
                       <rect x="14" y="5" width="4" height="14" />
@@ -9592,14 +9687,15 @@ export default function GteWorkspace({
                 <button
                   type="button"
                   onClick={skipForwardBar}
-                  className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Next bar"
+                  aria-label="Next bar"
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="7,5 17,12 7,19" />
                   </svg>
                 </button>
-                <div className="flex min-w-0 flex-1 items-center gap-2 pl-1">
+                <div className="flex min-w-24 shrink-0 items-center gap-2 pl-1">
                   <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 fill-current text-slate-500" aria-hidden="true">
                     <path d="M4 10v4h4l5 4V6L8 10H4z" />
                     <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
@@ -9620,10 +9716,11 @@ export default function GteWorkspace({
                   onClick={() => setEffectivePracticeLoopEnabled(!effectivePracticeLoopEnabled)}
                   disabled={!effectivePracticeLoopRange}
                   aria-pressed={effectivePracticeLoopEnabled}
-                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
                     effectivePracticeLoopEnabled ? "bg-emerald-100 text-emerald-800" : "hover:bg-slate-100"
                   }`}
                   title="Loop selected bars"
+                  aria-label="Loop selected bars"
                 >
                   L
                 </button>
@@ -9631,10 +9728,11 @@ export default function GteWorkspace({
                   type="button"
                   onClick={() => setEffectiveMetronomeEnabled(!effectiveMetronomeEnabled)}
                   aria-pressed={effectiveMetronomeEnabled}
-                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold ${
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                     effectiveMetronomeEnabled ? "bg-sky-100 text-sky-800" : "hover:bg-slate-100"
                   }`}
                   title="Metronome"
+                  aria-label="Metronome"
                 >
                   M
                 </button>
@@ -9642,10 +9740,11 @@ export default function GteWorkspace({
                   type="button"
                   onClick={() => setEffectiveCountInEnabled(!effectiveCountInEnabled)}
                   aria-pressed={effectiveCountInEnabled}
-                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold ${
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                     effectiveCountInEnabled ? "bg-amber-100 text-amber-800" : "hover:bg-slate-100"
                   }`}
                   title="One-bar count-in"
+                  aria-label="One-bar count-in"
                 >
                   1
                 </button>
@@ -9654,17 +9753,18 @@ export default function GteWorkspace({
                   onClick={() => setEffectiveSpeedTrainerEnabled(!effectiveSpeedTrainerEnabled)}
                   disabled={!effectivePracticeLoopEnabled}
                   aria-pressed={effectiveSpeedTrainerEnabled}
-                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
                     effectiveSpeedTrainerEnabled ? "bg-violet-100 text-violet-800" : "hover:bg-slate-100"
                   }`}
                   title="Speed trainer"
+                  aria-label="Speed trainer"
                 >
                   T
                 </button>
                 <select
                   value={effectivePlaybackSpeed}
                   onChange={(event) => setEffectivePlaybackSpeed(Number(event.target.value))}
-                  className="h-9 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                  className="h-11 shrink-0 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
                   title="Playback speed"
                 >
                   {effectivePlaybackSpeedOptions.map((speed) => (
@@ -9748,8 +9848,9 @@ export default function GteWorkspace({
                 <button
                   type="button"
                   onClick={skipToStart}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Go to start"
+                  aria-label="Go to start"
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <rect x="4" y="5" width="2" height="14" />
@@ -9759,8 +9860,9 @@ export default function GteWorkspace({
                 <button
                   type="button"
                   onClick={skipBackwardBar}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Previous bar"
+                  aria-label="Previous bar"
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="17,5 7,12 17,19" />
@@ -9771,10 +9873,15 @@ export default function GteWorkspace({
                   onClick={() => {
                     togglePlayback();
                   }}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
-                  title={effectiveIsPlaying ? "Pause" : "Play"}
+                  className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:cursor-wait disabled:bg-slate-700"
+                  title={effectivePlaybackPreparing ? "Loading guitar sound" : effectiveIsPlaying ? "Pause" : "Play"}
+                  aria-label={effectivePlaybackPreparing ? "Loading guitar sound" : effectiveIsPlaying ? "Pause" : "Play"}
+                  aria-busy={effectivePlaybackPreparing}
+                  disabled={effectivePlaybackPreparing}
                 >
-                  {effectiveIsPlaying ? (
+                  {effectivePlaybackPreparing ? (
+                    <span className="animate-pulse text-xs font-bold" aria-hidden="true">•••</span>
+                  ) : effectiveIsPlaying ? (
                     <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                       <rect x="6" y="5" width="4" height="14" />
                       <rect x="14" y="5" width="4" height="14" />
@@ -9788,8 +9895,9 @@ export default function GteWorkspace({
                 <button
                   type="button"
                   onClick={skipForwardBar}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Next bar"
+                  aria-label="Next bar"
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="7,5 17,12 7,19" />

@@ -25,6 +25,23 @@ import {
 import SeoHead, { SITE_NAME, absoluteUrl } from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
+import { normalizeUploadFilename } from "../lib/uploadFilename";
+import {
+  clearPendingTranscription,
+  peekPendingTranscription,
+  savePendingTranscription,
+} from "../lib/pendingTranscription";
+import {
+  clearRecoverableCheckoutSessionId,
+  confirmPremiumCheckout,
+  getRecoverableCheckoutSessionId,
+  hideCheckoutSessionIdFromAddressBar,
+  waitForPremiumEntitlement,
+} from "../lib/premiumEntitlement";
+import {
+  analyticsHttpStatusClass,
+  categorizeAnalyticsError,
+} from "../lib/analyticsErrors";
 
 type TabsResponse = {
   tabs: string[][];
@@ -144,7 +161,7 @@ const parseYouTubeId = (value: string): string | null => {
 };
 
 export default function TranscriberPage() {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const router = useRouter();
   const [mode, setMode] = useState<"FILE" | "YOUTUBE">("FILE");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -177,13 +194,20 @@ export default function TranscriberPage() {
   const [editorChoice, setEditorChoice] = useState<string>("new");
   const [editorLoading, setEditorLoading] = useState(false);
   const [localUnverifiedTranscriptionUsed, setLocalUnverifiedTranscriptionUsed] = useState(false);
+  const [authHandoffBusy, setAuthHandoffBusy] = useState(false);
+  const [upgradeBusy, setUpgradeBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
   const convertInFlightRef = useRef(false);
+  const authHandoffInFlightRef = useRef(false);
+  const resumeHandoffAttemptRef = useRef(0);
   const disableDbInDev = isLocalNoDbClientMode;
   const transcriberSession = session ?? null;
   const isSignedIn = Boolean(transcriberSession);
   const isPremiumUser = isPremiumRole(transcriberSession?.user?.role);
+  const needsPremiumForSelectedFile = Boolean(
+    transcriberSession && !isPremiumUser && selectedFile && selectedFile.size > MAX_FREE_BYTES
+  );
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
   const unverifiedTranscriptionUsed =
@@ -321,6 +345,11 @@ export default function TranscriberPage() {
     }
   }, [mode]);
 
+  useEffect(() => {
+    if (!router.isReady || router.query.mode !== "youtube") return;
+    setMode("YOUTUBE");
+  }, [router.isReady, router.query.mode]);
+
   const applyFileClipDefaults = (duration: number | null) => {
     const nextRange = getDefaultFileClipRange(duration, isPremiumUser);
     setFileStartTime(nextRange.start);
@@ -339,6 +368,110 @@ export default function TranscriberPage() {
       applyFileClipDefaults(duration);
     });
   };
+
+  useEffect(() => {
+    if (!router.isReady || sessionStatus !== "authenticated") return;
+    if (router.query.resumeTranscription !== "1") return;
+    const attemptId = resumeHandoffAttemptRef.current + 1;
+    resumeHandoffAttemptRef.current = attemptId;
+    let cancelled = false;
+
+    const restorePendingTranscription = async () => {
+      const pending = await peekPendingTranscription();
+      if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
+      if (!pending) {
+        setError("Your saved upload expired or could not be restored. Please choose it again to continue.");
+        await router.replace("/transcribe", undefined, { shallow: true });
+        return;
+      }
+
+      const returnedFromBilling =
+        router.query.upgrade === "success" || router.query.upgrade === "manage";
+      const requiresPremium = pending.mode === "FILE" && pending.file.size > MAX_FREE_BYTES;
+      let premiumEntitlementReady = isPremiumUser;
+      const checkoutSessionIdValue = router.query.session_id;
+      const checkoutSessionIdFromQuery = Array.isArray(checkoutSessionIdValue)
+        ? checkoutSessionIdValue[0]
+        : checkoutSessionIdValue;
+      if (returnedFromBilling) hideCheckoutSessionIdFromAddressBar();
+      const checkoutSessionId =
+        router.query.upgrade === "success"
+          ? typeof checkoutSessionIdFromQuery === "string"
+            ? checkoutSessionIdFromQuery
+            : getRecoverableCheckoutSessionId()
+          : null;
+
+      if (returnedFromBilling && requiresPremium && !premiumEntitlementReady) {
+        setError(null);
+        setStatus("Payment received. Activating Premium and restoring your upload…");
+        if (typeof checkoutSessionId === "string") {
+          await confirmPremiumCheckout(checkoutSessionId);
+        }
+        if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
+        premiumEntitlementReady = await waitForPremiumEntitlement(
+          () => updateSession(),
+          {
+            shouldStop: () => cancelled || resumeHandoffAttemptRef.current !== attemptId,
+          }
+        );
+        if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
+        if (!premiumEntitlementReady) {
+          setStatus(null);
+          setError(
+            "Premium is still activating. Your upload is safe—reload this page to retry."
+          );
+          return;
+        }
+        clearRecoverableCheckoutSessionId();
+      } else if (returnedFromBilling && premiumEntitlementReady) {
+        clearRecoverableCheckoutSessionId();
+      }
+
+      setError(null);
+      if (pending.mode === "FILE") {
+        setMode("FILE");
+        setSelectedFile(pending.file);
+        setFileDuration(null);
+        setFileStartTime(pending.fileStartTime);
+        setFileStartInput(formatTimestamp(pending.fileStartTime));
+        setFileEndTime(pending.fileEndTime);
+        setFileEndInput(formatTimestamp(pending.fileEndTime));
+        const duration = await getAudioFileDuration(pending.file);
+        if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
+        setFileDuration(duration);
+      } else {
+        setMode("YOUTUBE");
+        setYoutubeUrl(pending.youtubeUrl);
+        setYtStartTime(pending.startTime);
+        setYtStartInput(formatTimestamp(pending.startTime));
+        setYtEndTime(pending.endTime);
+        setYtEndInput(formatTimestamp(pending.endTime));
+      }
+
+      if (pending.mode === "FILE" && pending.file.size > MAX_PREMIUM_BYTES) {
+        setError(`The restored file exceeds the ${formatMb(MAX_PREMIUM_BYTES)} upload limit.`);
+        setStatus("Choose a smaller audio file to continue.");
+      } else if (requiresPremium && !premiumEntitlementReady) {
+        setStatus("Your upload is restored. Upgrade to Premium to transcribe this file.");
+      } else if (!canUseUnverifiedTranscription) {
+        setError("Please verify your email to continue using the transcriber.");
+        setStatus("Your upload is restored and will remain available after verification.");
+      } else {
+        setStatus("Welcome back — your transcription is ready to continue.");
+      }
+
+      sendEvent(ANALYTICS_EVENTS.authHandoffResumed, { mode: pending.mode, path: "/transcribe" });
+      await router.replace("/transcribe", undefined, { shallow: true });
+    };
+
+    void restorePendingTranscription().catch(() => {
+      if (!cancelled) setError("You are signed in. Please choose the audio again to continue.");
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router.isReady, router.query.resumeTranscription, sessionStatus]);
 
   useEffect(() => {
     if (!selectedFile || fileDuration === null || fileStartTime !== 0 || fileEndTime === null) return;
@@ -465,9 +598,9 @@ export default function TranscriberPage() {
   const youtubeValid = useMemo(() => Boolean(youtubeId), [youtubeId]);
 
   const canSubmit = useMemo(() => {
-    if (isSignedIn && !canUseUnverifiedTranscription) return false;
-    if (mode === "FILE") return Boolean(selectedFile) && fileTimeRangeValid && !loading;
-    return youtubeValid && youtubeTimeRangeValid && !loading;
+    if (sessionStatus === "loading" || (isSignedIn && !canUseUnverifiedTranscription)) return false;
+    if (mode === "FILE") return Boolean(selectedFile) && fileTimeRangeValid && !loading && !authHandoffBusy;
+    return youtubeValid && youtubeTimeRangeValid && !loading && !authHandoffBusy;
   }, [
     mode,
     selectedFile,
@@ -475,10 +608,14 @@ export default function TranscriberPage() {
     youtubeValid,
     youtubeTimeRangeValid,
     loading,
+    authHandoffBusy,
     isSignedIn,
     canUseUnverifiedTranscription,
+    sessionStatus,
   ]);
-  const submitLabel = loading
+  const submitLabel = authHandoffBusy
+    ? "Opening sign in…"
+    : loading
     ? mode === "YOUTUBE"
       ? "Downloading..."
       : "Generating..."
@@ -553,11 +690,54 @@ export default function TranscriberPage() {
   };
 
   const handleConvert = async () => {
-    if (convertInFlightRef.current || loading) return;
+    if (convertInFlightRef.current || authHandoffInFlightRef.current || loading) return;
+    if (sessionStatus === "loading") {
+      setStatus("Checking your account…");
+      return;
+    }
 
     if (!transcriberSession && !disableDbInDev) {
-      setError("Sign in to start transcribing.");
-      signIn(undefined, { callbackUrl: "/" });
+      if (mode === "FILE" && selectedFile && selectedFile.size > MAX_PREMIUM_BYTES) {
+        setError(`Files over ${formatMb(MAX_PREMIUM_BYTES)} cannot be preserved through sign-in.`);
+        sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, {
+          reason: "file_too_large",
+          mode,
+          size: selectedFile.size,
+          maxBytes: MAX_PREMIUM_BYTES,
+        });
+        return;
+      }
+      authHandoffInFlightRef.current = true;
+      setAuthHandoffBusy(true);
+      setError(null);
+      setStatus("Saving your selection before sign-in…");
+      try {
+        await savePendingTranscription(
+          mode === "FILE" && selectedFile
+            ? {
+                mode: "FILE",
+                file: selectedFile,
+                fileStartTime: Math.max(0, fileStartTime ?? 0),
+                fileEndTime: Math.max(1, fileEndTime ?? DEFAULT_FILE_SNIPPET_SEC),
+                savedAt: Date.now(),
+              }
+            : {
+                mode: "YOUTUBE",
+                youtubeUrl: youtubeUrl.trim(),
+                startTime: Math.max(0, ytStartTime ?? 0),
+                endTime: Math.max(1, ytEndTime ?? MAX_YT_SNIPPET_SEC),
+                savedAt: Date.now(),
+              }
+        );
+        sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "signed_out", mode });
+        sendEvent(ANALYTICS_EVENTS.authHandoffSaved, { mode, path: "/transcribe" });
+        await signIn(undefined, { callbackUrl: "/transcribe?resumeTranscription=1" });
+      } catch {
+        setError("We could not safely preserve this audio for sign-in. Please sign in first, then choose it again.");
+      } finally {
+        authHandoffInFlightRef.current = false;
+        setAuthHandoffBusy(false);
+      }
       return;
     }
     if (transcriberSession && !canUseUnverifiedTranscription) {
@@ -632,11 +812,15 @@ export default function TranscriberPage() {
     setTranscriberSegments(null);
     setStatus(mode === "FILE" ? transcribingStatusLabel : "Preparing YouTube...");
     setLoading(true);
-    sendEvent("transcribe_start", { mode, ytUrl: youtubeUrl || undefined });
+    sendEvent("transcribe_start", {
+      mode,
+      input_source: mode === "YOUTUBE" ? "youtube" : "local_file",
+    });
 
     try {
       let response: Response;
       if (mode === "FILE" && selectedFile) {
+        const uploadFileName = normalizeUploadFilename(selectedFile.name);
         const postFileDirectly = async () => {
           const fd = new FormData();
           fd.append("mode", "FILE");
@@ -648,7 +832,7 @@ export default function TranscriberPage() {
           if (shouldDeferEditorSync) {
             fd.append("skipAutoEditorSync", "true");
           }
-          fd.append("file", selectedFile);
+          fd.append("file", selectedFile, uploadFileName);
           setStatus(transcribingStatusLabel);
           return await fetch("/api/transcribe", { method: "POST", body: fd });
         };
@@ -661,7 +845,7 @@ export default function TranscriberPage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              fileName: selectedFile.name,
+              fileName: uploadFileName,
               contentType: selectedFile.type || "application/octet-stream",
               size: selectedFile.size,
             }),
@@ -686,7 +870,7 @@ export default function TranscriberPage() {
             const payload: Record<string, unknown> = {
               mode: "FILE",
               s3Key: presignData.key,
-              fileName: selectedFile.name,
+              fileName: uploadFileName,
               separateGuitar,
               multipleGuitars,
               transcriptionModel,
@@ -722,6 +906,7 @@ export default function TranscriberPage() {
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
       if (response.status === 202 && data.jobId) {
+        await clearPendingTranscription().catch(() => {});
         if (data.credits) {
           setCredits(data.credits);
         }
@@ -757,15 +942,20 @@ export default function TranscriberPage() {
           return;
         }
         setError(data?.error || "Transcription failed. Please try again.");
-        sendEvent("transcribe_error", { mode, error: data?.error || "unknown" });
+        sendEvent("transcribe_error", {
+          mode,
+          error_code: categorizeAnalyticsError(data?.error, "transcription_failed"),
+          http_status_class: analyticsHttpStatusClass(response.status),
+        });
         return;
       }
       if (!data.tabs || !Array.isArray(data.tabs)) {
         setError("No tabs returned from server.");
-        sendEvent("transcribe_error", { mode, error: "no tabs" });
+        sendEvent("transcribe_error", { mode, error_code: "no_tabs" });
         return;
       }
       const nextTabs = data.tabs;
+      await clearPendingTranscription().catch(() => {});
       setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
       if (data.credits) {
         setCredits(data.credits);
@@ -798,10 +988,45 @@ export default function TranscriberPage() {
       return;
     } catch (err: any) {
       setError(err?.message || "Something went wrong. Please try again.");
-      sendEvent("transcribe_error", { mode, error: err?.message || "unknown" });
+      sendEvent("transcribe_error", {
+        mode,
+        error_code: categorizeAnalyticsError(err, "transcription_failed"),
+      });
     } finally {
       setLoading(false);
       convertInFlightRef.current = false;
+    }
+  };
+
+  const handlePreservedUploadUpgrade = async () => {
+    if (!selectedFile || upgradeBusy) return;
+    setUpgradeBusy(true);
+    setError(null);
+    try {
+      await savePendingTranscription({
+        mode: "FILE",
+        file: selectedFile,
+        fileStartTime: Math.max(0, fileStartTime ?? 0),
+        fileEndTime: Math.max(1, fileEndTime ?? DEFAULT_FILE_SNIPPET_SEC),
+        savedAt: Date.now(),
+      });
+      const response = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnTo: "/transcribe?resumeTranscription=1" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.url) {
+        throw new Error(payload?.error || "Could not start checkout.");
+      }
+      sendEvent(ANALYTICS_EVENTS.checkoutStarted, {
+        source: "large_upload_gate",
+        plan: "premium_monthly",
+      });
+      window.location.assign(payload.url);
+    } catch (upgradeError) {
+      setError(upgradeError instanceof Error ? upgradeError.message : "Could not start checkout.");
+      setUpgradeBusy(false);
     }
   };
 
@@ -861,7 +1086,7 @@ export default function TranscriberPage() {
       setImportError(message);
       sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
         ...eventProperties,
-        error: message,
+        error_code: categorizeAnalyticsError(err, "editor_import_failed"),
       });
     } finally {
       setImportBusy(false);
@@ -908,18 +1133,13 @@ export default function TranscriberPage() {
       setImportError(message);
       sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
         ...eventProperties,
-        error: message,
+        error_code: categorizeAnalyticsError(err, "editor_import_failed"),
       });
     } finally {
       setImportBusy(false);
     }
   };
 
-  const preventEnterSubmit = (event: KeyboardEvent<HTMLFormElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-    }
-  };
   const creditsUsageLabel = displayedCredits
     ? `${displayedCredits.remaining}/${displayedCredits.limit}`
     : transcriberSession || disableDbInDev
@@ -979,7 +1199,7 @@ export default function TranscriberPage() {
       />
 
       <main className="page page-home">
-        <section className="hero" id="hero">
+        <section className="hero hero--transcriber" id="hero">
           <div className="hero-glow hero-glow--one" aria-hidden="true" />
           <div className="hero-glow hero-glow--two" aria-hidden="true" />
           <div className="container hero-stack hero-stack--centered">
@@ -990,16 +1210,15 @@ export default function TranscriberPage() {
               <p className="hero-subtitle">
                 Upload audio or enter a YouTube segment and get a draft tab you can refine in the editor.
               </p>
-              <div className="button-row hero-cta-row">
-                <Link href="/gte" className="button-primary">
-                  Open Guitar Tab Editor
-                </Link>
-                <Link href="/" className="button-secondary">
-                  Back to home
-                </Link>
-              </div>
             </div>
-            <form className="prompt-shell" data-reveal onKeyDown={preventEnterSubmit}>
+            <form
+              className="prompt-shell"
+              data-reveal
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleConvert();
+              }}
+            >
               {displayedCredits && (
                 <div className="prompt-top prompt-top--solo">
                   <div className="prompt-balance">
@@ -1012,10 +1231,11 @@ export default function TranscriberPage() {
                 </div>
               )}
 
-              <div className="mode-switch" role="tablist" aria-label="Input mode">
+              <div className="mode-switch" role="group" aria-label="Input mode">
                 <button
                   type="button"
                   className={mode === "FILE" ? "active" : ""}
+                  aria-pressed={mode === "FILE"}
                   onClick={() => setMode("FILE")}
                 >
                   Audio file
@@ -1023,6 +1243,7 @@ export default function TranscriberPage() {
                 <button
                   type="button"
                   className={mode === "YOUTUBE" ? "active" : ""}
+                  aria-pressed={mode === "YOUTUBE"}
                   onClick={() => setMode("YOUTUBE")}
                 >
                   YouTube link
@@ -1030,7 +1251,7 @@ export default function TranscriberPage() {
               </div>
 
               <div className="prompt-field">
-                {loading && status ? (
+                {(loading || authHandoffBusy) && status ? (
                   <TranscriptionStartStatus status={status} compact />
                 ) : mode === "FILE" ? (
                   <div
@@ -1050,7 +1271,7 @@ export default function TranscriberPage() {
                       accept={AUDIO_ACCEPT}
                       className="native-file-input"
                       aria-label="Choose audio file"
-                      disabled={loading}
+                      disabled={loading || authHandoffBusy}
                       onChange={onFileChange}
                     />
                   </div>
@@ -1072,7 +1293,7 @@ export default function TranscriberPage() {
                       type="checkbox"
                       checked={separateGuitar}
                       onChange={(event) => setSeparateGuitar(event.target.checked)}
-                      disabled={loading}
+                      disabled={loading || authHandoffBusy}
                     />
                     <span>Does your audio include other instruments?</span>
                   </label>
@@ -1083,7 +1304,7 @@ export default function TranscriberPage() {
                       type="checkbox"
                       checked={multipleGuitars}
                       onChange={(event) => setMultipleGuitars(event.target.checked)}
-                      disabled={loading}
+                      disabled={loading || authHandoffBusy}
                     />
                     <span>Does your audio include more than one guitar?</span>
                   </label>
@@ -1093,7 +1314,7 @@ export default function TranscriberPage() {
                     id="transcriber-transcription-model"
                     value={transcriptionModel}
                     onChange={setTranscriptionModel}
-                    disabled={loading}
+                    disabled={loading || authHandoffBusy}
                   />
                 </div>
               </div>
@@ -1173,17 +1394,29 @@ export default function TranscriberPage() {
 
               <div className="prompt-actions">
                 <button
-                  type="button"
+                  type="submit"
                   className="button-primary"
                   disabled={!canSubmit}
-                  onClick={() => void handleConvert()}
                 >
                   {submitLabel}
                 </button>
               </div>
 
-              {status && !loading && <div className="status">{status}</div>}
-              {error && <div className="error">{error}</div>}
+              {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
+              {error && <div className="error" role="alert">{error}</div>}
+              {needsPremiumForSelectedFile && (
+                <div className="notice">
+                  <p>This file is safely preserved. Premium supports audio files up to 200 MB.</p>
+                  <button
+                    type="button"
+                    className="button-primary button-small"
+                    onClick={() => void handlePreservedUploadUpgrade()}
+                    disabled={upgradeBusy}
+                  >
+                    {upgradeBusy ? "Opening checkout…" : "Upgrade and keep this upload"}
+                  </button>
+                </div>
+              )}
               {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
                 <div className="notice">
                   Verify your email to continue using the transcriber.{" "}

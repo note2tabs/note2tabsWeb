@@ -56,6 +56,7 @@ const providers: NextAuthOptions["providers"] = [
             source: "login",
             anonId: cookies.analytics_anon,
             sessionId: cookies.analytics_session,
+            consent: cookies.analytics_consent,
             rawFingerprint,
           });
         } catch (linkError) {
@@ -227,6 +228,7 @@ export const authOptions: NextAuthOptions = {
         const isEmailVerified = Boolean((dbUser as any).emailVerifiedBool || dbUser.emailVerified);
         session.user.isEmailVerified = isEmailVerified;
         session.user.unverifiedTranscriptionUsed = dbUser.unverifiedTranscriptionUsed;
+        session.user.createdAt = dbUser.createdAt.toISOString();
         if (isEmailVerified && !(dbUser as any).emailVerifiedBool) {
           try {
             await prisma.user.update({

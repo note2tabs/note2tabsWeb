@@ -85,6 +85,29 @@ const KEY_TYPE_OPTIONS = [
 ];
 const MOBILE_EDITOR_BREAKPOINT_PX = 768;
 const GTE_GUEST_CANVAS_STORAGE_KEY = "note2tabs:gte:guest-canvas:v1";
+const AUDIO_CONTEXT_RESUME_ERROR =
+  "Your browser blocked audio playback. Tap Play again to allow sound.";
+
+function resumeAudioContext(ctx: AudioContext): Promise<void> {
+  try {
+    return Promise.resolve(ctx.resume())
+      .then(() => {
+        if (ctx.state !== "running") {
+          throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
+        }
+      })
+      .catch(() => {
+        throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
+      });
+  } catch {
+    return Promise.reject(new Error(AUDIO_CONTEXT_RESUME_ERROR));
+  }
+}
+
+function closeAudioContext(ctx: AudioContext) {
+  if (ctx.state === "closed") return;
+  void ctx.close().catch(() => undefined);
+}
 
 const toNumber = (value: unknown, fallback: number) => {
   const parsed = Number(value);
@@ -844,6 +867,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [sharedTimelineScrollRatio, setSharedTimelineScrollRatio] = useState(0);
   const [globalPlaybackFrame, setGlobalPlaybackFrame] = useState(0);
   const [globalPlaybackIsPlaying, setGlobalPlaybackIsPlaying] = useState(false);
+  const [globalPlaybackIsPreparing, setGlobalPlaybackIsPreparing] = useState(false);
   const [globalPlaybackVolume, setGlobalPlaybackVolume] = useState(0.6);
   const [practiceLoopEnabled, setPracticeLoopEnabled] = useState(false);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
@@ -1173,45 +1197,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (!canvas) return;
-    const instrumentIds = Array.from(
-      new Set(canvas.editors.map((lane) => normalizeTrackInstrumentId(lane.instrumentId)))
-    );
-    if (!instrumentIds.length) return;
-
-    let cancelled = false;
-    const warmInstruments = () => {
-      if (cancelled) return;
-      instrumentIds.forEach((instrumentId) => {
-        void warmTrackInstrument(instrumentId);
-      });
-    };
-
-    const requestIdleCallback = (window as any).requestIdleCallback as
-      | ((callback: () => void, options?: { timeout?: number }) => number)
-      | undefined;
-    const cancelIdleCallback = (window as any).cancelIdleCallback as ((id: number) => void) | undefined;
-    let idleId: number | null = null;
-    let timeoutId: number | null = null;
-
-    if (typeof requestIdleCallback === "function") {
-      idleId = requestIdleCallback(warmInstruments, { timeout: 1500 });
-    } else {
-      timeoutId = window.setTimeout(warmInstruments, 350);
-    }
-
-    return () => {
-      cancelled = true;
-      if (idleId !== null && typeof cancelIdleCallback === "function") {
-        cancelIdleCallback(idleId);
-      }
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-      }
-    };
-  }, [canvas?.editors]);
 
   const handleMainMouseDownCapture = useCallback((event: ReactMouseEvent<HTMLElement>) => {
     const target = event.target;
@@ -2511,7 +2496,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const stopGlobalPlaybackAudio = useCallback(() => {
     if (globalPlaybackAudioRef.current) {
-      void globalPlaybackAudioRef.current.close();
+      closeAudioContext(globalPlaybackAudioRef.current);
       globalPlaybackAudioRef.current = null;
     }
     globalPlaybackMasterGainRef.current = null;
@@ -2537,6 +2522,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const stopGlobalPlayback = useCallback(() => {
     globalPlaybackStartRequestRef.current += 1;
     globalPlaybackStartPendingRef.current = false;
+    setGlobalPlaybackIsPreparing(false);
     if (globalPlaybackRafRef.current !== null) {
       window.cancelAnimationFrame(globalPlaybackRafRef.current);
       globalPlaybackRafRef.current = null;
@@ -2554,7 +2540,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [editorId, stopGlobalPlayback]);
 
   const scheduleGlobalPlayback = useCallback(
-    async (startFrame: number, speedOverride?: number) => {
+    async (
+      ctx: AudioContext,
+      audioReady: Promise<void>,
+      isCurrentRequest: () => boolean,
+      startFrame: number,
+      speedOverride?: number
+    ) => {
       if (!canvas) return null;
       const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? normalizedPlaybackSpeed);
       const playbackStartFrame =
@@ -2816,18 +2808,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         });
       });
 
-      const preparedEntries = await Promise.all(
-        [...new Set(events.map((event) => event.instrumentId))].map(async (instrumentId) => {
-          const instrument = await prepareTrackInstrument(instrumentId);
-          return [instrumentId, instrument] as const;
-        })
-      );
+      const [preparedEntries] = await Promise.all([
+        Promise.all(
+          [...new Set(events.map((event) => event.instrumentId))].map(async (instrumentId) => {
+            const instrument = await prepareTrackInstrument(instrumentId);
+            return [instrumentId, instrument] as const;
+          })
+        ),
+        audioReady,
+      ]);
+      if (!isCurrentRequest() || ctx.state !== "running") {
+        throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
+      }
       const preparedByInstrumentId = new Map<string, Awaited<ReturnType<typeof prepareTrackInstrument>>>(
         preparedEntries
       );
 
-      const ctx = new AudioContext();
-      void ctx.resume();
       const latencySec =
         (Number.isFinite(ctx.baseLatency) ? ctx.baseLatency : 0) +
         (Number.isFinite((ctx as AudioContext).outputLatency)
@@ -2922,6 +2918,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!canvas) return;
     if (globalPlaybackRafRef.current !== null || globalPlaybackStartPendingRef.current) return;
     globalPlaybackStartPendingRef.current = true;
+    setGlobalPlaybackIsPreparing(true);
     const requestId = globalPlaybackStartRequestRef.current + 1;
     globalPlaybackStartRequestRef.current = requestId;
     const requestedStartFrame = Math.max(
@@ -2937,20 +2934,58 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         : requestedStartFrame;
     stopGlobalPlaybackAudio();
     const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? normalizedPlaybackSpeed);
-    const scheduled = await scheduleGlobalPlayback(startFrame, runPlaybackSpeed);
-    globalPlaybackStartPendingRef.current = false;
+    let scheduled: Awaited<ReturnType<typeof scheduleGlobalPlayback>>;
+    let playbackContext: AudioContext | null = null;
+    try {
+      // The context must be activated synchronously, before soundfont loading yields.
+      playbackContext = new AudioContext();
+      globalPlaybackAudioRef.current = playbackContext;
+      const audioReady = resumeAudioContext(playbackContext);
+      scheduled = await scheduleGlobalPlayback(
+        playbackContext,
+        audioReady,
+        () =>
+          globalPlaybackStartRequestRef.current === requestId &&
+          globalPlaybackAudioRef.current === playbackContext,
+        startFrame,
+        runPlaybackSpeed
+      );
+    } catch (error) {
+      if (playbackContext) {
+        closeAudioContext(playbackContext);
+        if (globalPlaybackAudioRef.current === playbackContext) {
+          globalPlaybackAudioRef.current = null;
+          globalPlaybackMasterGainRef.current = null;
+        }
+      }
+      if (globalPlaybackStartRequestRef.current === requestId) {
+        setSaveError(error instanceof Error ? error.message : "Could not load the selected guitar sound.");
+      }
+      return;
+    } finally {
+      if (globalPlaybackStartRequestRef.current === requestId) {
+        globalPlaybackStartPendingRef.current = false;
+        setGlobalPlaybackIsPreparing(false);
+      }
+    }
     if (globalPlaybackStartRequestRef.current !== requestId) {
       if (scheduled?.ctx) {
-        void scheduled.ctx.close();
+        closeAudioContext(scheduled.ctx);
       }
       return;
     }
     if (!scheduled?.ctx) {
+      if (playbackContext) {
+        closeAudioContext(playbackContext);
+        if (globalPlaybackAudioRef.current === playbackContext) {
+          globalPlaybackAudioRef.current = null;
+          globalPlaybackMasterGainRef.current = null;
+        }
+      }
       setGlobalPlaybackIsPlaying(false);
       return;
     }
 
-    globalPlaybackAudioRef.current = scheduled.ctx;
     globalPlaybackAudioStartRef.current = scheduled.startTimeSec ?? null;
     globalPlaybackEndFrameRef.current = Math.max(startFrame, Math.round(scheduled.endFrame ?? startFrame));
     globalPlaybackStartFrameRef.current = Math.round(scheduled.startFrame ?? startFrame);
@@ -3008,6 +3043,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   ]);
 
   const toggleGlobalPlayback = useCallback(() => {
+    if (globalPlaybackStartPendingRef.current) return;
     if (globalPlaybackIsPlaying) {
       stopGlobalPlayback();
       return;
@@ -3048,7 +3084,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const seekGlobalPlayback = useCallback(
     (frame: number) => {
       const clamped = Math.max(0, Math.min(canvasTimelineEnd, Math.round(frame)));
-      if (globalPlaybackIsPlaying) {
+      if (globalPlaybackIsPlaying || globalPlaybackStartPendingRef.current) {
         stopGlobalPlayback();
       }
       setGlobalPlaybackFrame(clamped);
@@ -4457,13 +4493,20 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             You are working without an account right now. This draft stays in this browser until you save it to your library.
           </div>
         )}
-        {loading && <p className="muted text-small">Loading editor...</p>}
+        {loading && !canvas && (
+          <div className="gte-editor-loading" role="status" aria-live="polite">
+            <div className="stack-tight">
+              <strong>Loading your editor…</strong>
+              <span className="muted text-small">Preparing tracks and controls.</span>
+            </div>
+          </div>
+        )}
         {error && <div className="error">{error}</div>}
         {saveError && <div className="error">{saveError}</div>}
         {canvas && (
           <div
-            className={`stack min-w-0 overflow-x-hidden ${
-              isMobileEditMode ? "flex-1 min-h-0 space-y-0" : "space-y-2"
+            className={`gte-editor-stage stack min-w-0 overflow-x-hidden ${
+              isMobileEditMode ? "gte-editor-stage--mobile-edit flex-1 min-h-0 space-y-0" : "space-y-2"
             }`}
           >
             <div className="flex justify-end">
@@ -4698,6 +4741,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onRequestRedo={handleCanvasRedo}
                               globalPlaybackFrame={globalPlaybackFrame}
                               globalPlaybackIsPlaying={globalPlaybackIsPlaying}
+                              globalPlaybackIsPreparing={globalPlaybackIsPreparing}
                               globalPlaybackVolume={globalPlaybackVolume}
                               globalPlaybackTimelineEnd={canvasTimelineEnd}
                               onGlobalPlaybackToggle={toggleGlobalPlayback}
@@ -4960,6 +5004,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onRequestRedo={handleCanvasRedo}
                               globalPlaybackFrame={globalPlaybackFrame}
                               globalPlaybackIsPlaying={globalPlaybackIsPlaying}
+                              globalPlaybackIsPreparing={globalPlaybackIsPreparing}
                               globalPlaybackVolume={globalPlaybackVolume}
                               globalPlaybackTimelineEnd={canvasTimelineEnd}
                               onGlobalPlaybackToggle={toggleGlobalPlayback}
@@ -5241,6 +5286,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onRequestRedo={handleCanvasRedo}
                           globalPlaybackFrame={globalPlaybackFrame}
                           globalPlaybackIsPlaying={globalPlaybackIsPlaying}
+                          globalPlaybackIsPreparing={globalPlaybackIsPreparing}
                           globalPlaybackVolume={globalPlaybackVolume}
                           globalPlaybackTimelineEnd={canvasTimelineEnd}
                           onGlobalPlaybackToggle={toggleGlobalPlayback}

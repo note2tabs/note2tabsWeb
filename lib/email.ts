@@ -68,6 +68,8 @@ function getSmtpTransporter() {
       port,
       secure: port === 465,
       auth: credentials,
+      disableFileAccess: true,
+      disableUrlAccess: true,
     });
     smtpTransportKey = key;
   }

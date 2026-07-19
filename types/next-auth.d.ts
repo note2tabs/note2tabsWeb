@@ -13,6 +13,7 @@ declare module "next-auth" {
       monthlyCreditsRemaining?: number;
       monthlyCreditsResetAt?: string;
       monthlyCreditsUnlimited?: boolean;
+      createdAt?: string;
     };
   }
 

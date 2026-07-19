@@ -40,9 +40,11 @@ export default function BlogPostCard({
       )}
 
       <div className="blog-card-body">
-        <Link href={`/blog/${slug}`} className="blog-card-title">
-          {title}
-        </Link>
+        <h2 className="blog-card-heading">
+          <Link href={`/blog/${slug}`} className="blog-card-title">
+            {title}
+          </Link>
+        </h2>
         {excerpt && <p className="blog-card-excerpt">{excerpt}</p>}
 
         {(readingMinutes || publishedLabel) && (

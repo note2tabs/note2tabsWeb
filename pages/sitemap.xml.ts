@@ -1,5 +1,6 @@
 import type { GetServerSideProps } from "next";
 import { prisma } from "../lib/prisma";
+import { withPrismaReadRetry } from "../lib/prismaRetry";
 import { getBaseUrl, getPublishedWhere } from "../lib/blog";
 
 type SitemapEntry = {
@@ -20,7 +21,6 @@ const staticPaths = [
   "/audio-to-guitar-tab-converter",
   "/youtube-to-guitar-tabs",
   "/mp3-to-guitar-tabs",
-  "/online-guitar-tab-editor",
   "/ai-guitar-tab-generator",
   "/free-guitar-tab-maker",
 ];
@@ -40,24 +40,26 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const baseUrl = getBaseUrl();
   const publishedWhere = getPublishedWhere();
 
-  const [posts, categories, tags, clusters] = await Promise.all([
-    prisma.post.findMany({
+  const [posts, categories, tags, clusters] = await withPrismaReadRetry(() =>
+    prisma.$transaction([
+      prisma.post.findMany({
       where: publishedWhere,
       select: { slug: true, updatedAt: true, publishedAt: true, publishAt: true },
-    }),
-    prisma.category.findMany({
+      }),
+      prisma.category.findMany({
       where: { posts: { some: { post: publishedWhere } } },
       select: { slug: true, updatedAt: true },
-    }),
-    prisma.tag.findMany({
+      }),
+      prisma.tag.findMany({
       where: { posts: { some: { post: publishedWhere } } },
       select: { slug: true, updatedAt: true },
-    }),
-    prisma.topicCluster.findMany({
+      }),
+      prisma.topicCluster.findMany({
       where: { posts: { some: { post: publishedWhere } } },
       select: { slug: true, updatedAt: true },
-    }),
-  ]);
+      }),
+    ])
+  );
 
   const entries: SitemapEntry[] = staticPaths.map((path) => ({ loc: buildUrl(baseUrl, path) }));
 

@@ -7,6 +7,22 @@ const BASE_URL = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
   process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 
+function isSafeBackendPath(path: string): boolean {
+  let decodedPath: string;
+  try {
+    decodedPath = decodeURIComponent(path);
+  } catch {
+    return false;
+  }
+
+  if (decodedPath.includes("\\") || decodedPath.includes("\0")) {
+    return false;
+  }
+
+  const segments = decodedPath.split("/");
+  return segments[0] === "v1" && segments.length > 1 && segments.every((segment) => segment !== "" && segment !== "." && segment !== "..");
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.id) {
@@ -18,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!path) {
     return res.status(400).json({ error: "Missing path" });
   }
-  if (!path.startsWith("v1/")) {
+  if (!isSafeBackendPath(path)) {
     return res.status(400).json({ error: "Invalid backend path" });
   }
 

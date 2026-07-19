@@ -58,22 +58,35 @@ function ensureTrackingIds() {
 }
 
 export default function CookieConsentBanner() {
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [consentState, setConsentState] = useState<"granted" | "denied">("granted");
+  const [consentState, setConsentState] = useState<"granted" | "denied" | "missing">("missing");
 
   useEffect(() => {
     const consent = getCookie(CONSENT_COOKIE);
     if (consent === "denied") {
       setConsentState("denied");
-    } else {
+      setVisible(false);
+    } else if (consent === "granted") {
       setConsentState("granted");
-      if (!consent) setCookie(CONSENT_COOKIE, "granted", 365 * 24 * 60 * 60);
+      setVisible(false);
+    } else {
+      setConsentState("missing");
+      setVisible(true);
     }
+    setHydrated(true);
 
     const openBanner = () => {
       (window as Window & { __note2tabsCookieSettingsRequested?: boolean }).__note2tabsCookieSettingsRequested = false;
-      setConsentState(getCookie(CONSENT_COOKIE) === "denied" ? "denied" : "granted");
+      const currentConsent = getCookie(CONSENT_COOKIE);
+      setConsentState(
+        currentConsent === "granted"
+          ? "granted"
+          : currentConsent === "denied"
+          ? "denied"
+          : "missing"
+      );
       setVisible(true);
     };
     window.addEventListener("note2tabs:open-cookie-settings", openBanner as EventListener);
@@ -90,7 +103,7 @@ export default function CookieConsentBanner() {
     setCookie(CONSENT_COOKIE, "granted", 365 * 24 * 60 * 60);
     try {
       ensureTrackingIds();
-      setPostHogConsent("granted");
+      await setPostHogConsent("granted");
     } catch (error) {
       // ignore errors
     } finally {
@@ -106,7 +119,7 @@ export default function CookieConsentBanner() {
     deleteCookie(SESSION_COOKIE);
     deleteCookie(ANON_COOKIE);
     try {
-      setPostHogConsent("denied");
+      await setPostHogConsent("denied");
     } catch (error) {
       // ignore errors
     } finally {
@@ -119,11 +132,13 @@ export default function CookieConsentBanner() {
   if (!visible) return null;
 
   return (
-    <div className="cookie-banner">
+    <div className={`cookie-banner${hydrated ? "" : " cookie-banner--bootstrap"}`}>
       <div className="card cookie-card">
         <p>
-          Analytics cookies are currently {consentState === "denied" ? "off" : "on"}. They help improve Note2Tabs
-          and prevent abuse. You can change this anytime. See our{" "}
+          {consentState === "missing"
+            ? "Optional analytics cookies help us improve Note2Tabs. "
+            : `Analytics cookies are currently ${consentState === "denied" ? "off" : "on"}. `}
+          Core features work either way, and you can change this anytime. See our{" "}
           <a className="button-link" href="/privacy">
             Privacy Policy
           </a>
@@ -131,10 +146,22 @@ export default function CookieConsentBanner() {
         </p>
         <div className="cookie-actions">
           <button type="button" onClick={handleAllow} disabled={processing} className="button-primary">
-            {processing ? "Saving..." : consentState === "denied" ? "Enable analytics" : "Keep analytics on"}
+            {processing
+              ? "Saving..."
+              : consentState === "missing"
+              ? "Allow analytics"
+              : consentState === "denied"
+              ? "Enable analytics"
+              : "Keep analytics on"}
           </button>
           <button type="button" onClick={() => void handleReject()} className="button-secondary" disabled={processing}>
-            {processing ? "Saving..." : consentState === "denied" ? "Keep analytics off" : "Turn analytics off"}
+            {processing
+              ? "Saving..."
+              : consentState === "missing"
+              ? "Decline analytics"
+              : consentState === "denied"
+              ? "Keep analytics off"
+              : "Turn analytics off"}
           </button>
           <a className="button-link" href="/settings#privacy-controls">
             Manage settings

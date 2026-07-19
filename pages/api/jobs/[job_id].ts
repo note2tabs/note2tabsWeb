@@ -486,6 +486,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const session = await getServerSession(req, res, authOptions);
+  if (!session?.user?.id) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
   const jobId = Array.isArray(req.query.job_id) ? req.query.job_id[0] : req.query.job_id;
   if (!jobId) {
     return res.status(400).json({ error: "Missing job id" });
@@ -497,8 +502,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const headers: Record<string, string> = {};
   if (BACKEND_SECRET) headers["X-Backend-Secret"] = BACKEND_SECRET;
-  const session = await getServerSession(req, res, authOptions);
-  if (session?.user?.id) headers["X-User-Id"] = session.user.id;
+  headers["X-User-Id"] = session.user.id;
 
   const requestStartedAt = Date.now();
   let fetched;
@@ -555,27 +559,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           payload.tab_job_id = tabJobId;
           payload.tabJobId = tabJobId;
           stripLargeJobFields(payload);
-        }
-      } else if (
-        upstream.ok &&
-        normalizedStatus &&
-        FINAL_JOB_STATUSES.has(normalizedStatus) &&
-        !hasPersistableJobResult(payload) &&
-        !fetchedFullOutput
-      ) {
-        try {
-          const fullFetch = await fetchBackendJob(jobId, headers, true);
-          upstreamBytes += fullFetch.bytes;
-          fetchedFullOutput = true;
-          if (fullFetch.upstream.ok && fullFetch.contentType?.includes("application/json") && fullFetch.text) {
-            const fullPayload = JSON.parse(fullFetch.text) as Record<string, unknown>;
-            addPreviewUrl(fullPayload, jobId);
-            Object.keys(payload).forEach((key) => delete payload[key]);
-            Object.assign(payload, fullPayload);
-            upstream = fullFetch.upstream;
-          }
-        } catch (error) {
-          console.warn("Job status unauthenticated full-result fetch failed", error);
         }
       }
 

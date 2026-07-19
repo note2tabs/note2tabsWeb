@@ -1,17 +1,10 @@
-type HeadersLike = Record<string, string | string[] | undefined>;
+import { getAuthSiteUrl } from "./siteUrl";
 
-const normalizeHeader = (value: string | string[] | undefined) =>
-  Array.isArray(value) ? value[0] : value;
+export const APP_HOME_URL = getAuthSiteUrl();
 
-export const APP_HOME_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
-export const getAppBaseUrl = (req?: { headers?: HeadersLike }) => {
+export const getAppBaseUrl = (_req?: { headers?: Record<string, string | string[] | undefined> }) => {
   if (typeof window !== "undefined") {
     return window.location.origin;
   }
-  const host = normalizeHeader(req?.headers?.host);
-  const protoHeader = normalizeHeader(req?.headers?.["x-forwarded-proto"]);
-  const proto = protoHeader ? protoHeader.split(",")[0] : "http";
-  if (host) return `${proto}://${host}`;
-  return APP_HOME_URL;
+  return getAuthSiteUrl();
 };

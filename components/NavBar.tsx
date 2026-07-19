@@ -2,6 +2,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { useSession, signIn, signOut } from "next-auth/react";
+import { clearPendingTranscription } from "../lib/pendingTranscription";
+import { resetPostHogIdentity } from "../lib/posthogClient";
 
 const roleLabel = (role?: string) => {
   if (!role) return "Free";
@@ -20,9 +22,12 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const { data: session } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [signOutBusy, setSignOutBusy] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const [editorRevealVisible, setEditorRevealVisible] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const scrolledRef = useRef(false);
   const scrollFrameRef = useRef<number | null>(null);
   const editorMouseNearTopRef = useRef(false);
@@ -112,6 +117,17 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
     };
   }, [profileMenuOpen]);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMenuOpen(false);
+      menuButtonRef.current?.focus();
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [menuOpen]);
+
   return (
     <header
       className={`nav-shell${isReadingArticle ? " nav-shell--reading" : ""}${isHome ? " nav-shell--home" : ""}${isHome && !isScrolled ? " nav-shell--blend" : ""}${editorRevealMode ? " nav-shell--editor-reveal" : ""}${editorRevealMode && (editorRevealVisible || menuOpen || profileMenuOpen) ? " nav-shell--editor-visible" : ""}`}
@@ -122,15 +138,17 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
           <span className="logo-text">Note2Tabs</span>
         </Link>
         <nav
+          id="primary-navigation"
           className={`nav-links ${menuOpen ? "open" : ""}${isReadingArticle ? " nav-links--reading" : ""}`}
+          aria-label="Primary navigation"
         >
-          <Link href="/gte" className="nav-pill">
+          <Link href="/editor" className="nav-pill">
             Editor
           </Link>
-          <Link href="/#hero" className="nav-pill">
+          <Link href="/transcribe" className="nav-pill">
             Transcriber
           </Link>
-          <a href="/#pricing">Pricing</a>
+          <Link href="/pricing">Pricing</Link>
           <span
             className={`nav-auth-slot${session ? " nav-auth-slot--profile" : " nav-auth-slot--guest"}`}
             aria-hidden={session ? "true" : undefined}
@@ -181,6 +199,9 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                 <Link href="/tabs" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
                   Transcriptions
                 </Link>
+                <Link href="/gte" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
+                  My editors
+                </Link>
                 {isAdmin && (
                   <Link href="/admin/analytics" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
                     Analytics
@@ -189,25 +210,49 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                 <button
                   type="button"
                   role="menuitem"
+                  disabled={signOutBusy}
                   onClick={async () => {
-                    setProfileMenuOpen(false);
-                    await signOut({ redirect: false });
-                    window.location.href = "/";
+                    if (signOutBusy) return;
+                    setSignOutBusy(true);
+                    setSignOutError(null);
+                    try {
+                      await clearPendingTranscription();
+                    } catch {
+                      setSignOutError("Could not securely clear your saved upload. Please try signing out again.");
+                      setSignOutBusy(false);
+                      return;
+                    }
+                    try {
+                      await resetPostHogIdentity();
+                      await signOut({ redirect: false });
+                      window.location.href = "/";
+                    } catch {
+                      setSignOutError("Could not sign out. Check your connection and try again.");
+                      setSignOutBusy(false);
+                    }
                   }}
                 >
-                  Sign out
+                  {signOutBusy ? "Signing out…" : "Sign out"}
                 </button>
+                {signOutError && (
+                  <div role="none">
+                    <span className="error" role="alert">{signOutError}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
           <button
+            ref={menuButtonRef}
             className="menu-toggle"
             type="button"
             onClick={() => {
               setMenuOpen((prev) => !prev);
               setProfileMenuOpen(false);
             }}
-            aria-label="Toggle menu"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            aria-controls="primary-navigation"
           >
             Menu
           </button>

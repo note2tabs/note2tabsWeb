@@ -56,10 +56,41 @@ model User {
   emailVerifiedBool           Boolean              @default(false)
   unverifiedTranscriptionUsed Boolean              @default(false)
   accounts                    Account[]
+  feedbackSubmissions         FeedbackSubmission[]
   gteTrackInstruments         GteTrackInstrument[]
   posts                       Post[]
   sessions                    Session[]
+  stripeRenewalInvoices       StripeRenewalInvoice[]
   tabs                        TabJob[]
+}
+
+/// Product feedback is first-party operational data, not analytics. It keeps
+/// only the submitted content, a coarse page path/category, and an optional
+/// account link; email addresses, IP addresses, and user-agent data are omitted.
+model FeedbackSubmission {
+  id        String   @id @default(cuid())
+  userId    String?
+  message   String
+  category  String   @default("general")
+  pagePath  String   @default("/feedback")
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+}
+
+model StripeRenewalInvoice {
+  invoiceId            String   @id
+  userId               String
+  stripeSubscriptionId String
+  renewalAt             DateTime
+  granted               Boolean  @default(false)
+  processedAt           DateTime @default(now())
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, renewalAt])
+  @@index([stripeSubscriptionId, renewalAt])
 }
 
 model TabJob {

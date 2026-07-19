@@ -2,7 +2,7 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /api/
-Disallow: /auth/
+Allow: /api/og
 Disallow: /settings
 Disallow: /tabs
 Disallow: /gte
@@ -10,8 +10,5 @@ Disallow: /mod/
 Disallow: /account
 Disallow: /history
 Disallow: /job/
-Disallow: /feedback
-Disallow: /reset-password
-Disallow: /transcriber
 
 Sitemap: https://www.note2tabs.com/sitemap.xml

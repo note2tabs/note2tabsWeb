@@ -1,9 +1,12 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { generateFingerprint } from "../../lib/fingerprint";
 import NoIndexHead from "../../components/NoIndexHead";
+import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
+import { clearOAuthIntent, saveOAuthIntent } from "../../lib/oauthAnalytics";
+import { categorizeAnalyticsDestination } from "../../lib/analyticsPrivacy";
 
 const authErrorMessage = (error?: string | string[]) => {
   const value = Array.isArray(error) ? error[0] : error;
@@ -38,8 +41,13 @@ export default function LoginPage() {
     nextHref === "/" ? "/auth/signup" : `/auth/signup?next=${encodeURIComponent(nextHref)}`;
   const routeError = useMemo(() => authErrorMessage(router.query.error), [router.query.error]);
 
+  useEffect(() => {
+    if (router.query.error) clearOAuthIntent();
+  }, [router.query.error]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    clearOAuthIntent();
     setError(null);
     setLoading(true);
     let fingerprintId: string | undefined;
@@ -60,6 +68,10 @@ export default function LoginPage() {
     if (res?.error) {
       setError(res.error);
     } else {
+      sendEvent(ANALYTICS_EVENTS.loginSucceeded, {
+        method: "credentials",
+        destination: categorizeAnalyticsDestination(nextHref),
+      });
       router.push(res?.url || nextHref);
     }
   };
@@ -76,8 +88,9 @@ export default function LoginPage() {
           </div>
           <form className="stack" onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="label">Email</label>
+              <label className="label" htmlFor="login-email">Email</label>
               <input
+                id="login-email"
                 type="email"
                 name="email"
                 autoComplete="email"
@@ -88,8 +101,9 @@ export default function LoginPage() {
               />
             </div>
             <div className="form-group">
-              <label className="label">Password</label>
+              <label className="label" htmlFor="login-password">Password</label>
               <input
+                id="login-password"
                 type="password"
                 name="password"
                 autoComplete="current-password"
@@ -99,7 +113,7 @@ export default function LoginPage() {
                 className="form-input"
               />
             </div>
-            {(error || routeError) && <div className="error">{error || routeError}</div>}
+            {(error || routeError) && <div className="error" role="alert">{error || routeError}</div>}
             <button type="submit" disabled={loading} className="button-primary">
               {loading ? "Signing in..." : "Log in"}
             </button>
@@ -109,7 +123,10 @@ export default function LoginPage() {
           </div>
           <button
             type="button"
-            onClick={() => signIn("google", { callbackUrl: nextHref })}
+            onClick={() => {
+              saveOAuthIntent("login", nextHref);
+              void signIn("google", { callbackUrl: nextHref });
+            }}
             className="button-secondary"
           >
             <img src="/icons/google.svg" alt="" width={17} height={16} aria-hidden="true" />

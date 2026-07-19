@@ -3,9 +3,9 @@ import { getConsentFromCookies } from "../../lib/analyticsV2/cookies";
 import { isConsentDenied } from "../../lib/analyticsV2/consent";
 
 describe("consent gating", () => {
-  it("treats missing consent cookie as granted", () => {
-    expect(getConsentFromCookies({})).toBe("granted");
-    expect(isConsentDenied({})).toBe(false);
+  it("treats missing consent cookie as denied", () => {
+    expect(getConsentFromCookies({})).toBe("denied");
+    expect(isConsentDenied({})).toBe(true);
   });
 
   it("treats granted cookie as granted", () => {

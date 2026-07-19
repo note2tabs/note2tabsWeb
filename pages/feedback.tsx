@@ -1,9 +1,8 @@
 import type { GetServerSideProps } from "next";
-import Head from "next/head";
-import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./api/auth/[...nextauth]";
+import NoIndexHead from "../components/NoIndexHead";
 
 type Props = {
   userEmail: string;
@@ -50,7 +49,7 @@ export default function FeedbackPage({ userEmail }: Props) {
         throw new Error(data?.error || "Could not send feedback.");
       }
       setMessage("");
-      setStatus("Thank you for your message, we really appriciate it :)");
+      setStatus("Thank you for your message — we really appreciate it.");
     } catch (err: any) {
       setError(err?.message || "Could not send feedback.");
     } finally {
@@ -60,15 +59,13 @@ export default function FeedbackPage({ userEmail }: Props) {
 
   return (
     <>
-      <Head>
-        <title>Feedback - Note2Tabs</title>
-      </Head>
+      <NoIndexHead title="Feedback | Note2Tabs" canonicalPath="/feedback" description="Send feedback to the Note2Tabs team." />
       <main className="page page-tight">
         <div className="container stack" style={{ maxWidth: 760 }}>
           <div className="page-header">
             <div>
               <h1 className="page-title">Feedback</h1>
-              <p className="page-subtitle">If you have anything on your mind regarding note2tabs please let us know.</p>
+              <p className="page-subtitle">Tell us what would make Note2Tabs more useful for you.</p>
             </div>
           </div>
 
@@ -111,8 +108,8 @@ export default function FeedbackPage({ userEmail }: Props) {
                 </button>
               </div>
             </form>
-            {status && <div className="status">{status}</div>}
-            {error && <div className="error">{error}</div>}
+            {status && <div className="status" role="status">{status}</div>}
+            {error && <div className="error" role="alert">{error}</div>}
           </section>
         </div>
       </main>

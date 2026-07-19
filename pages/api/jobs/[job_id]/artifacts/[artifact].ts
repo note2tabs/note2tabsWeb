@@ -12,6 +12,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const session = await getServerSession(req, res, authOptions);
+  if (!session?.user?.id) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
   const jobId = Array.isArray(req.query.job_id) ? req.query.job_id[0] : req.query.job_id;
   const artifact = Array.isArray(req.query.artifact) ? req.query.artifact[0] : req.query.artifact;
   if (!jobId || !artifact) {
@@ -20,8 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const headers: Record<string, string> = {};
   if (BACKEND_SECRET) headers["X-Backend-Secret"] = BACKEND_SECRET;
-  const session = await getServerSession(req, res, authOptions);
-  if (session?.user?.id) headers["X-User-Id"] = session.user.id;
+  headers["X-User-Id"] = session.user.id;
 
   const upstream = await fetch(
     `${API_BASE}/api/v1/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(artifact)}`,

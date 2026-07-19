@@ -1,6 +1,7 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import { prisma } from "../../lib/prisma";
+import { withPrismaReadRetry } from "../../lib/prismaRetry";
 import { BLOG_PAGE_SIZE, estimateReadingTime, getPublishedWhere } from "../../lib/blog";
 import BlogPostCard from "../../components/blog/BlogPostCard";
 import SeoHead, { absoluteUrl } from "../../components/SeoHead";
@@ -230,9 +231,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     where.tags = { some: { tag: { slug: activeTag } } };
   }
 
-  const [total, postsRaw, categories, tags, pillarsRaw] = await Promise.all([
-    prisma.post.count({ where }),
-    prisma.post.findMany({
+  const [total, postsRaw, categories, tags, pillarsRaw] = await withPrismaReadRetry(() =>
+    prisma.$transaction([
+      prisma.post.count({ where }),
+      prisma.post.findMany({
       where,
       orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
       skip: (page - 1) * BLOG_PAGE_SIZE,
@@ -268,10 +270,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
           },
         },
       },
-    }),
-    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, slug: true } }),
-    prisma.tag.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, slug: true } }),
-    prisma.post.findMany({
+      }),
+      prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, slug: true } }),
+      prisma.tag.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, slug: true } }),
+      prisma.post.findMany({
       where: {
         ...getPublishedWhere(),
         clusters: { some: { isPillar: true } },
@@ -309,8 +311,9 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
           },
         },
       },
-    }),
-  ]);
+      }),
+    ])
+  );
 
   const mapPost = (post: any): BlogPostCard => ({
     id: post.id,

@@ -268,6 +268,7 @@ export const renderMarkdown = async (markdown: string) => {
   processor
     .use(() => (tree) => {
       visit(tree, "heading", (node: any) => {
+        if (node.depth === 1) node.depth = 2;
         const text = extractText(node);
         if (!text) return;
         const id = slugger.slug(text);
