@@ -6643,6 +6643,25 @@ input[type="number"] {
   margin-bottom: 48px;
 }
 
+.editor-showcase-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(15, 23, 42, 0.68);
+  font-size: 0.78rem;
+  font-weight: 720;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.editor-showcase-kicker::before {
+  content: "";
+  width: 24px;
+  height: 2px;
+  border-radius: 999px;
+  background: #34d399;
+}
+
 .editor-showcase-header h2 {
   margin: 12px 0 10px;
   max-width: 660px;
