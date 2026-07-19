@@ -38,6 +38,7 @@ export type EditorTabViewModel = {
   width: number;
   height: number;
   cursorX: number;
+  cursorAnchors: TimedVisualAnchor[];
 };
 
 type BuildEditorTabViewOptions = {
@@ -48,7 +49,7 @@ type BuildEditorTabViewOptions = {
   minBarCount?: number;
 };
 
-type TimedVisualAnchor = {
+export type TimedVisualAnchor = {
   time: number;
   x: number;
 };
@@ -152,7 +153,12 @@ const getRoundedX = (
   return LEFT_LABEL_WIDTH + absoluteSlot * slotWidth + slotWidth / 2;
 };
 
-const getCursorX = (anchors: TimedVisualAnchor[], playheadFrame: number, timelineEnd: number, width: number) => {
+export const getEditorTabViewCursorX = (
+  anchors: TimedVisualAnchor[],
+  playheadFrame: number,
+  timelineEnd: number,
+  width: number
+) => {
   const safeFrame = clamp(playheadFrame, 0, Math.max(1, timelineEnd));
   const minX = LEFT_LABEL_WIDTH;
   const maxX = Math.max(minX, width - RIGHT_PADDING);
@@ -276,6 +282,7 @@ export const buildEditorTabView = (
     barWidth,
     width,
     height,
-    cursorX: getCursorX(anchors, playheadFrame, barCount * safeFramesPerBar, width),
+    cursorX: getEditorTabViewCursorX(anchors, playheadFrame, barCount * safeFramesPerBar, width),
+    cursorAnchors: anchors,
   };
 };

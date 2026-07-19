@@ -37,7 +37,8 @@ import {
 import type { Chord, ChordFingering, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
-import { buildEditorTabView } from "../lib/gteEditorTabView";
+import { buildEditorTabView, getEditorTabViewCursorX } from "../lib/gteEditorTabView";
+import { useGteRenderInstrumentation } from "../lib/gtePerformanceDiagnostics";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
   buildGteExportFile,
@@ -96,6 +97,7 @@ type Props = {
   onRequestUndo?: () => void;
   onRequestRedo?: () => void;
   globalPlaybackFrame?: number;
+  getGlobalPlaybackFrame?: () => number;
   globalPlaybackIsPlaying?: boolean;
   globalPlaybackIsPreparing?: boolean;
   globalPlaybackVolume?: number;
@@ -1540,6 +1542,7 @@ function ChordLaneWorkspace({
   onRequestUndo,
   onRequestRedo,
   globalPlaybackFrame,
+  getGlobalPlaybackFrame,
   globalPlaybackIsPlaying,
   globalPlaybackVolume,
   globalPlaybackTimelineEnd,
@@ -1562,12 +1565,14 @@ function ChordLaneWorkspace({
   mobileViewport = false,
   mobileMode,
 }: Props) {
+  useGteRenderInstrumentation("GteWorkspace", `${editorId}:chords`);
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<ChordEditorDragState | null>(null);
   const dragHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressChordClickRef = useRef(false);
   const chordMouseDownSelectionRef = useRef<{ chordId: number; wasSelected: boolean; shiftKey: boolean } | null>(null);
   const playbackScrollRafRef = useRef<number | null>(null);
+  const chordLanePlayheadRef = useRef<HTMLDivElement | null>(null);
   const chordPreviewAudioRef = useRef<AudioContext | null>(null);
   const chordPreviewGainRef = useRef<GainNode | null>(null);
   const chordContextMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1600,16 +1605,20 @@ function ChordLaneWorkspace({
   );
   const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, barCount * FIXED_FRAMES_PER_BAR);
   const beatsPerBar = Math.max(1, Math.round(Number(sharedTimeSignature ?? snapshot.timeSignature ?? 8) || 8));
+  const readExternalPlaybackFrame = useCallback(
+    () => Math.max(0, Math.round(getGlobalPlaybackFrame?.() ?? globalPlaybackFrame ?? 0)),
+    [getGlobalPlaybackFrame, globalPlaybackFrame]
+  );
   const editorTabView = useMemo(
     () =>
       buildEditorTabView(snapshot, {
         framesPerBar: FIXED_FRAMES_PER_BAR,
         beatsPerBar,
         scale,
-        playheadFrame: Math.round(globalPlaybackFrame ?? 0),
+        playheadFrame: readExternalPlaybackFrame(),
         minBarCount: barCount,
       }),
-    [barCount, beatsPerBar, globalPlaybackFrame, scale, snapshot]
+    [barCount, beatsPerBar, readExternalPlaybackFrame, scale, snapshot]
   );
   const pxPerFrame = tabViewEnabled
     ? editorTabView.barWidth / FIXED_FRAMES_PER_BAR
@@ -1618,7 +1627,7 @@ function ChordLaneWorkspace({
   const timelineWidth = tabViewEnabled
     ? editorTabView.width
     : Math.max(320, Math.round(timelineContentOffset + totalFrames * pxPerFrame));
-  const effectivePlayheadFrame = Math.max(0, Math.min(totalFrames, Math.round(globalPlaybackFrame ?? 0)));
+  const effectivePlayheadFrame = Math.max(0, Math.min(totalFrames, readExternalPlaybackFrame()));
   const playheadLeft = timelineContentOffset + effectivePlayheadFrame * pxPerFrame;
   const fingeringRowTop = CHORD_EDITOR_ROW_HEIGHT;
   const strumEditorTop = CHORD_EDITOR_ROW_HEIGHT + (fingeringsVisible ? CHORD_FINGERING_ROW_HEIGHT : 0);
@@ -1626,6 +1635,34 @@ function ChordLaneWorkspace({
     CHORD_EDITOR_ROW_HEIGHT +
     (fingeringsVisible ? CHORD_FINGERING_ROW_HEIGHT : 0) +
     (strumEditor ? CHORD_STRUM_EDITOR_HEIGHT + 12 : 0);
+
+  const applyChordLanePlayheadDomFrame = useCallback(
+    (frame: number) => {
+      const element = chordLanePlayheadRef.current;
+      if (!element) return;
+      const safeFrame = Math.max(0, Math.min(totalFrames, Math.round(frame)));
+      const x = timelineContentOffset + safeFrame * pxPerFrame;
+      element.style.transform = `translate3d(${x}px, 0, 0) translateX(-1px)`;
+    },
+    [pxPerFrame, timelineContentOffset, totalFrames]
+  );
+
+  useEffect(() => {
+    applyChordLanePlayheadDomFrame(readExternalPlaybackFrame());
+  }, [applyChordLanePlayheadDomFrame, readExternalPlaybackFrame]);
+
+  useEffect(() => {
+    if (!globalPlaybackIsPlaying) return;
+    let rafId: number | null = null;
+    const tick = () => {
+      applyChordLanePlayheadDomFrame(readExternalPlaybackFrame());
+      rafId = window.requestAnimationFrame(tick);
+    };
+    rafId = window.requestAnimationFrame(tick);
+    return () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+    };
+  }, [applyChordLanePlayheadDomFrame, globalPlaybackIsPlaying, readExternalPlaybackFrame]);
 
   const snapFrame = useCallback(
     (frame: number, mode: "floor" | "round" | "ceil" = "round") => {
@@ -2120,7 +2157,7 @@ function ChordLaneWorkspace({
       if ((event.ctrlKey || event.metaKey) && (event.key === "v" || event.key === "V")) {
         if (!chordClipboard.length) return;
         event.preventDefault();
-        pasteChordsAtFrame(effectivePlayheadFrame);
+        pasteChordsAtFrame(readExternalPlaybackFrame());
         return;
       }
       if (event.key !== "Delete" && event.key !== "Backspace") return;
@@ -2154,11 +2191,11 @@ function ChordLaneWorkspace({
     chordClipboard.length,
     copyChordIds,
     deleteSelectedChords,
-    effectivePlayheadFrame,
     isActive,
     onRequestRedo,
     onRequestUndo,
     pasteChordsAtFrame,
+    readExternalPlaybackFrame,
     selectedChordIds,
     selectedChordIds.length,
     strumEditor,
@@ -2197,14 +2234,15 @@ function ChordLaneWorkspace({
         visibleStartInContainer + Math.max(48, Math.min(120, visibleWidth * 0.18));
       const followPlayheadOffset = visibleStartInContainer + visibleWidth * 0.45;
       const maxPlayheadOffset = visibleStartInContainer + visibleWidth * (2 / 3);
-      const playheadViewportX = playheadLeft - container.scrollLeft;
+      const currentPlayheadLeft = timelineContentOffset + readExternalPlaybackFrame() * pxPerFrame;
+      const playheadViewportX = currentPlayheadLeft - container.scrollLeft;
 
       let nextScrollLeft = container.scrollLeft;
       if (playheadViewportX < minPlayheadOffset) {
-        nextScrollLeft = Math.max(0, playheadLeft - minPlayheadOffset);
+        nextScrollLeft = Math.max(0, currentPlayheadLeft - minPlayheadOffset);
       } else if (playheadViewportX > followPlayheadOffset) {
-        const targetScrollLeft = Math.max(0, Math.min(maxScroll, playheadLeft - followPlayheadOffset));
-        const hardLimitScrollLeft = Math.max(0, Math.min(maxScroll, playheadLeft - maxPlayheadOffset));
+        const targetScrollLeft = Math.max(0, Math.min(maxScroll, currentPlayheadLeft - followPlayheadOffset));
+        const hardLimitScrollLeft = Math.max(0, Math.min(maxScroll, currentPlayheadLeft - maxPlayheadOffset));
         const easedScrollLeft = container.scrollLeft + (targetScrollLeft - container.scrollLeft) * 0.22;
         nextScrollLeft = Math.max(hardLimitScrollLeft, Math.min(maxScroll, easedScrollLeft));
       }
@@ -2222,7 +2260,7 @@ function ChordLaneWorkspace({
         playbackScrollRafRef.current = null;
       }
     };
-  }, [globalPlaybackIsPlaying, mobileViewport, playheadLeft]);
+  }, [globalPlaybackIsPlaying, mobileViewport, pxPerFrame, readExternalPlaybackFrame, timelineContentOffset]);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
@@ -2558,8 +2596,13 @@ function ChordLaneWorkspace({
               />
             ))}
             <div
+              ref={chordLanePlayheadRef}
               className="pointer-events-none absolute top-0 z-20 h-full w-px bg-rose-500"
-              style={{ left: playheadLeft }}
+              style={{
+                left: 0,
+                transform: `translate3d(${playheadLeft}px, 0, 0) translateX(-1px)`,
+                willChange: globalPlaybackIsPlaying ? "transform" : undefined,
+              }}
             />
             {snapshot.chords.map((chord) => {
               const start = Math.max(0, Math.round(chord.startTime));
@@ -2991,7 +3034,7 @@ function ChordLaneWorkspace({
                   type="button"
                   className={menuItemClass}
                   disabled={!chordClipboard.length}
-                  onClick={() => pasteChordsAtFrame(effectivePlayheadFrame)}
+                  onClick={() => pasteChordsAtFrame(readExternalPlaybackFrame())}
                 >
                   Paste
                 </button>
@@ -3062,6 +3105,7 @@ export default function GteWorkspace({
   onRequestUndo,
   onRequestRedo,
   globalPlaybackFrame,
+  getGlobalPlaybackFrame,
   globalPlaybackIsPlaying,
   globalPlaybackIsPreparing,
   globalPlaybackVolume,
@@ -3109,6 +3153,7 @@ export default function GteWorkspace({
   mobileViewport = false,
   mobileMode,
 }: Props) {
+  useGteRenderInstrumentation("GteWorkspace", `${editorId}:tab`);
   if (isChordEditorSnapshot(snapshot)) {
     return (
       <ChordLaneWorkspace
@@ -3138,6 +3183,7 @@ export default function GteWorkspace({
         onRequestUndo={onRequestUndo}
         onRequestRedo={onRequestRedo}
         globalPlaybackFrame={globalPlaybackFrame}
+        getGlobalPlaybackFrame={getGlobalPlaybackFrame}
         globalPlaybackIsPlaying={globalPlaybackIsPlaying}
         globalPlaybackVolume={globalPlaybackVolume}
         globalPlaybackTimelineEnd={globalPlaybackTimelineEnd}
@@ -3345,6 +3391,7 @@ export default function GteWorkspace({
   const timelineOuterRef = useRef<HTMLDivElement | null>(null);
   const tabViewScrollRef = useRef<HTMLDivElement | null>(null);
   const tabViewCursorRef = useRef<HTMLDivElement | null>(null);
+  const timelinePlayheadRef = useRef<HTMLButtonElement | null>(null);
   const draftFretRef = useRef<HTMLInputElement | null>(null);
   const draftHasFocusedRef = useRef(false);
   const draftPopupRef = useRef<HTMLDivElement | null>(null);
@@ -3543,11 +3590,14 @@ export default function GteWorkspace({
     [selectedBarIndices, timelineEnd]
   );
   const useExternalPlayback =
-    globalPlaybackFrame !== undefined &&
     globalPlaybackIsPlaying !== undefined &&
     typeof onGlobalPlaybackToggle === "function" &&
     typeof onGlobalPlaybackFrameChange === "function";
-  const effectivePlayheadFrame = useExternalPlayback ? globalPlaybackFrame ?? 0 : playheadFrame;
+  const readExternalPlaybackFrame = useCallback(
+    () => Math.max(0, Math.round(getGlobalPlaybackFrame?.() ?? globalPlaybackFrame ?? 0)),
+    [getGlobalPlaybackFrame, globalPlaybackFrame]
+  );
+  const effectivePlayheadFrame = useExternalPlayback ? readExternalPlaybackFrame() : playheadFrame;
   const effectiveIsPlaying = useExternalPlayback ? Boolean(globalPlaybackIsPlaying) : isPlaying;
   const effectivePlaybackPreparing = useExternalPlayback
     ? Boolean(globalPlaybackIsPreparing)
@@ -3973,6 +4023,68 @@ export default function GteWorkspace({
   }, []);
 
   const getRowBarCount = (rowIndex: number) => (rowIndex === 0 ? barsPerRow : 0);
+
+  const getCurrentPlayheadFrame = useCallback(() => {
+    const rawFrame = useExternalPlayback ? readExternalPlaybackFrame() : playheadFrameRef.current;
+    return Math.max(0, Math.min(timelineEnd, Math.round(rawFrame)));
+  }, [readExternalPlaybackFrame, timelineEnd, useExternalPlayback]);
+
+  const applyPlayheadDomFrame = useCallback(
+    (frame: number) => {
+      const safeFrame = Math.max(0, Math.min(timelineEnd, Math.round(frame)));
+      playheadFrameRef.current = safeFrame;
+      if (tabViewCursorRef.current) {
+        const totalFrames = Math.max(1, editorTabView.barCount * framesPerMeasure);
+        const x = getEditorTabViewCursorX(
+          editorTabView.cursorAnchors,
+          safeFrame,
+          totalFrames,
+          editorTabView.width
+        );
+        tabViewCursorRef.current.style.transform = `translate3d(${x}px, 0, 0) translateX(-1px)`;
+      }
+      if (timelinePlayheadRef.current) {
+        const rowIndex =
+          rowFrames > 0 ? Math.max(0, Math.min(rows - 1, Math.floor(safeFrame / rowFrames))) : 0;
+        const rowBarCount = getRowBarCount(rowIndex);
+        const availableFrames = Math.max(1, rowBarCount * framesPerMeasure);
+        const rowStart = rowIndex * rowFrames;
+        const x = Math.max(0, Math.min(availableFrames, safeFrame - rowStart)) * scale;
+        const y = rowIndex * rowStride;
+        timelinePlayheadRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) translateX(-1px)`;
+      }
+    },
+    [
+      editorTabView.barCount,
+      editorTabView.cursorAnchors,
+      editorTabView.width,
+      framesPerMeasure,
+      rowFrames,
+      rowStride,
+      rows,
+      scale,
+      timelineEnd,
+    ]
+  );
+
+  useEffect(() => {
+    applyPlayheadDomFrame(getCurrentPlayheadFrame());
+  }, [applyPlayheadDomFrame, getCurrentPlayheadFrame]);
+
+  useEffect(() => {
+    if (!effectiveIsPlaying) return;
+    let rafId: number | null = null;
+    const tick = () => {
+      applyPlayheadDomFrame(getCurrentPlayheadFrame());
+      rafId = window.requestAnimationFrame(tick);
+    };
+    rafId = window.requestAnimationFrame(tick);
+    return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
+  }, [applyPlayheadDomFrame, effectiveIsPlaying, getCurrentPlayheadFrame]);
 
   const snapCandidates = useMemo(() => {
     const candidates: Array<{ time: number; noteId?: number; chordId?: number }> = [];
@@ -12691,7 +12803,11 @@ export default function GteWorkspace({
               <div
                 ref={tabViewCursorRef}
                 className="pointer-events-none absolute bottom-3 top-3 z-10 w-[2px] -translate-x-px rounded-full bg-rose-500"
-                style={{ left: editorTabView.cursorX, top: TIMELINE_BAR_HEADER_HEIGHT + 3 }}
+                style={{
+                  left: 0,
+                  top: TIMELINE_BAR_HEADER_HEIGHT + 3,
+                  transform: `translate3d(${editorTabView.cursorX}px, 0, 0) translateX(-1px)`,
+                }}
               />
               <div
                 role="button"
@@ -13063,6 +13179,7 @@ export default function GteWorkspace({
                   const height = rowBlockHeight;
                   return (
                     <button
+                      ref={timelinePlayheadRef}
                       type="button"
                       onMouseDown={(event) => {
                         event.preventDefault();
@@ -13073,7 +13190,14 @@ export default function GteWorkspace({
                         if (target) setEffectivePlayheadFrame(target.time);
                       }}
                       className={`absolute z-30 cursor-col-resize`}
-                      style={{ left, top, height, width: 2, transform: "translateX(-1px)" }}
+                      style={{
+                        left: 0,
+                        top: 0,
+                        height,
+                        width: 2,
+                        transform: `translate3d(${left}px, ${top}px, 0) translateX(-1px)`,
+                        willChange: effectiveIsPlaying ? "transform" : undefined,
+                      }}
                     >
                       <span
                         className={`absolute left-0 top-0 h-full w-[2px] rounded-full ${
