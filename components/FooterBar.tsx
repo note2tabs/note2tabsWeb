@@ -1,12 +1,6 @@
 import Link from "next/link";
 
 export default function FooterBar() {
-  const openCookieSettings = () => {
-    if (typeof window === "undefined") return;
-    (window as Window & { __note2tabsCookieSettingsRequested?: boolean }).__note2tabsCookieSettingsRequested = true;
-    window.dispatchEvent(new Event("note2tabs:open-cookie-settings"));
-  };
-
   return (
     <footer className="footer-shell">
       <div className="container footer-layout">
@@ -54,9 +48,7 @@ export default function FooterBar() {
             <h2>Terms & Policies</h2>
             <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
-            <button type="button" onClick={openCookieSettings} className="footer-link-button">
-              Cookie settings
-            </button>
+            <Link href="/settings#privacy-controls">Analytics settings</Link>
           </section>
 
           <section className="footer-section">

@@ -41,7 +41,10 @@ export default function AnalyticsIdentityLinker() {
       }
       if (cancelled) return;
 
-      identifyPostHogUser(session.user.id);
+      identifyPostHogUser(session.user.id, {
+        role: session.user.role,
+        subscription: session.user.role === "PREMIUM" ? "premium" : "free",
+      });
       const oauthIntent = takeOAuthIntent();
       const createdAtMs = session.user.createdAt ? Date.parse(session.user.createdAt) : Number.NaN;
       const isRecentlyCreated =
@@ -65,7 +68,7 @@ export default function AnalyticsIdentityLinker() {
     return () => {
       cancelled = true;
     };
-  }, [consentRevision, session?.user?.createdAt, session?.user?.id, status]);
+  }, [consentRevision, session?.user?.createdAt, session?.user?.id, session?.user?.role, status]);
 
   return null;
 }

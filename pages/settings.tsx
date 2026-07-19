@@ -94,7 +94,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [consentBusy, setConsentBusy] = useState(false);
   const [consentMessage, setConsentMessage] = useState<string | null>(null);
-  const [consentState, setConsentState] = useState<"granted" | "denied" | "missing">("missing");
+  const [consentState, setConsentState] = useState<"granted" | "denied">("granted");
   const [upgradeBusy, setUpgradeBusy] = useState(false);
   const [portalBusy, setPortalBusy] = useState(false);
   const [signOutBusy, setSignOutBusy] = useState(false);
@@ -117,16 +117,8 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   useEffect(() => {
     if (typeof document === "undefined") return;
     const match = document.cookie.match(/(?:^|; )analytics_consent=([^;]*)/);
-    if (!match?.[1]) {
-      setConsentState("missing");
-      return;
-    }
-    const value = decodeURIComponent(match[1]);
-    if (value === "denied") {
-      setConsentState("denied");
-      return;
-    }
-    setConsentState("granted");
+    const value = match?.[1] ? decodeURIComponent(match[1]) : undefined;
+    setConsentState(value === "denied" ? "denied" : "granted");
   }, []);
 
   useEffect(() => {
@@ -346,15 +338,19 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     try {
       const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
       const secure = window.location.protocol === "https:" ? "; Secure" : "";
-      document.cookie = `analytics_consent=${state}; expires=${expires}; Max-Age=${
-        365 * 24 * 60 * 60
-      }; path=/; SameSite=Lax${secure}`;
       if (state === "denied") {
+        document.cookie = `analytics_consent=denied; expires=${expires}; Max-Age=${
+          365 * 24 * 60 * 60
+        }; path=/; SameSite=Lax${secure}`;
         for (const cookieName of ["analytics_session", "analytics_anon"]) {
           document.cookie = `${cookieName}=; Max-Age=0; expires=${new Date(
             0
           ).toUTCString()}; path=/; SameSite=Lax${secure}`;
         }
+      } else {
+        document.cookie = `analytics_consent=; Max-Age=0; expires=${new Date(
+          0
+        ).toUTCString()}; path=/; SameSite=Lax${secure}`;
       }
       await setPostHogConsent(state);
       setConsentState(state);
@@ -517,8 +513,8 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <div className="settingsRows">
         <SettingRow
           label="Analytics"
-          description="Analytics help improve Note2Tabs. You can turn them off anytime."
-          value={consentState === "missing" ? "not chosen" : consentState}
+          description="Cookieless product analytics are enabled by default. You can turn them off anytime."
+          value={consentState}
         >
           <div className="settingsActions">
             <button

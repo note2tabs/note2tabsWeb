@@ -4,15 +4,9 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{if(/(?:^|;\\s*)analytics_consent=(?:granted|denied)(?:;|$)/.test(document.cookie)){document.documentElement.classList.add("analytics-consent-known")}}catch(e){}`,
-          }}
-        />
         <style
           dangerouslySetInnerHTML={{
             __html: `
-              .analytics-consent-known .cookie-banner--bootstrap{display:none}
               .hero{position:relative;overflow:hidden}
               .page-home{padding-top:0}
               .hero.hero--landing-funnel{min-height:calc(100svh - 56px);padding:20px 0 28px;background:#fbf8f1;isolation:isolate;overflow-anchor:none}

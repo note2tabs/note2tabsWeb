@@ -9,24 +9,17 @@ import {
 
 const CONSENT_COOKIE = "analytics_consent";
 const MAX_PENDING_OPERATIONS = 100;
-const MAX_PERSISTED_EVENTS = 30;
 const IDLE_LOAD_DELAY_MS = 1_800;
-const PENDING_EVENTS_KEY = "note2tabs:posthog-pending-events";
-const IDENTIFIED_USER_KEY = "note2tabs:posthog-identified-user";
-const IDENTITY_RESET_PENDING_KEY = "note2tabs:posthog-identity-reset-pending";
-const PAGE_INSTANCE_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-
-type PersistedEvent = {
-  pageInstanceId: string;
-  event: string;
-  properties?: PostHogProperties;
-};
 
 let client: PostHogClient | null = null;
 let initPromise: Promise<PostHogClient | null> | null = null;
 let identityResetPromise: Promise<void> | null = null;
 let scheduled = false;
 let pendingOperations: PendingOperation[] = [];
+let identifiedUserId: string | null = null;
+let identityResetPending = false;
+let legacyPersistenceCleared = false;
+let trackingDisabledOverride: boolean | null = null;
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return undefined;
@@ -35,93 +28,57 @@ function getCookie(name: string) {
 }
 
 function trackingIsDisabled() {
-  return getCookie(CONSENT_COOKIE) !== "granted";
+  return trackingDisabledOverride ?? (getCookie(CONSENT_COOKIE) === "denied");
 }
 
-function getLocalStorageValue(key: string) {
-  if (typeof window === "undefined") return null;
+function clearLegacyAnalyticsPersistence() {
+  if (typeof window === "undefined" || typeof document === "undefined" || legacyPersistenceCleared) return;
+  legacyPersistenceCleared = true;
+
+  const storageKeys = (storage: Storage) => {
+    const keys: string[] = [];
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (key && (key.startsWith("ph_") || key.startsWith("note2tabs:posthog-"))) keys.push(key);
+    }
+    keys.forEach((key) => storage.removeItem(key));
+  };
+
   try {
-    return window.localStorage.getItem(key);
+    storageKeys(window.localStorage);
+    storageKeys(window.sessionStorage);
   } catch {
-    return null;
+    // Storage can be unavailable in hardened browser contexts.
   }
-}
 
-function setLocalStorageValue(key: string, value: string) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    // Analytics state must never interrupt the product experience.
-  }
-}
-
-function removeLocalStorageValue(key: string) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(key);
-  } catch {
-    // Analytics state must never interrupt the product experience.
+  const secure = window.location?.protocol === "https:" ? "; Secure" : "";
+  for (const cookieName of ["analytics_session", "analytics_anon"]) {
+    document.cookie = `${cookieName}=; Max-Age=0; expires=${new Date(0).toUTCString()}; path=/; SameSite=Lax${secure}`;
   }
 }
 
 function markIdentityResetPending() {
-  setLocalStorageValue(IDENTITY_RESET_PENDING_KEY, "1");
-  removeLocalStorageValue(IDENTIFIED_USER_KEY);
+  identityResetPending = true;
+  identifiedUserId = null;
 }
 
 function completeIdentityReset() {
-  removeLocalStorageValue(IDENTITY_RESET_PENDING_KEY);
-  removeLocalStorageValue(IDENTIFIED_USER_KEY);
+  identityResetPending = false;
+  identifiedUserId = null;
 }
 
 function resetPendingIdentity(posthog: PostHogClient) {
-  if (getLocalStorageValue(IDENTITY_RESET_PENDING_KEY) !== "1") return;
+  if (!identityResetPending) return;
   posthog.reset();
   completeIdentityReset();
 }
 
 export function getPostHogIdentifiedUserId() {
-  return getLocalStorageValue(IDENTIFIED_USER_KEY);
+  return identifiedUserId;
 }
 
 export function isPostHogIdentityResetPending() {
-  return getLocalStorageValue(IDENTITY_RESET_PENDING_KEY) === "1";
-}
-
-function readPersistedEvents(): PersistedEvent[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const parsed = JSON.parse(window.sessionStorage.getItem(PENDING_EVENTS_KEY) || "[]");
-    return Array.isArray(parsed) ? parsed.slice(-MAX_PERSISTED_EVENTS) : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistEvent(event: string, properties?: PostHogProperties) {
-  if (typeof window === "undefined" || trackingIsDisabled()) return;
-  try {
-    const events = readPersistedEvents();
-    events.push({ pageInstanceId: PAGE_INSTANCE_ID, event, properties });
-    window.sessionStorage.setItem(
-      PENDING_EVENTS_KEY,
-      JSON.stringify(events.slice(-MAX_PERSISTED_EVENTS))
-    );
-  } catch {
-    // Analytics persistence must never interrupt the product experience.
-  }
-}
-
-function takeCarriedEvents() {
-  if (typeof window === "undefined") return [];
-  const events = readPersistedEvents().filter((event) => event.pageInstanceId !== PAGE_INSTANCE_ID);
-  try {
-    window.sessionStorage.removeItem(PENDING_EVENTS_KEY);
-  } catch {
-    // Ignore unavailable storage.
-  }
-  return events;
+  return identityResetPending;
 }
 
 function flushPendingOperations(posthog: PostHogClient) {
@@ -150,6 +107,7 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
   const token = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
   if (!token || (trackingIsDisabled() && !options.ignoreDeniedConsent)) return null;
   if (initPromise) return initPromise;
+  clearLegacyAnalyticsPersistence();
 
   initPromise = import("posthog-js")
     .then(({ default: posthog }) => {
@@ -161,26 +119,18 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
         capture_exceptions: false,
         autocapture: true,
         person_profiles: "identified_only",
+        disable_persistence: true,
         disable_capture_url_hashes: true,
         save_referrer: false,
         before_send: sanitizePostHogCapture,
         disable_session_recording:
           process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING !== "true",
         opt_out_capturing_by_default: trackingIsDisabled(),
-        persistence: "localStorage+cookie",
       });
 
       resetPendingIdentity(posthog);
       client = posthog;
-      takeCarriedEvents().forEach((pendingEvent) => {
-        posthog.capture(pendingEvent.event, pendingEvent.properties);
-      });
       flushPendingOperations(posthog);
-      try {
-        window.sessionStorage.removeItem(PENDING_EVENTS_KEY);
-      } catch {
-        // Ignore unavailable storage.
-      }
       return posthog;
     })
     .catch(() => {
@@ -208,7 +158,6 @@ export function capturePostHogEvent(event: string, properties?: PostHogPropertie
   const sanitizedProperties = properties
     ? sanitizeAnalyticsProperties(properties)
     : undefined;
-  if (!client) persistEvent(event, sanitizedProperties);
   enqueue((posthog) => posthog.capture(event, sanitizedProperties));
   schedulePostHogInit();
 }
@@ -218,10 +167,10 @@ export function identifyPostHogUser(distinctId: string, properties?: PostHogProp
   const sanitizedProperties = properties
     ? sanitizeAnalyticsProperties(properties)
     : undefined;
-  setLocalStorageValue(IDENTIFIED_USER_KEY, distinctId);
+  identifiedUserId = distinctId;
   enqueue((posthog) => {
     posthog.identify(distinctId, sanitizedProperties);
-    setLocalStorageValue(IDENTIFIED_USER_KEY, distinctId);
+    identifiedUserId = distinctId;
   });
   schedulePostHogInit();
 }
@@ -290,6 +239,7 @@ export function schedulePostHogInit() {
 
 export async function setPostHogConsent(state: "granted" | "denied") {
   if (!process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) return;
+  trackingDisabledOverride = state === "denied";
 
   if (state === "granted") {
     const posthog = await initPostHog({ ignoreDeniedConsent: true });
@@ -299,11 +249,6 @@ export async function setPostHogConsent(state: "granted" | "denied") {
   }
 
   pendingOperations = [];
-  try {
-    window.sessionStorage.removeItem(PENDING_EVENTS_KEY);
-  } catch {
-    // Ignore unavailable storage.
-  }
   markIdentityResetPending();
   const posthog = client || (await initPostHog({ ignoreDeniedConsent: true }));
   if (posthog) {

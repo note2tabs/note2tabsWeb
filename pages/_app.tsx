@@ -6,7 +6,6 @@ import { useRouter } from "next/router";
 import { SessionProvider } from "next-auth/react";
 import NavBar from "../components/NavBar";
 import FooterBar from "../components/FooterBar";
-import CookieConsentBanner from "../components/CookieConsentBanner";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { sanitizeAnalyticsPathname } from "../lib/analyticsPrivacy";
 import "../styles/globals.css";
@@ -48,7 +47,6 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
           <Component {...pageProps} />
         </div>
         {!isGteEditorPage && <FooterBar />}
-        <CookieConsentBanner />
         <AnalyticsIdentityLinker />
       </div>
     </SessionProvider>

@@ -28,9 +28,6 @@ class MemoryStorage implements Storage {
   }
 }
 
-const IDENTIFIED_USER_KEY = "note2tabs:posthog-identified-user";
-const IDENTITY_RESET_PENDING_KEY = "note2tabs:posthog-identity-reset-pending";
-
 function installBrowserGlobals(consent: "granted" | "denied" | "missing" = "granted") {
   const localStorage = new MemoryStorage();
   const sessionStorage = new MemoryStorage();
@@ -91,13 +88,14 @@ describe("PostHog client identity lifecycle", () => {
     await analytics.initPostHog();
 
     expect(posthog.identify).toHaveBeenCalledWith("user-a", { plan: "free" });
-    expect(localStorage.getItem(IDENTIFIED_USER_KEY)).toBe("user-a");
+    expect(analytics.getPostHogIdentifiedUserId()).toBe("user-a");
+    expect(localStorage.length).toBe(0);
 
     await analytics.resetPostHogIdentity();
 
     expect(posthog.reset).toHaveBeenCalledOnce();
-    expect(localStorage.getItem(IDENTIFIED_USER_KEY)).toBeNull();
-    expect(localStorage.getItem(IDENTITY_RESET_PENDING_KEY)).toBeNull();
+    expect(analytics.getPostHogIdentifiedUserId()).toBeNull();
+    expect(analytics.isPostHogIdentityResetPending()).toBe(false);
   });
 
   it("keeps denied consent authoritative after resetting PostHog", async () => {
@@ -141,17 +139,18 @@ describe("PostHog client identity lifecycle", () => {
 
     await analytics.resetPostHogIdentity();
     expect(posthog.init).not.toHaveBeenCalled();
-    expect(localStorage.getItem(IDENTITY_RESET_PENDING_KEY)).toBe("1");
+    expect(analytics.isPostHogIdentityResetPending()).toBe(true);
+    expect(localStorage.length).toBe(0);
 
     (document as { cookie: string }).cookie = "analytics_consent=granted";
     await analytics.initPostHog();
 
     expect(posthog.reset).toHaveBeenCalledOnce();
-    expect(localStorage.getItem(IDENTITY_RESET_PENDING_KEY)).toBeNull();
+    expect(analytics.isPostHogIdentityResetPending()).toBe(false);
   });
 
-  it("does not initialize or persist events before consent is chosen", async () => {
-    const { sessionStorage } = installBrowserGlobals("missing");
+  it("captures by default without persisting analytics state", async () => {
+    const { localStorage, sessionStorage } = installBrowserGlobals("missing");
     const posthog = createPostHogMock();
     vi.doMock("posthog-js", () => ({ default: posthog }));
     const analytics = await import("../../lib/posthogClient");
@@ -161,8 +160,14 @@ describe("PostHog client identity lifecycle", () => {
     });
     await analytics.initPostHog();
 
-    expect(posthog.init).not.toHaveBeenCalled();
-    expect(posthog.capture).not.toHaveBeenCalled();
+    expect(posthog.init).toHaveBeenCalledWith(
+      "phc_test",
+      expect.objectContaining({ disable_persistence: true, opt_out_capturing_by_default: false })
+    );
+    expect(posthog.capture).toHaveBeenCalledWith("pre_consent_event", {
+      $current_url: "https://note2tabs.com/auth/verify-email",
+    });
+    expect(localStorage.length).toBe(0);
     expect(sessionStorage.length).toBe(0);
   });
 
