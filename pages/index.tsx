@@ -1822,7 +1822,10 @@ export default function HomePage() {
                   loop={false}
                   playsInline
                   preload="none"
-                  controls
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  disablePictureInPicture
+                  disableRemotePlayback
                 />
               </div>
 
