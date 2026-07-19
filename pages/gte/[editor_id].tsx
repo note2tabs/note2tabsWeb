@@ -5660,7 +5660,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div id="find-key-dialog-title" className="text-sm font-semibold text-slate-900">
-              placeholder
+              This action will find the best fitting key and assign it to the editor. 
+              Are you sure you want to continue?
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button
