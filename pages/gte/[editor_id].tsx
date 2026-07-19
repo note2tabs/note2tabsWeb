@@ -60,6 +60,11 @@ import {
   normalizeCapo,
 } from "../../lib/gteTuning";
 import NoIndexHead from "../../components/NoIndexHead";
+import {
+  incrementGtePlaybackFrameUpdates,
+  recordGtePerfMeasure,
+  useGteRenderInstrumentation,
+} from "../../lib/gtePerformanceDiagnostics";
 
 type Props = {
   editorId: string;
@@ -858,6 +863,7 @@ const moveBarsInCanvas = (
 };
 
 export default function GteEditorPage({ editorId, isGuestMode }: Props) {
+  useGteRenderInstrumentation("GteEditorPage", editorId);
   const { data: session } = useSession();
   const [canvas, setCanvas] = useState<CanvasSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2379,6 +2385,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     globalPlaybackFrameRef.current = globalPlaybackFrame;
   }, [globalPlaybackFrame]);
 
+  const syncGlobalPlaybackFrame = useCallback((nextFrame: number, options?: { forceReact?: boolean }) => {
+    const normalized = Math.max(0, Math.min(canvasTimelineEnd, Math.round(nextFrame)));
+    globalPlaybackFrameRef.current = normalized;
+    if (options?.forceReact) {
+      setGlobalPlaybackFrame(normalized);
+    }
+  }, [canvasTimelineEnd]);
+
+  const getGlobalPlaybackFrame = useCallback(() => globalPlaybackFrameRef.current, []);
+
   useEffect(() => {
     if (!canvas) return;
     setTrackMuteById((prev) => {
@@ -2746,12 +2762,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   useEffect(() => {
     stopGlobalPlayback();
-    setGlobalPlaybackFrame(0);
-  }, [editorId, stopGlobalPlayback]);
+    syncGlobalPlaybackFrame(0, { forceReact: true });
+  }, [editorId, stopGlobalPlayback, syncGlobalPlaybackFrame]);
 
   const scheduleGlobalPlayback = useCallback(
     async (startFrame: number, speedOverride?: number) => {
       if (!canvas) return null;
+      const scheduleStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
       const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? normalizedPlaybackSpeed);
       const playbackStartFrame =
         practiceLoopEnabled && globalPracticeLoopRange ? globalPracticeLoopRange.startFrame : startFrame;
@@ -3121,6 +3138,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         });
       });
 
+      recordGtePerfMeasure("global-playback-schedule", (typeof performance !== "undefined" ? performance.now() : Date.now()) - scheduleStartedAt, {
+        eventCount: events.length,
+        trackCount: canvas.editors.length,
+      });
+
       return { ctx, endFrame, startFrame: playbackStartFrame, startTimeSec: playBase };
     },
     [
@@ -3179,7 +3201,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     globalPlaybackEndFrameRef.current = Math.max(startFrame, Math.round(scheduled.endFrame ?? startFrame));
     globalPlaybackStartFrameRef.current = Math.round(scheduled.startFrame ?? startFrame);
     globalPlaybackStartTimeRef.current = performance.now();
-    setGlobalPlaybackFrame(startFrame);
+    syncGlobalPlaybackFrame(startFrame, { forceReact: true });
     setGlobalPlaybackIsPlaying(true);
 
     const tick = (now: number) => {
@@ -3200,18 +3222,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           if (speedTrainerEnabled) {
             setPlaybackSpeed(nextSpeed);
           }
-          setGlobalPlaybackFrame(globalPracticeLoopRange.startFrame);
+          syncGlobalPlaybackFrame(globalPracticeLoopRange.startFrame, { forceReact: true });
           stopGlobalPlayback();
           window.setTimeout(() => {
             void startGlobalPlayback(globalPracticeLoopRange.startFrame, nextSpeed);
           }, 0);
           return;
         }
-        setGlobalPlaybackFrame(endFrame);
+        syncGlobalPlaybackFrame(endFrame, { forceReact: true });
         stopGlobalPlayback();
         return;
       }
-      setGlobalPlaybackFrame(nextFrame);
+      incrementGtePlaybackFrameUpdates();
+      syncGlobalPlaybackFrame(nextFrame);
       globalPlaybackRafRef.current = window.requestAnimationFrame(tick);
     };
 
@@ -3229,6 +3252,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     speedTrainerEnabled,
     stopGlobalPlayback,
     stopGlobalPlaybackAudio,
+    syncGlobalPlaybackFrame,
   ]);
 
   const toggleGlobalPlayback = useCallback(() => {
@@ -3275,9 +3299,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (globalPlaybackIsPlaying) {
         stopGlobalPlayback();
       }
-      setGlobalPlaybackFrame(clamped);
+      syncGlobalPlaybackFrame(clamped, { forceReact: true });
     },
-    [canvasTimelineEnd, globalPlaybackIsPlaying, stopGlobalPlayback]
+    [canvasTimelineEnd, globalPlaybackIsPlaying, stopGlobalPlayback, syncGlobalPlaybackFrame]
   );
 
   const skipGlobalPlaybackToStart = useCallback(() => {
@@ -3285,18 +3309,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [seekGlobalPlayback]);
 
   const skipGlobalPlaybackBackwardBar = useCallback(() => {
-    const current = Math.max(0, Math.floor(globalPlaybackFrame));
+    const current = Math.max(0, Math.floor(globalPlaybackFrameRef.current));
     const prevIndex = Math.floor((current - 1) / FIXED_FRAMES_PER_BAR);
     const target = Math.max(0, prevIndex * FIXED_FRAMES_PER_BAR);
     seekGlobalPlayback(target);
-  }, [globalPlaybackFrame, seekGlobalPlayback]);
+  }, [seekGlobalPlayback]);
 
   const skipGlobalPlaybackForwardBar = useCallback(() => {
-    const current = Math.max(0, Math.floor(globalPlaybackFrame));
+    const current = Math.max(0, Math.floor(globalPlaybackFrameRef.current));
     const nextIndex = Math.floor(current / FIXED_FRAMES_PER_BAR) + 1;
     const target = Math.min(canvasTimelineEnd, nextIndex * FIXED_FRAMES_PER_BAR);
     seekGlobalPlayback(target);
-  }, [canvasTimelineEnd, globalPlaybackFrame, seekGlobalPlayback]);
+  }, [canvasTimelineEnd, seekGlobalPlayback]);
 
   const handleGlobalPlaybackVolumeChange = useCallback((nextVolume: number) => {
     setGlobalPlaybackVolume(Math.max(0, Math.min(1, nextVolume)));
@@ -3442,27 +3466,39 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!globalPlaybackIsPlaying) return;
     const scrollbar = globalTimelineScrollbarRef.current;
     if (!scrollbar) return;
-    const maxScroll = Math.max(0, scrollbar.scrollWidth - scrollbar.clientWidth);
-    if (maxScroll <= 0) return;
-
-    const progress = Math.max(0, Math.min(1, globalPlaybackFrame / Math.max(1, canvasTimelineEnd)));
-    const playheadX = progress * maxScroll;
-    const left = scrollbar.scrollLeft;
-    const right = left + scrollbar.clientWidth;
-    const padding = Math.min(180, scrollbar.clientWidth * 0.25);
-    if (playheadX < left + padding || playheadX > right - padding) {
-      const target = Math.max(
-        0,
-        Math.min(maxScroll, playheadX - scrollbar.clientWidth * 0.35)
-      );
-      handleSharedTimelineScrollRatioChange(target / maxScroll);
-    }
-  }, [
-    canvasTimelineEnd,
-    globalPlaybackFrame,
-    globalPlaybackIsPlaying,
-    handleSharedTimelineScrollRatioChange,
-  ]);
+    let rafId: number | null = null;
+    const tick = () => {
+      const maxScroll = Math.max(0, scrollbar.scrollWidth - scrollbar.clientWidth);
+      if (maxScroll > 0) {
+        const progress = Math.max(
+          0,
+          Math.min(1, globalPlaybackFrameRef.current / Math.max(1, canvasTimelineEnd))
+        );
+        const playheadX = progress * maxScroll;
+        const left = scrollbar.scrollLeft;
+        const right = left + scrollbar.clientWidth;
+        const padding = Math.min(180, scrollbar.clientWidth * 0.25);
+        if (playheadX < left + padding || playheadX > right - padding) {
+          const target = Math.max(
+            0,
+            Math.min(maxScroll, playheadX - scrollbar.clientWidth * 0.35)
+          );
+          if (Math.abs(scrollbar.scrollLeft - target) >= 0.5) {
+            applyingGlobalTimelineScrollbarRef.current = true;
+            scrollbar.scrollLeft = target;
+            window.requestAnimationFrame(() => {
+              applyingGlobalTimelineScrollbarRef.current = false;
+            });
+          }
+        }
+      }
+      rafId = window.requestAnimationFrame(tick);
+    };
+    rafId = window.requestAnimationFrame(tick);
+    return () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+    };
+  }, [canvasTimelineEnd, globalPlaybackIsPlaying]);
 
   const mobileHistoryBusy = Boolean(deletingLaneId || addingLane || savingCanvas);
   const renderMobileHistoryControls = () => (
@@ -4835,7 +4871,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               historyRedoCount={canvasRedoCount}
                               onRequestUndo={handleCanvasUndo}
                               onRequestRedo={handleCanvasRedo}
-                              globalPlaybackFrame={globalPlaybackFrame}
+                              getGlobalPlaybackFrame={getGlobalPlaybackFrame}
                               globalPlaybackIsPlaying={globalPlaybackIsPlaying}
                               globalPlaybackVolume={globalPlaybackVolume}
                               globalPlaybackTimelineEnd={canvasTimelineEnd}
@@ -5098,7 +5134,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               historyRedoCount={canvasRedoCount}
                               onRequestUndo={handleCanvasUndo}
                               onRequestRedo={handleCanvasRedo}
-                              globalPlaybackFrame={globalPlaybackFrame}
+                              getGlobalPlaybackFrame={getGlobalPlaybackFrame}
                               globalPlaybackIsPlaying={globalPlaybackIsPlaying}
                               globalPlaybackVolume={globalPlaybackVolume}
                               globalPlaybackTimelineEnd={canvasTimelineEnd}
@@ -5381,7 +5417,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           historyRedoCount={canvasRedoCount}
                           onRequestUndo={handleCanvasUndo}
                           onRequestRedo={handleCanvasRedo}
-                          globalPlaybackFrame={globalPlaybackFrame}
+                          getGlobalPlaybackFrame={getGlobalPlaybackFrame}
                           globalPlaybackIsPlaying={globalPlaybackIsPlaying}
                           globalPlaybackVolume={globalPlaybackVolume}
                           globalPlaybackTimelineEnd={canvasTimelineEnd}
