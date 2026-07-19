@@ -597,6 +597,7 @@ export default function JobPage() {
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewAction, setReviewAction] = useState<ReviewAction>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [storedReviewTabPreviewText, setStoredReviewTabPreviewText] = useState("");
   const [quantizeImportDialog, setQuantizeImportDialog] = useState<"job" | "review" | null>(null);
   const [progressClock, setProgressClock] = useState(() => Date.now());
   const reviewMultipleGuitarsInitRef = useRef<string | null>(null);
@@ -668,10 +669,11 @@ export default function JobPage() {
   const isFinalizedJob = isFinalizedStatus && !showReviewUi;
   const tabSegments = useMemo(() => getJobTabSegments(displayJob), [displayJob]);
   const tabJobId = useMemo(() => getJobTabJobId(displayJob), [displayJob]);
-  const reviewTabPreviewText = useMemo(() => {
+  const localReviewTabPreviewText = useMemo(() => {
     const tabText = displayJob?.tab_text || (tabSegments.length > 0 ? tabsToTabText(tabSegments) : "");
     return getTabPreviewText(tabText);
   }, [displayJob?.tab_text, tabSegments]);
+  const reviewTabPreviewText = localReviewTabPreviewText || storedReviewTabPreviewText;
   const transcriberGroups = useMemo(() => getJobTranscriberGroups(displayJob), [displayJob]);
   const canImportToEditor = isFinalizedJob && (tabSegments.length > 0 || transcriberGroups.length > 0 || Boolean(tabJobId));
   const pendingPresentation = useMemo(
@@ -747,6 +749,30 @@ export default function JobPage() {
       cancelled = true;
     };
   }, [showReviewUi, isSignedIn, appendEditorId]);
+
+  useEffect(() => {
+    if (!showReviewUi || localReviewTabPreviewText || !tabJobId) {
+      setStoredReviewTabPreviewText("");
+      return;
+    }
+
+    let cancelled = false;
+    setStoredReviewTabPreviewText("");
+    fetchStoredTabPayload(tabJobId)
+      .then((storedTab) => {
+        if (cancelled) return;
+        setStoredReviewTabPreviewText(getTabPreviewText(tabsToTabText(storedTab.tabs)));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStoredReviewTabPreviewText("");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [localReviewTabPreviewText, showReviewUi, tabJobId]);
 
   const fetchJob = async (id: string, options?: { includeOutput?: boolean }): Promise<JobResponse | null> => {
     try {
@@ -894,6 +920,7 @@ export default function JobPage() {
     setReviewError(null);
     setReviewBusy(false);
     setReviewAction(null);
+    setStoredReviewTabPreviewText("");
     setReviewMultipleGuitars(false);
     reviewMultipleGuitarsInitRef.current = null;
   }, [job_id, appendEditorId]);

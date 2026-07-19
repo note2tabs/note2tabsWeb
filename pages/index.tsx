@@ -69,6 +69,9 @@ const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 const MAX_YT_SNIPPET_SEC = 30;
 const MAX_YT_START_SEC = 9 * 60;
 const MAX_YT_END_SEC = 10 * 60;
+const YOUTUBE_DOWNLOAD_DISABLED = true;
+const YOUTUBE_DOWNLOAD_OUTAGE_MESSAGE =
+  "YouTube downloads are temporarily unavailable. Our developers are working on a fix.";
 const HOW_STEP_DURATION_MS = 4000;
 
 const isYouTubeId = (value: string) => /^[a-zA-Z0-9_-]{11}$/.test(value);
@@ -592,6 +595,7 @@ export default function HomePage() {
   const canSubmit = useMemo(() => {
     if (sessionStatus === "loading" || (isSignedIn && !canUseUnverifiedTranscription)) return false;
     if (mode === "FILE") return Boolean(selectedFile) && fileTimeRangeValid && !loading && !authHandoffBusy;
+    if (YOUTUBE_DOWNLOAD_DISABLED) return false;
     return youtubeValid && youtubeTimeRangeValid && !loading && !authHandoffBusy;
   }, [
     mode,
@@ -613,6 +617,8 @@ export default function HomePage() {
       : "Generating..."
     : mode === "FILE" && !selectedFile
     ? "Choose audio file"
+    : mode === "YOUTUBE" && YOUTUBE_DOWNLOAD_DISABLED
+    ? "YouTube unavailable"
     : mode === "YOUTUBE"
     ? "Generate tabs"
     : "Generate tabs";
@@ -719,6 +725,11 @@ export default function HomePage() {
     if (mode === "YOUTUBE" && !youtubeValid) {
       setError("Please paste a valid YouTube link.");
       sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "invalid_youtube_url", mode });
+      return false;
+    }
+    if (mode === "YOUTUBE" && YOUTUBE_DOWNLOAD_DISABLED) {
+      setError(YOUTUBE_DOWNLOAD_OUTAGE_MESSAGE);
+      sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "youtube_downloader_unavailable", mode });
       return false;
     }
     if (mode === "YOUTUBE" && (ytStartTime === null || ytEndTime === null)) {
@@ -1616,6 +1627,9 @@ export default function HomePage() {
 
                   {mode === "YOUTUBE" && (
                     <div className="prompt-field prompt-field--compact">
+                      <div className="youtube-outage-notice" role="status">
+                        {YOUTUBE_DOWNLOAD_OUTAGE_MESSAGE}
+                      </div>
                       <div className="advanced-grid">
                         <label>
                           Start time

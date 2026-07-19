@@ -15,6 +15,9 @@ import { authOptions } from "../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
 import { buildLaneEditorRef, gteApi } from "../../lib/gteApi";
 import {
+  PLAYBACK_SPEED_OPTIONS,
+  SPEED_TRAINER_STEP_OPTIONS,
+  SPEED_TRAINER_TARGET_OPTIONS,
   buildMetronomeClicks,
   equalPowerPanGains,
   frameDeltaToSeconds,
@@ -35,7 +38,7 @@ import {
 } from "../../lib/gteSoundfonts";
 import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
-import GteWorkspace from "../../components/GteWorkspace";
+import GteWorkspace, { getChordEditorMidiNotes } from "../../components/GteWorkspace";
 import GteFileImportButton from "../../components/GteFileImportButton";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
@@ -43,6 +46,7 @@ import {
   downloadGteExportFile,
   type GteExportFormat,
 } from "../../lib/gteTabExport";
+import { detectGteScale } from "../../lib/gteScaleDetection";
 import {
   GTE_GUEST_EDITOR_ID,
   createGuestSnapshot,
@@ -70,6 +74,10 @@ const TIMELINE_ZOOM_MIN = 15;
 const TIMELINE_ZOOM_MAX = 200;
 const TIMELINE_ZOOM_DEFAULT = 100;
 const CONTROL_COMMIT_DEBOUNCE_MS = 350;
+const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
+const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
+const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32];
+const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 3, 4, 8, 16, 32, 64];
 const KEY_BASE_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const KEY_TYPE_OPTIONS = [
   "Major",
@@ -152,8 +160,29 @@ const normalizeKeyBase = (value: unknown) =>
 const normalizeKeyType = (value: unknown) =>
   Math.max(0, Math.min(KEY_TYPE_OPTIONS.length - 1, Math.round(toNumber(value, 0))));
 
+const getNearestCursorSizeDenominator = (value: unknown) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 4;
+  return CURSOR_SIZE_FRACTION_DENOMINATORS.reduce((best, current) =>
+    Math.abs(current - numeric) < Math.abs(best - numeric) ? current : best
+  );
+};
+
+const formatNoteLengthOption = (denominator: number) =>
+  denominator === 0.5 ? "2/1" : denominator === 1 ? "1/1" : `1/${denominator}`;
+
 const isCanvasSnapshot = (value: unknown): value is CanvasSnapshot =>
   Boolean(value && typeof value === "object" && Array.isArray((value as CanvasSnapshot).editors));
+
+const normalizeEditorKind = (value: unknown) => {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor"
+    ? "chords"
+    : "tab";
+};
+
+const isChordLane = (lane: Pick<EditorSnapshot, "editorType" | "trackType" | "type">) =>
+  normalizeEditorKind(lane.editorType ?? lane.trackType ?? lane.type) === "chords";
 
 const normalizeLane = (
   lane: EditorSnapshot,
@@ -165,17 +194,22 @@ const normalizeLane = (
   const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)));
   const rawName = typeof lane.name === "string" ? lane.name.trim() : "";
   const defaultNamePattern = /^(editor|transcription)\s+\d+$/i;
-  const laneName = !rawName || defaultNamePattern.test(rawName) ? `Tab ${index + 1}` : rawName;
+  const editorKind = normalizeEditorKind(lane.editorType ?? lane.trackType ?? lane.type);
+  const laneName = !rawName || defaultNamePattern.test(rawName) ? `${editorKind === "chords" ? "Chords" : "Tab"} ${index + 1}` : rawName;
   return {
     ...lane,
     id: laneId,
     name: laneName,
+    editorType: editorKind,
+    type: editorKind,
+    trackType: editorKind,
     instrumentId: normalizeTrackInstrumentId(lane.instrumentId),
     framesPerMessure: FIXED_FRAMES_PER_BAR,
     secondsPerBar: safeSeconds,
     fps: fpsFromSecondsPerBar(safeSeconds),
     totalFrames,
     timeSignature: Math.max(1, Math.min(64, Math.round(toNumber(lane.timeSignature, 8)))),
+    timeSignatureBottom: Math.max(1, Math.min(64, Math.round(toNumber(lane.timeSignatureBottom, 4)))),
     notes: Array.isArray(lane.notes) ? lane.notes : [],
     chords: Array.isArray(lane.chords) ? lane.chords : [],
     noteEffects: Array.isArray(lane.noteEffects) ? lane.noteEffects : [],
@@ -250,16 +284,35 @@ type PendingLaneTuningChange = {
   capo: number;
 };
 
-const getLaneBarCount = (lane: EditorSnapshot) =>
-  Math.max(
-    1,
-    Math.ceil(
-      Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR))) /
-        FIXED_FRAMES_PER_BAR
-    )
+const getLaneTimelineEnd = (lane: EditorSnapshot) => {
+  const noteEnd = (Array.isArray(lane.notes) ? lane.notes : []).reduce((max, note) => {
+    const start = Math.max(0, Math.round(toNumber(note.startTime, 0)));
+    const length = Math.max(1, Math.round(toNumber(note.length, 1)));
+    return Math.max(max, start + length);
+  }, 0);
+  const chordEnd = (Array.isArray(lane.chords) ? lane.chords : []).reduce((max, chord) => {
+    const start = Math.max(0, Math.round(toNumber(chord.startTime, 0)));
+    const length = Math.max(1, Math.round(toNumber(chord.length, 1)));
+    return Math.max(max, start + length);
+  }, 0);
+  return Math.max(
+    FIXED_FRAMES_PER_BAR,
+    Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)),
+    noteEnd,
+    chordEnd
   );
+};
+
+const getLaneBarCount = (lane: EditorSnapshot) =>
+  Math.max(1, Math.ceil(getLaneTimelineEnd(lane) / FIXED_FRAMES_PER_BAR));
 
 const normalizeTimeSignature = (value: unknown) => {
+  const next = Number(value);
+  if (!Number.isFinite(next)) return null;
+  return Math.max(1, Math.min(64, Math.round(next)));
+};
+
+const normalizeTimeSignatureBottom = (value: unknown) => {
   const next = Number(value);
   if (!Number.isFinite(next)) return null;
   return Math.max(1, Math.min(64, Math.round(next)));
@@ -840,6 +893,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [bpmSaving, setBpmSaving] = useState(false);
   const [bpmError, setBpmError] = useState<string | null>(null);
   const [timeSignatureDraft, setTimeSignatureDraft] = useState("8");
+  const [timeSignatureBottomDraft, setTimeSignatureBottomDraft] = useState("4");
   const [keepNotesOnBeat, setKeepNotesOnBeat] = useState(false);
   const [timeSignatureSaving, setTimeSignatureSaving] = useState(false);
   const [timeSignatureError, setTimeSignatureError] = useState<string | null>(null);
@@ -855,6 +909,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [hasPendingCommit, setHasPendingCommit] = useState(false);
   const [lastCommittedAt, setLastCommittedAt] = useState<string | null>(null);
   const [addingLane, setAddingLane] = useState(false);
+  const [addTrackMenuOpen, setAddTrackMenuOpen] = useState(false);
   const [deletingLaneId, setDeletingLaneId] = useState<string | null>(null);
   const [confirmDeleteTrackId, setConfirmDeleteTrackId] = useState<string | null>(null);
   const [openTrackMenuId, setOpenTrackMenuId] = useState<string | null>(null);
@@ -863,6 +918,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [tabViewEnabled, setTabViewEnabled] = useState(false);
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
   const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabled] = useState(false);
+  const [chordOnlyDefaultNoteLengthDenominator, setChordOnlyDefaultNoteLengthDenominator] = useState(4);
+  const [chordOnlyCursorSizeDenominator, setChordOnlyCursorSizeDenominator] = useState(4);
+  const [findKeyDialogOpen, setFindKeyDialogOpen] = useState(false);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
   const [sharedTimelineScrollRatio, setSharedTimelineScrollRatio] = useState(0);
   const [globalPlaybackFrame, setGlobalPlaybackFrame] = useState(0);
@@ -917,6 +975,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const telemetryStartedAtRef = useRef<number | null>(null);
   const telemetryClosedRef = useRef(false);
   const globalTimelineScrollbarRef = useRef<HTMLDivElement | null>(null);
+  const sharedTimelineMeasureRef = useRef<HTMLDivElement | null>(null);
   const applyingGlobalTimelineScrollbarRef = useRef(false);
   const globalPlaybackAudioRef = useRef<AudioContext | null>(null);
   const globalPlaybackMasterGainRef = useRef<GainNode | null>(null);
@@ -932,6 +991,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const canvasUndoRef = useRef<CanvasSnapshot[]>([]);
   const canvasRedoRef = useRef<CanvasSnapshot[]>([]);
   const trackSectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const [sharedTimelineBaseScale, setSharedTimelineBaseScale] = useState<number | undefined>(undefined);
   const router = useRouter();
   const saveToAccountPath = "/gte?importGuest=1";
   const loginSaveHref = `/auth/login?next=${encodeURIComponent(saveToAccountPath)}`;
@@ -1139,6 +1199,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (queuedTimeSignatureValueRef.current === null) {
       setTimeSignatureDraft(String(beatsPerBar));
     }
+    setTimeSignatureBottomDraft(String(normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4));
     if (activeLaneId && !canvas.editors.some((lane) => lane.id === activeLaneId)) {
       setActiveLaneId(canvas.editors[0]?.id || null);
     }
@@ -1341,6 +1402,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [applyCanvasUpdate, canvas, editorId, syncCanvasDraftToBackend]
   );
 
+  const handleContinueFindKey = useCallback(() => {
+    if (!canvas) {
+      setFindKeyDialogOpen(false);
+      return;
+    }
+
+    const detected = detectGteScale(canvas);
+    if (detected) {
+      const detectedKeyBase = normalizeKeyBase(detected.rootKey - 1);
+      const detectedKeyTypeIndex = KEY_TYPE_OPTIONS.findIndex((label) => label === detected.scaleType);
+      commitCanvasKey(detectedKeyBase, detectedKeyTypeIndex >= 0 ? detectedKeyTypeIndex : 0);
+    }
+
+    setFindKeyDialogOpen(false);
+  }, [canvas, commitCanvasKey]);
+
   const commitName = async (rawValue: string = nameDraft, options?: { exitEdit?: boolean }) => {
     if (!canvas) return;
     const trimmed = rawValue.trim();
@@ -1441,8 +1518,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setTimeSignatureDraft(String(normalized));
     const current = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
     const allTracksMatch = canvas.editors.every((lane) => (normalizeTimeSignature(lane.timeSignature) ?? 8) === normalized);
-    const secondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
-    setBpmDraft(formatBpm(secondsPerBarToBpm(secondsPerBar, normalized)));
+    const currentSecondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
+    const currentBpm = secondsPerBarToBpm(currentSecondsPerBar, current);
+    const secondsPerBar = keepNotesOnBeat
+      ? bpmToSecondsPerBar(currentBpm, normalized) ?? currentSecondsPerBar
+      : currentSecondsPerBar;
+    setBpmDraft(formatBpm(keepNotesOnBeat ? currentBpm : secondsPerBarToBpm(secondsPerBar, normalized)));
     if (normalized === current && allTracksMatch) return;
 
     setTimeSignatureSaving(true);
@@ -1476,7 +1557,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         markDirty: !isGuestMode,
       });
     } catch (err: any) {
-      setTimeSignatureError(err?.message || "Could not update beats per bar.");
+      setTimeSignatureError(err?.message || "Could not update time signature.");
     } finally {
       setTimeSignatureSaving(false);
     }
@@ -1493,13 +1574,73 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }, CONTROL_COMMIT_DEBOUNCE_MS);
   };
 
-  const handleAddLane = async () => {
+  const commitTimeSignatureBottom = async (rawValue: string | number = timeSignatureBottomDraft) => {
+    if (!canvas) return;
+    const normalized = normalizeTimeSignatureBottom(rawValue);
+    if (!normalized) {
+      setTimeSignatureBottomDraft(String(normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4));
+      return;
+    }
+    setTimeSignatureBottomDraft(String(normalized));
+    const allTracksMatch = canvas.editors.every(
+      (lane) => (normalizeTimeSignatureBottom(lane.timeSignatureBottom) ?? 4) === normalized
+    );
+    if (allTracksMatch) return;
+    setTimeSignatureSaving(true);
+    setTimeSignatureError(null);
+    try {
+      const secondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
+      const nextCanvas = normalizeCanvas(
+        {
+          ...canvas,
+          updatedAt: new Date().toISOString(),
+          editors: canvas.editors.map((lane, index) =>
+            normalizeLane(
+              {
+                ...lane,
+                timeSignatureBottom: normalized,
+              },
+              lane.id || `ed-${index + 1}`,
+              secondsPerBar,
+              index
+            )
+          ),
+        },
+        editorId
+      );
+      const res = await gteApi.applySnapshot(editorId, nextCanvas);
+      applyCanvasUpdate(normalizeCanvas((res as any).canvas ?? (res as any).snapshot ?? nextCanvas, editorId), {
+        markDirty: !isGuestMode,
+      });
+    } catch (err: any) {
+      setTimeSignatureError(err?.message || "Could not update time signature.");
+    } finally {
+      setTimeSignatureSaving(false);
+    }
+  };
+
+  const handleAddLane = async (kind: "tab" | "chords" = "tab") => {
     if (!canvas || addingLane) return;
     setAddingLane(true);
+    setAddTrackMenuOpen(false);
     setError(null);
     try {
-      const res = await gteApi.addCanvasEditor(editorId);
+      const res = await gteApi.addCanvasEditor(editorId, undefined, {
+        editorType: kind,
+        trackType: kind,
+        type: kind,
+        ...(kind === "chords"
+          ? {
+              chordEditor: {
+                roots: ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"],
+                qualities: ["major", "minor", "augmentet", "diminished", "sus2", "sus4", "power"],
+                extensions: ["", "6", "7", "maj7", "9", "maj9", "11", "13"],
+              },
+            }
+          : {}),
+      });
       const currentTimeSignature = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
+      const currentTimeSignatureBottom = normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4;
       const currentSecondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
       const nextCanvas = normalizeCanvas(
         {
@@ -1509,6 +1650,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             ...lane,
             secondsPerBar: currentSecondsPerBar,
             timeSignature: currentTimeSignature,
+            timeSignatureBottom: currentTimeSignatureBottom,
+            ...(!lane.editorType && lane.id === res.editor?.id
+              ? { editorType: kind, type: kind, trackType: kind }
+              : {}),
           })),
         },
         editorId
@@ -1568,11 +1713,26 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setDeletingLaneId(laneId);
     setError(null);
     try {
-      const res = await gteApi.deleteCanvasEditor(editorId, laneId);
-      const nextCanvas = normalizeCanvas(res.canvas, editorId);
+      const nextEditors = canvas.editors.filter((lane) => lane.id !== laneId);
+      if (nextEditors.length === canvas.editors.length) {
+        throw new Error("Track not found.");
+      }
+      const nextCanvas = normalizeCanvas(
+        {
+          ...canvas,
+          editors: nextEditors,
+          updatedAt: new Date().toISOString(),
+          version: Math.max(1, Math.round(toNumber(canvas.version, 1))) + 1,
+        },
+        editorId
+      );
+      await gteApi.applySnapshot(editorId, nextCanvas);
       applyCanvasUpdate(nextCanvas, { markDirty: !isGuestMode });
       if (activeLaneId === laneId) {
         setActiveLaneId(nextCanvas.editors[0]?.id || null);
+      }
+      if (mobileEditLaneId === laneId) {
+        setMobileEditLaneId(null);
       }
     } catch (err: any) {
       setError(err?.message || "Could not remove track.");
@@ -1616,6 +1776,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         toNumber(prev.secondsPerBar, toNumber(nextLaneSnapshot.secondsPerBar, DEFAULT_SECONDS_PER_BAR))
       );
       const sharedTimeSignature = normalizeTimeSignature(prev.editors[0]?.timeSignature) ?? 8;
+      const sharedTimeSignatureBottom = normalizeTimeSignatureBottom(prev.editors[0]?.timeSignatureBottom) ?? 4;
       const nextEditors = prev.editors.map((lane, index) =>
         lane.id === laneId
           ? normalizeLane(
@@ -1623,6 +1784,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 ...nextLaneSnapshot,
                 secondsPerBar,
                 timeSignature: sharedTimeSignature,
+                timeSignatureBottom: sharedTimeSignatureBottom,
                 instrumentId:
                   normalizeTrackInstrumentId(nextLaneSnapshot.instrumentId) !== DEFAULT_TRACK_INSTRUMENT_ID ||
                   normalizeTrackInstrumentId(lane.instrumentId) === DEFAULT_TRACK_INSTRUMENT_ID
@@ -1634,7 +1796,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               index
             )
           : normalizeLane(
-              { ...lane, secondsPerBar, timeSignature: sharedTimeSignature },
+              { ...lane, secondsPerBar, timeSignature: sharedTimeSignature, timeSignatureBottom: sharedTimeSignatureBottom },
               lane.id || `ed-${index + 1}`,
               secondsPerBar,
               index
@@ -2081,12 +2243,35 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!canvas) return 1;
     let maxBars = 1;
     for (const lane of canvas.editors) {
-      const totalFrames = Math.max(1, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)));
-      const bars = Math.max(1, Math.ceil(totalFrames / FIXED_FRAMES_PER_BAR));
+      const bars = getLaneBarCount(lane);
       if (bars > maxBars) maxBars = bars;
     }
     return maxBars;
   }, [canvas]);
+
+  useEffect(() => {
+    if (isMobileViewport || !canvas) {
+      setSharedTimelineBaseScale(undefined);
+      return;
+    }
+
+    const container = sharedTimelineMeasureRef.current;
+    if (!container) return;
+
+    const computeScale = () => {
+      const availableWidth = Math.max(240, container.clientWidth - 16);
+      const rawScale = availableWidth / Math.max(1, FIXED_FRAMES_PER_BAR * 4);
+      const nextScale = Math.max(0.5, Math.min(4, rawScale));
+      setSharedTimelineBaseScale((prev) =>
+        prev !== undefined && Math.abs(prev - nextScale) < 0.01 ? prev : nextScale
+      );
+    };
+
+    computeScale();
+    const observer = new ResizeObserver(computeScale);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [canvas, isMobileViewport]);
 
   const handleSharedTimelineScrollRatioChange = useCallback((next: number) => {
     const clamped = Math.max(0, Math.min(1, next));
@@ -2098,9 +2283,20 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [sharedViewportBarCount]
   );
 
-  const mobileControlsSummary = `${nameDraft || "Untitled"} - ${bpmDraft} BPM - ${timeSignatureDraft}/bar`;
+  const mobileControlsSummary = `${nameDraft || "Untitled"} - ${bpmDraft} BPM - ${timeSignatureDraft}/${timeSignatureBottomDraft}`;
   const isMobileCanvasMode = isMobileViewport && mobileEditLaneId === null;
   const isMobileEditMode = isMobileViewport && mobileEditLaneId !== null;
+  const globalControlsLaneId = useMemo(() => {
+    if (!canvas?.editors.length) return null;
+    if (mobileEditLaneId && canvas.editors.some((lane) => lane.id === mobileEditLaneId)) return mobileEditLaneId;
+    const tabLane = canvas.editors.find((lane) => !isChordLane(lane));
+    if (tabLane) return tabLane.id || null;
+    return canvas.editors[0]?.id || null;
+  }, [canvas?.editors, mobileEditLaneId]);
+  const chordOnlyCanvas = useMemo(
+    () => Boolean(canvas?.editors.length) && canvas!.editors.every((lane) => isChordLane(lane)),
+    [canvas]
+  );
 
   useEffect(() => {
     const scrollbar = globalTimelineScrollbarRef.current;
@@ -2133,7 +2329,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!canvas) return FIXED_FRAMES_PER_BAR;
     let maxFrames = FIXED_FRAMES_PER_BAR;
     canvas.editors.forEach((lane) => {
-      maxFrames = Math.max(maxFrames, Math.max(1, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR))));
+      maxFrames = Math.max(maxFrames, getLaneTimelineEnd(lane));
     });
     return maxFrames;
   }, [canvas]);
@@ -2799,6 +2995,34 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             slideSegments.length > 0 ? slideSegments : undefined
           );
         });
+
+        if (isChordLane(lane)) {
+          lane.chords.forEach((chord) => {
+            const midiNotes = getChordEditorMidiNotes(chord);
+            if (!midiNotes.length) return;
+            const strums =
+              Array.isArray(chord.strums) && chord.strums.length
+                ? chord.strums
+                : [{ time: 0, direction: "down" as const }];
+            strums.forEach((strum) => {
+              if (strum.direction === "mute") return;
+              const direction = strum.direction === "up" ? "up" : "down";
+              const orderedNotes = direction === "up" ? [...midiNotes].reverse() : midiNotes;
+              const strumStart = Math.max(0, Math.round(chord.startTime + (Number(strum.time) || 0)));
+              orderedNotes.forEach((midi, noteIndex) => {
+                pushEvent(
+                  strumStart + noteIndex * 4,
+                  Math.max(24, Math.min(chord.length, FIXED_FRAMES_PER_BAR / 3)),
+                  midi,
+                  0.42 * laneVolume,
+                  instrumentId,
+                  lanePan
+                );
+              });
+            });
+          });
+          return;
+        }
 
         lane.chords.forEach((chord) => {
           chord.currentTabs.forEach((tab, tabIndex) => {
@@ -3570,66 +3794,36 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </span>
                     </label>
                     <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      Beats/bar
+                      Time signature
                       <span className="mt-2 flex items-center gap-2">
-                        <input
-                          type="number"
-                          step={1}
-                          min={1}
-                          max={64}
-                          value={timeSignatureDraft}
+                        <select
+                          value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
                           onChange={(event) => {
-                            if (timeSignatureCommitTimerRef.current !== null) {
-                              window.clearTimeout(timeSignatureCommitTimerRef.current);
-                              timeSignatureCommitTimerRef.current = null;
-                            }
-                            queuedTimeSignatureValueRef.current = null;
                             setTimeSignatureDraft(event.target.value);
-                          }}
-                          onBlur={() => void commitTimeSignature()}
-                          onKeyDown={(event) => {
-                            if (event.key !== "Enter") return;
-                            event.preventDefault();
-                            void commitTimeSignature();
+                            scheduleTimeSignatureCommit(Number(event.target.value));
                           }}
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
-                        />
-                        <span className="inline-flex flex-col gap-1">
-                          <button
-                            type="button"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => {
-                              const current =
-                                normalizeTimeSignature(timeSignatureDraft) ??
-                                normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ??
-                                8;
-                              const next = current + 1;
-                              setTimeSignatureDraft(String(Math.min(64, next)));
-                              scheduleTimeSignatureCommit(next);
-                            }}
-                            className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
-                            aria-label="Increase beats per bar"
-                          >
-                            &#9650;
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => {
-                              const current =
-                                normalizeTimeSignature(timeSignatureDraft) ??
-                                normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ??
-                                8;
-                              const next = Math.max(1, current - 1);
-                              setTimeSignatureDraft(String(next));
-                              scheduleTimeSignatureCommit(next);
-                            }}
-                            className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
-                            aria-label="Decrease beats per bar"
-                          >
-                            &#9660;
-                          </button>
-                        </span>
+                          aria-label="Time signature top number"
+                        >
+                          {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
+                            <option key={value} value={value}>
+                              {value}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="text-slate-400">/</span>
+                        <select
+                          value={normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
+                          onChange={(event) => void commitTimeSignatureBottom(Number(event.target.value))}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
+                          aria-label="Time signature bottom number"
+                        >
+                          {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
+                            <option key={value} value={value}>
+                              {value}
+                            </option>
+                          ))}
+                        </select>
                       </span>
                       <span className="mt-2 flex items-center gap-1.5 text-[11px] font-medium normal-case tracking-normal text-slate-600">
                         <input
@@ -3648,7 +3842,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
                     {(timeSignatureSaving || timeSignatureError) && (
                       <span className={timeSignatureError ? "error" : "muted"}>
-                        {timeSignatureError || "Saving beats..."}
+                        {timeSignatureError || "Saving time signature..."}
                       </span>
                     )}
                   </div>
@@ -3677,6 +3871,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               }`}
             >
               Snap {globalSnapToGridEnabled ? "On" : "Off"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFindKeyDialogOpen(true)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+            >
+              find key
             </button>
             <button
               type="button"
@@ -3927,74 +4128,36 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </span>
               </label>
               <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                Beats/bar
+                Time signature
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                    <input
-                      type="number"
-                      step={1}
-                      min={1}
-                      max={64}
-                      value={timeSignatureDraft}
-                      onChange={(event) => {
-                        if (timeSignatureCommitTimerRef.current !== null) {
-                          window.clearTimeout(timeSignatureCommitTimerRef.current);
-                          timeSignatureCommitTimerRef.current = null;
-                        }
-                        queuedTimeSignatureValueRef.current = null;
-                        setTimeSignatureDraft(event.target.value);
-                      }}
-                      onBlur={() => void commitTimeSignature()}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          void commitTimeSignature();
-                        }
-                        if (event.key === "Escape") {
-                          event.preventDefault();
-                          if (timeSignatureCommitTimerRef.current !== null) {
-                            window.clearTimeout(timeSignatureCommitTimerRef.current);
-                            timeSignatureCommitTimerRef.current = null;
-                          }
-                          queuedTimeSignatureValueRef.current = null;
-                          setTimeSignatureDraft(String(normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8));
-                        }
-                      }}
-                    className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
-                  />
-                  <span style={{ display: "inline-flex", flexDirection: "column", gap: "2px" }}>
-                    <button
-                      type="button"
-                      onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => {
-                          const current = normalizeTimeSignature(timeSignatureDraft) ?? normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
-                          const next = current + 1;
-                          setTimeSignatureDraft(String(Math.min(64, next)));
-                          scheduleTimeSignatureCommit(next);
-                        }}
-                      className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
-                      title="Increase beats per bar"
-                      aria-label="Increase beats per bar"
-                      disabled={(normalizeTimeSignature(timeSignatureDraft) ?? 8) >= 64}
-                    >
-                      &#9650;
-                    </button>
-                    <button
-                      type="button"
-                      onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => {
-                          const current = normalizeTimeSignature(timeSignatureDraft) ?? normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
-                          const next = Math.max(1, current - 1);
-                          setTimeSignatureDraft(String(next));
-                          scheduleTimeSignatureCommit(next);
-                        }}
-                      className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
-                      title="Decrease beats per bar"
-                      aria-label="Decrease beats per bar"
-                      disabled={(normalizeTimeSignature(timeSignatureDraft) ?? 8) <= 1}
-                    >
-                      &#9660;
-                    </button>
-                  </span>
+                  <select
+                    value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
+                    onChange={(event) => {
+                      setTimeSignatureDraft(event.target.value);
+                      scheduleTimeSignatureCommit(Number(event.target.value));
+                    }}
+                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
+                    aria-label="Time signature top number"
+                  >
+                    {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                  <span>/</span>
+                  <select
+                    value={normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
+                    onChange={(event) => void commitTimeSignatureBottom(Number(event.target.value))}
+                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
+                    aria-label="Time signature bottom number"
+                  >
+                    {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
                 </span>
               </label>
               <div className="ml-auto flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white/55 p-1 shadow-sm">
@@ -4029,6 +4192,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   >
                     Import tabs
                   </GteFileImportButton>
+                )}
+                {!isGuestMode && (
+                  <button
+                    type="button"
+                    onClick={() => void commitCanvasToBackend({ force: true })}
+                    className="button-secondary button-small min-h-[34px]"
+                    title="Save editor now"
+                    disabled={savingCanvas}
+                  >
+                    {savingCanvas ? "Saving..." : "Save now"}
+                  </button>
                 )}
                 <div className="relative">
                   <button
@@ -4112,7 +4286,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
               {(timeSignatureSaving || timeSignatureError) && (
                 <span className={timeSignatureError ? "error" : "muted"}>
-                  {timeSignatureError || "Saving beats..."}
+                  {timeSignatureError || "Saving time signature..."}
                 </span>
               )}
             </div>
@@ -4239,80 +4413,36 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         </span>
                       </label>
                       <label className="min-w-[172px] rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-medium text-slate-600">
-                        <span className="mb-1 block">Beats/bar</span>
+                        <span className="mb-1 block">Time signature</span>
                         <span className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            step={1}
-                            min={1}
-                            max={64}
-                            value={timeSignatureDraft}
+                          <select
+                            value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
                             onChange={(event) => {
-                              if (timeSignatureCommitTimerRef.current !== null) {
-                                window.clearTimeout(timeSignatureCommitTimerRef.current);
-                                timeSignatureCommitTimerRef.current = null;
-                              }
-                              queuedTimeSignatureValueRef.current = null;
                               setTimeSignatureDraft(event.target.value);
-                            }}
-                            onBlur={() => void commitTimeSignature()}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                void commitTimeSignature();
-                              }
-                              if (event.key === "Escape") {
-                                event.preventDefault();
-                                if (timeSignatureCommitTimerRef.current !== null) {
-                                  window.clearTimeout(timeSignatureCommitTimerRef.current);
-                                  timeSignatureCommitTimerRef.current = null;
-                                }
-                                queuedTimeSignatureValueRef.current = null;
-                                setTimeSignatureDraft(String(normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8));
-                              }
+                              scheduleTimeSignatureCommit(Number(event.target.value));
                             }}
                             className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-                          />
-                          <span className="inline-flex flex-col gap-1">
-                            <button
-                              type="button"
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => {
-                                const current =
-                                  normalizeTimeSignature(timeSignatureDraft) ??
-                                  normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ??
-                                  8;
-                                const next = current + 1;
-                                setTimeSignatureDraft(String(Math.min(64, next)));
-                                scheduleTimeSignatureCommit(next);
-                              }}
-                              className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] leading-none text-slate-600"
-                              title="Increase beats per bar"
-                              aria-label="Increase beats per bar"
-                              disabled={(normalizeTimeSignature(timeSignatureDraft) ?? 8) >= 64}
-                            >
-                              &#9650;
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => {
-                                const current =
-                                  normalizeTimeSignature(timeSignatureDraft) ??
-                                  normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ??
-                                  8;
-                                const next = Math.max(1, current - 1);
-                                setTimeSignatureDraft(String(next));
-                                scheduleTimeSignatureCommit(next);
-                              }}
-                              className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] leading-none text-slate-600"
-                              title="Decrease beats per bar"
-                              aria-label="Decrease beats per bar"
-                              disabled={(normalizeTimeSignature(timeSignatureDraft) ?? 8) <= 1}
-                            >
-                              &#9660;
-                            </button>
-                          </span>
+                            aria-label="Time signature top number"
+                          >
+                            {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
+                              <option key={value} value={value}>
+                                {value}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="text-slate-400">/</span>
+                          <select
+                            value={normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
+                            onChange={(event) => void commitTimeSignatureBottom(Number(event.target.value))}
+                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                            aria-label="Time signature bottom number"
+                          >
+                            {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
+                              <option key={value} value={value}>
+                                {value}
+                              </option>
+                            ))}
+                          </select>
                         </span>
                         <span className="mt-2 flex items-center gap-1.5 text-xs font-medium text-slate-600">
                           <input
@@ -4367,7 +4497,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
                   {(timeSignatureSaving || timeSignatureError) && (
                     <span className={timeSignatureError ? "error" : "muted"}>
-                      {timeSignatureError || "Saving beats..."}
+                      {timeSignatureError || "Saving time signature..."}
                     </span>
                   )}
                 </div>
@@ -4450,6 +4580,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   title="Global snap to grid for all tracks. shortcut 'G'"
                 >
                   Snap: {globalSnapToGridEnabled ? "On" : "Off"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFindKeyDialogOpen(true)}
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700"
+                  title="Detect the key from all notes and chords"
+                >
+                  find key
                 </button>
                 <button
                   type="button"
@@ -4731,6 +4869,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
+                              sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                               sharedViewportBarCount={sharedViewportBarCount}
                               sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
@@ -4994,6 +5133,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
+                              sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                               sharedViewportBarCount={sharedViewportBarCount}
                               sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
@@ -5028,7 +5168,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSpeedTrainerStepChange={setSpeedTrainerStep}
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
-                              showToolbarWhenInactive={index === 0 && activeLaneId === null}
+                              showToolbarWhenInactive={laneId === globalControlsLaneId}
                               toolbarOpen={toolbarOpen}
                               onToolbarOpenChange={setToolbarOpen}
                               multiTrackSelectionActive={multiTrackSelectionActive}
@@ -5256,7 +5396,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           </div>
                         </div>
                       </aside>
-                      <div className="min-w-0 flex-1">
+                      <div ref={sharedTimelineMeasureRef} className="min-w-0 flex-1">
                         <GteWorkspace
                           editorId={laneEditorRef}
                           snapshot={lane}
@@ -5276,7 +5416,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                           canvasKeyType={normalizeKeyType(canvas.keyType)}
                           sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
+                          sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                           sharedViewportBarCount={sharedViewportBarCount}
+                          sharedTimelineBaseScale={sharedTimelineBaseScale}
                           sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                           onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                           timelineZoomFactor={timelineZoomPercent / 100}
@@ -5310,9 +5452,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onSpeedTrainerStepChange={setSpeedTrainerStep}
                           playbackSpeed={normalizedPlaybackSpeed}
                           onPlaybackSpeedChange={setPlaybackSpeed}
-                          showToolbarWhenInactive={
-                            isMobileViewport ? index === 0 && !mobileEditLaneId : activeLaneId === null && index === 0
-                          }
+                          showToolbarWhenInactive={laneId === globalControlsLaneId}
                           toolbarOpen={toolbarOpen}
                           onToolbarOpenChange={setToolbarOpen}
                           multiTrackSelectionActive={multiTrackSelectionActive}
@@ -5367,17 +5507,40 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               );
             })}
             {(!isMobileViewport || !mobileEditLaneId) && (
-              <div className="flex justify-center pt-1">
+              <div className="relative flex justify-center pt-1">
                 <button
                   type="button"
-                  onClick={() => void handleAddLane()}
+                  onClick={() => setAddTrackMenuOpen((open) => !open)}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
                   disabled={addingLane}
                   title={addingLane ? "Adding track..." : "Add track"}
                   aria-label={addingLane ? "Adding track" : "Add track"}
+                  aria-expanded={addTrackMenuOpen}
                 >
                   +
                 </button>
+                {addTrackMenuOpen && (
+                  <div className="absolute bottom-11 z-30 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
+                      onClick={() => void handleAddLane("tab")}
+                      disabled={addingLane}
+                    >
+                      <span>Tab</span>
+                      <span className="text-xs text-slate-400">Track</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
+                      onClick={() => void handleAddLane("chords")}
+                      disabled={addingLane}
+                    >
+                      <span>Chords</span>
+                      <span className="text-xs text-slate-400">Track</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -5447,6 +5610,277 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         )}
       </div>
+      {findKeyDialogOpen && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/30 px-4"
+          role="presentation"
+          onMouseDown={() => setFindKeyDialogOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="find-key-dialog-title"
+            className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-2xl"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div id="find-key-dialog-title" className="text-sm font-semibold text-slate-900">
+              placeholder
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setFindKeyDialogOpen(false)}
+                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleContinueFindKey}
+                className="rounded-md border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {!isMobileViewport && chordOnlyCanvas && (
+        <div
+          data-gte-floating-ui="true"
+          className="pointer-events-none fixed bottom-16 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2"
+        >
+          <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
+            <button
+              type="button"
+              data-gte-toolbar-ui="true"
+              onClick={() => setToolbarOpen((prev) => !prev)}
+              aria-pressed={toolbarOpen}
+              title={toolbarOpen ? "Hide toolbar" : "Show toolbar"}
+              className={`pointer-events-auto flex h-10 items-center justify-center rounded-full border px-3 text-xs font-semibold shadow-md backdrop-blur md:absolute md:right-0 ${
+                toolbarOpen
+                  ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
+                  : "border-sky-300 bg-sky-100/95 text-sky-900 hover:bg-sky-50"
+              }`}
+            >
+              Toolbar
+            </button>
+            <div className="pointer-events-auto flex items-center gap-2">
+              <div className="flex shrink-0 flex-col gap-1">
+                <label className="flex h-9 items-center gap-1 rounded-full border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500 shadow-sm backdrop-blur">
+                  <span className="whitespace-nowrap">add note size</span>
+                  <select
+                    value={chordOnlyDefaultNoteLengthDenominator}
+                    onChange={(event) => setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))}
+                    className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
+                    title="Add note size"
+                    aria-label="Add note size"
+                  >
+                    {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+                      <option key={denominator} value={denominator}>
+                        {formatNoteLengthOption(denominator)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex h-9 items-center gap-1 rounded-full border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500 shadow-sm backdrop-blur">
+                  <span className="whitespace-nowrap">cursor size</span>
+                  <select
+                    value={chordOnlyCursorSizeDenominator}
+                    onChange={(event) =>
+                      setChordOnlyCursorSizeDenominator(getNearestCursorSizeDenominator(event.target.value))
+                    }
+                    className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
+                    title="Cursor size"
+                    aria-label="Cursor size"
+                  >
+                    {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
+                      <option key={denominator} value={denominator}>
+                        1/{denominator}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
+                <button
+                  type="button"
+                  onClick={handleCanvasUndo}
+                  disabled={canvasUndoCount === 0}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Undo"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCanvasRedo}
+                  disabled={canvasRedoCount === 0}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Redo"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
+                  </svg>
+                </button>
+                <span className="mx-1 whitespace-nowrap text-[10px] text-slate-500">{saveStatus}</span>
+                <button
+                  type="button"
+                  onClick={skipGlobalPlaybackToStart}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Go to start"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <rect x="4" y="5" width="2" height="14" />
+                    <polygon points="18,5 8,12 18,19" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={skipGlobalPlaybackBackwardBar}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Previous bar"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <polygon points="17,5 7,12 17,19" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleGlobalPlayback}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
+                  title={globalPlaybackIsPlaying ? "Pause" : "Play"}
+                >
+                  {globalPlaybackIsPlaying ? (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                      <rect x="6" y="5" width="4" height="14" />
+                      <rect x="14" y="5" width="4" height="14" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                      <polygon points="8,5 19,12 8,19" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={skipGlobalPlaybackForwardBar}
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Next bar"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <polygon points="7,5 17,12 7,19" />
+                  </svg>
+                </button>
+                <div className="flex items-center gap-1 px-1">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
+                    <path d="M4 10v4h4l5 4V6L8 10H4z" />
+                    <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
+                  </svg>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={globalPlaybackVolume}
+                    onChange={(event) => handleGlobalPlaybackVolumeChange(Number(event.target.value))}
+                    className="w-20 accent-slate-700"
+                    title="Volume"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPracticeLoopEnabled((enabled) => !enabled)}
+                  disabled={!globalPracticeLoopRange}
+                  aria-pressed={practiceLoopEnabled}
+                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+                    practiceLoopEnabled ? "bg-emerald-100 text-emerald-800" : "hover:bg-slate-100"
+                  }`}
+                  title="Loop selected bars"
+                >
+                  Loop
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMetronomeEnabled((enabled) => !enabled)}
+                  aria-pressed={metronomeEnabled}
+                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold ${
+                    metronomeEnabled ? "bg-sky-100 text-sky-800" : "hover:bg-slate-100"
+                  }`}
+                  title="Metronome"
+                >
+                  Met
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCountInEnabled((enabled) => !enabled)}
+                  aria-pressed={countInEnabled}
+                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold ${
+                    countInEnabled ? "bg-amber-100 text-amber-800" : "hover:bg-slate-100"
+                  }`}
+                  title="One-bar count-in"
+                >
+                  Count
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSpeedTrainerEnabled((enabled) => !enabled)}
+                  disabled={!practiceLoopEnabled}
+                  aria-pressed={speedTrainerEnabled}
+                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+                    speedTrainerEnabled ? "bg-violet-100 text-violet-800" : "hover:bg-slate-100"
+                  }`}
+                  title="Speed trainer"
+                >
+                  Train
+                </button>
+                <select
+                  value={normalizedPlaybackSpeed}
+                  onChange={(event) => setPlaybackSpeed(Number(event.target.value))}
+                  className="h-8 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                  title="Playback speed"
+                >
+                  {PLAYBACK_SPEED_OPTIONS.map((speed) => (
+                    <option key={speed} value={speed}>
+                      {Math.round(speed * 100)}%
+                    </option>
+                  ))}
+                </select>
+                {speedTrainerEnabled && (
+                  <>
+                    <select
+                      value={speedTrainerTarget}
+                      onChange={(event) => setSpeedTrainerTarget(Number(event.target.value))}
+                      className="h-8 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
+                      title="Speed trainer target"
+                    >
+                      {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
+                        <option key={speed} value={speed}>
+                          to {Math.round(speed * 100)}%
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={speedTrainerStep}
+                      onChange={(event) => setSpeedTrainerStep(Number(event.target.value))}
+                      className="h-8 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
+                      title="Speed trainer step"
+                    >
+                      {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
+                        <option key={step} value={step}>
+                          +{Math.round(step * 100)}%
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {!isMobileViewport && canvas && (
         <div className="fixed bottom-0 left-0 right-0 z-40 border-slate-200">
           <div className="container gte-wide py-1">

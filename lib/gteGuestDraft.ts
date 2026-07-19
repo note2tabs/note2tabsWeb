@@ -1,4 +1,5 @@
 import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
+import { hydrateChordFingering } from "./gteChordFingerings";
 import { DEFAULT_TRACK_INSTRUMENT_ID, normalizeTrackInstrumentId } from "./gteSoundfonts";
 import { getTuningPreset, normalizeCapo } from "./gteTuning";
 
@@ -173,15 +174,47 @@ const normalizeNoteEffects = (value: unknown): NonNullable<EditorSnapshot["noteE
     .filter((effect): effect is NonNullable<EditorSnapshot["noteEffects"]>[number] => effect !== null);
 };
 
+const normalizeEditorType = (value: unknown) => {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor") return "chords";
+  return "tab";
+};
+
+const normalizeChordEditor = (value: unknown) =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? ({ ...(value as Record<string, unknown>) } as Record<string, unknown>)
+    : undefined;
+
+const normalizeChordStrums = (value: unknown): NonNullable<EditorSnapshot["chords"][number]["strums"]> => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry, index): NonNullable<EditorSnapshot["chords"][number]["strums"]>[number] | null => {
+      if (!entry || typeof entry !== "object") return null;
+      const raw = entry as Record<string, unknown>;
+      const direction: "down" | "up" | "mute" =
+        raw.direction === "up" ? "up" : raw.direction === "mute" || raw.direction === "x" ? "mute" : "down";
+      return {
+        id: clampInt(raw.id, index + 1, -2147483648, 2147483647),
+        time: clampInt(raw.time, 0, 0, 100000000),
+        direction,
+      };
+    })
+    .filter((entry): entry is NonNullable<EditorSnapshot["chords"][number]["strums"]>[number] => entry !== null);
+};
+
 export const createGuestSnapshot = (editorId: string = GTE_GUEST_EDITOR_ID): EditorSnapshot => {
   return {
     id: editorId,
     name: "Untitled",
+    editorType: "tab",
+    type: "tab",
+    trackType: "tab",
     instrumentId: DEFAULT_TRACK_INSTRUMENT_ID,
     schemaVersion: 1,
     version: 1,
     updatedAt: new Date().toISOString(),
     timeSignature: DEFAULT_TIME_SIGNATURE,
+    timeSignatureBottom: 4,
     framesPerMessure: FIXED_FRAMES_PER_BAR,
     fps: DEFAULT_FPS,
     totalFrames: DEFAULT_TOTAL_FRAMES,
@@ -215,6 +248,7 @@ export const normalizeGuestSnapshot = (
     )
   );
   const timeSignature = clampInt(raw.timeSignature, base.timeSignature || DEFAULT_TIME_SIGNATURE, 1, 64);
+  const timeSignatureBottom = clampInt(raw.timeSignatureBottom, base.timeSignatureBottom || 4, 1, 64);
 
   const notes = Array.isArray(raw.notes)
     ? raw.notes
@@ -247,7 +281,16 @@ export const normalizeGuestSnapshot = (
                 .map((item) => normalizeTab(item))
                 .filter((item): item is TabCoord => Boolean(item))
             : [];
-          if (!currentTabs.length) return null;
+          const root = typeof chord.root === "string" && chord.root.trim() ? chord.root.trim() : undefined;
+          const quality = typeof chord.quality === "string" && chord.quality.trim() ? chord.quality.trim() : undefined;
+          const extension =
+            typeof chord.extension === "string" && chord.extension.trim() ? chord.extension.trim() : undefined;
+          const label = typeof chord.label === "string" && chord.label.trim() ? chord.label.trim() : undefined;
+          const fingering =
+            chord.fingering && typeof chord.fingering === "object" && !Array.isArray(chord.fingering)
+              ? hydrateChordFingering(chord.fingering as any)
+              : undefined;
+          if (!currentTabs.length && !root && !quality && !label) return null;
           const ogTabs = Array.isArray(chord.ogTabs)
             ? chord.ogTabs
                 .map((item) => normalizeTab(item))
@@ -263,9 +306,18 @@ export const normalizeGuestSnapshot = (
             originalMidi,
             currentTabs,
             ogTabs,
+            ...(root ? { root } : {}),
+            ...(quality ? { quality } : {}),
+            ...(extension ? { extension } : {}),
+            ...(label ? { label } : {}),
+            ...(fingering ? { fingering } : {}),
+            ...(Number.isFinite(Number(chord.fingeringIndex))
+              ? { fingeringIndex: clampInt(chord.fingeringIndex, 0, 0, 1000000) }
+              : {}),
+            strums: normalizeChordStrums(chord.strums),
           };
         })
-        .filter((chord): chord is EditorSnapshot["chords"][number] => chord !== null)
+        .filter((chord): chord is NonNullable<typeof chord> => chord !== null)
     : [];
 
   const noteEffects = normalizeNoteEffects(raw.noteEffects);
@@ -276,18 +328,25 @@ export const normalizeGuestSnapshot = (
 
   const id = typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : fallbackEditorId;
   const name = typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : "Untitled";
+  const editorType = normalizeEditorType(raw.editorType ?? raw.trackType ?? raw.type);
+  const chordEditor = normalizeChordEditor(raw.chordEditor);
 
   return {
     ...base,
     ...raw,
     id,
     name,
+    editorType,
+    type: editorType,
+    trackType: editorType,
+    ...(chordEditor ? { chordEditor } : {}),
     instrumentId: normalizeTrackInstrumentId(raw.instrumentId),
     updatedAt: typeof raw.updatedAt === "string" && raw.updatedAt ? raw.updatedAt : base.updatedAt,
     framesPerMessure: FIXED_FRAMES_PER_BAR,
     fps,
     totalFrames,
     timeSignature,
+    timeSignatureBottom,
     secondsPerBar,
     notes,
     chords,

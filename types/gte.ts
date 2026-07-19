@@ -24,6 +24,26 @@ export type Chord = {
   originalMidi: number[];
   currentTabs: TabCoord[];
   ogTabs: TabCoord[];
+  fingering?: ChordFingering;
+  fingeringIndex?: number;
+  root?: string;
+  quality?: string;
+  extension?: string;
+  label?: string;
+  strums?: Array<{
+    id?: number;
+    time: number;
+    direction: "down" | "up" | "mute";
+  }>;
+};
+
+export type ChordFingering = {
+  root: string;
+  type: string;
+  positions: Array<number | null>;
+  noteNames?: string[];
+  midiNotes?: number[];
+  tabs?: TabCoord[];
 };
 
 export type CutRegion = [number, number];
@@ -33,6 +53,10 @@ export type CutWithCoord = [CutRegion, TabCoord];
 export type EditorSnapshot = {
   id: string;
   name?: string;
+  editorType?: "tab" | "chords" | string;
+  type?: "tab" | "chords" | string;
+  trackType?: "tab" | "chords" | string;
+  chordEditor?: Record<string, unknown>;
   instrumentId?: string;
   tuning?: {
     presetId?: string;
@@ -44,6 +68,7 @@ export type EditorSnapshot = {
   version?: number;
   updatedAt?: string;
   timeSignature?: number;
+  timeSignatureBottom?: number;
   framesPerMessure: number;
   fps: number;
   totalFrames: number;

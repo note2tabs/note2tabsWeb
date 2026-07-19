@@ -2120,14 +2120,6 @@ input[type="number"] {
   white-space: nowrap;
 }
 
-.hero-outcome-row span::before {
-  content: "";
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: rgba(6, 17, 13, 0.42);
-}
-
 @media (max-width: 1100px) {
   .hero-doodle--guitar {
     left: -118px;
@@ -6498,6 +6490,18 @@ input[type="number"] {
 
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+.youtube-outage-notice {
+  width: 100%;
+  border: 1px solid rgba(245, 158, 11, 0.32);
+  border-radius: 10px;
+  background: rgba(255, 251, 235, 0.96);
+  color: #92400e;
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.45;
+  padding: 10px 12px;
 }
 
 .import-thinking-text,

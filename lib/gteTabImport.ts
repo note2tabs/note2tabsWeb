@@ -1,3 +1,5 @@
+import { unzipSync } from "fflate";
+
 const STANDARD_TUNING_MIDI_HIGH_TO_LOW = [64, 59, 55, 50, 45, 40];
 const ASCII_LINE_LABELS = ["e", "B", "G", "D", "A", "E"];
 const FIXED_FRAMES_PER_BAR = 480;
@@ -53,17 +55,23 @@ const RECOGNIZED_BINARY_EXTENSIONS = new Set(["gp", "gp3", "gp4", "gp5", "gpx", 
 const TAB_TEXT_LABEL_RE = /^\s*([eEBDGA])\s*[\|:]/;
 
 type ParsedTabImport = {
+  name?: string;
   text: string;
   stamps: Array<[number, [number, number], number]>;
   framesPerMessure: number;
   fps: number;
   totalFrames: number;
   warning?: string;
+  tracks?: ParsedTabTrackImport[];
 };
 
 export type ParsedTabFileImport = ParsedTabImport & {
   name: string;
   fileName: string;
+};
+
+export type ParsedTabTrackImport = Omit<ParsedTabImport, "tracks"> & {
+  name?: string;
 };
 
 type TabPosition = {
@@ -102,9 +110,6 @@ export function getUnsupportedTabImportMessage(fileName: string) {
   if (!isRecognizedTabImportExtension(extension)) {
     return "This file type is not recognized as a common tab format.";
   }
-  if (extension === "mxl") {
-    return "Compressed MusicXML (.mxl) is recognized, but this browser importer cannot unzip it yet. Export as .musicxml or .xml and import that file.";
-  }
   return "This format is recognized, but it needs a PowerTab/TablEdit/TuxGuitar converter before it can be imported into this editor. Export it as Guitar Pro, MusicXML, MIDI, or ASCII tab first.";
 }
 
@@ -140,6 +145,8 @@ export async function parseTabImportFile(file: File): Promise<ParsedTabFileImpor
   let parsed: ParsedTabImport;
   if (extension === "mid" || extension === "midi") {
     parsed = parseMidiTabImport(await file.arrayBuffer());
+  } else if (extension === "mxl") {
+    parsed = parseCompressedMusicXmlTabImport(await file.arrayBuffer());
   } else if (extension === "xml" || extension === "musicxml") {
     parsed = parseMusicXmlTabImport(await file.text());
   } else if (canParseWithAlphaTab(extension)) {
@@ -164,6 +171,10 @@ export async function parseTabImportFile(file: File): Promise<ParsedTabFileImpor
 export function validateParsedImport(parsed: ParsedTabImport): ParsedTabImport {
   validateImportTextBounds(parsed.text);
   limitStamps(parsed.stamps);
+  parsed.tracks?.forEach((track) => {
+    validateImportTextBounds(track.text);
+    limitStamps(track.stamps);
+  });
   return parsed;
 }
 
@@ -206,14 +217,54 @@ export function parseMusicXmlTabImport(xml: string): ParsedTabImport {
   });
 }
 
+export function parseCompressedMusicXmlTabImport(buffer: ArrayBuffer): ParsedTabImport {
+  let entries: Record<string, Uint8Array>;
+  try {
+    entries = unzipSync(new Uint8Array(buffer));
+  } catch {
+    throw new Error("This does not look like a valid compressed MusicXML file.");
+  }
+  const decoder = new TextDecoder();
+  const normalizedEntries = new Map(Object.entries(entries).map(([name, value]) => [name.replace(/\\/g, "/"), value]));
+  const containerXml = normalizedEntries.get("META-INF/container.xml");
+  const rootFile = containerXml
+    ? getMusicXmlContainerRootFile(decoder.decode(containerXml))
+    : "";
+  const musicXmlEntry =
+    (rootFile ? normalizedEntries.get(rootFile) : undefined) ??
+    Array.from(normalizedEntries.entries()).find(
+      ([name]) => !name.startsWith("META-INF/") && /\.(?:xml|musicxml)$/i.test(name)
+    )?.[1];
+
+  if (!musicXmlEntry) {
+    throw new Error("No MusicXML score was found inside this .mxl file.");
+  }
+  return parseMusicXmlTabImport(decoder.decode(musicXmlEntry));
+}
+
 export function parseMidiTabImport(buffer: ArrayBuffer): ParsedTabImport {
-  const notes = extractMidiNotes(buffer);
-  if (!notes.length) {
+  const tracks = extractMidiTracks(buffer);
+  if (!tracks.length) {
     throw new Error("No MIDI notes were found in this file.");
   }
-  return buildParsedImportFromPositions(notes, undefined, {
+  const parsedTracks = tracks.map((track, index) =>
+    buildParsedImportFromPositions(track.positions, undefined, {
+      warning: "MIDI does not store guitar string choices, so string and fret positions were estimated.",
+      name: track.name || `MIDI track ${index + 1}`,
+    })
+  );
+  const combined = buildParsedImportFromPositions(
+    tracks.flatMap((track) => track.positions),
+    undefined,
+    {
+      warning: "MIDI does not store guitar string choices, so string and fret positions were estimated.",
+    }
+  );
+  return {
+    ...combined,
+    tracks: parsedTracks,
     warning: "MIDI does not store guitar string choices, so string and fret positions were estimated.",
-  });
+  };
 }
 
 export async function parseAlphaTabFileImport(buffer: ArrayBuffer): Promise<ParsedTabImport> {
@@ -243,13 +294,24 @@ function decodeXmlEntities(value: string) {
 }
 
 function getTagText(source: string, tagName: string) {
-  const match = source.match(new RegExp(`<${tagName}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tagName}>`, "i"));
+  const match = source.match(new RegExp(`<${tagName}\\b(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tagName}>`, "i"));
   return match ? decodeXmlEntities(match[1].trim()) : "";
+}
+
+function getOptionalTagNumber(source: string, tagName: string) {
+  const text = getTagText(source, tagName);
+  if (!text) return NaN;
+  return Number(text);
+}
+
+function getMusicXmlContainerRootFile(containerXml: string) {
+  const rootfile = containerXml.match(/<rootfile\b[^>]*\bfull-path=(["'])(.*?)\1/i);
+  return rootfile ? decodeXmlEntities(rootfile[2]).replace(/\\/g, "/") : "";
 }
 
 function getTagBlocks(source: string, tagName: string) {
   const blocks: string[] = [];
-  const pattern = new RegExp(`<${tagName}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tagName}>`, "gi");
+  const pattern = new RegExp(`<${tagName}\\b(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tagName}>`, "gi");
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(source))) {
     blocks.push(match[0]);
@@ -319,7 +381,7 @@ function extractMusicXmlNotes(xml: string): TabPosition[] {
       const measureDuration = getMusicXmlMeasureDurationFrames(measureXml, state);
       let cursorFrame = measureStartFrame;
       let lastNoteStartFrame = measureStartFrame;
-      const tokens = measureXml.match(/<(?:note|backup|forward)(?:\s[^>]*)?>[\s\S]*?<\/(?:note|backup|forward)>/gi) || [];
+      const tokens = measureXml.match(/<(?:note|backup|forward)\b(?:\s[^>]*)?>[\s\S]*?<\/(?:note|backup|forward)>/gi) || [];
 
       tokens.forEach((token) => {
         if (/^<backup/i.test(token)) {
@@ -338,9 +400,9 @@ function extractMusicXmlNotes(xml: string): TabPosition[] {
         if (!isChord) lastNoteStartFrame = noteStartFrame;
 
         if (!isRest) {
-          const technical = token.match(/<technical(?:\s[^>]*)?>([\s\S]*?)<\/technical>/i)?.[1] || token;
-          const musicXmlString = Number(getTagText(technical, "string"));
-          const fret = Number(getTagText(technical, "fret"));
+          const technical = token.match(/<technical\b(?:\s[^>]*)?>([\s\S]*?)<\/technical>/i)?.[1] || "";
+          const musicXmlString = getOptionalTagNumber(technical, "string");
+          const fret = getOptionalTagNumber(technical, "fret");
           if (Number.isFinite(musicXmlString) && Number.isFinite(fret)) {
             positions.push({
               column: noteStartFrame,
@@ -452,16 +514,45 @@ function readVariableLength(view: DataView, offset: number) {
   return { value, offset: cursor };
 }
 
-function extractMidiNotes(buffer: ArrayBuffer): TabPosition[] {
+function getMidiChannelTrackName(trackName: string, channel: number, program?: number) {
+  const channelLabel = `Ch ${channel + 1}`;
+  const programLabel = Number.isFinite(program) ? `program ${Math.round(Number(program)) + 1}` : "";
+  return [trackName, channelLabel, programLabel].filter(Boolean).join(" ");
+}
+
+function midiNoteEventsToPositions(
+  noteEvents: { startTick: number; endTick: number; midi: number }[],
+  ticksPerBar: number
+) {
+  return limitTabPositions(
+    noteEvents
+      .sort((left, right) => left.startTick - right.startTick || left.midi - right.midi)
+      .flatMap((note) => {
+        const tab = midiToTab(note.midi);
+        return tab
+          ? [
+              {
+                column: Math.round((note.startTick / ticksPerBar) * FIXED_FRAMES_PER_BAR),
+                stringIndex: tab.stringIndex,
+                fret: tab.fret,
+                length: Math.max(1, Math.round(((note.endTick - note.startTick) / ticksPerBar) * FIXED_FRAMES_PER_BAR)),
+              },
+            ]
+          : [];
+      })
+  );
+}
+
+function extractMidiTracks(buffer: ArrayBuffer): Array<{ name?: string; positions: TabPosition[] }> {
   const view = new DataView(buffer);
   if (view.byteLength < 14 || readAscii(view, 0, 4) !== "MThd") {
     throw new Error("This does not look like a valid MIDI file.");
   }
   const headerLength = view.getUint32(4);
   const ticksPerQuarter = Math.max(1, view.getUint16(12) & 0x7fff);
+  const ticksPerBar = Math.max(1, ticksPerQuarter * 4);
   let offset = 8 + headerLength;
-  const active = new Map<string, { tick: number; midi: number }>();
-  const noteEvents: { startTick: number; endTick: number; midi: number }[] = [];
+  const tracks: Array<{ name?: string; positions: TabPosition[] }> = [];
 
   while (offset + 8 <= view.byteLength) {
     const chunkType = readAscii(view, offset, 4);
@@ -475,6 +566,10 @@ function extractMidiNotes(buffer: ArrayBuffer): TabPosition[] {
 
     let tick = 0;
     let runningStatus = 0;
+    let trackName = "";
+    const active = new Map<string, { tick: number; midi: number; channel: number }>();
+    const noteEvents: { startTick: number; endTick: number; midi: number; channel: number }[] = [];
+    const programsByChannel = new Map<number, number>();
     while (offset < chunkEnd) {
       const delta = readVariableLength(view, offset);
       tick += delta.value;
@@ -488,9 +583,15 @@ function extractMidiNotes(buffer: ArrayBuffer): TabPosition[] {
       }
 
       if (status === 0xff) {
+        const metaType = view.getUint8(offset);
         offset += 1;
         const metaLength = readVariableLength(view, offset);
-        offset = metaLength.offset + metaLength.value;
+        const metaStart = metaLength.offset;
+        const metaEnd = Math.min(chunkEnd, metaStart + metaLength.value);
+        if ((metaType === 0x03 || metaType === 0x04) && !trackName) {
+          trackName = readAscii(view, metaStart, metaEnd - metaStart).trim();
+        }
+        offset = metaEnd;
         continue;
       }
       if (status === 0xf0 || status === 0xf7) {
@@ -502,41 +603,60 @@ function extractMidiNotes(buffer: ArrayBuffer): TabPosition[] {
       const eventType = status & 0xf0;
       const channel = status & 0x0f;
       if (eventType === 0xc0 || eventType === 0xd0) {
+        if (eventType === 0xc0 && channel !== 9) {
+          programsByChannel.set(channel, view.getUint8(offset));
+        }
         offset += 1;
         continue;
       }
       const midi = view.getUint8(offset);
       const velocity = view.getUint8(offset + 1);
       offset += 2;
+      if (channel === 9) continue;
       const key = `${channel}:${midi}`;
       if (eventType === 0x90 && velocity > 0) {
-        active.set(key, { tick, midi });
+        active.set(key, { tick, midi, channel });
       } else if (eventType === 0x80 || eventType === 0x90) {
         const started = active.get(key);
         if (started) {
-          noteEvents.push({ startTick: started.tick, endTick: Math.max(tick, started.tick + 1), midi: started.midi });
+          noteEvents.push({
+            startTick: started.tick,
+            endTick: Math.max(tick, started.tick + 1),
+            midi: started.midi,
+            channel: started.channel,
+          });
           active.delete(key);
         }
+      }
+    }
+    active.forEach((started) =>
+      noteEvents.push({
+        startTick: started.tick,
+        endTick: started.tick + ticksPerQuarter,
+        midi: started.midi,
+        channel: started.channel,
+      })
+    );
+    const eventsByChannel = new Map<number, { startTick: number; endTick: number; midi: number }[]>();
+    noteEvents.forEach((event) => {
+      const existing = eventsByChannel.get(event.channel) ?? [];
+      existing.push({ startTick: event.startTick, endTick: event.endTick, midi: event.midi });
+      eventsByChannel.set(event.channel, existing);
+    });
+    const channelEntries = Array.from(eventsByChannel.entries()).sort((a, b) => a[0] - b[0]);
+    for (const [channel, channelEvents] of channelEntries) {
+      const positions = midiNoteEventsToPositions(channelEvents, ticksPerBar);
+      if (positions.length) {
+        tracks.push({
+          name: getMidiChannelTrackName(trackName, channel, programsByChannel.get(channel)),
+          positions,
+        });
       }
     }
     offset = chunkEnd;
   }
 
-  active.forEach((started) => noteEvents.push({ startTick: started.tick, endTick: started.tick + ticksPerQuarter, midi: started.midi }));
-  const ticksPerBar = Math.max(1, ticksPerQuarter * 4);
-  return limitTabPositions(noteEvents
-    .sort((left, right) => left.startTick - right.startTick || left.midi - right.midi)
-    .flatMap((note) => {
-      const tab = midiToTab(note.midi);
-      return tab
-        ? [{
-            column: Math.round((note.startTick / ticksPerBar) * FIXED_FRAMES_PER_BAR),
-            stringIndex: tab.stringIndex,
-            fret: tab.fret,
-            length: Math.max(1, Math.round(((note.endTick - note.startTick) / ticksPerBar) * FIXED_FRAMES_PER_BAR)),
-          }]
-        : [];
-    }));
+  return tracks;
 }
 
 function stripAsciiTabPrefix(line: string) {
@@ -599,7 +719,7 @@ function extractAsciiTabNotes(text: string): TabPosition[] {
 function buildParsedImportFromPositions(
   positions: TabPosition[],
   sourceText?: string,
-  options?: { warning?: string }
+  options?: { warning?: string; name?: string }
 ): ParsedTabImport {
   const safePositions = limitTabPositions(positions);
   const stamps = limitStamps(
@@ -626,6 +746,7 @@ function buildParsedImportFromPositions(
     fps: DEFAULT_FPS,
     totalFrames,
     warning: options?.warning,
+    name: options?.name,
   };
 }
 

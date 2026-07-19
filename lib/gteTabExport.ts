@@ -119,7 +119,8 @@ export const buildMusicXmlFromSnapshot = (snapshot: EditorSnapshot) => {
   const title = snapshot.name || "Note2Tabs export";
   const framesPerBar = getFramesPerBar(snapshot);
   const beatsPerBar = Math.max(1, toSafeInt(snapshot.timeSignature, 4));
-  const divisions = framesPerBar;
+  const beatType = Math.max(1, toSafeInt(snapshot.timeSignatureBottom, 4));
+  const divisions = Math.max(1, Math.round((framesPerBar * beatType) / (beatsPerBar * 4)));
   const events = collectNoteEvents(snapshot);
   const totalFrames = Math.max(
     framesPerBar,
@@ -150,38 +151,48 @@ export const buildMusicXmlFromSnapshot = (snapshot: EditorSnapshot) => {
       lines.push("      <attributes>");
       lines.push(`        <divisions>${divisions}</divisions>`);
       lines.push("        <key><fifths>0</fifths></key>");
-      lines.push(`        <time><beats>${beatsPerBar}</beats><beat-type>4</beat-type></time>`);
+      lines.push(`        <time><beats>${beatsPerBar}</beats><beat-type>${beatType}</beat-type></time>`);
       lines.push("        <clef><sign>TAB</sign><line>5</line></clef>");
       lines.push("      </attributes>");
     }
-    sorted.forEach((event) => {
-      if (event.startFrame > cursor) {
+    for (let index = 0; index < sorted.length; ) {
+      const groupStart = sorted[index].startFrame;
+      const group: ExportNoteEvent[] = [];
+      while (index < sorted.length && sorted[index].startFrame === groupStart) {
+        group.push(sorted[index]);
+        index += 1;
+      }
+      if (groupStart > cursor) {
         lines.push("      <note>");
         lines.push("        <rest/>");
-        lines.push(`        <duration>${event.startFrame - cursor}</duration>`);
+        lines.push(`        <duration>${groupStart - cursor}</duration>`);
         lines.push("        <type>quarter</type>");
         lines.push("      </note>");
       }
-      const pitch = midiToPitch(event.midi);
-      const isChordTone = event.startFrame === cursor;
-      lines.push("      <note>");
-      if (isChordTone) lines.push("        <chord/>");
-      lines.push("        <pitch>");
-      lines.push(`          <step>${pitch.step}</step>`);
-      if (pitch.alter) lines.push(`          <alter>${pitch.alter}</alter>`);
-      lines.push(`          <octave>${pitch.octave}</octave>`);
-      lines.push("        </pitch>");
-      lines.push(`        <duration>${event.lengthFrames}</duration>`);
-      lines.push("        <type>quarter</type>");
-      lines.push("        <notations>");
-      lines.push("          <technical>");
-      lines.push(`            <string>${event.tab[0] + 1}</string>`);
-      lines.push(`            <fret>${event.tab[1]}</fret>`);
-      lines.push("          </technical>");
-      lines.push("        </notations>");
-      lines.push("      </note>");
-      cursor = Math.max(cursor, event.startFrame + event.lengthFrames);
-    });
+      const orderedGroup = [...group].sort(
+        (a, b) => a.lengthFrames - b.lengthFrames || a.midi - b.midi || a.tab[0] - b.tab[0] || a.tab[1] - b.tab[1]
+      );
+      orderedGroup.forEach((event, groupIndex) => {
+        const pitch = midiToPitch(event.midi);
+        lines.push("      <note>");
+        if (groupIndex > 0) lines.push("        <chord/>");
+        lines.push("        <pitch>");
+        lines.push(`          <step>${pitch.step}</step>`);
+        if (pitch.alter) lines.push(`          <alter>${pitch.alter}</alter>`);
+        lines.push(`          <octave>${pitch.octave}</octave>`);
+        lines.push("        </pitch>");
+        lines.push(`        <duration>${event.lengthFrames}</duration>`);
+        lines.push("        <type>quarter</type>");
+        lines.push("        <notations>");
+        lines.push("          <technical>");
+        lines.push(`            <string>${event.tab[0] + 1}</string>`);
+        lines.push(`            <fret>${event.tab[1]}</fret>`);
+        lines.push("          </technical>");
+        lines.push("        </notations>");
+        lines.push("      </note>");
+      });
+      cursor = Math.max(cursor, groupStart + orderedGroup[0].lengthFrames);
+    }
     const measureEnd = (measureIndex + 1) * framesPerBar;
     if (cursor < measureEnd) {
       lines.push("      <note>");

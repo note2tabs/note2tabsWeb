@@ -71,8 +71,6 @@ const RIGHT_PADDING = 32;
 const TOP_PADDING = 18;
 const STRING_GAP = 28;
 const NUMBER_WIDTH = 18;
-const MIN_SLOT_WIDTH = 12;
-const MAX_SLOT_WIDTH = 240;
 
 const toSafeInt = (value: unknown, fallback: number) => {
   const num = Number(value);
@@ -192,7 +190,8 @@ export const buildEditorTabView = (
   const slotsPerBar = safeBeatsPerBar * 2;
   const labels = getStringLabelsForSnapshot(snapshot);
   const stringLabels = labels.length === STRING_COUNT ? labels : DEFAULT_LABELS;
-  const slotWidth = clamp(Math.round(safeFramesPerBar * Math.max(0.1, scale) / slotsPerBar), MIN_SLOT_WIDTH, MAX_SLOT_WIDTH);
+  const barWidth = safeFramesPerBar * Math.max(0.1, scale);
+  const slotWidth = barWidth / slotsPerBar;
   const maxNoteFrame = snapshot.notes.reduce((max, note) => Math.max(max, toSafeInt(note.startTime, 0)), 0);
   const maxChordFrame = snapshot.chords.reduce((max, chord) => Math.max(max, toSafeInt(chord.startTime, 0)), 0);
   const totalFrames = Math.max(safeFramesPerBar, toSafeInt(snapshot.totalFrames, safeFramesPerBar), maxNoteFrame, maxChordFrame);
@@ -201,7 +200,7 @@ export const buildEditorTabView = (
     Math.ceil(totalFrames / safeFramesPerBar),
     Number.isFinite(minBarCount) ? Math.round(minBarCount || 0) : 0
   );
-  const width = LEFT_LABEL_WIDTH + barCount * slotsPerBar * slotWidth + RIGHT_PADDING;
+  const width = LEFT_LABEL_WIDTH + barCount * barWidth + RIGHT_PADDING;
   const height = TOP_PADDING * 2 + (STRING_COUNT - 1) * STRING_GAP;
   const strings = stringLabels.map((label, stringIndex) => ({
     label,
@@ -274,7 +273,7 @@ export const buildEditorTabView = (
     placements: placements.sort((a, b) => a.startTime - b.startTime || a.stringIndex - b.stringIndex || a.fret - b.fret),
     effects,
     barCount,
-    barWidth: slotsPerBar * slotWidth,
+    barWidth,
     width,
     height,
     cursorX: getCursorX(anchors, playheadFrame, barCount * safeFramesPerBar, width),
