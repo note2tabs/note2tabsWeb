@@ -11,6 +11,15 @@ function transientPrismaCode(error: unknown) {
   return code && TRANSIENT_PRISMA_CODES.has(code) ? code : null;
 }
 
+function isTransientPrismaConnectionError(error: unknown) {
+  if (transientPrismaCode(error)) return true;
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { name?: unknown; message?: unknown };
+  return candidate.name === "PrismaClientInitializationError" &&
+    typeof candidate.message === "string" &&
+    candidate.message.includes("Can't reach database server");
+}
+
 /**
  * Retries read-only database work after a connection/pool interruption.
  * Callers must not use this for non-idempotent writes.
@@ -24,7 +33,7 @@ export async function withPrismaReadRetry<T>(operation: () => Promise<T>, attemp
       return await operation();
     } catch (error) {
       lastError = error;
-      if (!transientPrismaCode(error) || attempt === safeAttempts - 1) throw error;
+      if (!isTransientPrismaConnectionError(error) || attempt === safeAttempts - 1) throw error;
       await new Promise((resolve) => setTimeout(resolve, 40 * (attempt + 1)));
     }
   }

@@ -4,6 +4,7 @@ import { GTE_GUEST_EDITOR_ID } from "./gteGuestDraft";
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
 const LANE_DELIMITER = "__ed__";
+export const MAX_EDITOR_NAME_LENGTH = 80;
 export const TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES = 96_000;
 export const TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS = 24;
 const TRANSCRIBER_IMPORT_MAX_SPLIT_DEPTH = 6;
@@ -40,6 +41,12 @@ type ImportTranscriberToSavedPayload = {
   editorId?: string;
   name?: string;
   quantize?: boolean;
+};
+
+export const normalizeEditorName = (name?: string) => {
+  const normalized = name?.normalize("NFKC").replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  if (!normalized) return undefined;
+  return normalized.slice(0, MAX_EDITOR_NAME_LENGTH).trimEnd();
 };
 
 export const buildLaneEditorRef = (canvasId: string, laneId: string) =>
@@ -118,7 +125,7 @@ const postTranscriberImportSaved = (payload: ImportTranscriberToSavedPayload) =>
   request<TranscriberImportResponse>("/transcriber/import", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, name: normalizeEditorName(payload.name) }),
   });
 
 type TranscriberChunkImportResult = {
@@ -175,7 +182,7 @@ const createSavedEditor = (name?: string) =>
   request<{ editorId: string; snapshot: CanvasSnapshot }>("/editors", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name: normalizeEditorName(name) }),
   });
 
 async function importTranscriberToSaved(
@@ -227,7 +234,7 @@ export const gteApi = {
     request<{ editorId: string; snapshot: CanvasSnapshot }>("/editors", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ editorId, name }),
+      body: JSON.stringify({ editorId, name: normalizeEditorName(name) }),
     }),
   importTranscriberToSaved: (payload: ImportTranscriberToSavedPayload) =>
     importTranscriberToSaved(payload),

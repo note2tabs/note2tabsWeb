@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { publicTranscriptionError } from "../../lib/backendError";
 import { getServerSession } from "next-auth/next";
 import { IncomingForm, type File as FormidableFile } from "formidable";
 import { promises as fs } from "fs";
@@ -745,9 +746,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         body: fdYt,
       });
       if (!ytRes.ok) {
-        const bodyText = await ytRes.text();
+        await ytRes.text();
         await releaseUnverifiedTranscriptionReservation();
-        return res.status(ytRes.status).json({ error: `yt_processor error: ${bodyText}` });
+        return res.status(ytRes.status).json({ error: publicTranscriptionError(ytRes.status) });
       }
 
       const data = await fetchJson<unknown>(ytRes);
@@ -774,9 +775,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }),
         });
         if (!processRes.ok) {
-          const bodyText = await processRes.text();
+          await processRes.text();
           await releaseUnverifiedTranscriptionReservation();
-          return res.status(processRes.status).json({ error: `process_audio_s3 error: ${bodyText}` });
+          return res.status(processRes.status).json({ error: publicTranscriptionError(processRes.status) });
         }
         const data = await fetchJson<unknown>(processRes);
         backendJobId = extractBackendJobId(data) || undefined;
@@ -806,9 +807,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           body: fd,
         });
         if (!processRes.ok) {
-          const bodyText = await processRes.text();
+          await processRes.text();
           await releaseUnverifiedTranscriptionReservation();
-          return res.status(processRes.status).json({ error: `process_audio error: ${bodyText}` });
+          return res.status(processRes.status).json({ error: publicTranscriptionError(processRes.status) });
         }
         const data = await fetchJson<unknown>(processRes);
         backendJobId = extractBackendJobId(data) || undefined;
