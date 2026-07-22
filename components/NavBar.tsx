@@ -36,6 +36,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const isHome = router.pathname === "/";
   const role = session?.user?.role || "";
   const isAdmin = role === "ADMIN";
+  const editorHref = session ? "/gte" : "/editor";
 
   useEffect(() => {
     setMenuOpen(false);
@@ -142,7 +143,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
           className={`nav-links ${menuOpen ? "open" : ""}${isReadingArticle ? " nav-links--reading" : ""}`}
           aria-label="Primary navigation"
         >
-          <Link href="/editor" className="nav-pill">
+          <Link href={editorHref} className="nav-pill">
             Editor
           </Link>
           <Link href="/transcribe" className="nav-pill">
