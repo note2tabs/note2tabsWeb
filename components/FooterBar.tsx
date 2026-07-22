@@ -41,6 +41,18 @@ export default function FooterBar() {
               <path d="M22 12c0-2.2-.2-3.7-.6-4.6a2.8 2.8 0 0 0-1.6-1.6C18.9 5.4 17.4 5.2 12 5.2S5.1 5.4 4.2 5.8a2.8 2.8 0 0 0-1.6 1.6C2.2 8.3 2 9.8 2 12s.2 3.7.6 4.6a2.8 2.8 0 0 0 1.6 1.6c.9.4 2.4.6 7.8.6s6.9-.2 7.8-.6a2.8 2.8 0 0 0 1.6-1.6c.4-.9.6-2.4.6-4.6m-12.5 3.5v-7l6 3.5z" />
             </svg>
           </a>
+          <a
+            href="https://www.linkedin.com/company/115839248"
+            target="_blank"
+            rel="noreferrer"
+            className="footer-social-link"
+            aria-label="LinkedIn"
+            title="LinkedIn"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5.2 3.5A1.7 1.7 0 1 1 5.2 7a1.7 1.7 0 0 1 0-3.5M3.7 8.4h3v11.9h-3zm5 0h2.9V10c.8-1.2 2-2 3.8-2 4 0 4.8 2.6 4.8 6v6.3h-3v-5.6c0-1.3 0-3.1-1.9-3.1s-2.2 1.5-2.2 3v5.7h-3z" />
+            </svg>
+          </a>
         </div>
 
         <div className="footer-sections">
