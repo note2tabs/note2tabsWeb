@@ -1954,14 +1954,14 @@ export default function HomePage() {
             <div className="editor-showcase-feature-list" data-reveal>
               <h3>Editor features</h3>
               <ul>
-                <li>Keyboard shortcuts for everything</li>
-                <li>String and fret optimization</li>
-                <li>Snap notes to key</li>
-                <li>Automatic fingering selection</li>
-                <li>Playback and practice loops</li>
-                <li>Section-based song workflow</li>
-                <li>Fast cleanup after transcription</li>
-                <li>Browser-based tab creation</li>
+                <li><Link href="/features/guitar-tab-editor-shortcuts">Keyboard shortcuts for everything</Link></li>
+                <li><Link href="/features/guitar-tab-fingering-optimizer">String and fret optimization</Link></li>
+                <li><Link href="/features/guitar-tab-key-detector">Key detection and snap to key</Link></li>
+                <li><Link href="/features/guitar-tab-fingering-optimizer">Alternative note and chord fingerings</Link></li>
+                <li><Link href="/features/guitar-chord-strumming-editor">Chord tracks and strumming tools</Link></li>
+                <li><Link href="/features/guitar-tab-import-export">Import and export tab files</Link></li>
+                <li><Link href="/features/guitar-tab-practice-trainer">Playback loops and speed training</Link></li>
+                <li><Link href="/features/guitar-tab-editor-shortcuts">Browser-based tab creation</Link></li>
               </ul>
             </div>
             <div className="editor-showcase-actions" data-reveal>
