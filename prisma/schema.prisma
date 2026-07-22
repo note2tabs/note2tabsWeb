@@ -58,6 +58,7 @@ model User {
   accounts                    Account[]
   feedbackSubmissions         FeedbackSubmission[]
   gteTrackInstruments         GteTrackInstrument[]
+  gteTrackPlaybackSettings    GteTrackPlaybackSetting[]
   posts                       Post[]
   sessions                    Session[]
   stripeRenewalInvoices       StripeRenewalInvoice[]
@@ -84,10 +85,10 @@ model StripeRenewalInvoice {
   invoiceId            String   @id
   userId               String
   stripeSubscriptionId String
-  renewalAt             DateTime
-  granted               Boolean  @default(false)
-  processedAt           DateTime @default(now())
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  renewalAt            DateTime
+  granted              Boolean  @default(false)
+  processedAt          DateTime @default(now())
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, renewalAt])
   @@index([stripeSubscriptionId, renewalAt])
@@ -243,6 +244,23 @@ model GteTrackInstrument {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now()) @updatedAt
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, editorId, laneId])
+  @@index([editorId, laneId])
+  @@index([userId, updatedAt])
+}
+
+model GteTrackPlaybackSetting {
+  id        String   @id @default(cuid())
+  userId    String
+  editorId  String
+  laneId    String
+  volume    Float    @default(1)
+  muted     Boolean  @default(false)
+  isolated  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, editorId, laneId])
   @@index([editorId, laneId])

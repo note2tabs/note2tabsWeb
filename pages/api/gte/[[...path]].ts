@@ -6,6 +6,10 @@ import {
   hydrateTrackInstrumentsFromStore,
   persistTrackInstrumentsFromSnapshot,
 } from "../../../lib/gteTrackInstrumentStore";
+import {
+  hydrateTrackPlaybackFromStore,
+  persistTrackPlaybackFromSnapshot,
+} from "../../../lib/gteTrackPlaybackStore";
 import type { GteAnalyticsEvent } from "../../../lib/gteAnalytics";
 import { parseTextTabImport } from "../../../lib/gteTabImport";
 
@@ -372,17 +376,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader("Content-Type", contentType);
   }
   if (upstream.ok && isSnapshotSave) {
-    await persistTrackInstrumentsFromSnapshot(
-      session.user.id,
-      editorRef,
-      (req.body as { snapshot?: unknown } | undefined)?.snapshot
-    );
+    const snapshot = (req.body as { snapshot?: unknown } | undefined)?.snapshot;
+    await Promise.all([
+      persistTrackInstrumentsFromSnapshot(session.user.id, editorRef, snapshot),
+      persistTrackPlaybackFromSnapshot(session.user.id, editorRef, snapshot),
+    ]);
   }
 
   if (upstream.ok && editorRef && responseText) {
     try {
       const parsed = JSON.parse(responseText) as unknown;
-      const hydrated = await hydrateTrackInstrumentsFromStore(session.user.id, editorRef, parsed);
+      const instrumentHydrated = await hydrateTrackInstrumentsFromStore(
+        session.user.id,
+        editorRef,
+        parsed
+      );
+      const hydrated = await hydrateTrackPlaybackFromStore(
+        session.user.id,
+        editorRef,
+        instrumentHydrated
+      );
       responseText = JSON.stringify(hydrated);
       res.setHeader("Content-Type", "application/json; charset=utf-8");
     } catch {

@@ -210,6 +210,9 @@ const normalizeLane = (
     type: editorKind,
     trackType: editorKind,
     instrumentId: normalizeTrackInstrumentId(lane.instrumentId),
+    playbackVolume: normalizeTrackVolume(lane.playbackVolume ?? 1),
+    playbackMuted: lane.playbackMuted === true,
+    playbackIsolated: lane.playbackIsolated === true,
     framesPerMessure: FIXED_FRAMES_PER_BAR,
     secondsPerBar: safeSeconds,
     fps: fpsFromSecondsPerBar(safeSeconds),
@@ -1214,6 +1217,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setMobileEditLaneId(null);
     }
   }, [canvas?.name, canvas?.secondsPerBar, canvas?.editors, activeLaneId, mobileEditLaneId, nameEditing]);
+
+  useEffect(() => {
+    if (!canvas) return;
+    const volumes: Record<string, number> = {};
+    const muted: Record<string, boolean> = {};
+    let isolated: string | null = null;
+    canvas.editors.forEach((lane, index) => {
+      const laneId = lane.id || `ed-${index + 1}`;
+      volumes[laneId] = normalizeTrackVolume(lane.playbackVolume ?? 1);
+      muted[laneId] = lane.playbackMuted === true;
+      if (!isolated && lane.playbackIsolated === true) isolated = laneId;
+    });
+    setTrackVolumeById(volumes);
+    setTrackMuteById(muted);
+    setIsolatedTrackId(isolated);
+  }, [canvas?.editors]);
 
   useEffect(() => {
     if (!nameEditing || !nameInputRef.current) return;
@@ -3360,16 +3379,39 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setGlobalPlaybackVolume(Math.max(0, Math.min(1, nextVolume)));
   }, []);
 
+  const persistTrackPlaybackCanvas = useCallback(
+    (nextCanvas: CanvasSnapshot) => {
+      applyCanvasUpdate(nextCanvas, { markDirty: true, recordHistory: false });
+      void syncCanvasDraftToBackend(nextCanvas, { silent: true });
+    },
+    [applyCanvasUpdate, syncCanvasDraftToBackend]
+  );
+
   const toggleTrackMute = useCallback((trackId: string) => {
-    setTrackMuteById((prev) => ({ ...prev, [trackId]: !prev[trackId] }));
-  }, []);
+    if (!canvas) return;
+    const nextMuted = !Boolean(trackMuteById[trackId]);
+    setTrackMuteById((prev) => ({ ...prev, [trackId]: nextMuted }));
+    persistTrackPlaybackCanvas({
+      ...canvas,
+      updatedAt: new Date().toISOString(),
+      editors: canvas.editors.map((lane) =>
+        lane.id === trackId ? { ...lane, playbackMuted: nextMuted } : lane
+      ),
+    });
+  }, [canvas, persistTrackPlaybackCanvas, trackMuteById]);
 
   const handleTrackVolumeChange = useCallback((trackId: string, nextVolume: number) => {
-    setTrackVolumeById((prev) => ({
-      ...prev,
-      [trackId]: normalizeTrackVolume(nextVolume),
-    }));
-  }, []);
+    if (!canvas) return;
+    const volume = normalizeTrackVolume(nextVolume);
+    setTrackVolumeById((prev) => ({ ...prev, [trackId]: volume }));
+    persistTrackPlaybackCanvas({
+      ...canvas,
+      updatedAt: new Date().toISOString(),
+      editors: canvas.editors.map((lane) =>
+        lane.id === trackId ? { ...lane, playbackVolume: volume } : lane
+      ),
+    });
+  }, [canvas, persistTrackPlaybackCanvas]);
 
   const handleTrackPanChange = useCallback((trackId: string, nextPan: number) => {
     setTrackPanById((prev) => ({
@@ -3379,8 +3421,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, []);
 
   const toggleTrackIsolation = useCallback((trackId: string) => {
-    setIsolatedTrackId((prev) => (prev === trackId ? null : trackId));
-  }, []);
+    if (!canvas) return;
+    const nextIsolatedId = isolatedTrackId === trackId ? null : trackId;
+    setIsolatedTrackId(nextIsolatedId);
+    persistTrackPlaybackCanvas({
+      ...canvas,
+      updatedAt: new Date().toISOString(),
+      editors: canvas.editors.map((lane) => ({
+        ...lane,
+        playbackIsolated: lane.id === nextIsolatedId,
+      })),
+    });
+  }, [canvas, isolatedTrackId, persistTrackPlaybackCanvas]);
 
   const trackPlaybackStateSignature = useMemo(() => {
     if (!canvas) return "";

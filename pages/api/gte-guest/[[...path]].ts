@@ -162,7 +162,7 @@ const normalizeNoteEffectsInLane = (lane: EditorSnapshot) => {
 };
 
 const normalizeLane = (raw: unknown, laneId: string, secondsFallback: number, index: number): EditorSnapshot => {
-  const source =
+  const source: Record<string, unknown> =
     raw && typeof raw === "object"
       ? { ...(raw as Record<string, unknown>), secondsPerBar: toNumber((raw as any).secondsPerBar, secondsFallback) }
       : { secondsPerBar: secondsFallback };
@@ -172,6 +172,9 @@ const normalizeLane = (raw: unknown, laneId: string, secondsFallback: number, in
     id: laneId,
     name: lane.name || `Editor ${index + 1}`,
     secondsPerBar: Math.max(0.1, toNumber(lane.secondsPerBar, secondsFallback)),
+    playbackVolume: Math.max(0, Math.min(1, toNumber(source.playbackVolume, 1))),
+    playbackMuted: source.playbackMuted === true,
+    playbackIsolated: source.playbackIsolated === true,
     noteEffects: Array.isArray(lane.noteEffects) ? lane.noteEffects : [],
     cutPositionsWithCoords: lane.cutPositionsWithCoords.length ? lane.cutPositionsWithCoords : buildDefaultCuts(lane),
   };
