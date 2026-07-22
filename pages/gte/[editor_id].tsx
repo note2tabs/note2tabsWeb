@@ -28,14 +28,14 @@ import {
 } from "../../lib/gtePractice";
 import {
   DEFAULT_TRACK_INSTRUMENT_ID,
-  getBuiltinTrackInstrumentOptions,
+  getTrackInstrumentOptions,
   loadTrackInstrumentOptions,
   normalizeTrackInstrumentId,
   prepareTrackInstrument,
   schedulePreparedTrackNote,
   type TrackInstrumentOption,
   warmTrackInstrument,
-} from "../../lib/gteSoundfonts";
+} from "../../lib/gteSamplePlayback";
 import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import GteWorkspace, { getChordEditorMidiNotes } from "../../components/GteWorkspace";
@@ -967,7 +967,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [trackDragLaneId, setTrackDragLaneId] = useState<string | null>(null);
   const [trackDropIndex, setTrackDropIndex] = useState<number | null>(null);
   const [trackInstrumentOptions, setTrackInstrumentOptions] = useState<TrackInstrumentOption[]>(
-    getBuiltinTrackInstrumentOptions()
+    getTrackInstrumentOptions()
   );
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const globalPlaybackFrameRef = useRef(0);
@@ -3052,7 +3052,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       const [preparedEntries] = await Promise.all([
         Promise.all(
           [...new Set(events.map((event) => event.instrumentId))].map(async (instrumentId) => {
-            const instrument = await prepareTrackInstrument(instrumentId);
+            const instrument = await prepareTrackInstrument(ctx, instrumentId);
             return [instrumentId, instrument] as const;
           })
         ),
@@ -3183,7 +3183,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     let scheduled: Awaited<ReturnType<typeof scheduleGlobalPlayback>>;
     let playbackContext: AudioContext | null = null;
     try {
-      // The context must be activated synchronously, before soundfont loading yields.
+      // The context must be activated synchronously, before sample loading yields.
       playbackContext = new AudioContext();
       globalPlaybackAudioRef.current = playbackContext;
       const audioReady = resumeAudioContext(playbackContext);
