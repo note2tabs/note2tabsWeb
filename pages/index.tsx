@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import type { GetStaticProps } from "next";
 import { useRouter } from "next/router";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -57,6 +58,12 @@ type TabsResponse = {
 };
 type CreditsResponse = {
   credits?: CreditsSummary;
+};
+type HomePageProps = {
+  trustMetrics: {
+    transcriptionsCompleted: number;
+    editorsCreated: number;
+  } | null;
 };
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
@@ -164,7 +171,9 @@ const parseYouTubeId = (value: string): string | null => {
   return null;
 };
 
-export default function HomePage() {
+const formatTrustMetric = (value: number) => new Intl.NumberFormat("en-US").format(value);
+
+export default function HomePage({ trustMetrics }: HomePageProps) {
   const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const router = useRouter();
   const [mode, setMode] = useState<"FILE" | "YOUTUBE">("FILE");
@@ -2067,7 +2076,43 @@ export default function HomePage() {
             </div>
           </div>
         </section>
+
+        {trustMetrics && (
+          <section className="home-trust-signal" aria-label="Note2Tabs usage statistics">
+            <div className="container home-trust-signal-inner">
+              <p className="home-trust-signal-kicker">Made for guitarists, used in real workflows</p>
+              <div className="home-trust-signal-stats">
+                <div className="home-trust-signal-stat">
+                  <strong>{formatTrustMetric(trustMetrics.transcriptionsCompleted)}</strong>
+                  <span>transcriptions completed</span>
+                </div>
+                <div className="home-trust-signal-divider" aria-hidden="true" />
+                <div className="home-trust-signal-stat">
+                  <strong>{formatTrustMetric(trustMetrics.editorsCreated)}</strong>
+                  <span>editors created</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
       </main>
     </>
   );
 }
+
+export const getStaticProps: GetStaticProps<HomePageProps> = async () => {
+  try {
+    const { prisma } = await import("../lib/prisma");
+    const [transcriptionsCompleted, editorsCreated] = await Promise.all([
+      prisma.tabJob.count(),
+      prisma.canvases.count(),
+    ]);
+    return {
+      props: { trustMetrics: { transcriptionsCompleted, editorsCreated } },
+      revalidate: 3600,
+    };
+  } catch (error) {
+    console.warn("[home] Could not load public trust metrics.", error);
+    return { props: { trustMetrics: null }, revalidate: 300 };
+  }
+};
