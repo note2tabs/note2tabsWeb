@@ -27,6 +27,7 @@ import {
   schedulePreparedTrackNote,
   warmTrackInstrument,
 } from "../lib/gteSamplePlayback";
+import { buildDiscreteSlideSteps } from "../lib/gteSlidePlayback";
 import { getOpenStringMidiFromSnapshot, getStringLabelsForSnapshot } from "../lib/gteTuning";
 import {
   alignEffectNotesToFirstString,
@@ -9258,12 +9259,15 @@ export default function GteWorkspace({
     const notesById = new Map(snapshot.notes.map((note) => [note.id, note] as const));
     const outgoingTransitions = new Map<number, NonNullable<EditorSnapshot["noteEffects"]>[number]>();
     const incomingTransitionNoteIds = new Set<number>();
+    const discreteSlideEffects: NoteEffect[] = [];
     (snapshot.noteEffects || []).forEach((effect) => {
-      // Bends sustain and retune the first sample. Slides deliberately remain
-      // separate note events so each fret triggers its own sampled attack.
-      if (effect.type !== 0) return;
       const canonical = getCanonicalNoteEffectForSnapshot(snapshot, effect);
       if (!canonical) return;
+      if (canonical.type === 2) {
+        discreteSlideEffects.push(canonical);
+        return;
+      }
+      if (canonical.type !== 0) return;
       if (outgoingTransitions.has(canonical.startNoteId)) return;
       outgoingTransitions.set(canonical.startNoteId, canonical);
       incomingTransitionNoteIds.add(canonical.endNoteId);
@@ -9339,6 +9343,33 @@ export default function GteWorkspace({
         note.tab[0],
         bendSegments.length > 0 ? bendSegments : undefined
       );
+    });
+    discreteSlideEffects.forEach((effect) => {
+      const source = notesById.get(effect.startNoteId);
+      const target = notesById.get(effect.endNoteId);
+      if (!source || !target) return;
+      const sourceMidi =
+        Number.isFinite(source.midiNum) && source.midiNum > 0
+          ? source.midiNum
+          : getMidiFromTab(source.tab);
+      const targetMidi =
+        Number.isFinite(target.midiNum) && target.midiNum > 0
+          ? target.midiNum
+          : getMidiFromTab(target.tab);
+      const sourceStart = Math.round(source.startTime);
+      const targetStart = Math.round(target.startTime);
+      const sourceEnd = Math.round(source.startTime + source.length);
+      const slideStart = Math.max(sourceStart, Math.min(sourceEnd, targetStart - 10));
+      const key = `note-${source.id}`;
+      const gain = conflictInfo.conflictKeys.has(key) ? 0.25 : 0.55;
+      buildDiscreteSlideSteps({
+        sourceMidi,
+        targetMidi,
+        slideStartFrame: slideStart,
+        targetStartFrame: targetStart,
+      }).forEach((step) => {
+        pushEvent(step.startFrame, step.durationFrames, step.midi, gain, source.tab[0]);
+      });
     });
     snapshot.chords.forEach((chord) => {
       chord.currentTabs.forEach((tab, idx) => {

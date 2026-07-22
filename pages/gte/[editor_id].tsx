@@ -36,6 +36,7 @@ import {
   type TrackInstrumentOption,
   warmTrackInstrument,
 } from "../../lib/gteSamplePlayback";
+import { buildDiscreteSlideSteps } from "../../lib/gteSlidePlayback";
 import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import GteWorkspace, { getChordEditorMidiNotes } from "../../components/GteWorkspace";
@@ -2867,11 +2868,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           }
         >();
         const incomingTransitionNoteIds = new Set<number>();
+        const discreteSlideEffects: Array<{ startNoteId: number; endNoteId: number }> = [];
 
         (lane.noteEffects || []).forEach((effect) => {
-          // Bends sustain and retune one sample. Slides keep both notes as
-          // discrete sample events with their own attacks.
-          if (effect.type !== 0) return;
           const first = notesById.get(effect.startNoteId);
           const second = notesById.get(effect.endNoteId);
           if (!first || !second || first.id === second.id) return;
@@ -2890,7 +2889,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               noteStart <= Math.round(endNote.startTime)
             );
           });
-          if (blocked || outgoingTransitions.has(startNote.id)) return;
+          if (blocked) return;
+          if (effect.type === 2) {
+            discreteSlideEffects.push({ startNoteId: startNote.id, endNoteId: endNote.id });
+            return;
+          }
+          if (effect.type !== 0 || outgoingTransitions.has(startNote.id)) return;
           outgoingTransitions.set(startNote.id, {
             startNoteId: startNote.id,
             endNoteId: endNote.id,
@@ -2973,6 +2977,39 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             lanePan,
             bendSegments.length > 0 ? bendSegments : undefined
           );
+        });
+
+        discreteSlideEffects.forEach((effect) => {
+          const source = notesById.get(effect.startNoteId);
+          const target = notesById.get(effect.endNoteId);
+          if (!source || !target) return;
+          const sourceMidi =
+            Number.isFinite(source.midiNum) && source.midiNum > 0
+              ? source.midiNum
+              : getMidiFromTab(lane, source.tab);
+          const targetMidi =
+            Number.isFinite(target.midiNum) && target.midiNum > 0
+              ? target.midiNum
+              : getMidiFromTab(lane, target.tab);
+          const sourceStart = Math.round(source.startTime);
+          const targetStart = Math.round(target.startTime);
+          const sourceEnd = Math.round(source.startTime + source.length);
+          const slideStart = Math.max(sourceStart, Math.min(sourceEnd, targetStart - 10));
+          buildDiscreteSlideSteps({
+            sourceMidi,
+            targetMidi,
+            slideStartFrame: slideStart,
+            targetStartFrame: targetStart,
+          }).forEach((step) => {
+            pushEvent(
+              step.startFrame,
+              step.durationFrames,
+              step.midi,
+              0.55 * laneVolume,
+              instrumentId,
+              lanePan
+            );
+          });
         });
 
         if (isChordLane(lane)) {
