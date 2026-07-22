@@ -58,6 +58,9 @@ export type EditorSnapshot = {
   trackType?: "tab" | "chords" | string;
   chordEditor?: Record<string, unknown>;
   instrumentId?: string;
+  playbackVolume?: number;
+  playbackMuted?: boolean;
+  playbackIsolated?: boolean;
   tuning?: {
     presetId?: string;
     label?: string;

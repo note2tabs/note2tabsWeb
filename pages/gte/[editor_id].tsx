@@ -36,6 +36,7 @@ import {
   type TrackInstrumentOption,
   warmTrackInstrument,
 } from "../../lib/gteSamplePlayback";
+import { buildDiscreteSlideSteps } from "../../lib/gteSlidePlayback";
 import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import GteWorkspace, { getChordEditorMidiNotes } from "../../components/GteWorkspace";
@@ -209,6 +210,9 @@ const normalizeLane = (
     type: editorKind,
     trackType: editorKind,
     instrumentId: normalizeTrackInstrumentId(lane.instrumentId),
+    playbackVolume: normalizeTrackVolume(lane.playbackVolume ?? 1),
+    playbackMuted: lane.playbackMuted === true,
+    playbackIsolated: lane.playbackIsolated === true,
     framesPerMessure: FIXED_FRAMES_PER_BAR,
     secondsPerBar: safeSeconds,
     fps: fpsFromSecondsPerBar(safeSeconds),
@@ -1213,6 +1217,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setMobileEditLaneId(null);
     }
   }, [canvas?.name, canvas?.secondsPerBar, canvas?.editors, activeLaneId, mobileEditLaneId, nameEditing]);
+
+  useEffect(() => {
+    if (!canvas) return;
+    const volumes: Record<string, number> = {};
+    const muted: Record<string, boolean> = {};
+    let isolated: string | null = null;
+    canvas.editors.forEach((lane, index) => {
+      const laneId = lane.id || `ed-${index + 1}`;
+      volumes[laneId] = normalizeTrackVolume(lane.playbackVolume ?? 1);
+      muted[laneId] = lane.playbackMuted === true;
+      if (!isolated && lane.playbackIsolated === true) isolated = laneId;
+    });
+    setTrackVolumeById(volumes);
+    setTrackMuteById(muted);
+    setIsolatedTrackId(isolated);
+  }, [canvas?.editors]);
 
   useEffect(() => {
     if (!nameEditing || !nameInputRef.current) return;
@@ -2796,11 +2816,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           bendSec: number;
           targetCents: number;
         }>;
-        slideSegments?: Array<{
-          holdSec: number;
-          slideSec: number;
-          targetCents: number;
-        }>;
       }> = [];
 
       const pushEvent = (
@@ -2813,11 +2828,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         bendSegments?: Array<{
           holdFrames: number;
           bendFrames: number;
-          targetCents: number;
-        }>,
-        slideSegments?: Array<{
-          holdFrames: number;
-          slideFrames: number;
           targetCents: number;
         }>
       ) => {
@@ -2856,26 +2866,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     (segment) => Number.isFinite(segment.holdSec) && Number.isFinite(segment.bendSec)
                   )
               : undefined,
-          slideSegments:
-            Array.isArray(slideSegments) && slideSegments.length > 0
-              ? slideSegments
-                  .map((segment) => ({
-                    holdSec: frameDeltaToSeconds(
-                      Math.max(0, roundedStart + segment.holdFrames - trimmedStart),
-                      globalPlaybackFps,
-                      runPlaybackSpeed
-                    ),
-                    slideSec: frameDeltaToSeconds(
-                      Math.max(0, segment.slideFrames),
-                      globalPlaybackFps,
-                      runPlaybackSpeed
-                    ),
-                    targetCents: segment.targetCents,
-                  }))
-                  .filter(
-                    (segment) => Number.isFinite(segment.holdSec) && Number.isFinite(segment.slideSec)
-                  )
-              : undefined,
         });
       };
 
@@ -2897,9 +2887,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           }
         >();
         const incomingTransitionNoteIds = new Set<number>();
+        const discreteSlideEffects: Array<{ startNoteId: number; endNoteId: number }> = [];
 
         (lane.noteEffects || []).forEach((effect) => {
-          if (effect.type !== 0 && effect.type !== 2) return;
           const first = notesById.get(effect.startNoteId);
           const second = notesById.get(effect.endNoteId);
           if (!first || !second || first.id === second.id) return;
@@ -2918,7 +2908,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               noteStart <= Math.round(endNote.startTime)
             );
           });
-          if (blocked || outgoingTransitions.has(startNote.id)) return;
+          if (blocked) return;
+          if (effect.type === 2) {
+            discreteSlideEffects.push({ startNoteId: startNote.id, endNoteId: endNote.id });
+            return;
+          }
+          if (effect.type !== 0 || outgoingTransitions.has(startNote.id)) return;
           outgoingTransitions.set(startNote.id, {
             startNoteId: startNote.id,
             endNoteId: endNote.id,
@@ -2963,7 +2958,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           const minimumBendFrames = 10;
           let previousBendEndFrames = 0;
           const bendSegments: Array<{ holdFrames: number; bendFrames: number; targetCents: number }> = [];
-          const slideSegments: Array<{ holdFrames: number; slideFrames: number; targetCents: number }> = [];
           chain.slice(1).forEach((item, chainIndex) => {
             const previous = chain[chainIndex];
             const transition = outgoingTransitions.get(previous.id);
@@ -2986,14 +2980,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             const bendFrames = Math.max(0, targetStartFrames - bendStartFrames);
             previousBendEndFrames = targetStartFrames;
             const targetCents = (targetMidi - baseMidi) * 100;
-            if (transition.type === 2) {
-              slideSegments.push({
-                holdFrames: bendStartFrames,
-                slideFrames: bendFrames,
-                targetCents,
-              });
-              return;
-            }
             bendSegments.push({
               holdFrames: bendStartFrames,
               bendFrames,
@@ -3008,9 +2994,41 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             noteGain,
             instrumentId,
             lanePan,
-            bendSegments.length > 0 ? bendSegments : undefined,
-            slideSegments.length > 0 ? slideSegments : undefined
+            bendSegments.length > 0 ? bendSegments : undefined
           );
+        });
+
+        discreteSlideEffects.forEach((effect) => {
+          const source = notesById.get(effect.startNoteId);
+          const target = notesById.get(effect.endNoteId);
+          if (!source || !target) return;
+          const sourceMidi =
+            Number.isFinite(source.midiNum) && source.midiNum > 0
+              ? source.midiNum
+              : getMidiFromTab(lane, source.tab);
+          const targetMidi =
+            Number.isFinite(target.midiNum) && target.midiNum > 0
+              ? target.midiNum
+              : getMidiFromTab(lane, target.tab);
+          const sourceStart = Math.round(source.startTime);
+          const targetStart = Math.round(target.startTime);
+          const sourceEnd = Math.round(source.startTime + source.length);
+          const slideStart = Math.max(sourceStart, Math.min(sourceEnd, targetStart - 10));
+          buildDiscreteSlideSteps({
+            sourceMidi,
+            targetMidi,
+            slideStartFrame: slideStart,
+            targetStartFrame: targetStart,
+          }).forEach((step) => {
+            pushEvent(
+              step.startFrame,
+              step.durationFrames,
+              step.midi,
+              0.55 * laneVolume,
+              instrumentId,
+              lanePan
+            );
+          });
         });
 
         if (isChordLane(lane)) {
@@ -3130,7 +3148,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           startTime: playBase + evt.start,
           duration: Math.max(0.05, evt.duration),
           bendSegments: evt.bendSegments,
-          slideSegments: evt.slideSegments,
         });
       });
 
@@ -3362,16 +3379,39 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setGlobalPlaybackVolume(Math.max(0, Math.min(1, nextVolume)));
   }, []);
 
+  const persistTrackPlaybackCanvas = useCallback(
+    (nextCanvas: CanvasSnapshot) => {
+      applyCanvasUpdate(nextCanvas, { markDirty: true, recordHistory: false });
+      void syncCanvasDraftToBackend(nextCanvas, { silent: true });
+    },
+    [applyCanvasUpdate, syncCanvasDraftToBackend]
+  );
+
   const toggleTrackMute = useCallback((trackId: string) => {
-    setTrackMuteById((prev) => ({ ...prev, [trackId]: !prev[trackId] }));
-  }, []);
+    if (!canvas) return;
+    const nextMuted = !Boolean(trackMuteById[trackId]);
+    setTrackMuteById((prev) => ({ ...prev, [trackId]: nextMuted }));
+    persistTrackPlaybackCanvas({
+      ...canvas,
+      updatedAt: new Date().toISOString(),
+      editors: canvas.editors.map((lane) =>
+        lane.id === trackId ? { ...lane, playbackMuted: nextMuted } : lane
+      ),
+    });
+  }, [canvas, persistTrackPlaybackCanvas, trackMuteById]);
 
   const handleTrackVolumeChange = useCallback((trackId: string, nextVolume: number) => {
-    setTrackVolumeById((prev) => ({
-      ...prev,
-      [trackId]: normalizeTrackVolume(nextVolume),
-    }));
-  }, []);
+    if (!canvas) return;
+    const volume = normalizeTrackVolume(nextVolume);
+    setTrackVolumeById((prev) => ({ ...prev, [trackId]: volume }));
+    persistTrackPlaybackCanvas({
+      ...canvas,
+      updatedAt: new Date().toISOString(),
+      editors: canvas.editors.map((lane) =>
+        lane.id === trackId ? { ...lane, playbackVolume: volume } : lane
+      ),
+    });
+  }, [canvas, persistTrackPlaybackCanvas]);
 
   const handleTrackPanChange = useCallback((trackId: string, nextPan: number) => {
     setTrackPanById((prev) => ({
@@ -3381,8 +3421,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, []);
 
   const toggleTrackIsolation = useCallback((trackId: string) => {
-    setIsolatedTrackId((prev) => (prev === trackId ? null : trackId));
-  }, []);
+    if (!canvas) return;
+    const nextIsolatedId = isolatedTrackId === trackId ? null : trackId;
+    setIsolatedTrackId(nextIsolatedId);
+    persistTrackPlaybackCanvas({
+      ...canvas,
+      updatedAt: new Date().toISOString(),
+      editors: canvas.editors.map((lane) => ({
+        ...lane,
+        playbackIsolated: lane.id === nextIsolatedId,
+      })),
+    });
+  }, [canvas, isolatedTrackId, persistTrackPlaybackCanvas]);
 
   const trackPlaybackStateSignature = useMemo(() => {
     if (!canvas) return "";
