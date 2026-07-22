@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import SeoHead, { WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
+import SeoHead, { EDITOR_APPLICATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 import { seoFeaturePages } from "../../lib/seoFeaturePages";
 
 const featureLabels = [
@@ -24,6 +24,7 @@ export default function FeaturesPage() {
       url: absoluteUrl("/features"),
       description,
       isPartOf: { "@id": WEBSITE_ID },
+      about: { "@id": EDITOR_APPLICATION_ID },
       mainEntity: {
         "@type": "ItemList",
         itemListElement: seoFeaturePages.map((page, index) => ({
@@ -39,7 +40,8 @@ export default function FeaturesPage() {
       "@type": "BreadcrumbList",
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "Home", item: absoluteUrl("/") },
-        { "@type": "ListItem", position: 2, name: "Features", item: absoluteUrl("/features") },
+        { "@type": "ListItem", position: 2, name: "Guitar Tab Editor", item: absoluteUrl("/editor") },
+        { "@type": "ListItem", position: 3, name: "Features", item: absoluteUrl("/features") },
       ],
     },
   ];
@@ -56,6 +58,11 @@ export default function FeaturesPage() {
         <section className="features-hub-hero">
           <div className="container features-hub-hero-grid">
             <div className="features-hub-hero-copy">
+              <nav className="feature-story-breadcrumb features-hub-breadcrumb" aria-label="Breadcrumb">
+                <Link href="/editor">Guitar tab editor</Link>
+                <span aria-hidden="true">/</span>
+                <span>Features</span>
+              </nav>
               <span className="features-hub-kicker">Inside the editor</span>
               <h1>Tools for the decisions guitar tabs actually need.</h1>
               <p>

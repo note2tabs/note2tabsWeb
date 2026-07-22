@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  EDITOR_APPLICATION_ID,
   INDEX_ROBOTS_DIRECTIVE,
   ORGANIZATION_ID,
   SITE_IDENTITY_JSON_LD,
@@ -35,5 +36,9 @@ describe("SEO URL helpers", () => {
   it("allows full-quality snippets and image previews on indexable pages", () => {
     expect(INDEX_ROBOTS_DIRECTIVE).toContain("max-image-preview:large");
     expect(INDEX_ROBOTS_DIRECTIVE).toContain("max-snippet:-1");
+  });
+
+  it("gives the editor application a stable entity identifier", () => {
+    expect(EDITOR_APPLICATION_ID).toBe("https://www.note2tabs.com/editor#software-application");
   });
 });

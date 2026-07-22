@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { getSeoFeaturePage, type SeoFeaturePage } from "../lib/seoFeaturePages";
-import SeoHead, { ORGANIZATION_ID, SITE_NAME, WEBSITE_ID, absoluteUrl } from "./SeoHead";
+import SeoHead, { EDITOR_APPLICATION_ID, absoluteUrl } from "./SeoHead";
 
 type FeatureVisual = {
   image: string;
@@ -76,6 +76,7 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
       name: page.title,
       url: absoluteUrl(canonicalPath),
       description: page.description,
+      about: { "@id": EDITOR_APPLICATION_ID },
       isPartOf: {
         "@type": "CollectionPage",
         "@id": absoluteUrl("/features#collection"),
@@ -85,23 +86,12 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
     },
     {
       "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      name: SITE_NAME,
-      applicationCategory: "MusicApplication",
-      operatingSystem: "Web",
-      url: absoluteUrl(canonicalPath),
-      description: page.description,
-      isPartOf: { "@id": WEBSITE_ID },
-      provider: { "@id": ORGANIZATION_ID },
-      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-    },
-    {
-      "@context": "https://schema.org",
       "@type": "BreadcrumbList",
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "Home", item: absoluteUrl("/") },
-        { "@type": "ListItem", position: 2, name: "Features", item: absoluteUrl("/features") },
-        { "@type": "ListItem", position: 3, name: page.title, item: absoluteUrl(canonicalPath) },
+        { "@type": "ListItem", position: 2, name: "Guitar Tab Editor", item: absoluteUrl("/editor") },
+        { "@type": "ListItem", position: 3, name: "Features", item: absoluteUrl("/features") },
+        { "@type": "ListItem", position: 4, name: page.title, item: absoluteUrl(canonicalPath) },
       ],
     },
     {
@@ -123,7 +113,9 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
           <div className="container feature-story-hero-grid">
             <div className="feature-story-hero-copy">
               <nav className="feature-story-breadcrumb" aria-label="Breadcrumb">
-                <Link href="/features">Editor features</Link>
+                <Link href="/editor">Guitar tab editor</Link>
+                <span aria-hidden="true">/</span>
+                <Link href="/features">Features</Link>
                 <span aria-hidden="true">/</span>
                 <span>{visual.label}</span>
               </nav>

@@ -17,6 +17,8 @@ describe("issue 106 editor feature pages", () => {
       expect(html).toContain("Try the editor free");
       expect(html).toContain("Transcribe audio to tabs");
       expect(html).toContain("View all features");
+      expect(html).toContain('<a href="/editor">Guitar tab editor</a>');
+      expect(html).toContain('<a href="/features">Features</a>');
       expect(html.match(/<section/g)?.length).toBeGreaterThanOrEqual(7);
       for (const step of page.steps) expect(html).toContain(step.title);
       for (const section of page.contentSections) expect(html).toContain(section.title);
@@ -30,6 +32,7 @@ describe("issue 106 editor feature pages", () => {
     expect(html).toContain("Tools for the decisions guitar tabs actually need.");
     expect(html).toContain('href="/editor"');
     expect(html).toContain('href="/transcribe"');
+    expect(html).toContain('<a href="/editor">Guitar tab editor</a>');
     for (const page of seoFeaturePages) {
       expect(html).toContain(`href="/features/${page.slug}"`);
       expect(html).toContain(page.title);

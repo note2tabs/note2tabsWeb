@@ -2628,6 +2628,24 @@ input[type="number"] {
   font-size: 0.72rem;
 }
 
+.editor-v2-showcase-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+  color: #1f6548;
+  font-size: 0.92rem;
+  font-weight: 750;
+}
+
+.editor-v2-showcase-link span {
+  transition: transform 160ms ease;
+}
+
+.editor-v2-showcase-link:hover span {
+  transform: translateX(3px);
+}
+
 .editor-v2-showcase-image {
   overflow: hidden;
   border: 1px solid rgba(6, 17, 13, 0.1);
@@ -7779,6 +7797,10 @@ input[type="number"] {
 
 .features-hub-kicker {
   color: #35634e;
+}
+
+.features-hub-breadcrumb {
+  margin-bottom: 22px;
 }
 
 .features-hub-visual {

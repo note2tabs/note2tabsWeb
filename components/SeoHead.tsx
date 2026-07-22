@@ -5,6 +5,7 @@ export const SITE_NAME = "Note2Tabs";
 export const SITE_URL = getConfiguredSiteUrl();
 export const ORGANIZATION_ID = `${SITE_URL}/#organization`;
 export const WEBSITE_ID = `${SITE_URL}/#website`;
+export const EDITOR_APPLICATION_ID = `${SITE_URL}/editor#software-application`;
 export const SITE_LOGO_URL = `${SITE_URL}/android-chrome-512x512.png`;
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/api/og?title=Note2Tabs`;
 export const DEFAULT_DESCRIPTION =
