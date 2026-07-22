@@ -6867,6 +6867,17 @@ input[type="number"] {
   background: #34d399;
 }
 
+.editor-showcase-feature-list li a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.editor-showcase-feature-list li a:hover,
+.editor-showcase-feature-list li a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 @media (max-width: 980px) {
   .editor-showcase-row,
   .editor-showcase-row--reverse {

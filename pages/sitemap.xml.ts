@@ -2,6 +2,7 @@ import type { GetServerSideProps } from "next";
 import { prisma } from "../lib/prisma";
 import { withPrismaReadRetry } from "../lib/prismaRetry";
 import { getBaseUrl, getPublishedWhere } from "../lib/blog";
+import { seoFeaturePages } from "../lib/seoFeaturePages";
 
 type SitemapEntry = {
   loc: string;
@@ -23,6 +24,7 @@ const staticPaths = [
   "/mp3-to-guitar-tabs",
   "/ai-guitar-tab-generator",
   "/free-guitar-tab-maker",
+  ...seoFeaturePages.map((page) => `/features/${page.slug}`),
 ];
 
 const buildUrl = (baseUrl: string, path: string) =>
