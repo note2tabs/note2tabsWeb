@@ -67,6 +67,7 @@ export default function FooterBar() {
           <section className="footer-section">
             <h2>Resources</h2>
             <Link href="/about">About us</Link>
+            <Link href="/features">Editor features</Link>
             <Link href="/blog">Blog</Link>
             <Link href="/audio-to-guitar-tab-converter">Audio-to-tab guide</Link>
             <Link href="/youtube-to-guitar-tabs">YouTube-to-tab guide</Link>
