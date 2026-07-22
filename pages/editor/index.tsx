@@ -5,7 +5,12 @@ import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { gteApi } from "../../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../../lib/gteGuestDraft";
-import SeoHead, { SITE_NAME, absoluteUrl } from "../../components/SeoHead";
+import SeoHead, {
+  EDITOR_APPLICATION_ID,
+  ORGANIZATION_ID,
+  WEBSITE_ID,
+  absoluteUrl,
+} from "../../components/SeoHead";
 
 const LIBRARY_PATH = "/gte";
 const GUEST_EDITOR_PATH = `/gte/${GTE_GUEST_EDITOR_ID}`;
@@ -89,15 +94,15 @@ export default function EditorLandingPage() {
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
+      "@id": EDITOR_APPLICATION_ID,
       name: "Note2Tabs Online Guitar Tab Maker and Editor",
       applicationCategory: "MusicApplication",
       operatingSystem: "Web",
       url: absoluteUrl("/editor"),
       description: editorDescription,
-      provider: {
-        "@type": "Organization",
-        name: SITE_NAME,
-      },
+      isPartOf: { "@id": WEBSITE_ID },
+      provider: { "@id": ORGANIZATION_ID },
+      hasPart: { "@id": absoluteUrl("/features#collection") },
       offers: {
         "@type": "Offer",
         price: "0",
@@ -239,6 +244,9 @@ export default function EditorLandingPage() {
                   <li>String and fret optimization</li>
                   <li>Chord shapes and playing coordinates</li>
                 </ul>
+                <Link href="/features" className="editor-v2-showcase-link">
+                  Explore all guitar tab editor features <span aria-hidden="true">→</span>
+                </Link>
               </div>
               <div className="editor-v2-showcase-image editor-v2-showcase-image--tools">
                 <Image

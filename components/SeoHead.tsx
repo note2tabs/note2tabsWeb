@@ -3,9 +3,47 @@ import { getConfiguredSiteUrl } from "../lib/siteUrl";
 
 export const SITE_NAME = "Note2Tabs";
 export const SITE_URL = getConfiguredSiteUrl();
+export const ORGANIZATION_ID = `${SITE_URL}/#organization`;
+export const WEBSITE_ID = `${SITE_URL}/#website`;
+export const EDITOR_APPLICATION_ID = `${SITE_URL}/editor#software-application`;
+export const SITE_LOGO_URL = `${SITE_URL}/android-chrome-512x512.png`;
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/api/og?title=Note2Tabs`;
 export const DEFAULT_DESCRIPTION =
   "Upload audio or a YouTube link and instantly get playable guitar tabs. Edit, simplify and practice songs directly in the browser.";
+export const INDEX_ROBOTS_DIRECTIVE =
+  "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1";
+
+export const SITE_IDENTITY_JSON_LD = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": ORGANIZATION_ID,
+    name: SITE_NAME,
+    url: `${SITE_URL}/`,
+    logo: {
+      "@type": "ImageObject",
+      url: SITE_LOGO_URL,
+      width: 512,
+      height: 512,
+    },
+    sameAs: [
+      "https://instagram.com/note2tabs",
+      "https://tiktok.com/@note2tabs",
+      "https://youtube.com/@note2tabs",
+    ],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": WEBSITE_ID,
+    name: SITE_NAME,
+    alternateName: "note2tabs.com",
+    url: `${SITE_URL}/`,
+    description: DEFAULT_DESCRIPTION,
+    inLanguage: "en",
+    publisher: { "@id": ORGANIZATION_ID },
+  },
+] as const;
 
 type JsonLd = Record<string, unknown>;
 
@@ -66,7 +104,8 @@ export default function SeoHead({
       <title>{title}</title>
       <meta key="description" name="description" content={description} />
       <link key="canonical" rel="canonical" href={canonical} />
-      <meta key="robots" name="robots" content={noindex ? "noindex,follow" : "index,follow"} />
+      <meta key="robots" name="robots" content={noindex ? "noindex,follow" : INDEX_ROBOTS_DIRECTIVE} />
+      <meta key="googlebot" name="googlebot" content={noindex ? "noindex,follow" : INDEX_ROBOTS_DIRECTIVE} />
       <meta key="og:title" property="og:title" content={title} />
       <meta key="og:description" property="og:description" content={description} />
       <meta key="og:type" property="og:type" content={ogType} />

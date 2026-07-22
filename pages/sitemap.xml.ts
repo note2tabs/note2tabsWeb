@@ -24,6 +24,7 @@ const staticPaths = [
   "/mp3-to-guitar-tabs",
   "/ai-guitar-tab-generator",
   "/free-guitar-tab-maker",
+  "/features",
   ...seoFeaturePages.map((page) => `/features/${page.slug}`),
 ];
 

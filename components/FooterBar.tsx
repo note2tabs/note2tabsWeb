@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function FooterBar() {
   return (
-    <footer className="footer-shell">
+    <footer className="footer-shell" data-nosnippet>
       <div className="container footer-layout">
         <div className="footer-socials" aria-label="Social links">
           <a
@@ -71,15 +71,16 @@ export default function FooterBar() {
 
           <section className="footer-section">
             <h2>Products</h2>
-            <Link href="/transcribe">Transcriber</Link>
-            <Link href="/editor">Editor</Link>
-            <Link href="/pricing">Pricing</Link>
+            <Link href="/transcribe">Audio-to-tab transcriber</Link>
+            <Link href="/editor">Guitar tab editor</Link>
+            <Link href="/pricing">Plans and pricing</Link>
           </section>
 
           <section className="footer-section">
             <h2>Resources</h2>
-            <Link href="/about">About us</Link>
-            <Link href="/blog">Blog</Link>
+            <Link href="/about">About Note2Tabs</Link>
+            <Link href="/features">Guitar tab editor features</Link>
+            <Link href="/blog">Guitar tab guides</Link>
             <Link href="/audio-to-guitar-tab-converter">Audio-to-tab guide</Link>
             <Link href="/youtube-to-guitar-tabs">YouTube-to-tab guide</Link>
             <Link href="/free-guitar-tab-maker">Free tab maker</Link>

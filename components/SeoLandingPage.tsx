@@ -1,5 +1,5 @@
 import Link from "next/link";
-import SeoHead, { SITE_NAME, absoluteUrl } from "./SeoHead";
+import SeoHead, { ORGANIZATION_ID, SITE_NAME, WEBSITE_ID, absoluteUrl } from "./SeoHead";
 
 type SeoLandingPageProps = {
   title: string;
@@ -57,9 +57,7 @@ export default function SeoLandingPage({
       url: absoluteUrl(canonicalPath),
       description,
       isPartOf: {
-        "@type": "WebSite",
-        name: SITE_NAME,
-        url: absoluteUrl("/"),
+        "@id": WEBSITE_ID,
       },
     },
     {
@@ -70,6 +68,8 @@ export default function SeoLandingPage({
       operatingSystem: "Web",
       url: absoluteUrl(canonicalPath),
       description,
+      isPartOf: { "@id": WEBSITE_ID },
+      provider: { "@id": ORGANIZATION_ID },
       offers: {
         "@type": "Offer",
         price: "0",

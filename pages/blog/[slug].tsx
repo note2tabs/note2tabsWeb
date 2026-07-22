@@ -8,7 +8,7 @@ import { estimateReadingTime, getPublishedWhere } from "../../lib/blog";
 import { compilePostContent } from "../../lib/blogContent";
 import { normalizeCanonicalUrl } from "../../lib/canonical";
 import BlogPostCard from "../../components/blog/BlogPostCard";
-import SeoHead, { absoluteUrl } from "../../components/SeoHead";
+import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 import { formatBlogDate } from "../../lib/dateFormat";
 
 type PostPageProps = {
@@ -48,6 +48,7 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
+    "@id": `${canonical}#article`,
     headline: post.title,
     description,
     datePublished: published,
@@ -58,6 +59,8 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
     },
     mainEntityOfPage: canonical,
     image: ogImage,
+    isPartOf: { "@id": WEBSITE_ID },
+    publisher: { "@id": ORGANIZATION_ID },
   };
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",

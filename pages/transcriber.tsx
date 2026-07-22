@@ -22,7 +22,7 @@ import {
   getDefaultFileClipRange,
   isFileClipRangeValid,
 } from "../lib/transcriptionClip";
-import SeoHead, { SITE_NAME, absoluteUrl } from "../components/SeoHead";
+import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
@@ -1169,10 +1169,8 @@ export default function TranscriberPage() {
       operatingSystem: "Web",
       url: absoluteUrl("/transcribe"),
       description: transcriberDescription,
-      provider: {
-        "@type": "Organization",
-        name: SITE_NAME,
-      },
+      isPartOf: { "@id": WEBSITE_ID },
+      provider: { "@id": ORGANIZATION_ID },
       offers: {
         "@type": "Offer",
         price: "0",

@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { signIn, useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
-import SeoHead, { absoluteUrl } from "../components/SeoHead";
+import SeoHead, { WEBSITE_ID, absoluteUrl } from "../components/SeoHead";
 
 export default function PricingPage() {
   const router = useRouter();
@@ -24,6 +24,7 @@ export default function PricingPage() {
       name: "Note2Tabs Pricing",
       url: absoluteUrl("/pricing"),
       description,
+      isPartOf: { "@id": WEBSITE_ID },
     },
     {
       "@context": "https://schema.org",

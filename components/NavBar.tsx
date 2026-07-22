@@ -131,6 +131,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
 
   return (
     <header
+      data-nosnippet
       className={`nav-shell${isReadingArticle ? " nav-shell--reading" : ""}${isHome ? " nav-shell--home" : ""}${isHome && !isScrolled ? " nav-shell--blend" : ""}${editorRevealMode ? " nav-shell--editor-reveal" : ""}${editorRevealMode && (editorRevealVisible || menuOpen || profileMenuOpen) ? " nav-shell--editor-visible" : ""}`}
     >
       <div className="container nav">
