@@ -28,6 +28,13 @@ import {
   warmTrackInstrument,
 } from "../lib/gteSamplePlayback";
 import { getOpenStringMidiFromSnapshot, getStringLabelsForSnapshot } from "../lib/gteTuning";
+import {
+  alignEffectNotesToFirstString,
+  applyNoteFingeringUpdates,
+  getEffectAwareFingeringUpdates,
+  getEffectPairKeys,
+  orderNotesForEffect,
+} from "../lib/gteNoteEffects";
 import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
 import {
   getChordFingeringCsvType,
@@ -921,26 +928,26 @@ const removeChordFromSnapshot = (draft: EditorSnapshot, chordId: number) => {
 };
 
 const addNoteEffectToSnapshot = (draft: EditorSnapshot, noteIds: number[], type: number) => {
-  if (noteIds.length !== 2) return;
-  const notes = noteIds
-    .map((id) => draft.notes.find((note) => note.id === id))
-    .filter((note): note is EditorSnapshot["notes"][number] => Boolean(note));
-  if (notes.length !== 2) return;
-  const [first, second] = notes;
-  const effect: NoteEffect = {
-    id: nextNoteEffectId(draft),
-    type,
-    startNoteId: first.id,
-    endNoteId: second.id,
-    noteEffectLabel: getNoteEffectLabelForNotes(type, first, second),
-  };
-  const existingPairKey = noteEffectKey(effect);
+  const notes = orderNotesForEffect(draft, noteIds);
+  if (notes.length < 2) return;
+  const pairKeys = new Set(getEffectPairKeys(notes));
   const remainingEffects = (draft.noteEffects || []).filter(
-    (item) => noteEffectKey(item) !== existingPairKey
+    (item) => !pairKeys.has(noteEffectKey(item))
   );
+  let effectId = nextNoteEffectId(draft);
+  const effects = notes.slice(0, -1).map((first, index) => {
+    const second = notes[index + 1];
+    return {
+      id: effectId++,
+      type,
+      startNoteId: first.id,
+      endNoteId: second.id,
+      noteEffectLabel: getNoteEffectLabelForNotes(type, first, second),
+    } satisfies NoteEffect;
+  });
   draft.noteEffects = normalizeSnapshotNoteEffects({
     ...draft,
-    noteEffects: [...remainingEffects, effect],
+    noteEffects: [...remainingEffects, ...effects],
   });
 };
 
@@ -4176,7 +4183,7 @@ export default function GteWorkspace({
     () => selectedChordIds.filter((id) => snapshot.chords.some((chord) => chord.id === id)),
     [snapshot.chords, selectedChordIds]
   );
-  const canCreateNoteEffect = selectedNoteIds.length === 2 && activeChordIds.length === 0 && !selectionActionsLocked;
+  const canCreateNoteEffect = selectedNoteIds.length >= 2 && activeChordIds.length === 0 && !selectionActionsLocked;
 
   const selectedChord = useMemo(() => {
     const activeId = activeChordIds[0];
@@ -6312,6 +6319,11 @@ export default function GteWorkspace({
         }
         if (didChangeString || didChangeStart) {
           const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [targetString, dragging.fret ?? 0]);
+          const fingeringUpdates = didChangeString
+            ? getEffectAwareFingeringUpdates(snapshotRef.current, [
+                { noteId: resolveNoteId(dragging.id), tab: nextTab },
+              ])
+            : [];
           enqueueOptimisticMutation({
             label: "drag-note",
             apply: (draft) => {
@@ -6319,8 +6331,13 @@ export default function GteWorkspace({
               const note = draft.notes.find((item) => item.id === noteId);
               if (!note) return draft;
               if (didChangeString) {
-                note.tab = [nextTab[0], nextTab[1]];
-                note.midiNum = getTabMidi(draft, note.tab);
+                applyNoteFingeringUpdates(
+                  draft,
+                  fingeringUpdates.map((update) => ({
+                    ...update,
+                    noteId: resolveNoteId(update.noteId),
+                  }))
+                );
               }
               if (didChangeStart) {
                 note.startTime = targetStart;
@@ -6331,7 +6348,13 @@ export default function GteWorkspace({
               let last: { snapshot?: EditorSnapshot } | null = null;
               const resolvedId = resolveNoteId(dragging.id);
               if (didChangeString) {
-                last = await gteApi.assignNoteTab(editorId, resolvedId, nextTab);
+                for (const update of fingeringUpdates) {
+                  last = await gteApi.assignNoteTab(
+                    editorId,
+                    resolveNoteId(update.noteId),
+                    update.tab
+                  );
+                }
                 playNotePreview(nextTab);
               }
               if (didChangeStart) {
@@ -7520,8 +7543,10 @@ export default function GteWorkspace({
                 (tab) => [tab[0], tab[1]] as TabCoord
               );
               if (!nextTab) return;
-              note.tab = [nextTab[0], nextTab[1]];
-              note.midiNum = getTabMidi(draft, note.tab);
+              applyNoteFingeringUpdates(
+                draft,
+                getEffectAwareFingeringUpdates(draft, [{ noteId: note.id, tab: nextTab }])
+              );
             });
         },
         serverMode: "local-first",
@@ -7534,7 +7559,7 @@ export default function GteWorkspace({
     if (guardSingleTrackSelectionAction("Snap to key")) return;
     const selectedIds = Array.from(new Set(selectedNoteIds.map((id) => resolveNoteId(id))));
     const selectedIdSet = new Set(selectedIds);
-    const updates = snapshotRef.current.notes
+    const requestedUpdates = snapshotRef.current.notes
       .filter((note) => selectedIdSet.has(note.id))
       .map((note) => {
         const nextTab = snapTabToKey(snapshotRef.current, note.tab);
@@ -7542,27 +7567,29 @@ export default function GteWorkspace({
         return { id: note.id, tab: nextTab };
       })
       .filter((item): item is { id: number; tab: TabCoord } => Boolean(item));
-    if (!updates.length) {
+    if (!requestedUpdates.length) {
       setError("Selected notes are already in key.");
       return;
     }
-    playNotePreview(updates[0].tab);
+    const updates = getEffectAwareFingeringUpdates(
+      snapshotRef.current,
+      requestedUpdates.map((update) => ({ noteId: update.id, tab: update.tab }))
+    );
+    playNotePreview(requestedUpdates[0].tab);
     enqueueOptimisticMutation({
       label: "snap-selected-to-key",
       apply: (draft) => {
-        updates.forEach((update) => {
-          const note = draft.notes.find((item) => item.id === update.id);
-          if (!note) return;
-          note.tab = [update.tab[0], update.tab[1]];
-          note.midiNum = getTabMidi(draft, note.tab);
-        });
+        applyNoteFingeringUpdates(
+          draft,
+          updates.map((update) => ({ ...update, noteId: resolveNoteId(update.noteId) }))
+        );
         return draft;
       },
       commit: async () => {
         let last: { snapshot?: EditorSnapshot } | null = null;
         for (const update of updates) {
-          if (update.id < 0) continue;
-          last = await gteApi.assignNoteTab(editorId, update.id, update.tab);
+          if (update.noteId < 0) continue;
+          last = await gteApi.assignNoteTab(editorId, update.noteId, update.tab);
         }
         return last ?? {};
       },
@@ -7918,6 +7945,11 @@ export default function GteWorkspace({
       return;
     }
     const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [stringValue, fretValue]);
+    const fingeringUpdates = didChangeTab
+      ? getEffectAwareFingeringUpdates(snapshotRef.current, [
+          { noteId: resolveNoteId(selectedNote.id), tab: nextTab },
+        ])
+      : [];
     enqueueOptimisticMutation({
       label: "update-note",
       apply: (draft) => {
@@ -7925,8 +7957,13 @@ export default function GteWorkspace({
         const note = draft.notes.find((item) => item.id === noteId);
         if (!note) return draft;
         if (didChangeTab) {
-          note.tab = [nextTab[0], nextTab[1]];
-          note.midiNum = getTabMidi(draft, note.tab);
+          applyNoteFingeringUpdates(
+            draft,
+            fingeringUpdates.map((update) => ({
+              ...update,
+              noteId: resolveNoteId(update.noteId),
+            }))
+          );
         }
         if (didChangeStart) {
           note.startTime = snappedStartValue;
@@ -7940,7 +7977,13 @@ export default function GteWorkspace({
         let last: { snapshot?: EditorSnapshot } | null = null;
         const resolvedId = resolveNoteId(selectedNote.id);
         if (didChangeTab) {
-          last = await gteApi.assignNoteTab(editorId, resolvedId, nextTab);
+          for (const update of fingeringUpdates) {
+            last = await gteApi.assignNoteTab(
+              editorId,
+              resolveNoteId(update.noteId),
+              update.tab
+            );
+          }
           playNotePreview(nextTab);
         }
         if (didChangeStart) {
@@ -7976,35 +8019,43 @@ export default function GteWorkspace({
     (type: number) => {
       if (guardSingleTrackSelectionAction(getNoteEffectTypeName(type))) return;
       const noteIds = Array.from(new Set(selectedNoteIds));
-      if (noteIds.length !== 2 || activeChordIds.length > 0) return;
+      if (noteIds.length < 2 || activeChordIds.length > 0) return;
       const resolvedNoteIds = noteIds.map((id) => resolveNoteId(id));
-      const pairKey = `${Math.min(resolvedNoteIds[0], resolvedNoteIds[1])}:${Math.max(
-        resolvedNoteIds[0],
-        resolvedNoteIds[1]
-      )}`;
-      const existingEffect = (snapshotRef.current.noteEffects || []).find((effect) => {
-        const effectKey = `${Math.min(effect.startNoteId, effect.endNoteId)}:${Math.max(
-          effect.startNoteId,
-          effect.endNoteId
-        )}`;
-        return effectKey === pairKey;
-      });
+      const orderedNotes = orderNotesForEffect(snapshotRef.current, resolvedNoteIds);
+      if (orderedNotes.length < 2) return;
+      const pairKeys = new Set(getEffectPairKeys(orderedNotes));
+      const effectsByPair = new Map(
+        (snapshotRef.current.noteEffects || []).map((effect) => [noteEffectKey(effect), effect] as const)
+      );
+      const shouldRemove = [...pairKeys].every((key) => effectsByPair.get(key)?.type === type);
       const nextSnapshot = cloneSnapshot(snapshotRef.current);
-      if (existingEffect?.type === type) {
-        removeNoteEffectFromSnapshot(nextSnapshot, existingEffect.id);
+      if (shouldRemove) {
+        nextSnapshot.noteEffects = (nextSnapshot.noteEffects || []).filter(
+          (effect) => !(pairKeys.has(noteEffectKey(effect)) && effect.type === type)
+        );
       } else {
-        addNoteEffectToSnapshot(nextSnapshot, resolvedNoteIds, type);
+        const alignment = alignEffectNotesToFirstString(nextSnapshot, resolvedNoteIds);
+        if (!alignment.ok) {
+          const stringLabel =
+            alignment.targetString === null ? "the first note's string" : `string ${alignment.targetString + 1}`;
+          setError(`Could not keep every selected pitch on ${stringLabel} within the available fret range.`);
+          return;
+        }
+        addNoteEffectToSnapshot(nextSnapshot, alignment.noteIds, type);
       }
       enqueueOptimisticMutation({
         label:
-          existingEffect?.type === type
+          shouldRemove
             ? `remove-${getNoteEffectTypeName(type).toLowerCase().replace("/", "-").replace(/\s+/g, "-")}`
             : `add-${getNoteEffectTypeName(type).toLowerCase().replace("/", "-").replace(/\s+/g, "-")}`,
         apply: (draft) => {
-          if (existingEffect?.type === type) {
-            removeNoteEffectFromSnapshot(draft, existingEffect.id);
+          if (shouldRemove) {
+            draft.noteEffects = (draft.noteEffects || []).filter(
+              (effect) => !(pairKeys.has(noteEffectKey(effect)) && effect.type === type)
+            );
           } else {
-            addNoteEffectToSnapshot(draft, noteIds, type);
+            const alignment = alignEffectNotesToFirstString(draft, noteIds);
+            if (alignment.ok) addNoteEffectToSnapshot(draft, alignment.noteIds, type);
           }
           return draft;
         },
@@ -8235,21 +8286,36 @@ export default function GteWorkspace({
       }
       if (selectedNote.tab[1] === fretValue) return;
       const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [selectedNote.tab[0], fretValue]);
+      const fingeringUpdates = getEffectAwareFingeringUpdates(snapshotRef.current, [
+        { noteId: resolveNoteId(selectedNote.id), tab: nextTab },
+      ]);
       playNotePreview(nextTab);
       enqueueOptimisticMutation({
         label: "note-menu-fret",
         apply: (draft) => {
-          const noteId = resolveNoteId(selectedNote.id);
-          const note = draft.notes.find((item) => item.id === noteId);
-          if (!note) return draft;
-          note.tab = [nextTab[0], nextTab[1]];
-          note.midiNum = getTabMidi(draft, note.tab);
+          applyNoteFingeringUpdates(
+            draft,
+            fingeringUpdates.map((update) => ({
+              ...update,
+              noteId: resolveNoteId(update.noteId),
+            }))
+          );
           return draft;
         },
-        commit: () => gteApi.assignNoteTab(editorId, resolveNoteId(selectedNote.id), nextTab),
+        commit: async () => {
+          let last: { snapshot?: EditorSnapshot } | null = null;
+          for (const update of fingeringUpdates) {
+            last = await gteApi.assignNoteTab(
+              editorId,
+              resolveNoteId(update.noteId),
+              update.tab
+            );
+          }
+          return last ?? {};
+        },
       });
     },
-    [editorId, enqueueOptimisticMutation, maxFret, selectedNote, snapTabToKeyIfEnabled]
+    [editorId, enqueueOptimisticMutation, maxFret, resolveNoteId, selectedNote, snapTabToKeyIfEnabled]
   );
 
   const clearPendingNoteFretArrowCommit = useCallback(() => {
@@ -8960,18 +9026,33 @@ export default function GteWorkspace({
       setError(`Tab must stay within strings 0-5 and frets 0-${maxFret}.`);
       return;
     }
+    const fingeringUpdates = getEffectAwareFingeringUpdates(snapshotRef.current, [
+      { noteId: resolveNoteId(selectedNote.id), tab },
+    ]);
     playNotePreview(tab);
     enqueueOptimisticMutation({
       label: "assign-alt",
       apply: (draft) => {
-        const noteId = resolveNoteId(selectedNote.id);
-        const note = draft.notes.find((item) => item.id === noteId);
-        if (!note) return draft;
-        note.tab = [tab[0], tab[1]];
-        note.midiNum = getTabMidi(draft, note.tab);
+        applyNoteFingeringUpdates(
+          draft,
+          fingeringUpdates.map((update) => ({
+            ...update,
+            noteId: resolveNoteId(update.noteId),
+          }))
+        );
         return draft;
       },
-      commit: () => gteApi.assignNoteTab(editorId, resolveNoteId(selectedNote.id), tab),
+      commit: async () => {
+        let last: { snapshot?: EditorSnapshot } | null = null;
+        for (const update of fingeringUpdates) {
+          last = await gteApi.assignNoteTab(
+            editorId,
+            resolveNoteId(update.noteId),
+            update.tab
+          );
+        }
+        return last ?? {};
+      },
     });
   };
 
@@ -9125,11 +9206,6 @@ export default function GteWorkspace({
         bendSec: number;
         targetCents: number;
       }>;
-      slideSegments?: Array<{
-        holdSec: number;
-        slideSec: number;
-        targetCents: number;
-      }>;
     }> = [];
 
     const pushEvent = (
@@ -9141,11 +9217,6 @@ export default function GteWorkspace({
       bendSegments?: Array<{
         holdFrames: number;
         bendFrames: number;
-        targetCents: number;
-      }>,
-      slideSegments?: Array<{
-        holdFrames: number;
-        slideFrames: number;
         targetCents: number;
       }>
     ) => {
@@ -9181,24 +9252,6 @@ export default function GteWorkspace({
                 }))
                 .filter((segment) => Number.isFinite(segment.holdSec) && Number.isFinite(segment.bendSec))
             : undefined,
-        slideSegments:
-          Array.isArray(slideSegments) && slideSegments.length > 0
-            ? slideSegments
-                .map((segment) => ({
-                  holdSec: frameDeltaToSeconds(
-                    Math.max(0, eventStart + segment.holdFrames - trimmedStart),
-                    playbackFps,
-                    runPlaybackSpeed
-                  ),
-                  slideSec: frameDeltaToSeconds(
-                    Math.max(0, segment.slideFrames),
-                    playbackFps,
-                    runPlaybackSpeed
-                  ),
-                  targetCents: segment.targetCents,
-                }))
-                .filter((segment) => Number.isFinite(segment.holdSec) && Number.isFinite(segment.slideSec))
-            : undefined,
       });
     };
 
@@ -9206,7 +9259,9 @@ export default function GteWorkspace({
     const outgoingTransitions = new Map<number, NonNullable<EditorSnapshot["noteEffects"]>[number]>();
     const incomingTransitionNoteIds = new Set<number>();
     (snapshot.noteEffects || []).forEach((effect) => {
-      if (effect.type !== 0 && effect.type !== 2) return;
+      // Bends sustain and retune the first sample. Slides deliberately remain
+      // separate note events so each fret triggers its own sampled attack.
+      if (effect.type !== 0) return;
       const canonical = getCanonicalNoteEffectForSnapshot(snapshot, effect);
       if (!canonical) return;
       if (outgoingTransitions.has(canonical.startNoteId)) return;
@@ -9250,7 +9305,6 @@ export default function GteWorkspace({
       const minimumBendFrames = 10;
       let previousBendEndFrames = 0;
       const bendSegments: Array<{ holdFrames: number; bendFrames: number; targetCents: number }> = [];
-      const slideSegments: Array<{ holdFrames: number; slideFrames: number; targetCents: number }> = [];
       chain.slice(1).forEach((item, chainIndex) => {
         const previous = chain[chainIndex];
         const transition = outgoingTransitions.get(previous.id);
@@ -9271,14 +9325,6 @@ export default function GteWorkspace({
         const bendFrames = Math.max(0, targetStartFrames - bendStartFrames);
         previousBendEndFrames = targetStartFrames;
         const targetCents = (targetMidi - baseMidi) * 100;
-        if (transition.type === 2) {
-          slideSegments.push({
-            holdFrames: bendStartFrames,
-            slideFrames: bendFrames,
-            targetCents,
-          });
-          return;
-        }
         bendSegments.push({
           holdFrames: bendStartFrames,
           bendFrames,
@@ -9291,8 +9337,7 @@ export default function GteWorkspace({
         baseMidi,
         gain,
         note.tab[0],
-        bendSegments.length > 0 ? bendSegments : undefined,
-        slideSegments.length > 0 ? slideSegments : undefined
+        bendSegments.length > 0 ? bendSegments : undefined
       );
     });
     snapshot.chords.forEach((chord) => {
@@ -9353,11 +9398,6 @@ export default function GteWorkspace({
         bendSec: number;
         targetCents: number;
       }>;
-      slideSegments?: Array<{
-        holdSec: number;
-        slideSec: number;
-        targetCents: number;
-      }>;
     }) => {
       if (!Number.isFinite(evt.midi) || evt.midi <= 0) return;
       schedulePreparedTrackNote({
@@ -9369,7 +9409,6 @@ export default function GteWorkspace({
         startTime: playBase + evt.start,
         duration: Math.max(0.05, evt.duration),
         bendSegments: evt.bendSegments,
-        slideSegments: evt.slideSegments,
       });
     };
 
@@ -9764,19 +9803,31 @@ export default function GteWorkspace({
       if (options?.playPreview) {
         playNotePreview(nextTab);
       }
+      const fingeringUpdates = getEffectAwareFingeringUpdates(snapshotRef.current, [
+        { noteId: resolvedCurrentId, tab: nextTab },
+      ]);
       enqueueOptimisticMutation({
         label: "keyboard-fret",
         apply: (draft) => {
-          const noteId = resolveNoteId(rawNoteId);
-          const note = draft.notes.find((item) => item.id === noteId);
-          if (!note) return draft;
-          note.tab = [nextTab[0], nextTab[1]];
-          note.midiNum = getTabMidi(draft, note.tab);
+          applyNoteFingeringUpdates(
+            draft,
+            fingeringUpdates.map((update) => ({
+              ...update,
+              noteId: resolveNoteId(update.noteId),
+            }))
+          );
           return draft;
         },
-        commit: () => {
-          const noteId = resolveNoteId(rawNoteId);
-          return gteApi.assignNoteTab(editorId, noteId, nextTab);
+        commit: async () => {
+          let last: { snapshot?: EditorSnapshot } | null = null;
+          for (const update of fingeringUpdates) {
+            last = await gteApi.assignNoteTab(
+              editorId,
+              resolveNoteId(update.noteId),
+              update.tab
+            );
+          }
+          return last ?? {};
         },
       });
       return true;
@@ -9786,7 +9837,7 @@ export default function GteWorkspace({
 
   const assignSelectedNoteFretsByDelta = useCallback(
     (rawNoteIds: number[], delta: number, options?: { playPreview?: boolean }) => {
-      const updates = Array.from(new Set(rawNoteIds))
+      const requestedUpdates = Array.from(new Set(rawNoteIds))
         .map((rawId) => {
           const noteId = resolveNoteId(rawId);
           const current = snapshotRef.current.notes.find((note) => note.id === noteId);
@@ -9801,27 +9852,32 @@ export default function GteWorkspace({
         })
         .filter((item): item is { rawId: number; noteId: number; tab: TabCoord } => Boolean(item));
 
-      if (!updates.length) return false;
-      if (options?.playPreview && updates.length === 1) {
-        playNotePreview(updates[0].tab);
+      if (!requestedUpdates.length) return false;
+      const updates = getEffectAwareFingeringUpdates(
+        snapshotRef.current,
+        requestedUpdates.map((update) => ({ noteId: update.noteId, tab: update.tab }))
+      );
+      if (options?.playPreview && requestedUpdates.length === 1) {
+        playNotePreview(requestedUpdates[0].tab);
       }
 
       enqueueOptimisticMutation({
         label: "keyboard-fret-group",
         apply: (draft) => {
-          updates.forEach((update) => {
-            const noteId = resolveNoteId(update.rawId);
-            const note = draft.notes.find((item) => item.id === noteId);
-            if (!note) return;
-            note.tab = [update.tab[0], update.tab[1]];
-            note.midiNum = getTabMidi(draft, note.tab);
-          });
+          applyNoteFingeringUpdates(
+            draft,
+            updates.map((update) => ({ ...update, noteId: resolveNoteId(update.noteId) }))
+          );
           return draft;
         },
         commit: async () => {
           let last: { snapshot?: EditorSnapshot } | null = null;
           for (const update of updates) {
-            last = await gteApi.assignNoteTab(editorId, resolveNoteId(update.rawId), update.tab);
+            last = await gteApi.assignNoteTab(
+              editorId,
+              resolveNoteId(update.noteId),
+              update.tab
+            );
           }
           return last ?? {};
         },
@@ -10492,30 +10548,35 @@ export default function GteWorkspace({
           if ((event.ctrlKey || event.metaKey) && selectedNoteGroup.length > 1) {
             if (event.key === "ArrowUp" || event.key === "ArrowDown") {
               const deltaString = event.key === "ArrowUp" ? -1 : 1;
-              const updates = selectedNoteGroup
+              const requestedUpdates = selectedNoteGroup
                 .map((note) => {
                   const nextString = clamp(note.tab[0] + deltaString, 0, 5);
                   const tab = snapTabToKeyIfEnabled(snapshotRef.current, [nextString, note.tab[1]]);
                   return { id: note.id, tab };
                 })
                 .filter((item, index) => !isSameTabCoord(item.tab, selectedNoteGroup[index].tab));
-              if (!updates.length) return;
-              playNotePreview(updates[0].tab);
+              if (!requestedUpdates.length) return;
+              const updates = getEffectAwareFingeringUpdates(
+                snapshotRef.current,
+                requestedUpdates.map((update) => ({ noteId: update.id, tab: update.tab }))
+              );
+              playNotePreview(requestedUpdates[0].tab);
               enqueueOptimisticMutation({
                 label: "keyboard-shift-arrow-string-multi",
                 apply: (draft) => {
-                  updates.forEach((update) => {
-                    const note = draft.notes.find((item) => item.id === update.id);
-                    if (!note) return;
-                    note.tab = [update.tab[0], update.tab[1]];
-                    note.midiNum = getTabMidi(draft, note.tab);
-                  });
+                  applyNoteFingeringUpdates(
+                    draft,
+                    updates.map((update) => ({
+                      ...update,
+                      noteId: resolveNoteId(update.noteId),
+                    }))
+                  );
                   return draft;
                 },
                 commit: async () => {
                   let last: { snapshot?: EditorSnapshot } | null = null;
                   for (const update of updates) {
-                    last = await gteApi.assignNoteTab(editorId, update.id, update.tab);
+                    last = await gteApi.assignNoteTab(editorId, update.noteId, update.tab);
                   }
                   return last ?? {};
                 },
@@ -10582,17 +10643,29 @@ export default function GteWorkspace({
               if (nextString === selected.tab[0]) return;
               const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [nextString, selected.tab[1]]);
               if (isSameTabCoord(selected.tab, nextTab)) return;
+              const fingeringUpdates = getEffectAwareFingeringUpdates(snapshotRef.current, [
+                { noteId: resolvedId, tab: nextTab },
+              ]);
               playNotePreview(nextTab);
               enqueueOptimisticMutation({
                 label: "keyboard-shift-arrow-string",
                 apply: (draft) => {
-                  const note = draft.notes.find((item) => item.id === resolvedId);
-                  if (!note) return draft;
-                  note.tab = [nextTab[0], nextTab[1]];
-                  note.midiNum = getTabMidi(draft, note.tab);
+                  applyNoteFingeringUpdates(
+                    draft,
+                    fingeringUpdates.map((update) => ({
+                      ...update,
+                      noteId: resolveNoteId(update.noteId),
+                    }))
+                  );
                   return draft;
                 },
-                commit: () => gteApi.assignNoteTab(editorId, resolvedId, nextTab),
+                commit: async () => {
+                  let last: { snapshot?: EditorSnapshot } | null = null;
+                  for (const update of fingeringUpdates) {
+                    last = await gteApi.assignNoteTab(editorId, update.noteId, update.tab);
+                  }
+                  return last ?? {};
+                },
               });
               showKeyboardCursor({
                 time: snapKeyboardCursorTimeToGrid(selected.startTime),
@@ -11445,7 +11518,7 @@ export default function GteWorkspace({
                     title={
                       selectionActionsLocked
                         ? "Disabled while notes/chords are selected in multiple tracks"
-                        : "Connect two selected notes with hammer-on or pull-off - Shortcut: H"
+                        : "Connect selected notes with hammer-ons or pull-offs - Shortcut: H"
                     }
                     className={textButtonClass}
                   >
@@ -11462,7 +11535,7 @@ export default function GteWorkspace({
                     title={
                       selectionActionsLocked
                         ? "Disabled while notes/chords are selected in multiple tracks"
-                        : "Connect two selected notes with a slide - Shortcut: L"
+                        : "Connect selected notes with slides - Shortcut: L"
                     }
                     className={textButtonClass}
                   >
@@ -11479,7 +11552,7 @@ export default function GteWorkspace({
                     title={
                       selectionActionsLocked
                         ? "Disabled while notes/chords are selected in multiple tracks"
-                        : "Connect two selected notes with a bend - Shortcut: B"
+                        : "Connect selected notes with bends - Shortcut: B"
                     }
                     className={textButtonClass}
                   >

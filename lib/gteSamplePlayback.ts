@@ -37,11 +37,6 @@ export type ScheduledTrackNote = {
     bendSec: number;
     targetCents: number;
   }>;
-  slideSegments?: Array<{
-    holdSec: number;
-    slideSec: number;
-    targetCents: number;
-  }>;
 };
 
 const sampleDataPromise = new Map<string, Promise<ArrayBuffer>>();
@@ -88,21 +83,6 @@ const normalizeBendSegments = (
     .filter((segment) => segment.holdSec <= safeDuration);
 };
 
-const normalizeSlideSegments = (
-  segments: ScheduledTrackNote["slideSegments"],
-  duration: number
-) => {
-  if (!Array.isArray(segments) || segments.length === 0) return [];
-  const safeDuration = Math.max(0, duration);
-  return segments
-    .map((segment) => ({
-      holdSec: clamp(toFiniteNumber(segment.holdSec, 0), 0, safeDuration),
-      slideSec: clamp(toFiniteNumber(segment.slideSec, 0), 0, safeDuration),
-      targetCents: toFiniteNumber(segment.targetCents, 0),
-    }))
-    .filter((segment) => segment.holdSec <= safeDuration);
-};
-
 const applyBendAutomationToRate = (
   param: AudioParam,
   baseValue: number,
@@ -118,32 +98,6 @@ const applyBendAutomationToRate = (
     const bendEndAt = startTime + Math.min(duration, segment.holdSec + segment.bendSec);
     param.setValueAtTime(baseValue * centsToRatio(currentCents), holdAt);
     param.linearRampToValueAtTime(baseValue * centsToRatio(segment.targetCents), bendEndAt);
-    currentCents = segment.targetCents;
-  });
-};
-
-const applySlideAutomationToRate = (
-  param: AudioParam,
-  baseValue: number,
-  startTime: number,
-  duration: number,
-  slideSegments?: ScheduledTrackNote["slideSegments"]
-) => {
-  const segments = normalizeSlideSegments(slideSegments, duration);
-  param.setValueAtTime(baseValue, startTime);
-  let currentCents = 0;
-  segments.forEach((segment) => {
-    const holdAt = startTime + segment.holdSec;
-    const slideEndAt = startTime + Math.min(duration, segment.holdSec + segment.slideSec);
-    param.setValueAtTime(baseValue * centsToRatio(currentCents), holdAt);
-    const semitoneDelta = Math.round((segment.targetCents - currentCents) / 100);
-    const stepCount = Math.max(1, Math.abs(semitoneDelta));
-    for (let step = 1; step <= stepCount; step += 1) {
-      const ratio = step / stepCount;
-      const stepTime = holdAt + (slideEndAt - holdAt) * ratio;
-      const stepCents = currentCents + semitoneDelta * 100 * ratio;
-      param.setValueAtTime(baseValue * centsToRatio(stepCents), stepTime);
-    }
     currentCents = segment.targetCents;
   });
 };
@@ -207,7 +161,6 @@ export const schedulePreparedTrackNote = ({
   startTime,
   duration,
   bendSegments,
-  slideSegments,
 }: ScheduledTrackNote) => {
   if (!Number.isFinite(midi) || midi <= 0) return;
   const sample = findNearestTrackSample(instrument.samples, midi);
@@ -222,10 +175,9 @@ export const schedulePreparedTrackNote = ({
   const source = ctx.createBufferSource();
   source.buffer = sample.buffer;
   applyBendAutomationToRate(source.playbackRate, baseRate, startTime, noteDuration, bendSegments);
-  applySlideAutomationToRate(source.playbackRate, baseRate, startTime, noteDuration, slideSegments);
 
   const needsSustainLoop =
-    (Boolean(bendSegments?.length) || Boolean(slideSegments?.length)) && sample.buffer.duration > 0.12;
+    Boolean(bendSegments?.length) && sample.buffer.duration > 0.12;
   if (needsSustainLoop) {
     const loopEnd = Math.max(0.08, sample.buffer.duration - 0.02);
     const loopStart = Math.max(0.02, Math.min(loopEnd - 0.04, sample.buffer.duration * 0.35));

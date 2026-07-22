@@ -2796,11 +2796,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           bendSec: number;
           targetCents: number;
         }>;
-        slideSegments?: Array<{
-          holdSec: number;
-          slideSec: number;
-          targetCents: number;
-        }>;
       }> = [];
 
       const pushEvent = (
@@ -2813,11 +2808,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         bendSegments?: Array<{
           holdFrames: number;
           bendFrames: number;
-          targetCents: number;
-        }>,
-        slideSegments?: Array<{
-          holdFrames: number;
-          slideFrames: number;
           targetCents: number;
         }>
       ) => {
@@ -2856,26 +2846,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     (segment) => Number.isFinite(segment.holdSec) && Number.isFinite(segment.bendSec)
                   )
               : undefined,
-          slideSegments:
-            Array.isArray(slideSegments) && slideSegments.length > 0
-              ? slideSegments
-                  .map((segment) => ({
-                    holdSec: frameDeltaToSeconds(
-                      Math.max(0, roundedStart + segment.holdFrames - trimmedStart),
-                      globalPlaybackFps,
-                      runPlaybackSpeed
-                    ),
-                    slideSec: frameDeltaToSeconds(
-                      Math.max(0, segment.slideFrames),
-                      globalPlaybackFps,
-                      runPlaybackSpeed
-                    ),
-                    targetCents: segment.targetCents,
-                  }))
-                  .filter(
-                    (segment) => Number.isFinite(segment.holdSec) && Number.isFinite(segment.slideSec)
-                  )
-              : undefined,
         });
       };
 
@@ -2899,7 +2869,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         const incomingTransitionNoteIds = new Set<number>();
 
         (lane.noteEffects || []).forEach((effect) => {
-          if (effect.type !== 0 && effect.type !== 2) return;
+          // Bends sustain and retune one sample. Slides keep both notes as
+          // discrete sample events with their own attacks.
+          if (effect.type !== 0) return;
           const first = notesById.get(effect.startNoteId);
           const second = notesById.get(effect.endNoteId);
           if (!first || !second || first.id === second.id) return;
@@ -2963,7 +2935,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           const minimumBendFrames = 10;
           let previousBendEndFrames = 0;
           const bendSegments: Array<{ holdFrames: number; bendFrames: number; targetCents: number }> = [];
-          const slideSegments: Array<{ holdFrames: number; slideFrames: number; targetCents: number }> = [];
           chain.slice(1).forEach((item, chainIndex) => {
             const previous = chain[chainIndex];
             const transition = outgoingTransitions.get(previous.id);
@@ -2986,14 +2957,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             const bendFrames = Math.max(0, targetStartFrames - bendStartFrames);
             previousBendEndFrames = targetStartFrames;
             const targetCents = (targetMidi - baseMidi) * 100;
-            if (transition.type === 2) {
-              slideSegments.push({
-                holdFrames: bendStartFrames,
-                slideFrames: bendFrames,
-                targetCents,
-              });
-              return;
-            }
             bendSegments.push({
               holdFrames: bendStartFrames,
               bendFrames,
@@ -3008,8 +2971,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             noteGain,
             instrumentId,
             lanePan,
-            bendSegments.length > 0 ? bendSegments : undefined,
-            slideSegments.length > 0 ? slideSegments : undefined
+            bendSegments.length > 0 ? bendSegments : undefined
           );
         });
 
@@ -3130,7 +3092,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           startTime: playBase + evt.start,
           duration: Math.max(0.05, evt.duration),
           bendSegments: evt.bendSegments,
-          slideSegments: evt.slideSegments,
         });
       });
 
