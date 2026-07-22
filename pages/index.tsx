@@ -22,7 +22,13 @@ import {
   getDefaultFileClipRange,
   isFileClipRangeValid,
 } from "../lib/transcriptionClip";
-import SeoHead, { SITE_NAME, SITE_URL, absoluteUrl } from "../components/SeoHead";
+import SeoHead, {
+  ORGANIZATION_ID,
+  SITE_IDENTITY_JSON_LD,
+  SITE_NAME,
+  SITE_URL,
+  WEBSITE_ID,
+} from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
@@ -1341,33 +1347,20 @@ export default function HomePage() {
       : null;
   const showCreditsEmpty = displayedCredits && displayedCredits.remaining === 0;
   const homeJsonLd = [
-    {
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      name: SITE_NAME,
-      url: SITE_URL,
-      logo: absoluteUrl("/logo01black.png"),
-      sameAs: [
-        "https://instagram.com/note2tabs",
-        "https://tiktok.com/@note2tabs",
-        "https://youtube.com/@note2tabs",
-      ],
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      name: SITE_NAME,
-      url: SITE_URL,
-    },
+    ...SITE_IDENTITY_JSON_LD,
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
+      "@id": `${SITE_URL}/#software-application`,
       name: SITE_NAME,
       applicationCategory: "MusicApplication",
+      applicationSubCategory: "Guitar tablature transcription and editing",
       operatingSystem: "Web",
-      url: SITE_URL,
+      url: `${SITE_URL}/`,
       description:
         "Convert audio files and YouTube links into editable guitar tabs in the browser.",
+      isPartOf: { "@id": WEBSITE_ID },
+      provider: { "@id": ORGANIZATION_ID },
       offers: {
         "@type": "Offer",
         price: "0",

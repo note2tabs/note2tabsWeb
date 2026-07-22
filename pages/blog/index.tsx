@@ -4,7 +4,7 @@ import { prisma } from "../../lib/prisma";
 import { withPrismaReadRetry } from "../../lib/prismaRetry";
 import { BLOG_PAGE_SIZE, estimateReadingTime, getPublishedWhere } from "../../lib/blog";
 import BlogPostCard from "../../components/blog/BlogPostCard";
-import SeoHead, { absoluteUrl } from "../../components/SeoHead";
+import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 
 type BlogPostCard = {
   id: string;
@@ -60,6 +60,8 @@ export default function BlogIndexPage({
       name: "Note2Tabs Blog",
       url: absoluteUrl("/blog"),
       description,
+      isPartOf: { "@id": WEBSITE_ID },
+      publisher: { "@id": ORGANIZATION_ID },
     },
     {
       "@context": "https://schema.org",

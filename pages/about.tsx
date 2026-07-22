@@ -1,5 +1,5 @@
 import Link from "next/link";
-import SeoHead, { absoluteUrl } from "../components/SeoHead";
+import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../components/SeoHead";
 
 export default function AboutPage() {
   const description =
@@ -11,6 +11,8 @@ export default function AboutPage() {
       name: "About Note2Tabs",
       url: absoluteUrl("/about"),
       description,
+      isPartOf: { "@id": WEBSITE_ID },
+      about: { "@id": ORGANIZATION_ID },
     },
     {
       "@context": "https://schema.org",
@@ -44,7 +46,7 @@ export default function AboutPage() {
         <div className="about-shell">
           <header className="about-header">
             <p className="legal-kicker">Note2Tabs</p>
-            <h1 className="page-title"><strong>About Us</strong></h1>
+            <h1 className="page-title"><strong>About Note2Tabs</strong></h1>
           </header>
 
           <section className="about-section about-section--story">

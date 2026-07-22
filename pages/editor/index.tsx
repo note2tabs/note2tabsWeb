@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { gteApi } from "../../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../../lib/gteGuestDraft";
-import SeoHead, { SITE_NAME, absoluteUrl } from "../../components/SeoHead";
+import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 
 const LIBRARY_PATH = "/gte";
 const GUEST_EDITOR_PATH = `/gte/${GTE_GUEST_EDITOR_ID}`;
@@ -94,10 +94,8 @@ export default function EditorLandingPage() {
       operatingSystem: "Web",
       url: absoluteUrl("/editor"),
       description: editorDescription,
-      provider: {
-        "@type": "Organization",
-        name: SITE_NAME,
-      },
+      isPartOf: { "@id": WEBSITE_ID },
+      provider: { "@id": ORGANIZATION_ID },
       offers: {
         "@type": "Offer",
         price: "0",

@@ -1,12 +1,35 @@
-import SeoHead from "../components/SeoHead";
+import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../components/SeoHead";
 
 export default function ContactPage() {
+  const description =
+    "Contact Note2Tabs for product questions, feedback, bug reports, account issues, and support.";
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "ContactPage",
+      name: "Contact Note2Tabs",
+      url: absoluteUrl("/contact"),
+      description,
+      isPartOf: { "@id": WEBSITE_ID },
+      about: { "@id": ORGANIZATION_ID },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: absoluteUrl("/") },
+        { "@type": "ListItem", position: 2, name: "Contact", item: absoluteUrl("/contact") },
+      ],
+    },
+  ];
+
   return (
     <>
       <SeoHead
         title="Contact Note2Tabs"
-        description="Contact Note2Tabs for product questions, feedback, bug reports, account issues, and support."
+        description={description}
         canonicalPath="/contact"
+        jsonLd={jsonLd}
       />
       <main className="page legal-page">
         <div className="legal-shell">

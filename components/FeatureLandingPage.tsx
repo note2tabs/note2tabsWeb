@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { getSeoFeaturePage, type SeoFeaturePage } from "../lib/seoFeaturePages";
-import SeoHead, { SITE_NAME, absoluteUrl } from "./SeoHead";
+import SeoHead, { ORGANIZATION_ID, SITE_NAME, WEBSITE_ID, absoluteUrl } from "./SeoHead";
 
 type FeatureVisual = {
   image: string;
@@ -78,6 +78,7 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
       description: page.description,
       isPartOf: {
         "@type": "CollectionPage",
+        "@id": absoluteUrl("/features#collection"),
         name: "Note2Tabs Guitar Tab Editor Features",
         url: absoluteUrl("/features"),
       },
@@ -90,6 +91,8 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
       operatingSystem: "Web",
       url: absoluteUrl(canonicalPath),
       description: page.description,
+      isPartOf: { "@id": WEBSITE_ID },
+      provider: { "@id": ORGANIZATION_ID },
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
     },
     {

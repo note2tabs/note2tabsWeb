@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import SeoHead, { SITE_NAME, absoluteUrl } from "../../components/SeoHead";
+import SeoHead, { WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 import { seoFeaturePages } from "../../lib/seoFeaturePages";
 
 const featureLabels = [
@@ -19,10 +19,11 @@ export default function FeaturesPage() {
     {
       "@context": "https://schema.org",
       "@type": "CollectionPage",
+      "@id": absoluteUrl("/features#collection"),
       name: "Note2Tabs Guitar Tab Editor Features",
       url: absoluteUrl("/features"),
       description,
-      isPartOf: { "@type": "WebSite", name: SITE_NAME, url: absoluteUrl("/") },
+      isPartOf: { "@id": WEBSITE_ID },
       mainEntity: {
         "@type": "ItemList",
         itemListElement: seoFeaturePages.map((page, index) => ({
