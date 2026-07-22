@@ -5,7 +5,6 @@ Disallow: /api/
 Allow: /api/og
 Disallow: /settings
 Disallow: /tabs
-Disallow: /gte
 Disallow: /mod/
 Disallow: /account
 Disallow: /history

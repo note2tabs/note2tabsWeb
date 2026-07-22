@@ -4,6 +4,12 @@ const nextConfig = {
   async redirects() {
     return [
       {
+        source: "/:path*",
+        has: [{ type: "host", value: "note2tabs.com" }],
+        destination: "https://www.note2tabs.com/:path*",
+        permanent: true,
+      },
+      {
         source: "/transcriber",
         destination: "/transcribe",
         permanent: true,
@@ -17,6 +23,10 @@ const nextConfig = {
   },
   async headers() {
     return [
+      {
+        source: "/gte/:path*",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
+      },
       {
         source: "/(.*)",
         headers: [
