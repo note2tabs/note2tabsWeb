@@ -22,10 +22,11 @@ import {
   type PracticeLoopRange,
 } from "../lib/gtePractice";
 import {
+  DEFAULT_TRACK_INSTRUMENT_ID,
   prepareTrackInstrument,
   schedulePreparedTrackNote,
   warmTrackInstrument,
-} from "../lib/gteSoundfonts";
+} from "../lib/gteSamplePlayback";
 import { getOpenStringMidiFromSnapshot, getStringLabelsForSnapshot } from "../lib/gteTuning";
 import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
 import {
@@ -1963,9 +1964,12 @@ function ChordLaneWorkspace({
       const midiNotes = getChordEditorMidiNotes(payload).filter((midi) => Number.isFinite(midi) && midi > 0);
       if (!midiNotes.length) return;
 
-      const instrument = await prepareTrackInstrument("jazz-guitar");
       const { ctx, master } = ensureChordPreviewAudio();
-      void ctx.resume();
+      const audioReady = resumeAudioContext(ctx);
+      const [instrument] = await Promise.all([
+        prepareTrackInstrument(ctx, DEFAULT_TRACK_INSTRUMENT_ID),
+        audioReady,
+      ]);
       const startTime = ctx.currentTime + 0.005;
       const gain = Math.min(0.5, 0.9 / Math.sqrt(midiNotes.length));
       midiNotes.forEach((midi, index) => {
@@ -2020,7 +2024,7 @@ function ChordLaneWorkspace({
 
   useEffect(() => {
     if (chordMenuOpen) {
-      void warmTrackInstrument("jazz-guitar");
+      void warmTrackInstrument(DEFAULT_TRACK_INSTRUMENT_ID);
     }
   }, [chordMenuOpen]);
 
@@ -9035,7 +9039,7 @@ export default function GteWorkspace({
       preview = ensurePreviewAudio();
       const audioReady = resumeAudioContext(preview.ctx);
       const [instrument] = await Promise.all([
-        prepareTrackInstrument(snapshot.instrumentId),
+        prepareTrackInstrument(preview.ctx, snapshot.instrumentId),
         audioReady,
       ]);
       if (
@@ -9301,7 +9305,7 @@ export default function GteWorkspace({
     });
 
     const [instrument] = await Promise.all([
-      prepareTrackInstrument(snapshot.instrumentId),
+      prepareTrackInstrument(ctx, snapshot.instrumentId),
       audioReady,
     ]);
     if (!isCurrentRequest() || ctx.state !== "running") {

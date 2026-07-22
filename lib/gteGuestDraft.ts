@@ -1,6 +1,9 @@
 import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
 import { hydrateChordFingering } from "./gteChordFingerings";
-import { DEFAULT_TRACK_INSTRUMENT_ID, normalizeTrackInstrumentId } from "./gteSoundfonts";
+import {
+  DEFAULT_TRACK_INSTRUMENT_ID,
+  normalizeTrackInstrumentId,
+} from "./gteInstrumentManifest";
 import { getTuningPreset, normalizeCapo } from "./gteTuning";
 
 export const GTE_GUEST_EDITOR_ID = "local";
