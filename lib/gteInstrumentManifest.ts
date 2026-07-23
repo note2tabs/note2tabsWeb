@@ -75,7 +75,7 @@ const LEGACY_INSTRUMENT_IDS: Record<string, string> = {
   "clean-guitar": "electric",
   "muted-guitar": "electric",
   "overdriven-guitar": "electric_overdrive",
-  "distortion-guitar": "electric_overdrive",
+  "distortion-guitar": "electric_distortion",
 };
 
 export const normalizeTrackInstrumentId = (value: unknown) => {

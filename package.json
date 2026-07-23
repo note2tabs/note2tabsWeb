@@ -10,6 +10,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev --name init",
     "db:seed": "node prisma/seed.js",
+    "chords:index": "node scripts/build-chord-fingering-index.js",
     "blog:check": "node scripts/check-blog.js",
     "test": "vitest run",
     "test:watch": "vitest",

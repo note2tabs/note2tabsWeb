@@ -98,5 +98,32 @@
       "81": "a5_vl3_rr1_2.opus",
       "84": "c6_vl3_rr1_2.opus"
     }
+  },
+  {
+    "id": "electric_distortion",
+    "label": "Electric Guitar (Distortion)",
+    "folder": "electric_distorted",
+    "gain": 0.9,
+    "samples": {
+      "36": "c2_vl3_rr1_2.opus",
+      "40": "e2_vl3_rr1_2.opus",
+      "41": "f2_vl3_rr1_2.opus",
+      "45": "a2_vl3_rr1_2.opus",
+      "48": "c3_vl3_rr1_2.opus",
+      "50": "d3_vl3_rr1_2.opus",
+      "52": "e3_vl3_rr1_2.opus",
+      "55": "g3_vl3_rr1_2.opus",
+      "59": "b3_vl3_rr1_2.opus",
+      "61": "db4_vl3_rr1_2.opus",
+      "64": "e4_vl3_rr1_2.opus",
+      "67": "g4_vl3_rr1_2.opus",
+      "71": "b4_vl3_rr1_2.opus",
+      "72": "c5_vl3_rr1_2.opus",
+      "74": "d5_vl3_rr1_2.opus",
+      "77": "f5_vl3_rr1_2.opus",
+      "80": "ab5_vl3_rr1_2.opus",
+      "82": "bb5_vl3_rr1_2.opus",
+      "85": "db6_vl3_rr1_2.opus"
+    }
   }
 ]

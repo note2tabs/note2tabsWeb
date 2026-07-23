@@ -38,7 +38,7 @@ import {
 } from "../lib/gteNoteEffects";
 import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
 import {
-  getChordFingeringCsvType,
+  getChordFingeringDatasetType,
   getChordFingeringMidiNotes,
   getChordFingeringTabs,
   hydrateChordFingering,
@@ -209,6 +209,11 @@ const CHORD_EDITOR_EXTENSIONS = [
   { name: "maj9", display: "maj9", intervals: [11, 14] },
   { name: "11", display: "11", intervals: [10, 14, 17] },
   { name: "13", display: "13", intervals: [10, 14, 17, 21] },
+] as const;
+const CHORD_PALETTE_EXTENSIONS = [
+  { value: "", label: "None" },
+  { value: "7", label: "7" },
+  { value: "9", label: "9" },
 ] as const;
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
@@ -1427,7 +1432,11 @@ type ChordContextMenuState = {
 };
 
 function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
-  const positions = hydrateChordFingering(fingering).positions;
+  const hydrated = hydrateChordFingering(fingering);
+  const positions = hydrated.positions;
+  const fingers = hydrated.fingers || [];
+  const explicitBarreFrets = new Set(hydrated.barreFrets || []);
+  const hasFingerMetadata = fingers.some((finger) => typeof finger === "number");
   const fretted = positions.filter((value): value is number => typeof value === "number" && value > 0);
   const minFret = fretted.length ? Math.min(...fretted) : 1;
   const maxFret = fretted.length ? Math.max(...fretted) : 4;
@@ -1435,10 +1444,40 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
   const fretCount = 4;
   const visibleFrets = Array.from({ length: fretCount }, (_, index) => baseFret + index);
   const maxVisibleFret = visibleFrets[visibleFrets.length - 1] ?? baseFret + fretCount - 1;
-  const barreRuns: Array<{ fret: number; startIndex: number; endIndex: number }> = [];
+  const barreRuns: Array<{ fret: number; startIndex: number; endIndex: number; finger: number | null }> = [];
   const barredPositions = new Set<number>();
 
   visibleFrets.forEach((fret) => {
+    if (explicitBarreFrets.has(fret)) {
+      const barreFingerCandidates = Array.from(
+        new Set(
+          positions
+            .map((position, index) => (position === fret ? fingers[index] : null))
+            .filter((finger): finger is number => typeof finger === "number" && finger > 0)
+        )
+      );
+      const barreFinger =
+        barreFingerCandidates.find(
+          (finger) => positions.filter((position, index) => position === fret && fingers[index] === finger).length >= 2
+        ) ?? null;
+      const barreIndexes = positions
+        .map((position, index) => (position === fret && (barreFinger === null || fingers[index] === barreFinger) ? index : -1))
+        .filter((index) => index >= 0);
+      if (barreIndexes.length >= 2) {
+        barreRuns.push({
+          fret,
+          startIndex: Math.min(...barreIndexes),
+          endIndex: Math.max(...barreIndexes),
+          finger: barreFinger,
+        });
+        return;
+      }
+    }
+
+    // JSON fingerings declare real barres explicitly. Only infer bars for
+    // legacy saved shapes that do not contain finger metadata.
+    if (hasFingerMetadata) return;
+
     let runStart: number | null = null;
     positions.forEach((position, index) => {
       if (position === fret) {
@@ -1446,18 +1485,28 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
         return;
       }
       if (runStart !== null && index - runStart >= 2) {
-        barreRuns.push({ fret, startIndex: runStart, endIndex: index - 1 });
+        barreRuns.push({ fret, startIndex: runStart, endIndex: index - 1, finger: fingers[runStart] ?? null });
       }
       runStart = null;
     });
     if (runStart !== null && positions.length - runStart >= 2) {
-      barreRuns.push({ fret, startIndex: runStart, endIndex: positions.length - 1 });
+      barreRuns.push({
+        fret,
+        startIndex: runStart,
+        endIndex: positions.length - 1,
+        finger: fingers[runStart] ?? null,
+      });
     }
   });
 
   barreRuns.forEach((barre) => {
     for (let index = barre.startIndex; index <= barre.endIndex; index += 1) {
-      barredPositions.add(index);
+      if (
+        positions[index] === barre.fret &&
+        (barre.finger === null || fingers[index] === barre.finger)
+      ) {
+        barredPositions.add(index);
+      }
     }
   });
 
@@ -1488,13 +1537,15 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
           return (
             <span
               key={`barre-${barre.fret}-${barre.startIndex}-${barre.endIndex}`}
-              className="absolute z-10 h-2.5 -translate-y-1/2 rounded-full bg-slate-900"
+              className="absolute z-10 flex h-3 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900 text-[8px] font-bold leading-none text-white"
               style={{
                 left: `calc(${(barre.startIndex / 5) * 100}% - 5px)`,
                 top: `${y}%`,
                 width: `calc(${((barre.endIndex - barre.startIndex) / 5) * 100}% + 10px)`,
               }}
-            />
+            >
+              {barre.finger ?? ""}
+            </span>
           );
         })}
         {positions.map((fret, index) => {
@@ -1526,9 +1577,11 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
           return (
             <span
               key={`dot-${index}`}
-              className="absolute z-10 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-900"
+              className="absolute z-20 flex h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900 text-[7px] font-bold leading-none text-white"
               style={{ left: `${x}%`, top: `${y}%` }}
-            />
+            >
+              {fingers[index] ?? ""}
+            </span>
           );
         })}
       </div>
@@ -1591,6 +1644,8 @@ function ChordLaneWorkspace({
   const [selectedBarIndices, setSelectedBarIndices] = useState<number[]>([]);
   const [snapDenominator, setSnapDenominator] = useState<(typeof CHORD_EDITOR_SNAP_DENOMINATORS)[number]>(4);
   const [chordMenuOpen, setChordMenuOpen] = useState(false);
+  const [chordPaletteExtension, setChordPaletteExtension] =
+    useState<(typeof CHORD_PALETTE_EXTENSIONS)[number]["value"]>("");
   const [strumEditor, setStrumEditor] = useState<ChordStrumEditorState | null>(null);
   const [chordClipboard, setChordClipboard] = useState<ChordClipboardItem[]>([]);
   const [chordContextMenu, setChordContextMenu] = useState<ChordContextMenuState | null>(null);
@@ -1731,7 +1786,7 @@ function ChordLaneWorkspace({
     const root = chord.root || inferred?.root || "C";
     const quality = chord.quality || inferred?.quality || "major";
     const extension = chord.extension || inferred?.extension || "";
-    const type = getChordFingeringCsvType({ quality, extension });
+    const type = getChordFingeringDatasetType({ quality, extension });
     return { root, quality, extension, type, key: `${root}:${type}` };
   }, []);
 
@@ -1830,6 +1885,48 @@ function ChordLaneWorkspace({
       return [chordId];
     },
     [selectedChordIds, snapshot.chords]
+  );
+
+  const applyChordExtension = useCallback(
+    (chordId: number, extension: (typeof CHORD_PALETTE_EXTENSIONS)[number]["value"]) => {
+      const chord = snapshot.chords.find((item) => item.id === chordId);
+      if (!chord) return;
+      const currentExtension = getChordEditorExtension(chord.extension).name;
+      if (currentExtension === extension) {
+        setChordContextMenu(null);
+        return;
+      }
+      const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+      const root = chord.root || inferred?.root || "C";
+      const quality = chord.quality || inferred?.quality || "major";
+      const payload = {
+        root,
+        quality,
+        extension,
+        label: getChordEditorLabel(root, quality, extension),
+      };
+      commitSnapshot(
+        {
+          ...snapshot,
+          chords: snapshot.chords.map((item) =>
+            item.id === chordId
+              ? {
+                  ...item,
+                  ...payload,
+                  originalMidi: getChordEditorMidiNotes(payload),
+                  currentTabs: [],
+                  ogTabs: [],
+                  fingering: undefined,
+                  fingeringIndex: 0,
+                }
+              : item
+          ),
+        },
+        { recordHistory: true }
+      );
+      setChordContextMenu(null);
+    },
+    [commitSnapshot, snapshot]
   );
 
   const copyChordIds = useCallback(
@@ -2441,12 +2538,32 @@ function ChordLaneWorkspace({
           onMouseDown={(event) => event.stopPropagation()}
           onTouchStart={(event) => event.stopPropagation()}
         >
-          <div className="mb-2 flex items-start justify-between gap-2">
-            <div className="text-[11px] font-bold text-slate-800">Chords</div>
+          <div className="mb-2 grid grid-cols-[1fr_auto_1fr] items-start gap-2">
+            <div className="pt-1 text-[11px] font-bold text-slate-800">Chords</div>
+            <label className="flex flex-col items-center gap-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+              <span>Extension</span>
+              <select
+                value={chordPaletteExtension}
+                onChange={(event) => {
+                  setChordPaletteExtension(
+                    event.currentTarget.value as (typeof CHORD_PALETTE_EXTENSIONS)[number]["value"]
+                  );
+                  event.currentTarget.blur();
+                }}
+                className="h-7 min-w-20 rounded-md border border-slate-300 bg-white px-2 text-center text-xs font-semibold normal-case tracking-normal text-slate-700 shadow-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                aria-label="Chord extension"
+              >
+                {CHORD_PALETTE_EXTENSIONS.map((extension) => (
+                  <option key={extension.value || "none"} value={extension.value}>
+                    {extension.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               onClick={() => setChordMenuOpen(false)}
-              className="grid h-6 w-6 place-items-center rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
+              className="grid h-6 w-6 place-items-center justify-self-end rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
               aria-label="Close chords"
             >
               x
@@ -2460,14 +2577,19 @@ function ChordLaneWorkspace({
                 </summary>
                 <div className="mt-2 flex flex-wrap gap-1">
                   {CHORD_EDITOR_ROOTS.map((root) => {
-                    const label = getChordEditorLabel(root, quality.name);
-                    const payload = { root, quality: quality.name, extension: "", label };
+                    const label = getChordEditorLabel(root, quality.name, chordPaletteExtension);
+                    const payload = {
+                      root,
+                      quality: quality.name,
+                      extension: chordPaletteExtension,
+                      label,
+                    };
                     const chordInKey =
                       !snapToKeyEnabled ||
                       getChordEditorMidiNotes(payload).every((midi) => isMidiInKey(midi, canvasKeyBase, canvasKeyType));
                     return (
                       <button
-                        key={`${quality.name}-${root}`}
+                        key={`${quality.name}-${root}-${chordPaletteExtension || "none"}`}
                         type="button"
                         draggable={chordInKey}
                         disabled={!chordInKey}
@@ -2641,9 +2763,12 @@ function ChordLaneWorkspace({
                 Number.isFinite(Number(chord.fingeringIndex)) && fingeringOptions.length
                   ? Math.max(0, Math.min(fingeringOptions.length - 1, Math.round(Number(chord.fingeringIndex))))
                   : 0;
+              // Saved chords created before the JSON migration only contain
+              // fret positions. Prefer the matching dataset entry so its
+              // finger and barre metadata is available to the diagram.
               const visibleFingering =
-                chord.fingering ||
-                (fingeringOptions.length ? fingeringOptions[savedFingeringIndex] : undefined);
+                (fingeringOptions.length ? fingeringOptions[savedFingeringIndex] : undefined) ||
+                chord.fingering;
               return (
                 <div
                   key={chord.id}
@@ -3014,6 +3139,10 @@ function ChordLaneWorkspace({
             const chord = snapshot.chords.find((item) => item.id === chordContextMenu.chordId);
             if (!chord) return null;
             const targetChordIds = getContextTargetChordIds(chord.id);
+            const currentExtension = getChordEditorExtension(chord.extension).name;
+            const inferredChord = inferChordEditorMetadataFromMidi(chord.originalMidi);
+            const contextChordRoot = chord.root || inferredChord?.root || "C";
+            const contextChordQuality = chord.quality || inferredChord?.quality || "major";
             const menuItemClass =
               "block w-full rounded px-3 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300";
             return (
@@ -3051,6 +3180,54 @@ function ChordLaneWorkspace({
                 >
                   Paste
                 </button>
+                {targetChordIds.length === 1 ? (
+                  <>
+                    <div className="my-1 border-t border-slate-100" />
+                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      Extension
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 px-1 pb-1">
+                      {CHORD_PALETTE_EXTENSIONS.map((extension) => {
+                        const active = currentExtension === extension.value;
+                        const extensionInKey =
+                          extension.value === "" ||
+                          !snapToKeyEnabled ||
+                          getChordEditorMidiNotes({
+                            root: contextChordRoot,
+                            quality: contextChordQuality,
+                            extension: extension.value,
+                          }).every((midi) => isMidiInKey(midi, canvasKeyBase, canvasKeyType));
+                        return (
+                          <button
+                            key={extension.value || "none"}
+                            type="button"
+                            aria-pressed={active}
+                            disabled={!extensionInKey}
+                            title={
+                              extensionInKey
+                                ? `Set extension to ${extension.label}`
+                                : `${getChordEditorLabel(
+                                    contextChordRoot,
+                                    contextChordQuality,
+                                    extension.value
+                                  )} is outside the current key`
+                            }
+                            className={`rounded border px-1.5 py-1 text-xs font-semibold transition ${
+                              !extensionInKey
+                                ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-60"
+                                : active
+                                ? "border-sky-500 bg-sky-100 text-sky-900"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:bg-sky-50"
+                            }`}
+                            onClick={() => applyChordExtension(chord.id, extension.value)}
+                          >
+                            {extension.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : null}
                 <div className="my-1 border-t border-slate-100" />
                 <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
                   Quick strumming

@@ -41,6 +41,8 @@ export type ChordFingering = {
   root: string;
   type: string;
   positions: Array<number | null>;
+  fingers?: Array<number | null>;
+  barreFrets?: number[];
   noteNames?: string[];
   midiNotes?: number[];
   tabs?: TabCoord[];
