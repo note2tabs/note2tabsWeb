@@ -132,6 +132,7 @@ type Props = {
   onSpeedTrainerStepChange?: (step: number) => void;
   playbackSpeed?: number;
   onPlaybackSpeedChange?: (speed: number) => void;
+  playbackUiVisible?: boolean;
   showToolbarWhenInactive?: boolean;
   toolbarOpen?: boolean;
   onToolbarOpenChange?: (open: boolean) => void;
@@ -3143,6 +3144,7 @@ export default function GteWorkspace({
   onSpeedTrainerStepChange,
   playbackSpeed,
   onPlaybackSpeedChange,
+  playbackUiVisible,
   showToolbarWhenInactive = false,
   toolbarOpen: controlledToolbarOpen,
   onToolbarOpenChange,
@@ -3220,6 +3222,7 @@ export default function GteWorkspace({
         onSpeedTrainerStepChange={onSpeedTrainerStepChange}
         playbackSpeed={playbackSpeed}
         onPlaybackSpeedChange={onPlaybackSpeedChange}
+        playbackUiVisible={playbackUiVisible}
         showToolbarWhenInactive={showToolbarWhenInactive}
         toolbarOpen={controlledToolbarOpen}
         onToolbarOpenChange={onToolbarOpenChange}
@@ -3591,7 +3594,7 @@ export default function GteWorkspace({
     [onToolbarOpenChange, toolbarOpen]
   );
   const showFloatingUi = true;
-  const showPlaybackUi = isActive || showToolbarWhenInactive;
+  const showPlaybackUi = playbackUiVisible ?? (isActive || showToolbarWhenInactive);
   const showToolbarUi = showPlaybackUi && !isMobileCanvasMode && !tabViewEnabled;
   const compactEmbeddedMobile = embedded && mobileViewport;
   const selectedBarIndexSet = useMemo(() => new Set(selectedBarIndices), [selectedBarIndices]);

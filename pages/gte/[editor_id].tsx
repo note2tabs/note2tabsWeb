@@ -4946,6 +4946,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               isActive
                               mobileViewport
                               mobileMode="edit"
+                              playbackUiVisible
                               onFocusWorkspace={() => setActiveLaneId(laneId)}
                               tabViewEnabled={tabViewEnabled}
                               globalSnapToGridEnabled={globalSnapToGridEnabled}
@@ -5210,6 +5211,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               isActive={isActive}
                               mobileViewport
                               mobileMode="canvas"
+                              playbackUiVisible={laneId === globalControlsLaneId}
                               onFocusWorkspace={() => setActiveLaneId(laneId)}
                               tabViewEnabled={tabViewEnabled}
                               globalSnapToGridEnabled={globalSnapToGridEnabled}
@@ -5493,6 +5495,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           embedded
                           isActive={isActive}
                           mobileViewport={isMobileViewport}
+                          playbackUiVisible={laneId === globalControlsLaneId}
                           onFocusWorkspace={() => activateLaneForEditing(laneId)}
                           tabViewEnabled={tabViewEnabled}
                           globalSnapToGridEnabled={globalSnapToGridEnabled}
