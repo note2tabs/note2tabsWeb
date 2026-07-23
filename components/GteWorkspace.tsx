@@ -38,7 +38,7 @@ import {
 } from "../lib/gteNoteEffects";
 import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
 import {
-  getChordFingeringCsvType,
+  getChordFingeringDatasetType,
   getChordFingeringMidiNotes,
   getChordFingeringTabs,
   hydrateChordFingering,
@@ -1427,7 +1427,11 @@ type ChordContextMenuState = {
 };
 
 function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
-  const positions = hydrateChordFingering(fingering).positions;
+  const hydrated = hydrateChordFingering(fingering);
+  const positions = hydrated.positions;
+  const fingers = hydrated.fingers || [];
+  const explicitBarreFrets = new Set(hydrated.barreFrets || []);
+  const hasFingerMetadata = fingers.some((finger) => typeof finger === "number");
   const fretted = positions.filter((value): value is number => typeof value === "number" && value > 0);
   const minFret = fretted.length ? Math.min(...fretted) : 1;
   const maxFret = fretted.length ? Math.max(...fretted) : 4;
@@ -1435,10 +1439,40 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
   const fretCount = 4;
   const visibleFrets = Array.from({ length: fretCount }, (_, index) => baseFret + index);
   const maxVisibleFret = visibleFrets[visibleFrets.length - 1] ?? baseFret + fretCount - 1;
-  const barreRuns: Array<{ fret: number; startIndex: number; endIndex: number }> = [];
+  const barreRuns: Array<{ fret: number; startIndex: number; endIndex: number; finger: number | null }> = [];
   const barredPositions = new Set<number>();
 
   visibleFrets.forEach((fret) => {
+    if (explicitBarreFrets.has(fret)) {
+      const barreFingerCandidates = Array.from(
+        new Set(
+          positions
+            .map((position, index) => (position === fret ? fingers[index] : null))
+            .filter((finger): finger is number => typeof finger === "number" && finger > 0)
+        )
+      );
+      const barreFinger =
+        barreFingerCandidates.find(
+          (finger) => positions.filter((position, index) => position === fret && fingers[index] === finger).length >= 2
+        ) ?? null;
+      const barreIndexes = positions
+        .map((position, index) => (position === fret && (barreFinger === null || fingers[index] === barreFinger) ? index : -1))
+        .filter((index) => index >= 0);
+      if (barreIndexes.length >= 2) {
+        barreRuns.push({
+          fret,
+          startIndex: Math.min(...barreIndexes),
+          endIndex: Math.max(...barreIndexes),
+          finger: barreFinger,
+        });
+        return;
+      }
+    }
+
+    // JSON fingerings declare real barres explicitly. Only infer bars for
+    // legacy saved shapes that do not contain finger metadata.
+    if (hasFingerMetadata) return;
+
     let runStart: number | null = null;
     positions.forEach((position, index) => {
       if (position === fret) {
@@ -1446,18 +1480,28 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
         return;
       }
       if (runStart !== null && index - runStart >= 2) {
-        barreRuns.push({ fret, startIndex: runStart, endIndex: index - 1 });
+        barreRuns.push({ fret, startIndex: runStart, endIndex: index - 1, finger: fingers[runStart] ?? null });
       }
       runStart = null;
     });
     if (runStart !== null && positions.length - runStart >= 2) {
-      barreRuns.push({ fret, startIndex: runStart, endIndex: positions.length - 1 });
+      barreRuns.push({
+        fret,
+        startIndex: runStart,
+        endIndex: positions.length - 1,
+        finger: fingers[runStart] ?? null,
+      });
     }
   });
 
   barreRuns.forEach((barre) => {
     for (let index = barre.startIndex; index <= barre.endIndex; index += 1) {
-      barredPositions.add(index);
+      if (
+        positions[index] === barre.fret &&
+        (barre.finger === null || fingers[index] === barre.finger)
+      ) {
+        barredPositions.add(index);
+      }
     }
   });
 
@@ -1488,13 +1532,15 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
           return (
             <span
               key={`barre-${barre.fret}-${barre.startIndex}-${barre.endIndex}`}
-              className="absolute z-10 h-2.5 -translate-y-1/2 rounded-full bg-slate-900"
+              className="absolute z-10 flex h-3 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900 text-[8px] font-bold leading-none text-white"
               style={{
                 left: `calc(${(barre.startIndex / 5) * 100}% - 5px)`,
                 top: `${y}%`,
                 width: `calc(${((barre.endIndex - barre.startIndex) / 5) * 100}% + 10px)`,
               }}
-            />
+            >
+              {barre.finger ?? ""}
+            </span>
           );
         })}
         {positions.map((fret, index) => {
@@ -1526,9 +1572,11 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
           return (
             <span
               key={`dot-${index}`}
-              className="absolute z-10 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-900"
+              className="absolute z-20 flex h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900 text-[7px] font-bold leading-none text-white"
               style={{ left: `${x}%`, top: `${y}%` }}
-            />
+            >
+              {fingers[index] ?? ""}
+            </span>
           );
         })}
       </div>
@@ -1731,7 +1779,7 @@ function ChordLaneWorkspace({
     const root = chord.root || inferred?.root || "C";
     const quality = chord.quality || inferred?.quality || "major";
     const extension = chord.extension || inferred?.extension || "";
-    const type = getChordFingeringCsvType({ quality, extension });
+    const type = getChordFingeringDatasetType({ quality, extension });
     return { root, quality, extension, type, key: `${root}:${type}` };
   }, []);
 
@@ -2641,9 +2689,12 @@ function ChordLaneWorkspace({
                 Number.isFinite(Number(chord.fingeringIndex)) && fingeringOptions.length
                   ? Math.max(0, Math.min(fingeringOptions.length - 1, Math.round(Number(chord.fingeringIndex))))
                   : 0;
+              // Saved chords created before the JSON migration only contain
+              // fret positions. Prefer the matching dataset entry so its
+              // finger and barre metadata is available to the diagram.
               const visibleFingering =
-                chord.fingering ||
-                (fingeringOptions.length ? fingeringOptions[savedFingeringIndex] : undefined);
+                (fingeringOptions.length ? fingeringOptions[savedFingeringIndex] : undefined) ||
+                chord.fingering;
               return (
                 <div
                   key={chord.id}

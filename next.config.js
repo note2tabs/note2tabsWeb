@@ -44,6 +44,9 @@ const nextConfig = {
   images: {
     qualities: [68, 72, 75],
   },
+  outputFileTracingIncludes: {
+    "/api/chord-fingerings": ["./data/chord-fingerings-index.json"],
+  },
   turbopack: {
     root: __dirname,
   },

@@ -4,67 +4,71 @@ import path from "path";
 import type { ChordFingering } from "../../types/gte";
 import { getChordFingeringMidiNotes, getChordFingeringTabs } from "../../lib/gteChordFingerings";
 
-type CsvRow = Record<string, string>;
-
-let cachedRows: ChordFingering[] | null = null;
-
-const parseCsvLine = (line: string, delimiter = ";") => {
-  const cells: string[] = [];
-  let cell = "";
-  let quoted = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (char === '"') {
-      if (quoted && line[index + 1] === '"') {
-        cell += '"';
-        index += 1;
-      } else {
-        quoted = !quoted;
-      }
-      continue;
-    }
-    if (char === delimiter && !quoted) {
-      cells.push(cell);
-      cell = "";
-      continue;
-    }
-    cell += char;
-  }
-  cells.push(cell);
-  return cells;
+type JsonChordPosition = {
+  frets?: unknown;
+  fingers?: unknown;
+  barres?: unknown;
 };
 
-const loadFingerings = () => {
-  if (cachedRows) return cachedRows;
-  const filePath = path.join(process.cwd(), "data", "chord-fingers.csv");
-  const raw = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
-  const lines = raw.split(/\r?\n/).filter((line) => line.trim().length > 0);
-  const headers = parseCsvLine(lines[0] || "").map((header) => header.trim());
-  cachedRows = lines.slice(1).flatMap((line): ChordFingering[] => {
-    const values = parseCsvLine(line);
-    const row: CsvRow = {};
-    headers.forEach((header, index) => {
-      row[header] = values[index] ?? "";
+type ChordFingeringIndex = Record<string, JsonChordPosition[]>;
+
+const CHORD_ROOTS = new Set(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]);
+const CHORD_TYPE_PATTERN = /^[A-Za-z0-9#+-]+$/;
+const DATA_PATH = path.join(process.cwd(), "data", "chord-fingerings-index.json");
+const cachedFingerings = new Map<string, ChordFingering[]>();
+let cachedIndex: ChordFingeringIndex | null = null;
+
+export const decodeFret = (value: string): number | null => {
+  const normalized = value.toLowerCase();
+  if (normalized === "x") return null;
+  const fret = Number.parseInt(normalized, 36);
+  return Number.isInteger(fret) && fret >= 0 && fret <= 22 ? fret : null;
+};
+
+const decodeFinger = (value: string, fret: number | null): number | null => {
+  if (fret === null || fret === 0) return null;
+  const finger = Number(value);
+  return Number.isInteger(finger) && finger >= 1 && finger <= 4 ? finger : null;
+};
+
+export const loadChordFingerings = (root: string, type: string): ChordFingering[] => {
+  if (!CHORD_ROOTS.has(root) || !CHORD_TYPE_PATTERN.test(type)) return [];
+  const cacheKey = `${root}:${type}`;
+  const cached = cachedFingerings.get(cacheKey);
+  if (cached) return cached;
+
+  try {
+    if (!cachedIndex) {
+      cachedIndex = JSON.parse(readFileSync(DATA_PATH, "utf8")) as ChordFingeringIndex;
+    }
+    const rawPositions = cachedIndex[cacheKey] || [];
+    const fingerings = rawPositions.flatMap((entry): ChordFingering[] => {
+      if (typeof entry.frets !== "string" || entry.frets.length !== 6) return [];
+      const fretText = entry.frets;
+      const positions = Array.from(fretText, decodeFret);
+      if (positions.some((fret, index) => fret === null && fretText[index]?.toLowerCase() !== "x")) return [];
+      const fingerText = typeof entry.fingers === "string" ? entry.fingers : "000000";
+      const fingers = positions.map((fret, index) => decodeFinger(fingerText[index] || "0", fret));
+      const barreFret = Number(entry.barres);
+      const barreFrets = Number.isInteger(barreFret) && barreFret > 0 ? [barreFret] : [];
+      return [
+        {
+          root,
+          type,
+          positions,
+          fingers,
+          barreFrets,
+          midiNotes: getChordFingeringMidiNotes(positions),
+          tabs: getChordFingeringTabs(positions),
+        },
+      ];
     });
-    const positions = row.FINGER_POSITIONS.split(",").map((value) => {
-      const trimmed = value.trim().toLowerCase();
-      if (!trimmed || trimmed === "x") return null;
-      const parsed = Number(trimmed);
-      return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : null;
-    });
-    if (positions.length !== 6) return [];
-    return [
-      {
-        root: row.CHORD_ROOT,
-        type: row.CHORD_TYPE,
-        positions,
-        noteNames: row.NOTE_NAMES ? row.NOTE_NAMES.split(",").map((value) => value.trim()).filter(Boolean) : [],
-        midiNotes: getChordFingeringMidiNotes(positions),
-        tabs: getChordFingeringTabs(positions),
-      },
-    ];
-  });
-  return cachedRows;
+    cachedFingerings.set(cacheKey, fingerings);
+    return fingerings;
+  } catch {
+    cachedFingerings.set(cacheKey, []);
+    return [];
+  }
 };
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -77,8 +81,6 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const type = typeof req.query.type === "string" ? req.query.type.trim() : "";
   if (!root || !type) return res.status(400).json({ error: "Missing root or type" });
 
-  const fingerings = loadFingerings()
-    .filter((item) => item.root === root && item.type === type)
-    .slice(0, 96);
+  const fingerings = loadChordFingerings(root, type).slice(0, 96);
   return res.status(200).json({ fingerings });
 }
