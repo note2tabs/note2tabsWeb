@@ -3831,9 +3831,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           }}
                           onBlur={() => void commitBpm()}
                           onKeyDown={(event) => {
+                            if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                              event.preventDefault();
+                              event.currentTarget.blur();
+                              return;
+                            }
                             if (event.key !== "Enter") return;
                             event.preventDefault();
-                            void commitBpm();
+                            event.currentTarget.blur();
                           }}
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
                         />
@@ -3887,6 +3892,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onChange={(event) => {
                             setTimeSignatureDraft(event.target.value);
                             scheduleTimeSignatureCommit(Number(event.target.value));
+                            event.currentTarget.blur();
                           }}
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
                           aria-label="Time signature top number"
@@ -3900,7 +3906,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <span className="text-slate-400">/</span>
                         <select
                           value={normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
-                          onChange={(event) => void commitTimeSignatureBottom(Number(event.target.value))}
+                          onChange={(event) => {
+                            void commitTimeSignatureBottom(Number(event.target.value));
+                            event.currentTarget.blur();
+                          }}
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
                           aria-label="Time signature bottom number"
                         >
@@ -4098,9 +4107,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 <span className="text-small muted">Key</span>
                 <select
                   value={normalizeKeyBase(canvas?.keyBase)}
-                  onChange={(event) =>
-                    commitCanvasKey(Number(event.target.value), normalizeKeyType(canvas?.keyType))
-                  }
+                  onChange={(event) => {
+                    commitCanvasKey(Number(event.target.value), normalizeKeyType(canvas?.keyType));
+                    event.currentTarget.blur();
+                  }}
                   className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                   title="Base note"
                   aria-label="Base note"
@@ -4113,9 +4123,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </select>
                 <select
                   value={normalizeKeyType(canvas?.keyType)}
-                  onChange={(event) =>
-                    commitCanvasKey(normalizeKeyBase(canvas?.keyBase), Number(event.target.value))
-                  }
+                  onChange={(event) => {
+                    commitCanvasKey(normalizeKeyBase(canvas?.keyBase), Number(event.target.value));
+                    event.currentTarget.blur();
+                  }}
                   className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                   title="Key extension"
                   aria-label="Key extension"
@@ -4145,9 +4156,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       }}
                       onBlur={() => void commitBpm()}
                       onKeyDown={(event) => {
+                        if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                          event.preventDefault();
+                          event.currentTarget.blur();
+                          return;
+                        }
                         if (event.key === "Enter") {
                           event.preventDefault();
-                          void commitBpm();
+                          event.currentTarget.blur();
                         }
                         if (event.key === "Escape") {
                           event.preventDefault();
@@ -4221,6 +4237,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     onChange={(event) => {
                       setTimeSignatureDraft(event.target.value);
                       scheduleTimeSignatureCommit(Number(event.target.value));
+                      event.currentTarget.blur();
                     }}
                     className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                     aria-label="Time signature top number"
@@ -4234,7 +4251,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   <span>/</span>
                   <select
                     value={normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
-                    onChange={(event) => void commitTimeSignatureBottom(Number(event.target.value))}
+                    onChange={(event) => {
+                      void commitTimeSignatureBottom(Number(event.target.value));
+                      event.currentTarget.blur();
+                    }}
                     className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                     aria-label="Time signature bottom number"
                   >
@@ -4430,9 +4450,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             }}
                             onBlur={() => void commitBpm()}
                             onKeyDown={(event) => {
+                              if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                                event.preventDefault();
+                                event.currentTarget.blur();
+                                return;
+                              }
                               if (event.key === "Enter") {
                                 event.preventDefault();
-                                void commitBpm();
+                                event.currentTarget.blur();
                               }
                               if (event.key === "Escape") {
                                 event.preventDefault();
@@ -4506,6 +4531,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             onChange={(event) => {
                               setTimeSignatureDraft(event.target.value);
                               scheduleTimeSignatureCommit(Number(event.target.value));
+                              event.currentTarget.blur();
                             }}
                             className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
                             aria-label="Time signature top number"
@@ -4519,7 +4545,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           <span className="text-slate-400">/</span>
                           <select
                             value={normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
-                            onChange={(event) => void commitTimeSignatureBottom(Number(event.target.value))}
+                            onChange={(event) => {
+                              void commitTimeSignatureBottom(Number(event.target.value));
+                              event.currentTarget.blur();
+                            }}
                             className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
                             aria-label="Time signature bottom number"
                           >
@@ -5133,7 +5162,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                     Sound
                                     <select
                                       value={instrumentValue}
-                                      onChange={(event) => handleLaneInstrumentChange(laneId, event.target.value)}
+                                      onChange={(event) => {
+                                        handleLaneInstrumentChange(laneId, event.target.value);
+                                        event.currentTarget.blur();
+                                      }}
                                       className="mt-2 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
                                     >
                                       {trackInstrumentOptions.map((option) => (
@@ -5304,7 +5336,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <div className="mt-2 min-w-0">
                           <select
                             value={instrumentValue}
-                            onChange={(event) => handleLaneInstrumentChange(laneId, event.target.value)}
+                            onChange={(event) => {
+                              handleLaneInstrumentChange(laneId, event.target.value);
+                              event.currentTarget.blur();
+                            }}
                             onClick={(event) => event.stopPropagation()}
                             className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 shadow-sm"
                             title="Track sound"

@@ -11612,6 +11612,7 @@ export default function GteWorkspace({
                         syncInput: false,
                       });
                     }
+                    event.currentTarget.blur();
                   }}
                   className="h-8 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 shadow-sm outline-none transition focus:border-slate-400"
                   title="Scale mode - Shortcut: D"
@@ -12521,21 +12522,14 @@ export default function GteWorkspace({
             value={bpmInput}
             onChange={(e) => setBpmInput(e.target.value)}
             onKeyDown={(e) => {
+              if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                e.preventDefault();
+                e.currentTarget.blur();
+                return;
+              }
               if (e.key !== "Enter") return;
               e.preventDefault();
-              const next = bpmToSecondsPerBar(bpmInput, timeSignature);
-              const normalizedBpm = normalizeBpm(bpmInput);
-              if (next && normalizedBpm) {
-                setSecondsPerBar(next);
-                setBpmInput(formatBpm(normalizedBpm));
-                void runMutation(() => gteApi.setSecondsPerBar(editorId, next), {
-                  localApply: (draft) => {
-                    setSecondsPerBarInSnapshot(draft, next);
-                  },
-                });
-              } else {
-                setBpmInput(formatBpm(secondsPerBarToBpm(secondsPerBar, timeSignature)));
-              }
+              e.currentTarget.blur();
             }}
             onBlur={() => {
               const next = bpmToSecondsPerBar(bpmInput, timeSignature);
@@ -12563,7 +12557,10 @@ export default function GteWorkspace({
               <div className="flex items-center gap-1">
                 <select
                   value={timeSignature}
-                  onChange={(event) => commitTimeSignatureValue(Number(event.target.value))}
+                  onChange={(event) => {
+                    commitTimeSignatureValue(Number(event.target.value));
+                    event.currentTarget.blur();
+                  }}
                   className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
                   aria-label="Time signature top number"
                   title="Top number"
@@ -12577,7 +12574,10 @@ export default function GteWorkspace({
                 <span className="text-slate-400">/</span>
                 <select
                   value={timeSignatureBottom}
-                  onChange={(event) => commitTimeSignatureBottomValue(Number(event.target.value))}
+                  onChange={(event) => {
+                    commitTimeSignatureBottomValue(Number(event.target.value));
+                    event.currentTarget.blur();
+                  }}
                   className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
                   aria-label="Time signature bottom number"
                   title="Bottom number"
