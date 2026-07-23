@@ -19,6 +19,7 @@ describe("Opus guitar sample playback", () => {
       "jazz",
       "electric",
       "electric_overdrive",
+      "electric_distortion",
     ]);
     expect(options.every((option) => option.kind === "opus")).toBe(true);
     expect(
@@ -30,7 +31,7 @@ describe("Opus guitar sample playback", () => {
     expect(normalizeTrackInstrumentId("builtin:sine")).toBe("acoustic");
     expect(normalizeTrackInstrumentId("jazz-guitar")).toBe("jazz");
     expect(normalizeTrackInstrumentId("clean-guitar")).toBe("electric");
-    expect(normalizeTrackInstrumentId("distortion-guitar")).toBe("electric_overdrive");
+    expect(normalizeTrackInstrumentId("distortion-guitar")).toBe("electric_distortion");
   });
 
   it("selects the nearest recorded pitch and prefers the lower note on a tie", () => {
