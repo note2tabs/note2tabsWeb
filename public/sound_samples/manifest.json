@@ -75,6 +75,31 @@
     }
   },
   {
+    "id": "electric_overdrive",
+    "label": "Electric Guitar (Overdrive)",
+    "folder": "electric_overdrive",
+    "gain": 0.9,
+    "samples": {
+      "37": "db2_vl3_rr1_2.opus",
+      "40": "e2_vl3_rr1_2.opus",
+      "42": "gb2_vl3_rr1_2.opus",
+      "45": "a2_vl3_rr1_2.opus",
+      "48": "c3_vl3_rr1_2.opus",
+      "51": "eb3_vl3_rr1_2.opus",
+      "54": "gb3_vl3_rr1_2.opus",
+      "57": "a3_vl3_rr1_2.opus",
+      "60": "c4_vl3_rr1_2.opus",
+      "63": "eb4_vl3_rr1_2.opus",
+      "66": "gb4_vl3_rr1_2.opus",
+      "69": "a4_vl3_rr1_2.opus",
+      "72": "c5_vl3_rr1_2.opus",
+      "75": "eb5_vl3_rr1_2.opus",
+      "78": "gb5_vl3_rr1_2.opus",
+      "81": "a5_vl3_rr1_2.opus",
+      "84": "c6_vl3_rr1_2.opus"
+    }
+  },
+  {
     "id": "electric_distortion",
     "label": "Electric Guitar (Distortion)",
     "folder": "electric_distorted",

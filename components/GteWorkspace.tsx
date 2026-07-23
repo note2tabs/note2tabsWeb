@@ -210,6 +210,11 @@ const CHORD_EDITOR_EXTENSIONS = [
   { name: "11", display: "11", intervals: [10, 14, 17] },
   { name: "13", display: "13", intervals: [10, 14, 17, 21] },
 ] as const;
+const CHORD_PALETTE_EXTENSIONS = [
+  { value: "", label: "None" },
+  { value: "7", label: "7" },
+  { value: "9", label: "9" },
+] as const;
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
 const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32];
@@ -1639,6 +1644,8 @@ function ChordLaneWorkspace({
   const [selectedBarIndices, setSelectedBarIndices] = useState<number[]>([]);
   const [snapDenominator, setSnapDenominator] = useState<(typeof CHORD_EDITOR_SNAP_DENOMINATORS)[number]>(4);
   const [chordMenuOpen, setChordMenuOpen] = useState(false);
+  const [chordPaletteExtension, setChordPaletteExtension] =
+    useState<(typeof CHORD_PALETTE_EXTENSIONS)[number]["value"]>("");
   const [strumEditor, setStrumEditor] = useState<ChordStrumEditorState | null>(null);
   const [chordClipboard, setChordClipboard] = useState<ChordClipboardItem[]>([]);
   const [chordContextMenu, setChordContextMenu] = useState<ChordContextMenuState | null>(null);
@@ -1878,6 +1885,48 @@ function ChordLaneWorkspace({
       return [chordId];
     },
     [selectedChordIds, snapshot.chords]
+  );
+
+  const applyChordExtension = useCallback(
+    (chordId: number, extension: (typeof CHORD_PALETTE_EXTENSIONS)[number]["value"]) => {
+      const chord = snapshot.chords.find((item) => item.id === chordId);
+      if (!chord) return;
+      const currentExtension = getChordEditorExtension(chord.extension).name;
+      if (currentExtension === extension) {
+        setChordContextMenu(null);
+        return;
+      }
+      const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+      const root = chord.root || inferred?.root || "C";
+      const quality = chord.quality || inferred?.quality || "major";
+      const payload = {
+        root,
+        quality,
+        extension,
+        label: getChordEditorLabel(root, quality, extension),
+      };
+      commitSnapshot(
+        {
+          ...snapshot,
+          chords: snapshot.chords.map((item) =>
+            item.id === chordId
+              ? {
+                  ...item,
+                  ...payload,
+                  originalMidi: getChordEditorMidiNotes(payload),
+                  currentTabs: [],
+                  ogTabs: [],
+                  fingering: undefined,
+                  fingeringIndex: 0,
+                }
+              : item
+          ),
+        },
+        { recordHistory: true }
+      );
+      setChordContextMenu(null);
+    },
+    [commitSnapshot, snapshot]
   );
 
   const copyChordIds = useCallback(
@@ -2489,12 +2538,32 @@ function ChordLaneWorkspace({
           onMouseDown={(event) => event.stopPropagation()}
           onTouchStart={(event) => event.stopPropagation()}
         >
-          <div className="mb-2 flex items-start justify-between gap-2">
-            <div className="text-[11px] font-bold text-slate-800">Chords</div>
+          <div className="mb-2 grid grid-cols-[1fr_auto_1fr] items-start gap-2">
+            <div className="pt-1 text-[11px] font-bold text-slate-800">Chords</div>
+            <label className="flex flex-col items-center gap-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+              <span>Extension</span>
+              <select
+                value={chordPaletteExtension}
+                onChange={(event) => {
+                  setChordPaletteExtension(
+                    event.currentTarget.value as (typeof CHORD_PALETTE_EXTENSIONS)[number]["value"]
+                  );
+                  event.currentTarget.blur();
+                }}
+                className="h-7 min-w-20 rounded-md border border-slate-300 bg-white px-2 text-center text-xs font-semibold normal-case tracking-normal text-slate-700 shadow-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                aria-label="Chord extension"
+              >
+                {CHORD_PALETTE_EXTENSIONS.map((extension) => (
+                  <option key={extension.value || "none"} value={extension.value}>
+                    {extension.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               onClick={() => setChordMenuOpen(false)}
-              className="grid h-6 w-6 place-items-center rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
+              className="grid h-6 w-6 place-items-center justify-self-end rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
               aria-label="Close chords"
             >
               x
@@ -2508,14 +2577,19 @@ function ChordLaneWorkspace({
                 </summary>
                 <div className="mt-2 flex flex-wrap gap-1">
                   {CHORD_EDITOR_ROOTS.map((root) => {
-                    const label = getChordEditorLabel(root, quality.name);
-                    const payload = { root, quality: quality.name, extension: "", label };
+                    const label = getChordEditorLabel(root, quality.name, chordPaletteExtension);
+                    const payload = {
+                      root,
+                      quality: quality.name,
+                      extension: chordPaletteExtension,
+                      label,
+                    };
                     const chordInKey =
                       !snapToKeyEnabled ||
                       getChordEditorMidiNotes(payload).every((midi) => isMidiInKey(midi, canvasKeyBase, canvasKeyType));
                     return (
                       <button
-                        key={`${quality.name}-${root}`}
+                        key={`${quality.name}-${root}-${chordPaletteExtension || "none"}`}
                         type="button"
                         draggable={chordInKey}
                         disabled={!chordInKey}
@@ -3065,6 +3139,10 @@ function ChordLaneWorkspace({
             const chord = snapshot.chords.find((item) => item.id === chordContextMenu.chordId);
             if (!chord) return null;
             const targetChordIds = getContextTargetChordIds(chord.id);
+            const currentExtension = getChordEditorExtension(chord.extension).name;
+            const inferredChord = inferChordEditorMetadataFromMidi(chord.originalMidi);
+            const contextChordRoot = chord.root || inferredChord?.root || "C";
+            const contextChordQuality = chord.quality || inferredChord?.quality || "major";
             const menuItemClass =
               "block w-full rounded px-3 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300";
             return (
@@ -3102,6 +3180,54 @@ function ChordLaneWorkspace({
                 >
                   Paste
                 </button>
+                {targetChordIds.length === 1 ? (
+                  <>
+                    <div className="my-1 border-t border-slate-100" />
+                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      Extension
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 px-1 pb-1">
+                      {CHORD_PALETTE_EXTENSIONS.map((extension) => {
+                        const active = currentExtension === extension.value;
+                        const extensionInKey =
+                          extension.value === "" ||
+                          !snapToKeyEnabled ||
+                          getChordEditorMidiNotes({
+                            root: contextChordRoot,
+                            quality: contextChordQuality,
+                            extension: extension.value,
+                          }).every((midi) => isMidiInKey(midi, canvasKeyBase, canvasKeyType));
+                        return (
+                          <button
+                            key={extension.value || "none"}
+                            type="button"
+                            aria-pressed={active}
+                            disabled={!extensionInKey}
+                            title={
+                              extensionInKey
+                                ? `Set extension to ${extension.label}`
+                                : `${getChordEditorLabel(
+                                    contextChordRoot,
+                                    contextChordQuality,
+                                    extension.value
+                                  )} is outside the current key`
+                            }
+                            className={`rounded border px-1.5 py-1 text-xs font-semibold transition ${
+                              !extensionInKey
+                                ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-60"
+                                : active
+                                ? "border-sky-500 bg-sky-100 text-sky-900"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:bg-sky-50"
+                            }`}
+                            onClick={() => applyChordExtension(chord.id, extension.value)}
+                          >
+                            {extension.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : null}
                 <div className="my-1 border-t border-slate-100" />
                 <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
                   Quick strumming
