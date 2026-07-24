@@ -92,6 +92,11 @@ type Props = {
   onGlobalSnapToGridEnabledChange?: (enabled: boolean) => void;
   globalSnapToKeyEnabled?: boolean;
   onGlobalSnapToKeyEnabledChange?: (enabled: boolean) => void;
+  generatePlayingCoordinatesRequest?: number;
+  defaultNoteLengthDenominator?: number;
+  onDefaultNoteLengthDenominatorChange?: (denominator: number) => void;
+  cursorSizeDenominator?: number;
+  onCursorSizeDenominatorChange?: (denominator: number) => void;
   canvasKeyBase?: number;
   canvasKeyType?: number;
   sharedTimeSignature?: number;
@@ -3281,6 +3286,11 @@ export default function GteWorkspace({
   onGlobalSnapToGridEnabledChange,
   globalSnapToKeyEnabled,
   onGlobalSnapToKeyEnabledChange,
+  generatePlayingCoordinatesRequest,
+  defaultNoteLengthDenominator: controlledDefaultNoteLengthDenominator,
+  onDefaultNoteLengthDenominatorChange,
+  cursorSizeDenominator: controlledCursorSizeDenominator,
+  onCursorSizeDenominatorChange,
   canvasKeyBase = 0,
   canvasKeyType = 0,
   sharedTimeSignature,
@@ -3431,8 +3441,33 @@ export default function GteWorkspace({
   const [timeSignature, setTimeSignature] = useState(8);
   const [timeSignatureInput, setTimeSignatureInput] = useState("8");
   const [timeSignatureBottom, setTimeSignatureBottom] = useState(4);
-  const [defaultNoteLengthDenominator, setDefaultNoteLengthDenominator] = useState(4);
-  const [cursorSizeDenominator, setCursorSizeDenominator] = useState(4);
+  const [localDefaultNoteLengthDenominator, setLocalDefaultNoteLengthDenominator] = useState(4);
+  const [localCursorSizeDenominator, setLocalCursorSizeDenominator] = useState(4);
+  const defaultNoteLengthDenominator =
+    controlledDefaultNoteLengthDenominator ?? localDefaultNoteLengthDenominator;
+  const cursorSizeDenominator = controlledCursorSizeDenominator ?? localCursorSizeDenominator;
+  const setDefaultNoteLengthDenominator = useCallback(
+    (value: number | ((current: number) => number)) => {
+      const next = typeof value === "function" ? value(defaultNoteLengthDenominator) : value;
+      if (onDefaultNoteLengthDenominatorChange) {
+        onDefaultNoteLengthDenominatorChange(next);
+      } else {
+        setLocalDefaultNoteLengthDenominator(next);
+      }
+    },
+    [defaultNoteLengthDenominator, onDefaultNoteLengthDenominatorChange]
+  );
+  const setCursorSizeDenominator = useCallback(
+    (value: number | ((current: number) => number)) => {
+      const next = typeof value === "function" ? value(cursorSizeDenominator) : value;
+      if (onCursorSizeDenominatorChange) {
+        onCursorSizeDenominatorChange(next);
+      } else {
+        setLocalCursorSizeDenominator(next);
+      }
+    },
+    [cursorSizeDenominator, onCursorSizeDenominatorChange]
+  );
   const [keepNotesOnBeat, setKeepNotesOnBeat] = useState(false);
   const [localSnapToGridEnabled, setLocalSnapToGridEnabled] = useState(true);
   const [localSnapToKeyEnabled, setLocalSnapToKeyEnabled] = useState(false);
@@ -3471,6 +3506,7 @@ export default function GteWorkspace({
   const [shiftBoundaryTime, setShiftBoundaryTime] = useState<OptionalNumber>(null);
   const [deleteBoundaryIndex, setDeleteBoundaryIndex] = useState<OptionalNumber>(null);
   const [showGenerateCutsConfirm, setShowGenerateCutsConfirm] = useState(false);
+  const lastGeneratePlayingCoordinatesRequestRef = useRef(generatePlayingCoordinatesRequest);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackPreparing, setPlaybackPreparing] = useState(false);
   const [dragging, setDragging] = useState<DragState | null>(null);
@@ -3509,6 +3545,19 @@ export default function GteWorkspace({
   const [segmentDragIndex, setSegmentDragIndex] = useState<number | null>(null);
   const [ioPayload, setIoPayload] = useState("");
   const [ioMessage, setIoMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      generatePlayingCoordinatesRequest === undefined ||
+      generatePlayingCoordinatesRequest === lastGeneratePlayingCoordinatesRequestRef.current
+    ) {
+      return;
+    }
+    lastGeneratePlayingCoordinatesRequestRef.current = generatePlayingCoordinatesRequest;
+    if (isActive) {
+      setShowGenerateCutsConfirm(true);
+    }
+  }, [generatePlayingCoordinatesRequest, isActive]);
   const [exportFormat, setExportFormat] = useState<GteExportFormat>("txt");
   const [localToolbarOpen, setLocalToolbarOpen] = useState(false);
   const [tabPreviewOpen, setTabPreviewOpen] = useState(false);
@@ -11894,17 +11943,6 @@ export default function GteWorkspace({
               <button
                 type="button"
                 data-gte-editor-control="true"
-                onClick={() => setShowGenerateCutsConfirm(true)}
-                title="Generate cuts"
-                className={textButtonClass}
-              >
-                <span className={tooltipClass}>No shortcut</span>
-                Generate Playing Coordinates 
-              </button>
-
-              <button
-                type="button"
-                data-gte-editor-control="true"
                 onClick={handleMergeRedundantCutRegions}
                 disabled={!hasRedundantCutRegions}
                 title="Merges adjacent cut regions with the same coordinates"
@@ -12475,10 +12513,6 @@ export default function GteWorkspace({
               </div>
             ) : (
               <div className="pointer-events-auto flex items-center gap-2">
-                <div className="flex shrink-0 flex-col gap-1">
-                  {renderDefaultNoteLengthControl(false)}
-                  {renderCursorSizeControl(false)}
-                </div>
               <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
                 <button
                   type="button"

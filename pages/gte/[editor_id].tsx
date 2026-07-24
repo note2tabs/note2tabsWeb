@@ -72,6 +72,8 @@ type Props = {
   isGuestMode: boolean;
 };
 
+type TopMenuId = "file" | "generate" | "snapping" | "cursor" | "playback";
+
 const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
 const CANVAS_AUTOSAVE_MS = 20000;
@@ -916,6 +918,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [savingCanvas, setSavingCanvas] = useState(false);
   const [exportingTrack, setExportingTrack] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [openTopMenu, setOpenTopMenu] = useState<TopMenuId | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [hasPendingCommit, setHasPendingCommit] = useState(false);
   const [lastCommittedAt, setLastCommittedAt] = useState<string | null>(null);
@@ -932,6 +935,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [chordOnlyDefaultNoteLengthDenominator, setChordOnlyDefaultNoteLengthDenominator] = useState(4);
   const [chordOnlyCursorSizeDenominator, setChordOnlyCursorSizeDenominator] = useState(4);
   const [findKeyDialogOpen, setFindKeyDialogOpen] = useState(false);
+  const [generatePlayingCoordinatesRequest, setGeneratePlayingCoordinatesRequest] = useState(0);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
   const [sharedTimelineScrollRatio, setSharedTimelineScrollRatio] = useState(0);
   const [globalPlaybackFrame, setGlobalPlaybackFrame] = useState(0);
@@ -1311,6 +1315,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (isMobileViewport && mobileEditLaneId) return;
     if (target.closest("[data-gte-track='true']")) return;
     if (target.closest("[data-gte-timeline-control='true']")) return;
+    if (target.closest("[data-gte-floating-ui='true']")) return;
     if (target.closest("button, a, input, textarea, select, label, [role='button']")) return;
     setActiveLaneId(null);
   }, [isMobileViewport, mobileEditLaneId]);
@@ -4121,12 +4126,23 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             </div>
             {!isMobileViewport && (
               <div className="mt-2 space-y-2">
-                <div className="flex flex-wrap items-center gap-1 border-y border-slate-200 py-1">
-                  <details className="group relative">
+                <div
+                  data-gte-floating-ui="true"
+                  className="flex flex-wrap items-center gap-1 border-y border-slate-200 py-1"
+                >
+                  <details
+                    className="group relative"
+                    open={openTopMenu === "file"}
+                    onToggle={(event) => {
+                      const isOpen = event.currentTarget.open;
+                      setOpenTopMenu((current) => (isOpen ? "file" : current === "file" ? null : current));
+                    }}
+                    onMouseLeave={() => setOpenTopMenu(null)}
+                  >
                     <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
                       File
                     </summary>
-                    <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] min-w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                    <div className="absolute left-0 top-full z-[10000] min-w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       {!isGuestMode && (
                         <button
                           type="button"
@@ -4163,7 +4179,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           <span>{exportingTrack ? "Exporting..." : "Export"}</span>
                           <span aria-hidden="true">›</span>
                         </summary>
-                        <div className="absolute left-[calc(100%+6px)] top-0 z-[10001] min-w-44 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                        <div className="absolute left-full top-0 z-[10001] min-w-44 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                           {GTE_EXPORT_FORMAT_OPTIONS.map((option) => (
                             <button
                               key={`top-export-${option.value}`}
@@ -4180,11 +4196,77 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>
                   </details>
 
-                  <details className="group relative">
+                  <details
+                    className="group relative"
+                    open={openTopMenu === "cursor"}
+                    onToggle={(event) => {
+                      const isOpen = event.currentTarget.open;
+                      setOpenTopMenu((current) =>
+                        isOpen ? "cursor" : current === "cursor" ? null : current
+                      );
+                    }}
+                    onMouseLeave={() => setOpenTopMenu(null)}
+                  >
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+                      Cursor
+                    </summary>
+                    <div className="absolute left-0 top-full z-[10000] w-60 rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
+                      <label className="flex items-center justify-between gap-3 rounded-md px-2 py-2 text-sm text-slate-700">
+                        <span>Add note size</span>
+                        <select
+                          value={chordOnlyDefaultNoteLengthDenominator}
+                          onChange={(event) =>
+                            setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))
+                          }
+                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                          title="Add note size"
+                          aria-label="Add note size"
+                        >
+                          {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+                            <option key={denominator} value={denominator}>
+                              {formatNoteLengthOption(denominator)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="flex items-center justify-between gap-3 rounded-md px-2 py-2 text-sm text-slate-700">
+                        <span>Cursor size</span>
+                        <select
+                          value={chordOnlyCursorSizeDenominator}
+                          onChange={(event) =>
+                            setChordOnlyCursorSizeDenominator(
+                              getNearestCursorSizeDenominator(event.target.value)
+                            )
+                          }
+                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                          title="Cursor size"
+                          aria-label="Cursor size"
+                        >
+                          {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
+                            <option key={denominator} value={denominator}>
+                              1/{denominator}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </details>
+
+                  <details
+                    className="group relative"
+                    open={openTopMenu === "generate"}
+                    onToggle={(event) => {
+                      const isOpen = event.currentTarget.open;
+                      setOpenTopMenu((current) =>
+                        isOpen ? "generate" : current === "generate" ? null : current
+                      );
+                    }}
+                    onMouseLeave={() => setOpenTopMenu(null)}
+                  >
                     <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
                       Generate
                     </summary>
-                    <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] min-w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                    <div className="absolute left-0 top-full z-[10000] min-w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       {!isGuestMode && (
                         <button
                           type="button"
@@ -4211,14 +4293,40 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       >
                         Find key
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGeneratePlayingCoordinatesRequest((request) => request + 1);
+                          setOpenTopMenu(null);
+                        }}
+                        disabled={!activeLaneId}
+                        className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                        title={
+                          activeLaneId
+                            ? "Generate playing coordinates for the active track"
+                            : "Select a track first"
+                        }
+                      >
+                        Generate playing coordinates
+                      </button>
                     </div>
                   </details>
 
-                  <details className="group relative">
+                  <details
+                    className="group relative"
+                    open={openTopMenu === "snapping"}
+                    onToggle={(event) => {
+                      const isOpen = event.currentTarget.open;
+                      setOpenTopMenu((current) =>
+                        isOpen ? "snapping" : current === "snapping" ? null : current
+                      );
+                    }}
+                    onMouseLeave={() => setOpenTopMenu(null)}
+                  >
                     <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
                       Snapping
                     </summary>
-                    <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] w-56 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                    <div className="absolute left-0 top-full z-[10000] w-56 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       <button
                         type="button"
                         onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
@@ -4240,11 +4348,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>
                   </details>
 
-                  <details className="group relative">
+                  <details
+                    className="group relative"
+                    open={openTopMenu === "playback"}
+                    onToggle={(event) => {
+                      const isOpen = event.currentTarget.open;
+                      setOpenTopMenu((current) =>
+                        isOpen ? "playback" : current === "playback" ? null : current
+                      );
+                    }}
+                    onMouseLeave={() => setOpenTopMenu(null)}
+                  >
                     <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
                       Playback
                     </summary>
-                    <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] w-64 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                    <div className="absolute left-0 top-full z-[10000] w-64 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       <button
                         type="button"
                         onClick={() => setPracticeLoopEnabled((enabled) => !enabled)}
@@ -5364,6 +5482,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
                               globalSnapToKeyEnabled={globalSnapToKeyEnabled}
                               onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
+                              generatePlayingCoordinatesRequest={generatePlayingCoordinatesRequest}
+                              defaultNoteLengthDenominator={chordOnlyDefaultNoteLengthDenominator}
+                              onDefaultNoteLengthDenominatorChange={
+                                setChordOnlyDefaultNoteLengthDenominator
+                              }
+                              cursorSizeDenominator={chordOnlyCursorSizeDenominator}
+                              onCursorSizeDenominatorChange={setChordOnlyCursorSizeDenominator}
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
@@ -5632,6 +5757,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
                               globalSnapToKeyEnabled={globalSnapToKeyEnabled}
                               onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
+                              generatePlayingCoordinatesRequest={generatePlayingCoordinatesRequest}
+                              defaultNoteLengthDenominator={chordOnlyDefaultNoteLengthDenominator}
+                              onDefaultNoteLengthDenominatorChange={
+                                setChordOnlyDefaultNoteLengthDenominator
+                              }
+                              cursorSizeDenominator={chordOnlyCursorSizeDenominator}
+                              onCursorSizeDenominatorChange={setChordOnlyCursorSizeDenominator}
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
@@ -5919,6 +6051,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
                           globalSnapToKeyEnabled={globalSnapToKeyEnabled}
                           onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
+                          generatePlayingCoordinatesRequest={generatePlayingCoordinatesRequest}
+                          defaultNoteLengthDenominator={chordOnlyDefaultNoteLengthDenominator}
+                          onDefaultNoteLengthDenominatorChange={setChordOnlyDefaultNoteLengthDenominator}
+                          cursorSizeDenominator={chordOnlyCursorSizeDenominator}
+                          onCursorSizeDenominatorChange={setChordOnlyCursorSizeDenominator}
                           canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                           canvasKeyType={normalizeKeyType(canvas.keyType)}
                           sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
@@ -6173,42 +6310,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               Toolbar
             </button>
             <div className="pointer-events-auto flex items-center gap-2">
-              <div className="flex shrink-0 flex-col gap-1">
-                <label className="flex h-9 items-center gap-1 rounded-full border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500 shadow-sm backdrop-blur">
-                  <span className="whitespace-nowrap">add note size</span>
-                  <select
-                    value={chordOnlyDefaultNoteLengthDenominator}
-                    onChange={(event) => setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))}
-                    className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
-                    title="Add note size"
-                    aria-label="Add note size"
-                  >
-                    {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
-                      <option key={denominator} value={denominator}>
-                        {formatNoteLengthOption(denominator)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex h-9 items-center gap-1 rounded-full border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500 shadow-sm backdrop-blur">
-                  <span className="whitespace-nowrap">cursor size</span>
-                  <select
-                    value={chordOnlyCursorSizeDenominator}
-                    onChange={(event) =>
-                      setChordOnlyCursorSizeDenominator(getNearestCursorSizeDenominator(event.target.value))
-                    }
-                    className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
-                    title="Cursor size"
-                    aria-label="Cursor size"
-                  >
-                    {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
-                      <option key={denominator} value={denominator}>
-                        1/{denominator}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
               <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
                 <button
                   type="button"
