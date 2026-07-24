@@ -3778,7 +3778,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         className={`page page-tight ${
           isMobileEditMode ? "h-[100dvh] overflow-hidden overscroll-none py-3" : ""
         }`}
-        style={!isMobileEditMode ? { paddingTop: 76 } : undefined}
+  style={
+    !isMobileEditMode
+      ? { paddingTop: isMobileViewport ? 76 : 12 }
+      : undefined
+  }
         onMouseDownCapture={handleMainMouseDownCapture}
       >
       <div
@@ -4174,7 +4178,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         )}
         {!isMobileViewport && (
         <div
-          className="page-header"
+          className="page-header gte-editor-sticky-banner"
           style={
             isMobileViewport
               ? { position: "relative", paddingRight: 152 }
