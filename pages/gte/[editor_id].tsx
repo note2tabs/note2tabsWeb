@@ -4318,6 +4318,30 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </details>
 
                   <div className="ml-auto flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCanvasUndo}
+                      disabled={canvasUndoCount === 0 || mobileHistoryBusy}
+                      className="flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                      title="Undo"
+                      aria-label="Undo"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                        <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCanvasRedo}
+                      disabled={canvasRedoCount === 0 || mobileHistoryBusy}
+                      className="flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                      title="Redo"
+                      aria-label="Redo"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                        <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
+                      </svg>
+                    </button>
                     <span className="text-xs text-slate-500">{saveStatus}</span>
                     {isGuestMode ? (
                       <Link href="/" className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
@@ -6172,30 +6196,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     ))}
                   </select>
                 </label>
-              </div>
-              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
-                <button
-                  type="button"
-                  onClick={handleCanvasUndo}
-                  disabled={canvasUndoCount === 0}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Undo"
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                    <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCanvasRedo}
-                  disabled={canvasRedoCount === 0}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Redo"
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                    <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
-                  </svg>
-                </button>
               </div>
               <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
                 <button

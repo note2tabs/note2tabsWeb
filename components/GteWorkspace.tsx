@@ -12479,33 +12479,6 @@ export default function GteWorkspace({
                   {renderDefaultNoteLengthControl(false)}
                   {renderCursorSizeControl(false)}
                 </div>
-              <div
-                data-gte-floating-ui="true"
-                className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur"
-              >
-                <button
-                  type="button"
-                  onClick={requestUndo}
-                  disabled={effectiveUndoCount === 0 || busy}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Undo (Ctrl/Cmd+Z)"
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                    <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  onClick={requestRedo}
-                  disabled={effectiveRedoCount === 0 || busy}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Redo (Ctrl/Cmd+Shift+Z)"
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                    <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
-                  </svg>
-                </button>
-              </div>
               <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
                 <button
                   type="button"
