@@ -11646,16 +11646,16 @@ export default function GteWorkspace({
       "mb-2 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400";
 
     const textButtonClass =
-      "group relative flex h-8 w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-2 text-center text-[10px] font-semibold leading-none text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
+      "group relative flex h-8 w-full items-center justify-start gap-2 rounded-lg border border-slate-200 bg-white px-2 text-left text-[10px] font-semibold leading-none text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
 
     const activeButtonClass =
-      "group relative flex h-8 w-full items-center justify-center rounded-lg px-2 text-center text-[10px] font-semibold leading-none text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none";
+      "group relative flex h-8 w-full items-center justify-start gap-2 rounded-lg px-2 text-left text-[10px] font-semibold leading-none text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none";
 
     const iconButtonClass =
-      "group relative flex h-8 w-full items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
+      "group relative flex h-8 w-full items-center justify-start gap-2 rounded-lg border border-slate-200 bg-white px-2 text-left text-[10px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
 
-    const tooltipClass =
-      "pointer-events-none absolute -top-7 rounded-md bg-slate-950 px-1.5 py-0.5 text-[9px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100";
+    const shortcutClass =
+      "order-last ml-auto shrink-0 text-[10px] font-medium opacity-60";
 
     return (
       <div
@@ -11710,7 +11710,7 @@ export default function GteWorkspace({
                     : textButtonClass
                 }
               >
-                <span className={tooltipClass}>C</span>
+                <span className={shortcutClass}>C</span>
                 Merge to Chord
               </button>
 
@@ -11745,7 +11745,7 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>Shift+L</span>
+                <span className={shortcutClass}>Shift+L</span>
                 Disband Chord
               </button>
 
@@ -11762,7 +11762,7 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>O</span>
+                <span className={shortcutClass}>O</span>
                 Optimize Notes
               </button>
 
@@ -11777,7 +11777,6 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>No shortcut</span>
                 Snap to Key
               </button>
 
@@ -11797,7 +11796,6 @@ export default function GteWorkspace({
                     : textButtonClass
                 }
               >
-                <span className={tooltipClass}>No shortcut</span>
                 Quantize
               </button>
 
@@ -11814,7 +11812,7 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>J</span>
+                <span className={shortcutClass}>J</span>
                 Merge Notes
               </button>
 
@@ -11858,7 +11856,7 @@ export default function GteWorkspace({
                       : iconButtonClass
                   }
                 >
-                  <span className={tooltipClass}>S</span>
+                  <span className={shortcutClass}>S</span>
                   <svg
                     viewBox="0 0 24 24"
                     className={`h-3.5 w-3.5 ${
@@ -11884,7 +11882,7 @@ export default function GteWorkspace({
                     : iconButtonClass
                 }
               >
-                <span className={tooltipClass}>Shift+S</span>
+                <span className={shortcutClass}>Shift+S</span>
                 <img
                   src={STREAMLINE_TOOLBAR_ICONS.slice}
                   alt=""
@@ -11916,7 +11914,7 @@ export default function GteWorkspace({
                     : iconButtonClass
                 }
               >
-                <span className={tooltipClass}>M</span>
+                <span className={shortcutClass}>M</span>
                 <svg
                   viewBox="0 0 24 24"
                   className={`h-3.5 w-3.5 ${
@@ -11948,7 +11946,7 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>H</span>
+                <span className={shortcutClass}>H</span>
                 Hammer/Pull
               </button>
 
@@ -11965,7 +11963,7 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>L</span>
+                <span className={shortcutClass}>L</span>
                 Slide
               </button>
 
@@ -11982,7 +11980,7 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>B</span>
+                <span className={shortcutClass}>B</span>
                 Bend
               </button>
             </div>
@@ -12000,7 +11998,6 @@ export default function GteWorkspace({
                 title="Merges adjacent cut regions with the same coordinates"
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>No shortcut</span>
                 Clean Playing-Coordinates
               </button>
 
@@ -12015,7 +12012,7 @@ export default function GteWorkspace({
                     : iconButtonClass
                 }
               >
-                <span className={tooltipClass}>K</span>
+                <span className={shortcutClass}>K</span>
                 <img
                   src={STREAMLINE_TOOLBAR_ICONS.cut}
                   alt=""
@@ -12035,7 +12032,6 @@ export default function GteWorkspace({
                 title="Merge/delete selected boundary"
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>No shortcut</span>
                 Merge
               </button>
             </div>
