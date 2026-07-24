@@ -12505,22 +12505,8 @@ export default function GteWorkspace({
                     <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
                   </svg>
                 </button>
-                <span className="mx-1 whitespace-nowrap text-[10px] text-slate-500">
-                  {!allowBackend
-                    ? hasUnsavedChanges
-                      ? "Saving local draft..."
-                      : "Local draft saved"
-                    : isAutosaving
-                      ? "Saving..."
-                      : hasUnsavedChanges
-                        ? "Unsaved changes"
-                        : lastSavedAt
-                          ? `Saved ${new Date(lastSavedAt).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}`
-                          : "Saved"}
-                </span>
+              </div>
+              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
                 <button
                   type="button"
                   onClick={skipToStart}
@@ -12579,7 +12565,8 @@ export default function GteWorkspace({
                     <polygon points="7,5 17,12 7,19" />
                   </svg>
                 </button>
-                <div className="flex items-center gap-1 px-1">
+              </div>
+              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-slate-700 shadow-sm backdrop-blur">
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
                     <path d="M4 10v4h4l5 4V6L8 10H4z" />
                     <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
@@ -12594,93 +12581,6 @@ export default function GteWorkspace({
                     className="w-20 accent-slate-700"
                     title="Volume"
                   />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setEffectivePracticeLoopEnabled(!effectivePracticeLoopEnabled)}
-                  disabled={!effectivePracticeLoopRange}
-                  aria-pressed={effectivePracticeLoopEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
-                    effectivePracticeLoopEnabled ? "bg-emerald-100 text-emerald-800" : "hover:bg-slate-100"
-                  }`}
-                  title="Loop selected bars"
-                >
-                  Loop
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEffectiveMetronomeEnabled(!effectiveMetronomeEnabled)}
-                  aria-pressed={effectiveMetronomeEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold ${
-                    effectiveMetronomeEnabled ? "bg-sky-100 text-sky-800" : "hover:bg-slate-100"
-                  }`}
-                  title="Metronome"
-                >
-                  Met
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEffectiveCountInEnabled(!effectiveCountInEnabled)}
-                  aria-pressed={effectiveCountInEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold ${
-                    effectiveCountInEnabled ? "bg-amber-100 text-amber-800" : "hover:bg-slate-100"
-                  }`}
-                  title="One-bar count-in"
-                >
-                  Count
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEffectiveSpeedTrainerEnabled(!effectiveSpeedTrainerEnabled)}
-                  disabled={!effectivePracticeLoopEnabled}
-                  aria-pressed={effectiveSpeedTrainerEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
-                    effectiveSpeedTrainerEnabled ? "bg-violet-100 text-violet-800" : "hover:bg-slate-100"
-                  }`}
-                  title="Speed trainer"
-                >
-                  Train
-                </button>
-                <select
-                  value={effectivePlaybackSpeed}
-                  onChange={(event) => setEffectivePlaybackSpeed(Number(event.target.value))}
-                  className="h-8 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
-                  title="Playback speed"
-                >
-                  {effectivePlaybackSpeedOptions.map((speed) => (
-                    <option key={speed} value={speed}>
-                      {Math.round(speed * 100)}%
-                    </option>
-                  ))}
-                </select>
-                {effectiveSpeedTrainerEnabled && (
-                  <>
-                    <select
-                      value={effectiveSpeedTrainerTarget}
-                      onChange={(event) => setEffectiveSpeedTrainerTarget(Number(event.target.value))}
-                      className="h-8 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
-                      title="Speed trainer target"
-                    >
-                      {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
-                        <option key={speed} value={speed}>
-                          to {Math.round(speed * 100)}%
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={effectiveSpeedTrainerStep}
-                      onChange={(event) => setEffectiveSpeedTrainerStep(Number(event.target.value))}
-                      className="h-8 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
-                      title="Speed trainer step"
-                    >
-                      {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
-                        <option key={step} value={step}>
-                          +{Math.round(step * 100)}%
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
               </div>
               </div>
             )}
@@ -12767,15 +12667,6 @@ export default function GteWorkspace({
                 </select>
               </div>
             </div>
-            <label className="flex items-center gap-1.5 whitespace-nowrap">
-              <input
-                type="checkbox"
-                checked={keepNotesOnBeat}
-                onChange={(event) => setKeepNotesOnBeat(event.target.checked)}
-                className="h-3.5 w-3.5 rounded border-slate-300"
-              />
-              <span>Keep notes on beat</span>
-            </label>
           </div>
         )}
         {!embedded && (

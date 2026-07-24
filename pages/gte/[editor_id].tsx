@@ -79,6 +79,7 @@ const MAX_CANVAS_HISTORY = 64;
 const TIMELINE_ZOOM_MIN = 15;
 const TIMELINE_ZOOM_MAX = 200;
 const TIMELINE_ZOOM_DEFAULT = 100;
+const SNAP_TO_KEY_STORAGE_PREFIX = "note2tabs:gte:snap-to-key:";
 const CONTROL_COMMIT_DEBOUNCE_MS = 350;
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
@@ -927,7 +928,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [toolbarOpen, setToolbarOpen] = useState(false);
   const [tabViewEnabled, setTabViewEnabled] = useState(false);
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
-  const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabled] = useState(false);
+  const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabledState] = useState(false);
   const [chordOnlyDefaultNoteLengthDenominator, setChordOnlyDefaultNoteLengthDenominator] = useState(4);
   const [chordOnlyCursorSizeDenominator, setChordOnlyCursorSizeDenominator] = useState(4);
   const [findKeyDialogOpen, setFindKeyDialogOpen] = useState(false);
@@ -1009,6 +1010,25 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const transcriberHref = isGuestMode
     ? "/#hero"
     : `/?appendEditorId=${encodeURIComponent(editorId)}#hero`;
+  const setGlobalSnapToKeyEnabled = useCallback(
+    (value: boolean | ((enabled: boolean) => boolean)) => {
+      setGlobalSnapToKeyEnabledState((current) => {
+        const next = typeof value === "function" ? value(current) : value;
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(`${SNAP_TO_KEY_STORAGE_PREFIX}${editorId}`, next ? "1" : "0");
+        }
+        return next;
+      });
+    },
+    [editorId]
+  );
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(`${SNAP_TO_KEY_STORAGE_PREFIX}${editorId}`);
+    if (stored === "1" || stored === "0") {
+      setGlobalSnapToKeyEnabledState(stored === "1");
+    }
+  }, [editorId]);
 
   const cloneCanvas = useCallback((value: CanvasSnapshot) => {
     return JSON.parse(JSON.stringify(value)) as CanvasSnapshot;
@@ -2249,21 +2269,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [activeLaneId, handleCanvasRedo, handleCanvasUndo]);
 
   const saveStatus = useMemo(() => {
-    if (isGuestMode) {
-      if (savingCanvas) return "Saving in this browser...";
-      if (hasPendingCommit) return "Unsaved changes in this browser";
-      return "Saved in this browser only";
-    }
-    if (savingCanvas) return "Saving...";
-    if (hasPendingCommit) return "Unsaved canvas changes";
+    if (savingCanvas || hasPendingCommit) return "Unsaved changes";
     if (lastCommittedAt) {
       return `Saved ${new Date(lastCommittedAt).toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
       })}`;
     }
-    return "Saved";
-  }, [hasPendingCommit, isGuestMode, lastCommittedAt, savingCanvas]);
+    return "Unsaved changes";
+  }, [hasPendingCommit, lastCommittedAt, savingCanvas]);
 
   const sharedViewportBarCount = useMemo(() => {
     if (!canvas) return 1;
@@ -3741,7 +3755,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400"
                           disabled={savingCanvas || isGuestMode}
                         >
-                          {savingCanvas ? "Saving..." : "Save now"}
+                          {savingCanvas ? "Saving..." : "Save"}
                         </button>
                       </div>
                       <div className="mt-3 text-xs text-slate-500">{saveStatus}</div>
@@ -3920,15 +3934,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           ))}
                         </select>
                       </span>
-                      <span className="mt-2 flex items-center gap-1.5 text-[11px] font-medium normal-case tracking-normal text-slate-600">
-                        <input
-                          type="checkbox"
-                          checked={keepNotesOnBeat}
-                          onChange={(event) => setKeepNotesOnBeat(event.target.checked)}
-                          className="h-3.5 w-3.5 rounded border-slate-300"
-                        />
-                        <span>Keep notes on beat</span>
-                      </span>
                     </label>
                   </div>
                   <div className="flex min-h-[1.25rem] flex-wrap items-center gap-3 text-xs">
@@ -3956,35 +3961,43 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               Back
             </button>
             {renderMobileHistoryControls()}
-            <button
-              type="button"
-              onClick={() => setGlobalSnapToGridEnabled((prev) => !prev)}
-              className={`rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm ${
-                globalSnapToGridEnabled
-                  ? "border-emerald-300 bg-emerald-100 text-emerald-800"
-                  : "border-slate-200 bg-white text-slate-600"
-              }`}
-            >
-              Snap {globalSnapToGridEnabled ? "On" : "Off"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setFindKeyDialogOpen(true)}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm"
-            >
-              find key
-            </button>
-            <button
-              type="button"
-              onClick={() => setGlobalSnapToKeyEnabled((prev) => !prev)}
-              className={`rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm ${
-                globalSnapToKeyEnabled
-                  ? "border-sky-300 bg-sky-100 text-sky-800"
-                  : "border-slate-200 bg-white text-slate-600"
-              }`}
-            >
-              Key {globalSnapToKeyEnabled ? "On" : "Off"}
-            </button>
+            <details className="relative">
+              <summary className="cursor-pointer list-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+                Generate
+              </summary>
+              <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] min-w-44 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                <button
+                  type="button"
+                  onClick={() => setFindKeyDialogOpen(true)}
+                  className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                >
+                  Find key
+                </button>
+              </div>
+            </details>
+            <details className="relative">
+              <summary className="cursor-pointer list-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+                Snapping
+              </summary>
+              <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                <button
+                  type="button"
+                  onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
+                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                >
+                  <span>Snap to grid</span>
+                  <span className="text-xs">{globalSnapToGridEnabled ? "On" : "Off"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
+                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                >
+                  <span>Snap to key</span>
+                  <span className="text-xs">{globalSnapToKeyEnabled ? "On" : "Off"}</span>
+                </button>
+              </div>
+            </details>
             <div className="ml-auto flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
               <span className="text-slate-500">Time</span>
               <span className="font-semibold text-slate-700">{timelineZoomPercent}%</span>
@@ -4095,6 +4108,392 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               </span>
             </div>
             {!isMobileViewport && (
+              <div className="mt-2 space-y-2">
+                <div className="flex flex-wrap items-center gap-1 border-y border-slate-200 py-1">
+                  <details className="group relative">
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+                      File
+                    </summary>
+                    <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] min-w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                      {!isGuestMode && (
+                        <button
+                          type="button"
+                          onClick={() => void commitCanvasToBackend({ force: true })}
+                          className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                          title="Save editor now"
+                          disabled={savingCanvas}
+                        >
+                          {savingCanvas ? "Saving..." : "Save"}
+                        </button>
+                      )}
+                      {!isGuestMode && (
+                        <GteFileImportButton
+                          editorId={editorId}
+                          onImported={async () => {
+                            await loadEditor();
+                          }}
+                          onError={(message) => setError(message || null)}
+                          className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                          busyLabel="Importing..."
+                          title="Import a tab file"
+                        >
+                          Import tabs
+                        </GteFileImportButton>
+                      )}
+                      <details className="group/export relative">
+                        <summary
+                          className={`flex list-none items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-slate-100 ${
+                            exportingTrack || !canvas?.editors.length
+                              ? "pointer-events-none text-slate-400"
+                              : "cursor-pointer text-slate-700"
+                          }`}
+                        >
+                          <span>{exportingTrack ? "Exporting..." : "Export"}</span>
+                          <span aria-hidden="true">›</span>
+                        </summary>
+                        <div className="absolute left-[calc(100%+6px)] top-0 z-[10001] min-w-44 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                          {GTE_EXPORT_FORMAT_OPTIONS.map((option) => (
+                            <button
+                              key={`top-export-${option.value}`}
+                              type="button"
+                              onClick={() => handleExportTrack(option.value)}
+                              className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                              disabled={exportingTrack}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </details>
+                    </div>
+                  </details>
+
+                  <details className="group relative">
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+                      Generate
+                    </summary>
+                    <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] min-w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                      {!isGuestMode && (
+                        <button
+                          type="button"
+                          onClick={() => void router.push(transcriberHref)}
+                          className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                          title="Open the standalone transcriber"
+                        >
+                          Generate tabs
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => void router.push(`/gte/${editorId}/tabs`)}
+                        className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                        title="View current editor as ASCII tabs"
+                      >
+                        View as tabs
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFindKeyDialogOpen(true)}
+                        className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                        title="Detect the key from all notes and chords"
+                      >
+                        Find key
+                      </button>
+                    </div>
+                  </details>
+
+                  <details className="group relative">
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+                      Snapping
+                    </summary>
+                    <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] w-56 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                      <button
+                        type="button"
+                        onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
+                        aria-pressed={globalSnapToGridEnabled}
+                        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                      >
+                        <span>Snap to grid</span>
+                        <span className="text-xs">{globalSnapToGridEnabled ? "On" : "Off"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
+                        aria-pressed={globalSnapToKeyEnabled}
+                        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                      >
+                        <span>Snap to key</span>
+                        <span className="text-xs">{globalSnapToKeyEnabled ? "On" : "Off"}</span>
+                      </button>
+                    </div>
+                  </details>
+
+                  <details className="group relative">
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+                      Playback
+                    </summary>
+                    <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] w-64 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                      <button
+                        type="button"
+                        onClick={() => setPracticeLoopEnabled((enabled) => !enabled)}
+                        disabled={!globalPracticeLoopRange}
+                        aria-pressed={practiceLoopEnabled}
+                        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                      >
+                        <span>Loop</span>
+                        <span className="text-xs">{practiceLoopEnabled ? "On" : "Off"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMetronomeEnabled((enabled) => !enabled)}
+                        aria-pressed={metronomeEnabled}
+                        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                      >
+                        <span>Metronome</span>
+                        <span className="text-xs">{metronomeEnabled ? "On" : "Off"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCountInEnabled((enabled) => !enabled)}
+                        aria-pressed={countInEnabled}
+                        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                      >
+                        <span>Count-in</span>
+                        <span className="text-xs">{countInEnabled ? "On" : "Off"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSpeedTrainerEnabled((enabled) => !enabled)}
+                        disabled={!practiceLoopEnabled}
+                        aria-pressed={speedTrainerEnabled}
+                        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                      >
+                        <span>Speed trainer</span>
+                        <span className="text-xs">{speedTrainerEnabled ? "On" : "Off"}</span>
+                      </button>
+                      <label className="mt-1 flex items-center justify-between gap-3 border-t border-slate-100 px-3 py-2 text-sm text-slate-700">
+                        <span>Playback speed</span>
+                        <select
+                          value={normalizedPlaybackSpeed}
+                          onChange={(event) => setPlaybackSpeed(Number(event.target.value))}
+                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                          title="Playback speed"
+                        >
+                          {PLAYBACK_SPEED_OPTIONS.map((speed) => (
+                            <option key={speed} value={speed}>
+                              {Math.round(speed * 100)}%
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {speedTrainerEnabled && (
+                        <div className="grid grid-cols-2 gap-2 border-t border-slate-100 p-2">
+                          <select
+                            value={speedTrainerTarget}
+                            onChange={(event) => setSpeedTrainerTarget(Number(event.target.value))}
+                            className="h-8 rounded-md border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
+                            title="Speed trainer target"
+                          >
+                            {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
+                              <option key={speed} value={speed}>
+                                to {Math.round(speed * 100)}%
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={speedTrainerStep}
+                            onChange={(event) => setSpeedTrainerStep(Number(event.target.value))}
+                            className="h-8 rounded-md border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
+                            title="Speed trainer step"
+                          >
+                            {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
+                              <option key={step} value={step}>
+                                +{Math.round(step * 100)}%
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  </details>
+
+                  <div className="ml-auto flex shrink-0 items-center gap-2">
+                    <span className="text-xs text-slate-500">{saveStatus}</span>
+                    {isGuestMode ? (
+                      <Link href="/" className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+                        Back home
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => router.push("/gte")}
+                        className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+                      >
+                        Back to editors
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <details className="group w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm">
+                  <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
+                    <span className="font-semibold text-slate-700">Song settings</span>
+                    <span className="truncate">
+                      {KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]} {KEY_TYPE_OPTIONS[normalizeKeyType(canvas?.keyType)]}
+                      {" · "}{bpmDraft} BPM
+                      {" · "}{normalizeTimeSignature(timeSignatureDraft) ?? 8}/{normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
+                    </span>
+                    <span className="transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
+                  </summary>
+                  <div className="flex flex-wrap items-end gap-3 border-t border-slate-200 p-3">
+                    <label className="text-xs font-medium text-slate-600">
+                      <span className="mb-1 block">Key</span>
+                      <span className="flex items-center gap-1">
+                        <select
+                          value={normalizeKeyBase(canvas?.keyBase)}
+                          onChange={(event) => {
+                            commitCanvasKey(Number(event.target.value), normalizeKeyType(canvas?.keyType));
+                            event.currentTarget.blur();
+                          }}
+                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                          aria-label="Base note"
+                        >
+                          {KEY_BASE_OPTIONS.map((label, index) => (
+                            <option key={label} value={index}>{label}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={normalizeKeyType(canvas?.keyType)}
+                          onChange={(event) => {
+                            commitCanvasKey(normalizeKeyBase(canvas?.keyBase), Number(event.target.value));
+                            event.currentTarget.blur();
+                          }}
+                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                          aria-label="Key extension"
+                        >
+                          {KEY_TYPE_OPTIONS.map((label, index) => (
+                            <option key={label} value={index}>{label}</option>
+                          ))}
+                        </select>
+                      </span>
+                    </label>
+                    <label className="text-xs font-medium text-slate-600">
+                      <span className="mb-1 block">BPM</span>
+                      <span className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step={1}
+                          min={1}
+                          value={bpmDraft}
+                          onChange={(event) => {
+                            if (bpmCommitTimerRef.current !== null) {
+                              window.clearTimeout(bpmCommitTimerRef.current);
+                              bpmCommitTimerRef.current = null;
+                            }
+                            queuedBpmValueRef.current = null;
+                            setBpmDraft(event.target.value);
+                          }}
+                          onBlur={() => void commitBpm()}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === "ArrowUp" || event.key === "ArrowDown") {
+                              event.preventDefault();
+                              event.currentTarget.blur();
+                            }
+                          }}
+                          className="h-8 w-20 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                        />
+                        <span className="inline-flex flex-col gap-0.5">
+                          <button
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => {
+                              const current =
+                                normalizeBpm(bpmDraft) ??
+                                secondsPerBarToBpm(
+                                  canvas?.secondsPerBar,
+                                  normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
+                                );
+                              const next = current + 1;
+                              setBpmDraft(formatBpm(next));
+                              scheduleBpmCommit(next);
+                            }}
+                            className="flex h-[15px] w-5 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
+                            title="Increase BPM"
+                            aria-label="Increase BPM"
+                          >
+                            &#9650;
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => {
+                              const current =
+                                normalizeBpm(bpmDraft) ??
+                                secondsPerBarToBpm(
+                                  canvas?.secondsPerBar,
+                                  normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
+                                );
+                              const next = Math.max(1, current - 1);
+                              setBpmDraft(formatBpm(next));
+                              scheduleBpmCommit(next);
+                            }}
+                            className="flex h-[15px] w-5 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            title="Decrease BPM"
+                            aria-label="Decrease BPM"
+                            disabled={(normalizeBpm(bpmDraft) ?? 1) <= 1}
+                          >
+                            &#9660;
+                          </button>
+                        </span>
+                      </span>
+                    </label>
+                    <label className="text-xs font-medium text-slate-600">
+                      <span className="mb-1 block">Time signature</span>
+                      <span className="flex items-center gap-1">
+                        <select
+                          value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
+                          onChange={(event) => {
+                            setTimeSignatureDraft(event.target.value);
+                            scheduleTimeSignatureCommit(Number(event.target.value));
+                            event.currentTarget.blur();
+                          }}
+                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                          aria-label="Time signature top number"
+                        >
+                          {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
+                            <option key={value} value={value}>{value}</option>
+                          ))}
+                        </select>
+                        <span>/</span>
+                        <select
+                          value={normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
+                          onChange={(event) => {
+                            void commitTimeSignatureBottom(Number(event.target.value));
+                            event.currentTarget.blur();
+                          }}
+                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                          aria-label="Time signature bottom number"
+                        >
+                          {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
+                            <option key={value} value={value}>{value}</option>
+                          ))}
+                        </select>
+                      </span>
+                    </label>
+                  </div>
+                </details>
+                <div className="min-h-5 text-xs">
+                  {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
+                  {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
+                  {(timeSignatureSaving || timeSignatureError) && (
+                    <span className={timeSignatureError ? "error" : "muted"}>
+                      {timeSignatureError || "Saving time signature..."}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+            {false && !isMobileViewport && (
             <>
             <div
               className="page-subtitle"
@@ -4307,7 +4706,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     title="Save editor now"
                     disabled={savingCanvas}
                   >
-                    {savingCanvas ? "Saving..." : "Save now"}
+                    {savingCanvas ? "Saving..." : "Save"}
                   </button>
                 )}
                 <div className="relative">
@@ -4378,15 +4777,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               className="text-small"
               style={{ minHeight: "1.25rem", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}
             >
-              <label className="muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                <input
-                  type="checkbox"
-                  checked={keepNotesOnBeat}
-                  onChange={(event) => setKeepNotesOnBeat(event.target.checked)}
-                  className="h-3.5 w-3.5 rounded border-slate-300"
-                />
-                Keep notes on beat
-              </label>
               <span className="muted">{saveStatus}</span>
               {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
               {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
@@ -4559,42 +4949,32 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             ))}
                           </select>
                         </span>
-                        <span className="mt-2 flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                          <input
-                            type="checkbox"
-                            checked={keepNotesOnBeat}
-                            onChange={(event) => setKeepNotesOnBeat(event.target.checked)}
-                            className="h-3.5 w-3.5 rounded border-slate-300"
-                          />
-                          <span>Keep notes on beat</span>
-                        </span>
                       </label>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setGlobalSnapToGridEnabled((prev) => !prev)}
-                        className={`rounded-md border px-3 py-2 text-xs font-semibold ${
-                          globalSnapToGridEnabled
-                            ? "border-emerald-300 bg-emerald-100 text-emerald-800"
-                            : "border-slate-200 bg-white text-slate-600"
-                        }`}
-                        title="Global snap to grid for all tracks. shortcut 'G'"
-                      >
-                        Snap to grid: {globalSnapToGridEnabled ? "On" : "Off"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setGlobalSnapToKeyEnabled((prev) => !prev)}
-                        className={`rounded-md border px-3 py-2 text-xs font-semibold ${
-                          globalSnapToKeyEnabled
-                            ? "border-sky-300 bg-sky-100 text-sky-800"
-                            : "border-slate-200 bg-white text-slate-600"
-                        }`}
-                        title="Auto-correct notes to the current key for all tracks"
-                      >
-                        Snap to key: {globalSnapToKeyEnabled ? "On" : "Off"}
-                      </button>
+                      <details className="relative">
+                        <summary className="cursor-pointer list-none rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
+                          Snapping
+                        </summary>
+                        <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                          <button
+                            type="button"
+                            onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
+                            className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            <span>Snap to grid</span>
+                            <span className="text-xs">{globalSnapToGridEnabled ? "On" : "Off"}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
+                            className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            <span>Snap to key</span>
+                            <span className="text-xs">{globalSnapToKeyEnabled ? "On" : "Off"}</span>
+                          </button>
+                        </div>
+                      </details>
                       <button
                         type="button"
                         onClick={() => void router.push(transcriberHref)}
@@ -4683,40 +5063,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         {!isMobileViewport && !isMobileEditMode && (
           <>
             <div className="fixed bottom-16 left-5 z-[9996] flex w-72 max-w-[calc(100vw-2.5rem)] flex-col gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
-              <div className="flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => setGlobalSnapToGridEnabled((prev) => !prev)}
-                  className={`rounded-md border px-2 py-1 text-xs font-semibold ${
-                    globalSnapToGridEnabled
-                      ? "border-emerald-300 bg-emerald-100 text-emerald-800"
-                      : "border-slate-200 bg-white text-slate-600"
-                  }`}
-                  title="Global snap to grid for all tracks. shortcut 'G'"
-                >
-                  Snap: {globalSnapToGridEnabled ? "On" : "Off"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFindKeyDialogOpen(true)}
-                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700"
-                  title="Detect the key from all notes and chords"
-                >
-                  find key
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setGlobalSnapToKeyEnabled((prev) => !prev)}
-                  className={`rounded-md border px-2 py-1 text-xs font-semibold ${
-                    globalSnapToKeyEnabled
-                      ? "border-sky-300 bg-sky-100 text-sky-800"
-                      : "border-slate-200 bg-white text-slate-600"
-                  }`}
-                  title="Auto-correct notes to the current key for all tracks"
-                >
-                  Key: {globalSnapToKeyEnabled ? "On" : "Off"}
-                </button>
-              </div>
               <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
                 <span className="shrink-0">Time scale</span>
                 <input
@@ -5850,7 +6196,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
                   </svg>
                 </button>
-                <span className="mx-1 whitespace-nowrap text-[10px] text-slate-500">{saveStatus}</span>
+              </div>
+              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
                 <button
                   type="button"
                   onClick={skipGlobalPlaybackToStart}
@@ -5899,7 +6246,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     <polygon points="7,5 17,12 7,19" />
                   </svg>
                 </button>
-                <div className="flex items-center gap-1 px-1">
+              </div>
+              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-slate-700 shadow-sm backdrop-blur">
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
                     <path d="M4 10v4h4l5 4V6L8 10H4z" />
                     <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
@@ -5914,93 +6262,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     className="w-20 accent-slate-700"
                     title="Volume"
                   />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setPracticeLoopEnabled((enabled) => !enabled)}
-                  disabled={!globalPracticeLoopRange}
-                  aria-pressed={practiceLoopEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
-                    practiceLoopEnabled ? "bg-emerald-100 text-emerald-800" : "hover:bg-slate-100"
-                  }`}
-                  title="Loop selected bars"
-                >
-                  Loop
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMetronomeEnabled((enabled) => !enabled)}
-                  aria-pressed={metronomeEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold ${
-                    metronomeEnabled ? "bg-sky-100 text-sky-800" : "hover:bg-slate-100"
-                  }`}
-                  title="Metronome"
-                >
-                  Met
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCountInEnabled((enabled) => !enabled)}
-                  aria-pressed={countInEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold ${
-                    countInEnabled ? "bg-amber-100 text-amber-800" : "hover:bg-slate-100"
-                  }`}
-                  title="One-bar count-in"
-                >
-                  Count
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSpeedTrainerEnabled((enabled) => !enabled)}
-                  disabled={!practiceLoopEnabled}
-                  aria-pressed={speedTrainerEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
-                    speedTrainerEnabled ? "bg-violet-100 text-violet-800" : "hover:bg-slate-100"
-                  }`}
-                  title="Speed trainer"
-                >
-                  Train
-                </button>
-                <select
-                  value={normalizedPlaybackSpeed}
-                  onChange={(event) => setPlaybackSpeed(Number(event.target.value))}
-                  className="h-8 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
-                  title="Playback speed"
-                >
-                  {PLAYBACK_SPEED_OPTIONS.map((speed) => (
-                    <option key={speed} value={speed}>
-                      {Math.round(speed * 100)}%
-                    </option>
-                  ))}
-                </select>
-                {speedTrainerEnabled && (
-                  <>
-                    <select
-                      value={speedTrainerTarget}
-                      onChange={(event) => setSpeedTrainerTarget(Number(event.target.value))}
-                      className="h-8 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
-                      title="Speed trainer target"
-                    >
-                      {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
-                        <option key={speed} value={speed}>
-                          to {Math.round(speed * 100)}%
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={speedTrainerStep}
-                      onChange={(event) => setSpeedTrainerStep(Number(event.target.value))}
-                      className="h-8 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
-                      title="Speed trainer step"
-                    >
-                      {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
-                        <option key={step} value={step}>
-                          +{Math.round(step * 100)}%
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
               </div>
             </div>
           </div>
