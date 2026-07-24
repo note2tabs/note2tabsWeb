@@ -4224,9 +4224,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 ) : (
                   <span
                     style={{
-                      paddingLeft: isMobileViewport ? 0 : 10,
-                      fontSize: isMobileViewport ? "1.35rem" : "2.00rem",
-                      lineHeight: 1.3,
+                      paddingLeft: isMobileViewport ? 0 : 4,
+                      fontSize: isMobileViewport ? "1.35rem" : "1.45rem",
+                      lineHeight: 1.15,
                       fontWeight: 500,
                       color: "#334155",
                       overflow: "hidden",
@@ -4252,10 +4252,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               </span>
             </div>
             {!isMobileViewport && (
-              <div className="mt-2 space-y-2">
+              <div className="mt-1 space-y-1">
                 <div
                   data-gte-floating-ui="true"
-                  className="gte-top-menu-bar flex flex-wrap items-center gap-1 border-y border-slate-200 py-1"
+                  className="gte-top-menu-bar flex flex-wrap items-center gap-0.5 border-y border-slate-200 py-0.5"
                 >
                   <details
                     className="group relative"
