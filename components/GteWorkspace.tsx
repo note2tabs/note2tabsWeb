@@ -9,6 +9,7 @@ import {
   type TouchEvent as ReactTouchEvent,
   type UIEvent as ReactUiEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { gteApi } from "../lib/gteApi";
 import {
   PLAYBACK_SPEED_OPTIONS,
@@ -99,6 +100,9 @@ type Props = {
   cursorSizeDenominator?: number;
   onCursorSizeDenominatorChange?: (denominator: number) => void;
   leftHandedChordDiagrams?: boolean;
+  editMenuPortalTarget?: HTMLElement | null;
+  onEditMenuPointerEnter?: () => void;
+  onEditMenuPointerLeave?: () => void;
   canvasKeyBase?: number;
   canvasKeyType?: number;
   sharedTimeSignature?: number;
@@ -3308,6 +3312,9 @@ export default function GteWorkspace({
   cursorSizeDenominator: controlledCursorSizeDenominator,
   onCursorSizeDenominatorChange,
   leftHandedChordDiagrams = false,
+  editMenuPortalTarget,
+  onEditMenuPointerEnter,
+  onEditMenuPointerLeave,
   canvasKeyBase = 0,
   canvasKeyType = 0,
   sharedTimeSignature,
@@ -11053,12 +11060,6 @@ export default function GteWorkspace({
           return;
         }
       }
-      if (event.key === "t" || event.key === "T") {
-        if (isTyping) return;
-        event.preventDefault();
-        setToolbarOpen((prev) => !prev);
-        return;
-      }
       if ((event.ctrlKey || event.metaKey) && (event.key === "c" || event.key === "C")) {
         if (isTyping) return;
         if (selectedNoteIds.length > 0 || selectedChordIds.length > 0) {
@@ -11567,7 +11568,6 @@ export default function GteWorkspace({
     isMobileEditMode &&
     isActive &&
     Boolean(selectedNote && noteMenuNoteId === selectedNote.id && noteMenuDraft && selectedNoteIds.length === 1);
-  const showMobileInlineToolbar = isMobileEditMode && isActive && showToolbarUi;
   const mobileNoteFingeringOptions = useMemo(
     () => [
       ...(noteAlternates?.possibleTabs || []).map((tab) => ({
@@ -11638,11 +11638,7 @@ export default function GteWorkspace({
       );
   }, [getSpanSegments, snapshot.noteEffects, snapshot.notes, timelineRenderWindow, visibleNoteIdSet]);
 
-  const renderToolbarPanel = (inlineMobile: boolean) => {
-    const panelClass = inlineMobile
-      ? "h-auto w-full min-w-0 overflow-visible rounded-2xl border border-slate-200 bg-white p-2 shadow-lg"
-      : "fixed right-4 top-1/2 z-[9998] max-h-[calc(100vh-6rem)] w-[min(18rem,calc(100vw-5rem))] -translate-y-1/2 overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2.5 shadow-xl shadow-slate-900/10 backdrop-blur";
-
+  const renderEditMenuPanel = (inlineMobile = false, topMenu = true) => {
     const sectionClass =
       "min-w-0 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm";
 
@@ -11667,11 +11663,13 @@ export default function GteWorkspace({
         data-gte-floating-ui="true"
         data-gte-editor-control="true"
         data-gte-toolbar-ui="true"
-        className={panelClass}
+        className="space-y-2"
+        onMouseEnter={onEditMenuPointerEnter}
+        onMouseLeave={onEditMenuPointerLeave}
         onMouseDown={(event) => event.stopPropagation()}
         onTouchStart={(event) => event.stopPropagation()}
       >
-        <div className="mb-2 flex items-start justify-between gap-2">
+        {!topMenu && <div className="mb-2 flex items-start justify-between gap-2">
           <div>
             <div className="text-[11px] font-bold text-slate-800">Toolbar</div>
             {inlineMobile ? (
@@ -11688,19 +11686,13 @@ export default function GteWorkspace({
           >
             ×
           </button>
-        </div>
+        </div>}
 
-        <div
-          className={
-            mobileViewport
-              ? "grid grid-cols-1 gap-2"
-              : "grid grid-cols-1 gap-2"
-          }
-        >
+        <div className="grid grid-cols-1 gap-2">
           <div className={sectionClass}>
             <div className={sectionTitleClass}>Notes & chords</div>
 
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-1 gap-1.5">
               <button
                 type="button"
                 onClick={() => {
@@ -11826,65 +11818,7 @@ export default function GteWorkspace({
                 Merge Notes
               </button>
 
-              <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-1.5">
-                <div className="mb-1 px-1 text-[8px] font-bold uppercase tracking-[0.14em] text-slate-400">
-                  Effects
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleAddNoteEffect(1);
-                    }}
-                    disabled={!canCreateNoteEffect}
-                    title={
-                      selectionActionsLocked
-                        ? "Disabled while notes/chords are selected in multiple tracks"
-                        : "Connect selected notes with hammer-ons or pull-offs - Shortcut: H"
-                    }
-                    className={textButtonClass}
-                  >
-                    <span className={tooltipClass}>H</span>
-                    Hammer/Pull
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleAddNoteEffect(2);
-                    }}
-                    disabled={!canCreateNoteEffect}
-                    title={
-                      selectionActionsLocked
-                        ? "Disabled while notes/chords are selected in multiple tracks"
-                        : "Connect selected notes with slides - Shortcut: L"
-                    }
-                    className={textButtonClass}
-                  >
-                    <span className={tooltipClass}>L</span>
-                    Slide
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleAddNoteEffect(0);
-                    }}
-                    disabled={!canCreateNoteEffect}
-                    title={
-                      selectionActionsLocked
-                        ? "Disabled while notes/chords are selected in multiple tracks"
-                        : "Connect selected notes with bends - Shortcut: B"
-                    }
-                    className={textButtonClass}
-                  >
-                    <span className={tooltipClass}>B</span>
-                    Bend
-                  </button>
-                </div>
-              </div>
-
-              <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_86px] gap-1.5">
+              <div className="grid grid-cols-1 gap-1.5">
                 <select
                   data-scale-mode-select="true"
                   value={scaleToolMode}
@@ -11999,9 +11933,65 @@ export default function GteWorkspace({
           </div>
 
           <div className={sectionClass}>
+            <div className={sectionTitleClass}>Effects</div>
+            <div className="grid grid-cols-1 gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  handleAddNoteEffect(1);
+                }}
+                disabled={!canCreateNoteEffect}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Connect selected notes with hammer-ons or pull-offs - Shortcut: H"
+                }
+                className={textButtonClass}
+              >
+                <span className={tooltipClass}>H</span>
+                Hammer/Pull
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleAddNoteEffect(2);
+                }}
+                disabled={!canCreateNoteEffect}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Connect selected notes with slides - Shortcut: L"
+                }
+                className={textButtonClass}
+              >
+                <span className={tooltipClass}>L</span>
+                Slide
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleAddNoteEffect(0);
+                }}
+                disabled={!canCreateNoteEffect}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Connect selected notes with bends - Shortcut: B"
+                }
+                className={textButtonClass}
+              >
+                <span className={tooltipClass}>B</span>
+                Bend
+              </button>
+            </div>
+          </div>
+
+          <div className={sectionClass}>
             <div className={sectionTitleClass}>Playing Coordinates</div>
 
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-1 gap-1.5">
               <button
                 type="button"
                 data-gte-editor-control="true"
@@ -12134,7 +12124,9 @@ export default function GteWorkspace({
           }`}
         />
       )}
-      {toolbarOpen && showPlaybackUi && showToolbarUi && !mobileViewport && renderToolbarPanel(false)}
+      {editMenuPortalTarget && isActive
+        ? createPortal(renderEditMenuPanel(), editMenuPortalTarget)
+        : null}
       {scaleToolActive && scaleHudPosition && (
         <div
           ref={scaleHudRef}
@@ -12378,25 +12370,6 @@ export default function GteWorkspace({
           }`}
         >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
-            {!mobileViewport && (
-              <button
-                type="button"
-                data-gte-editor-control="true"
-                data-gte-toolbar-ui="true"
-                onClick={() => setToolbarOpen((prev) => !prev)}
-                aria-pressed={toolbarOpen}
-                title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
-                className={`pointer-events-auto flex h-10 items-center justify-center rounded-full border px-3 text-xs font-semibold shadow-md backdrop-blur transition ${
-                  mobileViewport ? "" : "md:absolute md:right-0"
-                } ${
-                  toolbarOpen
-                    ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
-                    : "border-sky-300 bg-sky-100/95 text-sky-900 hover:bg-sky-50"
-                }`}
-              >
-                Toolbar
-              </button>
-            )}
             {mobileViewport ? (
               <div className="pointer-events-auto flex w-full items-center gap-2">
                 <div className="flex shrink-0 flex-col gap-1">
@@ -14815,36 +14788,6 @@ export default function GteWorkspace({
                   </div>
                 )}
               </div>
-              {showMobileInlineToolbar && (
-                <div className={`${toolbarOpen ? "w-[min(10.5rem,42vw)]" : "w-[5.25rem]"} shrink-0 transition-[width] duration-150`}>
-                  <div className="flex h-full min-h-0 flex-col gap-2">
-                    <button
-                      type="button"
-                      data-gte-editor-control="true"
-                      data-gte-toolbar-ui="true"
-                      onClick={() => setToolbarOpen((prev) => !prev)}
-                      aria-pressed={toolbarOpen}
-                      title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
-                      className={`flex h-10 w-full items-center justify-center rounded-xl border px-2 text-xs font-semibold shadow-sm transition ${
-                        toolbarOpen
-                          ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      Toolbar
-                    </button>
-                    <div className="min-h-0 flex-1">
-                      {toolbarOpen ? (
-                        renderToolbarPanel(true)
-                      ) : (
-                        <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/75 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                          Hidden
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
