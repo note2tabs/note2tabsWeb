@@ -2242,6 +2242,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [addingLane, canvas, cloneCanvas, deletingLaneId, savingCanvas, syncCanvasDraftToBackend]);
 
   useEffect(() => {
+    const handleSaveShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (savingCanvas || event.repeat) return;
+      void commitCanvasToBackend({ force: true });
+    };
+    window.addEventListener("keydown", handleSaveShortcut, true);
+    return () => window.removeEventListener("keydown", handleSaveShortcut, true);
+  }, [commitCanvasToBackend, savingCanvas]);
+
+  useEffect(() => {
     if (activeLaneId !== null) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
