@@ -90,6 +90,7 @@ type Props = {
   tabViewEnabled?: boolean;
   globalSnapToGridEnabled?: boolean;
   onGlobalSnapToGridEnabledChange?: (enabled: boolean) => void;
+  snapSubdivisionsPerBeat?: number;
   globalSnapToKeyEnabled?: boolean;
   onGlobalSnapToKeyEnabledChange?: (enabled: boolean) => void;
   generatePlayingCoordinatesRequest?: number;
@@ -97,6 +98,7 @@ type Props = {
   onDefaultNoteLengthDenominatorChange?: (denominator: number) => void;
   cursorSizeDenominator?: number;
   onCursorSizeDenominatorChange?: (denominator: number) => void;
+  leftHandedChordDiagrams?: boolean;
   canvasKeyBase?: number;
   canvasKeyType?: number;
   sharedTimeSignature?: number;
@@ -1436,7 +1438,13 @@ type ChordContextMenuState = {
   y: number;
 };
 
-function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
+function ChordFingeringDiagram({
+  fingering,
+  leftHanded = false,
+}: {
+  fingering: ChordFingering;
+  leftHanded?: boolean;
+}) {
   const hydrated = hydrateChordFingering(fingering);
   const positions = hydrated.positions;
   const fingers = hydrated.fingers || [];
@@ -1539,14 +1547,16 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
         ))}
         {barreRuns.map((barre) => {
           const y = (((barre.fret - baseFret) + 0.5) / fretCount) * 100;
+          const displayStartIndex = leftHanded ? 5 - barre.endIndex : barre.startIndex;
+          const displayEndIndex = leftHanded ? 5 - barre.startIndex : barre.endIndex;
           return (
             <span
               key={`barre-${barre.fret}-${barre.startIndex}-${barre.endIndex}`}
               className="absolute z-10 flex h-3 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900 text-[8px] font-bold leading-none text-white"
               style={{
-                left: `calc(${(barre.startIndex / 5) * 100}% - 5px)`,
+                left: `calc(${(displayStartIndex / 5) * 100}% - 5px)`,
                 top: `${y}%`,
-                width: `calc(${((barre.endIndex - barre.startIndex) / 5) * 100}% + 10px)`,
+                width: `calc(${((displayEndIndex - displayStartIndex) / 5) * 100}% + 10px)`,
               }}
             >
               {barre.finger ?? ""}
@@ -1554,7 +1564,8 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
           );
         })}
         {positions.map((fret, index) => {
-          const x = ((index / 5) * 100);
+          const displayIndex = leftHanded ? 5 - index : index;
+          const x = (displayIndex / 5) * 100;
           if (fret === null) {
             return (
               <span
@@ -1623,6 +1634,7 @@ function ChordLaneWorkspace({
   onBarSelectionStateChange,
   tabViewEnabled = false,
   globalSnapToKeyEnabled,
+  leftHandedChordDiagrams = false,
   canvasKeyBase = 0,
   canvasKeyType = 0,
   sharedTimeSignature,
@@ -2973,7 +2985,10 @@ function ChordLaneWorkspace({
                         </button>
                       </div>
                       {visibleFingering ? (
-                        <ChordFingeringDiagram fingering={visibleFingering} />
+                        <ChordFingeringDiagram
+                          fingering={visibleFingering}
+                          leftHanded={leftHandedChordDiagrams}
+                        />
                       ) : (
                         <div className="grid h-[76px] place-items-center text-[10px] font-semibold text-slate-400">
                           No shape
@@ -3284,6 +3299,7 @@ export default function GteWorkspace({
   tabViewEnabled = false,
   globalSnapToGridEnabled,
   onGlobalSnapToGridEnabledChange,
+  snapSubdivisionsPerBeat = 4,
   globalSnapToKeyEnabled,
   onGlobalSnapToKeyEnabledChange,
   generatePlayingCoordinatesRequest,
@@ -3291,6 +3307,7 @@ export default function GteWorkspace({
   onDefaultNoteLengthDenominatorChange,
   cursorSizeDenominator: controlledCursorSizeDenominator,
   onCursorSizeDenominatorChange,
+  leftHandedChordDiagrams = false,
   canvasKeyBase = 0,
   canvasKeyType = 0,
   sharedTimeSignature,
@@ -3370,6 +3387,7 @@ export default function GteWorkspace({
         onGlobalSnapToGridEnabledChange={onGlobalSnapToGridEnabledChange}
         globalSnapToKeyEnabled={globalSnapToKeyEnabled}
         onGlobalSnapToKeyEnabledChange={onGlobalSnapToKeyEnabledChange}
+        leftHandedChordDiagrams={leftHandedChordDiagrams}
         canvasKeyBase={canvasKeyBase}
         canvasKeyType={canvasKeyType}
         sharedTimeSignature={sharedTimeSignature}
@@ -4082,6 +4100,10 @@ export default function GteWorkspace({
   const effectiveRedoCount = useExternalHistory ? Math.max(0, historyRedoCount ?? 0) : redoCount;
   const selectionActionsLocked = Boolean(multiTrackSelectionActive);
   const snapToGridEnabled = globalSnapToGridEnabled ?? localSnapToGridEnabled;
+  const normalizedSnapSubdivisionsPerBeat = Math.max(
+    1,
+    Math.min(8, Math.round(Number(snapSubdivisionsPerBeat) || 4))
+  );
   const snapToKeyEnabled = globalSnapToKeyEnabled ?? localSnapToKeyEnabled;
   const setSnapToGridEnabled = useCallback(
     (nextValue: boolean | ((prev: boolean) => boolean)) => {
@@ -4358,10 +4380,14 @@ export default function GteWorkspace({
     }
   ) => {
     if (snapToGridEnabled) {
-      const step = Math.max(1, cursorSizeDenominatorToFrames(cursorSizeDenominator));
       const min = options?.min ?? 0;
       const max = options?.max ?? Infinity;
-      const snapped = Math.floor(Math.max(0, Math.round(rawTime)) / step) * step;
+      const snapped = getBeatSubdivisionGridTime(
+        rawTime,
+        timeSignature,
+        normalizedSnapSubdivisionsPerBeat,
+        "floor"
+      );
       return Math.max(min, Math.min(snapped, max));
     }
     if (!snapCandidates.length) return rawTime;
@@ -5271,10 +5297,14 @@ export default function GteWorkspace({
       if (!snapToGridEnabled) {
         return safeStart;
       }
-      const step = Math.max(1, cursorSizeDenominatorToFrames(cursorSizeDenominator));
-      return Math.floor(safeStart / step) * step;
+      return getBeatSubdivisionGridTime(
+        safeStart,
+        timeSignature,
+        normalizedSnapSubdivisionsPerBeat,
+        "floor"
+      );
     },
-    [cursorSizeDenominator, cursorSizeDenominatorToFrames, snapToGridEnabled]
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
   );
 
   const snapMoveStartTimeToGrid = useCallback(
@@ -5283,10 +5313,14 @@ export default function GteWorkspace({
       if (!snapToGridEnabled) {
         return safeStart;
       }
-      const step = Math.max(1, cursorSizeDenominatorToFrames(cursorSizeDenominator));
-      return Math.floor(safeStart / step) * step;
+      return getBeatSubdivisionGridTime(
+        safeStart,
+        timeSignature,
+        normalizedSnapSubdivisionsPerBeat,
+        "floor"
+      );
     },
-    [cursorSizeDenominator, cursorSizeDenominatorToFrames, snapToGridEnabled]
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
   );
 
   const snapNoteToGrid = useCallback(
@@ -5299,9 +5333,17 @@ export default function GteWorkspace({
         };
       }
       const snappedStart = snapStartTimeToGrid(startTime);
-      return { startTime: snappedStart, length: getBeatGridLength(safeLength, timeSignature, "floor") };
+      return {
+        startTime: snappedStart,
+        length: getBeatSubdivisionGridLength(
+          safeLength,
+          timeSignature,
+          normalizedSnapSubdivisionsPerBeat,
+          "floor"
+        ),
+      };
     },
-    [snapStartTimeToGrid, snapToGridEnabled, timeSignature]
+    [normalizedSnapSubdivisionsPerBeat, snapStartTimeToGrid, snapToGridEnabled, timeSignature]
   );
 
   const snapNewNoteToGrid = useCallback(
@@ -5318,9 +5360,14 @@ export default function GteWorkspace({
       if (!snapToGridEnabled) {
         return safeLength;
       }
-      return getBeatGridLength(safeLength, timeSignature, "floor");
+      return getBeatSubdivisionGridLength(
+        safeLength,
+        timeSignature,
+        normalizedSnapSubdivisionsPerBeat,
+        "floor"
+      );
     },
-    [snapToGridEnabled, timeSignature]
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
   );
 
   const computeScalePreview = useCallback(
@@ -5335,14 +5382,24 @@ export default function GteWorkspace({
       const scaleStartTime = (value: number) => {
         let next = Math.trunc((value - session.minTime) * normalizedFactor + session.minTime);
         if (snapToGridEnabled) {
-          next = getBeatSubdivisionGridTime(next, timeSignature, 4, "round");
+          next = getBeatSubdivisionGridTime(
+            next,
+            timeSignature,
+            normalizedSnapSubdivisionsPerBeat,
+            "round"
+          );
         }
         return Math.max(0, next);
       };
 
       const scaleItemLength = (value: number) => {
         if (snapToGridEnabled) {
-          return getBeatSubdivisionGridLength(value * normalizedFactor, timeSignature, 4, "round");
+          return getBeatSubdivisionGridLength(
+            value * normalizedFactor,
+            timeSignature,
+            normalizedSnapSubdivisionsPerBeat,
+            "round"
+          );
         }
         return clampEventLength(Math.trunc(value * normalizedFactor));
       };
@@ -5363,7 +5420,7 @@ export default function GteWorkspace({
 
       return { notes, chords, maxEnd, factor: normalizedFactor };
     },
-    [clamp, framesPerMeasure, snapToGridEnabled, timeSignature]
+    [clamp, framesPerMeasure, normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
   );
 
   const applyScalePreview = useCallback(
@@ -5837,7 +5894,12 @@ export default function GteWorkspace({
     (session: MoveSession, deltaFrames: number) => {
       const rawDelta = Math.round(deltaFrames);
       const targetAnchor = snapToGridEnabled
-        ? getBeatSubdivisionGridTime(session.anchorStart + rawDelta, timeSignature, 4, "round")
+        ? getBeatSubdivisionGridTime(
+            session.anchorStart + rawDelta,
+            timeSignature,
+            normalizedSnapSubdivisionsPerBeat,
+            "round"
+          )
         : Math.round(session.anchorStart + rawDelta);
       const delta = Math.max(0, targetAnchor) - session.anchorStart;
       const notes: Record<number, QuantizePreviewEntity> = {};
@@ -5860,7 +5922,7 @@ export default function GteWorkspace({
 
       return { notes, chords, maxEnd, delta };
     },
-    [snapToGridEnabled, timeSignature]
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
   );
 
   const applyMovePreview = useCallback(
@@ -6875,7 +6937,7 @@ export default function GteWorkspace({
                 editorId,
                 resolveNoteId(resizingNote.id),
                 snappedPreviewLength,
-                snapToGridEnabled
+                false
               ),
           });
         }
@@ -6951,7 +7013,7 @@ export default function GteWorkspace({
                 editorId,
                 resolveChordId(resizingChord.id),
                 snappedPreviewLength,
-                snapToGridEnabled
+                false
               ),
           });
         }

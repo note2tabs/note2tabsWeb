@@ -72,7 +72,7 @@ type Props = {
   isGuestMode: boolean;
 };
 
-type TopMenuId = "file" | "generate" | "snapping" | "cursor" | "playback";
+type TopMenuId = "file" | "generate" | "snapping" | "cursor" | "view" | "playback";
 
 const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
@@ -82,11 +82,13 @@ const TIMELINE_ZOOM_MIN = 15;
 const TIMELINE_ZOOM_MAX = 200;
 const TIMELINE_ZOOM_DEFAULT = 100;
 const SNAP_TO_KEY_STORAGE_PREFIX = "note2tabs:gte:snap-to-key:";
+const CHORD_DIAGRAM_HANDEDNESS_STORAGE_PREFIX = "note2tabs:gte:chord-diagram-left-handed:";
 const CONTROL_COMMIT_DEBOUNCE_MS = 350;
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
 const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32];
 const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 3, 4, 8, 16, 32, 64];
+const SNAP_SUBDIVISION_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 const KEY_BASE_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const KEY_TYPE_OPTIONS = [
   "Major",
@@ -932,6 +934,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [tabViewEnabled, setTabViewEnabled] = useState(false);
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
   const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabledState] = useState(false);
+  const [globalSnapSubdivisionsPerBeat, setGlobalSnapSubdivisionsPerBeat] = useState(4);
+  const [leftHandedChordDiagrams, setLeftHandedChordDiagramsState] = useState(false);
   const [chordOnlyDefaultNoteLengthDenominator, setChordOnlyDefaultNoteLengthDenominator] = useState(4);
   const [chordOnlyCursorSizeDenominator, setChordOnlyCursorSizeDenominator] = useState(4);
   const [findKeyDialogOpen, setFindKeyDialogOpen] = useState(false);
@@ -1014,6 +1018,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const transcriberHref = isGuestMode
     ? "/#hero"
     : `/?appendEditorId=${encodeURIComponent(editorId)}#hero`;
+  const chordDiagramHandednessStorageKey = useMemo(() => {
+    if (session?.user?.id) {
+      return `${CHORD_DIAGRAM_HANDEDNESS_STORAGE_PREFIX}user:${session.user.id}`;
+    }
+    return isGuestMode ? `${CHORD_DIAGRAM_HANDEDNESS_STORAGE_PREFIX}guest` : null;
+  }, [isGuestMode, session?.user?.id]);
   const setGlobalSnapToKeyEnabled = useCallback(
     (value: boolean | ((enabled: boolean) => boolean)) => {
       setGlobalSnapToKeyEnabledState((current) => {
@@ -1033,6 +1043,49 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setGlobalSnapToKeyEnabledState(stored === "1");
     }
   }, [editorId]);
+
+  const setLeftHandedChordDiagrams = useCallback(
+    (value: boolean | ((leftHanded: boolean) => boolean)) => {
+      setLeftHandedChordDiagramsState((current) => {
+        const next = typeof value === "function" ? value(current) : value;
+        if (typeof window !== "undefined" && chordDiagramHandednessStorageKey) {
+          window.localStorage.setItem(chordDiagramHandednessStorageKey, next ? "1" : "0");
+        }
+        return next;
+      });
+    },
+    [chordDiagramHandednessStorageKey]
+  );
+
+  useEffect(() => {
+    if (!chordDiagramHandednessStorageKey) return;
+    let stored = window.localStorage.getItem(chordDiagramHandednessStorageKey);
+    if (stored !== "1" && stored !== "0") {
+      const legacyStored = window.localStorage.getItem(
+        `${CHORD_DIAGRAM_HANDEDNESS_STORAGE_PREFIX}${editorId}`
+      );
+      if (legacyStored === "1" || legacyStored === "0") {
+        stored = legacyStored;
+        window.localStorage.setItem(chordDiagramHandednessStorageKey, legacyStored);
+      }
+    }
+    setLeftHandedChordDiagramsState(stored === "1");
+  }, [chordDiagramHandednessStorageKey, editorId]);
+
+  useEffect(() => {
+    if (!chordDiagramHandednessStorageKey) return;
+    const handleStorage = (event: StorageEvent) => {
+      if (
+        event.key !== chordDiagramHandednessStorageKey ||
+        (event.newValue !== "1" && event.newValue !== "0")
+      ) {
+        return;
+      }
+      setLeftHandedChordDiagramsState(event.newValue === "1");
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [chordDiagramHandednessStorageKey]);
 
   const cloneCanvas = useCallback((value: CanvasSnapshot) => {
     return JSON.parse(JSON.stringify(value)) as CanvasSnapshot;
@@ -4198,6 +4251,45 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
                   <details
                     className="group relative"
+                    open={openTopMenu === "view"}
+                    onToggle={(event) => {
+                      const isOpen = event.currentTarget.open;
+                      setOpenTopMenu((current) =>
+                        isOpen ? "view" : current === "view" ? null : current
+                      );
+                    }}
+                    onMouseLeave={() => setOpenTopMenu(null)}
+                  >
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+                      View
+                    </summary>
+                    <div className="absolute left-0 top-full z-[10000] w-64 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                      <button
+                        type="button"
+                        onClick={() => setLeftHandedChordDiagrams((leftHanded) => !leftHanded)}
+                        aria-pressed={leftHandedChordDiagrams}
+                        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                        title="Mirror chord diagrams for left- or right-handed playing"
+                      >
+                        <span>Chord diagrams</span>
+                        <span className="text-xs">
+                          {leftHandedChordDiagrams ? "Left-handed" : "Right-handed"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTabViewEnabled((enabled) => !enabled)}
+                        aria-pressed={tabViewEnabled}
+                        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                      >
+                        <span>Tab view</span>
+                        <span className="text-xs">{tabViewEnabled ? "On" : "Off"}</span>
+                      </button>
+                    </div>
+                  </details>
+
+                  <details
+                    className="group relative"
                     open={openTopMenu === "cursor"}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
@@ -4345,6 +4437,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <span>Snap to key</span>
                         <span className="text-xs">{globalSnapToKeyEnabled ? "On" : "Off"}</span>
                       </button>
+                      <label className="mt-1 flex items-center justify-between gap-3 border-t border-slate-100 px-3 py-2 text-sm text-slate-700">
+                        <span>Snapping accuracy</span>
+                        <select
+                          value={globalSnapSubdivisionsPerBeat}
+                          onChange={(event) =>
+                            setGlobalSnapSubdivisionsPerBeat(Number(event.target.value))
+                          }
+                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                          title="Snap subdivisions per beat"
+                          aria-label="Snapping accuracy"
+                        >
+                          {SNAP_SUBDIVISION_OPTIONS.map((subdivision) => (
+                            <option key={subdivision} value={subdivision}>
+                              {subdivision === 1 ? "1" : `1/${subdivision}`}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
                   </details>
 
@@ -5262,20 +5372,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               isMobileEditMode ? "gte-editor-stage--mobile-edit flex-1 min-h-0 space-y-0" : "space-y-2"
             }`}
           >
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setTabViewEnabled((prev) => !prev)}
-                aria-pressed={tabViewEnabled}
-                className={`rounded-md border px-3 py-2 text-xs font-semibold shadow-sm ${
-                  tabViewEnabled
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                tab-view
-              </button>
-            </div>
             {canvas.editors.map((lane, index) => {
               const laneId = lane.id || `ed-${index + 1}`;
               if (isMobileViewport && mobileEditLaneId && laneId !== mobileEditLaneId) {
@@ -5480,6 +5576,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               tabViewEnabled={tabViewEnabled}
                               globalSnapToGridEnabled={globalSnapToGridEnabled}
                               onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
+                              snapSubdivisionsPerBeat={globalSnapSubdivisionsPerBeat}
                               globalSnapToKeyEnabled={globalSnapToKeyEnabled}
                               onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
                               generatePlayingCoordinatesRequest={generatePlayingCoordinatesRequest}
@@ -5489,6 +5586,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               }
                               cursorSizeDenominator={chordOnlyCursorSizeDenominator}
                               onCursorSizeDenominatorChange={setChordOnlyCursorSizeDenominator}
+                              leftHandedChordDiagrams={leftHandedChordDiagrams}
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
@@ -5755,6 +5853,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               tabViewEnabled={tabViewEnabled}
                               globalSnapToGridEnabled={globalSnapToGridEnabled}
                               onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
+                              snapSubdivisionsPerBeat={globalSnapSubdivisionsPerBeat}
                               globalSnapToKeyEnabled={globalSnapToKeyEnabled}
                               onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
                               generatePlayingCoordinatesRequest={generatePlayingCoordinatesRequest}
@@ -5764,6 +5863,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               }
                               cursorSizeDenominator={chordOnlyCursorSizeDenominator}
                               onCursorSizeDenominatorChange={setChordOnlyCursorSizeDenominator}
+                              leftHandedChordDiagrams={leftHandedChordDiagrams}
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
@@ -6049,6 +6149,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           tabViewEnabled={tabViewEnabled}
                           globalSnapToGridEnabled={globalSnapToGridEnabled}
                           onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
+                          snapSubdivisionsPerBeat={globalSnapSubdivisionsPerBeat}
                           globalSnapToKeyEnabled={globalSnapToKeyEnabled}
                           onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
                           generatePlayingCoordinatesRequest={generatePlayingCoordinatesRequest}
@@ -6056,6 +6157,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onDefaultNoteLengthDenominatorChange={setChordOnlyDefaultNoteLengthDenominator}
                           cursorSizeDenominator={chordOnlyCursorSizeDenominator}
                           onCursorSizeDenominatorChange={setChordOnlyCursorSizeDenominator}
+                          leftHandedChordDiagrams={leftHandedChordDiagrams}
                           canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                           canvasKeyType={normalizeKeyType(canvas.keyType)}
                           sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
