@@ -8334,3 +8334,25 @@ input[type="number"] {
     transform: none;
   }
 }
+.gte-top-menu-bar > details > div button {
+  min-height: 1.5rem;
+  height: 1.5rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.7rem;
+  line-height: 1rem;
+}
+
+.gte-top-menu-bar > details > div label {
+  min-height: 1.75rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+  line-height: 1rem;
+}
+
+.gte-top-menu-bar > details > div select {
+  height: 1.5rem;
+  min-height: 1.5rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 0.68rem;
+}

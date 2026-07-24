@@ -101,6 +101,7 @@ type Props = {
   onCursorSizeDenominatorChange?: (denominator: number) => void;
   leftHandedChordDiagrams?: boolean;
   editMenuPortalTarget?: HTMLElement | null;
+  editMenuDisabled?: boolean;
   onEditMenuPointerEnter?: () => void;
   onEditMenuPointerLeave?: () => void;
   canvasKeyBase?: number;
@@ -3313,6 +3314,7 @@ export default function GteWorkspace({
   onCursorSizeDenominatorChange,
   leftHandedChordDiagrams = false,
   editMenuPortalTarget,
+  editMenuDisabled = false,
   onEditMenuPointerEnter,
   onEditMenuPointerLeave,
   canvasKeyBase = 0,
@@ -11640,19 +11642,19 @@ export default function GteWorkspace({
 
   const renderEditMenuPanel = (inlineMobile = false, topMenu = true) => {
     const sectionClass =
-      "min-w-0 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm";
+      "min-w-0 border-b border-slate-200 py-1 last:border-b-0";
 
     const sectionTitleClass =
-      "mb-2 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400";
+      "px-2 pb-1 pt-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400";
 
     const textButtonClass =
-      "group relative flex h-8 w-full items-center justify-start gap-2 rounded-lg border border-slate-200 bg-white px-2 text-left text-[10px] font-semibold leading-none text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
+      "group relative flex h-7 w-full items-center justify-start gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[11px] font-normal leading-none text-slate-700 shadow-none transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-slate-400";
 
     const activeButtonClass =
-      "group relative flex h-8 w-full items-center justify-start gap-2 rounded-lg px-2 text-left text-[10px] font-semibold leading-none text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none";
+      "group relative flex h-7 w-full items-center justify-start gap-2 rounded-md border-0 !bg-slate-100 px-2 text-left text-[11px] font-normal leading-none !text-slate-900 shadow-none transition hover:!bg-slate-200 disabled:cursor-not-allowed disabled:!bg-transparent disabled:!text-slate-400";
 
     const iconButtonClass =
-      "group relative flex h-8 w-full items-center justify-start gap-2 rounded-lg border border-slate-200 bg-white px-2 text-left text-[10px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
+      "group relative flex h-7 w-full items-center justify-start gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[11px] font-normal text-slate-700 shadow-none transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-slate-400";
 
     const shortcutClass =
       "order-last ml-auto shrink-0 text-[10px] font-medium opacity-60";
@@ -11688,7 +11690,11 @@ export default function GteWorkspace({
           </button>
         </div>}
 
-        <div className="grid grid-cols-1 gap-2">
+        <fieldset
+          disabled={editMenuDisabled}
+          className={`m-0 min-w-0 border-0 p-0 ${editMenuDisabled ? "opacity-50" : ""}`}
+        >
+        <div className="grid grid-cols-1 gap-0">
           <div className={sectionClass}>
             <div className={sectionTitleClass}>Notes & chords</div>
 
@@ -11834,7 +11840,7 @@ export default function GteWorkspace({
                     }
                     event.currentTarget.blur();
                   }}
-                  className="h-8 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 shadow-sm outline-none transition focus:border-slate-400"
+                  className="h-7 min-w-0 rounded-md border-0 bg-transparent px-2 text-[11px] font-normal text-slate-700 shadow-none outline-none transition hover:bg-slate-100 focus:bg-slate-100"
                   title="Scale mode - Shortcut: D"
                 >
                   <option value="length">Length scaling</option>
@@ -11859,9 +11865,7 @@ export default function GteWorkspace({
                   <span className={shortcutClass}>S</span>
                   <svg
                     viewBox="0 0 24 24"
-                    className={`h-3.5 w-3.5 ${
-                      scaleToolActive ? "fill-white" : "fill-current"
-                    }`}
+                    className="h-3.5 w-3.5 fill-current"
                     aria-hidden="true"
                   >
                     <path d="M3 10h18v4H3z" />
@@ -11887,9 +11891,7 @@ export default function GteWorkspace({
                   src={STREAMLINE_TOOLBAR_ICONS.slice}
                   alt=""
                   aria-hidden="true"
-                  className={`h-3.5 w-3.5 ${
-                    sliceToolActive ? "brightness-0 invert" : ""
-                  }`}
+                  className="h-3.5 w-3.5"
                 />
                 Slicing Tool
               </button>
@@ -11917,9 +11919,7 @@ export default function GteWorkspace({
                 <span className={shortcutClass}>M</span>
                 <svg
                   viewBox="0 0 24 24"
-                  className={`h-3.5 w-3.5 ${
-                    moveToolActive ? "fill-white" : "fill-current"
-                  }`}
+                  className="h-3.5 w-3.5 fill-current"
                   aria-hidden="true"
                 >
                   <path d="M11 3h2v5h4l-5 5-5-5h4V3z" />
@@ -12017,9 +12017,7 @@ export default function GteWorkspace({
                   src={STREAMLINE_TOOLBAR_ICONS.cut}
                   alt=""
                   aria-hidden="true"
-                  className={`h-3.5 w-3.5 ${
-                    cutToolActive ? "brightness-0 invert" : ""
-                  }`}
+                  className="h-3.5 w-3.5"
                 />
                 Cut
               </button>
@@ -12037,6 +12035,7 @@ export default function GteWorkspace({
             </div>
           </div>
         </div>
+        </fieldset>
       </div>
     );
   };
@@ -12120,7 +12119,7 @@ export default function GteWorkspace({
           }`}
         />
       )}
-      {editMenuPortalTarget && isActive
+      {editMenuPortalTarget
         ? createPortal(renderEditMenuPanel(), editMenuPortalTarget)
         : null}
       {scaleToolActive && scaleHudPosition && (

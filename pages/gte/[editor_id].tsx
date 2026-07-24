@@ -72,7 +72,15 @@ type Props = {
   isGuestMode: boolean;
 };
 
-type TopMenuId = "file" | "edit" | "generate" | "snapping" | "cursor" | "view" | "playback";
+type TopMenuId =
+  | "file"
+  | "edit"
+  | "generate"
+  | "snapping"
+  | "cursor"
+  | "view"
+  | "playback"
+  | "help";
 
 const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
@@ -89,6 +97,43 @@ const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
 const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32];
 const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 3, 4, 8, 16, 32, 64];
 const SNAP_SUBDIVISION_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
+const TOOL_SHORTCUT_HELP = [
+  ["Scale", "S"],
+  ["Cycle scale mode", "D"],
+  ["Move tool", "M"],
+  ["Slice tool", "Shift+S"],
+  ["Cut playing coordinates", "K"],
+  ["Merge to chord", "C"],
+  ["Disband chord", "Shift+L"],
+  ["Merge notes", "J"],
+  ["Optimize notes", "O"],
+  ["Hammer/Pull", "H"],
+  ["Slide", "L"],
+  ["Bend", "B"],
+  ["Toggle grid snapping", "G"],
+  ["Confirm active tool", "Enter"],
+  ["Cancel active tool", "Escape"],
+] as const;
+const TRACK_CURSOR_SHORTCUT_HELP = [
+  ["Move cursor", "Arrow keys"],
+  ["Select or cycle item", "Enter"],
+  ["Add item to selection", "Shift+Enter"],
+  ["Add note or set fret", "0–9"],
+  ["Raise or lower fret", "+ / −"],
+  ["Move selection in time", "Ctrl/Cmd+←/→"],
+  ["Move notes between strings", "Ctrl/Cmd+↑/↓"],
+  ["Select all notes and chords", "A"],
+  ["Copy selection", "Ctrl/Cmd+C"],
+  ["Paste selection", "Ctrl/Cmd+V"],
+  ["Delete selection", "Delete/Backspace"],
+  ["Clear selection or cancel", "Escape"],
+] as const;
+const SHORTCUT_HELP_SECTIONS: ReadonlyArray<
+  readonly [string, ReadonlyArray<readonly [string, string]>]
+> = [
+  ["Tools", TOOL_SHORTCUT_HELP],
+  ["Track cursor", TRACK_CURSOR_SHORTCUT_HELP],
+];
 const KEY_BASE_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const KEY_TYPE_OPTIONS = [
   "Major",
@@ -2417,6 +2462,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (tabLane) return tabLane.id || null;
     return canvas.editors[0]?.id || null;
   }, [canvas?.editors, mobileEditLaneId]);
+  const activeEditableLaneId = useMemo(() => {
+    if (!activeLaneId || !canvas?.editors.length) return null;
+    const lane = canvas.editors.find((candidate) => (candidate.id || null) === activeLaneId);
+    return lane && !isChordLane(lane) ? activeLaneId : null;
+  }, [activeLaneId, canvas?.editors]);
+  const fallbackEditableLaneId = useMemo(
+    () => canvas?.editors.find((lane) => !isChordLane(lane))?.id || null,
+    [canvas?.editors]
+  );
+  const editMenuOwnerLaneId = activeEditableLaneId ?? fallbackEditableLaneId;
+  const editMenuDisabled = activeEditableLaneId === null;
   const chordOnlyCanvas = useMemo(
     () => Boolean(canvas?.editors.length) && canvas!.editors.every((lane) => isChordLane(lane)),
     [canvas]
@@ -4195,7 +4251,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               <div className="mt-2 space-y-2">
                 <div
                   data-gte-floating-ui="true"
-                  className="flex flex-wrap items-center gap-1 border-y border-slate-200 py-1"
+                  className="gte-top-menu-bar flex flex-wrap items-center gap-1 border-y border-slate-200 py-1"
                 >
                   <details
                     className="group relative"
@@ -4278,14 +4334,108 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
                       Edit
                     </summary>
-                    <div className="absolute left-0 top-full z-[10000] max-h-[calc(100vh-10rem)] w-80 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
+                    <div className="absolute left-0 top-full z-[10000] max-h-[calc(100vh-10rem)] w-72 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       <div ref={setEditMenuPortalTarget}>
-                        {!activeLaneId && (
-                          <div className="px-3 py-2 text-sm text-slate-400">
-                            Select a track to use editing controls.
+                        {!editMenuOwnerLaneId && (
+                          <div className="opacity-50">
+                            {[
+                              {
+                                title: "Notes & chords",
+                                items: [
+                                  ["Merge to Chord", "C"],
+                                  ["Disband Chord", "Shift+L"],
+                                  ["Optimize Notes", "O"],
+                                  ["Snap to Key", ""],
+                                  ["Quantize", ""],
+                                  ["Merge Notes", "J"],
+                                  ["Length scaling", "D"],
+                                  ["Scale", "S"],
+                                  ["Slicing Tool", "Shift+S"],
+                                  ["Move", "M"],
+                                ],
+                              },
+                              {
+                                title: "Effects",
+                                items: [
+                                  ["Hammer/Pull", "H"],
+                                  ["Slide", "L"],
+                                  ["Bend", "B"],
+                                ],
+                              },
+                              {
+                                title: "Playing Coordinates",
+                                items: [
+                                  ["Clean Playing-Coordinates", ""],
+                                  ["Cut", "K"],
+                                  ["Merge", ""],
+                                ],
+                              },
+                            ].map((section) => (
+                              <div
+                                key={`disabled-edit-${section.title}`}
+                                className="border-b border-slate-200 py-1 last:border-b-0"
+                              >
+                                <div className="px-2 pb-1 pt-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                                  {section.title}
+                                </div>
+                                {section.items.map(([label, shortcut]) => (
+                                  <div
+                                    key={`disabled-edit-${section.title}-${label}`}
+                                    className="flex h-7 items-center gap-2 rounded-md px-2 text-[11px] text-slate-400"
+                                  >
+                                    <span>{label}</span>
+                                    {shortcut && (
+                                      <span className="ml-auto text-[10px] opacity-60">{shortcut}</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
+                    </div>
+                  </details>
+
+                  <details
+                    className="group relative"
+                    open={openTopMenu === "help"}
+                    onToggle={(event) => {
+                      const isOpen = event.currentTarget.open;
+                      setOpenTopMenu((current) =>
+                        isOpen ? "help" : current === "help" ? null : current
+                      );
+                    }}
+                    onMouseLeave={() => setOpenTopMenu(null)}
+                  >
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+                      Help
+                    </summary>
+                    <div className="absolute left-0 top-full z-[10000] max-h-[calc(100vh-10rem)] w-80 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                      <div className="px-2 pb-1.5 pt-1 text-xs font-semibold text-slate-700">
+                        Keyboard shortcut help
+                      </div>
+                      {SHORTCUT_HELP_SECTIONS.map(([title, shortcuts]) => (
+                        <section
+                          key={`shortcut-help-${title}`}
+                          className="border-t border-slate-200 py-1"
+                        >
+                          <h3 className="px-2 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                            {title}
+                          </h3>
+                          {shortcuts.map(([label, shortcut]) => (
+                            <div
+                              key={`shortcut-help-${title}-${label}`}
+                              className="flex min-h-7 items-center gap-3 rounded-md px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100"
+                            >
+                              <span>{label}</span>
+                              <span className="ml-auto shrink-0 text-[10px] text-slate-500">
+                                {shortcut}
+                              </span>
+                            </div>
+                          ))}
+                        </section>
+                      ))}
                     </div>
                   </details>
 
@@ -5627,7 +5777,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               cursorSizeDenominator={chordOnlyCursorSizeDenominator}
                               onCursorSizeDenominatorChange={setChordOnlyCursorSizeDenominator}
                               leftHandedChordDiagrams={leftHandedChordDiagrams}
-                              editMenuPortalTarget={editMenuPortalTarget}
+                              editMenuPortalTarget={
+                                laneId === editMenuOwnerLaneId ? editMenuPortalTarget : null
+                              }
+                              editMenuDisabled={editMenuDisabled}
                               onEditMenuPointerEnter={cancelEditMenuClose}
                               onEditMenuPointerLeave={scheduleEditMenuClose}
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
@@ -5905,7 +6058,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               cursorSizeDenominator={chordOnlyCursorSizeDenominator}
                               onCursorSizeDenominatorChange={setChordOnlyCursorSizeDenominator}
                               leftHandedChordDiagrams={leftHandedChordDiagrams}
-                              editMenuPortalTarget={editMenuPortalTarget}
+                              editMenuPortalTarget={
+                                laneId === editMenuOwnerLaneId ? editMenuPortalTarget : null
+                              }
+                              editMenuDisabled={editMenuDisabled}
                               onEditMenuPointerEnter={cancelEditMenuClose}
                               onEditMenuPointerLeave={scheduleEditMenuClose}
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
@@ -6200,7 +6356,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           cursorSizeDenominator={chordOnlyCursorSizeDenominator}
                           onCursorSizeDenominatorChange={setChordOnlyCursorSizeDenominator}
                           leftHandedChordDiagrams={leftHandedChordDiagrams}
-                          editMenuPortalTarget={editMenuPortalTarget}
+                          editMenuPortalTarget={
+                            laneId === editMenuOwnerLaneId ? editMenuPortalTarget : null
+                          }
+                          editMenuDisabled={editMenuDisabled}
                           onEditMenuPointerEnter={cancelEditMenuClose}
                           onEditMenuPointerLeave={scheduleEditMenuClose}
                           canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
