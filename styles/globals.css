@@ -8359,8 +8359,8 @@ input[type="number"] {
 
 .gte-top-menu-bar > details > summary {
   padding: 0.2rem 0.5rem;
-  font-size: 0.75rem;
-  line-height: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 .gte-editor-sticky-banner {

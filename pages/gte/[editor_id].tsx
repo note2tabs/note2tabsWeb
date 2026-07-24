@@ -4940,15 +4940,23 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </label>
                   </div>
                 </details>
-                <div className="min-h-5 text-xs">
-                  {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
-                  {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
-                  {(timeSignatureSaving || timeSignatureError) && (
-                    <span className={timeSignatureError ? "error" : "muted"}>
-                      {timeSignatureError || "Saving time signature..."}
-                    </span>
-                  )}
-                </div>
+                {(((nameSaving || bpmSaving) && !isGuestMode) ||
+                  nameError ||
+                  bpmError ||
+                  timeSignatureSaving ||
+                  timeSignatureError) && (
+                  <div className="text-xs">
+                    {(nameSaving || bpmSaving) && !isGuestMode && (
+                      <span className="muted">Saving draft...</span>
+                    )}
+                    {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
+                    {(timeSignatureSaving || timeSignatureError) && (
+                      <span className={timeSignatureError ? "error" : "muted"}>
+                        {timeSignatureError || "Saving time signature..."}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {false && !isMobileViewport && (
