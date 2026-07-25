@@ -539,6 +539,69 @@ const cleanCanvasCutSegments = (canvas: CanvasSnapshot): CanvasSnapshot => ({
   editors: canvas.editors.map((lane) => cleanLaneCutSegments(lane)),
 });
 
+const ensureCanvasBarsContainEvents = (
+  canvas: CanvasSnapshot
+): { canvas: CanvasSnapshot; extended: boolean } => {
+  let extended = false;
+  const editors = canvas.editors.map((lane) => {
+    const currentTotalFrames = Math.max(
+      FIXED_FRAMES_PER_BAR,
+      Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR))
+    );
+    const lastEventFrame = Math.max(
+      0,
+      ...lane.notes.map(
+        (note) =>
+          Math.round(toNumber(note.startTime, 0)) +
+          Math.max(1, Math.round(toNumber(note.length, 1)))
+      ),
+      ...lane.chords.map(
+        (chord) =>
+          Math.round(toNumber(chord.startTime, 0)) +
+          Math.max(1, Math.round(toNumber(chord.length, 1)))
+      )
+    );
+    if (lastEventFrame <= currentTotalFrames) return lane;
+
+    extended = true;
+    const requiredTotalFrames =
+      Math.max(1, Math.ceil(lastEventFrame / FIXED_FRAMES_PER_BAR)) *
+      FIXED_FRAMES_PER_BAR;
+    const existingCuts = Array.isArray(lane.cutPositionsWithCoords)
+      ? lane.cutPositionsWithCoords.map(cloneCutRegion)
+      : [];
+    const lastCut = [...existingCuts].sort(
+      (left, right) => toNumber(left[0]?.[1], 0) - toNumber(right[0]?.[1], 0)
+    ).at(-1);
+    const extensionCoord = lastCut
+      ? ([lastCut[1][0], lastCut[1][1]] as [number, number])
+      : ([2, 0] as [number, number]);
+    const extensionCut: EditorSnapshot["cutPositionsWithCoords"][number] = [
+      [currentTotalFrames, requiredTotalFrames],
+      extensionCoord,
+    ];
+
+    return {
+      ...lane,
+      totalFrames: requiredTotalFrames,
+      cutPositionsWithCoords: [
+        ...existingCuts,
+        extensionCut,
+      ],
+    };
+  });
+
+  if (!extended) return { canvas, extended: false };
+  return {
+    canvas: {
+      ...canvas,
+      editors,
+      updatedAt: new Date().toISOString(),
+    },
+    extended: true,
+  };
+};
+
 const selectBarsFromLane = (lane: EditorSnapshot, barIndices: number[]): EditorSnapshot | null => {
   const normalized = normalizeBarIndices(lane, barIndices);
   if (!normalized.length) return null;
@@ -2140,7 +2203,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const applyCanvasBarUpdate = useCallback(
     (nextCanvas: CanvasSnapshot) => {
-      const normalized = normalizeCanvas(nextCanvas, editorId);
+      const expanded = ensureCanvasBarsContainEvents(nextCanvas).canvas;
+      const normalized = normalizeCanvas(expanded, editorId);
       const cleaned = cleanCanvasCutSegments(normalized);
       applyCanvasUpdate(cleaned, { markDirty: true });
     },
@@ -2285,7 +2349,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             barIndices,
             insertIndex,
           });
-          applyCanvasBarUpdate(res.canvas);
+          const expanded = ensureCanvasBarsContainEvents(res.canvas);
+          applyCanvasBarUpdate(expanded.canvas);
+          if (expanded.extended) {
+            await gteApi.applySnapshot(editorId, expanded.canvas);
+          }
         }
         setActiveLaneId(targetLaneId);
         setBarDragState(null);
