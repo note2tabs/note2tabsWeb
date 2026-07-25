@@ -92,6 +92,12 @@ const TOOL_HELP_SECTIONS = [
   },
 ] as const;
 
+const TOOL_HELP = new Map<string, string>(
+  TOOL_HELP_SECTIONS.flatMap((section) =>
+    section.tools.map(([name, description]) => [name, description] as [string, string])
+  )
+);
+
 function resumeAudioContext(ctx: AudioContext): Promise<void> {
   try {
     return Promise.resolve(ctx.resume())
@@ -11830,6 +11836,17 @@ export default function GteWorkspace({
     const shortcutClass =
       "order-last ml-auto shrink-0 text-[10px] font-medium opacity-60";
 
+    const renderToolHelp = (name: string) => {
+      if (!toolHelpOpen) return null;
+      const description = TOOL_HELP.get(name);
+      if (!description) return null;
+      return (
+        <p className="-mt-1 px-2 pb-1 text-[10px] leading-4 text-slate-500">
+          {description}
+        </p>
+      );
+    };
+
     return (
       <div
         ref={toolbarRef}
@@ -11881,27 +11898,9 @@ export default function GteWorkspace({
         </div>
 
         {toolHelpOpen ? (
-          <div className="max-h-[min(24rem,60vh)] space-y-3 overflow-y-auto rounded-lg border border-sky-100 bg-sky-50/70 p-2.5 text-slate-700">
-            <p className="text-[10px] leading-4 text-slate-600">
-              Selection tools let you choose notes before or after choosing the tool. Slice and
-              Cut act directly on the canvas. Use <strong>Done</strong> or <strong>Escape</strong>{" "}
-              to leave a canvas tool.
-            </p>
-            {TOOL_HELP_SECTIONS.map((section) => (
-              <section key={section.title} aria-label={`${section.title} tool explanations`}>
-                <h3 className="mb-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  {section.title}
-                </h3>
-                <dl className="space-y-1.5">
-                  {section.tools.map(([name, description]) => (
-                    <div key={name} className="grid grid-cols-[7.25rem_minmax(0,1fr)] gap-2 text-[10px] leading-4">
-                      <dt className="font-semibold text-slate-800">{name}</dt>
-                      <dd className="m-0 text-slate-600">{description}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-            ))}
+          <div className="rounded-md bg-sky-50 px-2 py-1.5 text-[10px] leading-4 text-sky-800">
+            Explanations are shown beside each tool. Slice and Cut work directly on the canvas;
+            use <strong>Done</strong> or <strong>Escape</strong> when finished.
           </div>
         ) : null}
 
@@ -11940,6 +11939,7 @@ export default function GteWorkspace({
                 <span className={shortcutClass}>C</span>
                 Merge to Chord
               </button>
+              {renderToolHelp("Merge to Chord")}
 
               <button
                 type="button"
@@ -11975,6 +11975,7 @@ export default function GteWorkspace({
                 <span className={shortcutClass}>Shift+L</span>
                 Disband Chord
               </button>
+              {renderToolHelp("Disband Chord")}
 
               <button
                 type="button"
@@ -11992,6 +11993,7 @@ export default function GteWorkspace({
                 <span className={shortcutClass}>O</span>
                 Optimize Notes
               </button>
+              {renderToolHelp("Optimize Notes")}
 
               <button
                 type="button"
@@ -12006,6 +12008,7 @@ export default function GteWorkspace({
               >
                 Snap to Key
               </button>
+              {renderToolHelp("Snap to Key")}
 
               <button
                 type="button"
@@ -12035,6 +12038,7 @@ export default function GteWorkspace({
               >
                 Quantize
               </button>
+              {renderToolHelp("Quantize")}
 
               <button
                 type="button"
@@ -12052,6 +12056,7 @@ export default function GteWorkspace({
                 <span className={shortcutClass}>J</span>
                 Merge Notes
               </button>
+              {renderToolHelp("Merge Notes")}
 
               <div className="grid grid-cols-1 gap-1.5">
                 <select
@@ -12116,6 +12121,7 @@ export default function GteWorkspace({
                   </svg>
                   Scale
                 </button>
+                {renderToolHelp("Scale")}
               </div>
 
               <button
@@ -12137,6 +12143,7 @@ export default function GteWorkspace({
                 />
                 Slicing Tool
               </button>
+              {renderToolHelp("Slicing Tool")}
 
               <button
                 type="button"
@@ -12174,6 +12181,7 @@ export default function GteWorkspace({
                 </svg>
                 Move
               </button>
+              {renderToolHelp("Move")}
             </div>
           </div>
 
@@ -12206,6 +12214,7 @@ export default function GteWorkspace({
                 <span className={shortcutClass}>H</span>
                 Hammer/Pull
               </button>
+              {renderToolHelp("Hammer/Pull")}
 
               <button
                 type="button"
@@ -12229,6 +12238,7 @@ export default function GteWorkspace({
                 <span className={shortcutClass}>L</span>
                 Slide
               </button>
+              {renderToolHelp("Slide")}
 
               <button
                 type="button"
@@ -12252,6 +12262,7 @@ export default function GteWorkspace({
                 <span className={shortcutClass}>B</span>
                 Bend
               </button>
+              {renderToolHelp("Bend")}
             </div>
           </div>
 
@@ -12269,6 +12280,7 @@ export default function GteWorkspace({
               >
                 Clean Playing-Coordinates
               </button>
+              {renderToolHelp("Clean Playing-Coordinates")}
 
               <button
                 type="button"
@@ -12290,6 +12302,7 @@ export default function GteWorkspace({
                 />
                 Cut
               </button>
+              {renderToolHelp("Cut")}
 
               <button
                 type="button"
@@ -12301,6 +12314,7 @@ export default function GteWorkspace({
               >
                 Merge
               </button>
+              {renderToolHelp("Merge")}
             </div>
           </div>
         </div>
