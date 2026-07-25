@@ -3972,6 +3972,50 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Key
+                      <select
+                        value={normalizeKeyBase(canvas?.keyBase)}
+                        onChange={(event) => {
+                          commitCanvasKey(
+                            Number(event.target.value),
+                            normalizeKeyType(canvas?.keyType)
+                          );
+                          event.currentTarget.blur();
+                        }}
+                        className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-slate-700"
+                        aria-label="Key root"
+                      >
+                        {KEY_BASE_OPTIONS.map((label, index) => (
+                          <option key={label} value={index}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Scale
+                      <select
+                        value={normalizeKeyType(canvas?.keyType)}
+                        onChange={(event) => {
+                          commitCanvasKey(
+                            normalizeKeyBase(canvas?.keyBase),
+                            Number(event.target.value)
+                          );
+                          event.currentTarget.blur();
+                        }}
+                        className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-slate-700"
+                        aria-label="Key scale"
+                      >
+                        {KEY_TYPE_OPTIONS.map((label, index) => (
+                          <option key={label} value={index}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                       BPM
                       <span className="mt-2 flex items-center gap-2">
                         <input
