@@ -6220,50 +6220,57 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             ))}
                           </select>
                         </div>
-                        <div className="mt-2 min-w-0 space-y-1.5">
-                          <select
-                            value={tuning.presetId}
-                            onChange={(event) => handleLaneTuningChange(laneId, event.target.value, tuning.capo)}
-                            onClick={(event) => event.stopPropagation()}
-                            className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 shadow-sm"
-                            title="Track tuning"
-                            aria-label="Track tuning"
-                          >
-                            {TUNING_PRESETS.map((preset) => (
-                              <option key={`${laneId}-tuning-${preset.id}`} value={preset.id}>
-                                {preset.label}
-                              </option>
-                            ))}
-                          </select>
-                          <label className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
-                            Capo
-                            <input
-                              type="number"
-                              min={0}
-                              max={12}
-                              value={trackCapoDraftById[laneId] ?? String(tuning.capo)}
+                        {!isChordLane(lane) && (
+                          <div className="mt-2 min-w-0 space-y-1.5">
+                            <select
+                              value={tuning.presetId}
                               onChange={(event) =>
-                                handleLaneCapoDraftChange(laneId, event.target.value)
+                                handleLaneTuningChange(laneId, event.target.value, tuning.capo)
                               }
-                              onBlur={() =>
-                                commitLaneCapoDraft(laneId, tuning.presetId, tuning.capo)
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.currentTarget.blur();
-                                }
-                                if (event.key === "Escape") {
-                                  setTrackCapoDraftById((prev) => ({ ...prev, [laneId]: String(tuning.capo) }));
-                                  event.currentTarget.blur();
-                                }
-                              }}
                               onClick={(event) => event.stopPropagation()}
-                              className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 shadow-sm"
-                              title="Track capo"
-                              aria-label="Track capo"
-                            />
-                          </label>
-                        </div>
+                              className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 shadow-sm"
+                              title="Track tuning"
+                              aria-label="Track tuning"
+                            >
+                              {TUNING_PRESETS.map((preset) => (
+                                <option key={`${laneId}-tuning-${preset.id}`} value={preset.id}>
+                                  {preset.label}
+                                </option>
+                              ))}
+                            </select>
+                            <label className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
+                              Capo
+                              <input
+                                type="number"
+                                min={0}
+                                max={12}
+                                value={trackCapoDraftById[laneId] ?? String(tuning.capo)}
+                                onChange={(event) =>
+                                  handleLaneCapoDraftChange(laneId, event.target.value)
+                                }
+                                onBlur={() =>
+                                  commitLaneCapoDraft(laneId, tuning.presetId, tuning.capo)
+                                }
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.currentTarget.blur();
+                                  }
+                                  if (event.key === "Escape") {
+                                    setTrackCapoDraftById((prev) => ({
+                                      ...prev,
+                                      [laneId]: String(tuning.capo),
+                                    }));
+                                    event.currentTarget.blur();
+                                  }
+                                }}
+                                onClick={(event) => event.stopPropagation()}
+                                className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 shadow-sm"
+                                title="Track capo"
+                                aria-label="Track capo"
+                              />
+                            </label>
+                          </div>
+                        )}
                         <div className="mt-2 flex w-full flex-1 flex-col gap-2">
                           <div className="flex w-full min-w-0 items-center gap-1">
                             <input

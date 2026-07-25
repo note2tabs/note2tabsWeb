@@ -185,6 +185,12 @@ type ContextMenuState =
       y: number;
       kind: "bar";
       insertIndex: number;
+    }
+  | {
+      x: number;
+      y: number;
+      kind: "note";
+      targetFrame: number;
     };
 
 const DEFAULT_STRING_LABELS = ["E", "B", "G", "D", "A", "E"];
@@ -3605,7 +3611,7 @@ export default function GteWorkspace({
   const [quantizeSubdivisionInput, setQuantizeSubdivisionInput] = useState("4");
   const [quantizePreScale, setQuantizePreScale] = useState(1);
   const [quantizePreScaleInput, setQuantizePreScaleInput] = useState("1");
-  const [quantizeApplyToLength, setQuantizeApplyToLength] = useState(false);
+  const [quantizeApplyToLength, setQuantizeApplyToLength] = useState(true);
   const [quantizePreviewNotes, setQuantizePreviewNotes] = useState<Record<number, QuantizePreviewEntity>>({});
   const [quantizePreviewChords, setQuantizePreviewChords] = useState<Record<number, QuantizePreviewEntity>>({});
   const [quantizePreviewMaxEnd, setQuantizePreviewMaxEnd] = useState(0);
@@ -7420,6 +7426,34 @@ export default function GteWorkspace({
     const target = getPointerFrame(event.clientX, event.clientY);
     const targetFrame = target ? target.time : clamp(Math.round(playheadFrameRef.current), 0, timelineEnd);
     setContextMenu({ x: event.clientX, y: event.clientY, kind: "timeline", targetFrame });
+  };
+
+  const handleNoteContextMenu = (
+    note: Pick<EditorSnapshot["notes"][number], "id" | "startTime">,
+    event: ReactMouseEvent<HTMLButtonElement>
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!selectedNoteIds.includes(note.id)) {
+      setSelectedNoteIds([note.id]);
+      setSelectedChordIds([]);
+    }
+    setSelectedNoteEffectId(null);
+    setSelectedBarIndices([]);
+    setNoteMenuAnchor(null);
+    setNoteMenuNoteId(null);
+    setNoteMenuDraft(null);
+    setChordMenuAnchor(null);
+    setChordMenuChordId(null);
+    setChordMenuDraft(null);
+    const menuWidth = 256;
+    const menuHeight = Math.min(620, Math.max(240, window.innerHeight - 24));
+    setContextMenu({
+      x: clamp(event.clientX, 12, Math.max(12, window.innerWidth - menuWidth - 12)),
+      y: clamp(event.clientY, 12, Math.max(12, window.innerHeight - menuHeight - 12)),
+      kind: "note",
+      targetFrame: note.startTime,
+    });
   };
 
   const clearTouchHold = useCallback(() => {
@@ -12290,7 +12324,11 @@ export default function GteWorkspace({
       {contextMenu && (
         <div
           ref={contextMenuRef}
-          className="fixed z-[9999] w-36 rounded-md border border-slate-200 bg-white/95 py-1 text-xs shadow-lg backdrop-blur"
+          className={`fixed z-[9999] rounded-md border border-slate-200 bg-white/95 py-1 text-xs shadow-lg backdrop-blur ${
+            contextMenu.kind === "note"
+              ? "max-h-[calc(100vh-1.5rem)] w-64 overflow-y-auto"
+              : "w-36"
+          }`}
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onMouseDown={(event) => event.stopPropagation()}
         >
@@ -12353,6 +12391,195 @@ export default function GteWorkspace({
               >
                 Paste
               </button>
+              {contextMenu.kind === "note" && (
+                <>
+                  <div className="my-1 border-t border-slate-200" />
+                  <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    Notes &amp; chords
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleMakeChord();
+                      setContextMenu(null);
+                    }}
+                    disabled={chordizeCandidateCount < 2 || selectionActionsLocked}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Merge to Chord</span>
+                    <span className="text-[10px] text-slate-400">C</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (activeChordIds.length) {
+                        const chordIds = [...activeChordIds];
+                        void runMutation(
+                          async () => {
+                            const latestSnapshot = await disbandChordIds(chordIds);
+                            return latestSnapshot ? { snapshot: latestSnapshot } : {};
+                          },
+                          {
+                            localApply: (draft) => {
+                              chordIds.forEach((chordId) =>
+                                disbandChordInSnapshot(draft, chordId)
+                              );
+                            },
+                          }
+                        );
+                        setSelectedChordIds([]);
+                      }
+                      setContextMenu(null);
+                    }}
+                    disabled={activeChordIds.length === 0 || selectionActionsLocked}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Disband Chord</span>
+                    <span className="text-[10px] text-slate-400">Shift+L</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleAssignOptimals();
+                      setContextMenu(null);
+                    }}
+                    disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Optimize Notes</span>
+                    <span className="text-[10px] text-slate-400">O</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSnapSelectedNotesToKey();
+                      setContextMenu(null);
+                    }}
+                    disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    Snap to Key
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      activateQuantizeTool();
+                      setContextMenu(null);
+                    }}
+                    disabled={
+                      selectedNoteIds.length + selectedChordIds.length === 0 ||
+                      selectionActionsLocked
+                    }
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    Quantize
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleJoinSelectedNotes();
+                      setContextMenu(null);
+                    }}
+                    disabled={selectedNoteIds.length < 2 || selectionActionsLocked}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Merge Notes</span>
+                    <span className="text-[10px] text-slate-400">J</span>
+                  </button>
+                  <label className="flex items-center justify-between gap-3 px-3 py-1.5 text-slate-700">
+                    <span>Scale mode</span>
+                    <select
+                      data-scale-mode-select="true"
+                      value={scaleToolMode}
+                      onChange={(event) => {
+                        const nextMode = event.target.value;
+                        if (!isScaleToolMode(nextMode)) return;
+                        setScaleToolMode(nextMode);
+                        if (scaleToolActive) {
+                          applyScalePreview(scaleFactor, {
+                            mode: nextMode,
+                            syncInput: false,
+                          });
+                        }
+                      }}
+                      className="h-6 min-w-0 rounded border border-slate-200 bg-white px-1 text-[10px] text-slate-700"
+                    >
+                      <option value="length">Length</option>
+                      <option value="start">Start time</option>
+                      <option value="both">Start + length</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleScaleTool();
+                      setContextMenu(null);
+                    }}
+                    disabled={
+                      !scaleToolActive &&
+                      selectedNoteIds.length + selectedChordIds.length === 0
+                    }
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Scale</span>
+                    <span className="text-[10px] text-slate-400">S</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleSliceTool();
+                      setContextMenu(null);
+                    }}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100"
+                  >
+                    <span>Slicing Tool</span>
+                    <span className="text-[10px] text-slate-400">Shift+S</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (moveToolActive) {
+                        deactivateMoveTool();
+                      } else {
+                        activateMoveTool();
+                      }
+                      setContextMenu(null);
+                    }}
+                    disabled={
+                      !moveToolActive &&
+                      selectedNoteIds.length + selectedChordIds.length === 0
+                    }
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Move</span>
+                    <span className="text-[10px] text-slate-400">M</span>
+                  </button>
+
+                  <div className="my-1 border-t border-slate-200" />
+                  <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    Effects
+                  </div>
+                  {[
+                    ["Hammer/Pull", "H", 1],
+                    ["Slide", "L", 2],
+                    ["Bend", "B", 0],
+                  ].map(([label, shortcut, effectType]) => (
+                    <button
+                      key={`note-context-effect-${label}`}
+                      type="button"
+                      onClick={() => {
+                        handleAddNoteEffect(Number(effectType));
+                        setContextMenu(null);
+                      }}
+                      disabled={!canCreateNoteEffect}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                    >
+                      <span>{label}</span>
+                      <span className="text-[10px] text-slate-400">{shortcut}</span>
+                    </button>
+                  ))}
+                </>
+              )}
             </>
           )}
         </div>
@@ -13756,6 +13983,7 @@ export default function GteWorkspace({
                         key={`note-${note.id}-seg-${segment.rowIndex}-${idx}`}
                         type="button"
                         onMouseDown={(event) => {
+                          if (event.button !== 0) return;
                           if (mobileViewport) {
                             event.preventDefault();
                             event.stopPropagation();
@@ -13787,6 +14015,7 @@ export default function GteWorkspace({
                         onTouchMove={cancelTouchHoldOnMove}
                         onTouchEnd={() => clearTouchHold()}
                         onTouchCancel={() => clearTouchHold()}
+                        onContextMenu={(event) => handleNoteContextMenu(note, event)}
                         onClick={(event) => {
                           if (touchHoldTriggeredRef.current) {
                             touchHoldTriggeredRef.current = false;
