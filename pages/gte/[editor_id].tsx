@@ -3887,21 +3887,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const renderViewModeSwitch = (compact = false) => (
     <div
-      className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${
-        compact ? "w-full max-w-xs p-1" : "w-80 p-1.5"
+      className={`rounded-lg border border-slate-200 bg-slate-100 p-0.5 ${
+        compact ? "w-48" : "w-52"
       }`}
     >
-      <div className="px-2 pb-1 text-center text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-        Workspace view
-      </div>
       <div
-        className="relative grid grid-cols-2 rounded-xl bg-slate-100 p-1"
+        className="relative grid grid-cols-2"
         role="group"
         aria-label="Editor view"
       >
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute bottom-1 left-1 top-1 w-[calc(50%_-_0.25rem)] rounded-lg bg-slate-900 shadow-md transition-transform duration-300 ease-out ${
+          className={`pointer-events-none absolute inset-y-0 left-0 w-1/2 rounded-md bg-white shadow-sm ring-1 ring-slate-200/70 transition-transform duration-200 ease-out ${
             tabViewEnabled ? "translate-x-full" : "translate-x-0"
           }`}
         />
@@ -3909,29 +3906,20 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           type="button"
           onClick={() => setTabViewEnabled(false)}
           aria-pressed={!tabViewEnabled}
-          className={`relative z-10 flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors duration-300 ${
-            !tabViewEnabled ? "text-white" : "text-slate-500 hover:text-slate-800"
+          className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 ${
+            !tabViewEnabled ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
           }`}
         >
-          <span className="grid h-4 w-4 grid-cols-2 gap-0.5 rounded border border-current p-0.5" aria-hidden="true">
-            <span className="rounded-sm bg-current" />
-            <span className="rounded-sm bg-current" />
-          </span>
-          Edit canvas
+          Canvas
         </button>
         <button
           type="button"
           onClick={() => setTabViewEnabled(true)}
           aria-pressed={tabViewEnabled}
-          className={`relative z-10 flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors duration-300 ${
-            tabViewEnabled ? "text-white" : "text-slate-500 hover:text-slate-800"
+          className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 ${
+            tabViewEnabled ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
           }`}
         >
-          <span className="flex h-4 w-4 flex-col justify-around py-0.5" aria-hidden="true">
-            <span className="h-px w-full bg-current" />
-            <span className="h-px w-full bg-current" />
-            <span className="h-px w-full bg-current" />
-          </span>
           Tab view
         </button>
       </div>
