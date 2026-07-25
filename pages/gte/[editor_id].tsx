@@ -4551,7 +4551,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               <div className="mt-1 space-y-1">
                 <div
                   data-gte-floating-ui="true"
-                  className="gte-top-menu-bar flex flex-wrap items-center gap-0.5 border-y border-slate-200 py-0.5"
+                  className="gte-top-menu-bar relative flex flex-wrap items-center gap-0.5 border-y border-slate-200 py-0.5"
                 >
                   <details
                     className="group relative order-1"
@@ -4815,7 +4815,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>
                   </details>
 
-                  <div className="order-7 ml-auto mr-2 shrink-0">
+                  <div className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
                     {renderViewModeSwitch()}
                   </div>
 
@@ -5088,7 +5088,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>
                   </details>
 
-                  <div className="order-7 flex shrink-0 items-center gap-2">
+                  <div className="order-7 ml-auto flex shrink-0 items-center gap-2">
                     <button
                       type="button"
                       onClick={handleCanvasUndo}
