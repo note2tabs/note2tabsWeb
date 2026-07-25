@@ -59,6 +59,45 @@ import {
 const AUDIO_CONTEXT_RESUME_ERROR =
   "Your browser blocked audio playback. Tap Play again to allow sound.";
 
+const TOOL_HELP_SECTIONS = [
+  {
+    title: "Notes & chords",
+    tools: [
+      ["Merge to Chord", "Combines selected notes or chords into one chord."],
+      ["Disband Chord", "Turns the selected chord back into separate notes."],
+      ["Optimize Notes", "Finds easier string and fret positions for selected notes."],
+      ["Snap to Key", "Moves selected notes to the nearest notes in the detected key."],
+      ["Quantize", "Aligns selected notes or chords to a rhythmic grid."],
+      ["Merge Notes", "Joins selected notes on each string into longer notes."],
+      ["Scale", "Proportionally changes selected start times, lengths, or both."],
+      ["Slicing Tool", "Click directly inside a note or chord to split it at that point."],
+      ["Move", "Moves selected notes or chords together along the timeline."],
+    ],
+  },
+  {
+    title: "Effects",
+    tools: [
+      ["Hammer/Pull", "Connects selected notes with hammer-ons or pull-offs."],
+      ["Slide", "Connects selected notes with a slide."],
+      ["Bend", "Connects selected notes with a bend."],
+    ],
+  },
+  {
+    title: "Playing coordinates",
+    tools: [
+      ["Clean Playing-Coordinates", "Combines neighboring regions that use the same position."],
+      ["Cut", "Adds a boundary so playing coordinates can change at that point."],
+      ["Merge", "Removes the selected boundary and joins its neighboring regions."],
+    ],
+  },
+] as const;
+
+const TOOL_HELP = new Map<string, string>(
+  TOOL_HELP_SECTIONS.flatMap((section) =>
+    section.tools.map(([name, description]) => [name, description] as [string, string])
+  )
+);
+
 function resumeAudioContext(ctx: AudioContext): Promise<void> {
   try {
     return Promise.resolve(ctx.resume())
@@ -172,6 +211,14 @@ type Props = {
   mobileViewport?: boolean;
   mobileMode?: "canvas" | "edit";
 };
+
+type PendingSelectionTool =
+  | "quantize"
+  | "scale"
+  | "move"
+  | "hammer-pull"
+  | "slide"
+  | "bend";
 
 type ContextMenuState =
   | {
@@ -3598,6 +3645,7 @@ export default function GteWorkspace({
   }, [generatePlayingCoordinatesRequest, isActive]);
   const [exportFormat, setExportFormat] = useState<GteExportFormat>("txt");
   const [localToolbarOpen, setLocalToolbarOpen] = useState(false);
+  const [toolHelpOpen, setToolHelpOpen] = useState(false);
   const [tabPreviewOpen, setTabPreviewOpen] = useState(false);
   const [sliceToolActive, setSliceToolActive] = useState(false);
   const [sliceCursor, setSliceCursor] = useState<{ time: number; rowIndex: number } | null>(null);
@@ -3621,6 +3669,8 @@ export default function GteWorkspace({
   const [quantizePreviewChords, setQuantizePreviewChords] = useState<Record<number, QuantizePreviewEntity>>({});
   const [quantizePreviewMaxEnd, setQuantizePreviewMaxEnd] = useState(0);
   const [moveToolActive, setMoveToolActive] = useState(false);
+  const [pendingSelectionTool, setPendingSelectionTool] =
+    useState<PendingSelectionTool | null>(null);
   const [movePreviewNotes, setMovePreviewNotes] = useState<Record<number, QuantizePreviewEntity>>({});
   const [movePreviewChords, setMovePreviewChords] = useState<Record<number, QuantizePreviewEntity>>({});
   const [movePreviewMaxEnd, setMovePreviewMaxEnd] = useState(0);
@@ -6303,6 +6353,7 @@ export default function GteWorkspace({
     setCutToolActive((prev) => {
       const next = !prev;
       if (next) {
+        setPendingSelectionTool(null);
         setSliceToolActive(false);
         deactivateScaleTool();
       }
@@ -6314,6 +6365,7 @@ export default function GteWorkspace({
     setSliceToolActive((prev) => {
       const next = !prev;
       if (next) {
+        setPendingSelectionTool(null);
         setCutToolActive(false);
         deactivateScaleTool();
       }
@@ -6410,9 +6462,24 @@ export default function GteWorkspace({
     return true;
   };
 
-  const handleSliceAtTime = (sliceTime: number) => {
+  const handleSliceAtTime = (
+    sliceTime: number,
+    clickedTarget?: { type: "note" | "chord"; id: number }
+  ) => {
+    const noteIdsToSlice =
+      clickedTarget?.type === "note"
+        ? [clickedTarget.id]
+        : clickedTarget?.type === "chord"
+        ? []
+        : selectedNoteIds;
+    const chordIdsToSlice =
+      clickedTarget?.type === "chord"
+        ? [clickedTarget.id]
+        : clickedTarget?.type === "note"
+        ? []
+        : selectedChordIds;
     const notesToSlice = snapshot.notes
-      .filter((note) => selectedNoteIds.includes(note.id))
+      .filter((note) => noteIdsToSlice.includes(note.id))
       .map((note) => {
         const start = note.startTime;
         const end = note.startTime + note.length;
@@ -6442,7 +6509,7 @@ export default function GteWorkspace({
         } => Boolean(item)
       );
     const chordsToSlice = snapshot.chords
-      .filter((chord) => selectedChordIds.includes(chord.id))
+      .filter((chord) => chordIdsToSlice.includes(chord.id))
       .map((chord) => {
         const start = chord.startTime;
         const end = chord.startTime + chord.length;
@@ -7542,11 +7609,11 @@ export default function GteWorkspace({
       stringIndex: clamp(Math.round(stringIndex), 0, 5),
     });
     const shiftKey = Boolean(event.shiftKey);
-    if (sliceToolActive && !shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
+    if (sliceToolActive && !shiftKey) {
       multiDragMovedRef.current = true;
       const target = getPointerFrame(event.clientX, event.clientY);
       if (target) {
-        handleSliceAtTime(target.time);
+        handleSliceAtTime(target.time, { type: "note", id: noteId });
       }
       return;
     }
@@ -7623,10 +7690,10 @@ export default function GteWorkspace({
       stringIndex: clamp(Math.round(stringIndex), 0, 5),
     });
     const shiftKey = Boolean(event.shiftKey);
-    if (sliceToolActive && !shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
+    if (sliceToolActive && !shiftKey) {
       const target = getPointerFrame(event.clientX, event.clientY);
       if (target) {
-        handleSliceAtTime(target.time);
+        handleSliceAtTime(target.time, { type: "chord", id: chordId });
       }
       return;
     }
@@ -8430,6 +8497,60 @@ export default function GteWorkspace({
       selectedNoteIds,
     ]
   );
+
+  const pendingSelectionToolIsEffect =
+    pendingSelectionTool === "hammer-pull" ||
+    pendingSelectionTool === "slide" ||
+    pendingSelectionTool === "bend";
+  const pendingSelectionCount = pendingSelectionToolIsEffect
+    ? selectedNoteIds.length
+    : selectedNoteIds.length + selectedChordIds.length;
+  const canApplyPendingSelectionTool =
+    Boolean(pendingSelectionTool) &&
+    !selectionActionsLocked &&
+    (pendingSelectionToolIsEffect
+      ? selectedNoteIds.length >= 2 && activeChordIds.length === 0
+      : pendingSelectionCount > 0);
+  const pendingSelectionToolLabel =
+    pendingSelectionTool === "hammer-pull"
+      ? "Hammer/Pull"
+      : pendingSelectionTool
+      ? pendingSelectionTool.charAt(0).toUpperCase() + pendingSelectionTool.slice(1)
+      : "";
+  const directCanvasTool = sliceToolActive ? "Slice" : cutToolActive ? "Cut" : null;
+  const directCanvasToolHint = sliceToolActive
+    ? "Click directly where you want to split a note or chord."
+    : "Click the timeline where you want to add a playing-coordinate boundary.";
+
+  const applyPendingSelectionTool = useCallback(() => {
+    if (!pendingSelectionTool || !canApplyPendingSelectionTool) return;
+    const tool = pendingSelectionTool;
+    setPendingSelectionTool(null);
+    if (tool === "quantize") activateQuantizeTool();
+    if (tool === "scale") activateScaleTool();
+    if (tool === "move") activateMoveTool();
+    if (tool === "hammer-pull") handleAddNoteEffect(1);
+    if (tool === "slide") handleAddNoteEffect(2);
+    if (tool === "bend") handleAddNoteEffect(0);
+  }, [
+    activateMoveTool,
+    activateQuantizeTool,
+    activateScaleTool,
+    canApplyPendingSelectionTool,
+    handleAddNoteEffect,
+    pendingSelectionTool,
+  ]);
+
+  useEffect(() => {
+    if (!pendingSelectionTool) return;
+    const cancelPendingTool = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setPendingSelectionTool(null);
+    };
+    window.addEventListener("keydown", cancelPendingTool, true);
+    return () => window.removeEventListener("keydown", cancelPendingTool, true);
+  }, [pendingSelectionTool]);
 
   const handleDeleteNoteEffect = useCallback(() => {
     if (!selectedNoteEffect) return;
@@ -11715,6 +11836,17 @@ export default function GteWorkspace({
     const shortcutClass =
       "order-last ml-auto shrink-0 text-[10px] font-medium opacity-60";
 
+    const renderToolHelp = (name: string) => {
+      if (!toolHelpOpen) return null;
+      const description = TOOL_HELP.get(name);
+      if (!description) return null;
+      return (
+        <p className="-mt-1 ml-2 mr-1 border-l-2 border-sky-200 py-0.5 pl-2 pr-1 text-[9px] leading-3.5 text-slate-400">
+          {description}
+        </p>
+      );
+    };
+
     return (
       <div
         ref={toolbarRef}
@@ -11727,24 +11859,56 @@ export default function GteWorkspace({
         onMouseDown={(event) => event.stopPropagation()}
         onTouchStart={(event) => event.stopPropagation()}
       >
-        {!topMenu && <div className="mb-2 flex items-start justify-between gap-2">
+        <div className="mb-1 flex items-start justify-between gap-2">
           <div>
-            <div className="text-[11px] font-bold text-slate-800">Toolbar</div>
-            {inlineMobile ? (
+            {!topMenu ? <div className="text-[11px] font-bold text-slate-800">Toolbar</div> : null}
+            {!topMenu && inlineMobile ? (
               <div className="text-[9px] text-slate-400">
                 Edit notes, chords and playing coordinates
               </div>
             ) : null}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setToolbarOpen(false)}
-            className="grid h-6 w-6 place-items-center rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
-          >
-            ×
-          </button>
-        </div>}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setToolHelpOpen((open) => !open)}
+              aria-expanded={toolHelpOpen}
+              aria-label={toolHelpOpen ? "Hide tool explanations" : "Explain the editor tools"}
+              title="What do these tools do?"
+              className={`flex h-6 items-center justify-center rounded-full border text-[10px] font-semibold shadow-sm transition-all ${
+                toolHelpOpen
+                  ? "gap-1 border-sky-300 bg-sky-50 px-2 text-sky-700"
+                  : "w-6 border-slate-200 bg-white font-serif text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+              }`}
+            >
+              <span className="font-serif font-bold">i</span>
+              {toolHelpOpen ? <span>Help on</span> : null}
+            </button>
+            {!topMenu ? (
+              <button
+                type="button"
+                onClick={() => setToolbarOpen(false)}
+                aria-label="Close toolbar"
+                className="grid h-6 w-6 place-items-center rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {toolHelpOpen ? (
+          <div className="rounded-md border border-sky-100 bg-sky-50/70 px-2 py-1 text-[9px] leading-3.5 text-sky-700">
+            Help is on — short explanations now appear beneath every tool.
+          </div>
+        ) : null}
+
+        {pendingSelectionTool && (
+          <div className="rounded-md bg-sky-50 px-2 py-1.5 text-[10px] leading-4 text-sky-800">
+            {pendingSelectionToolLabel} is ready. Select everything you want to change, then choose Apply.
+          </div>
+        )}
 
         <fieldset
           disabled={editMenuDisabled}
@@ -11775,6 +11939,7 @@ export default function GteWorkspace({
                 <span className={shortcutClass}>C</span>
                 Merge to Chord
               </button>
+              {renderToolHelp("Merge to Chord")}
 
               <button
                 type="button"
@@ -11810,6 +11975,7 @@ export default function GteWorkspace({
                 <span className={shortcutClass}>Shift+L</span>
                 Disband Chord
               </button>
+              {renderToolHelp("Disband Chord")}
 
               <button
                 type="button"
@@ -11827,6 +11993,7 @@ export default function GteWorkspace({
                 <span className={shortcutClass}>O</span>
                 Optimize Notes
               </button>
+              {renderToolHelp("Optimize Notes")}
 
               <button
                 type="button"
@@ -11841,25 +12008,37 @@ export default function GteWorkspace({
               >
                 Snap to Key
               </button>
+              {renderToolHelp("Snap to Key")}
 
               <button
                 type="button"
                 data-gte-editor-control="true"
-                onClick={activateQuantizeTool}
-                disabled={selectedNoteIds.length + selectedChordIds.length === 0 || selectionActionsLocked}
+                onClick={() => {
+                  if (selectedNoteIds.length + selectedChordIds.length > 0) {
+                    setPendingSelectionTool(null);
+                    activateQuantizeTool();
+                  } else {
+                    setPendingSelectionTool((tool) => (tool === "quantize" ? null : "quantize"));
+                    setError(null);
+                  }
+                }}
+                disabled={selectionActionsLocked}
                 title={
                   selectionActionsLocked
                     ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Quantize selected notes/chords"
+                    : selectedNoteIds.length + selectedChordIds.length > 0
+                    ? "Quantize selected notes/chords"
+                    : "Choose Quantize, then select notes or chords"
                 }
                 className={
-                  quantizeDialogOpen
+                  quantizeDialogOpen || pendingSelectionTool === "quantize"
                     ? `${activeButtonClass} bg-sky-600`
                     : textButtonClass
                 }
               >
                 Quantize
               </button>
+              {renderToolHelp("Quantize")}
 
               <button
                 type="button"
@@ -11877,6 +12056,7 @@ export default function GteWorkspace({
                 <span className={shortcutClass}>J</span>
                 Merge Notes
               </button>
+              {renderToolHelp("Merge Notes")}
 
               <div className="grid grid-cols-1 gap-1.5">
                 <select
@@ -11906,14 +12086,25 @@ export default function GteWorkspace({
 
                 <button
                   type="button"
-                  onClick={toggleScaleTool}
-                  disabled={
-                    !scaleToolActive &&
-                    selectedNoteIds.length + selectedChordIds.length === 0
+                  onClick={() => {
+                    if (scaleToolActive) {
+                      toggleScaleTool();
+                    } else if (selectedNoteIds.length + selectedChordIds.length > 0) {
+                      setPendingSelectionTool(null);
+                      toggleScaleTool();
+                    } else {
+                      setPendingSelectionTool((tool) => (tool === "scale" ? null : "scale"));
+                      setError(null);
+                    }
+                  }}
+                  disabled={selectionActionsLocked}
+                  title={
+                    selectedNoteIds.length + selectedChordIds.length > 0
+                      ? "Scale selected notes/chords - Shortcut: S"
+                      : "Choose Scale, then select notes or chords - Shortcut: S"
                   }
-                  title="Scale - Shortcut: S"
                   className={
-                    scaleToolActive
+                    scaleToolActive || pendingSelectionTool === "scale"
                       ? `${activeButtonClass} bg-amber-500`
                       : iconButtonClass
                   }
@@ -11930,6 +12121,7 @@ export default function GteWorkspace({
                   </svg>
                   Scale
                 </button>
+                {renderToolHelp("Scale")}
               </div>
 
               <button
@@ -11951,23 +12143,29 @@ export default function GteWorkspace({
                 />
                 Slicing Tool
               </button>
+              {renderToolHelp("Slicing Tool")}
 
               <button
                 type="button"
                 onClick={() => {
                   if (moveToolActive) {
                     deactivateMoveTool();
-                  } else {
+                  } else if (selectedNoteIds.length + selectedChordIds.length > 0) {
+                    setPendingSelectionTool(null);
                     activateMoveTool();
+                  } else {
+                    setPendingSelectionTool((tool) => (tool === "move" ? null : "move"));
+                    setError(null);
                   }
                 }}
-                disabled={
-                  !moveToolActive &&
-                  selectedNoteIds.length + selectedChordIds.length === 0
+                disabled={selectionActionsLocked}
+                title={
+                  selectedNoteIds.length + selectedChordIds.length > 0
+                    ? "Move selected notes/chords with the mouse - Shortcut: M"
+                    : "Choose Move, then select notes or chords - Shortcut: M"
                 }
-                title="Move selected notes/chords with the mouse - Shortcut: M"
                 className={
-                  moveToolActive
+                  moveToolActive || pendingSelectionTool === "move"
                     ? `${activeButtonClass} bg-slate-700`
                     : iconButtonClass
                 }
@@ -11983,6 +12181,7 @@ export default function GteWorkspace({
                 </svg>
                 Move
               </button>
+              {renderToolHelp("Move")}
             </div>
           </div>
 
@@ -11992,53 +12191,78 @@ export default function GteWorkspace({
               <button
                 type="button"
                 onClick={() => {
-                  handleAddNoteEffect(1);
+                  if (canCreateNoteEffect) {
+                    setPendingSelectionTool(null);
+                    handleAddNoteEffect(1);
+                  } else {
+                    setPendingSelectionTool((tool) =>
+                      tool === "hammer-pull" ? null : "hammer-pull"
+                    );
+                    setError(null);
+                  }
                 }}
-                disabled={!canCreateNoteEffect}
+                disabled={selectionActionsLocked || activeChordIds.length > 0}
                 title={
                   selectionActionsLocked
                     ? "Disabled while notes/chords are selected in multiple tracks"
                     : "Connect selected notes with hammer-ons or pull-offs - Shortcut: H"
                 }
-                className={textButtonClass}
+                className={
+                  pendingSelectionTool === "hammer-pull" ? activeButtonClass : textButtonClass
+                }
               >
                 <span className={shortcutClass}>H</span>
                 Hammer/Pull
               </button>
+              {renderToolHelp("Hammer/Pull")}
 
               <button
                 type="button"
                 onClick={() => {
-                  handleAddNoteEffect(2);
+                  if (canCreateNoteEffect) {
+                    setPendingSelectionTool(null);
+                    handleAddNoteEffect(2);
+                  } else {
+                    setPendingSelectionTool((tool) => (tool === "slide" ? null : "slide"));
+                    setError(null);
+                  }
                 }}
-                disabled={!canCreateNoteEffect}
+                disabled={selectionActionsLocked || activeChordIds.length > 0}
                 title={
                   selectionActionsLocked
                     ? "Disabled while notes/chords are selected in multiple tracks"
                     : "Connect selected notes with slides - Shortcut: L"
                 }
-                className={textButtonClass}
+                className={pendingSelectionTool === "slide" ? activeButtonClass : textButtonClass}
               >
                 <span className={shortcutClass}>L</span>
                 Slide
               </button>
+              {renderToolHelp("Slide")}
 
               <button
                 type="button"
                 onClick={() => {
-                  handleAddNoteEffect(0);
+                  if (canCreateNoteEffect) {
+                    setPendingSelectionTool(null);
+                    handleAddNoteEffect(0);
+                  } else {
+                    setPendingSelectionTool((tool) => (tool === "bend" ? null : "bend"));
+                    setError(null);
+                  }
                 }}
-                disabled={!canCreateNoteEffect}
+                disabled={selectionActionsLocked || activeChordIds.length > 0}
                 title={
                   selectionActionsLocked
                     ? "Disabled while notes/chords are selected in multiple tracks"
                     : "Connect selected notes with bends - Shortcut: B"
                 }
-                className={textButtonClass}
+                className={pendingSelectionTool === "bend" ? activeButtonClass : textButtonClass}
               >
                 <span className={shortcutClass}>B</span>
                 Bend
               </button>
+              {renderToolHelp("Bend")}
             </div>
           </div>
 
@@ -12056,6 +12280,7 @@ export default function GteWorkspace({
               >
                 Clean Playing-Coordinates
               </button>
+              {renderToolHelp("Clean Playing-Coordinates")}
 
               <button
                 type="button"
@@ -12077,6 +12302,7 @@ export default function GteWorkspace({
                 />
                 Cut
               </button>
+              {renderToolHelp("Cut")}
 
               <button
                 type="button"
@@ -12088,6 +12314,7 @@ export default function GteWorkspace({
               >
                 Merge
               </button>
+              {renderToolHelp("Merge")}
             </div>
           </div>
         </div>
@@ -12178,6 +12405,97 @@ export default function GteWorkspace({
       {editMenuPortalTarget
         ? createPortal(renderEditMenuPanel(), editMenuPortalTarget)
         : null}
+      {pendingSelectionTool && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl border border-sky-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
+          role="toolbar"
+          aria-label={`${pendingSelectionToolLabel} selection`}
+        >
+          <span className="whitespace-nowrap text-xs text-slate-600">
+            <strong className="text-slate-900">{pendingSelectionToolLabel}</strong>
+            {" · "}
+            {pendingSelectionCount} selected
+          </span>
+          <button
+            type="button"
+            onClick={() => setPendingSelectionTool(null)}
+            className="rounded-md px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={applyPendingSelectionTool}
+            disabled={!canApplyPendingSelectionTool}
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+            title={
+              pendingSelectionToolIsEffect
+                ? "Select at least two notes"
+                : "Select at least one note or chord"
+            }
+          >
+            Apply
+          </button>
+        </div>
+      )}
+      {directCanvasTool && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-indigo-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
+          role="toolbar"
+          aria-label={`${directCanvasTool} tool`}
+        >
+          <span className="min-w-0 text-xs text-slate-600">
+            <strong className="text-slate-900">{directCanvasTool}</strong>
+            <span className="hidden sm:inline"> · {directCanvasToolHint}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              if (sliceToolActive) {
+                setSliceToolActive(false);
+                setSliceCursor(null);
+              }
+              if (cutToolActive) {
+                setCutToolActive(false);
+                setCutCursor(null);
+              }
+            }}
+            className="shrink-0 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
+            title="Return to normal editing (Escape)"
+          >
+            Done
+          </button>
+        </div>
+      )}
+      {sliceToolActive && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-indigo-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
+          role="toolbar"
+          aria-label="Slice mode"
+        >
+          <span className="whitespace-nowrap text-xs text-slate-600">
+            <strong className="text-slate-900">Slice mode</strong>
+            {" · "}
+            Click a note where you want to split it
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setSliceToolActive(false);
+              setSliceCursor(null);
+            }}
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
+          >
+            Done
+          </button>
+        </div>
+      )}
       {scaleToolActive && scaleHudPosition && (
         <div
           ref={scaleHudRef}
@@ -12220,13 +12538,18 @@ export default function GteWorkspace({
           data-gte-floating-ui="true"
           data-gte-editor-control="true"
           data-quantize-dialog="true"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gte-quantize-dialog-title"
           className="fixed left-1/2 top-1/2 z-[10000] w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-sky-200 bg-white p-3 shadow-xl shadow-slate-900/15"
           onMouseDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="m-0 text-sm font-semibold text-slate-900">Quantize notes</h2>
+              <h2 id="gte-quantize-dialog-title" className="m-0 text-sm font-semibold text-slate-900">
+                Quantize notes
+              </h2>
               <p className="mt-1 text-[11px] leading-4 text-slate-500">
                 Preview selected notes against beat subdivisions.
               </p>
@@ -12666,14 +12989,12 @@ export default function GteWorkspace({
         >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
             {mobileViewport ? (
-              <div className="pointer-events-auto flex w-full items-center gap-2">
-                <div className="flex shrink-0 flex-col gap-1">
-                  {renderDefaultNoteLengthControl(true)}
-                  {renderCursorSizeControl(true)}
-                </div>
+              <div className="pointer-events-auto flex w-full items-center justify-center">
               <div
                 data-gte-floating-ui="true"
-                className="flex min-w-0 flex-1 items-center justify-between gap-1 rounded-2xl border border-slate-200 bg-white/96 px-2 py-2 text-slate-700 shadow-lg backdrop-blur"
+                className="flex w-full max-w-sm items-center justify-around gap-1 rounded-2xl border border-slate-200 bg-white/96 px-2 py-2 text-slate-700 shadow-lg backdrop-blur"
+                role="toolbar"
+                aria-label="Playback controls"
               >
                 <button
                   type="button"
@@ -13111,7 +13432,11 @@ export default function GteWorkspace({
       )}
 
       {error && isActive && (
-        <div className="fixed bottom-4 right-4 z-[10050] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-rose-300 bg-rose-50/95 px-3 py-2 text-sm text-rose-800 shadow-lg backdrop-blur">
+        <div
+          className="fixed bottom-4 right-4 z-[10050] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-rose-300 bg-rose-50/95 px-3 py-2 text-sm text-rose-800 shadow-lg backdrop-blur"
+          role="alert"
+          aria-live="assertive"
+        >
           {error}
         </div>
       )}
@@ -13122,10 +13447,21 @@ export default function GteWorkspace({
           className="fixed inset-0 z-[10060] flex items-center justify-center bg-slate-900/35 px-4"
           onMouseDown={(event) => event.stopPropagation()}
           onTouchStart={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setShowGenerateCutsConfirm(false);
+          }}
         >
-          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
-            <h2 className="text-base font-semibold text-slate-900">Generate playing coordinates?</h2>
-            <p className="mt-2 text-sm text-slate-600">
+          <div
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="generate-coordinates-dialog-title"
+            aria-describedby="generate-coordinates-dialog-description"
+          >
+            <h2 id="generate-coordinates-dialog-title" className="text-base font-semibold text-slate-900">
+              Generate playing coordinates?
+            </h2>
+            <p id="generate-coordinates-dialog-description" className="mt-2 text-sm text-slate-600">
               This will replace the current playing coordinates on this track.
             </p>
             <div className="mt-4 flex justify-end gap-2">
@@ -13133,6 +13469,7 @@ export default function GteWorkspace({
                 type="button"
                 className="button-secondary button-small"
                 onClick={() => setShowGenerateCutsConfirm(false)}
+                autoFocus
               >
                 Cancel
               </button>
