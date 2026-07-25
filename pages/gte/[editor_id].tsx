@@ -13,6 +13,7 @@ import { getServerSession } from "next-auth/next";
 import { useSession } from "next-auth/react";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
+import dynamic from "next/dynamic";
 import { buildLaneEditorRef, gteApi } from "../../lib/gteApi";
 import {
   PLAYBACK_SPEED_OPTIONS,
@@ -39,8 +40,9 @@ import {
 import { buildDiscreteSlideSteps } from "../../lib/gteSlidePlayback";
 import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
-import GteWorkspace, { getChordEditorMidiNotes } from "../../components/GteWorkspace";
+import { getChordEditorMidiNotes } from "../../lib/gteChordEditor";
 import GteFileImportButton from "../../components/GteFileImportButton";
+import { EditorLoadingState } from "../../components/EditorLoadingState";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
   buildGteExportFile,
@@ -66,6 +68,12 @@ import {
   recordGtePerfMeasure,
   useGteRenderInstrumentation,
 } from "../../lib/gtePerformanceDiagnostics";
+
+const GteWorkspace = dynamic(() => import("../../components/GteWorkspace"), {
+  loading: () => (
+    <div className="gte-workspace-loading" role="status" aria-label="Loading editor controls" />
+  ),
+});
 
 type Props = {
   editorId: string;
@@ -151,6 +159,12 @@ const MOBILE_EDITOR_BREAKPOINT_PX = 768;
 const GTE_GUEST_CANVAS_STORAGE_KEY = "note2tabs:gte:guest-canvas:v1";
 const AUDIO_CONTEXT_RESUME_ERROR =
   "Your browser blocked audio playback. Tap Play again to allow sound.";
+
+const serializeForInlineScript = (value: string) =>
+  JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026");
 
 function resumeAudioContext(ctx: AudioContext): Promise<void> {
   try {
@@ -3931,8 +3945,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     </div>
   );
 
+  const bootstrapEditorPath = `${
+    isGuestMode ? "/api/gte-guest" : "/api/gte"
+  }/editors/${encodeURIComponent(editorId)}`;
+  const bootstrapEditorScript = `(()=>{const editorId=${serializeForInlineScript(
+    editorId
+  )};if(window.__note2tabsEditorBootstrap?.editorId===editorId)return;window.__note2tabsEditorBootstrap={editorId,promise:fetch(${serializeForInlineScript(
+    bootstrapEditorPath
+  )},{credentials:"same-origin"}).then(async response=>({ok:response.ok,status:response.status,text:await response.text()})).catch(error=>({ok:false,status:0,text:error instanceof Error?error.message:"Request failed"}))};})();`;
+
   return (
     <>
+      <script dangerouslySetInnerHTML={{ __html: bootstrapEditorScript }} />
       <NoIndexHead title="Guitar Tab Editor Workspace | Note2Tabs" canonicalPath={`/gte/${editorId}`} />
       <main
         className={`page page-tight ${
@@ -5996,18 +6020,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         )}
         {loading && !canvas && (
-          <div className="gte-editor-loading" role="status" aria-live="polite">
-            <div className="flex flex-col items-center gap-3">
-              <span
-                className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700"
-                aria-hidden="true"
-              />
-              <div className="grid gap-1">
-                <strong>Preparing your editor…</strong>
-                <span className="muted text-small">Loading tracks, controls, and playback.</span>
-              </div>
-            </div>
-          </div>
+          <EditorLoadingState />
         )}
         {error && (
           <div className="error flex flex-wrap items-center justify-between gap-3" role="alert">
