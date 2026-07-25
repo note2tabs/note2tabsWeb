@@ -3906,7 +3906,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           type="button"
           onClick={() => setTabViewEnabled(false)}
           aria-pressed={!tabViewEnabled}
-          className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 ${
+          className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
             !tabViewEnabled ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
           }`}
         >
@@ -3916,7 +3916,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           type="button"
           onClick={() => setTabViewEnabled(true)}
           aria-pressed={tabViewEnabled}
-          className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 ${
+          className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
             tabViewEnabled ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
           }`}
         >
@@ -4031,7 +4031,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           disabled={exportingTrack || !canvas?.editors.length}
                           aria-expanded={exportMenuOpen}
                         >
-                          <span>{exportingTrack ? "Exporting..." : "Export…"}</span>
+                          <span>{exportingTrack ? "Exporting..." : "Export"}</span>
                           <span className="text-slate-400" aria-hidden="true">⌄</span>
                         </button>
                         {exportMenuOpen && (
@@ -4058,7 +4058,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           {savingCanvas ? "Saving..." : "Save"}
                         </button>
                       </div>
-                      <div className="mt-3 text-xs text-slate-500">{saveStatus}</div>
+                      <div className="mt-3 text-xs text-slate-500" role="status" aria-live="polite">
+                        {saveStatus}
+                      </div>
                       {isGuestMode && (
                         <div className="mt-2 text-xs text-slate-500">
                           This draft stays in this browser until you save it to your account.
@@ -4208,7 +4210,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               setBpmDraft(formatBpm(next));
                               scheduleBpmCommit(next);
                             }}
-                            className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
+                            className="flex h-6 w-8 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
                             aria-label="Increase BPM"
                           >
                             &#9650;
@@ -4227,7 +4229,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               setBpmDraft(formatBpm(next));
                               scheduleBpmCommit(next);
                             }}
-                            className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
+                            className="flex h-6 w-8 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
                             aria-label="Decrease BPM"
                           >
                             &#9660;
@@ -4336,7 +4338,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>
                   </details>
                   <div className="flex min-h-[1.25rem] flex-wrap items-center gap-3 text-xs">
-                    <span className="muted">{saveStatus}</span>
+                    <span className="muted" role="status" aria-live="polite">{saveStatus}</span>
                     {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
                     {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
                     {(timeSignatureSaving || timeSignatureError) && (
@@ -4599,7 +4601,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               : "cursor-pointer text-slate-700"
                           }`}
                         >
-                          <span>{exportingTrack ? "Exporting..." : "Export…"}</span>
+                          <span>{exportingTrack ? "Exporting..." : "Export"}</span>
                           <span aria-hidden="true">›</span>
                         </summary>
                         <div className="absolute left-full top-0 z-[10001] min-w-44 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
@@ -5113,7 +5115,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
                       </svg>
                     </button>
-                    <span className="text-xs text-slate-500">{saveStatus}</span>
+                    <span className="text-xs text-slate-500" role="status" aria-live="polite">
+                      {saveStatus}
+                    </span>
                     {isGuestMode ? (
                       <Link href="/" className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
                         Back home
@@ -5212,7 +5216,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               setBpmDraft(formatBpm(next));
                               scheduleBpmCommit(next);
                             }}
-                            className="flex h-[15px] w-5 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
+                            className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[9px] leading-none text-slate-600 hover:bg-slate-50"
                             title="Increase BPM"
                             aria-label="Increase BPM"
                           >
@@ -5232,7 +5236,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               setBpmDraft(formatBpm(next));
                               scheduleBpmCommit(next);
                             }}
-                            className="flex h-[15px] w-5 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[9px] leading-none text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                             title="Decrease BPM"
                             aria-label="Decrease BPM"
                             disabled={(normalizeBpm(bpmDraft) ?? 1) <= 1}
@@ -5953,23 +5957,66 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         </div>
         )}
         {isGuestMode && !isMobileEditMode && (
-          <div className="notice">
-            You are working without an account right now. This draft stays in this browser until you save it to your library.
+          <div className="notice flex flex-wrap items-center justify-between gap-3">
+            <span>
+              <strong>Guest draft.</strong> It is saved in this browser only.
+            </span>
+            {session?.user?.id ? (
+              <button
+                type="button"
+                onClick={() => void router.push(saveToAccountPath)}
+                className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-50"
+              >
+                Save to account
+              </button>
+            ) : (
+              <Link
+                href={signupSaveHref}
+                className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-50"
+              >
+                Save to account
+              </Link>
+            )}
           </div>
         )}
         {loading && !canvas && (
           <div className="gte-editor-loading" role="status" aria-live="polite">
-            <div className="stack-tight">
-              <strong>Loading your editor…</strong>
-              <span className="muted text-small">Preparing tracks and controls.</span>
+            <div className="flex flex-col items-center gap-3">
+              <span
+                className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700"
+                aria-hidden="true"
+              />
+              <div className="grid gap-1">
+                <strong>Preparing your editor…</strong>
+                <span className="muted text-small">Loading tracks, controls, and playback.</span>
+              </div>
             </div>
           </div>
         )}
-        {error && <div className="error">{error}</div>}
-        {saveError && <div className="error">{saveError}</div>}
+        {error && (
+          <div className="error flex flex-wrap items-center justify-between gap-3" role="alert">
+            <span>{error}</span>
+            {!canvas && !loading && (
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={() => {
+                  if (isGuestMode) {
+                    router.reload();
+                  } else {
+                    void loadEditor();
+                  }
+                }}
+              >
+                Try again
+              </button>
+            )}
+          </div>
+        )}
+        {saveError && <div className="error" role="alert">{saveError}</div>}
         {canvas && (
           <div
-            className={`gte-editor-stage stack min-w-0 overflow-x-hidden ${
+            className={`gte-editor-stage stack min-w-0 content-start overflow-x-hidden ${
               isMobileEditMode ? "gte-editor-stage--mobile-edit flex-1 min-h-0 space-y-0" : "space-y-2"
             }`}
           >
@@ -6359,6 +6406,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                 className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600"
                                 title="Track options"
                                 aria-label="Track options"
+                                aria-expanded={openTrackMenuId === laneId}
                               >
                                 <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                                   <circle cx="12" cy="5" r="1.8" />
@@ -6545,15 +6593,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     ) : (
                     <div className="flex flex-col gap-3 lg:flex-row">
                       <aside
-                        className="flex w-full shrink-0 flex-col rounded-xl border border-slate-200 bg-white/90 p-2 shadow-sm lg:w-28 lg:self-stretch"
+                        className="flex w-full shrink-0 flex-col rounded-xl border border-slate-200 bg-white/90 p-2.5 shadow-sm lg:w-36 lg:self-stretch"
                         data-track-reorder-block="true"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            Track
+                          <span className="text-xs font-semibold text-slate-700">
+                            Track {index + 1}
                           </span>
-                          <span className="text-[11px] font-semibold text-slate-600">
-                            Bars: {laneBarCount}
+                          <span className="text-[10px] font-medium text-slate-500">
+                            {isChordLane(lane) ? "Chords" : "Tab"} · {laneBarCount} bars
                           </span>
                         </div>
                         <div className="mt-2 min-w-0">
@@ -6564,7 +6612,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               event.currentTarget.blur();
                             }}
                             onClick={(event) => event.stopPropagation()}
-                            className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 shadow-sm"
+                            className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 shadow-sm"
                             title="Track sound"
                             aria-label="Track sound"
                           >
@@ -6583,7 +6631,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                 handleLaneTuningChange(laneId, event.target.value, tuning.capo)
                               }
                               onClick={(event) => event.stopPropagation()}
-                              className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 shadow-sm"
+                              className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 shadow-sm"
                               title="Track tuning"
                               aria-label="Track tuning"
                             >
@@ -6628,6 +6676,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         )}
                         <div className="mt-2 flex w-full flex-1 flex-col gap-2">
                           <div className="flex w-full min-w-0 items-center gap-1">
+                            <span className="w-6 shrink-0 text-[10px] font-medium text-slate-500">Vol</span>
                             <input
                               type="range"
                               min={0}
@@ -6640,11 +6689,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               title="Track volume"
                               aria-label="Track volume"
                             />
-                            <div className="w-5 shrink-0 text-right text-[10px] font-medium text-slate-500">
+                            <div className="w-7 shrink-0 text-right text-[10px] font-medium text-slate-500">
                               {Math.round(trackVolume * 100)}%
                             </div>
                           </div>
                           <div className="flex w-full min-w-0 items-center gap-1">
+                            <span className="w-6 shrink-0 text-[10px] font-medium text-slate-500">Pan</span>
                             <input
                               type="range"
                               min={-1}
@@ -6657,7 +6707,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               title="Track pan"
                               aria-label="headset direction (L/R)"
                             />
-                            <div className="w-5 shrink-0 text-right text-[10px] font-medium text-slate-500">
+                            <div className="w-7 shrink-0 text-right text-[10px] font-medium text-slate-500">
                               {trackPan < -0.05
                                 ? `L${Math.round(Math.abs(trackPan) * 100)}`
                                 : trackPan > 0.05
@@ -6720,9 +6770,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                   event.stopPropagation();
                                   setOpenTrackMenuId((prev) => (prev === laneId ? null : laneId));
                                 }}
-                                className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                                 title="Track options"
                                 aria-label="Track options"
+                                aria-expanded={openTrackMenuId === laneId}
                               >
                                 <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                                   <circle cx="12" cy="5" r="1.8" />
@@ -6876,18 +6927,25 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 <button
                   type="button"
                   onClick={() => setAddTrackMenuOpen((open) => !open)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 shadow-sm transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={addingLane}
                   title={addingLane ? "Adding track..." : "Add track"}
                   aria-label={addingLane ? "Adding track" : "Add track"}
                   aria-expanded={addTrackMenuOpen}
+                  aria-haspopup="menu"
                 >
-                  +
+                  <span className="text-base leading-none" aria-hidden="true">+</span>
+                  <span>{addingLane ? "Adding…" : "Add track"}</span>
                 </button>
                 {addTrackMenuOpen && (
-                  <div className="absolute bottom-11 z-30 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
+                  <div
+                    className="absolute bottom-11 z-30 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-xl"
+                    role="menu"
+                    aria-label="Add track"
+                  >
                     <button
                       type="button"
+                      role="menuitem"
                       className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
                       onClick={() => void handleAddLane("tab")}
                       disabled={addingLane}
@@ -6897,6 +6955,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </button>
                     <button
                       type="button"
+                      role="menuitem"
                       className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
                       onClick={() => void handleAddLane("chords")}
                       disabled={addingLane}
@@ -6912,7 +6971,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         )}
 
         {confirmDeleteTrackId && (
-          <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/30 px-4">
+          <div
+            className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/30 px-4"
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && !deletingLaneId) setConfirmDeleteTrackId(null);
+            }}
+          >
             <div
               className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl"
               role="alertdialog"
@@ -6932,6 +6996,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   className="button-secondary button-small"
                   onClick={() => setConfirmDeleteTrackId(null)}
                   disabled={Boolean(deletingLaneId)}
+                  autoFocus
                 >
                   Cancel
                 </button>
@@ -6949,7 +7014,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         )}
 
         {pendingLaneTuningChange && (
-          <div className="fixed inset-0 z-[180] flex items-center justify-center bg-slate-900/35 px-4">
+          <div
+            className="fixed inset-0 z-[180] flex items-center justify-center bg-slate-900/35 px-4"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") closeLaneTuningPrompt();
+            }}
+          >
             <div
               className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl"
               role="dialog"
@@ -6969,6 +7039,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   type="button"
                   className="button-secondary button-small"
                   onClick={closeLaneTuningPrompt}
+                  autoFocus
                 >
                   Cancel
                 </button>
@@ -7003,6 +7074,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             aria-labelledby="find-key-dialog-title"
             className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-2xl"
             onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setFindKeyDialogOpen(false);
+            }}
           >
             <div id="find-key-dialog-title" className="text-sm font-semibold text-slate-900">
               This action will find the best fitting key and assign it to the editor. 
@@ -7013,6 +7087,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 type="button"
                 onClick={() => setFindKeyDialogOpen(false)}
                 className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                autoFocus
               >
                 Cancel
               </button>

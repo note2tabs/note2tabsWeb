@@ -13219,7 +13219,11 @@ export default function GteWorkspace({
       )}
 
       {error && isActive && (
-        <div className="fixed bottom-4 right-4 z-[10050] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-rose-300 bg-rose-50/95 px-3 py-2 text-sm text-rose-800 shadow-lg backdrop-blur">
+        <div
+          className="fixed bottom-4 right-4 z-[10050] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-rose-300 bg-rose-50/95 px-3 py-2 text-sm text-rose-800 shadow-lg backdrop-blur"
+          role="alert"
+          aria-live="assertive"
+        >
           {error}
         </div>
       )}
@@ -13230,10 +13234,21 @@ export default function GteWorkspace({
           className="fixed inset-0 z-[10060] flex items-center justify-center bg-slate-900/35 px-4"
           onMouseDown={(event) => event.stopPropagation()}
           onTouchStart={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setShowGenerateCutsConfirm(false);
+          }}
         >
-          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
-            <h2 className="text-base font-semibold text-slate-900">Generate playing coordinates?</h2>
-            <p className="mt-2 text-sm text-slate-600">
+          <div
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="generate-coordinates-dialog-title"
+            aria-describedby="generate-coordinates-dialog-description"
+          >
+            <h2 id="generate-coordinates-dialog-title" className="text-base font-semibold text-slate-900">
+              Generate playing coordinates?
+            </h2>
+            <p id="generate-coordinates-dialog-description" className="mt-2 text-sm text-slate-600">
               This will replace the current playing coordinates on this track.
             </p>
             <div className="mt-4 flex justify-end gap-2">
@@ -13241,6 +13256,7 @@ export default function GteWorkspace({
                 type="button"
                 className="button-secondary button-small"
                 onClick={() => setShowGenerateCutsConfirm(false)}
+                autoFocus
               >
                 Cancel
               </button>
