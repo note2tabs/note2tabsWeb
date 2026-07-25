@@ -3986,11 +3986,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <button
                           type="button"
                           onClick={() => setExportMenuOpen((prev) => !prev)}
-                          className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400"
+                          className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-left text-sm text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400"
                           disabled={exportingTrack || !canvas?.editors.length}
                           aria-expanded={exportMenuOpen}
                         >
-                          {exportingTrack ? "Exporting..." : "Export"}
+                          <span>{exportingTrack ? "Exporting..." : "Export…"}</span>
+                          <span className="text-slate-400" aria-hidden="true">⌄</span>
                         </button>
                         {exportMenuOpen && (
                           <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
@@ -4027,14 +4028,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </div>
                 {renderMobileHistoryControls()}
               </div>
-              <button
-                type="button"
-                onClick={() => void router.push(transcriberHref)}
-                className="h-11 shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm"
-                title="Open the standalone transcriber"
-              >
-                Transcribe
-              </button>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
               <button
@@ -4563,7 +4556,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               : "cursor-pointer text-slate-700"
                           }`}
                         >
-                          <span>{exportingTrack ? "Exporting..." : "Export"}</span>
+                          <span>{exportingTrack ? "Exporting..." : "Export…"}</span>
                           <span aria-hidden="true">›</span>
                         </summary>
                         <div className="absolute left-full top-0 z-[10001] min-w-44 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
@@ -4957,15 +4950,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </label>
                     </div>
                   </details>
-
-                  <button
-                    type="button"
-                    onClick={() => void router.push(transcriberHref)}
-                    className="order-4 rounded-md px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-                    title="Create tabs from an audio file or YouTube link"
-                  >
-                    Transcribe
-                  </button>
 
                   <details
                     className="group relative order-5"

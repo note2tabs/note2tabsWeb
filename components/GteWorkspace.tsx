@@ -173,6 +173,14 @@ type Props = {
   mobileMode?: "canvas" | "edit";
 };
 
+type PendingSelectionTool =
+  | "quantize"
+  | "scale"
+  | "move"
+  | "hammer-pull"
+  | "slide"
+  | "bend";
+
 type ContextMenuState =
   | {
       x: number;
@@ -3621,6 +3629,8 @@ export default function GteWorkspace({
   const [quantizePreviewChords, setQuantizePreviewChords] = useState<Record<number, QuantizePreviewEntity>>({});
   const [quantizePreviewMaxEnd, setQuantizePreviewMaxEnd] = useState(0);
   const [moveToolActive, setMoveToolActive] = useState(false);
+  const [pendingSelectionTool, setPendingSelectionTool] =
+    useState<PendingSelectionTool | null>(null);
   const [movePreviewNotes, setMovePreviewNotes] = useState<Record<number, QuantizePreviewEntity>>({});
   const [movePreviewChords, setMovePreviewChords] = useState<Record<number, QuantizePreviewEntity>>({});
   const [movePreviewMaxEnd, setMovePreviewMaxEnd] = useState(0);
@@ -6303,6 +6313,7 @@ export default function GteWorkspace({
     setCutToolActive((prev) => {
       const next = !prev;
       if (next) {
+        setPendingSelectionTool(null);
         setSliceToolActive(false);
         deactivateScaleTool();
       }
@@ -6314,6 +6325,7 @@ export default function GteWorkspace({
     setSliceToolActive((prev) => {
       const next = !prev;
       if (next) {
+        setPendingSelectionTool(null);
         setCutToolActive(false);
         deactivateScaleTool();
       }
@@ -8430,6 +8442,45 @@ export default function GteWorkspace({
       selectedNoteIds,
     ]
   );
+
+  useEffect(() => {
+    if (!pendingSelectionTool || selectionActionsLocked) return;
+
+    const selectedEntityCount = selectedNoteIds.length + selectedChordIds.length;
+    if (
+      pendingSelectionTool === "quantize" ||
+      pendingSelectionTool === "scale" ||
+      pendingSelectionTool === "move"
+    ) {
+      if (selectedEntityCount === 0) return;
+      const tool = pendingSelectionTool;
+      setPendingSelectionTool(null);
+      if (tool === "quantize") activateQuantizeTool();
+      if (tool === "scale") activateScaleTool();
+      if (tool === "move") activateMoveTool();
+      return;
+    }
+
+    if (selectedNoteIds.length < 2 || activeChordIds.length > 0) return;
+    const effectType =
+      pendingSelectionTool === "hammer-pull"
+        ? 1
+        : pendingSelectionTool === "slide"
+        ? 2
+        : 0;
+    setPendingSelectionTool(null);
+    handleAddNoteEffect(effectType);
+  }, [
+    activateMoveTool,
+    activateQuantizeTool,
+    activateScaleTool,
+    activeChordIds.length,
+    handleAddNoteEffect,
+    pendingSelectionTool,
+    selectedChordIds.length,
+    selectedNoteIds.length,
+    selectionActionsLocked,
+  ]);
 
   const handleDeleteNoteEffect = useCallback(() => {
     if (!selectedNoteEffect) return;
@@ -11746,6 +11797,12 @@ export default function GteWorkspace({
           </button>
         </div>}
 
+        {pendingSelectionTool && (
+          <div className="rounded-md bg-sky-50 px-2 py-1.5 text-[10px] leading-4 text-sky-800">
+            Tool ready. Select {pendingSelectionTool === "hammer-pull" || pendingSelectionTool === "slide" || pendingSelectionTool === "bend" ? "at least two notes" : "notes or chords"} to apply it. Choose the tool again to cancel.
+          </div>
+        )}
+
         <fieldset
           disabled={editMenuDisabled}
           className={`m-0 min-w-0 border-0 p-0 ${editMenuDisabled ? "opacity-50" : ""}`}
@@ -11845,15 +11902,25 @@ export default function GteWorkspace({
               <button
                 type="button"
                 data-gte-editor-control="true"
-                onClick={activateQuantizeTool}
-                disabled={selectedNoteIds.length + selectedChordIds.length === 0 || selectionActionsLocked}
+                onClick={() => {
+                  if (selectedNoteIds.length + selectedChordIds.length > 0) {
+                    setPendingSelectionTool(null);
+                    activateQuantizeTool();
+                  } else {
+                    setPendingSelectionTool((tool) => (tool === "quantize" ? null : "quantize"));
+                    setError(null);
+                  }
+                }}
+                disabled={selectionActionsLocked}
                 title={
                   selectionActionsLocked
                     ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Quantize selected notes/chords"
+                    : selectedNoteIds.length + selectedChordIds.length > 0
+                    ? "Quantize selected notes/chords"
+                    : "Choose Quantize, then select notes or chords"
                 }
                 className={
-                  quantizeDialogOpen
+                  quantizeDialogOpen || pendingSelectionTool === "quantize"
                     ? `${activeButtonClass} bg-sky-600`
                     : textButtonClass
                 }
@@ -11906,14 +11973,25 @@ export default function GteWorkspace({
 
                 <button
                   type="button"
-                  onClick={toggleScaleTool}
-                  disabled={
-                    !scaleToolActive &&
-                    selectedNoteIds.length + selectedChordIds.length === 0
+                  onClick={() => {
+                    if (scaleToolActive) {
+                      toggleScaleTool();
+                    } else if (selectedNoteIds.length + selectedChordIds.length > 0) {
+                      setPendingSelectionTool(null);
+                      toggleScaleTool();
+                    } else {
+                      setPendingSelectionTool((tool) => (tool === "scale" ? null : "scale"));
+                      setError(null);
+                    }
+                  }}
+                  disabled={selectionActionsLocked}
+                  title={
+                    selectedNoteIds.length + selectedChordIds.length > 0
+                      ? "Scale selected notes/chords - Shortcut: S"
+                      : "Choose Scale, then select notes or chords - Shortcut: S"
                   }
-                  title="Scale - Shortcut: S"
                   className={
-                    scaleToolActive
+                    scaleToolActive || pendingSelectionTool === "scale"
                       ? `${activeButtonClass} bg-amber-500`
                       : iconButtonClass
                   }
@@ -11957,17 +12035,22 @@ export default function GteWorkspace({
                 onClick={() => {
                   if (moveToolActive) {
                     deactivateMoveTool();
-                  } else {
+                  } else if (selectedNoteIds.length + selectedChordIds.length > 0) {
+                    setPendingSelectionTool(null);
                     activateMoveTool();
+                  } else {
+                    setPendingSelectionTool((tool) => (tool === "move" ? null : "move"));
+                    setError(null);
                   }
                 }}
-                disabled={
-                  !moveToolActive &&
-                  selectedNoteIds.length + selectedChordIds.length === 0
+                disabled={selectionActionsLocked}
+                title={
+                  selectedNoteIds.length + selectedChordIds.length > 0
+                    ? "Move selected notes/chords with the mouse - Shortcut: M"
+                    : "Choose Move, then select notes or chords - Shortcut: M"
                 }
-                title="Move selected notes/chords with the mouse - Shortcut: M"
                 className={
-                  moveToolActive
+                  moveToolActive || pendingSelectionTool === "move"
                     ? `${activeButtonClass} bg-slate-700`
                     : iconButtonClass
                 }
@@ -11992,15 +12075,25 @@ export default function GteWorkspace({
               <button
                 type="button"
                 onClick={() => {
-                  handleAddNoteEffect(1);
+                  if (canCreateNoteEffect) {
+                    setPendingSelectionTool(null);
+                    handleAddNoteEffect(1);
+                  } else {
+                    setPendingSelectionTool((tool) =>
+                      tool === "hammer-pull" ? null : "hammer-pull"
+                    );
+                    setError(null);
+                  }
                 }}
-                disabled={!canCreateNoteEffect}
+                disabled={selectionActionsLocked || activeChordIds.length > 0}
                 title={
                   selectionActionsLocked
                     ? "Disabled while notes/chords are selected in multiple tracks"
                     : "Connect selected notes with hammer-ons or pull-offs - Shortcut: H"
                 }
-                className={textButtonClass}
+                className={
+                  pendingSelectionTool === "hammer-pull" ? activeButtonClass : textButtonClass
+                }
               >
                 <span className={shortcutClass}>H</span>
                 Hammer/Pull
@@ -12009,15 +12102,21 @@ export default function GteWorkspace({
               <button
                 type="button"
                 onClick={() => {
-                  handleAddNoteEffect(2);
+                  if (canCreateNoteEffect) {
+                    setPendingSelectionTool(null);
+                    handleAddNoteEffect(2);
+                  } else {
+                    setPendingSelectionTool((tool) => (tool === "slide" ? null : "slide"));
+                    setError(null);
+                  }
                 }}
-                disabled={!canCreateNoteEffect}
+                disabled={selectionActionsLocked || activeChordIds.length > 0}
                 title={
                   selectionActionsLocked
                     ? "Disabled while notes/chords are selected in multiple tracks"
                     : "Connect selected notes with slides - Shortcut: L"
                 }
-                className={textButtonClass}
+                className={pendingSelectionTool === "slide" ? activeButtonClass : textButtonClass}
               >
                 <span className={shortcutClass}>L</span>
                 Slide
@@ -12026,15 +12125,21 @@ export default function GteWorkspace({
               <button
                 type="button"
                 onClick={() => {
-                  handleAddNoteEffect(0);
+                  if (canCreateNoteEffect) {
+                    setPendingSelectionTool(null);
+                    handleAddNoteEffect(0);
+                  } else {
+                    setPendingSelectionTool((tool) => (tool === "bend" ? null : "bend"));
+                    setError(null);
+                  }
                 }}
-                disabled={!canCreateNoteEffect}
+                disabled={selectionActionsLocked || activeChordIds.length > 0}
                 title={
                   selectionActionsLocked
                     ? "Disabled while notes/chords are selected in multiple tracks"
                     : "Connect selected notes with bends - Shortcut: B"
                 }
-                className={textButtonClass}
+                className={pendingSelectionTool === "bend" ? activeButtonClass : textButtonClass}
               >
                 <span className={shortcutClass}>B</span>
                 Bend
