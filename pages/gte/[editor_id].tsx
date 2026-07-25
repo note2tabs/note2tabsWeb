@@ -3908,7 +3908,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       >
         {isMobileCanvasMode && (
           <div className="space-y-3">
-            <div className="flex items-start justify-between gap-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
               <div className="flex items-center gap-2">
                 <div className="relative" data-mobile-nav="true">
                   <button
@@ -4030,10 +4030,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               <button
                 type="button"
                 onClick={() => void router.push(transcriberHref)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm"
+                className="h-11 shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm"
                 title="Open the standalone transcriber"
               >
-                Generate tabs
+                Transcribe
               </button>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -4238,6 +4238,68 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </span>
                     </label>
                   </div>
+                  <details className="rounded-xl border border-slate-200 bg-slate-50">
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-slate-700">
+                      Editing behavior
+                      <span className="text-xs font-normal text-slate-500">
+                        Notes, cursor & snapping
+                      </span>
+                    </summary>
+                    <div className="grid grid-cols-2 gap-2 border-t border-slate-200 p-2">
+                      <label className="grid gap-1 text-xs font-medium text-slate-600">
+                        Add note size
+                        <select
+                          value={chordOnlyDefaultNoteLengthDenominator}
+                          onChange={(event) =>
+                            setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))
+                          }
+                          className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
+                        >
+                          {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+                            <option key={`mobile-note-size-${denominator}`} value={denominator}>
+                              {formatNoteLengthOption(denominator)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="grid gap-1 text-xs font-medium text-slate-600">
+                        Cursor size
+                        <select
+                          value={chordOnlyCursorSizeDenominator}
+                          onChange={(event) =>
+                            setChordOnlyCursorSizeDenominator(
+                              getNearestCursorSizeDenominator(event.target.value)
+                            )
+                          }
+                          className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
+                        >
+                          {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
+                            <option key={`mobile-cursor-size-${denominator}`} value={denominator}>
+                              1/{denominator}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
+                        aria-pressed={globalSnapToGridEnabled}
+                        className="flex min-h-11 items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-left text-sm text-slate-700"
+                      >
+                        <span>Snap to grid</span>
+                        <span className="text-xs text-slate-500">{globalSnapToGridEnabled ? "On" : "Off"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
+                        aria-pressed={globalSnapToKeyEnabled}
+                        className="flex min-h-11 items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-left text-sm text-slate-700"
+                      >
+                        <span>Snap to key</span>
+                        <span className="text-xs text-slate-500">{globalSnapToKeyEnabled ? "On" : "Off"}</span>
+                      </button>
+                    </div>
+                  </details>
                   <div className="flex min-h-[1.25rem] flex-wrap items-center gap-3 text-xs">
                     <span className="muted">{saveStatus}</span>
                     {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
@@ -4254,38 +4316,89 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         )}
         {isMobileEditMode && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div
+            className="flex shrink-0 items-center gap-2 overflow-x-auto pb-1"
+            role="toolbar"
+            aria-label="Editor controls"
+          >
             <button
               type="button"
               onClick={exitMobileEditMode}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+              className="h-11 shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm"
             >
               Back
             </button>
             {renderMobileHistoryControls()}
-            <details className="relative">
-              <summary className="cursor-pointer list-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
-                Generate
+            <details className="relative shrink-0">
+              <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
+                Tools
               </summary>
-              <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] min-w-44 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+              <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] min-w-60 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                 <button
                   type="button"
                   onClick={() => setFindKeyDialogOpen(true)}
                   className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                 >
-                  Find key
+                  Detect song key
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setGeneratePlayingCoordinatesRequest((request) => request + 1)
+                  }
+                  disabled={!activeLaneId}
+                  className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                >
+                  Generate playing coordinates
                 </button>
               </div>
             </details>
-            <details className="relative">
-              <summary className="cursor-pointer list-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
-                Snapping
+            <details className="relative shrink-0">
+              <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
+                Edit settings
               </summary>
-              <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+              <div className="absolute right-0 top-[calc(100%+4px)] z-[10000] w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
+                <label className="flex min-h-11 items-center justify-between gap-3 rounded-md px-2 text-sm text-slate-700">
+                  <span>Add note size</span>
+                  <select
+                    value={chordOnlyDefaultNoteLengthDenominator}
+                    onChange={(event) =>
+                      setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))
+                    }
+                    className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm font-semibold"
+                    aria-label="Add note size"
+                  >
+                    {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+                      <option key={denominator} value={denominator}>
+                        {formatNoteLengthOption(denominator)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex min-h-11 items-center justify-between gap-3 rounded-md px-2 text-sm text-slate-700">
+                  <span>Cursor size</span>
+                  <select
+                    value={chordOnlyCursorSizeDenominator}
+                    onChange={(event) =>
+                      setChordOnlyCursorSizeDenominator(
+                        getNearestCursorSizeDenominator(event.target.value)
+                      )
+                    }
+                    className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm font-semibold"
+                    aria-label="Cursor size"
+                  >
+                    {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
+                      <option key={denominator} value={denominator}>
+                        1/{denominator}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <button
                   type="button"
                   onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
-                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                  aria-pressed={globalSnapToGridEnabled}
+                  className="flex min-h-11 w-full items-center justify-between rounded-md px-2 text-sm text-slate-700 hover:bg-slate-100"
                 >
                   <span>Snap to grid</span>
                   <span className="text-xs">{globalSnapToGridEnabled ? "On" : "Off"}</span>
@@ -4293,45 +4406,34 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 <button
                   type="button"
                   onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
-                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                  aria-pressed={globalSnapToKeyEnabled}
+                  className="flex min-h-11 w-full items-center justify-between rounded-md px-2 text-sm text-slate-700 hover:bg-slate-100"
                 >
                   <span>Snap to key</span>
                   <span className="text-xs">{globalSnapToKeyEnabled ? "On" : "Off"}</span>
                 </button>
               </div>
             </details>
-            <div className="ml-auto flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
-              <span className="text-slate-500">Time</span>
-              <span className="font-semibold text-slate-700">{timelineZoomPercent}%</span>
-              <span className="inline-flex flex-col gap-1">
-                <button
-                  type="button"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() =>
-                    setTimelineZoomPercent((prev) =>
-                      Math.min(TIMELINE_ZOOM_MAX, Math.max(TIMELINE_ZOOM_MIN, prev + 10))
-                    )
-                  }
-                  className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
-                  aria-label="Increase time scale"
-                >
-                  &#9650;
-                </button>
-                <button
-                  type="button"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() =>
-                    setTimelineZoomPercent((prev) =>
-                      Math.max(TIMELINE_ZOOM_MIN, Math.min(TIMELINE_ZOOM_MAX, prev - 10))
-                    )
-                  }
-                  className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
-                  aria-label="Decrease time scale"
-                >
-                  &#9660;
-                </button>
-              </span>
-            </div>
+            <details className="relative shrink-0">
+              <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
+                View · {timelineZoomPercent}%
+              </summary>
+              <label className="absolute right-0 top-[calc(100%+4px)] z-[10000] grid w-64 gap-2 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700 shadow-xl">
+                <span className="flex justify-between">
+                  <span>Timeline zoom</span>
+                  <span>{timelineZoomPercent}%</span>
+                </span>
+                <input
+                  type="range"
+                  min={TIMELINE_ZOOM_MIN}
+                  max={TIMELINE_ZOOM_MAX}
+                  step={1}
+                  value={timelineZoomPercent}
+                  onChange={(event) => setTimelineZoomPercent(Number(event.target.value))}
+                  aria-label="Timeline zoom"
+                />
+              </label>
+            </details>
           </div>
         )}
         {!isMobileViewport && (
@@ -4416,7 +4518,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   className="gte-top-menu-bar flex flex-wrap items-center gap-0.5 border-y border-slate-200 py-0.5"
                 >
                   <details
-                    className="group relative"
+                    className="group relative order-1"
                     open={openTopMenu === "file"}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
@@ -4482,7 +4584,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </details>
 
                   <details
-                    className="group relative"
+                    className="group relative order-2"
                     open={openTopMenu === "edit"}
                     onMouseEnter={cancelEditMenuClose}
                     onToggle={(event) => {
@@ -4557,11 +4659,25 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           </div>
                         )}
                       </div>
+                      <div className="mt-1 border-t border-slate-200 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGeneratePlayingCoordinatesRequest((request) => request + 1);
+                            setOpenTopMenu(null);
+                          }}
+                          disabled={!activeLaneId}
+                          className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                          title={activeLaneId ? "Generate playing coordinates for the active track" : "Select a track first"}
+                        >
+                          Generate playing coordinates
+                        </button>
+                      </div>
                     </div>
                   </details>
 
                   <details
-                    className="group relative"
+                    className="group relative order-6"
                     open={openTopMenu === "help"}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
@@ -4603,7 +4719,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </details>
 
                   <details
-                    className="group relative"
+                    className="group relative order-3"
                     open={openTopMenu === "view"}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
@@ -4638,11 +4754,42 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <span>Tab view</span>
                         <span className="text-xs">{tabViewEnabled ? "On" : "Off"}</span>
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => void router.push(`/gte/${editorId}/tabs`)}
+                        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                        title="Open the current project as readable ASCII tabs"
+                      >
+                        <span>Readable tab preview</span>
+                        <span aria-hidden="true">↗</span>
+                      </button>
+                      <label className="mt-1 grid gap-1 border-t border-slate-100 px-3 py-2 text-sm text-slate-700">
+                        <span className="flex items-center justify-between">
+                          <span>Time scale</span>
+                          <span className="text-xs text-slate-500">{timelineZoomPercent}%</span>
+                        </span>
+                        <input
+                          type="range"
+                          min={TIMELINE_ZOOM_MIN}
+                          max={TIMELINE_ZOOM_MAX}
+                          step={1}
+                          value={timelineZoomPercent}
+                          onChange={(event) =>
+                            setTimelineZoomPercent(
+                              Math.max(
+                                TIMELINE_ZOOM_MIN,
+                                Math.min(TIMELINE_ZOOM_MAX, Number(event.target.value))
+                              )
+                            )
+                          }
+                          aria-label="Time scale"
+                        />
+                      </label>
                     </div>
                   </details>
 
                   <details
-                    className="group relative"
+                    className="hidden"
                     open={openTopMenu === "cursor"}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
@@ -4698,7 +4845,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </details>
 
                   <details
-                    className="group relative"
+                    className="hidden"
                     open={openTopMenu === "generate"}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
@@ -4758,7 +4905,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </details>
 
                   <details
-                    className="group relative"
+                    className="hidden"
                     open={openTopMenu === "snapping"}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
@@ -4811,8 +4958,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>
                   </details>
 
+                  <button
+                    type="button"
+                    onClick={() => void router.push(transcriberHref)}
+                    className="order-4 rounded-md px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                    title="Create tabs from an audio file or YouTube link"
+                  >
+                    Transcribe
+                  </button>
+
                   <details
-                    className="group relative"
+                    className="group relative order-5"
                     open={openTopMenu === "playback"}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
@@ -4910,7 +5066,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>
                   </details>
 
-                  <div className="ml-auto flex shrink-0 items-center gap-2">
+                  <div className="order-7 ml-auto flex shrink-0 items-center gap-2">
                     <button
                       type="button"
                       onClick={handleCanvasUndo}
@@ -5096,6 +5252,95 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           ))}
                         </select>
                       </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setFindKeyDialogOpen(true)}
+                      className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      title="Detect the most likely key from all notes and chords"
+                    >
+                      Detect key…
+                    </button>
+                  </div>
+                </details>
+                <details className="group w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm">
+                  <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
+                    <span className="font-semibold text-slate-700">Editing settings</span>
+                    <span className="truncate">
+                      Note {formatNoteLengthOption(chordOnlyDefaultNoteLengthDenominator)}
+                      {" · "}Cursor 1/{chordOnlyCursorSizeDenominator}
+                      {" · "}Grid {globalSnapToGridEnabled ? "on" : "off"}
+                    </span>
+                    <span className="transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
+                  </summary>
+                  <div className="flex flex-wrap items-end gap-3 border-t border-slate-200 p-3">
+                    <label className="grid gap-1 text-xs font-medium text-slate-600">
+                      Add note size
+                      <select
+                        value={chordOnlyDefaultNoteLengthDenominator}
+                        onChange={(event) =>
+                          setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))
+                        }
+                        className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700"
+                      >
+                        {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+                          <option key={`desktop-note-size-${denominator}`} value={denominator}>
+                            {formatNoteLengthOption(denominator)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-xs font-medium text-slate-600">
+                      Cursor size
+                      <select
+                        value={chordOnlyCursorSizeDenominator}
+                        onChange={(event) =>
+                          setChordOnlyCursorSizeDenominator(
+                            getNearestCursorSizeDenominator(event.target.value)
+                          )
+                        }
+                        className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700"
+                      >
+                        {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
+                          <option key={`desktop-cursor-size-${denominator}`} value={denominator}>
+                            1/{denominator}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
+                      aria-pressed={globalSnapToGridEnabled}
+                      className="flex h-8 min-w-28 items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
+                    >
+                      <span>Grid</span>
+                      <span>{globalSnapToGridEnabled ? "On" : "Off"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
+                      aria-pressed={globalSnapToKeyEnabled}
+                      className="flex h-8 min-w-28 items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
+                    >
+                      <span>Key</span>
+                      <span>{globalSnapToKeyEnabled ? "On" : "Off"}</span>
+                    </button>
+                    <label className="grid gap-1 text-xs font-medium text-slate-600">
+                      Grid division
+                      <select
+                        value={globalSnapSubdivisionsPerBeat}
+                        onChange={(event) =>
+                          setGlobalSnapSubdivisionsPerBeat(Number(event.target.value))
+                        }
+                        className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700"
+                      >
+                        {SNAP_SUBDIVISION_OPTIONS.map((subdivision) => (
+                          <option key={`desktop-grid-${subdivision}`} value={subdivision}>
+                            {subdivision === 1 ? "Beat" : `1/${subdivision}`}
+                          </option>
+                        ))}
+                      </select>
                     </label>
                   </div>
                 </details>
@@ -5685,33 +5930,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         </div>
         )}
-        {!isMobileViewport && !isMobileEditMode && (
-          <>
-            <div className="fixed bottom-16 left-5 z-[9996] flex w-72 max-w-[calc(100vw-2.5rem)] flex-col gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
-              <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
-                <span className="shrink-0">Time scale</span>
-                <input
-                  type="range"
-                  min={TIMELINE_ZOOM_MIN}
-                  max={TIMELINE_ZOOM_MAX}
-                  step={1}
-                  value={timelineZoomPercent}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    if (!Number.isFinite(next)) return;
-                    setTimelineZoomPercent(
-                      Math.max(TIMELINE_ZOOM_MIN, Math.min(TIMELINE_ZOOM_MAX, Math.round(next)))
-                    );
-                  }}
-                  className="min-w-0 flex-1"
-                  title="Scale editor width in time direction"
-                />
-                <span className="w-10 text-right text-[11px] text-slate-600">{timelineZoomPercent}%</span>
-              </label>
-            </div>
-          </>
-        )}
-
         {isGuestMode && !isMobileEditMode && (
           <div className="notice">
             You are working without an account right now. This draft stays in this browser until you save it to your library.
@@ -6673,9 +6891,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
         {confirmDeleteTrackId && (
           <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/30 px-4">
-            <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
-              <h2 className="text-base font-semibold text-slate-900">Remove track?</h2>
-              <p className="mt-2 text-sm text-slate-600">
+            <div
+              className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="remove-track-dialog-title"
+              aria-describedby="remove-track-dialog-description"
+            >
+              <h2 id="remove-track-dialog-title" className="text-base font-semibold text-slate-900">
+                Remove track?
+              </h2>
+              <p id="remove-track-dialog-description" className="mt-2 text-sm text-slate-600">
                 This will permanently delete the track and its notes/chords. You cannot undo this action.
               </p>
               <div className="mt-4 flex justify-end gap-2">
@@ -6702,9 +6928,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
         {pendingLaneTuningChange && (
           <div className="fixed inset-0 z-[180] flex items-center justify-center bg-slate-900/35 px-4">
-            <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
-              <h2 className="text-base font-semibold text-slate-900">Adjust notes/chords to keep the sound?</h2>
-              <p className="mt-2 text-sm text-slate-600">
+            <div
+              className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="tuning-dialog-title"
+              aria-describedby="tuning-dialog-description"
+            >
+              <h2 id="tuning-dialog-title" className="text-base font-semibold text-slate-900">
+                Adjust notes/chords to keep the sound?
+              </h2>
+              <p id="tuning-dialog-description" className="mt-2 text-sm text-slate-600">
                 Notes/Chords have different fingerings on different tunings. 
                 Automatically adjust them to keep the same sound.
               </p>
@@ -6851,11 +7085,25 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       {!isMobileViewport && canvas && (
         <div className="fixed bottom-0 left-0 right-0 z-40 border-slate-200">
           <div className="container gte-wide py-1">
-            <div className="rounded-xl border border-slate-200 bg-white px-3 py-0 shadow-sm">
+            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-1 shadow-sm">
+              <label className="flex w-48 shrink-0 items-center gap-2 text-xs font-medium text-slate-600">
+                <span>Zoom</span>
+                <input
+                  type="range"
+                  min={TIMELINE_ZOOM_MIN}
+                  max={TIMELINE_ZOOM_MAX}
+                  step={1}
+                  value={timelineZoomPercent}
+                  onChange={(event) => setTimelineZoomPercent(Number(event.target.value))}
+                  className="min-w-0 flex-1"
+                  aria-label="Timeline zoom"
+                />
+                <span className="w-9 text-right tabular-nums">{timelineZoomPercent}%</span>
+              </label>
               <div
                 ref={globalTimelineScrollbarRef}
                 data-gte-timeline-control="true"
-                className="overflow-x-auto overflow-y-hidden"
+                className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
                 onScroll={handleGlobalTimelineScrollbarScroll}
               >
                 <div style={{ width: globalTimelineTrackWidth, height: 1 }} />

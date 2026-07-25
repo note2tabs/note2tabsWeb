@@ -12220,13 +12220,18 @@ export default function GteWorkspace({
           data-gte-floating-ui="true"
           data-gte-editor-control="true"
           data-quantize-dialog="true"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gte-quantize-dialog-title"
           className="fixed left-1/2 top-1/2 z-[10000] w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-sky-200 bg-white p-3 shadow-xl shadow-slate-900/15"
           onMouseDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="m-0 text-sm font-semibold text-slate-900">Quantize notes</h2>
+              <h2 id="gte-quantize-dialog-title" className="m-0 text-sm font-semibold text-slate-900">
+                Quantize notes
+              </h2>
               <p className="mt-1 text-[11px] leading-4 text-slate-500">
                 Preview selected notes against beat subdivisions.
               </p>
@@ -12666,14 +12671,12 @@ export default function GteWorkspace({
         >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
             {mobileViewport ? (
-              <div className="pointer-events-auto flex w-full items-center gap-2">
-                <div className="flex shrink-0 flex-col gap-1">
-                  {renderDefaultNoteLengthControl(true)}
-                  {renderCursorSizeControl(true)}
-                </div>
+              <div className="pointer-events-auto flex w-full items-center justify-center">
               <div
                 data-gte-floating-ui="true"
-                className="flex min-w-0 flex-1 items-center justify-between gap-1 rounded-2xl border border-slate-200 bg-white/96 px-2 py-2 text-slate-700 shadow-lg backdrop-blur"
+                className="flex w-full max-w-sm items-center justify-around gap-1 rounded-2xl border border-slate-200 bg-white/96 px-2 py-2 text-slate-700 shadow-lg backdrop-blur"
+                role="toolbar"
+                aria-label="Playback controls"
               >
                 <button
                   type="button"
