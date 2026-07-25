@@ -9,6 +9,7 @@ import {
   type TouchEvent as ReactTouchEvent,
   type UIEvent as ReactUiEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { gteApi } from "../lib/gteApi";
 import {
   PLAYBACK_SPEED_OPTIONS,
@@ -90,8 +91,19 @@ type Props = {
   tabViewEnabled?: boolean;
   globalSnapToGridEnabled?: boolean;
   onGlobalSnapToGridEnabledChange?: (enabled: boolean) => void;
+  snapSubdivisionsPerBeat?: number;
   globalSnapToKeyEnabled?: boolean;
   onGlobalSnapToKeyEnabledChange?: (enabled: boolean) => void;
+  generatePlayingCoordinatesRequest?: number;
+  defaultNoteLengthDenominator?: number;
+  onDefaultNoteLengthDenominatorChange?: (denominator: number) => void;
+  cursorSizeDenominator?: number;
+  onCursorSizeDenominatorChange?: (denominator: number) => void;
+  leftHandedChordDiagrams?: boolean;
+  editMenuPortalTarget?: HTMLElement | null;
+  editMenuDisabled?: boolean;
+  onEditMenuPointerEnter?: () => void;
+  onEditMenuPointerLeave?: () => void;
   canvasKeyBase?: number;
   canvasKeyType?: number;
   sharedTimeSignature?: number;
@@ -173,6 +185,17 @@ type ContextMenuState =
       y: number;
       kind: "bar";
       insertIndex: number;
+    }
+  | {
+      x: number;
+      y: number;
+      kind: "note";
+      targetFrame: number;
+    }
+  | {
+      x: number;
+      y: number;
+      kind: "playingCoordinates";
     };
 
 const DEFAULT_STRING_LABELS = ["E", "B", "G", "D", "A", "E"];
@@ -1431,7 +1454,13 @@ type ChordContextMenuState = {
   y: number;
 };
 
-function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
+function ChordFingeringDiagram({
+  fingering,
+  leftHanded = false,
+}: {
+  fingering: ChordFingering;
+  leftHanded?: boolean;
+}) {
   const hydrated = hydrateChordFingering(fingering);
   const positions = hydrated.positions;
   const fingers = hydrated.fingers || [];
@@ -1534,14 +1563,16 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
         ))}
         {barreRuns.map((barre) => {
           const y = (((barre.fret - baseFret) + 0.5) / fretCount) * 100;
+          const displayStartIndex = leftHanded ? 5 - barre.endIndex : barre.startIndex;
+          const displayEndIndex = leftHanded ? 5 - barre.startIndex : barre.endIndex;
           return (
             <span
               key={`barre-${barre.fret}-${barre.startIndex}-${barre.endIndex}`}
               className="absolute z-10 flex h-3 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900 text-[8px] font-bold leading-none text-white"
               style={{
-                left: `calc(${(barre.startIndex / 5) * 100}% - 5px)`,
+                left: `calc(${(displayStartIndex / 5) * 100}% - 5px)`,
                 top: `${y}%`,
-                width: `calc(${((barre.endIndex - barre.startIndex) / 5) * 100}% + 10px)`,
+                width: `calc(${((displayEndIndex - displayStartIndex) / 5) * 100}% + 10px)`,
               }}
             >
               {barre.finger ?? ""}
@@ -1549,7 +1580,8 @@ function ChordFingeringDiagram({ fingering }: { fingering: ChordFingering }) {
           );
         })}
         {positions.map((fret, index) => {
-          const x = ((index / 5) * 100);
+          const displayIndex = leftHanded ? 5 - index : index;
+          const x = (displayIndex / 5) * 100;
           if (fret === null) {
             return (
               <span
@@ -1618,6 +1650,7 @@ function ChordLaneWorkspace({
   onBarSelectionStateChange,
   tabViewEnabled = false,
   globalSnapToKeyEnabled,
+  leftHandedChordDiagrams = false,
   canvasKeyBase = 0,
   canvasKeyType = 0,
   sharedTimeSignature,
@@ -2968,7 +3001,10 @@ function ChordLaneWorkspace({
                         </button>
                       </div>
                       {visibleFingering ? (
-                        <ChordFingeringDiagram fingering={visibleFingering} />
+                        <ChordFingeringDiagram
+                          fingering={visibleFingering}
+                          leftHanded={leftHandedChordDiagrams}
+                        />
                       ) : (
                         <div className="grid h-[76px] place-items-center text-[10px] font-semibold text-slate-400">
                           No shape
@@ -3279,8 +3315,19 @@ export default function GteWorkspace({
   tabViewEnabled = false,
   globalSnapToGridEnabled,
   onGlobalSnapToGridEnabledChange,
+  snapSubdivisionsPerBeat = 4,
   globalSnapToKeyEnabled,
   onGlobalSnapToKeyEnabledChange,
+  generatePlayingCoordinatesRequest,
+  defaultNoteLengthDenominator: controlledDefaultNoteLengthDenominator,
+  onDefaultNoteLengthDenominatorChange,
+  cursorSizeDenominator: controlledCursorSizeDenominator,
+  onCursorSizeDenominatorChange,
+  leftHandedChordDiagrams = false,
+  editMenuPortalTarget,
+  editMenuDisabled = false,
+  onEditMenuPointerEnter,
+  onEditMenuPointerLeave,
   canvasKeyBase = 0,
   canvasKeyType = 0,
   sharedTimeSignature,
@@ -3360,6 +3407,7 @@ export default function GteWorkspace({
         onGlobalSnapToGridEnabledChange={onGlobalSnapToGridEnabledChange}
         globalSnapToKeyEnabled={globalSnapToKeyEnabled}
         onGlobalSnapToKeyEnabledChange={onGlobalSnapToKeyEnabledChange}
+        leftHandedChordDiagrams={leftHandedChordDiagrams}
         canvasKeyBase={canvasKeyBase}
         canvasKeyType={canvasKeyType}
         sharedTimeSignature={sharedTimeSignature}
@@ -3431,8 +3479,33 @@ export default function GteWorkspace({
   const [timeSignature, setTimeSignature] = useState(8);
   const [timeSignatureInput, setTimeSignatureInput] = useState("8");
   const [timeSignatureBottom, setTimeSignatureBottom] = useState(4);
-  const [defaultNoteLengthDenominator, setDefaultNoteLengthDenominator] = useState(4);
-  const [cursorSizeDenominator, setCursorSizeDenominator] = useState(4);
+  const [localDefaultNoteLengthDenominator, setLocalDefaultNoteLengthDenominator] = useState(4);
+  const [localCursorSizeDenominator, setLocalCursorSizeDenominator] = useState(4);
+  const defaultNoteLengthDenominator =
+    controlledDefaultNoteLengthDenominator ?? localDefaultNoteLengthDenominator;
+  const cursorSizeDenominator = controlledCursorSizeDenominator ?? localCursorSizeDenominator;
+  const setDefaultNoteLengthDenominator = useCallback(
+    (value: number | ((current: number) => number)) => {
+      const next = typeof value === "function" ? value(defaultNoteLengthDenominator) : value;
+      if (onDefaultNoteLengthDenominatorChange) {
+        onDefaultNoteLengthDenominatorChange(next);
+      } else {
+        setLocalDefaultNoteLengthDenominator(next);
+      }
+    },
+    [defaultNoteLengthDenominator, onDefaultNoteLengthDenominatorChange]
+  );
+  const setCursorSizeDenominator = useCallback(
+    (value: number | ((current: number) => number)) => {
+      const next = typeof value === "function" ? value(cursorSizeDenominator) : value;
+      if (onCursorSizeDenominatorChange) {
+        onCursorSizeDenominatorChange(next);
+      } else {
+        setLocalCursorSizeDenominator(next);
+      }
+    },
+    [cursorSizeDenominator, onCursorSizeDenominatorChange]
+  );
   const [keepNotesOnBeat, setKeepNotesOnBeat] = useState(false);
   const [localSnapToGridEnabled, setLocalSnapToGridEnabled] = useState(true);
   const [localSnapToKeyEnabled, setLocalSnapToKeyEnabled] = useState(false);
@@ -3471,6 +3544,7 @@ export default function GteWorkspace({
   const [shiftBoundaryTime, setShiftBoundaryTime] = useState<OptionalNumber>(null);
   const [deleteBoundaryIndex, setDeleteBoundaryIndex] = useState<OptionalNumber>(null);
   const [showGenerateCutsConfirm, setShowGenerateCutsConfirm] = useState(false);
+  const lastGeneratePlayingCoordinatesRequestRef = useRef(generatePlayingCoordinatesRequest);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackPreparing, setPlaybackPreparing] = useState(false);
   const [dragging, setDragging] = useState<DragState | null>(null);
@@ -3509,6 +3583,19 @@ export default function GteWorkspace({
   const [segmentDragIndex, setSegmentDragIndex] = useState<number | null>(null);
   const [ioPayload, setIoPayload] = useState("");
   const [ioMessage, setIoMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      generatePlayingCoordinatesRequest === undefined ||
+      generatePlayingCoordinatesRequest === lastGeneratePlayingCoordinatesRequestRef.current
+    ) {
+      return;
+    }
+    lastGeneratePlayingCoordinatesRequestRef.current = generatePlayingCoordinatesRequest;
+    if (isActive) {
+      setShowGenerateCutsConfirm(true);
+    }
+  }, [generatePlayingCoordinatesRequest, isActive]);
   const [exportFormat, setExportFormat] = useState<GteExportFormat>("txt");
   const [localToolbarOpen, setLocalToolbarOpen] = useState(false);
   const [tabPreviewOpen, setTabPreviewOpen] = useState(false);
@@ -3529,7 +3616,7 @@ export default function GteWorkspace({
   const [quantizeSubdivisionInput, setQuantizeSubdivisionInput] = useState("4");
   const [quantizePreScale, setQuantizePreScale] = useState(1);
   const [quantizePreScaleInput, setQuantizePreScaleInput] = useState("1");
-  const [quantizeApplyToLength, setQuantizeApplyToLength] = useState(false);
+  const [quantizeApplyToLength, setQuantizeApplyToLength] = useState(true);
   const [quantizePreviewNotes, setQuantizePreviewNotes] = useState<Record<number, QuantizePreviewEntity>>({});
   const [quantizePreviewChords, setQuantizePreviewChords] = useState<Record<number, QuantizePreviewEntity>>({});
   const [quantizePreviewMaxEnd, setQuantizePreviewMaxEnd] = useState(0);
@@ -4033,6 +4120,10 @@ export default function GteWorkspace({
   const effectiveRedoCount = useExternalHistory ? Math.max(0, historyRedoCount ?? 0) : redoCount;
   const selectionActionsLocked = Boolean(multiTrackSelectionActive);
   const snapToGridEnabled = globalSnapToGridEnabled ?? localSnapToGridEnabled;
+  const normalizedSnapSubdivisionsPerBeat = Math.max(
+    1,
+    Math.min(8, Math.round(Number(snapSubdivisionsPerBeat) || 4))
+  );
   const snapToKeyEnabled = globalSnapToKeyEnabled ?? localSnapToKeyEnabled;
   const setSnapToGridEnabled = useCallback(
     (nextValue: boolean | ((prev: boolean) => boolean)) => {
@@ -4309,10 +4400,14 @@ export default function GteWorkspace({
     }
   ) => {
     if (snapToGridEnabled) {
-      const step = Math.max(1, cursorSizeDenominatorToFrames(cursorSizeDenominator));
       const min = options?.min ?? 0;
       const max = options?.max ?? Infinity;
-      const snapped = Math.floor(Math.max(0, Math.round(rawTime)) / step) * step;
+      const snapped = getBeatSubdivisionGridTime(
+        rawTime,
+        timeSignature,
+        normalizedSnapSubdivisionsPerBeat,
+        "floor"
+      );
       return Math.max(min, Math.min(snapped, max));
     }
     if (!snapCandidates.length) return rawTime;
@@ -5222,10 +5317,14 @@ export default function GteWorkspace({
       if (!snapToGridEnabled) {
         return safeStart;
       }
-      const step = Math.max(1, cursorSizeDenominatorToFrames(cursorSizeDenominator));
-      return Math.floor(safeStart / step) * step;
+      return getBeatSubdivisionGridTime(
+        safeStart,
+        timeSignature,
+        normalizedSnapSubdivisionsPerBeat,
+        "floor"
+      );
     },
-    [cursorSizeDenominator, cursorSizeDenominatorToFrames, snapToGridEnabled]
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
   );
 
   const snapMoveStartTimeToGrid = useCallback(
@@ -5234,10 +5333,14 @@ export default function GteWorkspace({
       if (!snapToGridEnabled) {
         return safeStart;
       }
-      const step = Math.max(1, cursorSizeDenominatorToFrames(cursorSizeDenominator));
-      return Math.floor(safeStart / step) * step;
+      return getBeatSubdivisionGridTime(
+        safeStart,
+        timeSignature,
+        normalizedSnapSubdivisionsPerBeat,
+        "floor"
+      );
     },
-    [cursorSizeDenominator, cursorSizeDenominatorToFrames, snapToGridEnabled]
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
   );
 
   const snapNoteToGrid = useCallback(
@@ -5250,9 +5353,17 @@ export default function GteWorkspace({
         };
       }
       const snappedStart = snapStartTimeToGrid(startTime);
-      return { startTime: snappedStart, length: getBeatGridLength(safeLength, timeSignature, "floor") };
+      return {
+        startTime: snappedStart,
+        length: getBeatSubdivisionGridLength(
+          safeLength,
+          timeSignature,
+          normalizedSnapSubdivisionsPerBeat,
+          "floor"
+        ),
+      };
     },
-    [snapStartTimeToGrid, snapToGridEnabled, timeSignature]
+    [normalizedSnapSubdivisionsPerBeat, snapStartTimeToGrid, snapToGridEnabled, timeSignature]
   );
 
   const snapNewNoteToGrid = useCallback(
@@ -5269,9 +5380,14 @@ export default function GteWorkspace({
       if (!snapToGridEnabled) {
         return safeLength;
       }
-      return getBeatGridLength(safeLength, timeSignature, "floor");
+      return getBeatSubdivisionGridLength(
+        safeLength,
+        timeSignature,
+        normalizedSnapSubdivisionsPerBeat,
+        "floor"
+      );
     },
-    [snapToGridEnabled, timeSignature]
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
   );
 
   const computeScalePreview = useCallback(
@@ -5286,14 +5402,24 @@ export default function GteWorkspace({
       const scaleStartTime = (value: number) => {
         let next = Math.trunc((value - session.minTime) * normalizedFactor + session.minTime);
         if (snapToGridEnabled) {
-          next = getBeatSubdivisionGridTime(next, timeSignature, 4, "round");
+          next = getBeatSubdivisionGridTime(
+            next,
+            timeSignature,
+            normalizedSnapSubdivisionsPerBeat,
+            "round"
+          );
         }
         return Math.max(0, next);
       };
 
       const scaleItemLength = (value: number) => {
         if (snapToGridEnabled) {
-          return getBeatSubdivisionGridLength(value * normalizedFactor, timeSignature, 4, "round");
+          return getBeatSubdivisionGridLength(
+            value * normalizedFactor,
+            timeSignature,
+            normalizedSnapSubdivisionsPerBeat,
+            "round"
+          );
         }
         return clampEventLength(Math.trunc(value * normalizedFactor));
       };
@@ -5314,7 +5440,7 @@ export default function GteWorkspace({
 
       return { notes, chords, maxEnd, factor: normalizedFactor };
     },
-    [clamp, framesPerMeasure, snapToGridEnabled, timeSignature]
+    [clamp, framesPerMeasure, normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
   );
 
   const applyScalePreview = useCallback(
@@ -5788,7 +5914,12 @@ export default function GteWorkspace({
     (session: MoveSession, deltaFrames: number) => {
       const rawDelta = Math.round(deltaFrames);
       const targetAnchor = snapToGridEnabled
-        ? getBeatSubdivisionGridTime(session.anchorStart + rawDelta, timeSignature, 4, "round")
+        ? getBeatSubdivisionGridTime(
+            session.anchorStart + rawDelta,
+            timeSignature,
+            normalizedSnapSubdivisionsPerBeat,
+            "round"
+          )
         : Math.round(session.anchorStart + rawDelta);
       const delta = Math.max(0, targetAnchor) - session.anchorStart;
       const notes: Record<number, QuantizePreviewEntity> = {};
@@ -5811,7 +5942,7 @@ export default function GteWorkspace({
 
       return { notes, chords, maxEnd, delta };
     },
-    [snapToGridEnabled, timeSignature]
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
   );
 
   const applyMovePreview = useCallback(
@@ -6826,7 +6957,7 @@ export default function GteWorkspace({
                 editorId,
                 resolveNoteId(resizingNote.id),
                 snappedPreviewLength,
-                snapToGridEnabled
+                false
               ),
           });
         }
@@ -6902,7 +7033,7 @@ export default function GteWorkspace({
                 editorId,
                 resolveChordId(resizingChord.id),
                 snappedPreviewLength,
-                snapToGridEnabled
+                false
               ),
           });
         }
@@ -7300,6 +7431,51 @@ export default function GteWorkspace({
     const target = getPointerFrame(event.clientX, event.clientY);
     const targetFrame = target ? target.time : clamp(Math.round(playheadFrameRef.current), 0, timelineEnd);
     setContextMenu({ x: event.clientX, y: event.clientY, kind: "timeline", targetFrame });
+  };
+
+  const handleNoteContextMenu = (
+    note: Pick<EditorSnapshot["notes"][number], "id" | "startTime">,
+    event: ReactMouseEvent<HTMLButtonElement>
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!selectedNoteIds.includes(note.id)) {
+      setSelectedNoteIds([note.id]);
+      setSelectedChordIds([]);
+    }
+    setSelectedNoteEffectId(null);
+    setSelectedBarIndices([]);
+    setNoteMenuAnchor(null);
+    setNoteMenuNoteId(null);
+    setNoteMenuDraft(null);
+    setChordMenuAnchor(null);
+    setChordMenuChordId(null);
+    setChordMenuDraft(null);
+    const menuWidth = 256;
+    const menuHeight = Math.min(620, Math.max(240, window.innerHeight - 24));
+    setContextMenu({
+      x: clamp(event.clientX, 12, Math.max(12, window.innerWidth - menuWidth - 12)),
+      y: clamp(event.clientY, 12, Math.max(12, window.innerHeight - menuHeight - 12)),
+      kind: "note",
+      targetFrame: note.startTime,
+    });
+  };
+
+  const handlePlayingCoordinatesContextMenu = (
+    event: ReactMouseEvent<HTMLElement>,
+    boundaryIndex: number | null = null
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setSelectedCutBoundaryIndex(boundaryIndex);
+    setSelectedNoteIds([]);
+    setSelectedChordIds([]);
+    setSelectedNoteEffectId(null);
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      kind: "playingCoordinates",
+    });
   };
 
   const clearTouchHold = useCallback(() => {
@@ -10942,12 +11118,6 @@ export default function GteWorkspace({
           return;
         }
       }
-      if (event.key === "t" || event.key === "T") {
-        if (isTyping) return;
-        event.preventDefault();
-        setToolbarOpen((prev) => !prev);
-        return;
-      }
       if ((event.ctrlKey || event.metaKey) && (event.key === "c" || event.key === "C")) {
         if (isTyping) return;
         if (selectedNoteIds.length > 0 || selectedChordIds.length > 0) {
@@ -11456,7 +11626,6 @@ export default function GteWorkspace({
     isMobileEditMode &&
     isActive &&
     Boolean(selectedNote && noteMenuNoteId === selectedNote.id && noteMenuDraft && selectedNoteIds.length === 1);
-  const showMobileInlineToolbar = isMobileEditMode && isActive && showToolbarUi;
   const mobileNoteFingeringOptions = useMemo(
     () => [
       ...(noteAlternates?.possibleTabs || []).map((tab) => ({
@@ -11527,28 +11696,24 @@ export default function GteWorkspace({
       );
   }, [getSpanSegments, snapshot.noteEffects, snapshot.notes, timelineRenderWindow, visibleNoteIdSet]);
 
-  const renderToolbarPanel = (inlineMobile: boolean) => {
-    const panelClass = inlineMobile
-      ? "h-auto w-full min-w-0 overflow-visible rounded-2xl border border-slate-200 bg-white p-2 shadow-lg"
-      : "fixed right-4 top-1/2 z-[9998] max-h-[calc(100vh-6rem)] w-[min(18rem,calc(100vw-5rem))] -translate-y-1/2 overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2.5 shadow-xl shadow-slate-900/10 backdrop-blur";
-
+  const renderEditMenuPanel = (inlineMobile = false, topMenu = true) => {
     const sectionClass =
-      "min-w-0 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm";
+      "min-w-0 border-b border-slate-200 py-1 last:border-b-0";
 
     const sectionTitleClass =
-      "mb-2 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400";
+      "px-2 pb-1 pt-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400";
 
     const textButtonClass =
-      "group relative flex h-8 w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-2 text-center text-[10px] font-semibold leading-none text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
+      "group relative flex h-7 w-full items-center justify-start gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[11px] font-normal leading-none text-slate-700 shadow-none transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-slate-400";
 
     const activeButtonClass =
-      "group relative flex h-8 w-full items-center justify-center rounded-lg px-2 text-center text-[10px] font-semibold leading-none text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none";
+      "group relative flex h-7 w-full items-center justify-start gap-2 rounded-md border-0 !bg-slate-100 px-2 text-left text-[11px] font-normal leading-none !text-slate-900 shadow-none transition hover:!bg-slate-200 disabled:cursor-not-allowed disabled:!bg-transparent disabled:!text-slate-400";
 
     const iconButtonClass =
-      "group relative flex h-8 w-full items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
+      "group relative flex h-7 w-full items-center justify-start gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[11px] font-normal text-slate-700 shadow-none transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-slate-400";
 
-    const tooltipClass =
-      "pointer-events-none absolute -top-7 rounded-md bg-slate-950 px-1.5 py-0.5 text-[9px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100";
+    const shortcutClass =
+      "order-last ml-auto shrink-0 text-[10px] font-medium opacity-60";
 
     return (
       <div
@@ -11556,11 +11721,13 @@ export default function GteWorkspace({
         data-gte-floating-ui="true"
         data-gte-editor-control="true"
         data-gte-toolbar-ui="true"
-        className={panelClass}
+        className="space-y-2"
+        onMouseEnter={onEditMenuPointerEnter}
+        onMouseLeave={onEditMenuPointerLeave}
         onMouseDown={(event) => event.stopPropagation()}
         onTouchStart={(event) => event.stopPropagation()}
       >
-        <div className="mb-2 flex items-start justify-between gap-2">
+        {!topMenu && <div className="mb-2 flex items-start justify-between gap-2">
           <div>
             <div className="text-[11px] font-bold text-slate-800">Toolbar</div>
             {inlineMobile ? (
@@ -11577,19 +11744,17 @@ export default function GteWorkspace({
           >
             ×
           </button>
-        </div>
+        </div>}
 
-        <div
-          className={
-            mobileViewport
-              ? "grid grid-cols-1 gap-2"
-              : "grid grid-cols-1 gap-2"
-          }
+        <fieldset
+          disabled={editMenuDisabled}
+          className={`m-0 min-w-0 border-0 p-0 ${editMenuDisabled ? "opacity-50" : ""}`}
         >
+        <div className="grid grid-cols-1 gap-0">
           <div className={sectionClass}>
             <div className={sectionTitleClass}>Notes & chords</div>
 
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-1 gap-1.5">
               <button
                 type="button"
                 onClick={() => {
@@ -11607,7 +11772,7 @@ export default function GteWorkspace({
                     : textButtonClass
                 }
               >
-                <span className={tooltipClass}>C</span>
+                <span className={shortcutClass}>C</span>
                 Merge to Chord
               </button>
 
@@ -11642,7 +11807,7 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>Shift+L</span>
+                <span className={shortcutClass}>Shift+L</span>
                 Disband Chord
               </button>
 
@@ -11659,7 +11824,7 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>O</span>
+                <span className={shortcutClass}>O</span>
                 Optimize Notes
               </button>
 
@@ -11674,7 +11839,6 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>No shortcut</span>
                 Snap to Key
               </button>
 
@@ -11694,7 +11858,6 @@ export default function GteWorkspace({
                     : textButtonClass
                 }
               >
-                <span className={tooltipClass}>No shortcut</span>
                 Quantize
               </button>
 
@@ -11711,69 +11874,11 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>J</span>
+                <span className={shortcutClass}>J</span>
                 Merge Notes
               </button>
 
-              <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-1.5">
-                <div className="mb-1 px-1 text-[8px] font-bold uppercase tracking-[0.14em] text-slate-400">
-                  Effects
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleAddNoteEffect(1);
-                    }}
-                    disabled={!canCreateNoteEffect}
-                    title={
-                      selectionActionsLocked
-                        ? "Disabled while notes/chords are selected in multiple tracks"
-                        : "Connect selected notes with hammer-ons or pull-offs - Shortcut: H"
-                    }
-                    className={textButtonClass}
-                  >
-                    <span className={tooltipClass}>H</span>
-                    Hammer/Pull
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleAddNoteEffect(2);
-                    }}
-                    disabled={!canCreateNoteEffect}
-                    title={
-                      selectionActionsLocked
-                        ? "Disabled while notes/chords are selected in multiple tracks"
-                        : "Connect selected notes with slides - Shortcut: L"
-                    }
-                    className={textButtonClass}
-                  >
-                    <span className={tooltipClass}>L</span>
-                    Slide
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleAddNoteEffect(0);
-                    }}
-                    disabled={!canCreateNoteEffect}
-                    title={
-                      selectionActionsLocked
-                        ? "Disabled while notes/chords are selected in multiple tracks"
-                        : "Connect selected notes with bends - Shortcut: B"
-                    }
-                    className={textButtonClass}
-                  >
-                    <span className={tooltipClass}>B</span>
-                    Bend
-                  </button>
-                </div>
-              </div>
-
-              <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_86px] gap-1.5">
+              <div className="grid grid-cols-1 gap-1.5">
                 <select
                   data-scale-mode-select="true"
                   value={scaleToolMode}
@@ -11791,7 +11896,7 @@ export default function GteWorkspace({
                     }
                     event.currentTarget.blur();
                   }}
-                  className="h-8 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 shadow-sm outline-none transition focus:border-slate-400"
+                  className="h-7 min-w-0 rounded-md border-0 bg-transparent px-2 text-[11px] font-normal text-slate-700 shadow-none outline-none transition hover:bg-slate-100 focus:bg-slate-100"
                   title="Scale mode - Shortcut: D"
                 >
                   <option value="length">Length scaling</option>
@@ -11813,12 +11918,10 @@ export default function GteWorkspace({
                       : iconButtonClass
                   }
                 >
-                  <span className={tooltipClass}>S</span>
+                  <span className={shortcutClass}>S</span>
                   <svg
                     viewBox="0 0 24 24"
-                    className={`h-3.5 w-3.5 ${
-                      scaleToolActive ? "fill-white" : "fill-current"
-                    }`}
+                    className="h-3.5 w-3.5 fill-current"
                     aria-hidden="true"
                   >
                     <path d="M3 10h18v4H3z" />
@@ -11839,14 +11942,12 @@ export default function GteWorkspace({
                     : iconButtonClass
                 }
               >
-                <span className={tooltipClass}>Shift+S</span>
+                <span className={shortcutClass}>Shift+S</span>
                 <img
                   src={STREAMLINE_TOOLBAR_ICONS.slice}
                   alt=""
                   aria-hidden="true"
-                  className={`h-3.5 w-3.5 ${
-                    sliceToolActive ? "brightness-0 invert" : ""
-                  }`}
+                  className="h-3.5 w-3.5"
                 />
                 Slicing Tool
               </button>
@@ -11871,12 +11972,10 @@ export default function GteWorkspace({
                     : iconButtonClass
                 }
               >
-                <span className={tooltipClass}>M</span>
+                <span className={shortcutClass}>M</span>
                 <svg
                   viewBox="0 0 24 24"
-                  className={`h-3.5 w-3.5 ${
-                    moveToolActive ? "fill-white" : "fill-current"
-                  }`}
+                  className="h-3.5 w-3.5 fill-current"
                   aria-hidden="true"
                 >
                   <path d="M11 3h2v5h4l-5 5-5-5h4V3z" />
@@ -11888,20 +11987,65 @@ export default function GteWorkspace({
           </div>
 
           <div className={sectionClass}>
-            <div className={sectionTitleClass}>Playing Coordinates</div>
-
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className={sectionTitleClass}>Effects</div>
+            <div className="grid grid-cols-1 gap-1.5">
               <button
                 type="button"
-                data-gte-editor-control="true"
-                onClick={() => setShowGenerateCutsConfirm(true)}
-                title="Generate cuts"
+                onClick={() => {
+                  handleAddNoteEffect(1);
+                }}
+                disabled={!canCreateNoteEffect}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Connect selected notes with hammer-ons or pull-offs - Shortcut: H"
+                }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>No shortcut</span>
-                Generate Playing Coordinates 
+                <span className={shortcutClass}>H</span>
+                Hammer/Pull
               </button>
 
+              <button
+                type="button"
+                onClick={() => {
+                  handleAddNoteEffect(2);
+                }}
+                disabled={!canCreateNoteEffect}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Connect selected notes with slides - Shortcut: L"
+                }
+                className={textButtonClass}
+              >
+                <span className={shortcutClass}>L</span>
+                Slide
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleAddNoteEffect(0);
+                }}
+                disabled={!canCreateNoteEffect}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Connect selected notes with bends - Shortcut: B"
+                }
+                className={textButtonClass}
+              >
+                <span className={shortcutClass}>B</span>
+                Bend
+              </button>
+            </div>
+          </div>
+
+          <div className={sectionClass}>
+            <div className={sectionTitleClass}>Playing Coordinates</div>
+
+            <div className="grid grid-cols-1 gap-1.5">
               <button
                 type="button"
                 data-gte-editor-control="true"
@@ -11910,7 +12054,6 @@ export default function GteWorkspace({
                 title="Merges adjacent cut regions with the same coordinates"
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>No shortcut</span>
                 Clean Playing-Coordinates
               </button>
 
@@ -11925,14 +12068,12 @@ export default function GteWorkspace({
                     : iconButtonClass
                 }
               >
-                <span className={tooltipClass}>K</span>
+                <span className={shortcutClass}>K</span>
                 <img
                   src={STREAMLINE_TOOLBAR_ICONS.cut}
                   alt=""
                   aria-hidden="true"
-                  className={`h-3.5 w-3.5 ${
-                    cutToolActive ? "brightness-0 invert" : ""
-                  }`}
+                  className="h-3.5 w-3.5"
                 />
                 Cut
               </button>
@@ -11945,12 +12086,12 @@ export default function GteWorkspace({
                 title="Merge/delete selected boundary"
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>No shortcut</span>
                 Merge
               </button>
             </div>
           </div>
         </div>
+        </fieldset>
       </div>
     );
   };
@@ -12034,7 +12175,9 @@ export default function GteWorkspace({
           }`}
         />
       )}
-      {toolbarOpen && showPlaybackUi && showToolbarUi && !mobileViewport && renderToolbarPanel(false)}
+      {editMenuPortalTarget
+        ? createPortal(renderEditMenuPanel(), editMenuPortalTarget)
+        : null}
       {scaleToolActive && scaleHudPosition && (
         <div
           ref={scaleHudRef}
@@ -12203,7 +12346,13 @@ export default function GteWorkspace({
       {contextMenu && (
         <div
           ref={contextMenuRef}
-          className="fixed z-[9999] w-36 rounded-md border border-slate-200 bg-white/95 py-1 text-xs shadow-lg backdrop-blur"
+          className={`fixed z-[9999] rounded-md border border-slate-200 bg-white/95 py-1 text-xs shadow-lg backdrop-blur ${
+            contextMenu.kind === "note"
+              ? "max-h-[calc(100vh-1.5rem)] w-64 overflow-y-auto"
+              : contextMenu.kind === "playingCoordinates"
+              ? "w-56"
+              : "w-36"
+          }`}
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onMouseDown={(event) => event.stopPropagation()}
         >
@@ -12243,6 +12392,55 @@ export default function GteWorkspace({
                 Delete bars
               </button>
             </>
+          ) : contextMenu.kind === "playingCoordinates" ? (
+            <>
+              <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                Playing Coordinates
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGenerateCutsConfirm(true);
+                  setContextMenu(null);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+              >
+                Generate Playing-Coordinates
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleMergeRedundantCutRegions();
+                  setContextMenu(null);
+                }}
+                disabled={!hasRedundantCutRegions}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+              >
+                Clean Playing-Coordinates
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  toggleCutTool();
+                  setContextMenu(null);
+                }}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100"
+              >
+                <span>Cut</span>
+                <span className="text-[10px] text-slate-400">K</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleMergeCutBoundary();
+                  setContextMenu(null);
+                }}
+                disabled={selectedCutBoundaryIndex === null}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+              >
+                Merge
+              </button>
+            </>
           ) : (
             <>
               <button
@@ -12266,6 +12464,195 @@ export default function GteWorkspace({
               >
                 Paste
               </button>
+              {contextMenu.kind === "note" && (
+                <>
+                  <div className="my-1 border-t border-slate-200" />
+                  <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    Notes &amp; chords
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleMakeChord();
+                      setContextMenu(null);
+                    }}
+                    disabled={chordizeCandidateCount < 2 || selectionActionsLocked}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Merge to Chord</span>
+                    <span className="text-[10px] text-slate-400">C</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (activeChordIds.length) {
+                        const chordIds = [...activeChordIds];
+                        void runMutation(
+                          async () => {
+                            const latestSnapshot = await disbandChordIds(chordIds);
+                            return latestSnapshot ? { snapshot: latestSnapshot } : {};
+                          },
+                          {
+                            localApply: (draft) => {
+                              chordIds.forEach((chordId) =>
+                                disbandChordInSnapshot(draft, chordId)
+                              );
+                            },
+                          }
+                        );
+                        setSelectedChordIds([]);
+                      }
+                      setContextMenu(null);
+                    }}
+                    disabled={activeChordIds.length === 0 || selectionActionsLocked}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Disband Chord</span>
+                    <span className="text-[10px] text-slate-400">Shift+L</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleAssignOptimals();
+                      setContextMenu(null);
+                    }}
+                    disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Optimize Notes</span>
+                    <span className="text-[10px] text-slate-400">O</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSnapSelectedNotesToKey();
+                      setContextMenu(null);
+                    }}
+                    disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    Snap to Key
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      activateQuantizeTool();
+                      setContextMenu(null);
+                    }}
+                    disabled={
+                      selectedNoteIds.length + selectedChordIds.length === 0 ||
+                      selectionActionsLocked
+                    }
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    Quantize
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleJoinSelectedNotes();
+                      setContextMenu(null);
+                    }}
+                    disabled={selectedNoteIds.length < 2 || selectionActionsLocked}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Merge Notes</span>
+                    <span className="text-[10px] text-slate-400">J</span>
+                  </button>
+                  <label className="flex items-center justify-between gap-3 px-3 py-1.5 text-slate-700">
+                    <span>Scale mode</span>
+                    <select
+                      data-scale-mode-select="true"
+                      value={scaleToolMode}
+                      onChange={(event) => {
+                        const nextMode = event.target.value;
+                        if (!isScaleToolMode(nextMode)) return;
+                        setScaleToolMode(nextMode);
+                        if (scaleToolActive) {
+                          applyScalePreview(scaleFactor, {
+                            mode: nextMode,
+                            syncInput: false,
+                          });
+                        }
+                      }}
+                      className="h-6 min-w-0 rounded border border-slate-200 bg-white px-1 text-[10px] text-slate-700"
+                    >
+                      <option value="length">Length</option>
+                      <option value="start">Start time</option>
+                      <option value="both">Start + length</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleScaleTool();
+                      setContextMenu(null);
+                    }}
+                    disabled={
+                      !scaleToolActive &&
+                      selectedNoteIds.length + selectedChordIds.length === 0
+                    }
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Scale</span>
+                    <span className="text-[10px] text-slate-400">S</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleSliceTool();
+                      setContextMenu(null);
+                    }}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100"
+                  >
+                    <span>Slicing Tool</span>
+                    <span className="text-[10px] text-slate-400">Shift+S</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (moveToolActive) {
+                        deactivateMoveTool();
+                      } else {
+                        activateMoveTool();
+                      }
+                      setContextMenu(null);
+                    }}
+                    disabled={
+                      !moveToolActive &&
+                      selectedNoteIds.length + selectedChordIds.length === 0
+                    }
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Move</span>
+                    <span className="text-[10px] text-slate-400">M</span>
+                  </button>
+
+                  <div className="my-1 border-t border-slate-200" />
+                  <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    Effects
+                  </div>
+                  {[
+                    ["Hammer/Pull", "H", 1],
+                    ["Slide", "L", 2],
+                    ["Bend", "B", 0],
+                  ].map(([label, shortcut, effectType]) => (
+                    <button
+                      key={`note-context-effect-${label}`}
+                      type="button"
+                      onClick={() => {
+                        handleAddNoteEffect(Number(effectType));
+                        setContextMenu(null);
+                      }}
+                      disabled={!canCreateNoteEffect}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                    >
+                      <span>{label}</span>
+                      <span className="text-[10px] text-slate-400">{shortcut}</span>
+                    </button>
+                  ))}
+                </>
+              )}
             </>
           )}
         </div>
@@ -12278,25 +12665,6 @@ export default function GteWorkspace({
           }`}
         >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
-            {!mobileViewport && (
-              <button
-                type="button"
-                data-gte-editor-control="true"
-                data-gte-toolbar-ui="true"
-                onClick={() => setToolbarOpen((prev) => !prev)}
-                aria-pressed={toolbarOpen}
-                title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
-                className={`pointer-events-auto flex h-10 items-center justify-center rounded-full border px-3 text-xs font-semibold shadow-md backdrop-blur transition ${
-                  mobileViewport ? "" : "md:absolute md:right-0"
-                } ${
-                  toolbarOpen
-                    ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
-                    : "border-sky-300 bg-sky-100/95 text-sky-900 hover:bg-sky-50"
-                }`}
-              >
-                Toolbar
-              </button>
-            )}
             {mobileViewport ? (
               <div className="pointer-events-auto flex w-full items-center gap-2">
                 <div className="flex shrink-0 flex-col gap-1">
@@ -12475,52 +12843,7 @@ export default function GteWorkspace({
               </div>
             ) : (
               <div className="pointer-events-auto flex items-center gap-2">
-                <div className="flex shrink-0 flex-col gap-1">
-                  {renderDefaultNoteLengthControl(false)}
-                  {renderCursorSizeControl(false)}
-                </div>
-              <div
-                data-gte-floating-ui="true"
-                className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur"
-              >
-                <button
-                  type="button"
-                  onClick={requestUndo}
-                  disabled={effectiveUndoCount === 0 || busy}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Undo (Ctrl/Cmd+Z)"
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                    <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  onClick={requestRedo}
-                  disabled={effectiveRedoCount === 0 || busy}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Redo (Ctrl/Cmd+Shift+Z)"
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                    <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
-                  </svg>
-                </button>
-                <span className="mx-1 whitespace-nowrap text-[10px] text-slate-500">
-                  {!allowBackend
-                    ? hasUnsavedChanges
-                      ? "Saving local draft..."
-                      : "Local draft saved"
-                    : isAutosaving
-                      ? "Saving..."
-                      : hasUnsavedChanges
-                        ? "Unsaved changes"
-                        : lastSavedAt
-                          ? `Saved ${new Date(lastSavedAt).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}`
-                          : "Saved"}
-                </span>
+              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
                 <button
                   type="button"
                   onClick={skipToStart}
@@ -12579,7 +12902,8 @@ export default function GteWorkspace({
                     <polygon points="7,5 17,12 7,19" />
                   </svg>
                 </button>
-                <div className="flex items-center gap-1 px-1">
+              </div>
+              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-slate-700 shadow-sm backdrop-blur">
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
                     <path d="M4 10v4h4l5 4V6L8 10H4z" />
                     <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
@@ -12594,93 +12918,6 @@ export default function GteWorkspace({
                     className="w-20 accent-slate-700"
                     title="Volume"
                   />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setEffectivePracticeLoopEnabled(!effectivePracticeLoopEnabled)}
-                  disabled={!effectivePracticeLoopRange}
-                  aria-pressed={effectivePracticeLoopEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
-                    effectivePracticeLoopEnabled ? "bg-emerald-100 text-emerald-800" : "hover:bg-slate-100"
-                  }`}
-                  title="Loop selected bars"
-                >
-                  Loop
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEffectiveMetronomeEnabled(!effectiveMetronomeEnabled)}
-                  aria-pressed={effectiveMetronomeEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold ${
-                    effectiveMetronomeEnabled ? "bg-sky-100 text-sky-800" : "hover:bg-slate-100"
-                  }`}
-                  title="Metronome"
-                >
-                  Met
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEffectiveCountInEnabled(!effectiveCountInEnabled)}
-                  aria-pressed={effectiveCountInEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold ${
-                    effectiveCountInEnabled ? "bg-amber-100 text-amber-800" : "hover:bg-slate-100"
-                  }`}
-                  title="One-bar count-in"
-                >
-                  Count
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEffectiveSpeedTrainerEnabled(!effectiveSpeedTrainerEnabled)}
-                  disabled={!effectivePracticeLoopEnabled}
-                  aria-pressed={effectiveSpeedTrainerEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
-                    effectiveSpeedTrainerEnabled ? "bg-violet-100 text-violet-800" : "hover:bg-slate-100"
-                  }`}
-                  title="Speed trainer"
-                >
-                  Train
-                </button>
-                <select
-                  value={effectivePlaybackSpeed}
-                  onChange={(event) => setEffectivePlaybackSpeed(Number(event.target.value))}
-                  className="h-8 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
-                  title="Playback speed"
-                >
-                  {effectivePlaybackSpeedOptions.map((speed) => (
-                    <option key={speed} value={speed}>
-                      {Math.round(speed * 100)}%
-                    </option>
-                  ))}
-                </select>
-                {effectiveSpeedTrainerEnabled && (
-                  <>
-                    <select
-                      value={effectiveSpeedTrainerTarget}
-                      onChange={(event) => setEffectiveSpeedTrainerTarget(Number(event.target.value))}
-                      className="h-8 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
-                      title="Speed trainer target"
-                    >
-                      {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
-                        <option key={speed} value={speed}>
-                          to {Math.round(speed * 100)}%
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={effectiveSpeedTrainerStep}
-                      onChange={(event) => setEffectiveSpeedTrainerStep(Number(event.target.value))}
-                      className="h-8 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
-                      title="Speed trainer step"
-                    >
-                      {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
-                        <option key={step} value={step}>
-                          +{Math.round(step * 100)}%
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
               </div>
               </div>
             )}
@@ -12767,15 +13004,6 @@ export default function GteWorkspace({
                 </select>
               </div>
             </div>
-            <label className="flex items-center gap-1.5 whitespace-nowrap">
-              <input
-                type="checkbox"
-                checked={keepNotesOnBeat}
-                onChange={(event) => setKeepNotesOnBeat(event.target.checked)}
-                className="h-3.5 w-3.5 rounded border-slate-300"
-              />
-              <span>Keep notes on beat</span>
-            </label>
           </div>
         )}
         {!embedded && (
@@ -13516,6 +13744,7 @@ export default function GteWorkspace({
                       data-gte-editor-control="true"
                       data-gte-playing-coordinate="true"
                       onMouseDown={(event) => {
+                        if (event.button !== 0) return;
                         event.preventDefault();
                         event.stopPropagation();
                         setSelectedCutBoundaryIndex(boundary.index);
@@ -13523,6 +13752,9 @@ export default function GteWorkspace({
                         setSelectedNoteIds([]);
                         setSelectedChordIds([]);
                       }}
+                      onContextMenu={(event) =>
+                        handlePlayingCoordinatesContextMenu(event, boundary.index)
+                      }
                       className="absolute z-40 cursor-pointer"
                       style={{ left, top, height, width: 18, transform: "translateX(-9px)" }}
                     >
@@ -13596,6 +13828,10 @@ export default function GteWorkspace({
                         title="Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below"
                         aria-label="Playing coordinates"
                         onMouseDown={(event) => {
+                          if (event.button !== 0) {
+                            event.stopPropagation();
+                            return;
+                          }
                           if (cutToolActive) {
                             event.preventDefault();
                             event.stopPropagation();
@@ -13604,6 +13840,9 @@ export default function GteWorkspace({
                           }
                           event.stopPropagation();
                         }}
+                        onContextMenu={(event) =>
+                          handlePlayingCoordinatesContextMenu(event)
+                        }
                       >
                         <button
                           type="button"
@@ -13828,6 +14067,7 @@ export default function GteWorkspace({
                         key={`note-${note.id}-seg-${segment.rowIndex}-${idx}`}
                         type="button"
                         onMouseDown={(event) => {
+                          if (event.button !== 0) return;
                           if (mobileViewport) {
                             event.preventDefault();
                             event.stopPropagation();
@@ -13859,6 +14099,7 @@ export default function GteWorkspace({
                         onTouchMove={cancelTouchHoldOnMove}
                         onTouchEnd={() => clearTouchHold()}
                         onTouchCancel={() => clearTouchHold()}
+                        onContextMenu={(event) => handleNoteContextMenu(note, event)}
                         onClick={(event) => {
                           if (touchHoldTriggeredRef.current) {
                             touchHoldTriggeredRef.current = false;
@@ -14855,36 +15096,6 @@ export default function GteWorkspace({
                   </div>
                 )}
               </div>
-              {showMobileInlineToolbar && (
-                <div className={`${toolbarOpen ? "w-[min(10.5rem,42vw)]" : "w-[5.25rem]"} shrink-0 transition-[width] duration-150`}>
-                  <div className="flex h-full min-h-0 flex-col gap-2">
-                    <button
-                      type="button"
-                      data-gte-editor-control="true"
-                      data-gte-toolbar-ui="true"
-                      onClick={() => setToolbarOpen((prev) => !prev)}
-                      aria-pressed={toolbarOpen}
-                      title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
-                      className={`flex h-10 w-full items-center justify-center rounded-xl border px-2 text-xs font-semibold shadow-sm transition ${
-                        toolbarOpen
-                          ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      Toolbar
-                    </button>
-                    <div className="min-h-0 flex-1">
-                      {toolbarOpen ? (
-                        renderToolbarPanel(true)
-                      ) : (
-                        <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/75 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                          Hidden
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}

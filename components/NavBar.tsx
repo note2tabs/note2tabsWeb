@@ -78,7 +78,8 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
       setEditorRevealVisible(editorAtPageTopRef.current && editorMouseNearTopRef.current);
     };
     const handleMouseMove = (event: MouseEvent) => {
-      editorMouseNearTopRef.current = event.clientY <= 72;
+      const revealThreshold = editorMouseNearTopRef.current ? 64 : 20;
+      editorMouseNearTopRef.current = event.clientY <= revealThreshold;
       updateRevealState();
     };
     const handleScroll = () => {
