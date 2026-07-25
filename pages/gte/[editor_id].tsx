@@ -4634,7 +4634,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     onMouseLeave={scheduleEditMenuClose}
                   >
                     <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-                      Edit
+                      Tools
                     </summary>
                     <div className="absolute left-0 top-full z-[10000] max-h-[calc(100vh-10rem)] w-72 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       <div ref={setEditMenuPortalTarget}>
