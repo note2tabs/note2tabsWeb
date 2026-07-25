@@ -525,6 +525,36 @@ input[type="number"] {
   text-align: center;
 }
 
+.gte-workspace-loading {
+  min-height: 260px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      100deg,
+      rgba(241, 245, 249, 0.78) 20%,
+      rgba(255, 255, 255, 0.96) 38%,
+      rgba(241, 245, 249, 0.78) 56%
+    );
+  background-size: 220% 100%;
+  animation: gte-workspace-loading 1.2s ease-in-out infinite;
+}
+
+@keyframes gte-workspace-loading {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gte-workspace-loading {
+    animation: none;
+  }
+}
+
 .review-import-card {
   display: grid;
   gap: 22px;

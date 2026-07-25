@@ -10,7 +10,13 @@ import { clearGuestDraft, GTE_GUEST_EDITOR_ID, readGuestDraft } from "../../lib/
 import NoIndexHead from "../../components/NoIndexHead";
 import GteFileImportButton from "../../components/GteFileImportButton";
 
-export default function GteIndexPage() {
+type Props = {
+  userId: string;
+};
+
+const EDITOR_LIST_CACHE_PREFIX = "note2tabs:gte:editor-list:";
+
+export default function GteIndexPage({ userId }: Props) {
   const [editors, setEditors] = useState<EditorListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,12 +73,28 @@ export default function GteIndexPage() {
     return nextLegacy;
   }, [hasGuestDraftContent]);
 
-  const loadEditors = async () => {
-    setLoading(true);
+  const writeEditorListCache = useCallback(
+    (items: EditorListItem[]) => {
+      try {
+        window.sessionStorage.setItem(
+          `${EDITOR_LIST_CACHE_PREFIX}${userId}`,
+          JSON.stringify(items)
+        );
+      } catch {
+        // The cache is only a speed optimization.
+      }
+    },
+    [userId]
+  );
+
+  const loadEditors = async (showLoading: boolean = true) => {
+    if (showLoading) setLoading(true);
     setError(null);
     try {
       const data = await gteApi.listEditors();
-      setEditors(data.editors || []);
+      const nextEditors = data.editors || [];
+      setEditors(nextEditors);
+      writeEditorListCache(nextEditors);
     } catch (err: any) {
       setError(err?.message || "Could not load editors.");
     } finally {
@@ -81,8 +103,20 @@ export default function GteIndexPage() {
   };
 
   useEffect(() => {
-    void loadEditors();
-  }, []);
+    let hasCachedEditors = false;
+    try {
+      const raw = window.sessionStorage.getItem(`${EDITOR_LIST_CACHE_PREFIX}${userId}`);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed)) {
+        setEditors(parsed);
+        setLoading(false);
+        hasCachedEditors = true;
+      }
+    } catch {
+      // Continue with the network request.
+    }
+    void loadEditors(!hasCachedEditors);
+  }, [userId]);
 
   useEffect(() => {
     const refresh = () => {
@@ -123,7 +157,11 @@ export default function GteIndexPage() {
     setError(null);
     try {
       await gteApi.deleteEditor(editor.id);
-      setEditors((prev) => prev.filter((item) => item.id !== editor.id));
+      setEditors((prev) => {
+        const next = prev.filter((item) => item.id !== editor.id);
+        writeEditorListCache(next);
+        return next;
+      });
       setDeleteDialog((prev) => (prev?.id === editor.id ? null : prev));
     } catch (err: any) {
       setError(err?.message || "Could not delete editor.");
@@ -154,16 +192,18 @@ export default function GteIndexPage() {
         (res as any)?.canvas?.name ||
         (res as any)?.snapshot?.name ||
         normalizedName;
-      setEditors((prev) =>
-        prev.map((item) =>
+      setEditors((prev) => {
+        const next = prev.map((item) =>
           item.id === editorId
             ? {
                 ...item,
                 name: updatedName,
               }
             : item
-        )
-      );
+        );
+        writeEditorListCache(next);
+        return next;
+      });
       setRenameDialog(null);
     } catch (err: any) {
       setError(err?.message || "Could not rename editor.");
@@ -302,7 +342,18 @@ export default function GteIndexPage() {
               <div key={editor.id} className="card-outline gte-library-row">
                 <div className="gte-library-card-head">
                   <h2 className="gte-library-card-title">
-                    <Link href={`/gte/${editor.id}`}>
+                    <Link
+                      href={`/gte/${editor.id}`}
+                      onPointerEnter={() => {
+                        void gteApi.prefetchEditor(editor.id).catch(() => undefined);
+                      }}
+                      onFocus={() => {
+                        void gteApi.prefetchEditor(editor.id).catch(() => undefined);
+                      }}
+                      onTouchStart={() => {
+                        void gteApi.prefetchEditor(editor.id).catch(() => undefined);
+                      }}
+                    >
                       {editor.name || "Untitled"}
                     </Link>
                   </h2>
@@ -447,5 +498,5 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       },
     };
   }
-  return { props: {} };
+  return { props: { userId: session.user.id } };
 };

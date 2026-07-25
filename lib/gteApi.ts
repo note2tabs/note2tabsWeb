@@ -4,6 +4,30 @@ import { GTE_GUEST_EDITOR_ID } from "./gteGuestDraft";
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
 const LANE_DELIMITER = "__ed__";
+const EDITOR_PREFETCH_TTL_MS = 15_000;
+type EditorBootstrapResult = {
+  ok: boolean;
+  status: number;
+  text: string;
+};
+type EditorBootstrap = {
+  editorId: string;
+  promise: Promise<EditorBootstrapResult>;
+};
+
+declare global {
+  interface Window {
+    __note2tabsEditorBootstrap?: EditorBootstrap;
+  }
+}
+
+const editorPrefetches = new Map<
+  string,
+  {
+    expiresAt: number;
+    promise: Promise<EditorOrCanvasSnapshot>;
+  }
+>();
 export const MAX_EDITOR_NAME_LENGTH = 80;
 export const TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES = 96_000;
 export const TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS = 24;
@@ -87,6 +111,55 @@ async function requestForEditor<T>(
   options: RequestInit = {}
 ): Promise<T> {
   return request<T>(path, options, getBaseForEditor(editorId));
+}
+
+function fetchEditor(editorId: string) {
+  return requestForEditor<EditorOrCanvasSnapshot>(
+    editorId,
+    `/editors/${encodeURIComponent(editorId)}`
+  );
+}
+
+function takeBootstrappedEditor(editorId: string) {
+  if (typeof window === "undefined") return null;
+  const bootstrap = window.__note2tabsEditorBootstrap;
+  if (!bootstrap || bootstrap.editorId !== editorId) return null;
+  delete window.__note2tabsEditorBootstrap;
+  return bootstrap.promise.then(({ ok, text }) => {
+    if (!ok) throw new Error(text || "Request failed");
+    if (!text) return {} as EditorOrCanvasSnapshot;
+    try {
+      return JSON.parse(text) as EditorOrCanvasSnapshot;
+    } catch {
+      return text as unknown as EditorOrCanvasSnapshot;
+    }
+  });
+}
+
+function prefetchEditor(editorId: string) {
+  const now = Date.now();
+  const cached = editorPrefetches.get(editorId);
+  if (cached && cached.expiresAt > now) return cached.promise;
+  if (cached) editorPrefetches.delete(editorId);
+
+  const promise = fetchEditor(editorId).catch((error) => {
+    editorPrefetches.delete(editorId);
+    throw error;
+  });
+  editorPrefetches.set(editorId, {
+    expiresAt: now + EDITOR_PREFETCH_TTL_MS,
+    promise,
+  });
+  return promise;
+}
+
+function getPrefetchedEditor(editorId: string) {
+  const cached = editorPrefetches.get(editorId);
+  editorPrefetches.delete(editorId);
+  if (!cached || cached.expiresAt <= Date.now()) {
+    return takeBootstrappedEditor(editorId) ?? fetchEditor(editorId);
+  }
+  return cached.promise;
 }
 
 export function chunkTranscriberSegmentGroups(
@@ -253,7 +326,8 @@ export const gteApi = {
       },
       GUEST_BASE
     ),
-  getEditor: (editorId: string) => requestForEditor<EditorOrCanvasSnapshot>(editorId, `/editors/${editorId}`),
+  prefetchEditor,
+  getEditor: getPrefetchedEditor,
   deleteEditor: (editorId: string) =>
     requestForEditor<{ ok: true }>(editorId, `/editors/${editorId}`, {
       method: "DELETE",
