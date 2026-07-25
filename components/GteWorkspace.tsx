@@ -191,6 +191,11 @@ type ContextMenuState =
       y: number;
       kind: "note";
       targetFrame: number;
+    }
+  | {
+      x: number;
+      y: number;
+      kind: "playingCoordinates";
     };
 
 const DEFAULT_STRING_LABELS = ["E", "B", "G", "D", "A", "E"];
@@ -7456,6 +7461,23 @@ export default function GteWorkspace({
     });
   };
 
+  const handlePlayingCoordinatesContextMenu = (
+    event: ReactMouseEvent<HTMLElement>,
+    boundaryIndex: number | null = null
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setSelectedCutBoundaryIndex(boundaryIndex);
+    setSelectedNoteIds([]);
+    setSelectedChordIds([]);
+    setSelectedNoteEffectId(null);
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      kind: "playingCoordinates",
+    });
+  };
+
   const clearTouchHold = useCallback(() => {
     if (touchHoldTimerRef.current !== null) {
       window.clearTimeout(touchHoldTimerRef.current);
@@ -12327,6 +12349,8 @@ export default function GteWorkspace({
           className={`fixed z-[9999] rounded-md border border-slate-200 bg-white/95 py-1 text-xs shadow-lg backdrop-blur ${
             contextMenu.kind === "note"
               ? "max-h-[calc(100vh-1.5rem)] w-64 overflow-y-auto"
+              : contextMenu.kind === "playingCoordinates"
+              ? "w-56"
               : "w-36"
           }`}
           style={{ left: contextMenu.x, top: contextMenu.y }}
@@ -12366,6 +12390,45 @@ export default function GteWorkspace({
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 hover:bg-rose-50 disabled:text-slate-400"
               >
                 Delete bars
+              </button>
+            </>
+          ) : contextMenu.kind === "playingCoordinates" ? (
+            <>
+              <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                Playing Coordinates
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  handleMergeRedundantCutRegions();
+                  setContextMenu(null);
+                }}
+                disabled={!hasRedundantCutRegions}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+              >
+                Clean Playing-Coordinates
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  toggleCutTool();
+                  setContextMenu(null);
+                }}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100"
+              >
+                <span>Cut</span>
+                <span className="text-[10px] text-slate-400">K</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleMergeCutBoundary();
+                  setContextMenu(null);
+                }}
+                disabled={selectedCutBoundaryIndex === null}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+              >
+                Merge
               </button>
             </>
           ) : (
@@ -13671,6 +13734,7 @@ export default function GteWorkspace({
                       data-gte-editor-control="true"
                       data-gte-playing-coordinate="true"
                       onMouseDown={(event) => {
+                        if (event.button !== 0) return;
                         event.preventDefault();
                         event.stopPropagation();
                         setSelectedCutBoundaryIndex(boundary.index);
@@ -13678,6 +13742,9 @@ export default function GteWorkspace({
                         setSelectedNoteIds([]);
                         setSelectedChordIds([]);
                       }}
+                      onContextMenu={(event) =>
+                        handlePlayingCoordinatesContextMenu(event, boundary.index)
+                      }
                       className="absolute z-40 cursor-pointer"
                       style={{ left, top, height, width: 18, transform: "translateX(-9px)" }}
                     >
@@ -13751,6 +13818,10 @@ export default function GteWorkspace({
                         title="Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below"
                         aria-label="Playing coordinates"
                         onMouseDown={(event) => {
+                          if (event.button !== 0) {
+                            event.stopPropagation();
+                            return;
+                          }
                           if (cutToolActive) {
                             event.preventDefault();
                             event.stopPropagation();
@@ -13759,6 +13830,9 @@ export default function GteWorkspace({
                           }
                           event.stopPropagation();
                         }}
+                        onContextMenu={(event) =>
+                          handlePlayingCoordinatesContextMenu(event)
+                        }
                       >
                         <button
                           type="button"

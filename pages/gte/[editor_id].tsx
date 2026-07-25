@@ -609,6 +609,7 @@ const selectBarsFromLane = (lane: EditorSnapshot, barIndices: number[]): EditorS
   const notes: EditorSnapshot["notes"] = [];
   const chords: EditorSnapshot["chords"] = [];
   const cutPositionsWithCoords: EditorSnapshot["cutPositionsWithCoords"] = [];
+  const clipboardNoteIdBySourceId = new Map<number, number>();
 
   normalized.forEach((barIndex, outputIndex) => {
     const barStart = barIndex * FIXED_FRAMES_PER_BAR;
@@ -619,9 +620,11 @@ const selectBarsFromLane = (lane: EditorSnapshot, barIndices: number[]): EditorS
     lane.notes.forEach((note) => {
       const noteStart = Math.round(toNumber(note.startTime, 0));
       if (noteStart < barStart || noteStart >= barEnd) return;
+      const clipboardNoteId = notes.length + 1;
+      clipboardNoteIdBySourceId.set(note.id, clipboardNoteId);
       notes.push({
         ...note,
-        id: notes.length + 1,
+        id: clipboardNoteId,
         startTime: noteStart + offset,
         length: Math.max(1, Math.round(toNumber(note.length, 1))),
         tab: [note.tab[0], note.tab[1]],
@@ -667,6 +670,19 @@ const selectBarsFromLane = (lane: EditorSnapshot, barIndices: number[]): EditorS
   });
 
   const totalFrames = normalized.length * FIXED_FRAMES_PER_BAR;
+  const noteEffects = (lane.noteEffects || []).flatMap((effect, index) => {
+    const startNoteId = clipboardNoteIdBySourceId.get(effect.startNoteId);
+    const endNoteId = clipboardNoteIdBySourceId.get(effect.endNoteId);
+    if (startNoteId === undefined || endNoteId === undefined) return [];
+    return [
+      {
+        ...effect,
+        id: index + 1,
+        startNoteId,
+        endNoteId,
+      },
+    ];
+  });
   return normalizeLane(
     {
       ...lane,
@@ -676,6 +692,7 @@ const selectBarsFromLane = (lane: EditorSnapshot, barIndices: number[]): EditorS
       totalFrames,
       notes,
       chords,
+      noteEffects,
       cutPositionsWithCoords: cutPositionsWithCoords.length
         ? cutPositionsWithCoords
         : buildDefaultCutRegions(totalFrames),
@@ -732,23 +749,47 @@ const insertBarsIntoLane = (
     ]);
   });
 
-  const nextNotes = [
-    ...lane.notes.map((note) => {
-      const noteStart = Math.round(toNumber(note.startTime, 0));
-      if (noteStart < insertFrame) return note;
-      return { ...note, startTime: noteStart + clipLength };
-    }),
-    ...clipboard.notes.map((note) => ({
+  const insertedNoteIdByClipboardId = new Map<number, number>();
+  const insertedNotes = clipboard.notes.map((note) => {
+    const id = nextNoteId++;
+    insertedNoteIdByClipboardId.set(note.id, id);
+    return {
       ...note,
-      id: nextNoteId++,
+      id,
       startTime: Math.round(toNumber(note.startTime, 0)) + insertFrame,
       length: Math.max(1, Math.round(toNumber(note.length, 1))),
       tab: [note.tab[0], note.tab[1]] as [number, number],
       optimals: Array.isArray(note.optimals)
         ? note.optimals.map((tab) => [tab[0], tab[1]] as [number, number])
         : [],
-    })),
+    };
+  });
+  const nextNotes = [
+    ...lane.notes.map((note) => {
+      const noteStart = Math.round(toNumber(note.startTime, 0));
+      if (noteStart < insertFrame) return note;
+      return { ...note, startTime: noteStart + clipLength };
+    }),
+    ...insertedNotes,
   ].sort((left, right) => left.startTime - right.startTime || left.id - right.id);
+  let nextNoteEffectId =
+    (lane.noteEffects || []).reduce(
+      (max, effect) => Math.max(max, Math.round(toNumber(effect.id, 0))),
+      0
+    ) + 1;
+  const insertedNoteEffects = (clipboard.noteEffects || []).flatMap((effect) => {
+    const startNoteId = insertedNoteIdByClipboardId.get(effect.startNoteId);
+    const endNoteId = insertedNoteIdByClipboardId.get(effect.endNoteId);
+    if (startNoteId === undefined || endNoteId === undefined) return [];
+    return [
+      {
+        ...effect,
+        id: nextNoteEffectId++,
+        startNoteId,
+        endNoteId,
+      },
+    ];
+  });
 
   const nextChords = [
     ...lane.chords.map((chord) => {
@@ -780,6 +821,7 @@ const insertBarsIntoLane = (
       totalFrames: nextTotalFrames,
       notes: nextNotes,
       chords: nextChords,
+      noteEffects: [...(lane.noteEffects || []), ...insertedNoteEffects],
       cutPositionsWithCoords: shiftedCuts.length ? shiftedCuts : buildDefaultCutRegions(nextTotalFrames),
     },
     lane.id,
@@ -807,6 +849,12 @@ const removeSingleBarFromLane = (lane: EditorSnapshot, index: number): EditorSna
       if (start < removeEnd) return note;
       return { ...note, startTime: start - FIXED_FRAMES_PER_BAR };
     });
+  const remainingNoteIds = new Set(nextNotes.map((note) => note.id));
+  const nextNoteEffects = (lane.noteEffects || []).filter(
+    (effect) =>
+      remainingNoteIds.has(effect.startNoteId) &&
+      remainingNoteIds.has(effect.endNoteId)
+  );
 
   const nextChords = lane.chords
     .filter((chord) => {
@@ -855,6 +903,7 @@ const removeSingleBarFromLane = (lane: EditorSnapshot, index: number): EditorSna
       totalFrames: nextTotalFrames,
       notes: nextNotes,
       chords: nextChords,
+      noteEffects: nextNoteEffects,
       cutPositionsWithCoords: nextCuts.length ? nextCuts : buildDefaultCutRegions(nextTotalFrames),
     },
     lane.id,
@@ -2330,30 +2379,27 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (!canvas || !barIndices.length) return;
       setError(null);
       try {
+        const movedCanvas = moveBarsInCanvas(
+          canvas,
+          sourceLaneId,
+          targetLaneId,
+          barIndices,
+          insertIndex
+        );
+        if (!movedCanvas) {
+          throw new Error("Unable to move bars.");
+        }
+        const expandedCanvas = ensureCanvasBarsContainEvents(movedCanvas).canvas;
         if (isGuestMode) {
-          const nextCanvas = moveBarsInCanvas(
-            canvas,
-            sourceLaneId,
-            targetLaneId,
-            barIndices,
-            insertIndex
-          );
-          if (!nextCanvas) {
-            throw new Error("Unable to move bars.");
-          }
-          applyCanvasBarUpdate(nextCanvas);
+          applyCanvasBarUpdate(expandedCanvas);
         } else {
-          const res = await gteApi.moveCanvasBars(editorId, {
-            sourceLaneId,
-            targetLaneId,
-            barIndices,
-            insertIndex,
-          });
-          const expanded = ensureCanvasBarsContainEvents(res.canvas);
-          applyCanvasBarUpdate(expanded.canvas);
-          if (expanded.extended) {
-            await gteApi.applySnapshot(editorId, expanded.canvas);
-          }
+          const res = await gteApi.applySnapshot(editorId, expandedCanvas);
+          const savedCanvas =
+            res.canvas ||
+            (res.snapshot && Array.isArray(res.snapshot.editors)
+              ? (res.snapshot as CanvasSnapshot)
+              : expandedCanvas);
+          applyCanvasBarUpdate(savedCanvas);
         }
         setActiveLaneId(targetLaneId);
         setBarDragState(null);
