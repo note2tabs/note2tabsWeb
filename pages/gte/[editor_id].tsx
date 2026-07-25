@@ -1114,6 +1114,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
   const [sharedTimelineScrollRatio, setSharedTimelineScrollRatio] = useState(0);
   const [globalPlaybackFrame, setGlobalPlaybackFrame] = useState(0);
+  const [globalPlaybackFrameRevision, setGlobalPlaybackFrameRevision] = useState(0);
   const [globalPlaybackIsPlaying, setGlobalPlaybackIsPlaying] = useState(false);
   const [globalPlaybackIsPreparing, setGlobalPlaybackIsPreparing] = useState(false);
   const [globalPlaybackVolume, setGlobalPlaybackVolume] = useState(0.6);
@@ -2663,10 +2664,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     globalPlaybackFrameRef.current = normalized;
     if (options?.forceReact) {
       setGlobalPlaybackFrame(normalized);
+      setGlobalPlaybackFrameRevision((revision) => revision + 1);
     }
   }, [canvasTimelineEnd]);
 
-  const getGlobalPlaybackFrame = useCallback(() => globalPlaybackFrameRef.current, []);
+  const getGlobalPlaybackFrame = useCallback(
+    () => globalPlaybackFrameRef.current,
+    [globalPlaybackFrameRevision]
+  );
 
   useEffect(() => {
     if (!canvas) return;
@@ -6264,6 +6269,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               historyRedoCount={canvasRedoCount}
                               onRequestUndo={handleCanvasUndo}
                               onRequestRedo={handleCanvasRedo}
+                              globalPlaybackFrame={globalPlaybackFrame}
                               getGlobalPlaybackFrame={getGlobalPlaybackFrame}
                               globalPlaybackIsPlaying={globalPlaybackIsPlaying}
                               globalPlaybackIsPreparing={globalPlaybackIsPreparing}
@@ -6546,6 +6552,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               historyRedoCount={canvasRedoCount}
                               onRequestUndo={handleCanvasUndo}
                               onRequestRedo={handleCanvasRedo}
+                              globalPlaybackFrame={globalPlaybackFrame}
                               getGlobalPlaybackFrame={getGlobalPlaybackFrame}
                               globalPlaybackIsPlaying={globalPlaybackIsPlaying}
                               globalPlaybackIsPreparing={globalPlaybackIsPreparing}
@@ -6855,6 +6862,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           historyRedoCount={canvasRedoCount}
                           onRequestUndo={handleCanvasUndo}
                           onRequestRedo={handleCanvasRedo}
+                          globalPlaybackFrame={globalPlaybackFrame}
                           getGlobalPlaybackFrame={getGlobalPlaybackFrame}
                           globalPlaybackIsPlaying={globalPlaybackIsPlaying}
                           globalPlaybackIsPreparing={globalPlaybackIsPreparing}
