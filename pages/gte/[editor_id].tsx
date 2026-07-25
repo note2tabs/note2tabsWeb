@@ -3311,7 +3311,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               step.startFrame,
               step.durationFrames,
               step.midi,
-              0.55 * laneVolume,
+              0.55 * step.gainMultiplier * laneVolume,
               instrumentId,
               lanePan
             );

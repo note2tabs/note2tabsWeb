@@ -9760,7 +9760,13 @@ export default function GteWorkspace({
         slideStartFrame: slideStart,
         targetStartFrame: targetStart,
       }).forEach((step) => {
-        pushEvent(step.startFrame, step.durationFrames, step.midi, gain, source.tab[0]);
+        pushEvent(
+          step.startFrame,
+          step.durationFrames,
+          step.midi,
+          gain * step.gainMultiplier,
+          source.tab[0]
+        );
       });
     });
     snapshot.chords.forEach((chord) => {

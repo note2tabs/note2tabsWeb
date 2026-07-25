@@ -2,6 +2,7 @@ export type DiscreteSlideStep = {
   midi: number;
   startFrame: number;
   durationFrames: number;
+  gainMultiplier: number;
 };
 
 type DiscreteSlideInput = {
@@ -34,6 +35,9 @@ export const buildDiscreteSlideSteps = ({
       midi: source + direction * step,
       startFrame,
       durationFrames: Math.max(1, nextFrame - startFrame),
+      // A guitar slide loses energy as the finger travels. Keep the first
+      // transition audible, then fade each following chromatic step.
+      gainMultiplier: 1 - (0.6 * step) / distance,
     };
   });
 };
