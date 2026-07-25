@@ -59,6 +59,39 @@ import {
 const AUDIO_CONTEXT_RESUME_ERROR =
   "Your browser blocked audio playback. Tap Play again to allow sound.";
 
+const TOOL_HELP_SECTIONS = [
+  {
+    title: "Notes & chords",
+    tools: [
+      ["Merge to Chord", "Combines selected notes or chords into one chord."],
+      ["Disband Chord", "Turns the selected chord back into separate notes."],
+      ["Optimize Notes", "Finds easier string and fret positions for selected notes."],
+      ["Snap to Key", "Moves selected notes to the nearest notes in the detected key."],
+      ["Quantize", "Aligns selected notes or chords to a rhythmic grid."],
+      ["Merge Notes", "Joins selected notes on each string into longer notes."],
+      ["Scale", "Proportionally changes selected start times, lengths, or both."],
+      ["Slicing Tool", "Click directly inside a note or chord to split it at that point."],
+      ["Move", "Moves selected notes or chords together along the timeline."],
+    ],
+  },
+  {
+    title: "Effects",
+    tools: [
+      ["Hammer/Pull", "Connects selected notes with hammer-ons or pull-offs."],
+      ["Slide", "Connects selected notes with a slide."],
+      ["Bend", "Connects selected notes with a bend."],
+    ],
+  },
+  {
+    title: "Playing coordinates",
+    tools: [
+      ["Clean Playing-Coordinates", "Combines neighboring regions that use the same position."],
+      ["Cut", "Adds a boundary so playing coordinates can change at that point."],
+      ["Merge", "Removes the selected boundary and joins its neighboring regions."],
+    ],
+  },
+] as const;
+
 function resumeAudioContext(ctx: AudioContext): Promise<void> {
   try {
     return Promise.resolve(ctx.resume())
@@ -3606,6 +3639,7 @@ export default function GteWorkspace({
   }, [generatePlayingCoordinatesRequest, isActive]);
   const [exportFormat, setExportFormat] = useState<GteExportFormat>("txt");
   const [localToolbarOpen, setLocalToolbarOpen] = useState(false);
+  const [toolHelpOpen, setToolHelpOpen] = useState(false);
   const [tabPreviewOpen, setTabPreviewOpen] = useState(false);
   const [sliceToolActive, setSliceToolActive] = useState(false);
   const [sliceCursor, setSliceCursor] = useState<{ time: number; rowIndex: number } | null>(null);
@@ -6426,24 +6460,16 @@ export default function GteWorkspace({
     sliceTime: number,
     clickedTarget?: { type: "note" | "chord"; id: number }
   ) => {
-    const clickedTargetIsSelected =
-      clickedTarget?.type === "note"
-        ? selectedNoteIds.includes(clickedTarget.id)
-        : clickedTarget?.type === "chord"
-        ? selectedChordIds.includes(clickedTarget.id)
-        : false;
-    const preserveSelection =
-      clickedTargetIsSelected && selectedNoteIds.length + selectedChordIds.length > 1;
     const noteIdsToSlice =
-      clickedTarget?.type === "note" && !preserveSelection
+      clickedTarget?.type === "note"
         ? [clickedTarget.id]
-        : clickedTarget?.type === "chord" && !preserveSelection
+        : clickedTarget?.type === "chord"
         ? []
         : selectedNoteIds;
     const chordIdsToSlice =
-      clickedTarget?.type === "chord" && !preserveSelection
+      clickedTarget?.type === "chord"
         ? [clickedTarget.id]
-        : clickedTarget?.type === "note" && !preserveSelection
+        : clickedTarget?.type === "note"
         ? []
         : selectedChordIds;
     const notesToSlice = snapshot.notes
@@ -8485,6 +8511,10 @@ export default function GteWorkspace({
       : pendingSelectionTool
       ? pendingSelectionTool.charAt(0).toUpperCase() + pendingSelectionTool.slice(1)
       : "";
+  const directCanvasTool = sliceToolActive ? "Slice" : cutToolActive ? "Cut" : null;
+  const directCanvasToolHint = sliceToolActive
+    ? "Click directly where you want to split a note or chord."
+    : "Click the timeline where you want to add a playing-coordinate boundary.";
 
   const applyPendingSelectionTool = useCallback(() => {
     if (!pendingSelectionTool || !canApplyPendingSelectionTool) return;
@@ -11812,24 +11842,68 @@ export default function GteWorkspace({
         onMouseDown={(event) => event.stopPropagation()}
         onTouchStart={(event) => event.stopPropagation()}
       >
-        {!topMenu && <div className="mb-2 flex items-start justify-between gap-2">
+        <div className="mb-1 flex items-start justify-between gap-2">
           <div>
-            <div className="text-[11px] font-bold text-slate-800">Toolbar</div>
-            {inlineMobile ? (
+            {!topMenu ? <div className="text-[11px] font-bold text-slate-800">Toolbar</div> : null}
+            {!topMenu && inlineMobile ? (
               <div className="text-[9px] text-slate-400">
                 Edit notes, chords and playing coordinates
               </div>
             ) : null}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setToolbarOpen(false)}
-            className="grid h-6 w-6 place-items-center rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
-          >
-            ×
-          </button>
-        </div>}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setToolHelpOpen((open) => !open)}
+              aria-expanded={toolHelpOpen}
+              aria-label={toolHelpOpen ? "Hide tool explanations" : "Explain the editor tools"}
+              title="What do these tools do?"
+              className={`grid h-6 w-6 place-items-center rounded-full border text-[11px] font-serif font-bold shadow-sm transition ${
+                toolHelpOpen
+                  ? "border-sky-300 bg-sky-50 text-sky-700"
+                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+              }`}
+            >
+              i
+            </button>
+            {!topMenu ? (
+              <button
+                type="button"
+                onClick={() => setToolbarOpen(false)}
+                aria-label="Close toolbar"
+                className="grid h-6 w-6 place-items-center rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {toolHelpOpen ? (
+          <div className="max-h-[min(24rem,60vh)] space-y-3 overflow-y-auto rounded-lg border border-sky-100 bg-sky-50/70 p-2.5 text-slate-700">
+            <p className="text-[10px] leading-4 text-slate-600">
+              Selection tools let you choose notes before or after choosing the tool. Slice and
+              Cut act directly on the canvas. Use <strong>Done</strong> or <strong>Escape</strong>{" "}
+              to leave a canvas tool.
+            </p>
+            {TOOL_HELP_SECTIONS.map((section) => (
+              <section key={section.title} aria-label={`${section.title} tool explanations`}>
+                <h3 className="mb-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  {section.title}
+                </h3>
+                <dl className="space-y-1.5">
+                  {section.tools.map(([name, description]) => (
+                    <div key={name} className="grid grid-cols-[7.25rem_minmax(0,1fr)] gap-2 text-[10px] leading-4">
+                      <dt className="font-semibold text-slate-800">{name}</dt>
+                      <dd className="m-0 text-slate-600">{description}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            ))}
+          </div>
+        ) : null}
 
         {pendingSelectionTool && (
           <div className="rounded-md bg-sky-50 px-2 py-1.5 text-[10px] leading-4 text-sky-800">
@@ -12349,6 +12423,37 @@ export default function GteWorkspace({
             }
           >
             Apply
+          </button>
+        </div>
+      )}
+      {directCanvasTool && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-indigo-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
+          role="toolbar"
+          aria-label={`${directCanvasTool} tool`}
+        >
+          <span className="min-w-0 text-xs text-slate-600">
+            <strong className="text-slate-900">{directCanvasTool}</strong>
+            <span className="hidden sm:inline"> · {directCanvasToolHint}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              if (sliceToolActive) {
+                setSliceToolActive(false);
+                setSliceCursor(null);
+              }
+              if (cutToolActive) {
+                setCutToolActive(false);
+                setCutCursor(null);
+              }
+            }}
+            className="shrink-0 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
+            title="Return to normal editing (Escape)"
+          >
+            Done
           </button>
         </div>
       )}
