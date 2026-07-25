@@ -3,10 +3,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../api/auth/[...nextauth]";
+import { hasFreshUserRole } from "../../../lib/serverAuth";
 import { useRouter } from "next/router";
 import { slugify } from "../../../lib/slug";
 import { renderLatexDocument, renderPlainText } from "../../../lib/markdown";
 import NoIndexHead from "../../../components/NoIndexHead";
+
+const ADMIN_ROLES = new Set(["ADMIN"]);
 
 type TaxonomyItem = {
   id: string;
@@ -983,7 +986,7 @@ function AdminTaxonomyTab({
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
-  const isAdmin = session?.user?.role === "ADMIN";
+  const isAdmin = await hasFreshUserRole(session, ADMIN_ROLES);
   if (!isAdmin) {
     return {
       redirect: {

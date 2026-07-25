@@ -104,6 +104,8 @@ model TabJob {
   createdAt   DateTime @default(now())
   gteEditorId String?
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model AnalyticsEvent {

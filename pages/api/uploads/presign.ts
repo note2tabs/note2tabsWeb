@@ -30,15 +30,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session?.user?.id) {
     return res.status(401).json({ error: "Not authenticated" });
   }
+  let currentRole = "FREE";
   if (isEmailVerificationRequiredServer) {
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
+        role: true,
         emailVerified: true,
         emailVerifiedBool: true,
         unverifiedTranscriptionUsed: true,
       },
     });
+    currentRole = user?.role || "FREE";
     const isEmailVerified = Boolean(user?.emailVerifiedBool || user?.emailVerified);
     if (!user || (!isEmailVerified && user.unverifiedTranscriptionUsed)) {
       return res.status(403).json({
@@ -46,6 +49,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         verificationRequired: true,
       });
     }
+  } else {
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
+    currentRole = user?.role || "FREE";
   }
 
   const { fileName, contentType, size } = req.body || {};
@@ -54,8 +63,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Invalid payload" });
   }
 
-  const role = session.user.role || "FREE";
-  const isPremium = role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
+  const isPremium =
+    currentRole === "PREMIUM" ||
+    currentRole === "ADMIN" ||
+    currentRole === "MODERATOR" ||
+    currentRole === "MOD";
   const maxBytes = isPremium ? MAX_PREMIUM_BYTES : MAX_FREE_BYTES;
   if (sizeNum > maxBytes) {
     return res.status(413).json({ error: "File too large", maxBytes });

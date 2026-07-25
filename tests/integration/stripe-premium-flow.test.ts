@@ -34,6 +34,7 @@ const { sessionMock, stripeMock, prismaMock } = vi.hoisted(() => {
     },
     prismaMock: {
       user: {
+        findUnique: vi.fn(),
         findFirst: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
@@ -142,6 +143,10 @@ describe("stripe premium flow", () => {
       data: { object: {} },
     });
     prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.user.findUnique.mockImplementation(async () => {
+      const session = await sessionMock();
+      return { role: session?.user?.role || "FREE" };
+    });
     prismaMock.user.update.mockResolvedValue({});
     prismaMock.user.delete.mockResolvedValue({});
     prismaMock.tabJob.deleteMany.mockResolvedValue({ count: 0 });

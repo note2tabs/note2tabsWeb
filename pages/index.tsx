@@ -945,6 +945,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         }
         if (data.unverifiedTranscriptionUsed) {
           setLocalUnverifiedTranscriptionUsed(true);
+          await updateSession().catch(() => null);
         }
         setStatus("Getting things started. Opening progress screen...");
         sendEvent(ANALYTICS_EVENTS.tabGenerationQueued, { mode, jobId: data.jobId, status: data.status || "queued" });
@@ -971,6 +972,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         }
         if (data.verificationRequired) {
           setLocalUnverifiedTranscriptionUsed(true);
+          await updateSession().catch(() => null);
           setError("Please verify your email to continue using the transcriber.");
           return;
         }
@@ -998,6 +1000,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       }
       if (data.unverifiedTranscriptionUsed) {
         setLocalUnverifiedTranscriptionUsed(true);
+        await updateSession().catch(() => null);
       }
       sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
         mode,

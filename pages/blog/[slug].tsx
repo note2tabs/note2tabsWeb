@@ -2,6 +2,7 @@ import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
+import { hasFreshUserRole } from "../../lib/serverAuth";
 import { prisma } from "../../lib/prisma";
 import { withPrismaReadRetry } from "../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../lib/blog";
@@ -10,6 +11,8 @@ import { normalizeCanonicalUrl } from "../../lib/canonical";
 import BlogPostCard from "../../components/blog/BlogPostCard";
 import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 import { formatBlogDate } from "../../lib/dateFormat";
+
+const ADMIN_ROLES = new Set(["ADMIN"]);
 
 type PostPageProps = {
   post: {
@@ -247,7 +250,7 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
     );
     if (ctx.preview || hasSessionCookie) {
       const session = await getServerSession(ctx.req, ctx.res, authOptions);
-      allowDraft = Boolean(ctx.preview || session?.user?.role === "ADMIN");
+      allowDraft = Boolean(ctx.preview || (await hasFreshUserRole(session, ADMIN_ROLES)));
       if (allowDraft) {
         post = await withPrismaReadRetry(() =>
           prisma.post.findFirst({ where: { slug }, select: postSelect })

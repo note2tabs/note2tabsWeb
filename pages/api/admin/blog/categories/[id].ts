@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { prisma } from "../../../../../lib/prisma";
 import { authOptions } from "../../../auth/[...nextauth]";
-import { isAdminSession } from "../../../../../lib/admin";
+import { isFreshAdminSession } from "../../../../../lib/admin";
 import { rateLimit } from "../../../../../lib/rateLimit";
 import { taxonomyInputSchema } from "../../../../../lib/blogValidators";
 import { slugify } from "../../../../../lib/slug";
@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return;
     }
     const session = await getServerSession(req, res, authOptions);
-    if (!isAdminSession(session)) {
+    if (!(await isFreshAdminSession(session))) {
       return res.status(403).json({ error: "Admin access required." });
     }
 

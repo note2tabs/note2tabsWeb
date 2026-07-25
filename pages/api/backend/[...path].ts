@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { createBackendToken } from "../../../lib/backendToken";
+import { getFreshUserRole } from "../../../lib/serverAuth";
 
 const BASE_URL = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -28,6 +29,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session?.user?.id) {
     return res.status(401).json({ error: "Not authenticated" });
   }
+  const currentRole = await getFreshUserRole(session);
+  if (!currentRole) {
+    return res.status(401).json({ error: "Account not found" });
+  }
 
   const pathParam = req.query.path;
   const path = Array.isArray(pathParam) ? pathParam.join("/") : pathParam;
@@ -41,7 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const token = createBackendToken({
     sub: session.user.id,
     email: session.user.email,
-    role: session.user.role,
+    role: currentRole,
   });
 
   const search = req.url?.split("?")[1];

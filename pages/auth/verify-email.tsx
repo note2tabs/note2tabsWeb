@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import NoIndexHead from "../../components/NoIndexHead";
 
 type VerifyState = "idle" | "verifying" | "verified" | "error";
 
 export default function VerifyEmailPage() {
   const router = useRouter();
+  const { update: updateSession } = useSession();
   const verifyRunRef = useRef(false);
   const [verifyState, setVerifyState] = useState<VerifyState>("idle");
   const [verifyError, setVerifyError] = useState<string | null>(null);
@@ -53,13 +55,14 @@ export default function VerifyEmailPage() {
         if (!res.ok) {
           throw new Error(data?.error || "Could not verify email.");
         }
+        await updateSession().catch(() => null);
         setVerifyState("verified");
       })
       .catch((err: any) => {
         setVerifyError(err?.message || "Could not verify email.");
         setVerifyState("error");
       });
-  }, [token]);
+  }, [token, updateSession]);
 
   const handleResend = async () => {
     setResendBusy(true);

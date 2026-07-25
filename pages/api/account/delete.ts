@@ -7,6 +7,7 @@ import {
   getStripePremiumConfig,
   stripeSubscriptionMatchesPremium,
 } from "../../../lib/stripePremium";
+import { getFreshUserRole } from "../../../lib/serverAuth";
 
 const CANCELLABLE_SUBSCRIPTION_STATUSES = new Set([
   "active",
@@ -28,9 +29,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!session?.user?.id || !session.user.email) {
       return res.status(401).json({ error: "Not authenticated" });
     }
+    const currentRole = await getFreshUserRole(session);
+    if (!currentRole) {
+      return res.status(401).json({ error: "Account not found" });
+    }
 
     const premiumConfig = getStripePremiumConfig();
-    if (session.user.role === "PREMIUM" && (!stripeClient || !premiumConfig)) {
+    if (currentRole === "PREMIUM" && (!stripeClient || !premiumConfig)) {
       return res.status(503).json({
         error: "Subscription cancellation is temporarily unavailable. Your account was not deleted.",
       });

@@ -2,8 +2,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "../../../lib/prisma";
+import { hasFreshUserRole } from "../../../lib/serverAuth";
 
 const ALLOWED_ROLES = ["FREE", "PREMIUM", "MODERATOR", "ADMIN"];
+const ADMIN_ROLES = new Set(["ADMIN"]);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -13,8 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const session = await getServerSession(req, res, authOptions);
-    const currentRole = session?.user?.role || "";
-    if (!session?.user?.id || currentRole !== "ADMIN") {
+    if (!session?.user?.id || !(await hasFreshUserRole(session, ADMIN_ROLES))) {
       return res.status(403).json({ error: "Forbidden" });
     }
 

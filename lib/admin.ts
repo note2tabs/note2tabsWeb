@@ -1,6 +1,7 @@
 import type { Session } from "next-auth";
+import { hasFreshUserRole } from "./serverAuth";
 
-export const isAdminRole = (role?: string | null) => role === "ADMIN";
+const ADMIN_ROLES = new Set(["ADMIN"]);
 
-export const isAdminSession = (session?: Session | null) =>
-  Boolean(session?.user && isAdminRole(session.user.role));
+export const isFreshAdminSession = (session?: Session | null) =>
+  hasFreshUserRole(session, ADMIN_ROLES);

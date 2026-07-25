@@ -19,7 +19,7 @@ type NavBarProps = {
 
 export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [signOutBusy, setSignOutBusy] = useState(false);
@@ -36,7 +36,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const isHome = router.pathname === "/";
   const role = session?.user?.role || "";
   const isAdmin = role === "ADMIN";
-  const editorHref = session ? "/gte" : "/editor";
+  const editorHref = sessionStatus === "authenticated" ? "/gte" : "/editor";
 
   useEffect(() => {
     setMenuOpen(false);
@@ -156,7 +156,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
             className={`nav-auth-slot${session ? " nav-auth-slot--profile" : " nav-auth-slot--guest"}`}
             aria-hidden={session ? "true" : undefined}
           >
-            {!session && (
+            {sessionStatus === "unauthenticated" && (
               <>
                 <button type="button" onClick={() => signIn(undefined, { callbackUrl: "/" })}>
                   Log in
@@ -169,6 +169,9 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
           </span>
         </nav>
         <div className="nav-actions">
+          {sessionStatus === "loading" && (
+            <span className="nav-session-loading" role="status" aria-label="Checking sign-in status" />
+          )}
           {session && (
             <div className="nav-profile" ref={profileMenuRef}>
               <button

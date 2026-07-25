@@ -922,6 +922,7 @@ export default function TranscriberPage() {
         }
         if (data.unverifiedTranscriptionUsed) {
           setLocalUnverifiedTranscriptionUsed(true);
+          await updateSession().catch(() => null);
         }
         setStatus("Opening progress screen...");
         sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
@@ -948,6 +949,7 @@ export default function TranscriberPage() {
         }
         if (data.verificationRequired) {
           setLocalUnverifiedTranscriptionUsed(true);
+          await updateSession().catch(() => null);
           setError("Please verify your email to continue using the transcriber.");
           return;
         }
@@ -972,6 +974,7 @@ export default function TranscriberPage() {
       }
       if (data.unverifiedTranscriptionUsed) {
         setLocalUnverifiedTranscriptionUsed(true);
+        await updateSession().catch(() => null);
       }
       sendEvent("transcribe_success", { mode, jobId: data.jobId });
       if (transcriberSession && data.tabJobId) {

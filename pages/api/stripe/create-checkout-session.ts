@@ -8,6 +8,7 @@ import {
   getStripePremiumConfig,
   stripeSubscriptionMatchesPremium,
 } from "../../../lib/stripePremium";
+import { getFreshUserRole } from "../../../lib/serverAuth";
 
 const PREMIUM_TRIAL_DAYS = 7;
 const PREMIUM_ACCESS_ROLES = new Set(["PREMIUM", "ADMIN", "MODERATOR", "MOD"]);
@@ -59,13 +60,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session?.user?.email || !session.user.id) {
     return res.status(401).json({ error: "Not authenticated" });
   }
+  const currentRole = await getFreshUserRole(session);
+  if (!currentRole) {
+    return res.status(401).json({ error: "Account not found" });
+  }
 
   const premiumConfig = getStripePremiumConfig();
   if (!stripeClient || !premiumConfig) {
     return res.status(503).json({ error: "Stripe not configured yet." });
   }
 
-  if (PREMIUM_ACCESS_ROLES.has(session.user.role || "")) {
+  if (PREMIUM_ACCESS_ROLES.has(currentRole)) {
     return res.status(409).json({ error: "This account already has Premium access." });
   }
 

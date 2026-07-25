@@ -1591,6 +1591,31 @@ input[type="number"] {
   overflow: hidden;
 }
 
+.nav-session-loading {
+  display: block;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.55);
+  animation: nav-session-pulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes nav-session-pulse {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 0.8;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-session-loading {
+    animation: none;
+  }
+}
+
 .nav-links--reading {
   color: rgba(11, 15, 26, 0.92);
 }
