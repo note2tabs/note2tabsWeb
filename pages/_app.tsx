@@ -7,6 +7,7 @@ import { SessionProvider } from "next-auth/react";
 import NavBar from "../components/NavBar";
 import FooterBar from "../components/FooterBar";
 import SessionAccountRefresher from "../components/SessionAccountRefresher";
+import RouteLoadingIndicator from "../components/RouteLoadingIndicator";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { sanitizeAnalyticsPathname } from "../lib/analyticsPrivacy";
 import "../styles/globals.css";
@@ -42,6 +43,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <div className="app-shell">
+        <RouteLoadingIndicator />
         <a className="skip-link" href="#main-content">Skip to main content</a>
         <NavBar editorRevealMode={isGteEditorPage} />
         <div id="main-content" className="flex-1" tabIndex={-1}>

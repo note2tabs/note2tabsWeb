@@ -42,6 +42,7 @@ import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import { getChordEditorMidiNotes } from "../../lib/gteChordEditor";
 import GteFileImportButton from "../../components/GteFileImportButton";
+import { EditorLoadingState } from "../../components/EditorLoadingState";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
   buildGteExportFile,
@@ -6019,18 +6020,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         )}
         {loading && !canvas && (
-          <div className="gte-editor-loading" role="status" aria-live="polite">
-            <div className="flex flex-col items-center gap-3">
-              <span
-                className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700"
-                aria-hidden="true"
-              />
-              <div className="grid gap-1">
-                <strong>Preparing your editor…</strong>
-                <span className="muted text-small">Loading tracks, controls, and playback.</span>
-              </div>
-            </div>
-          </div>
+          <EditorLoadingState />
         )}
         {error && (
           <div className="error flex flex-wrap items-center justify-between gap-3" role="alert">

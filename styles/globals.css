@@ -102,6 +102,54 @@ input[type="number"] {
   color: var(--text);
 }
 
+.route-loading-indicator {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 30000;
+  height: 3px;
+  pointer-events: none;
+  opacity: 1;
+}
+
+.route-loading-indicator__bar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(0.06);
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--accent-strong), var(--accent), var(--teal));
+  box-shadow: 0 1px 8px rgba(42, 109, 244, 0.34);
+}
+
+.route-loading-indicator--loading .route-loading-indicator__bar {
+  animation: route-loading-progress 8s cubic-bezier(0.1, 0.65, 0.2, 1) forwards;
+}
+
+.route-loading-indicator--completing {
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+.route-loading-indicator--completing .route-loading-indicator__bar {
+  transform: scaleX(1);
+  transition: transform 0.16s ease-out;
+}
+
+@keyframes route-loading-progress {
+  0% {
+    transform: scaleX(0.06);
+  }
+  18% {
+    transform: scaleX(0.38);
+  }
+  55% {
+    transform: scaleX(0.68);
+  }
+  100% {
+    transform: scaleX(0.9);
+  }
+}
+
 .page {
   padding: 80px 0;
   flex: 1;
@@ -518,11 +566,145 @@ input[type="number"] {
 
 .gte-editor-loading {
   display: grid;
-  place-items: center;
+  align-content: start;
+  gap: 18px;
+  padding: clamp(16px, 2.4vw, 28px);
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 18px;
-  background: rgba(248, 250, 252, 0.7);
+  background: rgba(248, 250, 252, 0.76);
+  overflow: hidden;
+}
+
+.gte-editor-loading__screen {
+  display: grid;
+  gap: 16px;
+}
+
+.gte-editor-loading__toolbar,
+.gte-editor-loading__track-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gte-editor-loading__toolbar {
+  min-height: 44px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.gte-editor-loading__track-head {
+  justify-content: space-between;
+  padding-top: 4px;
+}
+
+.gte-editor-loading__timeline {
+  display: grid;
+  align-content: space-evenly;
+  gap: 30px;
+  min-height: clamp(310px, 48vh, 470px);
+  padding: 28px 22px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 14px;
+  background:
+    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+  background-size: 64px 100%;
+}
+
+.gte-editor-loading__rail {
+  display: block;
+  width: 100%;
+  height: 14px;
+  border-radius: 6px;
+  background: rgba(203, 213, 225, 0.48);
+}
+
+.gte-editor-loading__rail--short {
+  width: 62%;
+}
+
+.gte-editor-loading__rail--medium {
+  width: 82%;
+}
+
+.gte-editor-loading__label {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.78rem;
   text-align: center;
+}
+
+.gte-loading-block {
+  display: block;
+  flex: 0 0 auto;
+  height: 12px;
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      100deg,
+      rgba(203, 213, 225, 0.56) 22%,
+      rgba(241, 245, 249, 0.98) 40%,
+      rgba(203, 213, 225, 0.56) 58%
+    );
+  background-size: 220% 100%;
+  animation: gte-loading-shimmer 1.35s ease-in-out infinite;
+}
+
+.gte-loading-block--title {
+  width: min(220px, 32%);
+  height: 18px;
+  margin-right: auto;
+}
+
+.gte-loading-block--control {
+  width: 82px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.gte-loading-block--short {
+  width: 62px;
+}
+
+.gte-loading-block--track-title {
+  width: 150px;
+  height: 16px;
+}
+
+.gte-library-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gte-library-row--loading {
+  min-height: 82px;
+}
+
+.gte-loading-block--library-title {
+  width: min(240px, 72%);
+  height: 16px;
+}
+
+.gte-loading-block--library-meta {
+  width: 154px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.gte-loading-block--menu {
+  width: 38px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+@keyframes gte-loading-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
 }
 
 .gte-workspace-loading {
@@ -550,8 +732,31 @@ input[type="number"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .route-loading-indicator--loading .route-loading-indicator__bar,
+  .gte-loading-block,
   .gte-workspace-loading {
     animation: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .gte-editor-loading__toolbar {
+    flex-wrap: wrap;
+  }
+
+  .gte-loading-block--title {
+    width: 64%;
+    flex-basis: 64%;
+  }
+
+  .gte-loading-block--control {
+    width: 68px;
+  }
+
+  .gte-editor-loading__timeline {
+    min-height: 360px;
+    padding-inline: 14px;
+    background-size: 48px 100%;
   }
 }
 
