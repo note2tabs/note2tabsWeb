@@ -6422,9 +6422,32 @@ export default function GteWorkspace({
     return true;
   };
 
-  const handleSliceAtTime = (sliceTime: number) => {
+  const handleSliceAtTime = (
+    sliceTime: number,
+    clickedTarget?: { type: "note" | "chord"; id: number }
+  ) => {
+    const clickedTargetIsSelected =
+      clickedTarget?.type === "note"
+        ? selectedNoteIds.includes(clickedTarget.id)
+        : clickedTarget?.type === "chord"
+        ? selectedChordIds.includes(clickedTarget.id)
+        : false;
+    const preserveSelection =
+      clickedTargetIsSelected && selectedNoteIds.length + selectedChordIds.length > 1;
+    const noteIdsToSlice =
+      clickedTarget?.type === "note" && !preserveSelection
+        ? [clickedTarget.id]
+        : clickedTarget?.type === "chord" && !preserveSelection
+        ? []
+        : selectedNoteIds;
+    const chordIdsToSlice =
+      clickedTarget?.type === "chord" && !preserveSelection
+        ? [clickedTarget.id]
+        : clickedTarget?.type === "note" && !preserveSelection
+        ? []
+        : selectedChordIds;
     const notesToSlice = snapshot.notes
-      .filter((note) => selectedNoteIds.includes(note.id))
+      .filter((note) => noteIdsToSlice.includes(note.id))
       .map((note) => {
         const start = note.startTime;
         const end = note.startTime + note.length;
@@ -6454,7 +6477,7 @@ export default function GteWorkspace({
         } => Boolean(item)
       );
     const chordsToSlice = snapshot.chords
-      .filter((chord) => selectedChordIds.includes(chord.id))
+      .filter((chord) => chordIdsToSlice.includes(chord.id))
       .map((chord) => {
         const start = chord.startTime;
         const end = chord.startTime + chord.length;
@@ -7554,11 +7577,11 @@ export default function GteWorkspace({
       stringIndex: clamp(Math.round(stringIndex), 0, 5),
     });
     const shiftKey = Boolean(event.shiftKey);
-    if (sliceToolActive && !shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
+    if (sliceToolActive && !shiftKey) {
       multiDragMovedRef.current = true;
       const target = getPointerFrame(event.clientX, event.clientY);
       if (target) {
-        handleSliceAtTime(target.time);
+        handleSliceAtTime(target.time, { type: "note", id: noteId });
       }
       return;
     }
@@ -7635,10 +7658,10 @@ export default function GteWorkspace({
       stringIndex: clamp(Math.round(stringIndex), 0, 5),
     });
     const shiftKey = Boolean(event.shiftKey);
-    if (sliceToolActive && !shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
+    if (sliceToolActive && !shiftKey) {
       const target = getPointerFrame(event.clientX, event.clientY);
       if (target) {
-        handleSliceAtTime(target.time);
+        handleSliceAtTime(target.time, { type: "chord", id: chordId });
       }
       return;
     }
@@ -12326,6 +12349,31 @@ export default function GteWorkspace({
             }
           >
             Apply
+          </button>
+        </div>
+      )}
+      {sliceToolActive && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-indigo-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
+          role="toolbar"
+          aria-label="Slice mode"
+        >
+          <span className="whitespace-nowrap text-xs text-slate-600">
+            <strong className="text-slate-900">Slice mode</strong>
+            {" · "}
+            Click a note where you want to split it
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setSliceToolActive(false);
+              setSliceCursor(null);
+            }}
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
+          >
+            Done
           </button>
         </div>
       )}
