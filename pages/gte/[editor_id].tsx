@@ -4817,7 +4817,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>
                   </details>
 
-                  <div className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
+                  <div className="order-7 ml-auto mr-2 shrink-0 xl:absolute xl:left-1/2 xl:top-1/2 xl:z-10 xl:m-0 xl:-translate-x-1/2 xl:-translate-y-1/2">
                     {renderViewModeSwitch()}
                   </div>
 
@@ -5090,7 +5090,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>
                   </details>
 
-                  <div className="order-7 ml-auto flex shrink-0 items-center gap-2">
+                  <div className="order-7 flex shrink-0 items-center gap-2 xl:ml-auto">
                     <button
                       type="button"
                       onClick={handleCanvasUndo}
