@@ -4530,6 +4530,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                   ["Clean Playing-Coordinates", ""],
                                   ["Cut", "K"],
                                   ["Merge", ""],
+                                  ["Generate Playing-Coordinates", ""],
                                 ],
                               },
                             ].map((section) => (
