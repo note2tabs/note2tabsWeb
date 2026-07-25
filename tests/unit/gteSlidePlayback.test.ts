@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildDiscreteSlideSteps } from "../../lib/gteSlidePlayback";
+import {
+  DISCRETE_SLIDE_TARGET_GAIN_MULTIPLIER,
+  buildDiscreteSlideSteps,
+  getDiscreteSlideGainMultiplier,
+} from "../../lib/gteSlidePlayback";
 
 describe("discrete slide playback", () => {
   it("creates every ascending semitone evenly between the endpoint notes", () => {
@@ -11,10 +15,18 @@ describe("discrete slide playback", () => {
         targetStartFrame: 140,
       })
     ).toEqual([
-      { midi: 61, startFrame: 110, durationFrames: 10, gainMultiplier: 0.85 },
-      { midi: 62, startFrame: 120, durationFrames: 10, gainMultiplier: 0.7 },
-      { midi: 63, startFrame: 130, durationFrames: 10, gainMultiplier: 0.55 },
+      { midi: 61, startFrame: 110, durationFrames: 10, gainMultiplier: 0.8375 },
+      { midi: 62, startFrame: 120, durationFrames: 10, gainMultiplier: 0.675 },
+      { midi: 63, startFrame: 130, durationFrames: 10, gainMultiplier: 0.5125 },
     ]);
+  });
+
+  it("ends at a substantially quieter destination gain", () => {
+    expect(getDiscreteSlideGainMultiplier(0, 4)).toBe(1);
+    expect(getDiscreteSlideGainMultiplier(4, 4)).toBe(
+      DISCRETE_SLIDE_TARGET_GAIN_MULTIPLIER
+    );
+    expect(DISCRETE_SLIDE_TARGET_GAIN_MULTIPLIER).toBeLessThan(0.5);
   });
 
   it("creates descending semitones and excludes both endpoints", () => {

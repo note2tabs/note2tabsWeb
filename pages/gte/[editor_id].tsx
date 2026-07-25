@@ -37,7 +37,10 @@ import {
   type TrackInstrumentOption,
   warmTrackInstrument,
 } from "../../lib/gteSamplePlayback";
-import { buildDiscreteSlideSteps } from "../../lib/gteSlidePlayback";
+import {
+  DISCRETE_SLIDE_TARGET_GAIN_MULTIPLIER,
+  buildDiscreteSlideSteps,
+} from "../../lib/gteSlidePlayback";
 import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import { getChordEditorMidiNotes } from "../../lib/gteChordEditor";
@@ -3175,6 +3178,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         >();
         const incomingTransitionNoteIds = new Set<number>();
         const discreteSlideEffects: Array<{ startNoteId: number; endNoteId: number }> = [];
+        const discreteSlideTargetNoteIds = new Set<number>();
 
         (lane.noteEffects || []).forEach((effect) => {
           const first = notesById.get(effect.startNoteId);
@@ -3198,6 +3202,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           if (blocked) return;
           if (effect.type === 2) {
             discreteSlideEffects.push({ startNoteId: startNote.id, endNoteId: endNote.id });
+            discreteSlideTargetNoteIds.add(endNote.id);
             return;
           }
           if (effect.type !== 0 || outgoingTransitions.has(startNote.id)) return;
@@ -3216,7 +3221,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
           const baseMidi =
             Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(lane, note.tab);
-          const noteGain = 0.55 * laneVolume;
+          const noteGain =
+            0.55 *
+            laneVolume *
+            (discreteSlideTargetNoteIds.has(note.id)
+              ? DISCRETE_SLIDE_TARGET_GAIN_MULTIPLIER
+              : 1);
           if (!outgoingTransitions.has(note.id)) {
             pushEvent(note.startTime, note.length, baseMidi, noteGain, instrumentId, lanePan);
             return;

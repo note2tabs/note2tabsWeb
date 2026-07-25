@@ -28,7 +28,10 @@ import {
   schedulePreparedTrackNote,
   warmTrackInstrument,
 } from "../lib/gteSamplePlayback";
-import { buildDiscreteSlideSteps } from "../lib/gteSlidePlayback";
+import {
+  DISCRETE_SLIDE_TARGET_GAIN_MULTIPLIER,
+  buildDiscreteSlideSteps,
+} from "../lib/gteSlidePlayback";
 import { getOpenStringMidiFromSnapshot, getStringLabelsForSnapshot } from "../lib/gteTuning";
 import {
   alignEffectNotesToFirstString,
@@ -9652,11 +9655,13 @@ export default function GteWorkspace({
     const outgoingTransitions = new Map<number, NonNullable<EditorSnapshot["noteEffects"]>[number]>();
     const incomingTransitionNoteIds = new Set<number>();
     const discreteSlideEffects: NoteEffect[] = [];
+    const discreteSlideTargetNoteIds = new Set<number>();
     (snapshot.noteEffects || []).forEach((effect) => {
       const canonical = getCanonicalNoteEffectForSnapshot(snapshot, effect);
       if (!canonical) return;
       if (canonical.type === 2) {
         discreteSlideEffects.push(canonical);
+        discreteSlideTargetNoteIds.add(canonical.endNoteId);
         return;
       }
       if (canonical.type !== 0) return;
@@ -9670,7 +9675,12 @@ export default function GteWorkspace({
       if (consumedTransitionNoteIds.has(note.id)) return;
       if (incomingTransitionNoteIds.has(note.id) && !outgoingTransitions.has(note.id)) return;
       const key = `note-${note.id}`;
-      const gain = conflictInfo.conflictKeys.has(key) ? 0.25 : 0.55;
+      const baseGain = conflictInfo.conflictKeys.has(key) ? 0.25 : 0.55;
+      const gain =
+        baseGain *
+        (discreteSlideTargetNoteIds.has(note.id)
+          ? DISCRETE_SLIDE_TARGET_GAIN_MULTIPLIER
+          : 1);
       const baseMidi =
         Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(note.tab);
       if (!outgoingTransitions.has(note.id)) {

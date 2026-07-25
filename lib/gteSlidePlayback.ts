@@ -12,6 +12,17 @@ type DiscreteSlideInput = {
   targetStartFrame: number;
 };
 
+export const DISCRETE_SLIDE_TARGET_GAIN_MULTIPLIER = 0.35;
+
+export const getDiscreteSlideGainMultiplier = (
+  step: number,
+  distance: number
+) => {
+  const safeDistance = Math.max(1, Math.abs(Math.round(distance)));
+  const progress = Math.max(0, Math.min(1, Number(step) / safeDistance));
+  return 1 - (1 - DISCRETE_SLIDE_TARGET_GAIN_MULTIPLIER) * progress;
+};
+
 /** Returns every chromatic pitch strictly between the slide endpoints. */
 export const buildDiscreteSlideSteps = ({
   sourceMidi,
@@ -37,7 +48,7 @@ export const buildDiscreteSlideSteps = ({
       durationFrames: Math.max(1, nextFrame - startFrame),
       // A guitar slide loses energy as the finger travels. Keep the first
       // transition audible, then fade each following chromatic step.
-      gainMultiplier: 1 - (0.6 * step) / distance,
+      gainMultiplier: getDiscreteSlideGainMultiplier(step, distance),
     };
   });
 };
