@@ -8443,44 +8443,55 @@ export default function GteWorkspace({
     ]
   );
 
-  useEffect(() => {
-    if (!pendingSelectionTool || selectionActionsLocked) return;
+  const pendingSelectionToolIsEffect =
+    pendingSelectionTool === "hammer-pull" ||
+    pendingSelectionTool === "slide" ||
+    pendingSelectionTool === "bend";
+  const pendingSelectionCount = pendingSelectionToolIsEffect
+    ? selectedNoteIds.length
+    : selectedNoteIds.length + selectedChordIds.length;
+  const canApplyPendingSelectionTool =
+    Boolean(pendingSelectionTool) &&
+    !selectionActionsLocked &&
+    (pendingSelectionToolIsEffect
+      ? selectedNoteIds.length >= 2 && activeChordIds.length === 0
+      : pendingSelectionCount > 0);
+  const pendingSelectionToolLabel =
+    pendingSelectionTool === "hammer-pull"
+      ? "Hammer/Pull"
+      : pendingSelectionTool
+      ? pendingSelectionTool.charAt(0).toUpperCase() + pendingSelectionTool.slice(1)
+      : "";
 
-    const selectedEntityCount = selectedNoteIds.length + selectedChordIds.length;
-    if (
-      pendingSelectionTool === "quantize" ||
-      pendingSelectionTool === "scale" ||
-      pendingSelectionTool === "move"
-    ) {
-      if (selectedEntityCount === 0) return;
-      const tool = pendingSelectionTool;
-      setPendingSelectionTool(null);
-      if (tool === "quantize") activateQuantizeTool();
-      if (tool === "scale") activateScaleTool();
-      if (tool === "move") activateMoveTool();
-      return;
-    }
-
-    if (selectedNoteIds.length < 2 || activeChordIds.length > 0) return;
-    const effectType =
-      pendingSelectionTool === "hammer-pull"
-        ? 1
-        : pendingSelectionTool === "slide"
-        ? 2
-        : 0;
+  const applyPendingSelectionTool = useCallback(() => {
+    if (!pendingSelectionTool || !canApplyPendingSelectionTool) return;
+    const tool = pendingSelectionTool;
     setPendingSelectionTool(null);
-    handleAddNoteEffect(effectType);
+    if (tool === "quantize") activateQuantizeTool();
+    if (tool === "scale") activateScaleTool();
+    if (tool === "move") activateMoveTool();
+    if (tool === "hammer-pull") handleAddNoteEffect(1);
+    if (tool === "slide") handleAddNoteEffect(2);
+    if (tool === "bend") handleAddNoteEffect(0);
   }, [
     activateMoveTool,
     activateQuantizeTool,
     activateScaleTool,
-    activeChordIds.length,
+    canApplyPendingSelectionTool,
     handleAddNoteEffect,
     pendingSelectionTool,
-    selectedChordIds.length,
-    selectedNoteIds.length,
-    selectionActionsLocked,
   ]);
+
+  useEffect(() => {
+    if (!pendingSelectionTool) return;
+    const cancelPendingTool = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setPendingSelectionTool(null);
+    };
+    window.addEventListener("keydown", cancelPendingTool, true);
+    return () => window.removeEventListener("keydown", cancelPendingTool, true);
+  }, [pendingSelectionTool]);
 
   const handleDeleteNoteEffect = useCallback(() => {
     if (!selectedNoteEffect) return;
@@ -11799,7 +11810,7 @@ export default function GteWorkspace({
 
         {pendingSelectionTool && (
           <div className="rounded-md bg-sky-50 px-2 py-1.5 text-[10px] leading-4 text-sky-800">
-            Tool ready. Select {pendingSelectionTool === "hammer-pull" || pendingSelectionTool === "slide" || pendingSelectionTool === "bend" ? "at least two notes" : "notes or chords"} to apply it. Choose the tool again to cancel.
+            {pendingSelectionToolLabel} is ready. Select everything you want to change, then choose Apply.
           </div>
         )}
 
@@ -12283,6 +12294,41 @@ export default function GteWorkspace({
       {editMenuPortalTarget
         ? createPortal(renderEditMenuPanel(), editMenuPortalTarget)
         : null}
+      {pendingSelectionTool && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl border border-sky-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
+          role="toolbar"
+          aria-label={`${pendingSelectionToolLabel} selection`}
+        >
+          <span className="whitespace-nowrap text-xs text-slate-600">
+            <strong className="text-slate-900">{pendingSelectionToolLabel}</strong>
+            {" · "}
+            {pendingSelectionCount} selected
+          </span>
+          <button
+            type="button"
+            onClick={() => setPendingSelectionTool(null)}
+            className="rounded-md px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={applyPendingSelectionTool}
+            disabled={!canApplyPendingSelectionTool}
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+            title={
+              pendingSelectionToolIsEffect
+                ? "Select at least two notes"
+                : "Select at least one note or chord"
+            }
+          >
+            Apply
+          </button>
+        </div>
+      )}
       {scaleToolActive && scaleHudPosition && (
         <div
           ref={scaleHudRef}
