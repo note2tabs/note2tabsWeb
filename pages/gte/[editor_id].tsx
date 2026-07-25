@@ -3885,6 +3885,59 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     </div>
   );
 
+  const renderViewModeSwitch = (compact = false) => (
+    <div
+      className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${
+        compact ? "w-full max-w-xs p-1" : "w-80 p-1.5"
+      }`}
+    >
+      <div className="px-2 pb-1 text-center text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+        Workspace view
+      </div>
+      <div
+        className="relative grid grid-cols-2 rounded-xl bg-slate-100 p-1"
+        role="group"
+        aria-label="Editor view"
+      >
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute bottom-1 left-1 top-1 w-[calc(50%_-_0.25rem)] rounded-lg bg-slate-900 shadow-md transition-transform duration-300 ease-out ${
+            tabViewEnabled ? "translate-x-full" : "translate-x-0"
+          }`}
+        />
+        <button
+          type="button"
+          onClick={() => setTabViewEnabled(false)}
+          aria-pressed={!tabViewEnabled}
+          className={`relative z-10 flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors duration-300 ${
+            !tabViewEnabled ? "text-white" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <span className="grid h-4 w-4 grid-cols-2 gap-0.5 rounded border border-current p-0.5" aria-hidden="true">
+            <span className="rounded-sm bg-current" />
+            <span className="rounded-sm bg-current" />
+          </span>
+          Edit canvas
+        </button>
+        <button
+          type="button"
+          onClick={() => setTabViewEnabled(true)}
+          aria-pressed={tabViewEnabled}
+          className={`relative z-10 flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors duration-300 ${
+            tabViewEnabled ? "text-white" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <span className="flex h-4 w-4 flex-col justify-around py-0.5" aria-hidden="true">
+            <span className="h-px w-full bg-current" />
+            <span className="h-px w-full bg-current" />
+            <span className="h-px w-full bg-current" />
+          </span>
+          Tab view
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <>
       <NoIndexHead title="Guitar Tab Editor Workspace | Note2Tabs" canonicalPath={`/gte/${editorId}`} />
@@ -4028,37 +4081,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </div>
                 {renderMobileHistoryControls()}
               </div>
-              <div
-                className="flex h-11 shrink-0 items-center rounded-xl border border-slate-200 bg-white p-1 shadow-sm"
-                role="group"
-                aria-label="Editor view"
-              >
-                <button
-                  type="button"
-                  onClick={() => setTabViewEnabled(false)}
-                  aria-pressed={!tabViewEnabled}
-                  className={`h-9 rounded-lg px-2.5 text-xs font-semibold transition ${
-                    !tabViewEnabled
-                      ? "bg-slate-900 text-white shadow-sm"
-                      : "text-slate-500 hover:bg-slate-50"
-                  }`}
-                >
-                  Canvas
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTabViewEnabled(true)}
-                  aria-pressed={tabViewEnabled}
-                  className={`h-9 rounded-lg px-2.5 text-xs font-semibold transition ${
-                    tabViewEnabled
-                      ? "bg-slate-900 text-white shadow-sm"
-                      : "text-slate-500 hover:bg-slate-50"
-                  }`}
-                >
-                  Tab
-                </button>
-              </div>
             </div>
+            <div className="flex justify-center">{renderViewModeSwitch(true)}</div>
             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
               <button
                 type="button"
@@ -4339,11 +4363,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         )}
         {isMobileEditMode && (
-          <div
-            className="flex shrink-0 items-center gap-2 overflow-x-auto pb-1"
-            role="toolbar"
-            aria-label="Editor controls"
-          >
+          <div className="shrink-0 space-y-2">
+            <div className="flex justify-center">{renderViewModeSwitch(true)}</div>
+            <div
+              className="flex items-center gap-2 overflow-x-auto pb-1"
+              role="toolbar"
+              aria-label="Editor controls"
+            >
             <button
               type="button"
               onClick={exitMobileEditMode}
@@ -4352,32 +4378,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               Back
             </button>
             {renderMobileHistoryControls()}
-            <div
-              className="flex h-11 shrink-0 items-center rounded-xl border border-slate-200 bg-white p-1 shadow-sm"
-              role="group"
-              aria-label="Editor view"
-            >
-              <button
-                type="button"
-                onClick={() => setTabViewEnabled(false)}
-                aria-pressed={!tabViewEnabled}
-                className={`h-9 rounded-lg px-2.5 text-xs font-semibold ${
-                  !tabViewEnabled ? "bg-slate-900 text-white" : "text-slate-500"
-                }`}
-              >
-                Canvas
-              </button>
-              <button
-                type="button"
-                onClick={() => setTabViewEnabled(true)}
-                aria-pressed={tabViewEnabled}
-                className={`h-9 rounded-lg px-2.5 text-xs font-semibold ${
-                  tabViewEnabled ? "bg-slate-900 text-white" : "text-slate-500"
-                }`}
-              >
-                Tab
-              </button>
-            </div>
             <details className="relative shrink-0">
               <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
                 Tools
@@ -4483,6 +4483,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 />
               </label>
             </details>
+          </div>
           </div>
         )}
         {!isMobileViewport && (
@@ -4828,35 +4829,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>
                   </details>
 
-                  <div
-                    className="order-4 ml-1 flex h-8 items-center rounded-md border border-slate-200 bg-slate-50 p-0.5"
-                    role="group"
-                    aria-label="Editor view"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setTabViewEnabled(false)}
-                      aria-pressed={!tabViewEnabled}
-                      className={`h-6 rounded px-2.5 text-xs font-medium transition ${
-                        !tabViewEnabled
-                          ? "bg-white text-slate-900 shadow-sm"
-                          : "text-slate-500 hover:text-slate-700"
-                      }`}
-                    >
-                      Canvas
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTabViewEnabled(true)}
-                      aria-pressed={tabViewEnabled}
-                      className={`h-6 rounded px-2.5 text-xs font-medium transition ${
-                        tabViewEnabled
-                          ? "bg-white text-slate-900 shadow-sm"
-                          : "text-slate-500 hover:text-slate-700"
-                      }`}
-                    >
-                      Tab view
-                    </button>
+                  <div className="order-8 flex basis-full justify-center border-t border-slate-200 pb-1 pt-2">
+                    {renderViewModeSwitch()}
                   </div>
 
                   <details
