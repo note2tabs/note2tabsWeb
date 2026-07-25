@@ -4069,8 +4069,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </div>
                 {renderMobileHistoryControls()}
               </div>
+              {renderViewModeSwitch(true)}
             </div>
-            <div className="flex justify-center">{renderViewModeSwitch(true)}</div>
             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
               <button
                 type="button"
@@ -4351,13 +4351,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         )}
         {isMobileEditMode && (
-          <div className="shrink-0 space-y-2">
-            <div className="flex justify-center">{renderViewModeSwitch(true)}</div>
-            <div
-              className="flex items-center gap-2 overflow-x-auto pb-1"
-              role="toolbar"
-              aria-label="Editor controls"
-            >
+          <div
+            className="flex shrink-0 items-center gap-2 overflow-x-auto pb-1"
+            role="toolbar"
+            aria-label="Editor controls"
+          >
             <button
               type="button"
               onClick={exitMobileEditMode}
@@ -4366,6 +4364,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               Back
             </button>
             {renderMobileHistoryControls()}
+            <div className="shrink-0">{renderViewModeSwitch(true)}</div>
             <details className="relative shrink-0">
               <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
                 Tools
@@ -4471,7 +4470,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 />
               </label>
             </details>
-          </div>
           </div>
         )}
         {!isMobileViewport && (
@@ -4817,7 +4815,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>
                   </details>
 
-                  <div className="order-8 flex basis-full justify-center border-t border-slate-200 pb-1 pt-2">
+                  <div className="order-7 ml-auto mr-2 shrink-0">
                     {renderViewModeSwitch()}
                   </div>
 
@@ -5090,7 +5088,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>
                   </details>
 
-                  <div className="order-7 ml-auto flex shrink-0 items-center gap-2">
+                  <div className="order-7 flex shrink-0 items-center gap-2">
                     <button
                       type="button"
                       onClick={handleCanvasUndo}
