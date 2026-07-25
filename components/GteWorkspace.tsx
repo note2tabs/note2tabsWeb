@@ -11841,7 +11841,7 @@ export default function GteWorkspace({
       const description = TOOL_HELP.get(name);
       if (!description) return null;
       return (
-        <p className="-mt-1 px-2 pb-1 text-[10px] leading-4 text-slate-500">
+        <p className="-mt-1 ml-2 mr-1 border-l-2 border-sky-200 py-0.5 pl-2 pr-1 text-[9px] leading-3.5 text-slate-400">
           {description}
         </p>
       );
@@ -11876,13 +11876,14 @@ export default function GteWorkspace({
               aria-expanded={toolHelpOpen}
               aria-label={toolHelpOpen ? "Hide tool explanations" : "Explain the editor tools"}
               title="What do these tools do?"
-              className={`grid h-6 w-6 place-items-center rounded-full border text-[11px] font-serif font-bold shadow-sm transition ${
+              className={`flex h-6 items-center justify-center rounded-full border text-[10px] font-semibold shadow-sm transition-all ${
                 toolHelpOpen
-                  ? "border-sky-300 bg-sky-50 text-sky-700"
-                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                  ? "gap-1 border-sky-300 bg-sky-50 px-2 text-sky-700"
+                  : "w-6 border-slate-200 bg-white font-serif text-slate-500 hover:bg-slate-50 hover:text-slate-800"
               }`}
             >
-              i
+              <span className="font-serif font-bold">i</span>
+              {toolHelpOpen ? <span>Help on</span> : null}
             </button>
             {!topMenu ? (
               <button
@@ -11898,9 +11899,8 @@ export default function GteWorkspace({
         </div>
 
         {toolHelpOpen ? (
-          <div className="rounded-md bg-sky-50 px-2 py-1.5 text-[10px] leading-4 text-sky-800">
-            Explanations are shown beside each tool. Slice and Cut work directly on the canvas;
-            use <strong>Done</strong> or <strong>Escape</strong> when finished.
+          <div className="rounded-md border border-sky-100 bg-sky-50/70 px-2 py-1 text-[9px] leading-3.5 text-sky-700">
+            Help is on — short explanations now appear beneath every tool.
           </div>
         ) : null}
 
