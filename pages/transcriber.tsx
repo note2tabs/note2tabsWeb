@@ -69,9 +69,6 @@ const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 const MAX_YT_SNIPPET_SEC = 30;
 const MAX_YT_START_SEC = 9 * 60;
 const MAX_YT_END_SEC = 10 * 60;
-const YOUTUBE_DOWNLOAD_DISABLED = true;
-const YOUTUBE_DOWNLOAD_OUTAGE_MESSAGE =
-  "YouTube downloads are temporarily unavailable. Our developers are working on a fix.";
 
 const isYouTubeId = (value: string) => /^[a-zA-Z0-9_-]{11}$/.test(value);
 
@@ -603,7 +600,6 @@ export default function TranscriberPage() {
   const canSubmit = useMemo(() => {
     if (sessionStatus === "loading" || (isSignedIn && !canUseUnverifiedTranscription)) return false;
     if (mode === "FILE") return Boolean(selectedFile) && fileTimeRangeValid && !loading && !authHandoffBusy;
-    if (YOUTUBE_DOWNLOAD_DISABLED) return false;
     return youtubeValid && youtubeTimeRangeValid && !loading && !authHandoffBusy;
   }, [
     mode,
@@ -623,8 +619,6 @@ export default function TranscriberPage() {
     ? mode === "YOUTUBE"
       ? "Downloading..."
       : "Generating..."
-    : mode === "YOUTUBE" && YOUTUBE_DOWNLOAD_DISABLED
-    ? "YouTube unavailable"
     : mode === "YOUTUBE"
     ? "Generate tabs"
     : "Generate tabs";
@@ -758,10 +752,6 @@ export default function TranscriberPage() {
 
     if (mode === "YOUTUBE" && !youtubeValid) {
       setError("Please paste a valid YouTube link.");
-      return;
-    }
-    if (mode === "YOUTUBE" && YOUTUBE_DOWNLOAD_DISABLED) {
-      setError(YOUTUBE_DOWNLOAD_OUTAGE_MESSAGE);
       return;
     }
     if (mode === "YOUTUBE" && (ytStartTime === null || ytEndTime === null)) {
@@ -1297,9 +1287,6 @@ export default function TranscriberPage() {
                         placeholder="https://www.youtube.com/..."
                       />
                     </label>
-                    <div className="youtube-outage-notice" role="status">
-                      {YOUTUBE_DOWNLOAD_OUTAGE_MESSAGE}
-                    </div>
                   </>
                 )}
 
