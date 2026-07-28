@@ -179,6 +179,7 @@ const normalizeNoteEffects = (value: unknown): NonNullable<EditorSnapshot["noteE
 
 const normalizeEditorType = (value: unknown) => {
   const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (raw === "drum" || raw === "drums" || raw === "percussion") return "drums";
   if (raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor") return "chords";
   return "tab";
 };

@@ -9,6 +9,8 @@ export type Note = {
   optimals: TabCoord[];
 };
 
+export type GteTrackType = "tab" | "chords" | "drums";
+
 export type NoteEffect = {
   id: number;
   type: number;
@@ -55,9 +57,9 @@ export type CutWithCoord = [CutRegion, TabCoord];
 export type EditorSnapshot = {
   id: string;
   name?: string;
-  editorType?: "tab" | "chords" | string;
-  type?: "tab" | "chords" | string;
-  trackType?: "tab" | "chords" | string;
+  editorType?: GteTrackType | string;
+  type?: GteTrackType | string;
+  trackType?: GteTrackType | string;
   chordEditor?: Record<string, unknown>;
   instrumentId?: string;
   playbackVolume?: number;

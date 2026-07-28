@@ -374,6 +374,7 @@ model canvas_lanes {
   lane_id            String
   lane_index         Int
   name               String?
+  track_type         String        @default("tab")
   version            Int           @default(1)
   time_signature     Int           @default(8)
   frames_per_messure Int           @default(480)
@@ -390,6 +391,7 @@ model canvas_lanes {
   @@id([user_id, canvas_id, lane_id])
   @@unique([user_id, canvas_id, lane_index], map: "idx_canvas_lanes_unique_order")
   @@index([user_id, canvas_id, lane_id], map: "idx_canvas_lanes_lookup")
+  @@index([user_id, canvas_id, track_type], map: "idx_canvas_lanes_track_type")
 }
 
 model canvases {

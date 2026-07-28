@@ -363,9 +363,9 @@ export const gteApi = {
     editorId: string,
     name?: string,
     options?: {
-      editorType?: "tab" | "chords" | string;
-      trackType?: "tab" | "chords" | string;
-      type?: "tab" | "chords" | string;
+      editorType?: "tab" | "chords" | "drums" | string;
+      trackType?: "tab" | "chords" | "drums" | string;
+      type?: "tab" | "chords" | "drums" | string;
       chordEditor?: Record<string, unknown>;
     }
   ) =>
@@ -377,6 +377,59 @@ export const gteApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, ...options }),
       }
+    ),
+  importEditorJson: (canvasId: string, laneId: string, payload: unknown) =>
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot; canvas: CanvasSnapshot }>(
+      canvasId,
+      `/editors/${canvasId}__ed__${laneId}/import_json`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    ),
+  saveDrumNote: (
+    canvasId: string,
+    laneId: string,
+    note: { id: number; startTime: number; length: number; tab: [number, number] }
+  ) =>
+    requestForEditor<{ ok: true; note: EditorSnapshot["notes"][number]; canvas: CanvasSnapshot }>(
+      canvasId,
+      `/editors/${canvasId}__ed__${laneId}/drum_hits`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(note),
+      }
+    ),
+  saveDrumNotes: (
+    canvasId: string,
+    laneId: string,
+    notes: Array<{
+      id: number;
+      startTime: number;
+      length: number;
+      tab: [number, number];
+    }>
+  ) =>
+    requestForEditor<{
+      ok: true;
+      notes: EditorSnapshot["notes"];
+      canvas: CanvasSnapshot;
+    }>(
+      canvasId,
+      `/editors/${canvasId}__ed__${laneId}/drum_hits/batch`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes }),
+      }
+    ),
+  deleteDrumNote: (canvasId: string, laneId: string, noteId: number) =>
+    requestForEditor<{ ok: true; canvas: CanvasSnapshot }>(
+      canvasId,
+      `/editors/${canvasId}__ed__${laneId}/drum_hits/${noteId}`,
+      { method: "DELETE" }
     ),
   deleteCanvasEditor: (editorId: string, laneId: string) =>
     requestForEditor<{ ok: true; canvas: CanvasSnapshot; removedEditorId: string }>(

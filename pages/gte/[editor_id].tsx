@@ -39,6 +39,15 @@ import {
 } from "../../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../../lib/gteSlidePlayback";
 import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
+import {
+  getDrumVoiceForNote,
+  isDrumTrackType,
+  type DrumVoiceId,
+} from "../../lib/gteDrums";
+import {
+  prepareDrumKit,
+  schedulePreparedDrumHit,
+} from "../../lib/gteDrumPlayback";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import { getChordEditorMidiNotes } from "../../lib/gteChordEditor";
 import GteFileImportButton from "../../components/GteFileImportButton";
@@ -69,7 +78,7 @@ import {
   useGteRenderInstrumentation,
 } from "../../lib/gtePerformanceDiagnostics";
 
-const GteWorkspace = dynamic(() => import("../../components/GteWorkspace"), {
+const GteWorkspace = dynamic(() => import("../../components/GteTrackWorkspace"), {
   loading: () => (
     <div className="gte-workspace-loading" role="status" aria-label="Loading editor controls" />
   ),
@@ -246,6 +255,7 @@ const isCanvasSnapshot = (value: unknown): value is CanvasSnapshot =>
 
 const normalizeEditorKind = (value: unknown) => {
   const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (isDrumTrackType(raw)) return "drums";
   return raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor"
     ? "chords"
     : "tab";
@@ -253,6 +263,8 @@ const normalizeEditorKind = (value: unknown) => {
 
 const isChordLane = (lane: Pick<EditorSnapshot, "editorType" | "trackType" | "type">) =>
   normalizeEditorKind(lane.editorType ?? lane.trackType ?? lane.type) === "chords";
+const isDrumLane = (lane: Pick<EditorSnapshot, "editorType" | "trackType" | "type">) =>
+  normalizeEditorKind(lane.editorType ?? lane.trackType ?? lane.type) === "drums";
 
 const normalizeLane = (
   lane: EditorSnapshot,
@@ -263,9 +275,14 @@ const normalizeLane = (
   const safeSeconds = Math.max(0.1, toNumber(secondsPerBar, toNumber(lane.secondsPerBar, DEFAULT_SECONDS_PER_BAR)));
   const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)));
   const rawName = typeof lane.name === "string" ? lane.name.trim() : "";
-  const defaultNamePattern = /^(editor|transcription)\s+\d+$/i;
+  const defaultNamePattern = /^(editor|transcription|tab|chords?|drums?)\s+\d+$/i;
   const editorKind = normalizeEditorKind(lane.editorType ?? lane.trackType ?? lane.type);
-  const laneName = !rawName || defaultNamePattern.test(rawName) ? `${editorKind === "chords" ? "Chords" : "Tab"} ${index + 1}` : rawName;
+  const laneTypeLabel =
+    editorKind === "chords" ? "Chords" : editorKind === "drums" ? "Drums" : "Tab";
+  const laneName =
+    !rawName || defaultNamePattern.test(rawName)
+      ? `${laneTypeLabel} ${index + 1}`
+      : rawName;
   return {
     ...lane,
     id: laneId,
@@ -1909,7 +1926,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
   };
 
-  const handleAddLane = async (kind: "tab" | "chords" = "tab") => {
+  const handleAddLane = async (kind: "tab" | "chords" | "drums" = "tab") => {
     if (!canvas || addingLane) return;
     setAddingLane(true);
     setAddTrackMenuOpen(false);
@@ -1932,6 +1949,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       const currentTimeSignature = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
       const currentTimeSignatureBottom = normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4;
       const currentSecondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
+      const createdLaneId =
+        res.editor?.id || res.canvas.editors[res.canvas.editors.length - 1]?.id;
       const nextCanvas = normalizeCanvas(
         {
           ...res.canvas,
@@ -1941,15 +1960,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             secondsPerBar: currentSecondsPerBar,
             timeSignature: currentTimeSignature,
             timeSignatureBottom: currentTimeSignatureBottom,
-            ...(!lane.editorType && lane.id === res.editor?.id
+            ...(lane.id === createdLaneId
               ? { editorType: kind, type: kind, trackType: kind }
               : {}),
           })),
         },
         editorId
       );
-      await gteApi.applySnapshot(editorId, nextCanvas);
-      applyCanvasUpdate(nextCanvas, { markDirty: !isGuestMode });
+      if (kind !== "drums") {
+        await gteApi.applySnapshot(editorId, nextCanvas);
+      }
+      applyCanvasUpdate(nextCanvas, {
+        markDirty: kind === "drums" ? isGuestMode : !isGuestMode,
+      });
       setActiveLaneId(res.editor?.id || nextCanvas.editors[nextCanvas.editors.length - 1]?.id || null);
     } catch (err: any) {
       setError(err?.message || "Could not add track.");
@@ -2587,17 +2610,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const globalControlsLaneId = useMemo(() => {
     if (!canvas?.editors.length) return null;
     if (mobileEditLaneId && canvas.editors.some((lane) => lane.id === mobileEditLaneId)) return mobileEditLaneId;
-    const tabLane = canvas.editors.find((lane) => !isChordLane(lane));
+    const tabLane = canvas.editors.find(
+      (lane) => !isChordLane(lane) && !isDrumLane(lane)
+    );
     if (tabLane) return tabLane.id || null;
     return canvas.editors[0]?.id || null;
   }, [canvas?.editors, mobileEditLaneId]);
   const activeEditableLaneId = useMemo(() => {
     if (!activeLaneId || !canvas?.editors.length) return null;
     const lane = canvas.editors.find((candidate) => (candidate.id || null) === activeLaneId);
-    return lane && !isChordLane(lane) ? activeLaneId : null;
+    return lane && !isChordLane(lane) && !isDrumLane(lane)
+      ? activeLaneId
+      : null;
   }, [activeLaneId, canvas?.editors]);
   const fallbackEditableLaneId = useMemo(
-    () => canvas?.editors.find((lane) => !isChordLane(lane))?.id || null,
+    () =>
+      canvas?.editors.find(
+        (lane) => !isChordLane(lane) && !isDrumLane(lane)
+      )?.id || null,
     [canvas?.editors]
   );
   const editMenuOwnerLaneId = activeEditableLaneId ?? fallbackEditableLaneId;
@@ -3098,6 +3128,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         gain: number;
         instrumentId: string;
         pan: number;
+        drumVoiceId?: DrumVoiceId;
         bendSegments?: Array<{
           holdSec: number;
           bendSec: number;
@@ -3164,6 +3195,32 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         const lanePan = normalizeTrackPan(trackPanById[laneId] ?? 0);
         if (laneVolume <= 0) return;
         const instrumentId = normalizeTrackInstrumentId(lane.instrumentId);
+        if (isDrumLane(lane)) {
+          lane.notes.forEach((note) => {
+            const roundedStart = Math.round(note.startTime);
+            if (
+              roundedStart < playbackStartFrame ||
+              roundedStart >= playbackEndFrame
+            ) {
+              return;
+            }
+            endFrame = Math.max(endFrame, roundedStart + 1);
+            events.push({
+              start: frameDeltaToSeconds(
+                roundedStart - playbackStartFrame,
+                globalPlaybackFps,
+                runPlaybackSpeed
+              ),
+              duration: 0.2,
+              midi: note.midiNum,
+              gain: 0.72 * laneVolume,
+              instrumentId: "drum1",
+              pan: lanePan,
+              drumVoiceId: getDrumVoiceForNote(note).id,
+            });
+          });
+          return;
+        }
         const notesById = new Map(lane.notes.map((note) => [note.id, note] as const));
         const outgoingTransitions = new Map<
           number,
@@ -3354,13 +3411,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         });
       });
 
-      const [preparedEntries] = await Promise.all([
+      const drumEventsPresent = events.some((event) => event.drumVoiceId);
+      const [preparedEntries, preparedDrumKit] = await Promise.all([
         Promise.all(
-          [...new Set(events.map((event) => event.instrumentId))].map(async (instrumentId) => {
+          [
+            ...new Set(
+              events
+                .filter((event) => !event.drumVoiceId)
+                .map((event) => event.instrumentId)
+            ),
+          ].map(async (instrumentId) => {
             const instrument = await prepareTrackInstrument(ctx, instrumentId);
             return [instrumentId, instrument] as const;
           })
         ),
+        drumEventsPresent ? prepareDrumKit(ctx) : Promise.resolve(null),
         audioReady,
       ]);
       if (!isCurrentRequest() || ctx.state !== "running") {
@@ -3402,9 +3467,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       }
 
       events.forEach((evt) => {
-        if (!Number.isFinite(evt.midi) || evt.midi <= 0) return;
-        const instrument = preparedByInstrumentId.get(evt.instrumentId);
-        if (!instrument) return;
         const destination = (() => {
           if (typeof ctx.createStereoPanner === "function") {
             const panner = ctx.createStereoPanner();
@@ -3426,6 +3488,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           splitter.connect(right);
           return splitter;
         })();
+        if (evt.drumVoiceId) {
+          if (!preparedDrumKit) return;
+          schedulePreparedDrumHit({
+            ctx,
+            destination,
+            kit: preparedDrumKit,
+            voiceId: evt.drumVoiceId,
+            gain: evt.gain,
+            startTime: playBase + evt.start,
+          });
+          return;
+        }
+        if (!Number.isFinite(evt.midi) || evt.midi <= 0) return;
+        const instrument = preparedByInstrumentId.get(evt.instrumentId);
+        if (!instrument) return;
         schedulePreparedTrackNote({
           ctx,
           destination,
@@ -6061,13 +6138,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               const trackVolume = normalizeTrackVolume(trackVolumeById[laneId] ?? 1);
               const trackPan = normalizeTrackPan(trackPanById[laneId] ?? 0);
               const laneBarCount = getLaneBarCount(lane);
+              const drumLane = isDrumLane(lane);
+              const laneTypeLabel = isChordLane(lane)
+                ? "Chords"
+                : drumLane
+                  ? "Drums"
+                  : "Tab";
               const instrumentValue = trackInstrumentOptions.some(
                 (option) => option.id === normalizeTrackInstrumentId(lane.instrumentId)
               )
                 ? normalizeTrackInstrumentId(lane.instrumentId)
                 : DEFAULT_TRACK_INSTRUMENT_ID;
-              const instrumentLabel =
-                trackInstrumentOptions.find((option) => option.id === instrumentValue)?.label || "Built-in synth";
+              const instrumentLabel = drumLane
+                ? "Drum kit"
+                : trackInstrumentOptions.find((option) => option.id === instrumentValue)?.label ||
+                  "Built-in synth";
               const tuning = getSnapshotTuning(lane);
               const mobileEditing = isMobileViewport && mobileEditLaneId === laneId;
               const mobileSelectedBars =
@@ -6446,23 +6531,25 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               </button>
                               {openTrackMenuId === laneId && (
                                 <div className="absolute right-0 top-11 z-30 w-60 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
-                                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                    Sound
-                                    <select
-                                      value={instrumentValue}
-                                      onChange={(event) => {
-                                        handleLaneInstrumentChange(laneId, event.target.value);
-                                        event.currentTarget.blur();
-                                      }}
-                                      className="mt-2 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
-                                    >
-                                      {trackInstrumentOptions.map((option) => (
-                                        <option key={`${laneId}-mobile-instrument-${option.id}`} value={option.id}>
-                                          {option.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </label>
+                                  {!drumLane && (
+                                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                      Sound
+                                      <select
+                                        value={instrumentValue}
+                                        onChange={(event) => {
+                                          handleLaneInstrumentChange(laneId, event.target.value);
+                                          event.currentTarget.blur();
+                                        }}
+                                        className="mt-2 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
+                                      >
+                                        {trackInstrumentOptions.map((option) => (
+                                          <option key={`${laneId}-mobile-instrument-${option.id}`} value={option.id}>
+                                            {option.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                  )}
                                   <div className="mt-3 flex gap-2">
                                     <button
                                       type="button"
@@ -6632,10 +6719,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             Track {index + 1}
                           </span>
                           <span className="text-[10px] font-medium text-slate-500">
-                            {isChordLane(lane) ? "Chords" : "Tab"} · {laneBarCount} bars
+                            {laneTypeLabel} · {laneBarCount} bars
                           </span>
                         </div>
-                        <div className="mt-2 min-w-0">
+                        {!drumLane && <div className="mt-2 min-w-0">
                           <select
                             value={instrumentValue}
                             onChange={(event) => {
@@ -6653,8 +6740,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               </option>
                             ))}
                           </select>
-                        </div>
-                        {!isChordLane(lane) && (
+                        </div>}
+                        {!isChordLane(lane) && !drumLane && (
                           <div className="mt-2 min-w-0 space-y-1.5">
                             <select
                               value={tuning.presetId}
@@ -6993,6 +7080,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       disabled={addingLane}
                     >
                       <span>Chords</span>
+                      <span className="text-xs text-slate-400">Track</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
+                      onClick={() => void handleAddLane("drums")}
+                      disabled={addingLane}
+                    >
+                      <span>Drums</span>
                       <span className="text-xs text-slate-400">Track</span>
                     </button>
                   </div>
