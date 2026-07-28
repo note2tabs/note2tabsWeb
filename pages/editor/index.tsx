@@ -17,12 +17,12 @@ const GUEST_EDITOR_PATH = `/gte/${GTE_GUEST_EDITOR_ID}`;
 
 const editorSteps = [
   {
-    title: "Start a tab",
-    body: "Open a blank guitar tab in the browser, or continue from a draft made by the transcriber.",
+    title: "Start your way",
+    body: "Write from a blank tab, import an existing file, or create a project from audio with the Note2Tabs transcriber.",
   },
   {
-    title: "Clean up the hard parts",
-    body: "Adjust the notes, timing, chord shapes, fingerings, and section breaks that need a guitarist's judgment.",
+    title: "Shape every detail",
+    body: "Compose notes, arrange sections, choose chord shapes and fingerings, and add the techniques that define the part.",
   },
   {
     title: "Keep the playable version",
@@ -33,7 +33,7 @@ const editorSteps = [
 const editAreas = [
   {
     title: "Notes and timing",
-    body: "Move notes into place and tighten the rhythm after a rough transcription.",
+    body: "Write melodies and riffs, control their rhythm, and hear every change during playback.",
   },
   {
     title: "Chord shapes",
@@ -62,7 +62,7 @@ const editorFaqs = [
   {
     question: "Can I edit tabs created from an audio or YouTube transcription?",
     answer:
-      "Yes. The editor is designed to continue from Note2Tabs transcriptions, then refine timing, fingerings, chord shapes, and song sections.",
+      "Yes. A Note2Tabs transcription opens as a native editor project, with the same timing, fingering, chord, arrangement, playback, and practice tools as any tab you create yourself.",
   },
   {
     question: "Do I need an account to try the editor?",
@@ -72,12 +72,12 @@ const editorFaqs = [
   {
     question: "Is this useful as an AI guitar tab editor?",
     answer:
-      "Yes. It is built for editing AI-generated guitar tabs after transcription, especially when you need to correct rhythm, fret choices, chord voicings, and section structure.",
+      "Yes. AI-generated tabs open as fully editable projects. The editor is also a complete standalone tab-making workspace, so transcription is an optional starting point rather than a requirement.",
   },
   {
     question: "What kinds of tabs can I make online?",
     answer:
-      "You can draft riffs, solos, chord progressions, fingerstyle parts, lesson exercises, cover song sections, and full guitar arrangements directly in the browser.",
+      "You can write riffs, solos, chord progressions, fingerstyle parts, lesson exercises, cover song sections, and full guitar arrangements directly in the browser.",
   },
 ] as const;
 
@@ -89,7 +89,7 @@ export default function EditorLandingPage() {
 
   const isSignedIn = Boolean(session?.user?.id);
   const editorDescription =
-    "Create, edit, play, and organize guitar tabs in your browser. Start free from a blank tab or clean up an AI transcription draft.";
+    "Create, arrange, play, practise, and organize guitar tabs in a complete browser-based editor. Start from a blank tab, import a file, or bring in a Note2Tabs transcription.";
   const editorJsonLd = [
     {
       "@context": "https://schema.org",
@@ -187,7 +187,7 @@ export default function EditorLandingPage() {
               <div className="editor-v2-proof" aria-label="Editor highlights">
                 <span>No installation</span>
                 <span>Guest mode</span>
-                <span>Editable AI drafts</span>
+                <span>30+ guitar-specific tools</span>
               </div>
               {error && <div className="error editor-landing-error">{error}</div>}
             </div>
@@ -234,7 +234,7 @@ export default function EditorLandingPage() {
             <article className="editor-v2-showcase-row">
               <div className="editor-v2-showcase-copy">
                 <span className="editor-v2-kicker">Built for guitar decisions</span>
-                <h2>Fix the fingering—not just the note.</h2>
+                <h2>Choose the fingering—not just the note.</h2>
                 <p>
                   The same pitch can live in several places on the fretboard. Compare positions, choose realistic chord
                   shapes, snap ideas to a key, and keep phrases in a hand position that makes musical sense.
@@ -261,11 +261,11 @@ export default function EditorLandingPage() {
 
             <article className="editor-v2-showcase-row editor-v2-showcase-row--reverse">
               <div className="editor-v2-showcase-copy">
-                <span className="editor-v2-kicker">From draft to practice</span>
+                <span className="editor-v2-kicker">Edit and practise together</span>
                 <h2>Hear it, loop it, learn it.</h2>
                 <p>
-                  Turn a rough transcription or a tab written from scratch into practice material. Play it back with
-                  guitar sounds, loop the difficult section, and use train mode to build speed gradually.
+                  Write a tab yourself or open one created by the transcriber, then play it with guitar sounds, loop
+                  difficult sections, and use train mode to build speed gradually.
                 </p>
                 <ul>
                   <li>Section-based playback</li>
@@ -304,7 +304,7 @@ export default function EditorLandingPage() {
             <div className="editor-v2-paths">
               <Link href="/ai-guitar-tab-generator">
                 <span>Have a recording?</span>
-                <strong>Generate a draft with AI →</strong>
+                <strong>Create a guitar tab with AI →</strong>
               </Link>
               <Link href="/audio-to-guitar-tab-converter">
                 <span>Have an MP3 or WAV?</span>

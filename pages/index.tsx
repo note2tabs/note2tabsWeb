@@ -1160,7 +1160,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     },
     {
       title: "Edit your guitar tabs",
-      text: "Clean up timing, adjust fingerings, and shape the result into playable tab.",
+      text: "Arrange sections, choose fingerings, add techniques, and shape the tab your way.",
       video: "/videos/edit.mp4",
       poster: "/videos/posters/edit.jpg",
     },
@@ -1378,7 +1378,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     <>
       <SeoHead
         title="Note2Tabs | Convert Audio and YouTube to Guitar Tabs"
-        description="Convert audio files or YouTube links into playable guitar tabs online. Upload a song, generate tabs, and refine them in the browser."
+        description="Convert audio files or YouTube links into playable guitar tabs online, then open them in a complete browser-based guitar tab editor."
         canonicalPath="/"
         jsonLd={homeJsonLd}
       />
@@ -1850,7 +1850,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
             <div className="home-workflow-link-grid">
               <Link href="/audio-to-guitar-tab-converter">
                 <strong>Convert an audio file</strong>
-                <span>Upload MP3, WAV, or another recording and generate an editable tab draft.</span>
+                <span>Upload MP3, WAV, or another recording and generate a structured, editable guitar tab.</span>
               </Link>
               <Link href="/youtube-to-guitar-tabs">
                 <strong>Convert a YouTube clip</strong>
@@ -1858,7 +1858,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               </Link>
               <Link href="/ai-guitar-tab-generator">
                 <strong>Understand the AI workflow</strong>
-                <span>See what affects accuracy and how to turn the first draft into playable tab.</span>
+                <span>See how Note2Tabs turns a performance into structured, playable guitar tablature.</span>
               </Link>
             </div>
           </div>
@@ -1892,7 +1892,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <p>
                     Keep the whole song in one place: unlimited songs, unlimited tracks.
                     The editor has over 30 unique tools helping you create tabs your way.
-                    From quick fixes to detailed arrangements, everything you need is built into a single workflow.
+                    From the first note to detailed arrangements and practice, everything you need is built into a single workflow.
                   </p>
                 </div>
               </article>

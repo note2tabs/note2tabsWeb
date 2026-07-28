@@ -15,8 +15,8 @@ export default function FreeGuitarTabMakerPage() {
           body: "Transcribe a song from audio, paste a YouTube link, or open the editor.",
         },
         {
-          title: "Create a draft",
-          body: "Generate or write the tab structure in your browser.",
+          title: "Create your tab",
+          body: "Generate from audio or write the complete arrangement in your browser.",
         },
         {
           title: "Edit and save",

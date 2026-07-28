@@ -1156,7 +1156,7 @@ export default function TranscriberPage() {
   const showCreditsEmpty = displayedCredits && displayedCredits.remaining === 0;
   const resetLabelText = isPremiumRole(transcriberSession?.user?.role) ? "Next credits" : "Resets";
   const transcriberDescription =
-    "Upload audio or enter a YouTube segment to generate a draft guitar tab you can refine.";
+    "Upload audio or enter a YouTube segment to generate a structured, playable guitar tab you can open in the Note2Tabs editor.";
   const transcriberJsonLd = [
     {
       "@context": "https://schema.org",
@@ -1213,7 +1213,7 @@ export default function TranscriberPage() {
                 <h1 className="hero-title">Transcriber</h1>
               </div>
               <p className="hero-subtitle">
-                Upload audio or enter a YouTube segment and get a draft tab you can refine in the editor.
+                Upload audio or enter a YouTube segment and get a structured guitar tab ready to play, practise, and edit.
               </p>
             </div>
             <form

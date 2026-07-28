@@ -11,8 +11,8 @@ export default function OnlineGuitarTabEditorPage() {
       secondaryCta={{ label: "Start transcribing", href: "/#hero" }}
       steps={[
         {
-          title: "Start a tab",
-          body: "Open a blank tab or continue from a transcription draft.",
+          title: "Choose a starting point",
+          body: "Write from a blank tab, import a supported file, or open a tab created from audio.",
         },
         {
           title: "Shape the song",

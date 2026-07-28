@@ -77,7 +77,7 @@ export default function FeaturesPage() {
             <div className="features-hub-visual">
               <div className="features-hub-window">
                 <div className="feature-story-window-bar" aria-hidden="true">
-                  <i /><i /><i /><span>One workspace, from draft to practice</span>
+                  <i /><i /><i /><span>One workspace, from first note to practice</span>
                 </div>
                 <Image
                   src="/images/editor-previews/Editor-main.webp"
@@ -100,7 +100,7 @@ export default function FeaturesPage() {
             <h2>Everything stays connected to the tab.</h2>
             <p>
               Each tool solves a different part of the workflow, but none of them sends you to a separate project.
-              Correct a note, change its fingering, hear it, and practise it in context.
+              Write a note, choose its fingering, hear it, and practise it in context.
             </p>
           </div>
         </section>
@@ -126,15 +126,15 @@ export default function FeaturesPage() {
 
         <section className="features-hub-path">
           <div className="container features-hub-path-grid">
-            <article><span>01</span><h2>Start with sound</h2><p>Turn audio or a YouTube segment into a draft you can inspect.</p><Link href="/transcribe">Open the transcriber →</Link></article>
-            <article><span>02</span><h2>Make the guitar decisions</h2><p>Correct timing, positions, chords, techniques, and structure in the editor.</p><Link href="/editor">Open the editor →</Link></article>
-            <article><span>03</span><h2>Practise the result</h2><p>Loop difficult bars, slow playback down, and build toward full speed.</p><Link href="/features/guitar-tab-practice-trainer">Explore practice tools →</Link></article>
+            <article><span>01</span><h2>Create from sound</h2><p>Turn audio or a YouTube segment into an editable guitar tab.</p><Link href="/transcribe">Open the transcriber →</Link></article>
+            <article><span>02</span><h2>Build in the editor</h2><p>Write and arrange notes, positions, chords, techniques, and song structure.</p><Link href="/editor">Open the editor →</Link></article>
+            <article><span>03</span><h2>Practise your tab</h2><p>Loop difficult bars, slow playback down, and build toward full speed.</p><Link href="/features/guitar-tab-practice-trainer">Explore practice tools →</Link></article>
           </div>
         </section>
 
         <section className="feature-story-cta features-hub-cta">
           <div className="container feature-story-cta-card">
-            <div><span>One connected workflow</span><h2>Start with a blank tab or a generated draft.</h2><p>Use the complete editor in your browser. No installation required.</p></div>
+            <div><span>A complete guitar workspace</span><h2>Write from scratch or start from audio.</h2><p>The editor stands on its own, while the transcriber gives you another powerful way to begin. No installation required.</p></div>
             <div className="feature-story-actions">
               <Link href="/editor" className="button-primary">Try the editor free</Link>
               <Link href="/transcribe" className="button-secondary">Transcribe a song</Link>

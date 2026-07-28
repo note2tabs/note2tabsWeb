@@ -119,7 +119,7 @@ function getFriendlyProgressMessages(progressPercent: number) {
     return [
       "Turning the music into a tab.",
       "Laying the notes onto strings.",
-      "Shaping the first draft.",
+      "Shaping your guitar tab.",
       "Putting the notes in order.",
       "Making the tab easier to read.",
       "Checking how the phrases line up.",

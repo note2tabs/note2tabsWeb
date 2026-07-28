@@ -6,13 +6,15 @@ import AudioToGuitarTabConverterPage from "../../pages/audio-to-guitar-tab-conve
 import YoutubeToGuitarTabsPage from "../../pages/youtube-to-guitar-tabs";
 
 describe("Search Console opportunity pages", () => {
-  it("gives the AI generator page substantial source and editing guidance", () => {
+  it("positions the AI generator as structured transcription connected to a complete editor", () => {
     const html = renderToStaticMarkup(createElement(AiGuitarTabGeneratorPage));
 
     expect(html).toContain("AI Guitar Tab Generator from Audio or YouTube");
-    expect(html).toContain("What affects AI guitar-tab accuracy?");
+    expect(html).toContain("What helps the AI capture the most detail?");
     expect(html).toContain("Is the AI guitar tab generator free?");
-    expect(html).toContain("/blog/how-to-fix-ai-guitar-tabs");
+    expect(html).toContain("/features");
+    expect(html).not.toContain("draft");
+    expect(html).not.toContain("rough");
   });
 
   it("differentiates the audio product workflow from the editorial guide", () => {

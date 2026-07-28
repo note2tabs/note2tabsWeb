@@ -42,8 +42,8 @@ const featureVisuals: Record<string, FeatureVisual> = {
     imageAlt: "A guitar tab project open in the Note2Tabs browser editor",
     tone: "slate",
     label: "Faster editing",
-    headline: "Hear a problem. Fix it quickly.",
-    note: "Shortcuts keep repeated note, timing, technique, and section edits moving.",
+    headline: "Stay in the music.",
+    note: "Shortcuts keep note, timing, technique, and arrangement work moving.",
   },
   "guitar-tab-import-export": {
     image: "/images/editor-previews/Editor-main.webp",
@@ -247,7 +247,7 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
               <Link href="/editor">
                 <span>03</span>
                 <h3>Online guitar tab editor</h3>
-                <p>Open a blank tab or continue refining a transcription in your browser.</p>
+                <p>Write a tab from scratch, import a file, or open a transcription in the same complete browser editor.</p>
                 <strong>Open the editor →</strong>
               </Link>
             </div>
@@ -256,7 +256,7 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
 
         <section className="feature-story-cta">
           <div className="container feature-story-cta-card">
-            <div><span>Ready when you are</span><h2>Make the next tab easier to play.</h2><p>Start blank or bring in a transcription draft. No installation required.</p></div>
+            <div><span>Ready when you are</span><h2>Create your next guitar tab.</h2><p>Start blank, import a file, or begin with a transcription. No installation required.</p></div>
             <div className="feature-story-actions">
               <Link href="/editor" className="button-primary">Try the editor free</Link>
               <Link href="/transcribe" className="button-secondary">Start with audio</Link>

@@ -53,7 +53,7 @@ export const seoFeaturePages: SeoFeaturePage[] = [
       {
         title: "Use cut positions to make long tabs easier to edit",
         paragraphs: [
-          "Generate cut positions to divide the timeline into workable sections, then adjust them without rewriting the underlying performance. Cuts are useful for separating an intro from a verse, isolating a solo phrase, or creating smaller practice loops after an imported transcription. Automatic cut generation is available after saving the draft to an account.",
+          "Generate cut positions to divide the timeline into workable sections, then adjust them without rewriting the underlying performance. Cuts are useful for separating an intro from a verse, isolating a solo phrase, or creating smaller practice loops in any editor project. Automatic cut generation is available after saving the project to an account.",
         ],
       },
     ],
@@ -61,7 +61,7 @@ export const seoFeaturePages: SeoFeaturePage[] = [
       { question: "What is a guitar-tab fingering optimizer?", answer: "It helps choose practical string and fret positions when the same notes can be played in multiple places on the guitar neck." },
       { question: "Can I override an automatic fingering?", answer: "Yes. Suggestions remain editable, so you can choose a different string, fret, chord shape, or playing position." },
       { question: "Does fingering optimization change the pitch?", answer: "No. Alternate positions can preserve the pitch while changing where it is played on the fretboard." },
-      { question: "Can the editor generate cut positions?", answer: "Yes. After saving a draft to an account, you can generate a starting set of cuts and then add, move, or remove them manually." },
+      { question: "Can the editor generate cut positions?", answer: "Yes. After saving a project to an account, you can generate a starting set of cuts and then add, move, or remove them manually." },
     ],
     relatedSlugs: ["guitar-tab-key-detector", "guitar-tab-editor-shortcuts"],
   },
@@ -158,17 +158,17 @@ export const seoFeaturePages: SeoFeaturePage[] = [
     title: "Guitar Tab Editor with Keyboard Shortcuts",
     metaTitle: "Guitar Tab Editor with Shortcuts | Note2Tabs",
     description:
-      "Edit guitar tabs faster with keyboard shortcuts for notes, timing, cuts, playback, bends, hammer-ons, pull-offs, and common cleanup work.",
+      "Create and edit guitar tabs faster with keyboard shortcuts for notes, timing, cuts, playback, bends, hammer-ons, pull-offs, and arrangement work.",
     steps: [
       { title: "Open a tab", body: "Start blank or bring in a transcription or supported tab file." },
       { title: "Select the phrase", body: "Work on individual notes, chords, bars, or a complete song section." },
-      { title: "Edit without breaking flow", body: "Use shortcuts and guitar-specific controls to clean up timing, techniques, and layout." },
+      { title: "Edit without breaking flow", body: "Use shortcuts and guitar-specific controls to shape timing, techniques, and layout." },
     ],
     detail: {
-      title: "A browser tab editor designed for repeated cleanup",
+      title: "A browser tab editor designed for creative flow",
       paragraphs: [
-        "Editing a full tab involves the same actions many times: selecting notes, moving them, changing duration, splitting sections, copying bars, and checking playback. Keyboard shortcuts reduce the distance between hearing a problem and correcting it.",
-        "Note2Tabs also keeps guitar-specific expression in the editing workflow. Add or refine bends, hammer-ons, pull-offs, slides, chord shapes, timing, and fret positions instead of flattening the music into plain numbers.",
+        "Creating a full tab involves the same actions many times: selecting notes, moving them, changing duration, splitting sections, copying bars, and checking playback. Keyboard shortcuts keep those actions close while you write and arrange.",
+        "Note2Tabs also keeps guitar-specific expression in the creative workflow. Add bends, hammer-ons, pull-offs, slides, chord shapes, timing, and fret positions instead of flattening the music into plain numbers.",
       ],
       benefits: [
         { title: "Fast note editing", body: "Use keyboard-driven actions for common selection, movement, timing, and playback tasks." },
@@ -178,9 +178,9 @@ export const seoFeaturePages: SeoFeaturePage[] = [
     },
     contentSections: [
       {
-        title: "Useful after AI transcription and for tabs written by hand",
+        title: "Equally capable from a blank tab, an imported file, or audio",
         paragraphs: [
-          "AI-generated tabs usually need a guitarist to confirm rhythm, fret choices, phrase boundaries, and expressive techniques. The same tools also support a tab written from scratch, so you do not need separate editors for generation and cleanup.",
+          "The editor is a complete product for writing tabs from scratch, building arrangements, importing existing work, and practising finished parts. Note2Tabs transcriptions open in that same workspace, giving you a fast optional starting point without limiting what the editor can do.",
         ],
         bullets: ["Undo and redo", "Copy and paste bars", "Timing and duration changes", "Grid and key snapping", "Playback controls"],
       },
@@ -194,7 +194,7 @@ export const seoFeaturePages: SeoFeaturePage[] = [
     faqs: [
       { question: "Can I edit guitar tabs with keyboard shortcuts?", answer: "Yes. Note2Tabs includes shortcuts for common editor, selection, timing, snapping, and playback actions." },
       { question: "Can the editor represent bends and legato techniques?", answer: "Yes. Guitar-specific editing includes bends, slides, hammer-ons, pull-offs, chords, and strumming information." },
-      { question: "Can I use it to fix an AI-generated tab?", answer: "Yes. Transcription drafts can be opened in the same editor for timing, fingering, technique, and section cleanup." },
+      { question: "Can I open an AI-generated tab in the editor?", answer: "Yes. Note2Tabs transcriptions open as native editor projects with the full set of writing, arrangement, fingering, technique, playback, and practice tools." },
     ],
     relatedSlugs: ["guitar-tab-fingering-optimizer", "guitar-tab-import-export"],
   },

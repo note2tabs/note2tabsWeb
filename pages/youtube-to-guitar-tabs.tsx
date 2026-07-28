@@ -5,7 +5,7 @@ export default function YoutubeToGuitarTabsPage() {
     <SeoLandingPage
       title="YouTube to Guitar Tabs Converter"
       metaTitle="YouTube to Guitar Tabs Converter | Note2Tabs"
-      description="Paste a YouTube link, choose a riff or solo, and convert the clip into an editable guitar-tab draft—without downloading the video first."
+      description="Paste a YouTube link, choose a riff or solo, and convert the clip into a structured, editable guitar tab—without downloading the video first."
       canonicalPath="/youtube-to-guitar-tabs"
       primaryCta={{ label: "Convert a YouTube link", href: "/transcribe?mode=youtube" }}
       secondaryCta={{ label: "Open editor", href: "/editor" }}
@@ -15,12 +15,12 @@ export default function YoutubeToGuitarTabsPage() {
           body: "Add a YouTube URL and select the part of the song you want to transcribe.",
         },
         {
-          title: "Create a draft",
-          body: "Generate a guitar tab draft from the selected YouTube segment.",
+          title: "Generate the tab",
+          body: "Create a structured guitar tab from the selected YouTube segment.",
         },
         {
           title: "Edit online",
-          body: "Use the editor to clean up sections, notes, chord shapes, and fingerings.",
+          body: "Use the complete editor to arrange sections, shape notes and chords, practise, and export.",
         },
       ]}
       detail={{
@@ -32,21 +32,21 @@ export default function YoutubeToGuitarTabsPage() {
         benefits: [
           { title: "Timestamp controls", body: "Choose a specific solo, riff, or chord passage instead of processing the whole video." },
           { title: "No download step", body: "Start from the YouTube link without first saving an audio file to your device." },
-          { title: "Edit after detection", body: "Open the draft in the tab editor and correct notes, rhythm, and playable positions." },
+          { title: "Complete editor included", body: "Open the tab to write, arrange, play, practise, and choose guitar positions." },
         ],
       }}
       contentSections={[
         {
           title: "Choose a YouTube clip that is easier to transcribe",
           paragraphs: [
-            "Clear covers, lessons, playthroughs, and isolated guitar performances usually create better drafts than noisy live recordings or full mixes where several instruments occupy the same range.",
+            "Clear covers, lessons, playthroughs, and isolated guitar performances give the model more guitar detail than noisy live recordings or full mixes where several instruments occupy the same range.",
             "Set timestamps around the exact riff, chord passage, or solo you need. A focused clip is faster to inspect and makes it easier to compare the generated tab with the original performance.",
           ],
           bullets: [
             "Prefer a video where the guitar is clearly audible.",
             "Choose up to 30 seconds within the first ten minutes.",
             "Avoid intros, talking, or silence outside the section you need.",
-            "Review the draft against the same timestamp before saving it.",
+            "Use the same timestamp when you want to play the tab alongside the original performance.",
           ],
         },
         {
@@ -59,16 +59,16 @@ export default function YoutubeToGuitarTabsPage() {
       ]}
       faqs={[
         { question: "How long can the YouTube clip be?", answer: "The current YouTube workflow supports a clip of up to 30 seconds, with an end time no later than 10:00 in the video." },
-        { question: "Can I edit the generated YouTube tab?", answer: "Yes. The transcription is a draft that can be imported into the Note2Tabs editor for detailed cleanup and practice." },
+        { question: "Can I edit the generated YouTube tab?", answer: "Yes. The transcription opens as a native Note2Tabs editor project with writing, arrangement, fingering, playback, practice, and export tools." },
         { question: "Do I need to download the YouTube video first?", answer: "No. Paste the public YouTube URL directly, choose the timestamps, and start the transcription from the link." },
         { question: "Is the YouTube-to-tabs converter free?", answer: "You can try it with the free monthly transcription credits. The current YouTube clip limit is the same for free and Premium accounts." },
-        { question: "Why does a generated tab still need editing?", answer: "Dense mixes, multiple guitars, effects, bends, and fast passages can make pitch, rhythm, or fingering uncertain. The editor lets you compare the draft with the video and correct those choices." },
+        { question: "What can I do with the generated tab?", answer: "Play it, arrange sections, choose alternate fingerings and chord shapes, add guitar techniques, practise loops, and export it from the editor." },
       ]}
       relatedLinks={[
         { label: "YouTube transcription workflow", href: "/blog/youtube-to-guitar-tabs-workflow", description: "Pick a better source video and review the generated clip step by step." },
-        { label: "AI guitar tab generator", href: "/ai-guitar-tab-generator", description: "Learn what the model generates and what still benefits from editing." },
+        { label: "AI guitar tab generator", href: "/ai-guitar-tab-generator", description: "Learn how the model turns a performance into editable guitar tablature." },
         { label: "Audio to guitar tabs", href: "/audio-to-guitar-tab-converter", description: "Upload a local recording when you have the source file." },
-        { label: "Fix an AI-generated tab", href: "/blog/how-to-fix-ai-guitar-tabs", description: "Correct notes, rhythm, string choices, and awkward fingerings." },
+        { label: "Online guitar tab editor", href: "/editor", description: "Write from scratch or open a transcription in the complete browser editor." },
       ]}
     />
   );
