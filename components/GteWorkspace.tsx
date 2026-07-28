@@ -192,6 +192,7 @@ type Props = {
   onSpeedTrainerStepChange?: (step: number) => void;
   playbackSpeed?: number;
   onPlaybackSpeedChange?: (speed: number) => void;
+  practiceMode?: boolean;
   practiceControlsVisible?: boolean;
   playbackUiVisible?: boolean;
   showToolbarWhenInactive?: boolean;
@@ -3331,6 +3332,7 @@ export default function GteWorkspace({
   onSpeedTrainerStepChange,
   playbackSpeed,
   onPlaybackSpeedChange,
+  practiceMode = false,
   practiceControlsVisible = false,
   playbackUiVisible,
   showToolbarWhenInactive = false,
@@ -11530,7 +11532,9 @@ export default function GteWorkspace({
   }, [setToolbarOpen, tabViewEnabled]);
 
   const workspaceClass = embedded
-    ? `relative w-full min-w-0 max-w-full border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${
+    ? practiceMode
+      ? "relative w-full min-w-0 max-w-full bg-white"
+      : `relative w-full min-w-0 max-w-full border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${
         isMobileEditMode
           ? "flex h-full min-h-0 flex-col p-1.5"
           : `${compactEmbeddedMobile ? "rounded-lg p-1.5" : "rounded-xl p-2"} space-y-2`
@@ -13421,7 +13425,9 @@ export default function GteWorkspace({
         {tabViewEnabled && (
           <div
             ref={tabViewScrollRef}
-            className={`min-w-0 rounded-xl border border-slate-200 bg-white ${
+            className={`min-w-0 bg-white ${
+              practiceMode ? "rounded-none border-0" : "rounded-xl border border-slate-200"
+            } ${
               embedded && !mobileViewport ? "overflow-x-hidden" : "overflow-x-auto"
             } ${
               isMobileEditMode ? "min-h-0 flex-1" : ""
@@ -13457,10 +13463,18 @@ export default function GteWorkspace({
                         }
                         handleBarSelection(barIndex, event);
                       }}
-                      onContextMenu={(event) => handleBarContextMenu(barIndex, event)}
-                      draggable={selected && !mobileViewport}
-                      onDragStart={(event) => handleSelectedBarDragStart(barIndex, event)}
-                      onDragEnd={handleSelectedBarDragEnd}
+                      onContextMenu={(event) => {
+                        if (practiceMode) {
+                          event.preventDefault();
+                          return;
+                        }
+                        handleBarContextMenu(barIndex, event);
+                      }}
+                      draggable={!practiceMode && selected && !mobileViewport}
+                      onDragStart={(event) => {
+                        if (!practiceMode) handleSelectedBarDragStart(barIndex, event);
+                      }}
+                      onDragEnd={practiceMode ? undefined : handleSelectedBarDragEnd}
                       className={`absolute top-0 z-20 flex items-center px-2 text-[10px] ${
                         selected
                           ? "bg-slate-200/90 text-slate-800"
@@ -13485,7 +13499,7 @@ export default function GteWorkspace({
                   );
                   const isActiveDrop =
                     Boolean(activeBarDrag && onRequestBarDrop) && barDropIndex === insertIndex;
-                  const dragEnabled = Boolean(activeBarDrag && onRequestBarDrop);
+                  const dragEnabled = !practiceMode && Boolean(activeBarDrag && onRequestBarDrop);
                   return (
                     <button
                       key={`tab-view-bar-drop-${insertIndex}`}

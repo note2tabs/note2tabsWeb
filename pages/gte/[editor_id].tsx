@@ -3961,35 +3961,25 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const renderPracticeControls = () => (
     <section
-      className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-sky-50 p-4 shadow-sm"
+      className="mx-auto w-full max-w-[900px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
       aria-labelledby="practice-mode-title"
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-7 items-center rounded-full bg-emerald-100 px-3 text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-800">
-              Practice mode
-            </span>
-            <span className="text-xs font-medium text-emerald-700">
-              {barSelection?.barIndices.length ? `${barSelection.barIndices.length} selected bar${barSelection.barIndices.length === 1 ? "" : "s"}` : "Whole song"}
-            </span>
-          </div>
-          <h2 id="practice-mode-title" className="mt-2 text-base font-semibold text-slate-900">
-            Listen, repeat, and build speed
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-5 text-slate-600">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+        <div className="flex min-w-36 items-center gap-2 border-b border-slate-100 pb-2 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
+          <h2 id="practice-mode-title" className="text-sm font-semibold text-slate-900">Practice</h2>
+          <span className="text-xs text-slate-500">
             {barSelection?.barIndices.length
-              ? "Repeat the selected section while you practise. Add a count-in, metronome, or gradual speed increase."
-              : "Practise the whole song, or select one or more bars in the tab below to focus the loop."}
-          </p>
+              ? `${barSelection.barIndices.length} bar${barSelection.barIndices.length === 1 ? "" : "s"}`
+              : "Whole song"}
+          </span>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:justify-end">
+        <div className="flex flex-1 flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={() => setPracticeLoopEnabled((enabled) => !enabled)}
             disabled={!globalPracticeLoopRange}
             aria-pressed={practiceLoopEnabled}
-            className={`min-h-10 rounded-xl border px-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+            className={`h-8 rounded-lg border px-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
               practiceLoopEnabled
                 ? "border-emerald-300 bg-emerald-100 text-emerald-900"
                 : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300"
@@ -4001,7 +3991,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             type="button"
             onClick={() => setMetronomeEnabled((enabled) => !enabled)}
             aria-pressed={metronomeEnabled}
-            className={`min-h-10 rounded-xl border px-3 text-sm font-semibold transition ${
+            className={`h-8 rounded-lg border px-2.5 text-xs font-semibold transition ${
               metronomeEnabled
                 ? "border-sky-300 bg-sky-100 text-sky-900"
                 : "border-slate-200 bg-white text-slate-700 hover:border-sky-300"
@@ -4013,7 +4003,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             type="button"
             onClick={() => setCountInEnabled((enabled) => !enabled)}
             aria-pressed={countInEnabled}
-            className={`min-h-10 rounded-xl border px-3 text-sm font-semibold transition ${
+            className={`h-8 rounded-lg border px-2.5 text-xs font-semibold transition ${
               countInEnabled
                 ? "border-amber-300 bg-amber-100 text-amber-900"
                 : "border-slate-200 bg-white text-slate-700 hover:border-amber-300"
@@ -4021,12 +4011,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           >
             Count-in {countInEnabled ? "on" : "off"}
           </button>
-          <label className="flex min-h-10 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700">
+          <label className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
             <span>Speed</span>
             <select
               value={normalizedPlaybackSpeed}
               onChange={(event) => setPlaybackSpeed(Number(event.target.value))}
-              className="bg-transparent text-sm font-semibold text-slate-900 outline-none"
+              className="bg-transparent text-xs font-semibold text-slate-900 outline-none"
               aria-label="Practice playback speed"
             >
               {PLAYBACK_SPEED_OPTIONS.map((speed) => (
@@ -4039,7 +4029,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             onClick={() => setSpeedTrainerEnabled((enabled) => !enabled)}
             disabled={!practiceLoopEnabled}
             aria-pressed={speedTrainerEnabled}
-            className={`min-h-10 rounded-xl border px-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+            className={`h-8 rounded-lg border px-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
               speedTrainerEnabled
                 ? "border-violet-300 bg-violet-100 text-violet-900"
                 : "border-slate-200 bg-white text-slate-700 hover:border-violet-300"
@@ -4049,7 +4039,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </button>
           {speedTrainerEnabled && (
             <>
-              <label className="flex min-h-10 items-center justify-between gap-2 rounded-xl border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-900">
+              <label className="flex h-8 items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-2.5 text-xs font-semibold text-violet-900">
                 <span>Target</span>
                 <select
                   value={speedTrainerTarget}
@@ -4062,7 +4052,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   ))}
                 </select>
               </label>
-              <label className="flex min-h-10 items-center justify-between gap-2 rounded-xl border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-900">
+              <label className="flex h-8 items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-2.5 text-xs font-semibold text-violet-900">
                 <span>Increase</span>
                 <select
                   value={speedTrainerStep}
@@ -4719,7 +4709,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               <div className="mt-1 space-y-1">
                 <div
                   data-gte-floating-ui="true"
-                  className="gte-top-menu-bar relative flex flex-wrap items-center gap-0.5 border-y border-slate-200 py-0.5"
+                  className={`gte-top-menu-bar relative flex flex-wrap items-center gap-0.5 border-y border-slate-200 py-0.5 ${
+                    practiceModeEnabled ? "[&>details]:hidden" : ""
+                  }`}
                 >
                   <details
                     className="group relative order-1"
@@ -5256,7 +5248,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>
                   </details>
 
-                  <div className="order-7 flex shrink-0 items-center gap-2 xl:ml-auto">
+                  <div className={`order-7 shrink-0 items-center gap-2 xl:ml-auto ${
+                    practiceModeEnabled ? "hidden" : "flex"
+                  }`}>
                     <button
                       type="button"
                       onClick={handleCanvasUndo}
@@ -5300,6 +5294,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </div>
                 </div>
 
+                {!practiceModeEnabled && (
                 <details className="group w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
                     <span className="font-semibold text-slate-700">Song settings</span>
@@ -5455,6 +5450,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </button>
                   </div>
                 </details>
+                )}
                 {!practiceModeEnabled && (
                 <details className="group w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
@@ -6124,7 +6120,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         </div>
         )}
-        {isGuestMode && !isMobileEditMode && (
+        {isGuestMode && !isMobileEditMode && !practiceModeEnabled && (
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
             <div className="min-w-0">
               <div className="text-sm font-semibold text-slate-800">Keep your work safe</div>
@@ -6186,7 +6182,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         {canvas && (
           <div
             className={`gte-editor-stage stack min-w-0 content-start overflow-x-hidden ${
-              isMobileEditMode ? "gte-editor-stage--mobile-edit flex-1 min-h-0 space-y-0" : "space-y-2"
+              isMobileEditMode
+                ? "gte-editor-stage--mobile-edit flex-1 min-h-0 space-y-0"
+                : practiceModeEnabled
+                ? "mx-auto min-h-[1050px] w-full max-w-[900px] space-y-5 rounded-[3px] border border-slate-200 bg-white px-8 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.12)] max-sm:min-h-0 max-sm:px-3 max-sm:py-5"
+                : "space-y-2"
             }`}
           >
             {canvas.editors.map((lane, index) => {
@@ -6417,7 +6417,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               sharedViewportBarCount={sharedViewportBarCount}
                               sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
-                              timelineZoomFactor={timelineZoomPercent / 100}
+                              timelineZoomFactor={
+                                practiceModeEnabled
+                                  ? Math.min(timelineZoomPercent / 100, 0.65)
+                                  : timelineZoomPercent / 100
+                              }
                               historyUndoCount={canvasUndoCount}
                               historyRedoCount={canvasRedoCount}
                               onRequestUndo={handleCanvasUndo}
@@ -6449,7 +6453,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSpeedTrainerStepChange={setSpeedTrainerStep}
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
-                              practiceControlsVisible={practiceModeEnabled}
+                              practiceMode={practiceModeEnabled}
+                              practiceControlsVisible={false}
                               showToolbarWhenInactive={false}
                               multiTrackSelectionActive={multiTrackSelectionActive}
                               onSelectionStateChange={(selection) =>
@@ -6701,7 +6706,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               sharedViewportBarCount={sharedViewportBarCount}
                               sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
-                              timelineZoomFactor={timelineZoomPercent / 100}
+                              timelineZoomFactor={
+                                practiceModeEnabled
+                                  ? Math.min(timelineZoomPercent / 100, 0.65)
+                                  : timelineZoomPercent / 100
+                              }
                               historyUndoCount={canvasUndoCount}
                               historyRedoCount={canvasRedoCount}
                               onRequestUndo={handleCanvasUndo}
@@ -6733,7 +6742,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSpeedTrainerStepChange={setSpeedTrainerStep}
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
-                              practiceControlsVisible={practiceModeEnabled}
+                              practiceMode={practiceModeEnabled}
+                              practiceControlsVisible={false}
                               showToolbarWhenInactive={laneId === globalControlsLaneId}
                               multiTrackSelectionActive={multiTrackSelectionActive}
                               onSelectionStateChange={(selection) =>
@@ -6764,7 +6774,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         </div>
                       )
                     ) : (
-                    <div className="flex flex-col gap-3 lg:flex-row">
+                    <div className={practiceModeEnabled ? "block" : "flex flex-col gap-3 lg:flex-row"}>
+                      {!practiceModeEnabled && (
                       <aside
                         className="flex w-full shrink-0 flex-col rounded-xl border border-slate-200 bg-white/90 p-2.5 shadow-sm lg:w-36 lg:self-stretch"
                         data-track-reorder-block="true"
@@ -6973,7 +6984,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           </div>
                         </div>
                       </aside>
+                      )}
                       <div ref={sharedTimelineMeasureRef} className="min-w-0 flex-1">
+                        {practiceModeEnabled && (
+                          <div className="mb-2 flex items-baseline justify-between border-b border-slate-200 pb-2">
+                            <h3 className="text-sm font-semibold text-slate-800">
+                              {lane.name || `Track ${index + 1}`}
+                            </h3>
+                            <span className="text-[11px] text-slate-500">
+                              {instrumentLabel} · {laneBarCount} bars
+                            </span>
+                          </div>
+                        )}
                         <GteWorkspace
                           editorId={laneEditorRef}
                           snapshot={lane}
@@ -6985,7 +7007,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           isActive={isActive}
                           mobileViewport={isMobileViewport}
                           playbackUiVisible={laneId === globalControlsLaneId}
-                          onFocusWorkspace={() => activateLaneForEditing(laneId)}
+                          onFocusWorkspace={() =>
+                            practiceModeEnabled ? setActiveLaneId(laneId) : activateLaneForEditing(laneId)
+                          }
                           tabViewEnabled={tabViewEnabled}
                           globalSnapToGridEnabled={globalSnapToGridEnabled}
                           onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
@@ -7001,7 +7025,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           editMenuPortalTarget={
                             laneId === editMenuOwnerLaneId ? editMenuPortalTarget : null
                           }
-                          editMenuDisabled={editMenuDisabled}
+                          editMenuDisabled={editMenuDisabled || practiceModeEnabled}
                           onEditMenuPointerEnter={cancelEditMenuClose}
                           onEditMenuPointerLeave={scheduleEditMenuClose}
                           canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
@@ -7012,7 +7036,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           sharedTimelineBaseScale={sharedTimelineBaseScale}
                           sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                           onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
-                          timelineZoomFactor={timelineZoomPercent / 100}
+                          timelineZoomFactor={
+                            practiceModeEnabled
+                              ? Math.min(timelineZoomPercent / 100, 0.65)
+                              : timelineZoomPercent / 100
+                          }
                           historyUndoCount={canvasUndoCount}
                           historyRedoCount={canvasRedoCount}
                           onRequestUndo={handleCanvasUndo}
@@ -7044,8 +7072,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onSpeedTrainerStepChange={setSpeedTrainerStep}
                           playbackSpeed={normalizedPlaybackSpeed}
                           onPlaybackSpeedChange={setPlaybackSpeed}
-                          practiceControlsVisible={practiceModeEnabled}
-                          showToolbarWhenInactive={laneId === globalControlsLaneId}
+                          practiceMode={practiceModeEnabled}
+                          practiceControlsVisible={false}
+                          showToolbarWhenInactive={!practiceModeEnabled && laneId === globalControlsLaneId}
                           multiTrackSelectionActive={multiTrackSelectionActive}
                           onSelectionStateChange={(selection) =>
                             handleLaneSelectionStateChange(laneId, selection)

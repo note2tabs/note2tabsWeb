@@ -21,7 +21,7 @@ describe("editor practice mode", () => {
   });
 
   it("collects the existing training controls in the practice workspace", () => {
-    expect(editorPage).toContain("Listen, repeat, and build speed");
+    expect(editorPage).toContain(">Practice<");
     expect(editorPage).toContain("Loop {practiceLoopEnabled");
     expect(editorPage).toContain("Metronome {metronomeEnabled");
     expect(editorPage).toContain("Count-in {countInEnabled");
@@ -33,7 +33,15 @@ describe("editor practice mode", () => {
     expect(workspace).toContain("practiceControlsVisible?: boolean");
     expect(workspace).toContain("{practiceControlsVisible && (");
     expect(editorPage).toContain(
-      "practiceControlsVisible={practiceModeEnabled}"
+      "practiceControlsVisible={false}"
     );
+  });
+
+  it("turns practice into a focused paper-like reading surface", () => {
+    expect(editorPage).toContain("min-h-[1050px]");
+    expect(editorPage).toContain("max-w-[900px]");
+    expect(editorPage).toContain("Math.min(timelineZoomPercent / 100, 0.65)");
+    expect(editorPage).toContain("practiceMode={practiceModeEnabled}");
+    expect(workspace).toContain('practiceMode ? "rounded-none border-0"');
   });
 });
