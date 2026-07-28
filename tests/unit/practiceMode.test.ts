@@ -24,8 +24,8 @@ describe("editor practice mode", () => {
     expect(editorPage).toContain(">Practice<");
     expect(editorPage).toContain("Loop {practiceLoopEnabled");
     expect(editorPage).toContain("Metronome {metronomeEnabled");
-    expect(editorPage).toContain("Count-in {countInEnabled");
-    expect(editorPage).toContain("Speed trainer {speedTrainerEnabled");
+    expect(editorPage).toContain("<span>Count-in</span>");
+    expect(editorPage).toContain("<span>Speed trainer</span>");
     expect(editorPage).toContain('aria-label="Practice playback speed"');
   });
 
@@ -44,7 +44,8 @@ describe("editor practice mode", () => {
     expect(editorPage).toContain("practiceMode={practiceModeEnabled}");
     expect(workspace).toContain('practiceMode ? "rounded-none border-0"');
     expect(workspace).toContain("data-gte-practice-score");
-    expect(workspace).toContain("const practiceBarsPerRow = 6");
+    expect(workspace).toContain("practiceScoreWidth > 0");
+    expect(workspace).toContain("scrollIntoView");
   });
 
   it("shows only the chosen track while practising", () => {

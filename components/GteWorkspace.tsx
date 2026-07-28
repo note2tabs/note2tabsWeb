@@ -3638,7 +3638,10 @@ export default function GteWorkspace({
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const timelineOuterRef = useRef<HTMLDivElement | null>(null);
   const tabViewScrollRef = useRef<HTMLDivElement | null>(null);
+  const practiceScoreRef = useRef<HTMLDivElement | null>(null);
+  const lastPracticeRowRef = useRef(-1);
   const tabViewCursorRef = useRef<HTMLDivElement | null>(null);
+  const [practiceScoreWidth, setPracticeScoreWidth] = useState(0);
   const timelinePlayheadRef = useRef<HTMLButtonElement | null>(null);
   const draftFretRef = useRef<HTMLInputElement | null>(null);
   const draftHasFocusedRef = useRef(false);
@@ -3885,7 +3888,18 @@ export default function GteWorkspace({
       }),
     [effectivePlayheadFrame, framesPerMeasure, scale, snapshot, timeSignature, viewportBarCount]
   );
-  const practiceBarsPerRow = 6;
+  const practiceBarsPerRow = Math.max(
+    1,
+    Math.min(
+      6,
+      practiceScoreWidth > 0
+        ? Math.floor(
+            Math.max(1, practiceScoreWidth - 46) /
+              Math.max(1, editorTabView.barWidth)
+          )
+        : 6
+    )
+  );
   const practiceRowGap = 26;
   const practiceRowHeight =
     editorTabView.height + TIMELINE_BAR_HEADER_HEIGHT + practiceRowGap;
@@ -3912,6 +3926,25 @@ export default function GteWorkspace({
     },
     [editorTabView.barCount, editorTabView.barWidth, practiceRowHeight]
   );
+  useEffect(() => {
+    if (!practiceMode) {
+      setPracticeScoreWidth(0);
+      lastPracticeRowRef.current = -1;
+      return;
+    }
+    const score = practiceScoreRef.current;
+    if (!score) return;
+    const updateWidth = () => {
+      setPracticeScoreWidth((previous) => {
+        const next = Math.round(score.getBoundingClientRect().width);
+        return Math.abs(previous - next) > 1 ? next : previous;
+      });
+    };
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(score);
+    return () => observer.disconnect();
+  }, [practiceMode]);
   const effectivePlaybackSpeedOptions = useMemo(() => {
     const values = new Set<number>(PLAYBACK_SPEED_OPTIONS.map((speed) => normalizePlaybackSpeed(speed)));
     values.add(Math.round(effectivePlaybackSpeed * 100) / 100);
@@ -4324,6 +4357,29 @@ export default function GteWorkspace({
           const position = getPracticePosition(x);
           tabViewCursorRef.current.style.transform =
             `translate3d(${position.x}px, ${position.y}px, 0) translateX(-1px)`;
+          if (
+            effectiveIsPlaying &&
+            position.rowIndex !== lastPracticeRowRef.current
+          ) {
+            lastPracticeRowRef.current = position.rowIndex;
+            const row = practiceScoreRef.current?.querySelector<HTMLElement>(
+              `[data-practice-row="${position.rowIndex}"]`
+            );
+            if (row) {
+              const bounds = row.getBoundingClientRect();
+              const viewportTop = 96;
+              const viewportBottom = window.innerHeight - 112;
+              if (bounds.top < viewportTop || bounds.bottom > viewportBottom) {
+                const reducedMotion = window.matchMedia(
+                  "(prefers-reduced-motion: reduce)"
+                ).matches;
+                row.scrollIntoView({
+                  block: "center",
+                  behavior: reducedMotion ? "auto" : "smooth",
+                });
+              }
+            }
+          }
         } else {
           tabViewCursorRef.current.style.transform = `translate3d(${x}px, 0, 0) translateX(-1px)`;
         }
@@ -4343,6 +4399,7 @@ export default function GteWorkspace({
       editorTabView.barCount,
       editorTabView.cursorAnchors,
       editorTabView.width,
+      effectiveIsPlaying,
       framesPerMeasure,
       getPracticePosition,
       practiceMode,
@@ -12939,9 +12996,15 @@ export default function GteWorkspace({
       {showPlaybackUi && (
         <div
           data-gte-floating-ui="true"
-          className={`fixed left-1/2 z-[9997] -translate-x-1/2 px-2 pointer-events-none ${
-            mobileViewport ? "bottom-3 w-[min(calc(100vw-1.25rem),28rem)]" : "bottom-16 w-[min(calc(100vw-2rem),64rem)]"
-          }`}
+          className={
+            practiceMode
+              ? "sticky top-2 z-[60] mx-auto w-fit px-2 pointer-events-none"
+              : `fixed left-1/2 z-[9997] -translate-x-1/2 px-2 pointer-events-none ${
+                  mobileViewport
+                    ? "bottom-3 w-[min(calc(100vw-1.25rem),28rem)]"
+                    : "bottom-16 w-[min(calc(100vw-2rem),64rem)]"
+                }`
+          }
         >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
             {mobileViewport ? (
@@ -13460,6 +13523,7 @@ export default function GteWorkspace({
         {tabViewEnabled && (
           practiceMode ? (
           <div
+            ref={practiceScoreRef}
             className="relative min-w-0 overflow-hidden bg-white"
             data-gte-tab-view="true"
             data-gte-practice-score="true"
@@ -13477,6 +13541,7 @@ export default function GteWorkspace({
               return (
                 <div
                   key={`practice-tab-row-${rowIndex}`}
+                  data-practice-row={rowIndex}
                   className="absolute left-0 right-0"
                   style={{
                     top: rowTop,

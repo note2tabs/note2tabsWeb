@@ -3980,7 +3980,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               : "Whole song"}
           </span>
         </div>
-        <div className="flex flex-1 flex-wrap items-center gap-1.5">
+        <div
+          className="flex flex-1 flex-wrap items-center gap-1.5"
+          role="group"
+          aria-label="Practice controls"
+        >
           {canvas && canvas.editors.filter((lane) => !isChordLane(lane)).length > 1 && (
             <label className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
               <span>Track</span>
@@ -4000,44 +4004,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               </select>
             </label>
           )}
-          <button
-            type="button"
-            onClick={() => setPracticeLoopEnabled((enabled) => !enabled)}
-            disabled={!globalPracticeLoopRange}
-            aria-pressed={practiceLoopEnabled}
-            className={`h-8 rounded-lg border px-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
-              practiceLoopEnabled
-                ? "border-emerald-300 bg-emerald-100 text-emerald-900"
-                : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300"
-            }`}
-          >
-            Loop {practiceLoopEnabled ? "on" : "off"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setMetronomeEnabled((enabled) => !enabled)}
-            aria-pressed={metronomeEnabled}
-            className={`h-8 rounded-lg border px-2.5 text-xs font-semibold transition ${
-              metronomeEnabled
-                ? "border-sky-300 bg-sky-100 text-sky-900"
-                : "border-slate-200 bg-white text-slate-700 hover:border-sky-300"
-            }`}
-          >
-            Metronome {metronomeEnabled ? "on" : "off"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setCountInEnabled((enabled) => !enabled)}
-            aria-pressed={countInEnabled}
-            className={`h-8 rounded-lg border px-2.5 text-xs font-semibold transition ${
-              countInEnabled
-                ? "border-amber-300 bg-amber-100 text-amber-900"
-                : "border-slate-200 bg-white text-slate-700 hover:border-amber-300"
-            }`}
-          >
-            Count-in {countInEnabled ? "on" : "off"}
-          </button>
-          <label className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
+          <label className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
             <span>Speed</span>
             <select
               value={normalizedPlaybackSpeed}
@@ -4052,19 +4019,74 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </label>
           <button
             type="button"
-            onClick={() => setSpeedTrainerEnabled((enabled) => !enabled)}
-            disabled={!practiceLoopEnabled}
-            aria-pressed={speedTrainerEnabled}
-            className={`h-8 rounded-lg border px-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
-              speedTrainerEnabled
-                ? "border-violet-300 bg-violet-100 text-violet-900"
-                : "border-slate-200 bg-white text-slate-700 hover:border-violet-300"
+            onClick={() => setPracticeLoopEnabled((enabled) => !enabled)}
+            disabled={!globalPracticeLoopRange}
+            aria-pressed={practiceLoopEnabled}
+            className={`h-9 rounded-lg border px-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+              practiceLoopEnabled
+                ? "border-emerald-300 bg-emerald-100 text-emerald-900"
+                : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300"
             }`}
           >
-            Speed trainer {speedTrainerEnabled ? "on" : "off"}
+            Loop {practiceLoopEnabled ? "on" : "off"}
           </button>
-          {speedTrainerEnabled && (
-            <>
+          <button
+            type="button"
+            onClick={() => setMetronomeEnabled((enabled) => !enabled)}
+            aria-pressed={metronomeEnabled}
+            className={`h-9 rounded-lg border px-2.5 text-xs font-semibold transition ${
+              metronomeEnabled
+                ? "border-sky-300 bg-sky-100 text-sky-900"
+                : "border-slate-200 bg-white text-slate-700 hover:border-sky-300"
+            }`}
+          >
+            Metronome {metronomeEnabled ? "on" : "off"}
+          </button>
+          <details className="group relative">
+            <summary className="flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+              More
+              {(countInEnabled || speedTrainerEnabled) && (
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-label="Additional practice settings active" />
+              )}
+              <span className="text-[10px] text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
+            </summary>
+            <div className="absolute right-0 top-11 z-50 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+              <button
+                type="button"
+                onClick={() => setCountInEnabled((enabled) => !enabled)}
+                aria-pressed={countInEnabled}
+                className={`flex h-9 w-full items-center justify-between rounded-lg border px-3 text-xs font-semibold transition ${
+                  countInEnabled
+                    ? "border-amber-300 bg-amber-50 text-amber-900"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <span>Count-in</span>
+                <span>{countInEnabled ? "On" : "Off"}</span>
+              </button>
+              <div className="border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setSpeedTrainerEnabled((enabled) => !enabled)}
+                  disabled={!practiceLoopEnabled}
+                  aria-pressed={speedTrainerEnabled}
+                  className={`flex h-9 w-full items-center justify-between rounded-lg border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                    speedTrainerEnabled
+                      ? "border-violet-300 bg-violet-50 text-violet-900"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <span>Speed trainer</span>
+                  <span>{speedTrainerEnabled ? "On" : "Off"}</span>
+                </button>
+                {!practiceLoopEnabled && (
+                  <p className="mt-1.5 text-[10px] leading-4 text-slate-500">
+                    Select bars and turn on Loop to use the speed trainer.
+                  </p>
+                )}
+              </div>
+              {speedTrainerEnabled && (
+                <div className="grid grid-cols-2 gap-2">
               <label className="flex h-8 items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-2.5 text-xs font-semibold text-violet-900">
                 <span>Target</span>
                 <select
@@ -4091,10 +4113,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   ))}
                 </select>
               </label>
-            </>
-          )}
+                </div>
+              )}
+            </div>
+          </details>
         </div>
       </div>
+      {!barSelection?.barIndices.length && (
+        <p className="mt-2 text-[11px] leading-4 text-slate-500">
+          Select one or more bars in the score to practise a section.
+        </p>
+      )}
     </section>
   );
 
@@ -4255,7 +4284,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               </div>
               {renderViewModeSwitch(true)}
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className={practiceModeEnabled ? "hidden" : "rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"}>
               <button
                 type="button"
                 onClick={() => setMobileControlsOpen((prev) => !prev)}
@@ -5874,7 +5903,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             </div>
             </>
             )}
-            {isMobileViewport && (
+            {isMobileViewport && !practiceModeEnabled && (
               <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <button
                   type="button"
@@ -6336,7 +6365,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     {trackDragLaneId !== null && trackDropIndex === index + 1 && (
                       <div className="pointer-events-none absolute -bottom-1 left-4 right-4 z-30 h-1 rounded-full bg-sky-400 shadow-sm" />
                     )}
-                    {isMobileViewport ? (
+                    {isMobileViewport && !practiceModeEnabled ? (
                       mobileEditing ? (
                         <div className="flex min-h-0 flex-1 flex-col justify-center">
                           {mobileSelectedBars.length > 0 && (
