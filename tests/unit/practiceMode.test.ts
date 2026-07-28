@@ -40,8 +40,17 @@ describe("editor practice mode", () => {
   it("turns practice into a focused paper-like reading surface", () => {
     expect(editorPage).toContain("min-h-[1050px]");
     expect(editorPage).toContain("max-w-[900px]");
-    expect(editorPage).toContain("Math.min(timelineZoomPercent / 100, 0.65)");
+    expect(editorPage).toContain("Math.min(timelineZoomPercent / 100, 0.5)");
     expect(editorPage).toContain("practiceMode={practiceModeEnabled}");
     expect(workspace).toContain('practiceMode ? "rounded-none border-0"');
+    expect(workspace).toContain("data-gte-practice-score");
+    expect(workspace).toContain("const practiceBarsPerRow = 6");
+  });
+
+  it("shows only the chosen track while practising", () => {
+    expect(editorPage).toContain('aria-label="Track to practice"');
+    expect(editorPage).toContain(
+      "practiceModeEnabled && laneId !== globalControlsLaneId"
+    );
   });
 });

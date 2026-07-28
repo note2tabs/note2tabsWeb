@@ -3885,6 +3885,33 @@ export default function GteWorkspace({
       }),
     [effectivePlayheadFrame, framesPerMeasure, scale, snapshot, timeSignature, viewportBarCount]
   );
+  const practiceBarsPerRow = 6;
+  const practiceRowGap = 26;
+  const practiceRowHeight =
+    editorTabView.height + TIMELINE_BAR_HEADER_HEIGHT + practiceRowGap;
+  const practiceRowCount = Math.max(
+    1,
+    Math.ceil(editorTabView.barCount / practiceBarsPerRow)
+  );
+  const getPracticePosition = useCallback(
+    (sourceX: number) => {
+      const contentX = Math.max(0, sourceX - 30);
+      const barIndex = Math.min(
+        editorTabView.barCount - 1,
+        Math.max(0, Math.floor(contentX / Math.max(1, editorTabView.barWidth)))
+      );
+      const rowIndex = Math.floor(barIndex / practiceBarsPerRow);
+      return {
+        rowIndex,
+        x:
+          30 +
+          contentX -
+          rowIndex * practiceBarsPerRow * editorTabView.barWidth,
+        y: rowIndex * practiceRowHeight,
+      };
+    },
+    [editorTabView.barCount, editorTabView.barWidth, practiceRowHeight]
+  );
   const effectivePlaybackSpeedOptions = useMemo(() => {
     const values = new Set<number>(PLAYBACK_SPEED_OPTIONS.map((speed) => normalizePlaybackSpeed(speed)));
     values.add(Math.round(effectivePlaybackSpeed * 100) / 100);
@@ -4293,7 +4320,13 @@ export default function GteWorkspace({
           totalFrames,
           editorTabView.width
         );
-        tabViewCursorRef.current.style.transform = `translate3d(${x}px, 0, 0) translateX(-1px)`;
+        if (practiceMode) {
+          const position = getPracticePosition(x);
+          tabViewCursorRef.current.style.transform =
+            `translate3d(${position.x}px, ${position.y}px, 0) translateX(-1px)`;
+        } else {
+          tabViewCursorRef.current.style.transform = `translate3d(${x}px, 0, 0) translateX(-1px)`;
+        }
       }
       if (timelinePlayheadRef.current) {
         const rowIndex =
@@ -4311,6 +4344,8 @@ export default function GteWorkspace({
       editorTabView.cursorAnchors,
       editorTabView.width,
       framesPerMeasure,
+      getPracticePosition,
+      practiceMode,
       rowFrames,
       rowStride,
       rows,
@@ -12316,7 +12351,7 @@ export default function GteWorkspace({
         onFocusWorkspace?.();
       }}
     >
-      {embedded && isActive && (
+      {embedded && isActive && !practiceMode && (
         <div
           className={`pointer-events-none absolute inset-0 z-10 border border-sky-300 ${
             isMobileEditMode ? "" : compactEmbeddedMobile ? "rounded-lg" : "rounded-xl"
@@ -13423,6 +13458,157 @@ export default function GteWorkspace({
         }`}
       >
         {tabViewEnabled && (
+          practiceMode ? (
+          <div
+            className="relative min-w-0 overflow-hidden bg-white"
+            data-gte-tab-view="true"
+            data-gte-practice-score="true"
+            style={{ height: practiceRowCount * practiceRowHeight }}
+          >
+            {Array.from({ length: practiceRowCount }).map((_, rowIndex) => {
+              const firstBar = rowIndex * practiceBarsPerRow;
+              const lastBar = Math.min(
+                editorTabView.barCount,
+                firstBar + practiceBarsPerRow
+              );
+              const sourceLeft = firstBar * editorTabView.barWidth;
+              const sourceRight = lastBar * editorTabView.barWidth;
+              const rowTop = rowIndex * practiceRowHeight;
+              return (
+                <div
+                  key={`practice-tab-row-${rowIndex}`}
+                  className="absolute left-0 right-0"
+                  style={{
+                    top: rowTop,
+                    height: practiceRowHeight - practiceRowGap,
+                  }}
+                >
+                  {Array.from({ length: lastBar - firstBar }).map((__, offset) => {
+                    const barIndex = firstBar + offset;
+                    const selected = selectedBarIndexSet.has(barIndex);
+                    return (
+                      <button
+                        key={`practice-bar-${barIndex}`}
+                        type="button"
+                        data-bar-select="true"
+                        data-bar-select-editor={editorId}
+                        data-bar-index={barIndex}
+                        onClick={(event) => handleBarSelection(barIndex, event)}
+                        className={`absolute top-0 z-20 flex items-center px-1.5 text-[9px] transition-colors ${
+                          selected
+                            ? "bg-emerald-50 text-emerald-800"
+                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                        }`}
+                        style={{
+                          left: 30 + offset * editorTabView.barWidth,
+                          width: editorTabView.barWidth,
+                          height: TIMELINE_BAR_HEADER_HEIGHT,
+                        }}
+                        aria-label={`Select Bar ${barIndex + 1}`}
+                      >
+                        Bar {barIndex + 1}
+                      </button>
+                    );
+                  })}
+                  {Array.from({ length: lastBar - firstBar + 1 }).map((__, offset) => (
+                    <div
+                      key={`practice-bar-line-${rowIndex}-${offset}`}
+                      className="absolute w-px bg-slate-400"
+                      style={{
+                        left: 30 + offset * editorTabView.barWidth,
+                        top: TIMELINE_BAR_HEADER_HEIGHT,
+                        height: editorTabView.height,
+                      }}
+                    />
+                  ))}
+                  {editorTabView.strings.map((line, stringIndex) => (
+                    <div key={`practice-string-${rowIndex}-${stringIndex}`}>
+                      <div
+                        className="absolute z-20 flex w-7 -translate-y-1/2 justify-end bg-white pr-1 text-[10px] font-semibold text-slate-500"
+                        style={{
+                          left: 0,
+                          top: TIMELINE_BAR_HEADER_HEIGHT + line.y,
+                        }}
+                      >
+                        {line.label}
+                      </div>
+                      <div
+                        className="absolute h-px bg-slate-500"
+                        style={{
+                          left: 30,
+                          width: (lastBar - firstBar) * editorTabView.barWidth,
+                          top: TIMELINE_BAR_HEADER_HEIGHT + line.y,
+                        }}
+                      />
+                    </div>
+                  ))}
+                  {editorTabView.placements
+                    .filter((placement) => {
+                      const contentX = placement.x - 30;
+                      return contentX >= sourceLeft && contentX < sourceRight;
+                    })
+                    .map((placement) => {
+                      const y = editorTabView.strings[placement.stringIndex]?.y ?? 0;
+                      return (
+                        <div
+                          key={`practice-${rowIndex}-${placement.key}`}
+                          className="absolute z-10 -translate-x-1/2 -translate-y-1/2 bg-white px-0.5 text-[11px] font-bold leading-none text-slate-900"
+                          style={{
+                            left: placement.x - sourceLeft,
+                            top: TIMELINE_BAR_HEADER_HEIGHT + y,
+                          }}
+                        >
+                          {placement.fret}
+                        </div>
+                      );
+                    })}
+                  {editorTabView.effects
+                    .filter((effect) => {
+                      const contentX = effect.x - 30;
+                      return contentX >= sourceLeft && contentX < sourceRight;
+                    })
+                    .map((effect) => {
+                      const y = editorTabView.strings[effect.stringIndex]?.y ?? 0;
+                      const left = Math.max(30, Math.min(effect.x1, effect.x2) - sourceLeft);
+                      const right = Math.min(
+                        30 + (lastBar - firstBar) * editorTabView.barWidth,
+                        Math.max(effect.x1, effect.x2) - sourceLeft
+                      );
+                      return (
+                        <div
+                          key={`practice-${rowIndex}-${effect.key}`}
+                          className="pointer-events-none absolute"
+                          style={{
+                            left,
+                            top: TIMELINE_BAR_HEADER_HEIGHT + y - 13,
+                            width: Math.max(10, right - left),
+                          }}
+                        >
+                          <div className="absolute left-0 right-0 top-2 h-px bg-slate-600" />
+                          <span className="absolute top-0 bg-white px-0.5 text-[9px] font-bold text-slate-700">
+                            {effect.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+              );
+            })}
+            <div
+              ref={tabViewCursorRef}
+              className="pointer-events-none absolute z-30 w-[2px] rounded-full bg-rose-500"
+              style={{
+                left: 0,
+                top: TIMELINE_BAR_HEADER_HEIGHT + 3,
+                height: Math.max(20, editorTabView.height - 6),
+                transform: (() => {
+                  const position = getPracticePosition(editorTabView.cursorX);
+                  return `translate3d(${position.x}px, ${position.y}px, 0) translateX(-1px)`;
+                })(),
+              }}
+            />
+          </div>
+          ) : (
           <div
             ref={tabViewScrollRef}
             className={`min-w-0 bg-white ${
@@ -13634,6 +13820,7 @@ export default function GteWorkspace({
               </div>
             </div>
           </div>
+          )
         )}
         <div
           className={`flex min-w-0 ${tabViewEnabled ? "hidden" : ""} ${

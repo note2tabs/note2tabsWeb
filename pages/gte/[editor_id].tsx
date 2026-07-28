@@ -2589,10 +2589,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const globalControlsLaneId = useMemo(() => {
     if (!canvas?.editors.length) return null;
     if (mobileEditLaneId && canvas.editors.some((lane) => lane.id === mobileEditLaneId)) return mobileEditLaneId;
+    if (
+      practiceModeEnabled &&
+      activeLaneId &&
+      canvas.editors.some((lane) => (lane.id || null) === activeLaneId && !isChordLane(lane))
+    ) {
+      return activeLaneId;
+    }
     const tabLane = canvas.editors.find((lane) => !isChordLane(lane));
     if (tabLane) return tabLane.id || null;
     return canvas.editors[0]?.id || null;
-  }, [canvas?.editors, mobileEditLaneId]);
+  }, [activeLaneId, canvas?.editors, mobileEditLaneId, practiceModeEnabled]);
   const activeEditableLaneId = useMemo(() => {
     if (!activeLaneId || !canvas?.editors.length) return null;
     const lane = canvas.editors.find((candidate) => (candidate.id || null) === activeLaneId);
@@ -3974,6 +3981,25 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </span>
         </div>
         <div className="flex flex-1 flex-wrap items-center gap-1.5">
+          {canvas && canvas.editors.filter((lane) => !isChordLane(lane)).length > 1 && (
+            <label className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
+              <span>Track</span>
+              <select
+                value={globalControlsLaneId || ""}
+                onChange={(event) => setActiveLaneId(event.target.value)}
+                className="max-w-40 bg-transparent text-xs font-semibold text-slate-900 outline-none"
+                aria-label="Track to practice"
+              >
+                {canvas.editors
+                  .filter((lane) => !isChordLane(lane))
+                  .map((lane, index) => (
+                    <option key={lane.id || `practice-track-${index}`} value={lane.id || `ed-${index + 1}`}>
+                      {lane.name || `Track ${index + 1}`}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
           <button
             type="button"
             onClick={() => setPracticeLoopEnabled((enabled) => !enabled)}
@@ -6191,6 +6217,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           >
             {canvas.editors.map((lane, index) => {
               const laneId = lane.id || `ed-${index + 1}`;
+              if (practiceModeEnabled && laneId !== globalControlsLaneId) {
+                return null;
+              }
               if (isMobileViewport && mobileEditLaneId && laneId !== mobileEditLaneId) {
                 return null;
               }
@@ -6419,7 +6448,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
                                 practiceModeEnabled
-                                  ? Math.min(timelineZoomPercent / 100, 0.65)
+                                  ? Math.min(timelineZoomPercent / 100, 0.5)
                                   : timelineZoomPercent / 100
                               }
                               historyUndoCount={canvasUndoCount}
@@ -6708,7 +6737,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
                                 practiceModeEnabled
-                                  ? Math.min(timelineZoomPercent / 100, 0.65)
+                                  ? Math.min(timelineZoomPercent / 100, 0.5)
                                   : timelineZoomPercent / 100
                               }
                               historyUndoCount={canvasUndoCount}
@@ -7038,7 +7067,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                           timelineZoomFactor={
                             practiceModeEnabled
-                              ? Math.min(timelineZoomPercent / 100, 0.65)
+                              ? Math.min(timelineZoomPercent / 100, 0.5)
                               : timelineZoomPercent / 100
                           }
                           historyUndoCount={canvasUndoCount}
@@ -7126,7 +7155,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </section>
               );
             })}
-            {(!isMobileViewport || !mobileEditLaneId) && (
+            {!practiceModeEnabled && (!isMobileViewport || !mobileEditLaneId) && (
               <div className="relative flex justify-center pt-1">
                 <button
                   type="button"
@@ -7383,7 +7412,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         </div>
       )}
-      {!isMobileViewport && canvas && (
+      {!isMobileViewport && canvas && !practiceModeEnabled && (
         <div className="fixed bottom-0 left-0 right-0 z-40 border-slate-200">
           <div className="container gte-wide py-1">
             <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-1 shadow-sm">
