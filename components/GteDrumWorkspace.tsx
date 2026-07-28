@@ -615,7 +615,7 @@ export default function GteDrumWorkspace({
       )}
       <div
         ref={scrollRef}
-        className="overflow-x-hidden overflow-y-hidden"
+        className="hide-scrollbar overflow-x-auto overflow-y-hidden"
         style={{ height: RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length }}
         onScroll={(event) => {
           if (syncingScrollRef.current) return;

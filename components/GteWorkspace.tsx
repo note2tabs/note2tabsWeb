@@ -2656,7 +2656,7 @@ function ChordLaneWorkspace({
       </div>
       <div
         ref={timelineRef}
-        className="relative overflow-x-hidden bg-white"
+        className="hide-scrollbar relative overflow-x-auto bg-white"
         onScroll={handleTimelineScroll}
         onDragOver={(event) => event.preventDefault()}
         onDrop={handleTimelineDrop}
@@ -4631,12 +4631,11 @@ export default function GteWorkspace({
         return { scrollLeft: nextScrollLeft, clientWidth: nextClientWidth };
       });
       if (!onSharedTimelineScrollRatioChange || applyingSharedScrollRef.current) return;
-      if (embedded && !mobileViewport) return;
       const maxScroll = Math.max(0, target.scrollWidth - nextClientWidth);
       if (maxScroll <= 0) return;
       onSharedTimelineScrollRatioChange(nextScrollLeft / maxScroll);
     },
-    [embedded, mobileViewport, onSharedTimelineScrollRatioChange]
+    [onSharedTimelineScrollRatioChange]
   );
 
   useEffect(() => {
@@ -13415,7 +13414,7 @@ export default function GteWorkspace({
         {tabViewEnabled && (
           <div
             ref={tabViewScrollRef}
-            className={`min-w-0 overflow-x-hidden rounded-xl border border-slate-200 bg-white ${
+            className={`hide-scrollbar min-w-0 overflow-x-auto rounded-xl border border-slate-200 bg-white ${
               isMobileEditMode ? "min-h-0 flex-1" : ""
             }`}
             data-gte-tab-view="true"
@@ -13645,7 +13644,7 @@ export default function GteWorkspace({
           <div className={`min-w-0 flex-1 ${isMobileEditMode ? "min-h-0 overflow-hidden" : "overflow-y-visible"}`}>
             <div
               ref={timelineOuterRef}
-              className="min-w-0 overflow-x-hidden overflow-y-hidden"
+              className="hide-scrollbar min-w-0 overflow-x-auto overflow-y-hidden"
               onScroll={handleTimelineOuterScroll}
             >
               <div className="relative" style={{ width: timelineChromeWidth, paddingTop: TIMELINE_BAR_HEADER_HEIGHT }}>
