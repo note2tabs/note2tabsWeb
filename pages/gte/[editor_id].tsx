@@ -2600,8 +2600,20 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, []);
 
   const globalTimelineTrackWidth = useMemo(
-    () => Math.max(4000, sharedViewportBarCount * FIXED_FRAMES_PER_BAR * 3),
-    [sharedViewportBarCount]
+    () =>
+      Math.max(
+        1,
+        112 +
+          sharedViewportBarCount *
+            FIXED_FRAMES_PER_BAR *
+            (sharedTimelineBaseScale ?? 0.5) *
+            (timelineZoomPercent / 100)
+      ),
+    [
+      sharedTimelineBaseScale,
+      sharedViewportBarCount,
+      timelineZoomPercent,
+    ]
   );
 
   const mobileControlsSummary = `${nameDraft || "Untitled"} - ${bpmDraft} BPM - ${timeSignatureDraft}/${timeSignatureBottomDraft}`;
@@ -7308,11 +7320,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         </div>
       )}
-      {!isMobileViewport && canvas && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 border-slate-200">
+      {canvas && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/90 backdrop-blur">
           <div className="container gte-wide py-1">
             <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-1 shadow-sm">
-              <label className="flex w-48 shrink-0 items-center gap-2 text-xs font-medium text-slate-600">
+              <label className="hidden w-48 shrink-0 items-center gap-2 text-xs font-medium text-slate-600 sm:flex">
                 <span>Zoom</span>
                 <input
                   type="range"
@@ -7329,8 +7341,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               <div
                 ref={globalTimelineScrollbarRef}
                 data-gte-timeline-control="true"
-                className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
+                className="h-5 min-w-0 flex-1 overflow-x-scroll overflow-y-hidden"
                 onScroll={handleGlobalTimelineScrollbarScroll}
+                tabIndex={0}
+                aria-label="Scroll all tracks horizontally"
               >
                 <div style={{ width: globalTimelineTrackWidth, height: 1 }} />
               </div>

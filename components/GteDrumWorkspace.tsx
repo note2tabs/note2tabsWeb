@@ -615,7 +615,7 @@ export default function GteDrumWorkspace({
       )}
       <div
         ref={scrollRef}
-        className="overflow-x-auto overflow-y-hidden"
+        className="overflow-x-hidden overflow-y-hidden"
         style={{ height: RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length }}
         onScroll={(event) => {
           if (syncingScrollRef.current) return;
@@ -822,9 +822,7 @@ export default function GteDrumWorkspace({
       {playbackUiVisible && (
         <div
           data-gte-floating-ui="true"
-          className={`pointer-events-none fixed left-1/2 z-[9997] flex -translate-x-1/2 items-center gap-2 px-2 ${
-            mobileViewport ? "bottom-3" : "bottom-10"
-          }`}
+          className="pointer-events-none fixed bottom-10 left-1/2 z-[9997] flex -translate-x-1/2 items-center gap-2 px-2"
         >
           <div className="pointer-events-auto flex items-center rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 shadow-sm backdrop-blur">
             <button

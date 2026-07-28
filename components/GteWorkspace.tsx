@@ -2656,7 +2656,7 @@ function ChordLaneWorkspace({
       </div>
       <div
         ref={timelineRef}
-        className="relative overflow-x-auto bg-white"
+        className="relative overflow-x-hidden bg-white"
         onScroll={handleTimelineScroll}
         onDragOver={(event) => event.preventDefault()}
         onDrop={handleTimelineDrop}
@@ -12899,7 +12899,7 @@ export default function GteWorkspace({
         <div
           data-gte-floating-ui="true"
           className={`fixed left-1/2 z-[9997] -translate-x-1/2 px-2 pointer-events-none ${
-            mobileViewport ? "bottom-3 w-[min(calc(100vw-1.25rem),28rem)]" : "bottom-10 w-[min(calc(100vw-2rem),64rem)]"
+            mobileViewport ? "bottom-10 w-[min(calc(100vw-1.25rem),28rem)]" : "bottom-10 w-[min(calc(100vw-2rem),64rem)]"
           }`}
         >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
@@ -13415,9 +13415,7 @@ export default function GteWorkspace({
         {tabViewEnabled && (
           <div
             ref={tabViewScrollRef}
-            className={`min-w-0 rounded-xl border border-slate-200 bg-white ${
-              embedded && !mobileViewport ? "overflow-x-hidden" : "overflow-x-auto"
-            } ${
+            className={`min-w-0 overflow-x-hidden rounded-xl border border-slate-200 bg-white ${
               isMobileEditMode ? "min-h-0 flex-1" : ""
             }`}
             data-gte-tab-view="true"
@@ -13647,7 +13645,7 @@ export default function GteWorkspace({
           <div className={`min-w-0 flex-1 ${isMobileEditMode ? "min-h-0 overflow-hidden" : "overflow-y-visible"}`}>
             <div
               ref={timelineOuterRef}
-              className="hide-scrollbar min-w-0 overflow-x-auto overflow-y-hidden"
+              className="min-w-0 overflow-x-hidden overflow-y-hidden"
               onScroll={handleTimelineOuterScroll}
             >
               <div className="relative" style={{ width: timelineChromeWidth, paddingTop: TIMELINE_BAR_HEADER_HEIGHT }}>
