@@ -49,7 +49,8 @@ describe("editor practice mode", () => {
   });
 
   it("shows only the chosen track while practising", () => {
-    expect(editorPage).toContain('aria-label="Track to practice"');
+    expect(editorPage).toContain("Switch practice track. Current track:");
+    expect(editorPage).toContain('aria-label="Choose a track to practice"');
     expect(editorPage).toContain(
       "practiceModeEnabled && laneId !== globalControlsLaneId"
     );

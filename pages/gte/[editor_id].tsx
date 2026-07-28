@@ -7127,27 +7127,93 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         {practiceModeEnabled && (
                           <div className="mb-2 flex items-baseline justify-between border-b border-slate-200 pb-2">
                             {canvas.editors.filter((candidate) => !isChordLane(candidate)).length > 1 ? (
-                              <label className="relative">
-                                <span className="sr-only">Track to practice</span>
-                                <select
-                                  value={globalControlsLaneId || laneId}
-                                  onChange={(event) => setActiveLaneId(event.target.value)}
-                                  className="max-w-64 appearance-none bg-transparent py-1 pr-5 text-sm font-semibold text-slate-800 outline-none hover:text-slate-950"
-                                  aria-label="Track to practice"
+                              <details className="group relative">
+                                <summary
+                                  className="-ml-2 flex cursor-pointer list-none items-center gap-2 rounded-lg border border-transparent px-2 py-1 text-left transition hover:border-slate-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                                  aria-label={`Switch practice track. Current track: ${lane.name || `Track ${index + 1}`}`}
                                 >
+                                  <span className="min-w-0">
+                                    <span className="block text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                                      Switch track
+                                    </span>
+                                    <span className="block max-w-56 truncate text-sm font-semibold text-slate-800">
+                                      {lane.name || `Track ${index + 1}`}
+                                    </span>
+                                  </span>
+                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500 transition group-open:rotate-180 group-open:bg-slate-200" aria-hidden="true">
+                                    <svg viewBox="0 0 20 20" className="h-3.5 w-3.5 fill-current">
+                                      <path d="M5.5 7.5 10 12l4.5-4.5 1.1 1.1L10 14.2 4.4 8.6z" />
+                                    </svg>
+                                  </span>
+                                </summary>
+                                <div
+                                  className="absolute left-0 top-[calc(100%+0.35rem)] z-50 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+                                  role="group"
+                                  aria-label="Choose a track to practice"
+                                >
+                                  <div className="px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                                    Choose a track
+                                  </div>
                                   {canvas.editors
                                     .filter((candidate) => !isChordLane(candidate))
-                                    .map((candidate, candidateIndex) => (
-                                      <option
-                                        key={candidate.id || `practice-track-${candidateIndex}`}
-                                        value={candidate.id || `ed-${candidateIndex + 1}`}
-                                      >
-                                        {candidate.name || `Track ${candidateIndex + 1}`}
-                                      </option>
-                                    ))}
-                                </select>
-                                <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-[10px] text-slate-400" aria-hidden="true">▾</span>
-                              </label>
+                                    .map((candidate, candidateIndex) => {
+                                      const candidateId =
+                                        candidate.id || `ed-${candidateIndex + 1}`;
+                                      const selected = candidateId === globalControlsLaneId;
+                                      const candidateInstrument =
+                                        trackInstrumentOptions.find(
+                                          (option) =>
+                                            option.id ===
+                                            normalizeTrackInstrumentId(candidate.instrumentId)
+                                        )?.label || "Guitar";
+                                      return (
+                                        <button
+                                          key={candidateId}
+                                          type="button"
+                                          aria-pressed={selected}
+                                          onClick={(event) => {
+                                            setActiveLaneId(candidateId);
+                                            const picker = event.currentTarget.closest("details");
+                                            if (picker) picker.open = false;
+                                          }}
+                                          className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition ${
+                                            selected
+                                              ? "bg-emerald-50 text-emerald-950"
+                                              : "text-slate-700 hover:bg-slate-50"
+                                          }`}
+                                        >
+                                          <span
+                                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                                              selected
+                                                ? "border-emerald-500 bg-emerald-500 text-white"
+                                                : "border-slate-300 bg-white"
+                                            }`}
+                                            aria-hidden="true"
+                                          >
+                                            {selected && (
+                                              <svg viewBox="0 0 20 20" className="h-3 w-3 fill-current">
+                                                <path d="m7.8 13.7-3.4-3.4 1.2-1.2 2.2 2.2 6.6-6.6 1.2 1.2z" />
+                                              </svg>
+                                            )}
+                                          </span>
+                                          <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-xs font-semibold">
+                                              {candidate.name || `Track ${candidateIndex + 1}`}
+                                            </span>
+                                            <span className="block truncate text-[10px] text-slate-500">
+                                              {candidateInstrument}
+                                            </span>
+                                          </span>
+                                          {selected && (
+                                            <span className="text-[10px] font-semibold text-emerald-700">
+                                              Current
+                                            </span>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                </div>
+                              </details>
                             ) : (
                               <h3 className="text-sm font-semibold text-slate-800">
                                 {lane.name || `Track ${index + 1}`}
