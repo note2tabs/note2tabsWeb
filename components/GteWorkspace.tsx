@@ -12998,7 +12998,7 @@ export default function GteWorkspace({
           data-gte-floating-ui="true"
           className={
             practiceMode
-              ? "sticky top-2 z-[60] mx-auto w-fit px-2 pointer-events-none"
+              ? "fixed bottom-5 left-1/2 z-[9997] w-fit -translate-x-1/2 px-2 pointer-events-none"
               : `fixed left-1/2 z-[9997] -translate-x-1/2 px-2 pointer-events-none ${
                   mobileViewport
                     ? "bottom-3 w-[min(calc(100vw-1.25rem),28rem)]"

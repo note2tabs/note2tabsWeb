@@ -3968,11 +3968,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const renderPracticeControls = () => (
     <section
-      className="mx-auto w-full max-w-[900px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
+      className="mx-auto w-full max-w-[900px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm min-[1400px]:fixed min-[1400px]:left-[max(1rem,calc(50vw-700px))] min-[1400px]:top-28 min-[1400px]:z-40 min-[1400px]:w-56 min-[1400px]:max-w-none min-[1400px]:p-3"
       aria-labelledby="practice-mode-title"
     >
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-        <div className="flex min-w-36 items-center gap-2 border-b border-slate-100 pb-2 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center min-[1400px]:block">
+        <div className="flex min-w-36 items-center gap-2 border-b border-slate-100 pb-2 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3 min-[1400px]:border-b min-[1400px]:border-r-0 min-[1400px]:pb-2 min-[1400px]:pr-0">
           <h2 id="practice-mode-title" className="text-sm font-semibold text-slate-900">Practice</h2>
           <span className="text-xs text-slate-500">
             {barSelection?.barIndices.length
@@ -3981,12 +3981,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </span>
         </div>
         <div
-          className="flex flex-1 flex-wrap items-center gap-1.5"
+          className="flex flex-1 flex-wrap items-center gap-1.5 min-[1400px]:mt-3 min-[1400px]:flex-col min-[1400px]:items-stretch"
           role="group"
           aria-label="Practice controls"
         >
           {canvas && canvas.editors.filter((lane) => !isChordLane(lane)).length > 1 && (
-            <label className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
+            <label className="flex h-9 items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
               <span>Track</span>
               <select
                 value={globalControlsLaneId || ""}
@@ -4004,7 +4004,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               </select>
             </label>
           )}
-          <label className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
+          <label className="flex h-9 items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
             <span>Speed</span>
             <select
               value={normalizedPlaybackSpeed}
@@ -4043,14 +4043,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             Metronome {metronomeEnabled ? "on" : "off"}
           </button>
           <details className="group relative">
-            <summary className="flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
               More
               {(countInEnabled || speedTrainerEnabled) && (
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-label="Additional practice settings active" />
               )}
               <span className="text-[10px] text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
             </summary>
-            <div className="absolute right-0 top-11 z-50 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+            <div className="absolute right-0 top-11 z-50 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl min-[1400px]:static min-[1400px]:mt-2 min-[1400px]:w-full min-[1400px]:shadow-sm">
               <button
                 type="button"
                 onClick={() => setCountInEnabled((enabled) => !enabled)}
