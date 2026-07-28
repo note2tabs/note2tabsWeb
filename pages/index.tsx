@@ -5,7 +5,12 @@ import { useRouter } from "next/router";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
-import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
+import {
+  ANALYTICS_EVENTS,
+  sendEvent,
+  sendTranscriptionStartedEvents,
+  trackCtaClick,
+} from "../lib/analytics";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
@@ -808,12 +813,11 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     setTranscriberSegments(null);
     setStatus(mode === "FILE" ? "Uploading audio..." : "Preparing YouTube download...");
     setLoading(true);
-    sendEvent(ANALYTICS_EVENTS.tabGenerationStarted, {
+    sendTranscriptionStartedEvents(transcriptionModel, {
       mode,
       sourceType: mode,
       separateGuitar,
       multipleGuitars,
-      transcriptionModel,
       fileSize: selectedFile?.size,
       durationSec: mode === "YOUTUBE" ? resolvedYtDuration : resolvedFileDuration,
       hasAppendEditorId: Boolean(appendEditorId),

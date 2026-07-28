@@ -1,4 +1,5 @@
 import { capturePostHogEvent } from "./posthogClient";
+import type { TranscriptionModelChoice } from "./transcriptionModels";
 import {
   sanitizeAnalyticsPathname,
   sanitizeAnalyticsProperties,
@@ -27,6 +28,8 @@ export const ANALYTICS_EVENTS = {
   uploadStorageSucceeded: "upload_storage_succeeded",
   uploadStorageFailed: "upload_storage_failed",
   tabGenerationStarted: "transcription_started",
+  transcriptionStartedLightModel: "transcription_started_light_model",
+  transcriptionStartedHeavyModel: "transcription_started_heavy_model",
   tabGenerationQueued: "transcription_queued",
   tabGenerationSucceeded: "transcription_succeeded",
   jobCompleted: "job_completed",
@@ -85,6 +88,23 @@ export function sendEvent(event: string, payload?: EventPayload) {
   }
 
   capturePostHogEvent(normalizedEvent, sanitizedProperties);
+}
+
+export function getTranscriptionStartedModelEvent(
+  transcriptionModel: TranscriptionModelChoice
+) {
+  return transcriptionModel === "heavy"
+    ? ANALYTICS_EVENTS.transcriptionStartedHeavyModel
+    : ANALYTICS_EVENTS.transcriptionStartedLightModel;
+}
+
+export function sendTranscriptionStartedEvents(
+  transcriptionModel: TranscriptionModelChoice,
+  payload?: EventPayload
+) {
+  const properties = { ...(payload || {}), transcriptionModel };
+  sendEvent(ANALYTICS_EVENTS.tabGenerationStarted, properties);
+  sendEvent(getTranscriptionStartedModelEvent(transcriptionModel), properties);
 }
 
 export function trackCtaClick(name: string, payload?: EventPayload) {

@@ -4,7 +4,11 @@ import { useRouter } from "next/router";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
-import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
+import {
+  ANALYTICS_EVENTS,
+  sendEvent,
+  sendTranscriptionStartedEvents,
+} from "../lib/analytics";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
@@ -812,7 +816,7 @@ export default function TranscriberPage() {
     setTranscriberSegments(null);
     setStatus(mode === "FILE" ? transcribingStatusLabel : "Preparing YouTube...");
     setLoading(true);
-    sendEvent("transcribe_start", {
+    sendTranscriptionStartedEvents(transcriptionModel, {
       mode,
       input_source: mode === "YOUTUBE" ? "youtube" : "local_file",
     });
