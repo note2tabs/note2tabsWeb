@@ -52,7 +52,7 @@ export default function BlogIndexPage({
     return `/blog?${params.toString()}`;
   };
   const description =
-    "Learn how to convert audio into guitar tabs, edit tablature, and practice songs with Note2Tabs.";
+    "Learn how to create, arrange, transcribe, and practice guitar tabs with practical guides from Note2Tabs.";
   const blogJsonLd = [
     {
       "@context": "https://schema.org",
@@ -99,8 +99,13 @@ export default function BlogIndexPage({
             <span className="blog-kicker">Knowledge Hub</span>
             <h1 className="page-title">Note2Tabs Blog</h1>
             <p className="page-subtitle">
-              Practical guides, workflows, and updates for converting songs into playable guitar tabs.
+              Practical guides for writing better tabs, arranging music for guitar, and turning recordings into
+              playable notation.
             </p>
+            <div className="blog-product-links" aria-label="Try Note2Tabs">
+              <Link href="/editor" className="button-primary">Try the tab editor</Link>
+              <Link href="/transcribe" className="button-secondary">Transcribe audio</Link>
+            </div>
           </div>
           <div className="blog-hero-actions">
             <div className="blog-hero-metrics">
@@ -108,9 +113,7 @@ export default function BlogIndexPage({
               <span>{categories.length} categories</span>
               <span>{tags.length} tags</span>
             </div>
-            <Link href="/" className="button-secondary button-small">
-              Back to app
-            </Link>
+            <p className="blog-tools-note">Use either tool independently, or move between them in one workflow.</p>
           </div>
         </header>
 
