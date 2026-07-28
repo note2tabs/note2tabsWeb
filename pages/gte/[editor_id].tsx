@@ -1116,7 +1116,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [openTrackMenuId, setOpenTrackMenuId] = useState<string | null>(null);
   const [openMobileBarMenuLaneId, setOpenMobileBarMenuLaneId] = useState<string | null>(null);
   const [editMenuPortalTarget, setEditMenuPortalTarget] = useState<HTMLDivElement | null>(null);
-  const [tabViewEnabled, setTabViewEnabled] = useState(false);
+  const [editorMode, setEditorMode] = useState<"canvas" | "tab" | "practice">("canvas");
+  const practiceModeEnabled = editorMode === "practice";
+  const tabViewEnabled = editorMode !== "canvas";
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
   const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabledState] = useState(false);
   const [globalSnapSubdivisionsPerBeat, setGlobalSnapSubdivisionsPerBeat] = useState(4);
@@ -3904,45 +3906,180 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     </div>
   );
 
-  const renderViewModeSwitch = (compact = false) => (
+  const renderViewModeSwitch = (compact = false) => {
+    const activeIndex = editorMode === "canvas" ? 0 : editorMode === "tab" ? 1 : 2;
+    return (
     <div
       className={`rounded-lg border border-slate-200 bg-slate-100 p-0.5 ${
-        compact ? "w-48" : "w-52"
+        compact ? "w-64" : "w-72"
       }`}
     >
       <div
-        className="relative grid grid-cols-2"
+        className="relative grid grid-cols-3"
         role="group"
-        aria-label="Editor view"
+        aria-label="Workspace mode"
       >
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-y-0 left-0 w-1/2 rounded-md bg-white shadow-sm ring-1 ring-slate-200/70 transition-transform duration-200 ease-out ${
-            tabViewEnabled ? "translate-x-full" : "translate-x-0"
-          }`}
+          className="pointer-events-none absolute inset-y-0 left-0 w-1/3 rounded-md bg-white shadow-sm ring-1 ring-slate-200/70 transition-transform duration-200 ease-out"
+          style={{ transform: `translateX(${activeIndex * 100}%)` }}
         />
         <button
           type="button"
-          onClick={() => setTabViewEnabled(false)}
-          aria-pressed={!tabViewEnabled}
+          onClick={() => setEditorMode("canvas")}
+          aria-pressed={editorMode === "canvas"}
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
-            !tabViewEnabled ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
+            editorMode === "canvas" ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
           }`}
         >
           Canvas
         </button>
         <button
           type="button"
-          onClick={() => setTabViewEnabled(true)}
-          aria-pressed={tabViewEnabled}
+          onClick={() => setEditorMode("tab")}
+          aria-pressed={editorMode === "tab"}
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
-            tabViewEnabled ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
+            editorMode === "tab" ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
           }`}
         >
           Tab view
         </button>
+        <button
+          type="button"
+          onClick={() => setEditorMode("practice")}
+          aria-pressed={practiceModeEnabled}
+          className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${
+            practiceModeEnabled ? "text-emerald-800" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          Practice
+        </button>
       </div>
     </div>
+    );
+  };
+
+  const renderPracticeControls = () => (
+    <section
+      className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-sky-50 p-4 shadow-sm"
+      aria-labelledby="practice-mode-title"
+    >
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-7 items-center rounded-full bg-emerald-100 px-3 text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-800">
+              Practice mode
+            </span>
+            <span className="text-xs font-medium text-emerald-700">
+              {barSelection?.barIndices.length ? `${barSelection.barIndices.length} selected bar${barSelection.barIndices.length === 1 ? "" : "s"}` : "Whole song"}
+            </span>
+          </div>
+          <h2 id="practice-mode-title" className="mt-2 text-base font-semibold text-slate-900">
+            Listen, repeat, and build speed
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm leading-5 text-slate-600">
+            {barSelection?.barIndices.length
+              ? "Repeat the selected section while you practise. Add a count-in, metronome, or gradual speed increase."
+              : "Practise the whole song, or select one or more bars in the tab below to focus the loop."}
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:justify-end">
+          <button
+            type="button"
+            onClick={() => setPracticeLoopEnabled((enabled) => !enabled)}
+            disabled={!globalPracticeLoopRange}
+            aria-pressed={practiceLoopEnabled}
+            className={`min-h-10 rounded-xl border px-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+              practiceLoopEnabled
+                ? "border-emerald-300 bg-emerald-100 text-emerald-900"
+                : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300"
+            }`}
+          >
+            Loop {practiceLoopEnabled ? "on" : "off"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMetronomeEnabled((enabled) => !enabled)}
+            aria-pressed={metronomeEnabled}
+            className={`min-h-10 rounded-xl border px-3 text-sm font-semibold transition ${
+              metronomeEnabled
+                ? "border-sky-300 bg-sky-100 text-sky-900"
+                : "border-slate-200 bg-white text-slate-700 hover:border-sky-300"
+            }`}
+          >
+            Metronome {metronomeEnabled ? "on" : "off"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setCountInEnabled((enabled) => !enabled)}
+            aria-pressed={countInEnabled}
+            className={`min-h-10 rounded-xl border px-3 text-sm font-semibold transition ${
+              countInEnabled
+                ? "border-amber-300 bg-amber-100 text-amber-900"
+                : "border-slate-200 bg-white text-slate-700 hover:border-amber-300"
+            }`}
+          >
+            Count-in {countInEnabled ? "on" : "off"}
+          </button>
+          <label className="flex min-h-10 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700">
+            <span>Speed</span>
+            <select
+              value={normalizedPlaybackSpeed}
+              onChange={(event) => setPlaybackSpeed(Number(event.target.value))}
+              className="bg-transparent text-sm font-semibold text-slate-900 outline-none"
+              aria-label="Practice playback speed"
+            >
+              {PLAYBACK_SPEED_OPTIONS.map((speed) => (
+                <option key={speed} value={speed}>{Math.round(speed * 100)}%</option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => setSpeedTrainerEnabled((enabled) => !enabled)}
+            disabled={!practiceLoopEnabled}
+            aria-pressed={speedTrainerEnabled}
+            className={`min-h-10 rounded-xl border px-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+              speedTrainerEnabled
+                ? "border-violet-300 bg-violet-100 text-violet-900"
+                : "border-slate-200 bg-white text-slate-700 hover:border-violet-300"
+            }`}
+          >
+            Speed trainer {speedTrainerEnabled ? "on" : "off"}
+          </button>
+          {speedTrainerEnabled && (
+            <>
+              <label className="flex min-h-10 items-center justify-between gap-2 rounded-xl border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-900">
+                <span>Target</span>
+                <select
+                  value={speedTrainerTarget}
+                  onChange={(event) => setSpeedTrainerTarget(Number(event.target.value))}
+                  className="bg-transparent font-semibold outline-none"
+                  aria-label="Speed trainer target"
+                >
+                  {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
+                    <option key={speed} value={speed}>{Math.round(speed * 100)}%</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex min-h-10 items-center justify-between gap-2 rounded-xl border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-900">
+                <span>Increase</span>
+                <select
+                  value={speedTrainerStep}
+                  onChange={(event) => setSpeedTrainerStep(Number(event.target.value))}
+                  className="bg-transparent font-semibold outline-none"
+                  aria-label="Speed trainer increase"
+                >
+                  {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
+                    <option key={step} value={step}>+{Math.round(step * 100)}%</option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
   );
 
   const bootstrapEditorPath = `${
@@ -5021,7 +5158,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </details>
 
                   <details
-                    className="group relative order-5"
+                    className="hidden"
                     open={openTopMenu === "playback"}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
@@ -5318,6 +5455,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </button>
                   </div>
                 </details>
+                {!practiceModeEnabled && (
                 <details className="group w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
                     <span className="font-semibold text-slate-700">Editing settings</span>
@@ -5399,6 +5537,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </label>
                   </div>
                 </details>
+                )}
                 {(((nameSaving || bpmSaving) && !isGuestMode) ||
                   nameError ||
                   bpmError ||
@@ -6019,6 +6158,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             )}
           </div>
         )}
+        {practiceModeEnabled && !isMobileEditMode && renderPracticeControls()}
         {loading && !canvas && (
           <EditorLoadingState />
         )}
@@ -6309,6 +6449,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSpeedTrainerStepChange={setSpeedTrainerStep}
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
+                              practiceControlsVisible={practiceModeEnabled}
                               showToolbarWhenInactive={false}
                               multiTrackSelectionActive={multiTrackSelectionActive}
                               onSelectionStateChange={(selection) =>
@@ -6592,6 +6733,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSpeedTrainerStepChange={setSpeedTrainerStep}
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
+                              practiceControlsVisible={practiceModeEnabled}
                               showToolbarWhenInactive={laneId === globalControlsLaneId}
                               multiTrackSelectionActive={multiTrackSelectionActive}
                               onSelectionStateChange={(selection) =>
@@ -6902,6 +7044,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onSpeedTrainerStepChange={setSpeedTrainerStep}
                           playbackSpeed={normalizedPlaybackSpeed}
                           onPlaybackSpeedChange={setPlaybackSpeed}
+                          practiceControlsVisible={practiceModeEnabled}
                           showToolbarWhenInactive={laneId === globalControlsLaneId}
                           multiTrackSelectionActive={multiTrackSelectionActive}
                           onSelectionStateChange={(selection) =>

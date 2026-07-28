@@ -192,6 +192,7 @@ type Props = {
   onSpeedTrainerStepChange?: (step: number) => void;
   playbackSpeed?: number;
   onPlaybackSpeedChange?: (speed: number) => void;
+  practiceControlsVisible?: boolean;
   playbackUiVisible?: boolean;
   showToolbarWhenInactive?: boolean;
   toolbarOpen?: boolean;
@@ -3330,6 +3331,7 @@ export default function GteWorkspace({
   onSpeedTrainerStepChange,
   playbackSpeed,
   onPlaybackSpeedChange,
+  practiceControlsVisible = false,
   playbackUiVisible,
   showToolbarWhenInactive = false,
   toolbarOpen: controlledToolbarOpen,
@@ -12985,6 +12987,8 @@ export default function GteWorkspace({
                     title="Volume"
                   />
                 </div>
+                {practiceControlsVisible && (
+                  <>
                 <button
                   type="button"
                   onClick={() => setEffectivePracticeLoopEnabled(!effectivePracticeLoopEnabled)}
@@ -13073,6 +13077,8 @@ export default function GteWorkspace({
                         </option>
                       ))}
                     </select>
+                  </>
+                )}
                   </>
                 )}
               </div>
