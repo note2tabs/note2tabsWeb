@@ -12899,7 +12899,7 @@ export default function GteWorkspace({
         <div
           data-gte-floating-ui="true"
           className={`fixed left-1/2 z-[9997] -translate-x-1/2 px-2 pointer-events-none ${
-            mobileViewport ? "bottom-3 w-[min(calc(100vw-1.25rem),28rem)]" : "bottom-16 w-[min(calc(100vw-2rem),64rem)]"
+            mobileViewport ? "bottom-3 w-[min(calc(100vw-1.25rem),28rem)]" : "bottom-10 w-[min(calc(100vw-2rem),64rem)]"
           }`}
         >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
