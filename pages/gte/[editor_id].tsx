@@ -3966,6 +3966,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     );
   };
 
+  const practiceLaneIndex =
+    canvas?.editors.findIndex(
+      (lane, index) =>
+        !isChordLane(lane) &&
+        (lane.id || `ed-${index + 1}`) === globalControlsLaneId
+    ) ?? -1;
+  const practiceLane =
+    practiceLaneIndex >= 0 ? canvas?.editors[practiceLaneIndex] ?? null : null;
+  const practiceLaneId =
+    practiceLane && practiceLaneIndex >= 0
+      ? practiceLane.id || `ed-${practiceLaneIndex + 1}`
+      : null;
+  const practiceInstrumentValue = practiceLane
+    ? normalizeTrackInstrumentId(practiceLane.instrumentId)
+    : DEFAULT_TRACK_INSTRUMENT_ID;
+
   const renderPracticeControls = () => (
     <section
       className="mx-auto w-full max-w-[900px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm min-[1400px]:fixed min-[1400px]:left-[max(1rem,calc(50vw-700px))] min-[1400px]:top-28 min-[1400px]:z-40 min-[1400px]:w-56 min-[1400px]:max-w-none min-[1400px]:p-3"
@@ -3985,25 +4001,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           role="group"
           aria-label="Practice controls"
         >
-          {canvas && canvas.editors.filter((lane) => !isChordLane(lane)).length > 1 && (
-            <label className="flex h-9 items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
-              <span>Track</span>
-              <select
-                value={globalControlsLaneId || ""}
-                onChange={(event) => setActiveLaneId(event.target.value)}
-                className="max-w-40 bg-transparent text-xs font-semibold text-slate-900 outline-none"
-                aria-label="Track to practice"
-              >
-                {canvas.editors
-                  .filter((lane) => !isChordLane(lane))
-                  .map((lane, index) => (
-                    <option key={lane.id || `practice-track-${index}`} value={lane.id || `ed-${index + 1}`}>
-                      {lane.name || `Track ${index + 1}`}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          )}
           <label className="flex h-9 items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
             <span>Speed</span>
             <select
@@ -4042,6 +4039,89 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           >
             Metronome {metronomeEnabled ? "on" : "off"}
           </button>
+          {practiceLaneId && (
+            <details className="group relative">
+              <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                Sound
+                <span className="truncate text-[10px] font-medium text-slate-500">
+                  {trackInstrumentOptions.find((option) => option.id === practiceInstrumentValue)?.label || "Guitar"}
+                </span>
+              </summary>
+              <div className="absolute right-0 top-11 z-50 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl min-[1400px]:static min-[1400px]:mt-2 min-[1400px]:w-full min-[1400px]:shadow-sm">
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  Instrument
+                  <select
+                    value={practiceInstrumentValue}
+                    onChange={(event) =>
+                      handleLaneInstrumentChange(practiceLaneId, event.target.value)
+                    }
+                    className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                    aria-label="Practice instrument"
+                  >
+                    {trackInstrumentOptions.map((option) => (
+                      <option key={`practice-instrument-${option.id}`} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleTrackMute(practiceLaneId)}
+                    aria-pressed={Boolean(trackMuteById[practiceLaneId])}
+                    className={`h-9 rounded-lg border text-xs font-semibold ${
+                      trackMuteById[practiceLaneId]
+                        ? "border-amber-300 bg-amber-50 text-amber-800"
+                        : "border-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {trackMuteById[practiceLaneId] ? "Muted" : "Mute"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleTrackIsolation(practiceLaneId)}
+                    aria-pressed={isolatedTrackId === practiceLaneId}
+                    className={`h-9 rounded-lg border text-xs font-semibold ${
+                      isolatedTrackId === practiceLaneId
+                        ? "border-sky-300 bg-sky-50 text-sky-800"
+                        : "border-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {isolatedTrackId === practiceLaneId ? "Soloed" : "Solo"}
+                  </button>
+                </div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  Volume
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={normalizeTrackVolume(trackVolumeById[practiceLaneId] ?? 1)}
+                    onChange={(event) =>
+                      handleTrackVolumeChange(practiceLaneId, Number(event.target.value))
+                    }
+                    className="mt-1.5 w-full accent-slate-700"
+                  />
+                </label>
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  Pan
+                  <input
+                    type="range"
+                    min={-1}
+                    max={1}
+                    step={0.01}
+                    value={normalizeTrackPan(trackPanById[practiceLaneId] ?? 0)}
+                    onChange={(event) =>
+                      handleTrackPanChange(practiceLaneId, Number(event.target.value))
+                    }
+                    className="mt-1.5 w-full accent-slate-700"
+                  />
+                </label>
+              </div>
+            </details>
+          )}
           <details className="group relative">
             <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
               More
@@ -4067,10 +4147,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               <div className="border-t border-slate-100 pt-3">
                 <button
                   type="button"
-                  onClick={() => setSpeedTrainerEnabled((enabled) => !enabled)}
-                  disabled={!practiceLoopEnabled}
+                  onClick={() =>
+                    setSpeedTrainerEnabled((enabled) => {
+                      const next = !enabled;
+                      if (next) setPracticeLoopEnabled(true);
+                      return next;
+                    })
+                  }
                   aria-pressed={speedTrainerEnabled}
-                  className={`flex h-9 w-full items-center justify-between rounded-lg border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                  className={`flex h-9 w-full items-center justify-between rounded-lg border px-3 text-xs font-semibold transition ${
                     speedTrainerEnabled
                       ? "border-violet-300 bg-violet-50 text-violet-900"
                       : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
@@ -4079,11 +4164,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   <span>Speed trainer</span>
                   <span>{speedTrainerEnabled ? "On" : "Off"}</span>
                 </button>
-                {!practiceLoopEnabled && (
-                  <p className="mt-1.5 text-[10px] leading-4 text-slate-500">
-                    Select bars and turn on Loop to use the speed trainer.
-                  </p>
-                )}
               </div>
               {speedTrainerEnabled && (
                 <div className="grid grid-cols-2 gap-2">
@@ -7046,9 +7126,33 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       <div ref={sharedTimelineMeasureRef} className="min-w-0 flex-1">
                         {practiceModeEnabled && (
                           <div className="mb-2 flex items-baseline justify-between border-b border-slate-200 pb-2">
-                            <h3 className="text-sm font-semibold text-slate-800">
-                              {lane.name || `Track ${index + 1}`}
-                            </h3>
+                            {canvas.editors.filter((candidate) => !isChordLane(candidate)).length > 1 ? (
+                              <label className="relative">
+                                <span className="sr-only">Track to practice</span>
+                                <select
+                                  value={globalControlsLaneId || laneId}
+                                  onChange={(event) => setActiveLaneId(event.target.value)}
+                                  className="max-w-64 appearance-none bg-transparent py-1 pr-5 text-sm font-semibold text-slate-800 outline-none hover:text-slate-950"
+                                  aria-label="Track to practice"
+                                >
+                                  {canvas.editors
+                                    .filter((candidate) => !isChordLane(candidate))
+                                    .map((candidate, candidateIndex) => (
+                                      <option
+                                        key={candidate.id || `practice-track-${candidateIndex}`}
+                                        value={candidate.id || `ed-${candidateIndex + 1}`}
+                                      >
+                                        {candidate.name || `Track ${candidateIndex + 1}`}
+                                      </option>
+                                    ))}
+                                </select>
+                                <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-[10px] text-slate-400" aria-hidden="true">▾</span>
+                              </label>
+                            ) : (
+                              <h3 className="text-sm font-semibold text-slate-800">
+                                {lane.name || `Track ${index + 1}`}
+                              </h3>
+                            )}
                             <span className="text-[11px] text-slate-500">
                               {instrumentLabel} · {laneBarCount} bars
                             </span>

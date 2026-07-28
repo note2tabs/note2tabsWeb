@@ -54,4 +54,16 @@ describe("editor practice mode", () => {
       "practiceModeEnabled && laneId !== globalControlsLaneId"
     );
   });
+
+  it("keeps playback sound controls available in practice", () => {
+    expect(editorPage).toContain('aria-label="Practice instrument"');
+    expect(editorPage).toContain("toggleTrackMute(practiceLaneId)");
+    expect(editorPage).toContain("toggleTrackIsolation(practiceLaneId)");
+    expect(editorPage).toContain("handleTrackVolumeChange(practiceLaneId");
+    expect(editorPage).toContain("handleTrackPanChange(practiceLaneId");
+  });
+
+  it("enables looping when speed trainer is turned on", () => {
+    expect(editorPage).toContain("if (next) setPracticeLoopEnabled(true)");
+  });
 });
