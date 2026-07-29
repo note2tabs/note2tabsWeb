@@ -193,6 +193,7 @@ type Props = {
   playbackSpeed?: number;
   onPlaybackSpeedChange?: (speed: number) => void;
   practiceMode?: boolean;
+  practiceFocusBarRange?: { startBar: number; endBar: number } | null;
   practiceControlsVisible?: boolean;
   playbackUiVisible?: boolean;
   showToolbarWhenInactive?: boolean;
@@ -3333,6 +3334,7 @@ export default function GteWorkspace({
   playbackSpeed,
   onPlaybackSpeedChange,
   practiceMode = false,
+  practiceFocusBarRange,
   practiceControlsVisible = false,
   playbackUiVisible,
   showToolbarWhenInactive = false,
@@ -3903,28 +3905,37 @@ export default function GteWorkspace({
   const practiceRowGap = 26;
   const practiceRowHeight =
     editorTabView.height + TIMELINE_BAR_HEADER_HEIGHT + practiceRowGap;
+  const practiceDisplayStartBar = Math.max(
+    0,
+    Math.min(editorTabView.barCount - 1, practiceFocusBarRange?.startBar ?? 0)
+  );
+  const practiceDisplayEndBar = Math.max(
+    practiceDisplayStartBar + 1,
+    Math.min(editorTabView.barCount, practiceFocusBarRange?.endBar ?? editorTabView.barCount)
+  );
   const practiceRowCount = Math.max(
     1,
-    Math.ceil(editorTabView.barCount / practiceBarsPerRow)
+    Math.ceil((practiceDisplayEndBar - practiceDisplayStartBar) / practiceBarsPerRow)
   );
   const getPracticePosition = useCallback(
     (sourceX: number) => {
       const contentX = Math.max(0, sourceX - 30);
       const barIndex = Math.min(
-        editorTabView.barCount - 1,
-        Math.max(0, Math.floor(contentX / Math.max(1, editorTabView.barWidth)))
+        practiceDisplayEndBar - 1,
+        Math.max(practiceDisplayStartBar, Math.floor(contentX / Math.max(1, editorTabView.barWidth)))
       );
-      const rowIndex = Math.floor(barIndex / practiceBarsPerRow);
+      const rowIndex = Math.floor((barIndex - practiceDisplayStartBar) / practiceBarsPerRow);
       return {
         rowIndex,
         x:
           30 +
           contentX -
+          practiceDisplayStartBar * editorTabView.barWidth -
           rowIndex * practiceBarsPerRow * editorTabView.barWidth,
         y: rowIndex * practiceRowHeight,
       };
     },
-    [editorTabView.barCount, editorTabView.barWidth, practiceRowHeight]
+    [editorTabView.barWidth, practiceDisplayEndBar, practiceDisplayStartBar, practiceRowHeight]
   );
   useEffect(() => {
     if (!practiceMode) {
@@ -13530,9 +13541,9 @@ export default function GteWorkspace({
             style={{ height: practiceRowCount * practiceRowHeight }}
           >
             {Array.from({ length: practiceRowCount }).map((_, rowIndex) => {
-              const firstBar = rowIndex * practiceBarsPerRow;
+              const firstBar = practiceDisplayStartBar + rowIndex * practiceBarsPerRow;
               const lastBar = Math.min(
-                editorTabView.barCount,
+                practiceDisplayEndBar,
                 firstBar + practiceBarsPerRow
               );
               const sourceLeft = firstBar * editorTabView.barWidth;

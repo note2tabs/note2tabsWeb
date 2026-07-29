@@ -142,6 +142,66 @@ const SHORTCUT_HELP_SECTIONS: ReadonlyArray<
   ["Tools", TOOL_SHORTCUT_HELP],
   ["Track cursor", TRACK_CURSOR_SHORTCUT_HELP],
 ];
+
+function PracticeFretboard({
+  lane,
+  getFrame,
+  isPlaying,
+}: {
+  lane: EditorSnapshot;
+  getFrame: () => number;
+  isPlaying: boolean;
+}) {
+  const [frame, setFrame] = useState(() => getFrame());
+  useEffect(() => {
+    setFrame(getFrame());
+    if (!isPlaying) return;
+    let raf = 0;
+    let last = 0;
+    const tick = (now: number) => {
+      if (now - last > 80) {
+        last = now;
+        setFrame(getFrame());
+      }
+      raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [getFrame, isPlaying]);
+  const notes = lane.chords
+    .filter((chord) => chord.startTime <= frame && chord.startTime + chord.length > frame)
+    .flatMap((chord) => chord.currentTabs)
+    .map(([stringIndex, fret]) => ({ stringIndex, fret }));
+  const maxFret = Math.max(0, ...notes.map((note) => note.fret));
+  const fretStart = maxFret > 12 ? Math.floor(maxFret / 12) * 12 : 0;
+
+  return (
+    <aside className="hidden min-[1400px]:fixed min-[1400px]:right-[max(1rem,calc(50vw-700px))] min-[1400px]:top-28 min-[1400px]:z-40 min-[1400px]:block min-[1400px]:w-56 rounded-xl border border-slate-200 bg-white p-3 shadow-sm" aria-label="Live fretboard">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-900">Fretboard</h2>
+        <span className="text-[10px] text-slate-500">{notes.length ? "Playing now" : "Ready"}</span>
+      </div>
+      <div className="space-y-1 rounded-lg bg-slate-800 p-2">
+        {Array.from({ length: 6 }).map((_, stringIndex) => (
+          <div key={stringIndex} className="grid grid-cols-13 gap-px border-y border-slate-500/60">
+            {Array.from({ length: 13 }).map((__, offset) => {
+              const fret = fretStart + offset;
+              const active = notes.some((note) => note.stringIndex === stringIndex && note.fret === fret);
+              return (
+                <span key={fret} className="relative h-5 border-r border-slate-500/50">
+                  {active && <span className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />}
+                </span>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex justify-between text-[9px] text-slate-400">
+        <span>Fret {fretStart}</span><span>{fretStart + 12}</span>
+      </div>
+    </aside>
+  );
+}
 const KEY_BASE_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const KEY_TYPE_OPTIONS = [
   "Major",
@@ -1136,7 +1196,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [globalPlaybackVolume, setGlobalPlaybackVolume] = useState(0.6);
   const [practiceLoopEnabled, setPracticeLoopEnabled] = useState(false);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
+  const [metronomeVolume, setMetronomeVolume] = useState(0.7);
   const [countInEnabled, setCountInEnabled] = useState(false);
+  const [countInBars, setCountInBars] = useState(1);
+  const [countInEveryLoop, setCountInEveryLoop] = useState(false);
+  const [practiceFocusEnabled, setPracticeFocusEnabled] = useState(false);
+  const [practiceFullscreen, setPracticeFullscreen] = useState(false);
   const [speedTrainerEnabled, setSpeedTrainerEnabled] = useState(false);
   const [speedTrainerTarget, setSpeedTrainerTarget] = useState(1.5);
   const [speedTrainerStep, setSpeedTrainerStep] = useState(0.05);
@@ -1171,6 +1236,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     getTrackInstrumentOptions()
   );
   const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const practiceRootRef = useRef<HTMLElement | null>(null);
+  const practiceSettingsHydratedRef = useRef(false);
   const globalPlaybackFrameRef = useRef(0);
   const bpmCommitTimerRef = useRef<number | null>(null);
   const queuedBpmValueRef = useRef<string | number | null>(null);
@@ -2664,6 +2731,96 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   );
   const normalizedPlaybackSpeed = normalizePlaybackSpeed(playbackSpeed);
   const globalMetronomeBeatsPerBar = normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
+  const practiceSettingsStorageKey = `note2tabs:practice:${editorId}:v1`;
+
+  useEffect(() => {
+    practiceSettingsHydratedRef.current = false;
+  }, [editorId]);
+
+  useEffect(() => {
+    if (!canvas || practiceSettingsHydratedRef.current || typeof window === "undefined") return;
+    practiceSettingsHydratedRef.current = true;
+    try {
+      const raw = window.localStorage.getItem(practiceSettingsStorageKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof saved.activeLaneId === "string") setActiveLaneId(saved.activeLaneId);
+      setPlaybackSpeed(normalizePlaybackSpeed(saved.playbackSpeed));
+      if (typeof saved.practiceLoopEnabled === "boolean") setPracticeLoopEnabled(saved.practiceLoopEnabled);
+      if (typeof saved.metronomeEnabled === "boolean") setMetronomeEnabled(saved.metronomeEnabled);
+      if (typeof saved.countInEnabled === "boolean") setCountInEnabled(saved.countInEnabled);
+      if (typeof saved.speedTrainerEnabled === "boolean") setSpeedTrainerEnabled(saved.speedTrainerEnabled);
+      if (typeof saved.practiceFocusEnabled === "boolean") setPracticeFocusEnabled(saved.practiceFocusEnabled);
+      setMetronomeVolume(Math.max(0, Math.min(1, Number(saved.metronomeVolume) || 0.7)));
+      setCountInBars(Math.max(1, Math.min(3, Math.round(Number(saved.countInBars) || 1))));
+      if (typeof saved.countInEveryLoop === "boolean") setCountInEveryLoop(saved.countInEveryLoop);
+      setSpeedTrainerTarget(normalizePlaybackSpeed(saved.speedTrainerTarget));
+      setSpeedTrainerStep(Math.max(0.01, Number(saved.speedTrainerStep) || 0.05));
+      if (Array.isArray(saved.barIndices) && typeof saved.barLaneId === "string") {
+        setBarSelection({
+          laneId: saved.barLaneId,
+          barIndices: saved.barIndices.map(Number).filter(Number.isFinite),
+        });
+      }
+      const savedFrame = Number(saved.playbackFrame);
+      if (Number.isFinite(savedFrame)) {
+        const frame = Math.max(0, Math.min(canvasTimelineEnd, Math.round(savedFrame)));
+        globalPlaybackFrameRef.current = frame;
+        setGlobalPlaybackFrame(frame);
+        setGlobalPlaybackFrameRevision((revision) => revision + 1);
+      }
+    } catch {
+      // Ignore malformed local settings and continue with defaults.
+    }
+  }, [canvas, canvasTimelineEnd, practiceSettingsStorageKey]);
+
+  useEffect(() => {
+    if (!canvas || !practiceSettingsHydratedRef.current || typeof window === "undefined") return;
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem(
+        practiceSettingsStorageKey,
+        JSON.stringify({
+          activeLaneId: globalControlsLaneId,
+          playbackSpeed: normalizedPlaybackSpeed,
+          playbackFrame: globalPlaybackFrameRef.current,
+          practiceLoopEnabled,
+          metronomeEnabled,
+          metronomeVolume,
+          countInEnabled,
+          countInBars,
+          countInEveryLoop,
+          speedTrainerEnabled,
+          speedTrainerTarget,
+          speedTrainerStep,
+          practiceFocusEnabled,
+          barLaneId: barSelection?.laneId ?? null,
+          barIndices: barSelection?.barIndices ?? [],
+        })
+      );
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [
+    barSelection,
+    canvas,
+    countInBars,
+    countInEnabled,
+    countInEveryLoop,
+    globalControlsLaneId,
+    globalPlaybackFrameRevision,
+    metronomeEnabled,
+    metronomeVolume,
+    normalizedPlaybackSpeed,
+    practiceFocusEnabled,
+    practiceLoopEnabled,
+    practiceSettingsStorageKey,
+    speedTrainerEnabled,
+    speedTrainerStep,
+    speedTrainerTarget,
+  ]);
+
+  useEffect(() => {
+    if (!barSelection?.barIndices.length) setPracticeFocusEnabled(false);
+  }, [barSelection]);
 
   useEffect(() => {
     if (globalPracticeLoopRange) return;
@@ -3037,14 +3194,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       oscillator.type = "square";
       oscillator.frequency.setValueAtTime(accent ? 1320 : 880, startTime);
       gain.gain.setValueAtTime(0.0001, startTime);
-      gain.gain.exponentialRampToValueAtTime(accent ? 0.18 : 0.11, startTime + 0.004);
+      gain.gain.exponentialRampToValueAtTime(
+        (accent ? 0.18 : 0.11) * metronomeVolume,
+        startTime + 0.004
+      );
       gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.055);
       oscillator.connect(gain);
       gain.connect(destination);
       oscillator.start(startTime);
       oscillator.stop(startTime + 0.06);
     },
-    []
+    [metronomeVolume]
   );
 
   const stopGlobalPlayback = useCallback(() => {
@@ -3073,7 +3233,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       audioReady: Promise<void>,
       isCurrentRequest: () => boolean,
       startFrame: number,
-      speedOverride?: number
+      speedOverride?: number,
+      isLoopRestart = false
     ) => {
       if (!canvas) return null;
       const scheduleStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -3390,12 +3551,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       master.gain.value = globalPlaybackVolume;
       master.connect(ctx.destination);
       globalPlaybackMasterGainRef.current = master;
-      const countInSec = countInEnabled
-        ? frameDeltaToSeconds(FIXED_FRAMES_PER_BAR, globalPlaybackFps, runPlaybackSpeed)
+      const shouldCountIn = countInEnabled && (!isLoopRestart || countInEveryLoop);
+      const countInSec = shouldCountIn
+        ? frameDeltaToSeconds(FIXED_FRAMES_PER_BAR * countInBars, globalPlaybackFps, runPlaybackSpeed)
         : 0;
       const playBase = base + countInSec;
 
-      if (metronomeEnabled || countInEnabled) {
+      if (metronomeEnabled || shouldCountIn) {
         buildMetronomeClicks({
           startFrame: playbackStartFrame,
           endFrame,
@@ -3403,7 +3565,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           beatsPerBar: globalMetronomeBeatsPerBar,
           fps: globalPlaybackFps,
           playbackSpeed: runPlaybackSpeed,
-          countInBars: countInEnabled ? 1 : 0,
+          countInBars: shouldCountIn ? countInBars : 0,
         }).forEach((click) => {
           if (!metronomeEnabled && click.timeSec >= 0) return;
           scheduleMetronomeClick(ctx, master, playBase + click.timeSec, click.accent);
@@ -3458,6 +3620,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       canvas,
       canvasTimelineEnd,
       countInEnabled,
+      countInBars,
+      countInEveryLoop,
       globalMetronomeBeatsPerBar,
       globalPlaybackFps,
       globalPlaybackVolume,
@@ -3473,7 +3637,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     ]
   );
 
-  const startGlobalPlayback = useCallback(async (startFrameOverride?: number, speedOverride?: number) => {
+  const startGlobalPlayback = useCallback(async (
+    startFrameOverride?: number,
+    speedOverride?: number,
+    isLoopRestart = false
+  ) => {
     if (!canvas) return;
     if (globalPlaybackRafRef.current !== null || globalPlaybackStartPendingRef.current) return;
     globalPlaybackStartPendingRef.current = true;
@@ -3507,7 +3675,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           globalPlaybackStartRequestRef.current === requestId &&
           globalPlaybackAudioRef.current === playbackContext,
         startFrame,
-        runPlaybackSpeed
+        runPlaybackSpeed,
+        isLoopRestart
       );
     } catch (error) {
       if (playbackContext) {
@@ -3573,7 +3742,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           syncGlobalPlaybackFrame(globalPracticeLoopRange.startFrame, { forceReact: true });
           stopGlobalPlayback();
           window.setTimeout(() => {
-            void startGlobalPlayback(globalPracticeLoopRange.startFrame, nextSpeed);
+            void startGlobalPlayback(globalPracticeLoopRange.startFrame, nextSpeed, true);
           }, 0);
           return;
         }
@@ -3642,6 +3811,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [activeLaneId, toggleGlobalPlayback]);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setPracticeFullscreen(document.fullscreenElement === practiceRootRef.current);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
   const seekGlobalPlayback = useCallback(
     (frame: number) => {
       const clamped = Math.max(0, Math.min(canvasTimelineEnd, Math.round(frame)));
@@ -3670,6 +3847,53 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     const target = Math.min(canvasTimelineEnd, nextIndex * FIXED_FRAMES_PER_BAR);
     seekGlobalPlayback(target);
   }, [canvasTimelineEnd, seekGlobalPlayback]);
+
+  useEffect(() => {
+    if (!practiceModeEnabled) return;
+    const handlePracticeShortcut = (event: KeyboardEvent) => {
+      if (isShortcutTextEntryTarget(event.target as HTMLElement | null)) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (event.code === "Space") {
+        event.preventDefault();
+        toggleGlobalPlayback();
+      } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
+        event.preventDefault();
+        skipGlobalPlaybackBackwardBar();
+      } else if (event.key === "ArrowRight" || event.key === "PageDown") {
+        event.preventDefault();
+        skipGlobalPlaybackForwardBar();
+      } else if (key === "l") {
+        event.preventDefault();
+        setPracticeLoopEnabled((enabled) => !enabled);
+      } else if (key === "m") {
+        event.preventDefault();
+        setMetronomeEnabled((enabled) => !enabled);
+      } else if (event.key === "[" || event.key === "]") {
+        event.preventDefault();
+        const direction = event.key === "[" ? -1 : 1;
+        const currentIndex = PLAYBACK_SPEED_OPTIONS.findIndex(
+          (speed) => speed >= normalizedPlaybackSpeed
+        );
+        const nextIndex = Math.max(
+          0,
+          Math.min(
+            PLAYBACK_SPEED_OPTIONS.length - 1,
+            (currentIndex < 0 ? 2 : currentIndex) + direction
+          )
+        );
+        setPlaybackSpeed(PLAYBACK_SPEED_OPTIONS[nextIndex]);
+      }
+    };
+    window.addEventListener("keydown", handlePracticeShortcut, true);
+    return () => window.removeEventListener("keydown", handlePracticeShortcut, true);
+  }, [
+    normalizedPlaybackSpeed,
+    practiceModeEnabled,
+    skipGlobalPlaybackBackwardBar,
+    skipGlobalPlaybackForwardBar,
+    toggleGlobalPlayback,
+  ]);
 
   const handleGlobalPlaybackVolumeChange = useCallback((nextVolume: number) => {
     setGlobalPlaybackVolume(Math.max(0, Math.min(1, nextVolume)));
@@ -4039,6 +4263,25 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           >
             Metronome {metronomeEnabled ? "on" : "off"}
           </button>
+          <button
+            type="button"
+            disabled={!barSelection?.barIndices.length}
+            onClick={() => {
+              setPracticeFocusEnabled((enabled) => {
+                const next = !enabled;
+                if (next) setPracticeLoopEnabled(true);
+                return next;
+              });
+            }}
+            aria-pressed={practiceFocusEnabled}
+            className={`h-9 rounded-lg border px-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+              practiceFocusEnabled
+                ? "border-violet-300 bg-violet-100 text-violet-900"
+                : "border-slate-200 bg-white text-slate-700 hover:border-violet-300"
+            }`}
+          >
+            Focus {practiceFocusEnabled ? "on" : "selection"}
+          </button>
           {practiceLaneId && (
             <details className="group relative">
               <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
@@ -4144,6 +4387,54 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 <span>Count-in</span>
                 <span>{countInEnabled ? "On" : "Off"}</span>
               </button>
+              {countInEnabled && (
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    Length
+                    <select
+                      value={countInBars}
+                      onChange={(event) => setCountInBars(Number(event.target.value))}
+                      className="mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs normal-case text-slate-700"
+                      aria-label="Count-in bars"
+                    >
+                      {[1, 2, 3].map((bars) => <option key={bars} value={bars}>{bars} bar{bars === 1 ? "" : "s"}</option>)}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setCountInEveryLoop((enabled) => !enabled)}
+                    aria-pressed={countInEveryLoop}
+                    className={`mt-4 h-8 rounded-lg border px-2 text-[10px] font-semibold ${
+                      countInEveryLoop ? "border-amber-300 bg-amber-50 text-amber-900" : "border-slate-200 text-slate-600"
+                    }`}
+                  >
+                    Every loop {countInEveryLoop ? "on" : "off"}
+                  </button>
+                </div>
+              )}
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                Metronome volume
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={metronomeVolume}
+                  onChange={(event) => setMetronomeVolume(Number(event.target.value))}
+                  className="mt-1 w-full accent-sky-600"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (document.fullscreenElement) await document.exitFullscreen();
+                  else await practiceRootRef.current?.requestFullscreen();
+                }}
+                className="flex h-9 w-full items-center justify-between rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <span>Fullscreen</span>
+                <span>{practiceFullscreen ? "Exit" : "Open"}</span>
+              </button>
               <div className="border-t border-slate-100 pt-3">
                 <button
                   type="button"
@@ -4195,6 +4486,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               </label>
                 </div>
               )}
+              <div className="border-t border-slate-100 pt-2 text-[10px] leading-4 text-slate-500">
+                <p className="font-semibold text-slate-700">Keyboard &amp; pedal shortcuts</p>
+                <p>Space play · ←/→ bars · L loop · M metronome · [/] speed</p>
+                <p className="mt-1">Bluetooth pedals that send arrow or Page keys work automatically.</p>
+              </div>
             </div>
           </details>
         </div>
@@ -4221,9 +4517,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       <script dangerouslySetInnerHTML={{ __html: bootstrapEditorScript }} />
       <NoIndexHead title="Guitar Tab Editor Workspace | Note2Tabs" canonicalPath={`/gte/${editorId}`} />
       <main
+        ref={practiceRootRef}
         className={`page page-tight ${
           isMobileEditMode ? "h-[100dvh] overflow-hidden overscroll-none py-3" : ""
-        }`}
+        } ${practiceFullscreen ? "overflow-y-auto bg-[var(--bg)]" : ""}`}
   style={
     !isMobileEditMode
       ? { paddingTop: isMobileViewport ? 76 : 12 }
@@ -6290,6 +6587,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         )}
         {practiceModeEnabled && !isMobileEditMode && renderPracticeControls()}
+        {practiceModeEnabled && !isMobileEditMode && practiceLane && (
+          <PracticeFretboard
+            lane={practiceLane}
+            getFrame={getGlobalPlaybackFrame}
+            isPlaying={globalPlaybackIsPlaying}
+          />
+        )}
         {loading && !canvas && (
           <EditorLoadingState />
         )}
@@ -6592,6 +6896,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
                               practiceMode={practiceModeEnabled}
+                              practiceFocusBarRange={
+                                practiceFocusEnabled && barSelection?.laneId === laneId && barSelection.barIndices.length
+                                  ? {
+                                      startBar: Math.min(...barSelection.barIndices),
+                                      endBar: Math.max(...barSelection.barIndices) + 1,
+                                    }
+                                  : null
+                              }
                               practiceControlsVisible={false}
                               showToolbarWhenInactive={false}
                               multiTrackSelectionActive={multiTrackSelectionActive}
@@ -6881,6 +7193,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
                               practiceMode={practiceModeEnabled}
+                              practiceFocusBarRange={
+                                practiceFocusEnabled && barSelection?.laneId === laneId && barSelection.barIndices.length
+                                  ? {
+                                      startBar: Math.min(...barSelection.barIndices),
+                                      endBar: Math.max(...barSelection.barIndices) + 1,
+                                    }
+                                  : null
+                              }
                               practiceControlsVisible={false}
                               showToolbarWhenInactive={laneId === globalControlsLaneId}
                               multiTrackSelectionActive={multiTrackSelectionActive}
@@ -7301,6 +7621,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           playbackSpeed={normalizedPlaybackSpeed}
                           onPlaybackSpeedChange={setPlaybackSpeed}
                           practiceMode={practiceModeEnabled}
+                          practiceFocusBarRange={
+                            practiceFocusEnabled && barSelection?.laneId === laneId && barSelection.barIndices.length
+                              ? {
+                                  startBar: Math.min(...barSelection.barIndices),
+                                  endBar: Math.max(...barSelection.barIndices) + 1,
+                                }
+                              : null
+                          }
                           practiceControlsVisible={false}
                           showToolbarWhenInactive={!practiceModeEnabled && laneId === globalControlsLaneId}
                           multiTrackSelectionActive={multiTrackSelectionActive}

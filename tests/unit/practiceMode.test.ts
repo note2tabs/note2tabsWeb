@@ -67,4 +67,15 @@ describe("editor practice mode", () => {
   it("enables looping when speed trainer is turned on", () => {
     expect(editorPage).toContain("if (next) setPracticeLoopEnabled(true)");
   });
+
+  it("provides focused, persistent practice utilities", () => {
+    expect(editorPage).toContain("note2tabs:practice:");
+    expect(editorPage).toContain("Bluetooth pedals that send arrow or Page keys");
+    expect(editorPage).toContain("requestFullscreen()");
+    expect(editorPage).toContain("Count-in bars");
+    expect(editorPage).toContain("Metronome volume");
+    expect(editorPage).toContain("<PracticeFretboard");
+    expect(workspace).toContain("practiceFocusBarRange");
+    expect(workspace).toContain("practiceDisplayStartBar");
+  });
 });
