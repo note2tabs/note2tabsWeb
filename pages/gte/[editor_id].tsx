@@ -2603,7 +2603,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     () =>
       Math.max(
         1,
-        112 +
+        30 +
           sharedViewportBarCount *
             FIXED_FRAMES_PER_BAR *
             (sharedTimelineBaseScale ?? 0.5) *
@@ -2631,15 +2631,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const activeEditableLaneId = useMemo(() => {
     if (!activeLaneId || !canvas?.editors.length) return null;
     const lane = canvas.editors.find((candidate) => (candidate.id || null) === activeLaneId);
-    return lane && !isChordLane(lane) && !isDrumLane(lane)
-      ? activeLaneId
-      : null;
+    return lane ? activeLaneId : null;
   }, [activeLaneId, canvas?.editors]);
   const fallbackEditableLaneId = useMemo(
-    () =>
-      canvas?.editors.find(
-        (lane) => !isChordLane(lane) && !isDrumLane(lane)
-      )?.id || null,
+    () => canvas?.editors[0]?.id || null,
     [canvas?.editors]
   );
   const editMenuOwnerLaneId = activeEditableLaneId ?? fallbackEditableLaneId;

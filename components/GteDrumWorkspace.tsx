@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { EditorSnapshot, Note } from "../types/gte";
 import { gteApi } from "../lib/gteApi";
 import {
@@ -10,11 +11,13 @@ import { previewDrumVoice } from "../lib/gteDrumPlayback";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 
 const FRAMES_PER_BAR = 480;
-const LABEL_WIDTH = 112;
+// Match the compact gutter used by chord and tab timelines.
+const LABEL_WIDTH = 30;
 // Seven compact drum rows occupy roughly the same height as the six tab strings.
 const ROW_HEIGHT = 20;
 const RULER_HEIGHT = 20;
 const DRAG_THRESHOLD_PX = 4;
+const DRUM_SUBDIVISIONS_PER_BEAT = 4;
 
 type SelectionBox = {
   left: number;
@@ -55,6 +58,15 @@ type GteDrumWorkspaceProps = {
   isActive: boolean;
   mobileViewport?: boolean;
   onFocusWorkspace?: () => void;
+  editMenuPortalTarget?: HTMLElement | null;
+  onEditMenuPointerEnter?: () => void;
+  onEditMenuPointerLeave?: () => void;
+  onSelectionStateChange?: (selection: {
+    noteCount: number;
+    chordCount: number;
+    noteIds: number[];
+    chordIds: number[];
+  }) => void;
   sharedViewportBarCount?: number;
   sharedTimelineScrollRatio?: number;
   onSharedTimelineScrollRatioChange?: (ratio: number) => void;
@@ -82,6 +94,16 @@ const symbolForVoice = (voiceId: string) => {
   return "B";
 };
 
+const shortLabelForVoice = (voiceId: string) => {
+  if (voiceId === "cymbal") return "Cy";
+  if (voiceId === "closed_hi_hat") return "CH";
+  if (voiceId === "open_hi_hat") return "OH";
+  if (voiceId === "bass") return "Ba";
+  if (voiceId === "kick") return "Ki";
+  if (voiceId === "snare") return "Sn";
+  return "St";
+};
+
 export default function GteDrumWorkspace({
   canvasId,
   laneId,
@@ -90,12 +112,15 @@ export default function GteDrumWorkspace({
   isActive,
   mobileViewport = false,
   onFocusWorkspace,
+  editMenuPortalTarget,
+  onEditMenuPointerEnter,
+  onEditMenuPointerLeave,
+  onSelectionStateChange,
   sharedViewportBarCount,
   sharedTimelineScrollRatio,
   onSharedTimelineScrollRatioChange,
   sharedTimelineBaseScale,
   timelineZoomFactor = 1,
-  snapSubdivisionsPerBeat = 1,
   globalSnapToGridEnabled = true,
   globalPlaybackFrame = 0,
   getGlobalPlaybackFrame,
@@ -119,6 +144,16 @@ export default function GteDrumWorkspace({
   );
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const [dragPreviewNotes, setDragPreviewNotes] = useState<Note[] | null>(null);
+  const [toolPreviewNotes, setToolPreviewNotes] = useState<Note[] | null>(null);
+  const [quantizeDialogOpen, setQuantizeDialogOpen] = useState(false);
+  const [quantizeSubdivision, setQuantizeSubdivision] = useState(4);
+  const [quantizePreScale, setQuantizePreScale] = useState(1);
+  const [quantizeApplyToLength, setQuantizeApplyToLength] = useState(true);
+  const [scaleDialogOpen, setScaleDialogOpen] = useState(false);
+  const [scaleFactor, setScaleFactor] = useState(1);
+  const [scaleMode, setScaleMode] = useState<"length" | "start" | "both">(
+    "length"
+  );
   const [saveError, setSaveError] = useState<string | null>(null);
   const tableBacked = canvasId !== GTE_GUEST_EDITOR_ID;
 
@@ -141,7 +176,7 @@ export default function GteDrumWorkspace({
     1,
     Math.round(
       FRAMES_PER_BAR /
-        (beatsPerBar * Math.max(1, Math.round(snapSubdivisionsPerBeat)))
+        (beatsPerBar * DRUM_SUBDIVISIONS_PER_BEAT)
     )
   );
 
@@ -153,6 +188,15 @@ export default function GteDrumWorkspace({
     selectedNoteIdsRef.current = next;
     setSelectedNoteIds(next);
   }, []);
+
+  useEffect(() => {
+    onSelectionStateChange?.({
+      noteCount: selectedNoteIds.size,
+      chordCount: 0,
+      noteIds: [...selectedNoteIds],
+      chordIds: [],
+    });
+  }, [onSelectionStateChange, selectedNoteIds]);
 
   const snapTime = useCallback(
     (time: number) => {
@@ -173,6 +217,15 @@ export default function GteDrumWorkspace({
           type: "drums",
           trackType: "drums",
           notes,
+          totalFrames: Math.max(
+            snapshot.totalFrames,
+            Math.ceil(
+              Math.max(
+                FRAMES_PER_BAR,
+                ...notes.map((note) => note.startTime + note.length)
+              ) / FRAMES_PER_BAR
+            ) * FRAMES_PER_BAR
+          ),
           chords: [],
           noteEffects: [],
           updatedAt: new Date().toISOString(),
@@ -321,6 +374,142 @@ export default function GteDrumWorkspace({
     },
     [canvasId, laneId, tableBacked, updateSnapshotNotes]
   );
+
+  const getSelectedToolNotes = useCallback(
+    () =>
+      snapshot.notes.filter((note) =>
+        selectedNoteIdsRef.current.has(note.id)
+      ),
+    [snapshot.notes]
+  );
+
+  const previewQuantize = useCallback(
+    (
+      subdivisionValue = quantizeSubdivision,
+      preScaleValue = quantizePreScale,
+      applyToLength = quantizeApplyToLength
+    ) => {
+      const selected = getSelectedToolNotes();
+      if (!selected.length) return false;
+      const subdivisions = Math.max(
+        1,
+        Math.min(64, Math.round(Number(subdivisionValue) || 4))
+      );
+      const preScale = Math.max(
+        0.01,
+        Math.min(16, Number(preScaleValue) || 1)
+      );
+      const minTime = Math.min(...selected.map((note) => note.startTime));
+      const gridFrames = Math.max(
+        1,
+        FRAMES_PER_BAR / (beatsPerBar * subdivisions)
+      );
+      const selectedIds = selectedNoteIdsRef.current;
+      setToolPreviewNotes(
+        snapshot.notes.map((note) => {
+          if (!selectedIds.has(note.id)) return note;
+          const scaledStart =
+            minTime + (note.startTime - minTime) * preScale;
+          const startTime = Math.max(
+            0,
+            Math.round(Math.round(scaledStart / gridFrames) * gridFrames)
+          );
+          const scaledLength = Math.max(1, note.length * preScale);
+          const length = applyToLength
+            ? Math.max(
+                1,
+                Math.round(Math.round(scaledLength / gridFrames) * gridFrames)
+              )
+            : Math.max(1, Math.round(note.length));
+          return { ...note, startTime, length };
+        })
+      );
+      return true;
+    },
+    [
+      beatsPerBar,
+      getSelectedToolNotes,
+      quantizeApplyToLength,
+      quantizePreScale,
+      quantizeSubdivision,
+      snapshot.notes,
+    ]
+  );
+
+  const openQuantizeTool = useCallback(() => {
+    if (!getSelectedToolNotes().length) {
+      setSaveError("Select at least one drum note before using Quantize.");
+      return;
+    }
+    setSaveError(null);
+    setScaleDialogOpen(false);
+    setQuantizeDialogOpen(true);
+    previewQuantize();
+  }, [getSelectedToolNotes, previewQuantize]);
+
+  const previewScale = useCallback(
+    (factorValue = scaleFactor, mode = scaleMode) => {
+      const selected = getSelectedToolNotes();
+      if (!selected.length) return false;
+      const factor = Math.max(0.01, Math.min(16, Number(factorValue) || 1));
+      const minTime = Math.min(...selected.map((note) => note.startTime));
+      const selectedIds = selectedNoteIdsRef.current;
+      setToolPreviewNotes(
+        snapshot.notes.map((note) => {
+          if (!selectedIds.has(note.id)) return note;
+          const startTime =
+            mode === "start" || mode === "both"
+              ? Math.max(
+                  0,
+                  Math.round(
+                    minTime + (note.startTime - minTime) * factor
+                  )
+                )
+              : note.startTime;
+          const length =
+            mode === "length" || mode === "both"
+              ? Math.max(1, Math.round(note.length * factor))
+              : note.length;
+          return { ...note, startTime, length };
+        })
+      );
+      return true;
+    },
+    [getSelectedToolNotes, scaleFactor, scaleMode, snapshot.notes]
+  );
+
+  const openScaleTool = useCallback(() => {
+    if (!getSelectedToolNotes().length) {
+      setSaveError("Select at least one drum note before using Scale.");
+      return;
+    }
+    setSaveError(null);
+    setQuantizeDialogOpen(false);
+    setScaleDialogOpen(true);
+    previewScale();
+  }, [getSelectedToolNotes, previewScale]);
+
+  const closeTransformTools = useCallback(() => {
+    setQuantizeDialogOpen(false);
+    setScaleDialogOpen(false);
+    setToolPreviewNotes(null);
+  }, []);
+
+  const commitTransformTool = useCallback(() => {
+    const preview = toolPreviewNotes;
+    if (!preview) {
+      closeTransformTools();
+      return;
+    }
+    const ids = new Set(selectedNoteIdsRef.current);
+    closeTransformTools();
+    void persistMovedNotes(preview, ids, snapshot.notes);
+  }, [
+    closeTransformTools,
+    persistMovedNotes,
+    snapshot.notes,
+    toolPreviewNotes,
+  ]);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -526,6 +715,21 @@ export default function GteDrumWorkspace({
       ) {
         return;
       }
+      if (event.key === "Escape" && (quantizeDialogOpen || scaleDialogOpen)) {
+        event.preventDefault();
+        closeTransformTools();
+        return;
+      }
+      if (event.key === "Enter" && (quantizeDialogOpen || scaleDialogOpen)) {
+        event.preventDefault();
+        commitTransformTool();
+        return;
+      }
+      if (event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        openScaleTool();
+        return;
+      }
       if (event.key.toLowerCase() === "a") {
         event.preventDefault();
         replaceSelection(new Set(snapshot.notes.map((note) => note.id)));
@@ -583,21 +787,50 @@ export default function GteDrumWorkspace({
     addHit,
     cursor.time,
     cursor.voiceIndex,
+    closeTransformTools,
+    commitTransformTool,
     deleteHits,
     gridStep,
     isActive,
     mobileViewport,
     onGlobalPlaybackToggle,
+    openScaleTool,
+    quantizeDialogOpen,
     replaceSelection,
+    scaleDialogOpen,
     snapTime,
     snapshot.notes,
   ]);
 
   const gridLines = useMemo(() => {
-    const lines: number[] = [];
-    for (let frame = 0; frame <= totalFrames; frame += gridStep) lines.push(frame);
+    const lines: Array<{
+      frame: number;
+      kind: "subdivision" | "beat" | "bar";
+    }> = [];
+    const subdivisionsPerBar =
+      beatsPerBar * DRUM_SUBDIVISIONS_PER_BEAT;
+    for (let barIndex = 0; barIndex < barCount; barIndex += 1) {
+      for (
+        let subdivisionIndex = 0;
+        subdivisionIndex < subdivisionsPerBar;
+        subdivisionIndex += 1
+      ) {
+        lines.push({
+          frame:
+            barIndex * FRAMES_PER_BAR +
+            (subdivisionIndex * FRAMES_PER_BAR) / subdivisionsPerBar,
+          kind:
+            subdivisionIndex === 0
+              ? "bar"
+              : subdivisionIndex % DRUM_SUBDIVISIONS_PER_BEAT === 0
+                ? "beat"
+                : "subdivision",
+        });
+      }
+    }
+    lines.push({ frame: totalFrames, kind: "bar" });
     return lines;
-  }, [gridStep, totalFrames]);
+  }, [barCount, beatsPerBar, totalFrames]);
 
   return (
     <div
@@ -608,6 +841,57 @@ export default function GteDrumWorkspace({
       }`}
       onMouseDown={onFocusWorkspace}
     >
+      {editMenuPortalTarget
+        ? createPortal(
+            <div
+              onMouseEnter={onEditMenuPointerEnter}
+              onMouseLeave={onEditMenuPointerLeave}
+            >
+              <div className="border-b border-slate-200 py-1">
+                <div className="px-2 pb-1 pt-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  Drum notes
+                </div>
+                <button
+                  type="button"
+                  onClick={openQuantizeTool}
+                  disabled={selectedNoteIds.size === 0}
+                  className="flex h-7 w-full items-center rounded-md px-2 text-left text-[11px] text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                >
+                  Quantize
+                </button>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1 px-1">
+                  <select
+                    value={scaleMode}
+                    onChange={(event) => {
+                      const mode = event.target.value as
+                        | "length"
+                        | "start"
+                        | "both";
+                      setScaleMode(mode);
+                      if (scaleDialogOpen) previewScale(scaleFactor, mode);
+                    }}
+                    className="h-7 min-w-0 rounded-md border-0 bg-transparent px-1 text-[11px] text-slate-700 hover:bg-slate-100"
+                    aria-label="Drum scale mode"
+                  >
+                    <option value="length">Length scaling</option>
+                    <option value="start">Start-time scaling</option>
+                    <option value="both">Start + length</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={openScaleTool}
+                    disabled={selectedNoteIds.size === 0}
+                    className="h-7 rounded-md px-2 text-[11px] text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                    title="Scale selected drum notes - Shortcut: S"
+                  >
+                    S&nbsp; Scale
+                  </button>
+                </div>
+              </div>
+            </div>,
+            editMenuPortalTarget
+          )
+        : null}
       {saveError && (
         <div className="absolute right-2 top-1 z-40 rounded bg-rose-50 px-2 py-1 text-[10px] text-rose-700">
           {saveError}
@@ -691,30 +975,32 @@ export default function GteDrumWorkspace({
               }}
             >
               <div
-                className="sticky left-0 z-20 flex h-full items-center justify-between border-r border-slate-200 bg-slate-100 px-2 text-[10px] font-semibold text-slate-700"
+                className="sticky left-0 z-20 flex h-full items-center justify-center border-r border-slate-200 bg-slate-100 px-0.5 text-[9px] font-semibold text-slate-700"
                 style={{ width: LABEL_WIDTH }}
                 title={`${voice.label} · key ${voice.key}`}
               >
-                <span className="truncate">{voice.label}</span>
-                <kbd className="ml-1 rounded bg-white px-1 text-[9px] text-slate-500">
-                  {voice.key}
-                </kbd>
+                <span>{shortLabelForVoice(voice.id)}</span>
               </div>
             </div>
           ))}
 
-          {gridLines.map((frame) => {
-            const isBar = frame % FRAMES_PER_BAR === 0;
+          {gridLines.map(({ frame, kind }, index) => {
+            const isBar = kind === "bar";
+            const isBeat = kind === "beat";
             return (
               <div
-                key={`drum-grid-${frame}`}
+                key={`drum-grid-${index}-${frame}`}
                 className={`pointer-events-none absolute ${
-                  isBar ? "bg-slate-400" : "bg-slate-200"
+                  isBar
+                    ? "bg-slate-700"
+                    : isBeat
+                      ? "bg-slate-400"
+                      : "bg-slate-200/80"
                 }`}
                 style={{
                   left: LABEL_WIDTH + frame * pxPerFrame,
                   top: RULER_HEIGHT,
-                  width: isBar ? 1.5 : 1,
+                  width: isBar ? 3 : isBeat ? 2 : 1,
                   height: ROW_HEIGHT * DRUM_VOICES.length,
                 }}
               />
@@ -740,7 +1026,7 @@ export default function GteDrumWorkspace({
             />
           )}
 
-          {(dragPreviewNotes ?? snapshot.notes).map((note) => {
+          {(toolPreviewNotes ?? dragPreviewNotes ?? snapshot.notes).map((note) => {
             const voice = getDrumVoiceForNote(note);
             const voiceIndex = DRUM_VOICES.findIndex((candidate) => candidate.id === voice.id);
             const selected = selectedNoteIds.has(note.id);
@@ -819,6 +1105,177 @@ export default function GteDrumWorkspace({
           />
         </div>
       </div>
+      {(quantizeDialogOpen || scaleDialogOpen) && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gte-drum-transform-title"
+          className="fixed left-1/2 top-1/2 z-[10000] w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-sky-200 bg-white p-3 shadow-xl shadow-slate-900/15"
+          onPointerDown={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitTransformTool();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              closeTransformTools();
+            }
+          }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2
+                id="gte-drum-transform-title"
+                className="m-0 text-sm font-semibold text-slate-900"
+              >
+                {quantizeDialogOpen
+                  ? "Quantize drum notes"
+                  : "Scale drum notes"}
+              </h2>
+              <p className="mt-1 text-[11px] leading-4 text-slate-500">
+                Previewing {selectedNoteIds.size} selected drum{" "}
+                {selectedNoteIds.size === 1 ? "note" : "notes"}.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={closeTransformTools}
+              className="grid h-6 w-6 place-items-center rounded-md border border-slate-200 text-xs text-slate-500 hover:bg-slate-50"
+              aria-label="Close"
+            >
+              x
+            </button>
+          </div>
+
+          {quantizeDialogOpen ? (
+            <div className="mt-3 grid gap-2">
+              <label className="grid gap-1 text-[11px] font-semibold text-slate-600">
+                Beat subdivision
+                <input
+                  type="number"
+                  min={1}
+                  max={64}
+                  step={1}
+                  value={quantizeSubdivision}
+                  onChange={(event) => {
+                    const value = Math.max(
+                      1,
+                      Math.min(64, Number(event.target.value) || 1)
+                    );
+                    setQuantizeSubdivision(value);
+                    previewQuantize(
+                      value,
+                      quantizePreScale,
+                      quantizeApplyToLength
+                    );
+                  }}
+                  className="h-9 rounded-lg border border-slate-200 px-2 text-sm"
+                />
+              </label>
+              <label className="grid gap-1 text-[11px] font-semibold text-slate-600">
+                Pre scaling
+                <input
+                  type="number"
+                  min={0.01}
+                  max={16}
+                  step={0.01}
+                  value={quantizePreScale}
+                  onChange={(event) => {
+                    const value = Math.max(
+                      0.01,
+                      Math.min(16, Number(event.target.value) || 1)
+                    );
+                    setQuantizePreScale(value);
+                    previewQuantize(
+                      quantizeSubdivision,
+                      value,
+                      quantizeApplyToLength
+                    );
+                  }}
+                  className="h-9 rounded-lg border border-slate-200 px-2 text-sm"
+                />
+              </label>
+              <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-[11px] font-semibold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={quantizeApplyToLength}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setQuantizeApplyToLength(checked);
+                    previewQuantize(
+                      quantizeSubdivision,
+                      quantizePreScale,
+                      checked
+                    );
+                  }}
+                  className="h-4 w-4 accent-sky-600"
+                />
+                Apply to length
+              </label>
+            </div>
+          ) : (
+            <div className="mt-3 grid gap-2">
+              <label className="grid gap-1 text-[11px] font-semibold text-slate-600">
+                Scale mode
+                <select
+                  value={scaleMode}
+                  onChange={(event) => {
+                    const mode = event.target.value as
+                      | "length"
+                      | "start"
+                      | "both";
+                    setScaleMode(mode);
+                    previewScale(scaleFactor, mode);
+                  }}
+                  className="h-9 rounded-lg border border-slate-200 px-2 text-sm"
+                >
+                  <option value="length">Length scaling</option>
+                  <option value="start">Start-time scaling</option>
+                  <option value="both">Start + length</option>
+                </select>
+              </label>
+              <label className="grid gap-1 text-[11px] font-semibold text-slate-600">
+                Scale factor
+                <input
+                  type="number"
+                  min={0.01}
+                  max={16}
+                  step={0.01}
+                  value={scaleFactor}
+                  onChange={(event) => {
+                    const value = Math.max(
+                      0.01,
+                      Math.min(16, Number(event.target.value) || 1)
+                    );
+                    setScaleFactor(value);
+                    previewScale(value, scaleMode);
+                  }}
+                  className="h-9 rounded-lg border border-slate-200 px-2 text-sm"
+                />
+              </label>
+            </div>
+          )}
+
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeTransformTools}
+              className="h-8 rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={commitTransformTool}
+              className="h-8 rounded-lg bg-sky-600 px-3 text-[11px] font-semibold text-white hover:bg-sky-500"
+            >
+              Apply
+            </button>
+          </div>
+        </div>
+      )}
       {playbackUiVisible && (
         <div
           data-gte-floating-ui="true"

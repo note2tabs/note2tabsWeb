@@ -31,6 +31,10 @@ export default function GteTrackWorkspace(props: Props) {
       isActive={Boolean(props.isActive)}
       mobileViewport={props.mobileViewport}
       onFocusWorkspace={props.onFocusWorkspace}
+      editMenuPortalTarget={props.editMenuPortalTarget}
+      onEditMenuPointerEnter={props.onEditMenuPointerEnter}
+      onEditMenuPointerLeave={props.onEditMenuPointerLeave}
+      onSelectionStateChange={props.onSelectionStateChange}
       sharedViewportBarCount={props.sharedViewportBarCount}
       sharedTimelineScrollRatio={props.sharedTimelineScrollRatio}
       onSharedTimelineScrollRatioChange={props.onSharedTimelineScrollRatioChange}
