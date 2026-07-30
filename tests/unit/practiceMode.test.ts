@@ -74,7 +74,7 @@ describe("editor practice mode", () => {
     expect(editorPage).toContain("requestFullscreen()");
     expect(editorPage).toContain("Count-in bars");
     expect(editorPage).toContain("Metronome volume");
-    expect(editorPage).toContain("<PracticeFretboard");
+    expect(editorPage).not.toContain("<PracticeFretboard");
     expect(workspace).toContain("practiceFocusBarRange");
     expect(workspace).toContain("practiceDisplayStartBar");
   });

@@ -149,65 +149,6 @@ const SHORTCUT_HELP_SECTIONS: ReadonlyArray<
   ["Track cursor", TRACK_CURSOR_SHORTCUT_HELP],
 ];
 
-function PracticeFretboard({
-  lane,
-  getFrame,
-  isPlaying,
-}: {
-  lane: EditorSnapshot;
-  getFrame: () => number;
-  isPlaying: boolean;
-}) {
-  const [frame, setFrame] = useState(() => getFrame());
-  useEffect(() => {
-    setFrame(getFrame());
-    if (!isPlaying) return;
-    let raf = 0;
-    let last = 0;
-    const tick = (now: number) => {
-      if (now - last > 80) {
-        last = now;
-        setFrame(getFrame());
-      }
-      raf = window.requestAnimationFrame(tick);
-    };
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
-  }, [getFrame, isPlaying]);
-  const notes = lane.chords
-    .filter((chord) => chord.startTime <= frame && chord.startTime + chord.length > frame)
-    .flatMap((chord) => chord.currentTabs)
-    .map(([stringIndex, fret]) => ({ stringIndex, fret }));
-  const maxFret = Math.max(0, ...notes.map((note) => note.fret));
-  const fretStart = maxFret > 12 ? Math.floor(maxFret / 12) * 12 : 0;
-
-  return (
-    <aside className="hidden min-[1400px]:fixed min-[1400px]:right-[max(1rem,calc(50vw-700px))] min-[1400px]:top-28 min-[1400px]:z-40 min-[1400px]:block min-[1400px]:w-56 rounded-xl border border-slate-200 bg-white p-3 shadow-sm" aria-label="Live fretboard">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-900">Fretboard</h2>
-        <span className="text-[10px] text-slate-500">{notes.length ? "Playing now" : "Ready"}</span>
-      </div>
-      <div className="space-y-1 rounded-lg bg-slate-800 p-2">
-        {Array.from({ length: 6 }).map((_, stringIndex) => (
-          <div key={stringIndex} className="grid grid-cols-13 gap-px border-y border-slate-500/60">
-            {Array.from({ length: 13 }).map((__, offset) => {
-              const fret = fretStart + offset;
-              const active = notes.some((note) => note.stringIndex === stringIndex && note.fret === fret);
-              return (
-                <span key={fret} className="relative h-5 border-r border-slate-500/50">
-                  {active && <span className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />}
-                </span>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-      <div className="mt-2 flex justify-between text-[9px] text-slate-400">
-        <span>Fret {fretStart}</span><span>{fretStart + 12}</span>
-      </div>
-    </aside>
-  );
-}
 const KEY_BASE_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const KEY_TYPE_OPTIONS = [
   "Major",
@@ -4444,24 +4385,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           role="group"
           aria-label="Practice controls"
         >
-          <button
-            type="button"
-            onClick={() => void startPracticeRating()}
-            disabled={practiceRatingBusy || !practiceLaneId}
-            className="h-9 rounded-lg border border-emerald-400 bg-emerald-600 px-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {practiceRatingState === "countdown"
-              ? `Starting in ${practiceRatingCountdown}`
-              : practiceRatingState === "permission"
-              ? "Allow microphone…"
-              : practiceRatingState === "recording"
-              ? "Listening…"
-              : practiceRatingState === "scoring"
-              ? "Rating…"
-              : "Play & rate"}
-          </button>
           {practiceRatingReplays.length > 0 && (
-            <div className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2">
+            <div className="order-[1] w-full rounded-lg border border-slate-200 bg-slate-50 p-2">
               <button
                 type="button"
                 onClick={() => setShowPracticeRating((shown) => !shown)}
@@ -4594,11 +4519,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </div>
               )}
             </div>
-          )}
-          {practiceRatingError && (
-            <p className="w-full rounded-lg bg-rose-50 px-2 py-1.5 text-[10px] leading-4 text-rose-700" role="alert">
-              {practiceRatingError}
-            </p>
           )}
           <label className="flex h-9 items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
             <span>Speed</span>
@@ -4868,6 +4788,27 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               </div>
             </div>
           </details>
+          {practiceRatingError && (
+            <p className="order-[2] w-full rounded-lg bg-rose-50 px-2 py-1.5 text-[10px] leading-4 text-rose-700" role="alert">
+              {practiceRatingError}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => void startPracticeRating()}
+            disabled={practiceRatingBusy || !practiceLaneId}
+            className="order-[3] h-9 rounded-lg border border-emerald-400 bg-emerald-600 px-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {practiceRatingState === "countdown"
+              ? `Starting in ${practiceRatingCountdown}`
+              : practiceRatingState === "permission"
+              ? "Allow microphone…"
+              : practiceRatingState === "recording"
+              ? "Listening…"
+              : practiceRatingState === "scoring"
+              ? "Rating…"
+              : "Play & rate"}
+          </button>
         </div>
       </div>
       {!barSelection?.barIndices.length && (
@@ -6973,13 +6914,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         )}
         {practiceModeEnabled && !isMobileEditMode && renderPracticeControls()}
-        {practiceModeEnabled && !isMobileEditMode && practiceLane && (
-          <PracticeFretboard
-            lane={practiceLane}
-            getFrame={getGlobalPlaybackFrame}
-            isPlaying={globalPlaybackIsPlaying}
-          />
-        )}
         {loading && !canvas && (
           <EditorLoadingState />
         )}
