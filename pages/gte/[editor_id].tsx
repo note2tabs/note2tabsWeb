@@ -2765,6 +2765,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
   }, [practiceRatingsStorageKey]);
 
+  const latestPracticeRatingId = practiceRatingReplays[0]?.id ?? null;
+  useEffect(() => {
+    if (!latestPracticeRatingId) return;
+    setSelectedPracticeRatingId(latestPracticeRatingId);
+    setShowPracticeRating(true);
+  }, [latestPracticeRatingId]);
+
   useEffect(() => {
     if (!canvas || practiceSettingsHydratedRef.current || typeof window === "undefined") return;
     practiceSettingsHydratedRef.current = true;
@@ -4823,13 +4830,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       >
       {practiceRatingState === "countdown" && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 backdrop-blur-sm"
+          className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center"
           role="status"
           aria-live="assertive"
         >
-          <div className="flex h-32 w-32 items-center justify-center rounded-full border-4 border-white/80 bg-slate-950/75 text-6xl font-black text-white shadow-2xl">
+          <span className="text-7xl font-black text-slate-950 drop-shadow-[0_2px_2px_rgba(255,255,255,0.95)]">
             {practiceRatingCountdown}
-          </div>
+          </span>
         </div>
       )}
       <div
