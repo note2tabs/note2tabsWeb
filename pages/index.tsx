@@ -36,6 +36,7 @@ import SeoHead, {
   WEBSITE_ID,
 } from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
+import TranscriptionModelValueNote from "../components/TranscriptionModelValueNote";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
 import {
@@ -1448,6 +1449,17 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   </p>
                 )}
               </div>
+              {!showInstrumentPrompt && (
+                <TranscriptionModelValueNote
+                  model={transcriptionModel}
+                  isPremium={isPremiumUser}
+                  onSelectHeavy={() => {
+                    setTranscriptionModel("heavy");
+                    trackCtaClick("try_heavy_model", { surface: "hero_funnel" });
+                  }}
+                  surface="hero_funnel"
+                />
+              )}
 
               {showInstrumentPrompt ? (
                 <div className="instrument-prompt">
@@ -1989,6 +2001,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 </div>
                 <ul className="pricing-list">
                   <li>10 credits per month</li>
+                  <li>Light and Heavy transcription models</li>
+                  <li>About 3 Heavy 30-second clips per month</li>
                   <li>Upload size: 50 MB</li>
                   <li>Audio clips up to 60 s</li>
                   <li>YouTube clips up to 30 s</li>
@@ -2014,7 +2028,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <p>Built for songs you plan to finish, not just test.</p>
                 </div>
                 <ul className="pricing-list">
-                  <li>50 credits/month, rollover up to 100</li>
+                  <li>50 credits/month—5× more than Free</li>
+                  <li>About 16 Heavy 30-second clips per month</li>
+                  <li>Unused credits roll over, up to 100</li>
                   <li>Upload size: 200 MB</li>
                   <li>Full-length audio-file transcription</li>
                   <li>YouTube clips up to 30 s</li>

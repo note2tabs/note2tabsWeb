@@ -115,6 +115,47 @@ export default function PricingPage() {
               </Link>
             </div>
 
+            <section className="pricing-model-story" aria-labelledby="pricing-model-title">
+              <div className="pricing-model-story__intro">
+                <span className="pricing-model-story__eyebrow">Two transcription models</span>
+                <h2 id="pricing-model-title">Use Heavy when accuracy matters most.</h2>
+                <p>
+                  Both plans include Light and Heavy. Premium gives you the credits to use
+                  our highest-accuracy model much more often.
+                </p>
+              </div>
+              <div className="pricing-model-comparison">
+                <div className="pricing-model-option">
+                  <div>
+                    <h3>Light</h3>
+                    <span>Fast</span>
+                  </div>
+                  <p>For clear, focused guitar recordings.</p>
+                  <strong>2 credits / 30 sec</strong>
+                </div>
+                <div className="pricing-model-option pricing-model-option--heavy">
+                  <div>
+                    <h3>Heavy</h3>
+                    <span>Highest accuracy</span>
+                  </div>
+                  <p>For complex and multi-instrument recordings.</p>
+                  <strong>3 credits / 30 sec</strong>
+                </div>
+              </div>
+              <div className="pricing-heavy-usage" aria-label="Heavy model monthly usage comparison">
+                <div>
+                  <span>Free</span>
+                  <strong>About 3</strong>
+                  <small>30-second Heavy clips / month</small>
+                </div>
+                <div>
+                  <span>Premium</span>
+                  <strong>About 16</strong>
+                  <small>30-second Heavy clips / month</small>
+                </div>
+              </div>
+            </section>
+
             <div className="pricing-grid">
               <div className="pricing-card pricing-card--free">
                 <div className="pricing-header">
@@ -129,6 +170,8 @@ export default function PricingPage() {
                 </div>
                 <ul className="pricing-list">
                   <li>10 credits per month</li>
+                  <li>Light and Heavy transcription models</li>
+                  <li>About 3 Heavy 30-second clips per month</li>
                   <li>Standard speed</li>
                   <li>Upload size 50 MB</li>
                   <li>Audio clips up to 60 s</li>
@@ -149,7 +192,9 @@ export default function PricingPage() {
                   </div>
                 </div>
                 <ul className="pricing-list">
-                  <li>50 credits per month, rollover up to 100</li>
+                  <li>50 credits per month—5× more than Free</li>
+                  <li>About 16 Heavy 30-second clips per month</li>
+                  <li>Unused credits roll over, up to 100</li>
                   <li>Extra speed</li>
                   <li>Upload size 200 MB</li>
                   <li>Full-length audio-file transcription</li>

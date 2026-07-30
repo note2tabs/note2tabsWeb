@@ -28,6 +28,7 @@ import {
 } from "../lib/transcriptionClip";
 import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
+import TranscriptionModelValueNote from "../components/TranscriptionModelValueNote";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
 import {
@@ -1324,6 +1325,12 @@ export default function TranscriberPage() {
                     disabled={loading || authHandoffBusy}
                   />
                 </div>
+                <TranscriptionModelValueNote
+                  model={transcriptionModel}
+                  isPremium={isPremiumUser}
+                  onSelectHeavy={() => setTranscriptionModel("heavy")}
+                  surface="transcriber"
+                />
               </div>
 
               {mode === "YOUTUBE" && (
