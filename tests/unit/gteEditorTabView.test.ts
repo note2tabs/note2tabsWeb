@@ -50,4 +50,49 @@ describe("gte editor tab view", () => {
       expect(line.x).toBeCloseTo(expectedBarLines[index], 8);
     });
   });
+
+  it("collapses empty practice bars and uses shared readable widths for populated bars", () => {
+    const view = buildEditorTabView(baseSnapshot(), {
+      framesPerBar: 480,
+      beatsPerBar: 7,
+      scale: 1,
+      playheadFrame: 0,
+      minBarCount: 4,
+      variableBarWidths: true,
+    });
+
+    expect(view.barWidths).toEqual([112, 112, 112, 42]);
+    expect(view.barStartXs).toEqual([30, 142, 254, 366, 408]);
+    expect(view.cursorX).toBe(view.placements.find((placement) => placement.startTime === 0)?.x);
+  });
+
+  it("spreads dense practice notes apart and keeps dense bars the same width", () => {
+    const snapshot = baseSnapshot();
+    snapshot.totalFrames = 960;
+    snapshot.chords = [];
+    snapshot.notes = Array.from({ length: 12 }, (_, index) => ({
+      id: index + 1,
+      startTime: (index < 6 ? 0 : 480) + (index % 6) * 60,
+      length: 30,
+      midiNum: 60 + index,
+      tab: [index % 6, index + 1] as [number, number],
+      optimals: [],
+    }));
+    const view = buildEditorTabView(snapshot, {
+      framesPerBar: 480,
+      beatsPerBar: 8,
+      scale: 1,
+      playheadFrame: 0,
+      variableBarWidths: true,
+    });
+
+    expect(view.barWidths[0]).toBe(view.barWidths[1]);
+    expect(view.barWidths[0]).toBeGreaterThanOrEqual(176);
+    const firstBarXs = view.placements
+      .filter((placement) => placement.startTime < 480)
+      .map((placement) => placement.x);
+    firstBarXs.slice(1).forEach((x, index) => {
+      expect(x - firstBarXs[index]).toBeGreaterThanOrEqual(20);
+    });
+  });
 });

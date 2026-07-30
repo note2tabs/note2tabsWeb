@@ -3890,20 +3890,9 @@ export default function GteWorkspace({
         scale,
         playheadFrame: effectivePlayheadFrame,
         minBarCount: viewportBarCount,
+        variableBarWidths: practiceMode,
       }),
-    [effectivePlayheadFrame, framesPerMeasure, scale, snapshot, timeSignature, viewportBarCount]
-  );
-  const practiceBarsPerRow = Math.max(
-    1,
-    Math.min(
-      6,
-      practiceScoreWidth > 0
-        ? Math.floor(
-            Math.max(1, practiceScoreWidth - 46) /
-              Math.max(1, editorTabView.barWidth)
-          )
-        : 6
-    )
+    [effectivePlayheadFrame, framesPerMeasure, practiceMode, scale, snapshot, timeSignature, viewportBarCount]
   );
   const practiceRowGap = 26;
   const practiceRowHeight =
@@ -3916,29 +3905,71 @@ export default function GteWorkspace({
     practiceDisplayStartBar + 1,
     Math.min(editorTabView.barCount, practiceFocusBarRange?.endBar ?? editorTabView.barCount)
   );
-  const practiceRowCount = Math.max(
-    1,
-    Math.ceil((practiceDisplayEndBar - practiceDisplayStartBar) / practiceBarsPerRow)
-  );
+  const practiceRows = useMemo(() => {
+    const maximumBarWidth = Math.max(1, ...editorTabView.barWidths);
+    const availableWidth =
+      practiceScoreWidth > 0
+        ? Math.max(42, practiceScoreWidth - 46)
+        : maximumBarWidth * 4;
+    const rows: Array<{ firstBar: number; lastBar: number }> = [];
+    let firstBar = practiceDisplayStartBar;
+    while (firstBar < practiceDisplayEndBar) {
+      let lastBar = firstBar;
+      let usedWidth = 0;
+      while (lastBar < practiceDisplayEndBar) {
+        const nextWidth = editorTabView.barWidths[lastBar] || 42;
+        if (lastBar > firstBar && usedWidth + nextWidth > availableWidth) break;
+        usedWidth += nextWidth;
+        lastBar += 1;
+      }
+      rows.push({ firstBar, lastBar: Math.max(firstBar + 1, lastBar) });
+      firstBar = Math.max(firstBar + 1, lastBar);
+    }
+    return rows.length
+      ? rows
+      : [{ firstBar: practiceDisplayStartBar, lastBar: practiceDisplayEndBar }];
+  }, [
+    editorTabView.barWidths,
+    practiceDisplayEndBar,
+    practiceDisplayStartBar,
+    practiceScoreWidth,
+  ]);
+  const practiceRowCount = practiceRows.length;
   const getPracticePosition = useCallback(
     (sourceX: number) => {
-      const contentX = Math.max(0, sourceX - 30);
-      const barIndex = Math.min(
-        practiceDisplayEndBar - 1,
-        Math.max(practiceDisplayStartBar, Math.floor(contentX / Math.max(1, editorTabView.barWidth)))
+      const clampedSourceX = Math.max(
+        editorTabView.barStartXs[practiceDisplayStartBar],
+        Math.min(editorTabView.barStartXs[practiceDisplayEndBar], sourceX)
       );
-      const rowIndex = Math.floor((barIndex - practiceDisplayStartBar) / practiceBarsPerRow);
+      let barIndex = practiceDisplayStartBar;
+      for (
+        let candidate = practiceDisplayStartBar;
+        candidate < practiceDisplayEndBar;
+        candidate += 1
+      ) {
+        barIndex = candidate;
+        if (clampedSourceX < editorTabView.barStartXs[candidate + 1]) break;
+      }
+      const rowIndex = Math.max(
+        0,
+        practiceRows.findIndex(
+          (row) => barIndex >= row.firstBar && barIndex < row.lastBar
+        )
+      );
+      const rowFirstBar = practiceRows[rowIndex]?.firstBar ?? practiceDisplayStartBar;
       return {
         rowIndex,
-        x:
-          30 +
-          contentX -
-          practiceDisplayStartBar * editorTabView.barWidth -
-          rowIndex * practiceBarsPerRow * editorTabView.barWidth,
+        x: 30 + clampedSourceX - editorTabView.barStartXs[rowFirstBar],
         y: rowIndex * practiceRowHeight,
       };
     },
-    [editorTabView.barWidth, practiceDisplayEndBar, practiceDisplayStartBar, practiceRowHeight]
+    [
+      editorTabView.barStartXs,
+      practiceDisplayEndBar,
+      practiceDisplayStartBar,
+      practiceRowHeight,
+      practiceRows,
+    ]
   );
   const practiceRatingByPlacement = useMemo(
     () =>
@@ -13550,14 +13581,10 @@ export default function GteWorkspace({
             data-gte-practice-score="true"
             style={{ height: practiceRowCount * practiceRowHeight }}
           >
-            {Array.from({ length: practiceRowCount }).map((_, rowIndex) => {
-              const firstBar = practiceDisplayStartBar + rowIndex * practiceBarsPerRow;
-              const lastBar = Math.min(
-                practiceDisplayEndBar,
-                firstBar + practiceBarsPerRow
-              );
-              const sourceLeft = firstBar * editorTabView.barWidth;
-              const sourceRight = lastBar * editorTabView.barWidth;
+            {practiceRows.map(({ firstBar, lastBar }, rowIndex) => {
+              const sourceLeft = editorTabView.barStartXs[firstBar] - 30;
+              const sourceRight = editorTabView.barStartXs[lastBar] - 30;
+              const rowContentWidth = sourceRight - sourceLeft;
               const rowTop = rowIndex * practiceRowHeight;
               return (
                 <div
@@ -13586,8 +13613,11 @@ export default function GteWorkspace({
                             : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                         }`}
                         style={{
-                          left: 30 + offset * editorTabView.barWidth,
-                          width: editorTabView.barWidth,
+                          left:
+                            30 +
+                            editorTabView.barStartXs[barIndex] -
+                            editorTabView.barStartXs[firstBar],
+                          width: editorTabView.barWidths[barIndex],
                           height: TIMELINE_BAR_HEADER_HEIGHT,
                         }}
                         aria-label={`Select Bar ${barIndex + 1}`}
@@ -13601,7 +13631,10 @@ export default function GteWorkspace({
                       key={`practice-bar-line-${rowIndex}-${offset}`}
                       className="absolute w-px bg-slate-400"
                       style={{
-                        left: 30 + offset * editorTabView.barWidth,
+                        left:
+                          30 +
+                          editorTabView.barStartXs[firstBar + offset] -
+                          editorTabView.barStartXs[firstBar],
                         top: TIMELINE_BAR_HEADER_HEIGHT,
                         height: editorTabView.height,
                       }}
@@ -13622,7 +13655,7 @@ export default function GteWorkspace({
                         className="absolute h-px bg-slate-500"
                         style={{
                           left: 30,
-                          width: (lastBar - firstBar) * editorTabView.barWidth,
+                          width: rowContentWidth,
                           top: TIMELINE_BAR_HEADER_HEIGHT + line.y,
                         }}
                       />
@@ -13700,7 +13733,7 @@ export default function GteWorkspace({
                       const y = editorTabView.strings[effect.stringIndex]?.y ?? 0;
                       const left = Math.max(30, Math.min(effect.x1, effect.x2) - sourceLeft);
                       const right = Math.min(
-                        30 + (lastBar - firstBar) * editorTabView.barWidth,
+                        30 + rowContentWidth,
                         Math.max(effect.x1, effect.x2) - sourceLeft
                       );
                       return (
