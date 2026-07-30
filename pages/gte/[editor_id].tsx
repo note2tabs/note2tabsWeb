@@ -4503,19 +4503,94 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 ))}
               </div>
               {selectedPracticeRating && (
-                <div className="mt-2 max-h-28 space-y-1 overflow-y-auto" aria-label="Bar-by-bar rating">
-                  {selectedPracticeRating.bars.map((bar) => (
-                    <div
-                      key={`${selectedPracticeRating.id}-bar-${bar.barIndex}`}
-                      className="flex items-center justify-between rounded bg-white px-1.5 py-1 text-[10px]"
-                    >
-                      <span className="font-semibold text-slate-700">Bar {bar.barIndex + 1}</span>
-                      <span className="font-bold text-slate-900">{bar.score}%</span>
-                      <span className="text-emerald-700">{bar.correct} ✓</span>
-                      <span className="text-amber-700">{bar.timing} ~</span>
-                      <span className="text-rose-700">{bar.missed + bar.falseNotes} ✕</span>
-                    </div>
-                  ))}
+                <div
+                  className={`mt-2 rounded bg-white px-1 py-1 ${
+                    selectedPracticeRating.bars.length > 15 ? "overflow-x-auto" : "overflow-hidden"
+                  }`}
+                  role="img"
+                  aria-label={`Accuracy by bar: ${selectedPracticeRating.bars
+                    .map((bar) => `Bar ${bar.barIndex + 1}, ${bar.score}%`)
+                    .join("; ")}`}
+                >
+                  {(() => {
+                    const bars = selectedPracticeRating.bars;
+                    const chartWidth =
+                      bars.length <= 15 ? 190 : Math.max(190, 18 + (bars.length - 1) * 16);
+                    const left = 9;
+                    const right = chartWidth - 9;
+                    const step = bars.length > 1 ? (right - left) / (bars.length - 1) : 0;
+                    const points = bars.map((bar, index) => {
+                      const score = Math.max(0, Math.min(100, bar.score));
+                      return {
+                        ...bar,
+                        score,
+                        x: bars.length === 1 ? chartWidth / 2 : left + index * step,
+                        y: 13 + ((100 - score) / 100) * 45,
+                      };
+                    });
+                    return (
+                      <svg
+                        viewBox={`0 0 ${chartWidth} 76`}
+                        className="block h-[76px] max-w-none"
+                        style={{ width: bars.length <= 15 ? "100%" : `${chartWidth}px` }}
+                        aria-hidden="true"
+                      >
+                        {[13, 35.5, 58].map((y) => (
+                          <line
+                            key={`accuracy-grid-${y}`}
+                            x1={left}
+                            x2={right}
+                            y1={y}
+                            y2={y}
+                            stroke="#e2e8f0"
+                            strokeWidth="0.7"
+                          />
+                        ))}
+                        <polyline
+                          points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+                          fill="none"
+                          stroke="#0f766e"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                          strokeLinecap="round"
+                        />
+                        {points.map((point) => {
+                          const fill =
+                            point.score >= 85
+                              ? "#10b981"
+                              : point.score >= 60
+                              ? "#f59e0b"
+                              : "#f43f5e";
+                          return (
+                            <g key={`${selectedPracticeRating.id}-bar-${point.barIndex}`}>
+                              <title>{`Bar ${point.barIndex + 1}: ${point.score}% accuracy`}</title>
+                              <circle cx={point.x} cy={point.y} r="2.4" fill={fill} stroke="white" strokeWidth="0.8" />
+                              <text
+                                x={point.x}
+                                y={Math.max(7, point.y - 4)}
+                                textAnchor="middle"
+                                fontSize="5.5"
+                                fontWeight="700"
+                                fill="#334155"
+                              >
+                                {point.score}%
+                              </text>
+                              <text
+                                x={point.x}
+                                y="70"
+                                textAnchor="middle"
+                                fontSize="5.5"
+                                fontWeight="600"
+                                fill="#64748b"
+                              >
+                                B{point.barIndex + 1}
+                              </text>
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    );
+                  })()}
                 </div>
               )}
             </div>
