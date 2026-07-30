@@ -28,6 +28,12 @@ import {
   resolvePracticeLoopRange,
 } from "../../lib/gtePractice";
 import {
+  buildPracticeRatingBars,
+  encodeMonoWav,
+  normalizePracticeRatingReplay,
+  type PracticeRatingReplay,
+} from "../../lib/gtePracticeRating";
+import {
   DEFAULT_TRACK_INSTRUMENT_ID,
   getTrackInstrumentOptions,
   loadTrackInstrumentOptions,
@@ -1206,6 +1212,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [speedTrainerTarget, setSpeedTrainerTarget] = useState(1.5);
   const [speedTrainerStep, setSpeedTrainerStep] = useState(0.05);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [practiceRatingReplays, setPracticeRatingReplays] = useState<PracticeRatingReplay[]>([]);
+  const [selectedPracticeRatingId, setSelectedPracticeRatingId] = useState<string | null>(null);
+  const [showPracticeRating, setShowPracticeRating] = useState(true);
+  const [practiceRatingState, setPracticeRatingState] = useState<
+    "idle" | "permission" | "countdown" | "recording" | "scoring"
+  >("idle");
+  const [practiceRatingCountdown, setPracticeRatingCountdown] = useState(5);
+  const [practiceRatingError, setPracticeRatingError] = useState<string | null>(null);
   const [trackMuteById, setTrackMuteById] = useState<Record<string, boolean>>({});
   const [trackVolumeById, setTrackVolumeById] = useState<Record<string, number>>({});
   const [trackPanById, setTrackPanById] = useState<Record<string, number>>({});
@@ -2732,10 +2746,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const normalizedPlaybackSpeed = normalizePlaybackSpeed(playbackSpeed);
   const globalMetronomeBeatsPerBar = normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
   const practiceSettingsStorageKey = `note2tabs:practice:${editorId}:v1`;
+  const practiceRatingsStorageKey = `note2tabs:practice-ratings:${editorId}:v1`;
 
   useEffect(() => {
     practiceSettingsHydratedRef.current = false;
   }, [editorId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(practiceRatingsStorageKey) || "[]");
+      const replays = Array.isArray(saved) ? saved.slice(0, 3) : [];
+      setPracticeRatingReplays(replays);
+      setSelectedPracticeRatingId(replays[0]?.id ?? null);
+    } catch {
+      setPracticeRatingReplays([]);
+      setSelectedPracticeRatingId(null);
+    }
+  }, [practiceRatingsStorageKey]);
 
   useEffect(() => {
     if (!canvas || practiceSettingsHydratedRef.current || typeof window === "undefined") return;
@@ -3234,15 +3262,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       isCurrentRequest: () => boolean,
       startFrame: number,
       speedOverride?: number,
-      isLoopRestart = false
+      isLoopRestart = false,
+      oneShotRange?: { startFrame: number; endFrame: number }
     ) => {
       if (!canvas) return null;
       const scheduleStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
       const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? normalizedPlaybackSpeed);
       const playbackStartFrame =
-        practiceLoopEnabled && globalPracticeLoopRange ? globalPracticeLoopRange.startFrame : startFrame;
+        oneShotRange?.startFrame ??
+        (practiceLoopEnabled && globalPracticeLoopRange ? globalPracticeLoopRange.startFrame : startFrame);
       const playbackEndFrame =
-        practiceLoopEnabled && globalPracticeLoopRange ? globalPracticeLoopRange.endFrame : canvasTimelineEnd;
+        oneShotRange?.endFrame ??
+        (practiceLoopEnabled && globalPracticeLoopRange ? globalPracticeLoopRange.endFrame : canvasTimelineEnd);
 
       const getMidiFromTab = (lane: EditorSnapshot, tab: [number, number], fallback?: number) => {
         const fromRef = lane.tabRef?.[tab[0]]?.[tab[1]];
@@ -3551,7 +3582,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       master.gain.value = globalPlaybackVolume;
       master.connect(ctx.destination);
       globalPlaybackMasterGainRef.current = master;
-      const shouldCountIn = countInEnabled && (!isLoopRestart || countInEveryLoop);
+      const shouldCountIn = !oneShotRange && countInEnabled && (!isLoopRestart || countInEveryLoop);
       const countInSec = shouldCountIn
         ? frameDeltaToSeconds(FIXED_FRAMES_PER_BAR * countInBars, globalPlaybackFps, runPlaybackSpeed)
         : 0;
@@ -3640,10 +3671,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const startGlobalPlayback = useCallback(async (
     startFrameOverride?: number,
     speedOverride?: number,
-    isLoopRestart = false
+    isLoopRestart = false,
+    options?: {
+      oneShotRange?: { startFrame: number; endFrame: number };
+      onScheduled?: (delaySeconds: number) => void;
+      onComplete?: () => void;
+    }
   ) => {
-    if (!canvas) return;
-    if (globalPlaybackRafRef.current !== null || globalPlaybackStartPendingRef.current) return;
+    if (!canvas) return false;
+    if (globalPlaybackRafRef.current !== null || globalPlaybackStartPendingRef.current) return false;
     globalPlaybackStartPendingRef.current = true;
     setGlobalPlaybackIsPreparing(true);
     const requestId = globalPlaybackStartRequestRef.current + 1;
@@ -3656,9 +3692,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       )
     );
     const startFrame =
-      practiceLoopEnabled && globalPracticeLoopRange
+      options?.oneShotRange?.startFrame ??
+      (practiceLoopEnabled && globalPracticeLoopRange
         ? globalPracticeLoopRange.startFrame
-        : requestedStartFrame;
+        : requestedStartFrame);
     stopGlobalPlaybackAudio();
     const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? normalizedPlaybackSpeed);
     let scheduled: Awaited<ReturnType<typeof scheduleGlobalPlayback>>;
@@ -3676,7 +3713,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           globalPlaybackAudioRef.current === playbackContext,
         startFrame,
         runPlaybackSpeed,
-        isLoopRestart
+        isLoopRestart,
+        options?.oneShotRange
       );
     } catch (error) {
       if (playbackContext) {
@@ -3689,7 +3727,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (globalPlaybackStartRequestRef.current === requestId) {
         setSaveError(error instanceof Error ? error.message : "Could not load the selected guitar sound.");
       }
-      return;
+      return false;
     } finally {
       if (globalPlaybackStartRequestRef.current === requestId) {
         globalPlaybackStartPendingRef.current = false;
@@ -3700,7 +3738,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (scheduled?.ctx) {
         closeAudioContext(scheduled.ctx);
       }
-      return;
+      return false;
     }
     if (!scheduled?.ctx) {
       if (playbackContext) {
@@ -3711,13 +3749,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         }
       }
       setGlobalPlaybackIsPlaying(false);
-      return;
+      return false;
     }
 
     globalPlaybackAudioStartRef.current = scheduled.startTimeSec ?? null;
     globalPlaybackEndFrameRef.current = Math.max(startFrame, Math.round(scheduled.endFrame ?? startFrame));
     globalPlaybackStartFrameRef.current = Math.round(scheduled.startFrame ?? startFrame);
     globalPlaybackStartTimeRef.current = performance.now();
+    options?.onScheduled?.(
+      Math.max(0, (scheduled.startTimeSec ?? scheduled.ctx.currentTime) - scheduled.ctx.currentTime)
+    );
     syncGlobalPlaybackFrame(startFrame, { forceReact: true });
     setGlobalPlaybackIsPlaying(true);
 
@@ -3732,7 +3773,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         globalPlaybackStartFrameRef.current + elapsed * globalPlaybackFps * runPlaybackSpeed;
       const endFrame = globalPlaybackEndFrameRef.current ?? canvasTimelineEnd;
       if (nextFrame >= endFrame) {
-        if (practiceLoopEnabled && globalPracticeLoopRange) {
+        if (!options?.oneShotRange && practiceLoopEnabled && globalPracticeLoopRange) {
           const nextSpeed = speedTrainerEnabled
             ? nextSpeedTrainerValue(runPlaybackSpeed, speedTrainerStep, speedTrainerTarget)
             : runPlaybackSpeed;
@@ -3748,6 +3789,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         }
         syncGlobalPlaybackFrame(endFrame, { forceReact: true });
         stopGlobalPlayback();
+        options?.onComplete?.();
         return;
       }
       incrementGtePlaybackFrameUpdates();
@@ -3756,6 +3798,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     };
 
     globalPlaybackRafRef.current = window.requestAnimationFrame(tick);
+    return true;
   }, [
     canvas,
     canvasTimelineEnd,
@@ -4205,6 +4248,175 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const practiceInstrumentValue = practiceLane
     ? normalizeTrackInstrumentId(practiceLane.instrumentId)
     : DEFAULT_TRACK_INSTRUMENT_ID;
+  const selectedPracticeRating =
+    showPracticeRating
+      ? practiceRatingReplays.find(
+          (replay) =>
+            replay.id === selectedPracticeRatingId && replay.laneId === practiceLaneId
+        ) ?? null
+      : null;
+  const practiceRatingBusy = practiceRatingState !== "idle";
+
+  const startPracticeRating = async () => {
+    if (
+      !practiceLane ||
+      !practiceLaneId ||
+      !globalPracticeLoopRange ||
+      practiceRatingBusy
+    ) {
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setPracticeRatingError("Microphone recording is not supported by this browser.");
+      return;
+    }
+
+    let stream: MediaStream | null = null;
+    let microphoneContext: AudioContext | null = null;
+    try {
+      setPracticeRatingError(null);
+      stopGlobalPlayback();
+      setPracticeRatingState("permission");
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          channelCount: 1,
+        },
+      });
+
+      setPracticeRatingState("countdown");
+      for (let count = 5; count > 0; count -= 1) {
+        setPracticeRatingCountdown(count);
+        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      }
+
+      microphoneContext = new AudioContext();
+      await resumeAudioContext(microphoneContext);
+      const source = microphoneContext.createMediaStreamSource(stream);
+      const processor = microphoneContext.createScriptProcessor(4096, 1, 1);
+      const silentOutput = microphoneContext.createGain();
+      silentOutput.gain.value = 0;
+      const chunks: Float32Array[] = [];
+      processor.onaudioprocess = (event) => {
+        chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+      };
+      source.connect(processor);
+      processor.connect(silentOutput);
+      silentOutput.connect(microphoneContext.destination);
+
+      setPracticeRatingState("recording");
+      const recordingStartedAt = performance.now();
+      let playbackLeadSeconds = 0;
+      const playbackDurationSeconds =
+        (globalPracticeLoopRange.endFrame - globalPracticeLoopRange.startFrame) /
+        (globalPlaybackFps * normalizedPlaybackSpeed);
+      await Promise.race([
+        new Promise<void>((resolve, reject) => {
+          void startGlobalPlayback(
+            globalPracticeLoopRange.startFrame,
+            normalizedPlaybackSpeed,
+            false,
+            {
+              oneShotRange: globalPracticeLoopRange,
+              onScheduled: (delaySeconds) => {
+                playbackLeadSeconds =
+                  (performance.now() - recordingStartedAt) / 1000 + delaySeconds;
+              },
+              onComplete: resolve,
+            }
+          ).then((started) => {
+            if (!started) reject(new Error("Practice playback could not start."));
+          });
+        }),
+        new Promise<void>((_, reject) =>
+          window.setTimeout(
+            () => reject(new Error("Practice playback did not finish in time.")),
+            Math.ceil((playbackDurationSeconds + 15) * 1000)
+          )
+        ),
+      ]);
+      await new Promise((resolve) => window.setTimeout(resolve, 250));
+
+      processor.disconnect();
+      source.disconnect();
+      silentOutput.disconnect();
+      processor.onaudioprocess = null;
+      const totalSamples = chunks.reduce((total, chunk) => total + chunk.length, 0);
+      const samples = new Float32Array(totalSamples);
+      let sampleOffset = 0;
+      chunks.forEach((chunk) => {
+        samples.set(chunk, sampleOffset);
+        sampleOffset += chunk.length;
+      });
+      const sampleRate = microphoneContext.sampleRate;
+      await microphoneContext.close();
+      microphoneContext = null;
+      stream.getTracks().forEach((track) => track.stop());
+      stream = null;
+
+      setPracticeRatingState("scoring");
+      const { bars, eventMap } = buildPracticeRatingBars({
+        snapshot: practiceLane,
+        range: globalPracticeLoopRange,
+        framesPerBar: FIXED_FRAMES_PER_BAR,
+        fps: globalPlaybackFps,
+        playbackSpeed: normalizedPlaybackSpeed,
+        recordingLeadSeconds: playbackLeadSeconds,
+      });
+      const body = new FormData();
+      body.set("audio", encodeMonoWav(samples, sampleRate), "practice.wav");
+      body.set("sample_rate", String(sampleRate));
+      body.set("bars", JSON.stringify(bars));
+      const response = await fetch("/api/practice-rate", { method: "POST", body });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message =
+          payload?.error || payload?.detail || "The performance could not be rated.";
+        throw new Error(payload?.reason ? `${message} ${payload.reason}` : message);
+      }
+      const replay = normalizePracticeRatingReplay({
+        laneId: practiceLaneId,
+        startFrame: globalPracticeLoopRange.startFrame,
+        endFrame: globalPracticeLoopRange.endFrame,
+        playbackSpeed: normalizedPlaybackSpeed,
+        eventMap,
+        responseBars: payload?.bars,
+        fps: globalPlaybackFps,
+        recordingLeadSeconds: playbackLeadSeconds,
+        framesPerBar: FIXED_FRAMES_PER_BAR,
+      });
+      const nextReplays = [replay, ...practiceRatingReplays].slice(0, 3);
+      setPracticeRatingReplays(nextReplays);
+      setSelectedPracticeRatingId(replay.id);
+      setShowPracticeRating(true);
+      window.localStorage.setItem(practiceRatingsStorageKey, JSON.stringify(nextReplays));
+    } catch (error) {
+      stopGlobalPlayback();
+      const errorName =
+        error && typeof error === "object" && "name" in error
+          ? String((error as { name?: unknown }).name)
+          : "";
+      const microphonePermissionDenied =
+        errorName === "NotAllowedError" ||
+        errorName === "PermissionDeniedError" ||
+        errorName === "SecurityError";
+      setPracticeRatingError(
+        microphonePermissionDenied
+          ? "Permission to use the microphone has to be given before your playing can be rated. Allow Microphone in the browser's site controls, then try again."
+          : error instanceof Error
+          ? error.message
+          : "The performance could not be rated."
+      );
+    } finally {
+      if (microphoneContext && microphoneContext.state !== "closed") {
+        await microphoneContext.close().catch(() => undefined);
+      }
+      stream?.getTracks().forEach((track) => track.stop());
+      setPracticeRatingState("idle");
+    }
+  };
 
   const renderPracticeControls = () => (
     <section
@@ -4225,6 +4437,87 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           role="group"
           aria-label="Practice controls"
         >
+          <button
+            type="button"
+            onClick={() => void startPracticeRating()}
+            disabled={practiceRatingBusy || !practiceLaneId}
+            className="h-9 rounded-lg border border-emerald-400 bg-emerald-600 px-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {practiceRatingState === "countdown"
+              ? `Starting in ${practiceRatingCountdown}`
+              : practiceRatingState === "permission"
+              ? "Allow microphone…"
+              : practiceRatingState === "recording"
+              ? "Listening…"
+              : practiceRatingState === "scoring"
+              ? "Rating…"
+              : "Play & rate"}
+          </button>
+          {practiceRatingReplays.length > 0 && (
+            <div className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2">
+              <button
+                type="button"
+                onClick={() => setShowPracticeRating((shown) => !shown)}
+                aria-pressed={showPracticeRating}
+                className="flex w-full items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-slate-600"
+              >
+                <span>Show replay feedback</span>
+                <span
+                  className={`relative h-5 w-9 rounded-full transition ${
+                    showPracticeRating ? "bg-emerald-500" : "bg-slate-300"
+                  }`}
+                  aria-hidden="true"
+                >
+                  <span
+                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
+                      showPracticeRating ? "left-[18px]" : "left-0.5"
+                    }`}
+                  />
+                </span>
+              </button>
+              <div className="mt-2 grid grid-cols-3 gap-1" aria-label="Choose a rated replay">
+                {practiceRatingReplays.map((replay, index) => (
+                  <button
+                    key={replay.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPracticeRatingId(replay.id);
+                      setShowPracticeRating(true);
+                    }}
+                    aria-pressed={selectedPracticeRatingId === replay.id}
+                    className={`rounded border px-1 py-1 text-[10px] font-semibold ${
+                      selectedPracticeRatingId === replay.id
+                        ? "border-emerald-400 bg-white text-emerald-800"
+                        : "border-slate-200 bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {index === 0 ? "Latest" : `Replay ${index + 1}`}
+                  </button>
+                ))}
+              </div>
+              {selectedPracticeRating && (
+                <div className="mt-2 max-h-28 space-y-1 overflow-y-auto" aria-label="Bar-by-bar rating">
+                  {selectedPracticeRating.bars.map((bar) => (
+                    <div
+                      key={`${selectedPracticeRating.id}-bar-${bar.barIndex}`}
+                      className="flex items-center justify-between rounded bg-white px-1.5 py-1 text-[10px]"
+                    >
+                      <span className="font-semibold text-slate-700">Bar {bar.barIndex + 1}</span>
+                      <span className="font-bold text-slate-900">{bar.score}%</span>
+                      <span className="text-emerald-700">{bar.correct} ✓</span>
+                      <span className="text-amber-700">{bar.timing} ~</span>
+                      <span className="text-rose-700">{bar.missed + bar.falseNotes} ✕</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {practiceRatingError && (
+            <p className="w-full rounded-lg bg-rose-50 px-2 py-1.5 text-[10px] leading-4 text-rose-700" role="alert">
+              {practiceRatingError}
+            </p>
+          )}
           <label className="flex h-9 items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
             <span>Speed</span>
             <select
@@ -4525,9 +4818,20 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     !isMobileEditMode
       ? { paddingTop: isMobileViewport ? 76 : 12 }
       : undefined
-  }
+        }
         onMouseDownCapture={handleMainMouseDownCapture}
       >
+      {practiceRatingState === "countdown" && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 backdrop-blur-sm"
+          role="status"
+          aria-live="assertive"
+        >
+          <div className="flex h-32 w-32 items-center justify-center rounded-full border-4 border-white/80 bg-slate-950/75 text-6xl font-black text-white shadow-2xl">
+            {practiceRatingCountdown}
+          </div>
+        </div>
+      )}
       <div
         className={`container gte-wide ${
           isMobileEditMode
@@ -6904,6 +7208,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                     }
                                   : null
                               }
+                              practiceRatingReplay={
+                                selectedPracticeRating?.laneId === laneId ? selectedPracticeRating : null
+                              }
                               practiceControlsVisible={false}
                               showToolbarWhenInactive={false}
                               multiTrackSelectionActive={multiTrackSelectionActive}
@@ -7200,6 +7507,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                       endBar: Math.max(...barSelection.barIndices) + 1,
                                     }
                                   : null
+                              }
+                              practiceRatingReplay={
+                                selectedPracticeRating?.laneId === laneId ? selectedPracticeRating : null
                               }
                               practiceControlsVisible={false}
                               showToolbarWhenInactive={laneId === globalControlsLaneId}
@@ -7628,6 +7938,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                   endBar: Math.max(...barSelection.barIndices) + 1,
                                 }
                               : null
+                          }
+                          practiceRatingReplay={
+                            selectedPracticeRating?.laneId === laneId ? selectedPracticeRating : null
                           }
                           practiceControlsVisible={false}
                           showToolbarWhenInactive={!practiceModeEnabled && laneId === globalControlsLaneId}

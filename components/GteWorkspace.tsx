@@ -22,6 +22,7 @@ import {
   resolvePracticeLoopRange,
   type PracticeLoopRange,
 } from "../lib/gtePractice";
+import type { PracticeRatingReplay } from "../lib/gtePracticeRating";
 import {
   DEFAULT_TRACK_INSTRUMENT_ID,
   prepareTrackInstrument,
@@ -194,6 +195,7 @@ type Props = {
   onPlaybackSpeedChange?: (speed: number) => void;
   practiceMode?: boolean;
   practiceFocusBarRange?: { startBar: number; endBar: number } | null;
+  practiceRatingReplay?: PracticeRatingReplay | null;
   practiceControlsVisible?: boolean;
   playbackUiVisible?: boolean;
   showToolbarWhenInactive?: boolean;
@@ -3335,6 +3337,7 @@ export default function GteWorkspace({
   onPlaybackSpeedChange,
   practiceMode = false,
   practiceFocusBarRange,
+  practiceRatingReplay,
   practiceControlsVisible = false,
   playbackUiVisible,
   showToolbarWhenInactive = false,
@@ -3936,6 +3939,13 @@ export default function GteWorkspace({
       };
     },
     [editorTabView.barWidth, practiceDisplayEndBar, practiceDisplayStartBar, practiceRowHeight]
+  );
+  const practiceRatingByPlacement = useMemo(
+    () =>
+      new Map(
+        (practiceRatingReplay?.notes || []).map((note) => [note.placementKey, note])
+      ),
+    [practiceRatingReplay]
   );
   useEffect(() => {
     if (!practiceMode) {
@@ -13625,17 +13635,60 @@ export default function GteWorkspace({
                     })
                     .map((placement) => {
                       const y = editorTabView.strings[placement.stringIndex]?.y ?? 0;
+                      const rating = practiceRatingByPlacement.get(placement.key);
+                      const ratingClass =
+                        rating?.status === "correct"
+                          ? "rounded bg-emerald-500 text-white"
+                          : rating?.status === "timing"
+                          ? "rounded bg-amber-300 text-amber-950"
+                          : rating?.status === "missed"
+                          ? "rounded bg-rose-600 text-white"
+                          : "bg-white text-slate-900";
                       return (
                         <div
                           key={`practice-${rowIndex}-${placement.key}`}
-                          className="absolute z-10 -translate-x-1/2 -translate-y-1/2 bg-white px-0.5 text-[11px] font-bold leading-none text-slate-900"
+                          className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 px-0.5 text-[11px] font-bold leading-none ${ratingClass}`}
                           style={{
                             left: placement.x - sourceLeft,
                             top: TIMELINE_BAR_HEADER_HEIGHT + y,
                           }}
+                          title={
+                            rating
+                              ? rating.status === "missed"
+                                ? "Missed note"
+                                : `Timing ${Math.round(rating.timingAccuracy)}% · length ${Math.round(rating.lengthAccuracy)}%`
+                              : undefined
+                          }
                         >
                           {placement.fret}
                         </div>
+                      );
+                    })}
+                  {(practiceRatingReplay?.falseNotes || [])
+                    .filter(
+                      (falseNote) =>
+                        falseNote.barIndex >= firstBar && falseNote.barIndex < lastBar
+                    )
+                    .map((falseNote, falseIndex) => {
+                      const sourceX = getEditorTabViewCursorX(
+                        editorTabView.cursorAnchors,
+                        falseNote.frame,
+                        Math.max(1, editorTabView.barCount * framesPerMeasure),
+                        editorTabView.width
+                      );
+                      return (
+                        <span
+                          key={`practice-false-${rowIndex}-${falseIndex}-${falseNote.frame}`}
+                          className="pointer-events-none absolute z-30 -translate-x-1/2 text-sm font-black text-rose-600"
+                          style={{
+                            left: sourceX - sourceLeft,
+                            top: TIMELINE_BAR_HEADER_HEIGHT + 1,
+                          }}
+                          title={`Unexpected MIDI note ${falseNote.pitchMidi}`}
+                          aria-label="Unexpected note"
+                        >
+                          ?
+                        </span>
                       );
                     })}
                   {editorTabView.effects
