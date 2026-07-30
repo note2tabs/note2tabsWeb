@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import SeoHead, { EDITOR_APPLICATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
-import { seoFeaturePages } from "../../lib/seoFeaturePages";
+import { SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED, seoFeaturePages } from "../../lib/seoFeaturePages";
 
 const featureLabels = [
   "Playability",
@@ -23,6 +23,7 @@ export default function FeaturesPage() {
       name: "Note2Tabs Guitar Tab Editor Features",
       url: absoluteUrl("/features"),
       description,
+      dateModified: SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED,
       isPartOf: { "@id": WEBSITE_ID },
       about: { "@id": EDITOR_APPLICATION_ID },
       mainEntity: {
@@ -49,7 +50,7 @@ export default function FeaturesPage() {
   return (
     <>
       <SeoHead
-        title="Guitar Tab Editor Features | Note2Tabs"
+        title="Guitar Tab Editor Tools & Features | Note2Tabs"
         description={description}
         canonicalPath="/features"
         jsonLd={jsonLd}

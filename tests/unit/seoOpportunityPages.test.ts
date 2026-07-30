@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import AiGuitarTabGeneratorPage from "../../pages/ai-guitar-tab-generator";
 import AudioToGuitarTabConverterPage from "../../pages/audio-to-guitar-tab-converter";
+import Mp3ToGuitarTabsPage from "../../pages/mp3-to-guitar-tabs";
 import YoutubeToGuitarTabsPage from "../../pages/youtube-to-guitar-tabs";
 
 describe("Search Console opportunity pages", () => {
@@ -31,5 +32,16 @@ describe("Search Console opportunity pages", () => {
     expect(html).toContain("YouTube to Guitar Tabs Converter");
     expect(html).toContain("Why the homepage and this converter serve different jobs");
     expect(html).toContain("/blog/youtube-to-guitar-tabs-workflow");
+  });
+
+  it("gives MP3 searches a substantial product page with conversion paths", () => {
+    const html = renderToStaticMarkup(createElement(Mp3ToGuitarTabsPage));
+
+    expect(html).toContain("MP3 to Guitar Tabs Converter");
+    expect(html).toContain("How to get a clearer MP3-to-tab conversion");
+    expect(html).toContain("Can I convert an MP3 to guitar tabs for free?");
+    expect(html).toContain('href="/transcribe"');
+    expect(html).toContain('href="/editor"');
+    expect(html).toContain('href="/audio-to-guitar-tab-converter"');
   });
 });

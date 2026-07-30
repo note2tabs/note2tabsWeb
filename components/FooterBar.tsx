@@ -81,8 +81,10 @@ export default function FooterBar() {
             <Link href="/about">About Note2Tabs</Link>
             <Link href="/features">Guitar tab editor features</Link>
             <Link href="/blog">Guitar tab guides</Link>
-            <Link href="/audio-to-guitar-tab-converter">Audio-to-tab guide</Link>
-            <Link href="/youtube-to-guitar-tabs">YouTube-to-tab guide</Link>
+            <Link href="/audio-to-guitar-tab-converter">Audio to guitar tab converter</Link>
+            <Link href="/mp3-to-guitar-tabs">MP3 to guitar tabs</Link>
+            <Link href="/ai-guitar-tab-generator">AI guitar tab generator</Link>
+            <Link href="/youtube-to-guitar-tabs">YouTube to guitar tabs</Link>
             <Link href="/free-guitar-tab-maker">Free tab maker</Link>
           </section>
         </div>

@@ -23,6 +23,9 @@ describe("branded search presentation", () => {
     expect(html).toContain('href="/pricing">Plans and pricing');
     expect(html).toContain('href="/features">Guitar tab editor features');
     expect(html).toContain('href="/blog">Guitar tab guides');
+    expect(html).toContain('href="/audio-to-guitar-tab-converter">Audio to guitar tab converter');
+    expect(html).toContain('href="/mp3-to-guitar-tabs">MP3 to guitar tabs');
+    expect(html).toContain('href="/ai-guitar-tab-generator">AI guitar tab generator');
   });
 
   it("keeps the About page title and main heading consistent", () => {

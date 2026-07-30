@@ -18,6 +18,11 @@ export type SeoFeaturePage = {
   relatedSlugs: string[];
 };
 
+// Update this when the feature collection receives a meaningful content change.
+// It is shared by the page schema and sitemap rather than emitting a false
+// "modified today" signal on every request.
+export const SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED = "2026-07-30";
+
 export const seoFeaturePages: SeoFeaturePage[] = [
   {
     slug: "guitar-tab-fingering-optimizer",

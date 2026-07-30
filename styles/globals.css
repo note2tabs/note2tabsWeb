@@ -2876,6 +2876,16 @@ input[type="number"] {
   font-weight: 650;
 }
 
+.editor-v2-showcase-copy li a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.editor-v2-showcase-copy li a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .editor-v2-showcase-copy li::before {
   content: "✓";
   display: grid;

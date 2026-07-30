@@ -240,8 +240,8 @@ export default function EditorLandingPage() {
                   shapes, snap ideas to a key, and keep phrases in a hand position that makes musical sense.
                 </p>
                 <ul>
-                  <li>Automatic fingering suggestions</li>
-                  <li>String and fret optimization</li>
+                  <li><Link href="/features/guitar-tab-fingering-optimizer">Automatic fingering suggestions</Link></li>
+                  <li><Link href="/features/guitar-tab-fingering-optimizer">String and fret optimization</Link></li>
                   <li>Chord shapes and playing coordinates</li>
                 </ul>
                 <Link href="/features" className="editor-v2-showcase-link">
@@ -269,7 +269,7 @@ export default function EditorLandingPage() {
                 </p>
                 <ul>
                   <li>Section-based playback</li>
-                  <li>Practice loops and speed training</li>
+                  <li><Link href="/features/guitar-tab-practice-trainer">Practice loops and speed training</Link></li>
                   <li>Import audio or YouTube transcriptions</li>
                 </ul>
               </div>

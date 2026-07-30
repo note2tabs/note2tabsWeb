@@ -2,7 +2,7 @@ import type { GetServerSideProps } from "next";
 import { prisma } from "../lib/prisma";
 import { withPrismaReadRetry } from "../lib/prismaRetry";
 import { getBaseUrl, getPublishedWhere } from "../lib/blog";
-import { seoFeaturePages } from "../lib/seoFeaturePages";
+import { SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED, seoFeaturePages } from "../lib/seoFeaturePages";
 
 type SitemapEntry = {
   loc: string;
@@ -27,6 +27,16 @@ const staticPaths = [
   "/features",
   ...seoFeaturePages.map((page) => `/features/${page.slug}`),
 ];
+
+const recentlyUpdatedSeoPaths = new Set([
+  "/editor",
+  "/audio-to-guitar-tab-converter",
+  "/mp3-to-guitar-tabs",
+  "/ai-guitar-tab-generator",
+  "/free-guitar-tab-maker",
+  "/features",
+  ...seoFeaturePages.map((page) => `/features/${page.slug}`),
+]);
 
 const buildUrl = (baseUrl: string, path: string) =>
   path.startsWith("http") ? path : `${baseUrl}${path}`;
@@ -64,7 +74,12 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     ])
   );
 
-  const entries: SitemapEntry[] = staticPaths.map((path) => ({ loc: buildUrl(baseUrl, path) }));
+  const entries: SitemapEntry[] = staticPaths.map((path) => ({
+    loc: buildUrl(baseUrl, path),
+    ...(recentlyUpdatedSeoPaths.has(path)
+      ? { lastmod: `${SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED}T00:00:00.000Z` }
+      : {}),
+  }));
 
   posts.forEach((post) => {
     entries.push({

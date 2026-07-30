@@ -1,6 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { getSeoFeaturePage, type SeoFeaturePage } from "../lib/seoFeaturePages";
+import {
+  SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED,
+  getSeoFeaturePage,
+  type SeoFeaturePage,
+} from "../lib/seoFeaturePages";
 import SeoHead, { EDITOR_APPLICATION_ID, absoluteUrl } from "./SeoHead";
 
 type FeatureVisual = {
@@ -76,6 +80,7 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
       name: page.title,
       url: absoluteUrl(canonicalPath),
       description: page.description,
+      dateModified: SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED,
       about: { "@id": EDITOR_APPLICATION_ID },
       isPartOf: {
         "@type": "CollectionPage",

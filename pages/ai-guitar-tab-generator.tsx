@@ -4,8 +4,8 @@ export default function AiGuitarTabGeneratorPage() {
   return (
     <SeoLandingPage
       title="AI Guitar Tab Generator from Audio or YouTube"
-      metaTitle="AI Guitar Tab Generator from Audio | Note2Tabs"
-      description="Generate structured, editable guitar tabs from audio or YouTube with AI, then play, arrange, practise, and export them online."
+      metaTitle="AI Guitar Tab Generator Online | Audio & YouTube"
+      description="Generate structured, editable guitar tabs from audio or YouTube with AI. Play, arrange, practise, and export the result online with Note2Tabs."
       canonicalPath="/ai-guitar-tab-generator"
       primaryCta={{ label: "Generate tabs", href: "/transcribe" }}
       secondaryCta={{ label: "Open editor", href: "/editor" }}

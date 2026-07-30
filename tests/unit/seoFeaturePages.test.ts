@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import FeaturePage, { getStaticPaths } from "../../pages/features/[slug]";
 import FeaturesPage from "../../pages/features";
-import { seoFeaturePages } from "../../lib/seoFeaturePages";
+import { SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED, seoFeaturePages } from "../../lib/seoFeaturePages";
 
 describe("issue 106 editor feature pages", () => {
   it("builds a substantial indexable page for every feature cluster", () => {
@@ -46,6 +46,10 @@ describe("issue 106 editor feature pages", () => {
       paths: seoFeaturePages.map((page) => ({ params: { slug: page.slug } })),
       fallback: false,
     });
+  });
+
+  it("uses a stable meaningful modification date for feature indexing signals", () => {
+    expect(SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED).toBe("2026-07-30");
   });
 
   it("covers every feature named in issue 106", () => {
