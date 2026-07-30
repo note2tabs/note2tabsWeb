@@ -131,7 +131,7 @@ export default function PricingPage() {
                     <span>Fast</span>
                   </div>
                   <p>For clear, focused guitar recordings.</p>
-                  <strong>2 credits / 30 sec</strong>
+                  <strong>Fast and efficient</strong>
                 </div>
                 <div className="pricing-model-option pricing-model-option--heavy">
                   <div>
@@ -139,19 +139,19 @@ export default function PricingPage() {
                     <span>Highest accuracy</span>
                   </div>
                   <p>For complex and multi-instrument recordings.</p>
-                  <strong>3 credits / 30 sec</strong>
+                  <strong>Uses more of your allowance</strong>
                 </div>
               </div>
               <div className="pricing-heavy-usage" aria-label="Heavy model monthly usage comparison">
                 <div>
                   <span>Free</span>
-                  <strong>About 3</strong>
-                  <small>30-second Heavy clips / month</small>
+                  <strong>10 monthly credits</strong>
+                  <small>For occasional Heavy use</small>
                 </div>
                 <div>
                   <span>Premium</span>
-                  <strong>About 16</strong>
-                  <small>30-second Heavy clips / month</small>
+                  <strong>5× more credits</strong>
+                  <small>Use Heavy much more often</small>
                 </div>
               </div>
             </section>
@@ -171,7 +171,6 @@ export default function PricingPage() {
                 <ul className="pricing-list">
                   <li>10 credits per month</li>
                   <li>Light and Heavy transcription models</li>
-                  <li>About 3 Heavy 30-second clips per month</li>
                   <li>Standard speed</li>
                   <li>Upload size 50 MB</li>
                   <li>Audio clips up to 60 s</li>
@@ -193,7 +192,7 @@ export default function PricingPage() {
                 </div>
                 <ul className="pricing-list">
                   <li>50 credits per month—5× more than Free</li>
-                  <li>About 16 Heavy 30-second clips per month</li>
+                  <li>Use the highest-accuracy Heavy model more often</li>
                   <li>Unused credits roll over, up to 100</li>
                   <li>Extra speed</li>
                   <li>Upload size 200 MB</li>

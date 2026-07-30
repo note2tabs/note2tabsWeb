@@ -31,7 +31,7 @@ export default function TranscriptionModelValueNote({
   if (isPremium) {
     return (
       <p className="model-value-note">
-        <span>Heavy selected · 3 credits per 30 seconds.</span>
+        <span>Heavy selected for our highest-accuracy transcription.</span>
       </p>
     );
   }
@@ -39,8 +39,8 @@ export default function TranscriptionModelValueNote({
   return (
     <p className="model-value-note model-value-note--premium">
       <span>
-        Premium gives you 5× more monthly credits—about 16 Heavy 30-second clips
-        instead of 3.
+        Heavy uses more of your allowance. Premium gives you 5× more monthly
+        credits to use it more often.
       </span>
       <Link
         href="/pricing"

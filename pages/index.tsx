@@ -2002,7 +2002,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <ul className="pricing-list">
                   <li>10 credits per month</li>
                   <li>Light and Heavy transcription models</li>
-                  <li>About 3 Heavy 30-second clips per month</li>
                   <li>Upload size: 50 MB</li>
                   <li>Audio clips up to 60 s</li>
                   <li>YouTube clips up to 30 s</li>
@@ -2029,7 +2028,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 </div>
                 <ul className="pricing-list">
                   <li>50 credits/month—5× more than Free</li>
-                  <li>About 16 Heavy 30-second clips per month</li>
+                  <li>Use the highest-accuracy Heavy model more often</li>
                   <li>Unused credits roll over, up to 100</li>
                   <li>Upload size: 200 MB</li>
                   <li>Full-length audio-file transcription</li>

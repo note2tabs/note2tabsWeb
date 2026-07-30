@@ -8,6 +8,7 @@ import NavBar from "../components/NavBar";
 import FooterBar from "../components/FooterBar";
 import SessionAccountRefresher from "../components/SessionAccountRefresher";
 import RouteLoadingIndicator from "../components/RouteLoadingIndicator";
+import PremiumUpgradePrompt from "../components/PremiumUpgradePrompt";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { sanitizeAnalyticsPathname } from "../lib/analyticsPrivacy";
 import "../styles/globals.css";
@@ -52,6 +53,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         {!isGteEditorPage && <FooterBar />}
         <SessionAccountRefresher />
         <AnalyticsIdentityLinker />
+        <PremiumUpgradePrompt />
       </div>
     </SessionProvider>
   );

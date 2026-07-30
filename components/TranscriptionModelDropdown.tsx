@@ -80,9 +80,6 @@ export default function TranscriptionModelDropdown({
               <span className="model-dropdown-option-description">
                 {option.description}
               </span>
-              <span className="model-dropdown-option-cost">
-                {option.creditsPerInterval} credits per 30 seconds
-              </span>
             </span>
             <span className="model-dropdown-check" aria-hidden="true">
               {option.value === value && (
