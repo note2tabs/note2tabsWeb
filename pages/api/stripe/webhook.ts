@@ -16,6 +16,10 @@ import {
   stripeSubscriptionMatchesPremium,
   type StripePremiumConfig,
 } from "../../../lib/stripePremium";
+import {
+  createPostHogServerClient,
+  flushPostHogServerClientInBackground,
+} from "../../../lib/posthogServer";
 
 export const config = {
   api: {
@@ -149,9 +153,9 @@ async function setPremiumForIdentifier(identifier: UserIdentifier) {
     where: identifier,
     select: { id: true, role: true, tokensRemaining: true },
   });
-  if (!user) return;
+  if (!user) return null;
   if (user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD") {
-    return;
+    return null;
   }
   const isAlreadyPremium = user.role === "PREMIUM";
   const tokensRemaining =
@@ -165,6 +169,22 @@ async function setPremiumForIdentifier(identifier: UserIdentifier) {
       tokensRemaining,
     },
   });
+  return user.id;
+}
+
+function trackSubscriptionStarted(userId: string, checkoutSessionId: string) {
+  const client = createPostHogServerClient();
+  if (!client) return;
+  client.capture({
+    distinctId: userId,
+    event: "subscription_started",
+    properties: {
+      plan: "premium_monthly",
+      source: "stripe_webhook",
+      $insert_id: `subscription-started:${checkoutSessionId}`,
+    },
+  });
+  flushPostHogServerClientInBackground(client);
 }
 
 type RenewalInvoiceDetails = {
@@ -345,7 +365,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       const identifier = await resolveUserIdentifierFromCheckoutSession(checkoutSession);
       if (identifier) {
-        await setPremiumForIdentifier(identifier);
+        const userId = await setPremiumForIdentifier(identifier);
+        if (userId) trackSubscriptionStarted(userId, checkoutSession.id);
       }
     }
 

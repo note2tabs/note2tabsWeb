@@ -204,14 +204,19 @@ export default function PricingPage() {
                     {hasPaidPremium ? "Manage current plan" : "Premium access included"}
                   </Link>
                 ) : (
-                  <button
-                    type="button"
-                    className="pricing-card-cta"
-                    onClick={() => void startCheckout()}
-                    disabled={checkoutBusy || sessionStatus === "loading"}
-                  >
-                    {checkoutBusy ? "Opening checkout…" : "Upgrade to Premium"}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="pricing-card-cta"
+                      onClick={() => void startCheckout()}
+                      disabled={checkoutBusy || sessionStatus === "loading"}
+                    >
+                      {checkoutBusy ? "Opening checkout…" : "Upgrade to Premium"}
+                    </button>
+                    <p className="pricing-checkout-reassurance">
+                      7-day trial · $5.99/month after trial · Cancel anytime
+                    </p>
+                  </>
                 )}
               </div>
             </div>

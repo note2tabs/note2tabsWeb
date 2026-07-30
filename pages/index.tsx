@@ -37,6 +37,7 @@ import SeoHead, {
 } from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 import TranscriptionModelValueNote from "../components/TranscriptionModelValueNote";
+import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
 import {
@@ -310,6 +311,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       cancelled = true;
     };
   }, [session, disableDbInDev]);
+
+  useEffect(() => {
+    if (!isPremiumUser && displayedCredits) {
+      publishCreditsForPremiumPrompt(displayedCredits.remaining);
+    }
+  }, [displayedCredits, isPremiumUser]);
 
   useEffect(() => {
     if (appendEditorId) {
