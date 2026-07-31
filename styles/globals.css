@@ -6285,15 +6285,30 @@ input[type="number"] {
 @media (max-width: 640px) {
   .premium-conversion-card {
     grid-template-columns: 1fr;
-    gap: 17px;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .premium-conversion-card__copy {
+    gap: 4px;
+  }
+
+  .premium-conversion-card__copy h3 {
+    font-size: 0.96rem;
+  }
+
+  .premium-conversion-card__copy p {
+    font-size: 0.76rem;
   }
 
   .premium-conversion-card__action {
     justify-items: stretch;
+    gap: 7px;
   }
 
   .premium-conversion-card__action small {
     max-width: none;
+    font-size: 0.6rem;
   }
 }
 
@@ -6405,10 +6420,47 @@ input[type="number"] {
 @media (max-width: 600px) {
   .premium-upgrade-prompt {
     top: auto;
-    right: 12px;
-    bottom: 12px;
-    width: calc(100vw - 24px);
-    padding: 16px 46px 15px 16px;
+    right: 8px;
+    bottom: 8px;
+    width: calc(100vw - 16px);
+    gap: 3px;
+    padding: 12px 42px 11px 13px;
+    border-radius: 14px;
+  }
+
+  .premium-upgrade-prompt__eyebrow {
+    display: none;
+  }
+
+  .premium-upgrade-prompt > strong {
+    font-size: 0.9rem;
+  }
+
+  .premium-upgrade-prompt p {
+    font-size: 0.72rem;
+    line-height: 1.35;
+  }
+
+  .premium-upgrade-prompt > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    margin-top: 0;
+    font-size: 0.72rem;
+  }
+
+  .premium-upgrade-prompt > small {
+    display: none;
+  }
+}
+
+@media (max-height: 480px) and (max-width: 900px) {
+  .premium-upgrade-prompt {
+    width: min(300px, calc(100vw - 16px));
+  }
+
+  .premium-upgrade-prompt p {
+    display: none;
   }
 }
 
