@@ -424,7 +424,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <div className="settingsRows">
         <SettingRow
           label="Plan"
-          value={isPremium ? `${user.role} - 50 credits/month (rollover up to 100)` : "Free - 10 credits/month"}
+          value={isPremium ? `${user.role} - 100 credits/month (rollover up to 200)` : "Free - 10 credits/month"}
         />
         <SettingRow label="Credits used" value={creditsUsedLabel} />
         <SettingRow label="Remaining" value={credits.remaining} />
@@ -470,7 +470,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         ) : (
           <PremiumConversionCard
             title="Keep transcribing today"
-            description="Premium includes 50 monthly credits, rollover, faster processing, and full-song uploads."
+            description="Premium includes 100 monthly credits, rollover, faster processing, and full-song uploads."
             actionLabel="Get Premium"
             onAction={() => void handleUpgrade()}
             busy={upgradeBusy}

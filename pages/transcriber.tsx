@@ -1455,7 +1455,7 @@ export default function TranscriberPage() {
                 ) : (
                   <PremiumConversionCard
                     title="Keep transcribing today"
-                    description="Premium includes 50 monthly credits, rollover, faster processing, and full-song uploads."
+                    description="Premium includes 100 monthly credits, rollover, faster processing, and full-song uploads."
                     actionLabel="See Premium"
                     href="/pricing"
                     resetMessage={`Free credits reset ${creditsResetLabel}`}

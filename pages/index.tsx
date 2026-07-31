@@ -1756,7 +1756,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 ) : (
                   <PremiumConversionCard
                     title="Keep transcribing today"
-                    description="Premium includes 50 monthly credits, rollover, faster processing, and full-song uploads."
+                    description="Premium includes 100 monthly credits, rollover, faster processing, and full-song uploads."
                     actionLabel="Get Premium"
                     onAction={() => void handlePricingClick()}
                     busy={pricingBusy}
@@ -2046,9 +2046,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <p>Built for songs you plan to finish, not just test.</p>
                 </div>
                 <ul className="pricing-list">
-                  <li>50 credits/month—5× more than Free</li>
+                  <li>100 credits/month—10× more than Free</li>
                   <li>Use the highest-accuracy Heavy model more often</li>
-                  <li>Unused credits roll over, up to 100</li>
+                  <li>Unused credits roll over, up to 200</li>
                   <li>Upload size: 200 MB</li>
                   <li>Full-length audio-file transcription</li>
                   <li>YouTube clips up to 30 s</li>

@@ -786,7 +786,7 @@ describe("stripe premium flow", () => {
       prismaMock.user.findFirst.mockResolvedValue({
         id: "user_1",
         role: "PREMIUM",
-        tokensRemaining: 80,
+        tokensRemaining: 150,
       });
 
       const handler = (await import("../../pages/api/stripe/webhook")).default;
@@ -800,7 +800,7 @@ describe("stripe premium flow", () => {
         where: { id: "user_1" },
         data: {
           role: "PREMIUM",
-          tokensRemaining: 100,
+          tokensRemaining: 200,
         },
       });
       expect(prismaMock.stripeRenewalInvoice.create).toHaveBeenCalledWith({

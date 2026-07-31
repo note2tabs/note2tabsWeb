@@ -41,7 +41,7 @@ const getFrequencyForReason = (reason: PromptReason) => {
 const promptCopy: Record<PromptReason, { title: string; body: string }> = {
   passive: {
     title: "Use Heavy more often.",
-    body: "Get 5× more monthly credits, faster processing, and full-song uploads.",
+    body: "Get 10× more monthly credits, faster processing, and full-song uploads.",
   },
   transcription_completed: {
     title: "Your transcription is ready.",
@@ -49,11 +49,11 @@ const promptCopy: Record<PromptReason, { title: string; body: string }> = {
   },
   low_credits: {
     title: "You’re running low on credits.",
-    body: "Keep your momentum with 5× more monthly credits and credit rollover.",
+    body: "Keep your momentum with 10× more monthly credits and credit rollover.",
   },
   no_credits: {
     title: "Keep transcribing with Premium.",
-    body: "Get 50 monthly credits, rollover, faster processing, and full-song uploads.",
+    body: "Get 100 monthly credits, rollover, faster processing, and full-song uploads.",
   },
 };
 

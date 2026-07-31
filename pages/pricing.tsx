@@ -19,7 +19,7 @@ const pricingFaqs = [
   {
     question: "What happens to unused credits?",
     answer:
-      "Premium credits roll over up to a balance of 100. Free credits refresh monthly and do not roll over.",
+      "Premium credits roll over up to a balance of 200. Free credits refresh monthly and do not roll over.",
   },
   {
     question: "Can I cancel anytime?",
@@ -143,7 +143,7 @@ export default function PricingPage() {
               <h1>Choose how far you want to take your music.</h1>
               <p>
                 Start free. Upgrade for more transcriptions, full songs, and
-                more room to use Heavy.
+                more usage of the Heavy model.
               </p>
             </header>
 
@@ -208,9 +208,9 @@ export default function PricingPage() {
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
-                  <li><strong>50</strong> credits each month—5× more</li>
+                  <li><strong>100</strong> credits each month—10× more</li>
                   <li>Use the more accurate Heavy model regularly</li>
-                  <li>Unused credits roll over, up to 100</li>
+                  <li>Unused credits roll over, up to 200</li>
                   <li>Full-length audio-file transcription</li>
                   <li>Uploads up to 200 MB</li>
                   <li>Faster transcription processing</li>
