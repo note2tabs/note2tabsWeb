@@ -15,14 +15,14 @@ export const TRANSCRIPTION_MODEL_OPTIONS: Array<{
   {
     value: "light",
     label: "Light model",
-    badge: "Fast",
+    badge: "Faster",
     description: "Best for clear, focused guitar recordings.",
     creditsPerInterval: 2,
   },
   {
     value: "heavy",
     label: "Heavy model",
-    badge: "Highest accuracy",
+    badge: "More accurate",
     description: "Best for complex and multi-instrument recordings.",
     creditsPerInterval: 3,
   },

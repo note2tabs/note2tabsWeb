@@ -29,6 +29,7 @@ import {
 import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 import TranscriptionModelValueNote from "../components/TranscriptionModelValueNote";
+import PremiumConversionCard from "../components/PremiumConversionCard";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
@@ -955,6 +956,10 @@ export default function TranscriberPage() {
           setError("Please verify your email to continue using the transcriber.");
           return;
         }
+        if (response.status === 403 && data.credits) {
+          setError(null);
+          return;
+        }
         setError(data?.error || "Transcription failed. Please try again.");
         sendEvent("transcribe_error", {
           mode,
@@ -1161,7 +1166,7 @@ export default function TranscriberPage() {
     ? "-"
     : "10";
   const creditsResetLabel = displayedCredits ? new Date(displayedCredits.resetAt).toLocaleDateString() : "";
-  const showCreditsEmpty = displayedCredits && displayedCredits.remaining === 0;
+  const showCreditsLow = displayedCredits && displayedCredits.remaining <= 3;
   const resetLabelText = isPremiumRole(transcriberSession?.user?.role) ? "Next credits" : "Resets";
   const transcriberDescription =
     "Upload audio or enter a YouTube segment to generate a structured, playable guitar tab you can open in the Note2Tabs editor.";
@@ -1426,17 +1431,13 @@ export default function TranscriberPage() {
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
               {error && <div className="error" role="alert">{error}</div>}
               {needsPremiumForSelectedFile && (
-                <div className="notice">
-                  <p>This file is safely preserved. Premium supports audio files up to 200 MB.</p>
-                  <button
-                    type="button"
-                    className="button-primary button-small"
-                    onClick={() => void handlePreservedUploadUpgrade()}
-                    disabled={upgradeBusy}
-                  >
-                    {upgradeBusy ? "Opening checkout…" : "Upgrade and keep this upload"}
-                  </button>
-                </div>
+                <PremiumConversionCard
+                  title="Continue with this upload"
+                  description="Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription."
+                  actionLabel="Continue with Premium"
+                  onAction={() => void handlePreservedUploadUpgrade()}
+                  busy={upgradeBusy}
+                />
               )}
               {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
                 <div className="notice">
@@ -1446,12 +1447,20 @@ export default function TranscriberPage() {
                   </Link>
                 </div>
               )}
-              {isSignedIn && showCreditsEmpty && (
-                <div className="notice">
-                  {isPremiumRole(transcriberSession?.user?.role)
-                    ? `Credits used. Next credits arrive on ${creditsResetLabel}.`
-                    : `Monthly credits used. Upgrade to Premium or wait until ${creditsResetLabel}.`}
-                </div>
+              {isSignedIn && showCreditsLow && (
+                isPremiumRole(transcriberSession?.user?.role) ? (
+                  <div className="notice">
+                    Your credits will be refreshed on {creditsResetLabel}.
+                  </div>
+                ) : (
+                  <PremiumConversionCard
+                    title="Keep transcribing today"
+                    description="Premium includes 50 monthly credits, rollover, faster processing, and full-song uploads."
+                    actionLabel="See Premium"
+                    href="/pricing"
+                    resetMessage={`Free credits reset ${creditsResetLabel}`}
+                  />
+                )
               )}
             </form>
 

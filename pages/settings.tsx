@@ -27,6 +27,7 @@ import {
   waitForPremiumEntitlement,
 } from "../lib/premiumEntitlement";
 import NoIndexHead from "../components/NoIndexHead";
+import PremiumConversionCard from "../components/PremiumConversionCard";
 
 type Props = {
   user: {
@@ -464,11 +465,18 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         </SettingRow>
       </div>
       {credits.remaining === 0 && (
-        <div className="notice">
-          {isPremium
-            ? `Credits used. More credits arrive on ${resetLabel}.`
-            : `Monthly credits used. Upgrade to Premium or wait until ${resetLabel}.`}
-        </div>
+        isPremium ? (
+          <div className="notice">Your credits will be refreshed on {resetLabel}.</div>
+        ) : (
+          <PremiumConversionCard
+            title="Keep transcribing today"
+            description="Premium includes 50 monthly credits, rollover, faster processing, and full-song uploads."
+            actionLabel="Get Premium"
+            onAction={() => void handleUpgrade()}
+            busy={upgradeBusy}
+            resetMessage={`Free credits reset ${resetLabel}`}
+          />
+        )
       )}
       {isPaidPremium && (
         <p className="footnote">You can cancel your Premium subscription anytime from Manage subscription.</p>

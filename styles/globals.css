@@ -6013,12 +6013,12 @@ input[type="number"] {
 }
 
 .model-choice {
-  width: min(100%, 220px);
+  width: min(100%, 240px);
   margin: -2px 0 10px;
 }
 
 .model-choice--meta {
-  width: 210px;
+  width: 232px;
   flex: 0 0 auto;
   margin: 0;
 }
@@ -6034,7 +6034,7 @@ input[type="number"] {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  min-height: 34px;
+  min-height: 42px;
   width: 100%;
   border: 1px solid rgba(15, 23, 42, 0.1);
   border-radius: 999px;
@@ -6042,26 +6042,26 @@ input[type="number"] {
   color: #253244;
   cursor: pointer;
   font-family: "Satoshi", var(--font-sans);
-  font-size: 0.76rem;
-  font-weight: 500;
+  font-size: 0.78rem;
+  font-weight: 650;
   letter-spacing: 0;
   list-style: none;
-  padding: 0 10px 0 13px;
+  padding: 5px 11px 5px 14px;
   box-shadow: 0 1px 6px rgba(15, 23, 42, 0.06);
   transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .model-dropdown-summary-copy {
-  display: flex;
-  align-items: baseline;
+  display: grid;
   min-width: 0;
-  gap: 6px;
+  gap: 0;
+  line-height: 1.25;
 }
 
 .model-dropdown-summary-copy > span:last-child {
-  color: #7a8795;
-  font-size: 0.66rem;
-  font-weight: 400;
+  color: rgba(37, 50, 68, 0.55);
+  font-size: 0.67rem;
+  font-weight: 450;
 }
 
 .model-dropdown summary::-webkit-details-marker {
@@ -6131,7 +6131,7 @@ input[type="number"] {
   background: transparent;
   cursor: pointer;
   font-family: "Satoshi", var(--font-sans);
-  padding: 8px 9px;
+  padding: 11px 10px;
   text-align: left;
 }
 
@@ -6143,34 +6143,35 @@ input[type="number"] {
 
 .model-dropdown-option-copy {
   display: grid;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
 }
 
 .model-dropdown-option-heading {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
   gap: 5px;
 }
 
 .model-dropdown-option-title {
-  color: #263447;
-  font-size: 0.76rem;
-  font-weight: 500;
+  color: #152218;
+  font-size: 0.82rem;
+  font-weight: 650;
   letter-spacing: 0;
 }
 
 .model-dropdown-option-badge {
-  color: #4e6074;
-  font-size: 0.65rem;
-  font-weight: 500;
+  color: rgba(21, 34, 24, 0.52);
+  font-size: 0.68rem;
+  font-weight: 550;
 }
 
 .model-dropdown-option-description {
-  color: #7a8795;
-  font-size: 0.68rem;
-  font-weight: 300;
+  color: rgba(37, 50, 68, 0.66);
+  font-size: 0.72rem;
+  font-weight: 400;
   letter-spacing: 0;
   line-height: 1.35;
 }
@@ -6211,6 +6212,89 @@ input[type="number"] {
 
 .model-value-note--premium {
   color: rgba(37, 50, 68, 0.74);
+}
+
+.premium-conversion-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  margin-top: 16px;
+  padding: 20px;
+  border: 1px solid rgba(6, 17, 13, 0.13);
+  border-radius: 16px;
+  background: rgba(252, 250, 246, 0.96);
+  color: #06110d;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 14px 34px rgba(6, 17, 13, 0.07);
+}
+
+.premium-conversion-card__copy {
+  display: grid;
+  gap: 5px;
+}
+
+.premium-conversion-card__copy > span {
+  color: rgba(6, 17, 13, 0.5);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.premium-conversion-card__copy h3,
+.premium-conversion-card__copy p {
+  margin: 0;
+}
+
+.premium-conversion-card__copy h3 {
+  color: #06110d;
+  font-size: 1rem;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+.premium-conversion-card__copy p {
+  max-width: 590px;
+  color: rgba(6, 17, 13, 0.64);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.premium-conversion-card__action {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  min-width: 178px;
+}
+
+.premium-conversion-card__action .button-primary {
+  width: 100%;
+  min-height: 40px;
+}
+
+.premium-conversion-card__action small {
+  max-width: 210px;
+  color: rgba(6, 17, 13, 0.48);
+  font-size: 0.62rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .premium-conversion-card {
+    grid-template-columns: 1fr;
+    gap: 17px;
+  }
+
+  .premium-conversion-card__action {
+    justify-items: stretch;
+  }
+
+  .premium-conversion-card__action small {
+    max-width: none;
+  }
 }
 
 .premium-upgrade-prompt {
@@ -6619,16 +6703,18 @@ input[type="number"] {
 
 .notice {
   margin-top: 14px;
-  padding: 12px 14px;
-  border-radius: var(--radius-sm);
+  padding: 13px 15px;
+  border-radius: 12px;
   font-size: 0.85rem;
-  background: #fff7ed;
-  color: #92400e;
-  border: 1px solid rgba(146, 64, 14, 0.18);
+  line-height: 1.5;
+  background: rgba(255, 255, 255, 0.72);
+  color: rgba(6, 17, 13, 0.7);
+  border: 1px solid rgba(6, 17, 13, 0.1);
+  box-shadow: 0 8px 22px rgba(6, 17, 13, 0.04);
 }
 
 .notice .button-row {
-  margin-top: 8px;
+  margin-top: 12px;
 }
 
 .results {

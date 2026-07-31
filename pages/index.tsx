@@ -37,6 +37,7 @@ import SeoHead, {
 } from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 import TranscriptionModelValueNote from "../components/TranscriptionModelValueNote";
+import PremiumConversionCard from "../components/PremiumConversionCard";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
@@ -977,6 +978,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           setError("Please verify your email to continue using the transcriber.");
           return;
         }
+        if (response.status === 403 && data.credits) {
+          setError(null);
+          return;
+        }
         setError(data?.error || "Transcription failed. Please try again.");
         sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
           mode,
@@ -1358,7 +1363,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     creditsResetDate && !Number.isNaN(creditsResetDate.getTime())
       ? Math.max(0, Math.ceil((creditsResetDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
       : null;
-  const showCreditsEmpty = displayedCredits && displayedCredits.remaining === 0;
+  const showCreditsLow = displayedCredits && displayedCredits.remaining <= 3;
   const homeJsonLd = [
     ...SITE_IDENTITY_JSON_LD,
     {
@@ -1724,18 +1729,16 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
               {error && <div className="error" role="alert">{error}</div>}
               {needsPremiumForSelectedFile && (
-                <div className="notice">
-                  <p>This file is safely preserved. Premium supports audio files up to 200 MB.</p>
-                  <button
-                    type="button"
-                    className="button-primary button-small"
-                    onClick={() => void handlePreservedUploadUpgrade()}
-                    disabled={pricingBusy}
-                  >
-                    {pricingBusy ? "Opening checkout…" : "Upgrade and keep this upload"}
-                  </button>
-                  {pricingError && <div className="error" role="alert">{pricingError}</div>}
-                </div>
+                <PremiumConversionCard
+                  title="Continue with this upload"
+                  description="Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription."
+                  actionLabel="Continue with Premium"
+                  onAction={() => void handlePreservedUploadUpgrade()}
+                  busy={pricingBusy}
+                />
+              )}
+              {needsPremiumForSelectedFile && pricingError && (
+                <div className="error" role="alert">{pricingError}</div>
               )}
               {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
                 <div className="notice">
@@ -1745,12 +1748,21 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   </Link>
                 </div>
               )}
-              {isSignedIn && showCreditsEmpty && (
-                <div className="notice">
-                  {isPremiumRole(transcriberSession?.user?.role)
-                    ? `Credits used. Next credits arrive on ${creditsResetLabel}.`
-                    : `Monthly credits used. Upgrade to Premium or wait until ${creditsResetLabel}.`}
-                </div>
+              {isSignedIn && showCreditsLow && (
+                isPremiumRole(transcriberSession?.user?.role) ? (
+                  <div className="notice">
+                    Your credits will be refreshed on {creditsResetLabel}.
+                  </div>
+                ) : (
+                  <PremiumConversionCard
+                    title="Keep transcribing today"
+                    description="Premium includes 50 monthly credits, rollover, faster processing, and full-song uploads."
+                    actionLabel="Get Premium"
+                    onAction={() => void handlePricingClick()}
+                    busy={pricingBusy}
+                    resetMessage={`Free credits reset ${creditsResetLabel}`}
+                  />
+                )
               )}
             </form>
 

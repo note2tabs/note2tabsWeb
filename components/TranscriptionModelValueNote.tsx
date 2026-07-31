@@ -39,8 +39,8 @@ export default function TranscriptionModelValueNote({
   return (
     <p className="model-value-note model-value-note--premium">
       <span>
-        Heavy uses more of your allowance. Premium gives you 5× more monthly
-        credits to use it more often.
+        Prefer Heavy? Premium includes 5× more monthly credits for
+        higher-accuracy transcriptions.
       </span>
       <Link
         href="/pricing"
