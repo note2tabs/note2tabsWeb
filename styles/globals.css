@@ -6967,6 +6967,66 @@ input[type="number"] {
   line-height: 1.6;
 }
 
+.home-pricing {
+  padding: clamp(68px, 9vw, 108px) 0;
+  background:
+    radial-gradient(circle at 50% 10%, rgba(255, 255, 255, 0.88), transparent 34rem),
+    #f7f2e8;
+}
+
+.home-pricing .pricing-intro {
+  margin-bottom: 42px;
+}
+
+.home-pricing .pricing-intro h2 {
+  font-size: clamp(2rem, 4.2vw, 3.25rem);
+  font-weight: 450;
+  letter-spacing: -0.055em;
+}
+
+.home-pricing__plans .pricing-plan__top h3 {
+  margin: 0;
+  color: #06110d;
+  font-size: 1.45rem;
+  font-weight: 550;
+  letter-spacing: -0.035em;
+}
+
+.home-pricing__details {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.home-pricing__details a {
+  color: rgba(6, 17, 13, 0.68);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: rgba(6, 17, 13, 0.25);
+  text-underline-offset: 4px;
+}
+
+.home-pricing__details a:hover {
+  color: #06110d;
+  text-decoration-color: currentColor;
+}
+
+@media (max-width: 760px) {
+  .home-pricing {
+    padding: 58px 0 70px;
+  }
+
+  .home-pricing .pricing-intro {
+    margin-bottom: 34px;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .home-pricing .pricing-intro h2 {
+    font-size: clamp(2rem, 10vw, 2.65rem);
+  }
+}
+
 .pricing-card {
   position: relative;
   isolation: isolate;

@@ -1998,65 +1998,49 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           </div>
         </section>
 
-        <section className="pricing" id="pricing">
+        <section className="pricing home-pricing" id="pricing">
           <div className="container">
             <div className="pricing-intro" data-reveal>
-              <span className="pill">Plans</span>
-              <h2>Start small. Upgrade for full songs.</h2>
-              <p>Try out our transcriber and editor, upgrade if you like it.</p>
+              <h2>Choose your plan.</h2>
+              <p>Start free. Upgrade when you want more transcriptions and full songs.</p>
             </div>
-            <div className="pricing-grid">
-              <div className="pricing-card pricing-card--free" data-reveal>
-                <div className="pricing-header">
-                  <span className="pill">Free</span>
-                  <div className="pricing-price">
-                    <span className="pricing-amount">$0</span>
-                    <span className="pricing-interval">/ month</span>
+            <div className="pricing-page__plans home-pricing__plans">
+              <article className="pricing-plan pricing-plan--free" data-reveal>
+                <div className="pricing-plan__top">
+                  <h3>Free</h3>
+                  <div className="pricing-plan__price">
+                    <strong>$0</strong>
+                    <span>/ month</span>
                   </div>
                 </div>
-                <div className="pricing-plan-copy">
-                  <h3>Start transcribing</h3>
-                  <p>Best for testing riffs, solos, and short ideas.</p>
-                </div>
-                <ul className="pricing-list">
-                  <li>10 credits per month</li>
+                <Link href="/transcribe" className="pricing-plan__cta pricing-plan__cta--secondary">
+                  Start free
+                </Link>
+                <p className="pricing-plan__reassurance">No credit card required</p>
+                <div className="pricing-plan__divider" />
+                <ul className="pricing-plan__features">
+                  <li><strong>10</strong> credits each month</li>
                   <li>Light and Heavy transcription models</li>
-                  <li>Upload size: 50 MB</li>
-                  <li>Audio clips up to 60 s</li>
-                  <li>YouTube clips up to 30 s</li>
-                  <li>Standard speed</li>
-                  <li>Full access to our guitar-tab editor</li>
-
+                  <li>Audio clips up to 60 seconds</li>
+                  <li>Uploads up to 50 MB</li>
+                  <li>Full editor and practice tools</li>
                 </ul>
-              </div>
+              </article>
               <article
-                className="pricing-card pricing-card--premium pricing-card--trial"
+                className="pricing-plan pricing-plan--premium"
                 data-reveal
               >
-                <span className="pricing-trial-ribbon">7-day trial for new subscribers</span>
-                <div className="pricing-header">
-                  <span className="pill">Premium</span>
-                  <div className="pricing-price">
-                    <span className="pricing-amount">$5.99</span>
-                    <span className="pricing-interval">/ month</span>
+                <div className="pricing-plan__badge">Most popular · 7-day trial</div>
+                <div className="pricing-plan__top">
+                  <h3>Premium</h3>
+                  <div className="pricing-plan__price">
+                    <strong>$5.99</strong>
+                    <span>/ month</span>
                   </div>
                 </div>
-                <div className="pricing-plan-copy">
-                  <h3>For full songs</h3>
-                  <p>Built for songs you plan to finish, not just test.</p>
-                </div>
-                <ul className="pricing-list">
-                  <li>100 credits/month—10× more than Free</li>
-                  <li>Use the highest-accuracy Heavy model more often</li>
-                  <li>Unused credits roll over, up to 200</li>
-                  <li>Upload size: 200 MB</li>
-                  <li>Full-length audio-file transcription</li>
-                  <li>YouTube clips up to 30 s</li>
-                  <li>Extra speed</li>
-                </ul>
                 <button
                   type="button"
-                  className="button-primary pricing-card-cta"
+                  className="pricing-plan__cta pricing-plan__cta--primary"
                   onClick={() => void handlePricingClick()}
                   disabled={pricingBusy}
                 >
@@ -2066,11 +2050,25 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                       ? isStaffUser
                         ? "Premium access included"
                         : "Manage current plan"
-                      : "Upgrade to Premium"}
+                      : "Start 7-day trial"}
                 </button>
+                <p className="pricing-plan__reassurance">
+                  $5.99/month after trial · Cancel anytime
+                </p>
+                <div className="pricing-plan__divider" />
+                <ul className="pricing-plan__features">
+                  <li><strong>100</strong> credits each month—10× more</li>
+                  <li>Heavy model for complex recordings</li>
+                  <li>Unused credits roll over, up to 200</li>
+                  <li>Full-length audio-file transcription</li>
+                  <li>Faster processing and 200 MB uploads</li>
+                </ul>
               </article>
             </div>
             {pricingError && <div className="error">{pricingError}</div>}
+            <div className="home-pricing__details" data-reveal>
+              <Link href="/pricing">Compare all plan details</Link>
+            </div>
           </div>
         </section>
 
