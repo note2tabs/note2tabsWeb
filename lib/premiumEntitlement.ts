@@ -1,3 +1,5 @@
+import { ANALYTICS_EVENTS, sendEvent } from "./analytics";
+
 type SessionLike = {
   user?: {
     role?: string | null;
@@ -34,6 +36,12 @@ export const confirmPremiumCheckout = async (
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId }),
     });
+    if (response.ok) {
+      sendEvent(ANALYTICS_EVENTS.subscriptionStarted, {
+        plan: "premium_monthly",
+        $insert_id: `subscription-started:${sessionId}`,
+      });
+    }
     return response.ok;
   } catch {
     return false;

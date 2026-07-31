@@ -686,8 +686,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (refreshedCredits.remaining < requiredCredits) {
       const resetLabel = refreshedCredits.resetAt.slice(0, 10);
       const errorMessage = isPremium
-        ? `Credits used. More credits arrive on ${resetLabel}.`
-        : `Monthly credits used. Upgrade to Premium or wait until ${resetLabel} for a reset.`;
+        ? `There are not enough credits for this transcription. More credits arrive on ${resetLabel}.`
+        : `There are not enough credits for this transcription. Free credits reset on ${resetLabel}.`;
       return res
         .status(403)
         .json({

@@ -1,4 +1,5 @@
 import { capturePostHogEvent } from "./posthogClient";
+import { publishTranscriptionCompletedForPremiumPrompt } from "./premiumPromptSignals";
 import type { TranscriptionModelChoice } from "./transcriptionModels";
 import {
   sanitizeAnalyticsPathname,
@@ -15,6 +16,9 @@ export const ANALYTICS_EVENTS = {
   pricingViewed: "pricing_viewed",
   pricingCtaClicked: "pricing_cta_clicked",
   checkoutStarted: "checkout_started",
+  subscriptionStarted: "subscription_started",
+  premiumPromptShown: "premium_prompt_shown",
+  premiumPromptDismissed: "premium_prompt_dismissed",
   signupStarted: "signup_started",
   signupCompleted: "signup_completed",
   signupFailed: "signup_failed",
@@ -66,10 +70,13 @@ const LEGACY_EVENT_NAMES: Record<string, string> = {
 
 export function sendEvent(event: string, payload?: EventPayload) {
   if (typeof window === "undefined") return;
+  const normalizedEvent = LEGACY_EVENT_NAMES[event] || event;
+  if (normalizedEvent === ANALYTICS_EVENTS.tabGenerationSucceeded) {
+    publishTranscriptionCompletedForPremiumPrompt();
+  }
   if (process.env.NODE_ENV !== "production") return;
   if (!process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) return;
 
-  const normalizedEvent = LEGACY_EVENT_NAMES[event] || event;
   const properties = {
     ...getUtmParams(),
     ...(payload || {}),

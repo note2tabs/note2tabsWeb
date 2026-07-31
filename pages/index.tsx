@@ -36,6 +36,9 @@ import SeoHead, {
   WEBSITE_ID,
 } from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
+import TranscriptionModelValueNote from "../components/TranscriptionModelValueNote";
+import PremiumConversionCard from "../components/PremiumConversionCard";
+import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
 import {
@@ -309,6 +312,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       cancelled = true;
     };
   }, [session, disableDbInDev]);
+
+  useEffect(() => {
+    if (!isPremiumUser && displayedCredits) {
+      publishCreditsForPremiumPrompt(displayedCredits.remaining);
+    }
+  }, [displayedCredits, isPremiumUser]);
 
   useEffect(() => {
     if (appendEditorId) {
@@ -969,6 +978,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           setError("Please verify your email to continue using the transcriber.");
           return;
         }
+        if (response.status === 403 && data.credits) {
+          setError(null);
+          return;
+        }
         setError(data?.error || "Transcription failed. Please try again.");
         sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
           mode,
@@ -1350,7 +1363,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     creditsResetDate && !Number.isNaN(creditsResetDate.getTime())
       ? Math.max(0, Math.ceil((creditsResetDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
       : null;
-  const showCreditsEmpty = displayedCredits && displayedCredits.remaining === 0;
+  const showCreditsLow = displayedCredits && displayedCredits.remaining <= 3;
   const homeJsonLd = [
     ...SITE_IDENTITY_JSON_LD,
     {
@@ -1448,6 +1461,17 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   </p>
                 )}
               </div>
+              {!showInstrumentPrompt && (
+                <TranscriptionModelValueNote
+                  model={transcriptionModel}
+                  isPremium={isPremiumUser}
+                  onSelectHeavy={() => {
+                    setTranscriptionModel("heavy");
+                    trackCtaClick("try_heavy_model", { surface: "hero_funnel" });
+                  }}
+                  surface="hero_funnel"
+                />
+              )}
 
               {showInstrumentPrompt ? (
                 <div className="instrument-prompt">
@@ -1705,18 +1729,16 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
               {error && <div className="error" role="alert">{error}</div>}
               {needsPremiumForSelectedFile && (
-                <div className="notice">
-                  <p>This file is safely preserved. Premium supports audio files up to 200 MB.</p>
-                  <button
-                    type="button"
-                    className="button-primary button-small"
-                    onClick={() => void handlePreservedUploadUpgrade()}
-                    disabled={pricingBusy}
-                  >
-                    {pricingBusy ? "Opening checkout…" : "Upgrade and keep this upload"}
-                  </button>
-                  {pricingError && <div className="error" role="alert">{pricingError}</div>}
-                </div>
+                <PremiumConversionCard
+                  title="Continue with this upload"
+                  description="Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription."
+                  actionLabel="Continue with Premium"
+                  onAction={() => void handlePreservedUploadUpgrade()}
+                  busy={pricingBusy}
+                />
+              )}
+              {needsPremiumForSelectedFile && pricingError && (
+                <div className="error" role="alert">{pricingError}</div>
               )}
               {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
                 <div className="notice">
@@ -1726,12 +1748,21 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   </Link>
                 </div>
               )}
-              {isSignedIn && showCreditsEmpty && (
-                <div className="notice">
-                  {isPremiumRole(transcriberSession?.user?.role)
-                    ? `Credits used. Next credits arrive on ${creditsResetLabel}.`
-                    : `Monthly credits used. Upgrade to Premium or wait until ${creditsResetLabel}.`}
-                </div>
+              {isSignedIn && showCreditsLow && (
+                isPremiumRole(transcriberSession?.user?.role) ? (
+                  <div className="notice">
+                    Your credits will be refreshed on {creditsResetLabel}.
+                  </div>
+                ) : (
+                  <PremiumConversionCard
+                    title="Keep transcribing today"
+                    description="Premium includes 100 monthly credits, rollover, faster processing, and full-song uploads."
+                    actionLabel="Get Premium"
+                    onAction={() => void handlePricingClick()}
+                    busy={pricingBusy}
+                    resetMessage={`Free credits reset ${creditsResetLabel}`}
+                  />
+                )
               )}
             </form>
 
@@ -1989,6 +2020,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 </div>
                 <ul className="pricing-list">
                   <li>10 credits per month</li>
+                  <li>Light and Heavy transcription models</li>
                   <li>Upload size: 50 MB</li>
                   <li>Audio clips up to 60 s</li>
                   <li>YouTube clips up to 30 s</li>
@@ -2014,7 +2046,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <p>Built for songs you plan to finish, not just test.</p>
                 </div>
                 <ul className="pricing-list">
-                  <li>50 credits/month, rollover up to 100</li>
+                  <li>100 credits/month—10× more than Free</li>
+                  <li>Use the highest-accuracy Heavy model more often</li>
+                  <li>Unused credits roll over, up to 200</li>
                   <li>Upload size: 200 MB</li>
                   <li>Full-length audio-file transcription</li>
                   <li>YouTube clips up to 30 s</li>
