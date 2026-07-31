@@ -9340,7 +9340,7 @@ input[type="number"] {
 .pricing-plan {
   position: relative;
   display: grid;
-  grid-template-rows: auto auto auto auto auto 1fr;
+  grid-template-rows: auto auto auto auto 1fr;
   min-width: 0;
   padding: clamp(25px, 3.5vw, 38px);
   border: 1px solid rgba(6, 17, 13, 0.12);
@@ -9371,8 +9371,8 @@ input[type="number"] {
 
 .pricing-plan__top {
   display: grid;
-  gap: 26px;
-  min-height: 172px;
+  gap: 20px;
+  min-height: 132px;
 }
 
 .pricing-plan__top h2,
@@ -9384,7 +9384,8 @@ input[type="number"] {
 
 .pricing-plan__top h2 {
   color: #06110d;
-  font-size: 1.55rem;
+  font-size: 1.45rem;
+  font-weight: 550;
   letter-spacing: -0.035em;
 }
 
@@ -9405,7 +9406,7 @@ input[type="number"] {
 .pricing-plan__price strong {
   color: #06110d;
   font-size: clamp(2.35rem, 4vw, 3.25rem);
-  font-weight: 750;
+  font-weight: 600;
   line-height: 1;
   letter-spacing: -0.065em;
 }
@@ -9425,7 +9426,7 @@ input[type="number"] {
   border-radius: 12px;
   font: inherit;
   font-size: 0.88rem;
-  font-weight: 800;
+  font-weight: 600;
   text-align: center;
   cursor: pointer;
   transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
@@ -9476,17 +9477,11 @@ input[type="number"] {
   background: rgba(6, 17, 13, 0.1);
 }
 
-.pricing-plan h3 {
-  color: #06110d;
-  font-size: 0.86rem;
-  letter-spacing: -0.01em;
-}
-
 .pricing-plan__features {
   display: grid;
   align-content: start;
   gap: 14px;
-  margin: 18px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
@@ -9563,7 +9558,7 @@ input[type="number"] {
 
 .pricing-page__value dt {
   font-size: clamp(1.2rem, 2vw, 1.65rem);
-  font-weight: 750;
+  font-weight: 650;
   letter-spacing: -0.035em;
 }
 
@@ -9574,7 +9569,6 @@ input[type="number"] {
   line-height: 1.45;
 }
 
-.pricing-page__models,
 .pricing-page__faq {
   max-width: 980px;
   margin: clamp(68px, 9vw, 110px) auto 0;
@@ -9601,49 +9595,6 @@ input[type="number"] {
   line-height: 1.55;
 }
 
-.pricing-page__model-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.pricing-page__model-grid article {
-  min-width: 0;
-  padding: clamp(22px, 3.5vw, 34px);
-  border: 1px solid rgba(6, 17, 13, 0.11);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.65);
-}
-
-.pricing-page__model-grid article > span {
-  color: rgba(6, 17, 13, 0.52);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.pricing-page__model-grid h3 {
-  margin: 28px 0 8px;
-  color: #06110d;
-  font-size: 1.55rem;
-  letter-spacing: -0.04em;
-}
-
-.pricing-page__model-grid p {
-  max-width: 370px;
-  margin: 0;
-  color: rgba(6, 17, 13, 0.62);
-  font-size: 0.88rem;
-  line-height: 1.55;
-}
-
-.pricing-page__model-grid .pricing-page__model--heavy {
-  border-color: rgba(6, 17, 13, 0.24);
-  background: #fff;
-  box-shadow: 0 15px 38px rgba(6, 17, 13, 0.07);
-}
-
 .pricing-page__faq {
   display: grid;
   grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.28fr);
@@ -9663,7 +9614,7 @@ input[type="number"] {
   padding: 21px 4px;
   color: #06110d;
   font-size: 0.92rem;
-  font-weight: 750;
+  font-weight: 500;
   line-height: 1.4;
   cursor: pointer;
 }
@@ -9728,8 +9679,7 @@ input[type="number"] {
     line-height: 1.55;
   }
 
-  .pricing-page__plans,
-  .pricing-page__model-grid {
+  .pricing-page__plans {
     grid-template-columns: 1fr;
   }
 
@@ -9743,7 +9693,7 @@ input[type="number"] {
   }
 
   .pricing-plan__top {
-    min-height: 158px;
+    min-height: 126px;
   }
 
   .pricing-page__value {

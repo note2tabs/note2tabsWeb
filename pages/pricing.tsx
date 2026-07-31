@@ -140,21 +140,17 @@ export default function PricingPage() {
         <section className="pricing-page">
           <div className="container pricing-page__container">
             <header className="pricing-page__hero">
-              <span>Simple plans. Serious tabs.</span>
               <h1>Choose how far you want to take your music.</h1>
               <p>
-                Start free with every core tool. Upgrade when you want more
-                transcriptions, full songs, and more room to use Heavy.
+                Start free. Upgrade for more transcriptions, full songs, and
+                more room to use Heavy.
               </p>
             </header>
 
             <section className="pricing-page__plans" aria-label="Note2Tabs plans">
               <article className="pricing-plan pricing-plan--free">
                 <div className="pricing-plan__top">
-                  <div>
-                    <h2>Free</h2>
-                    <p>Explore the complete Note2Tabs workflow.</p>
-                  </div>
+                  <h2>Free</h2>
                   <div className="pricing-plan__price">
                     <strong>$0</strong>
                     <span>/ month</span>
@@ -171,7 +167,6 @@ export default function PricingPage() {
                 </Link>
                 <p className="pricing-plan__reassurance">No credit card required</p>
                 <div className="pricing-plan__divider" />
-                <h3>Everything you need to try it</h3>
                 <ul className="pricing-plan__features">
                   <li><strong>10</strong> transcription credits each month</li>
                   <li>Light and Heavy transcription models</li>
@@ -185,10 +180,7 @@ export default function PricingPage() {
               <article className="pricing-plan pricing-plan--premium">
                 <div className="pricing-plan__badge">Most popular · 7-day trial</div>
                 <div className="pricing-plan__top">
-                  <div>
-                    <h2>Premium</h2>
-                    <p>For songs and ideas you want to finish.</p>
-                  </div>
+                  <h2>Premium</h2>
                   <div className="pricing-plan__price">
                     <strong>$5.99</strong>
                     <span>/ month</span>
@@ -215,7 +207,6 @@ export default function PricingPage() {
                   $5.99/month after trial · Cancel anytime
                 </p>
                 <div className="pricing-plan__divider" />
-                <h3>Everything in Free, plus</h3>
                 <ul className="pricing-plan__features">
                   <li><strong>50</strong> credits each month—5× more</li>
                   <li>Use the more accurate Heavy model regularly</li>
@@ -231,50 +222,8 @@ export default function PricingPage() {
               <div className="error pricing-page__error" role="alert">{checkoutError}</div>
             )}
 
-            <section className="pricing-page__value" aria-labelledby="premium-value-title">
-              <div>
-                <span>Why Premium</span>
-                <h2 id="premium-value-title">More room for the music that matters.</h2>
-              </div>
-              <dl>
-                <div>
-                  <dt>5×</dt>
-                  <dd>more monthly credits</dd>
-                </div>
-                <div>
-                  <dt>Full songs</dt>
-                  <dd>from audio-file uploads</dd>
-                </div>
-                <div>
-                  <dt>Heavy</dt>
-                  <dd>more accurate on complex audio</dd>
-                </div>
-              </dl>
-            </section>
-
-            <section className="pricing-page__models" aria-labelledby="pricing-model-title">
-              <div className="pricing-page__section-heading">
-                <span>Included in both plans</span>
-                <h2 id="pricing-model-title">Pick the right model for each recording.</h2>
-                <p>You never have to upgrade just to try our more accurate model.</p>
-              </div>
-              <div className="pricing-page__model-grid">
-                <article>
-                  <span>Faster</span>
-                  <h3>Light</h3>
-                  <p>Quick transcription for clear, focused guitar recordings.</p>
-                </article>
-                <article className="pricing-page__model--heavy">
-                  <span>More accurate</span>
-                  <h3>Heavy</h3>
-                  <p>More detail for complex recordings and multiple instruments.</p>
-                </article>
-              </div>
-            </section>
-
             <section className="pricing-page__faq" aria-labelledby="pricing-faq-title">
               <div className="pricing-page__section-heading">
-                <span>Good to know</span>
                 <h2 id="pricing-faq-title">Questions before you start?</h2>
               </div>
               <div className="pricing-page__faq-list">
@@ -289,7 +238,6 @@ export default function PricingPage() {
 
             <section className="pricing-page__final">
               <div>
-                <span>Start with your next song</span>
                 <h2>Turn the recording into something you can play.</h2>
               </div>
               <Link
