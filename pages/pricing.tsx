@@ -5,6 +5,29 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
 import SeoHead, { WEBSITE_ID, absoluteUrl } from "../components/SeoHead";
 
+const pricingFaqs = [
+  {
+    question: "Can I try Premium before paying?",
+    answer:
+      "Yes. New subscribers get a 7-day trial. After the trial, Premium is $5.99 per month unless you cancel.",
+  },
+  {
+    question: "Do both plans include Light and Heavy?",
+    answer:
+      "Yes. Light is faster for clear, focused guitar recordings. Heavy is our more accurate model for complex and multi-instrument recordings. Premium gives you more room to choose Heavy regularly.",
+  },
+  {
+    question: "What happens to unused credits?",
+    answer:
+      "Premium credits roll over up to a balance of 100. Free credits refresh monthly and do not roll over.",
+  },
+  {
+    question: "Can I cancel anytime?",
+    answer:
+      "Yes. You can manage or cancel Premium from your account settings. Your access continues through the current billing period.",
+  },
+];
+
 export default function PricingPage() {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
@@ -43,6 +66,18 @@ export default function PricingPage() {
           item: absoluteUrl("/pricing"),
         },
       ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: pricingFaqs.map((item) => ({
+        "@type": "Question",
+        name: item.question,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: item.answer,
+        },
+      })),
     },
   ];
 
@@ -95,132 +130,178 @@ export default function PricingPage() {
 
   return (
     <>
-      <SeoHead title="Pricing | Note2Tabs" description={description} canonicalPath="/pricing" jsonLd={pricingJsonLd} />
+      <SeoHead
+        title="Pricing | Note2Tabs"
+        description={description}
+        canonicalPath="/pricing"
+        jsonLd={pricingJsonLd}
+      />
       <main className="page page-pricing">
-        <section className="pricing">
-          <div className="container stack">
-            <div className="page-header">
-              <div>
-                <h1 className="page-title">Pricing</h1>
-                <p className="page-subtitle">
-                  Compare Free and Premium plans for credits, speed, clip length, and upload limits.
-                </p>
-              </div>
-              <Link
-                href="/transcribe"
-                className="button-secondary button-small"
-                onClick={() => trackCtaClick("pricing_back_to_app", { surface: "pricing_page" })}
-              >
-                Start transcribing
-              </Link>
-            </div>
+        <section className="pricing-page">
+          <div className="container pricing-page__container">
+            <header className="pricing-page__hero">
+              <span>Simple plans. Serious tabs.</span>
+              <h1>Choose how far you want to take your music.</h1>
+              <p>
+                Start free with every core tool. Upgrade when you want more
+                transcriptions, full songs, and more room to use Heavy.
+              </p>
+            </header>
 
-            <section className="pricing-model-story" aria-labelledby="pricing-model-title">
-              <div className="pricing-model-story__intro">
-                <span className="pricing-model-story__eyebrow">Two transcription models</span>
-                <h2 id="pricing-model-title">Use Heavy when accuracy matters most.</h2>
-                <p>
-                  Both plans include Light and Heavy. Premium gives you the credits to use
-                  our highest-accuracy model much more often.
-                </p>
-              </div>
-              <div className="pricing-model-comparison">
-                <div className="pricing-model-option">
-                  <div>
-                    <h3>Light</h3>
-                    <span>Fast</span>
-                  </div>
-                  <p>For clear, focused guitar recordings.</p>
-                  <strong>Fast and efficient</strong>
-                </div>
-                <div className="pricing-model-option pricing-model-option--heavy">
-                  <div>
-                    <h3>Heavy</h3>
-                    <span>Highest accuracy</span>
-                  </div>
-                  <p>For complex and multi-instrument recordings.</p>
-                  <strong>Uses more of your allowance</strong>
-                </div>
-              </div>
-              <div className="pricing-heavy-usage" aria-label="Heavy model monthly usage comparison">
-                <div>
-                  <span>Free</span>
-                  <strong>10 monthly credits</strong>
-                  <small>For occasional Heavy use</small>
-                </div>
-                <div>
-                  <span>Premium</span>
-                  <strong>5× more credits</strong>
-                  <small>Use Heavy much more often</small>
-                </div>
-              </div>
-            </section>
-
-            <div className="pricing-grid">
-              <div className="pricing-card pricing-card--free">
-                <div className="pricing-header">
+            <section className="pricing-page__plans" aria-label="Note2Tabs plans">
+              <article className="pricing-plan pricing-plan--free">
+                <div className="pricing-plan__top">
                   <div>
                     <h2>Free</h2>
-                    <p className="muted text-small">Core features with lower limits.</p>
+                    <p>Explore the complete Note2Tabs workflow.</p>
                   </div>
-                  <div className="pricing-price">
-                    <span className="pricing-amount">$0</span>
-                    <span className="pricing-interval">/ month</span>
+                  <div className="pricing-plan__price">
+                    <strong>$0</strong>
+                    <span>/ month</span>
                   </div>
                 </div>
-                <ul className="pricing-list">
-                  <li>10 credits per month</li>
+                <Link
+                  href="/transcribe"
+                  className="pricing-plan__cta pricing-plan__cta--secondary"
+                  onClick={() =>
+                    trackCtaClick("pricing_start_free", { surface: "pricing_page" })
+                  }
+                >
+                  Start free
+                </Link>
+                <p className="pricing-plan__reassurance">No credit card required</p>
+                <div className="pricing-plan__divider" />
+                <h3>Everything you need to try it</h3>
+                <ul className="pricing-plan__features">
+                  <li><strong>10</strong> transcription credits each month</li>
                   <li>Light and Heavy transcription models</li>
-                  <li>Standard speed</li>
-                  <li>Upload size 50 MB</li>
-                  <li>Audio clips up to 60 s</li>
-                  <li>YouTube clips up to 30 s</li>
+                  <li>Audio clips up to 60 seconds</li>
+                  <li>Uploads up to 50 MB</li>
+                  <li>YouTube clips up to 30 seconds</li>
+                  <li>Full guitar-tab editor and practice tools</li>
                 </ul>
-              </div>
+              </article>
 
-              <div className="pricing-card pricing-card--premium pricing-card--trial">
-                <span className="pricing-trial-ribbon">7-day trial for new subscribers</span>
-                <div className="pricing-header">
+              <article className="pricing-plan pricing-plan--premium">
+                <div className="pricing-plan__badge">Most popular · 7-day trial</div>
+                <div className="pricing-plan__top">
                   <div>
                     <h2>Premium</h2>
-                    <p className="muted text-small">Higher limits with faster processing.</p>
+                    <p>For songs and ideas you want to finish.</p>
                   </div>
-                  <div className="pricing-price">
-                    <span className="pricing-amount">$5.99</span>
-                    <span className="pricing-interval">/ month</span>
+                  <div className="pricing-plan__price">
+                    <strong>$5.99</strong>
+                    <span>/ month</span>
                   </div>
                 </div>
-                <ul className="pricing-list">
-                  <li>50 credits per month—5× more than Free</li>
-                  <li>Use the highest-accuracy Heavy model more often</li>
-                  <li>Unused credits roll over, up to 100</li>
-                  <li>Extra speed</li>
-                  <li>Upload size 200 MB</li>
-                  <li>Full-length audio-file transcription</li>
-                  <li>YouTube clips up to 30 s</li>
-                </ul>
                 {hasPremiumAccess ? (
-                  <Link href={hasPaidPremium ? "/settings" : "/transcribe"} className="pricing-card-cta">
+                  <Link
+                    href={hasPaidPremium ? "/settings" : "/transcribe"}
+                    className="pricing-plan__cta pricing-plan__cta--primary"
+                  >
                     {hasPaidPremium ? "Manage current plan" : "Premium access included"}
                   </Link>
                 ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="pricing-card-cta"
-                      onClick={() => void startCheckout()}
-                      disabled={checkoutBusy || sessionStatus === "loading"}
-                    >
-                      {checkoutBusy ? "Opening checkout…" : "Upgrade to Premium"}
-                    </button>
-                    <p className="pricing-checkout-reassurance">
-                      7-day trial · $5.99/month after trial · Cancel anytime
-                    </p>
-                  </>
+                  <button
+                    type="button"
+                    className="pricing-plan__cta pricing-plan__cta--primary"
+                    onClick={() => void startCheckout()}
+                    disabled={checkoutBusy || sessionStatus === "loading"}
+                  >
+                    {checkoutBusy ? "Opening checkout…" : "Start 7-day trial"}
+                  </button>
                 )}
+                <p className="pricing-plan__reassurance">
+                  $5.99/month after trial · Cancel anytime
+                </p>
+                <div className="pricing-plan__divider" />
+                <h3>Everything in Free, plus</h3>
+                <ul className="pricing-plan__features">
+                  <li><strong>50</strong> credits each month—5× more</li>
+                  <li>Use the more accurate Heavy model regularly</li>
+                  <li>Unused credits roll over, up to 100</li>
+                  <li>Full-length audio-file transcription</li>
+                  <li>Uploads up to 200 MB</li>
+                  <li>Faster transcription processing</li>
+                </ul>
+              </article>
+            </section>
+
+            {checkoutError && (
+              <div className="error pricing-page__error" role="alert">{checkoutError}</div>
+            )}
+
+            <section className="pricing-page__value" aria-labelledby="premium-value-title">
+              <div>
+                <span>Why Premium</span>
+                <h2 id="premium-value-title">More room for the music that matters.</h2>
               </div>
-            </div>
-            {checkoutError && <div className="error" role="alert">{checkoutError}</div>}
+              <dl>
+                <div>
+                  <dt>5×</dt>
+                  <dd>more monthly credits</dd>
+                </div>
+                <div>
+                  <dt>Full songs</dt>
+                  <dd>from audio-file uploads</dd>
+                </div>
+                <div>
+                  <dt>Heavy</dt>
+                  <dd>more accurate on complex audio</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="pricing-page__models" aria-labelledby="pricing-model-title">
+              <div className="pricing-page__section-heading">
+                <span>Included in both plans</span>
+                <h2 id="pricing-model-title">Pick the right model for each recording.</h2>
+                <p>You never have to upgrade just to try our more accurate model.</p>
+              </div>
+              <div className="pricing-page__model-grid">
+                <article>
+                  <span>Faster</span>
+                  <h3>Light</h3>
+                  <p>Quick transcription for clear, focused guitar recordings.</p>
+                </article>
+                <article className="pricing-page__model--heavy">
+                  <span>More accurate</span>
+                  <h3>Heavy</h3>
+                  <p>More detail for complex recordings and multiple instruments.</p>
+                </article>
+              </div>
+            </section>
+
+            <section className="pricing-page__faq" aria-labelledby="pricing-faq-title">
+              <div className="pricing-page__section-heading">
+                <span>Good to know</span>
+                <h2 id="pricing-faq-title">Questions before you start?</h2>
+              </div>
+              <div className="pricing-page__faq-list">
+                {pricingFaqs.map((item) => (
+                  <details key={item.question}>
+                    <summary>{item.question}</summary>
+                    <p>{item.answer}</p>
+                  </details>
+                ))}
+              </div>
+            </section>
+
+            <section className="pricing-page__final">
+              <div>
+                <span>Start with your next song</span>
+                <h2>Turn the recording into something you can play.</h2>
+              </div>
+              <Link
+                href="/transcribe"
+                className="button-primary"
+                onClick={() =>
+                  trackCtaClick("pricing_final_transcribe", { surface: "pricing_page" })
+                }
+              >
+                Start transcribing
+              </Link>
+            </section>
           </div>
         </section>
       </main>
