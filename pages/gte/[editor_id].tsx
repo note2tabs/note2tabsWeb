@@ -17,6 +17,7 @@ import dynamic from "next/dynamic";
 import { buildLaneEditorRef, gteApi } from "../../lib/gteApi";
 import {
   PLAYBACK_SPEED_OPTIONS,
+  SPEED_TRAINER_START_OPTIONS,
   SPEED_TRAINER_STEP_OPTIONS,
   SPEED_TRAINER_TARGET_OPTIONS,
   buildMetronomeClicks,
@@ -1159,6 +1160,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [practiceChordOverlayLaneId, setPracticeChordOverlayLaneId] = useState<string | null>(null);
   const [practiceFullscreen, setPracticeFullscreen] = useState(false);
   const [speedTrainerEnabled, setSpeedTrainerEnabled] = useState(false);
+  const [speedTrainerSessionActive, setSpeedTrainerSessionActive] = useState(false);
+  const [speedTrainerStart, setSpeedTrainerStart] = useState(0.75);
   const [speedTrainerTarget, setSpeedTrainerTarget] = useState(1.5);
   const [speedTrainerStep, setSpeedTrainerStep] = useState(0.05);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -1228,12 +1231,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const globalPlaybackStartFrameRef = useRef(0);
   const globalPlaybackEndFrameRef = useRef<number | null>(null);
   const globalPlaybackAudioStartRef = useRef<number | null>(null);
+  const practiceLoopEnabledRef = useRef(practiceLoopEnabled);
+  const speedTrainerSessionActiveRef = useRef(false);
+  const speedTrainerOriginalSpeedRef = useRef<number | null>(null);
   const previousTrackPlaybackStateSignatureRef = useRef<string | null>(null);
   const previousTrackInstrumentSignatureRef = useRef<string | null>(null);
   const canvasUndoRef = useRef<CanvasSnapshot[]>([]);
   const canvasRedoRef = useRef<CanvasSnapshot[]>([]);
   const trackSectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const [sharedTimelineBaseScale, setSharedTimelineBaseScale] = useState<number | undefined>(undefined);
+  const resetSpeedTrainerSession = useCallback(() => {
+    const originalSpeed = speedTrainerOriginalSpeedRef.current;
+    speedTrainerOriginalSpeedRef.current = null;
+    speedTrainerSessionActiveRef.current = false;
+    setSpeedTrainerSessionActive(false);
+    if (originalSpeed !== null) setPlaybackSpeed(originalSpeed);
+  }, []);
   const router = useRouter();
   const saveToAccountPath = "/gte?importGuest=1";
   const loginSaveHref = `/auth/login?next=${encodeURIComponent(saveToAccountPath)}`;
@@ -2772,6 +2785,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setMetronomeVolume(Math.max(0, Math.min(1, Number(saved.metronomeVolume) || 0.7)));
       setCountInBars(Math.max(1, Math.min(3, Math.round(Number(saved.countInBars) || 1))));
       if (typeof saved.countInEveryLoop === "boolean") setCountInEveryLoop(saved.countInEveryLoop);
+      setSpeedTrainerStart(normalizePlaybackSpeed(saved.speedTrainerStart ?? 0.75));
       setSpeedTrainerTarget(normalizePlaybackSpeed(saved.speedTrainerTarget));
       setSpeedTrainerStep(Math.max(0.01, Number(saved.speedTrainerStep) || 0.05));
       if (Array.isArray(saved.barIndices) && typeof saved.barLaneId === "string") {
@@ -2799,7 +2813,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         practiceSettingsStorageKey,
         JSON.stringify({
           activeLaneId: globalControlsLaneId,
-          playbackSpeed: normalizedPlaybackSpeed,
+          playbackSpeed:
+            speedTrainerSessionActiveRef.current && speedTrainerOriginalSpeedRef.current !== null
+              ? speedTrainerOriginalSpeedRef.current
+              : normalizedPlaybackSpeed,
           playbackFrame: globalPlaybackFrameRef.current,
           practiceLoopEnabled,
           metronomeEnabled,
@@ -2808,6 +2825,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           countInBars,
           countInEveryLoop,
           speedTrainerEnabled,
+          speedTrainerStart,
           speedTrainerTarget,
           speedTrainerStep,
           practiceFocusEnabled,
@@ -2834,6 +2852,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     practiceLoopEnabled,
     practiceSettingsStorageKey,
     speedTrainerEnabled,
+    speedTrainerStart,
     speedTrainerStep,
     speedTrainerTarget,
   ]);
@@ -2843,13 +2862,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [barSelection]);
 
   useEffect(() => {
+    if (speedTrainerStart <= speedTrainerTarget) return;
+    setSpeedTrainerStart(speedTrainerTarget);
+  }, [speedTrainerStart, speedTrainerTarget]);
+
+  useEffect(() => {
     if (globalPracticeLoopRange) return;
     if (practiceLoopEnabled) setPracticeLoopEnabled(false);
   }, [globalPracticeLoopRange, practiceLoopEnabled]);
   useEffect(() => {
-    if (practiceLoopEnabled) return;
-    if (speedTrainerEnabled) setSpeedTrainerEnabled(false);
-  }, [practiceLoopEnabled, speedTrainerEnabled]);
+    practiceLoopEnabledRef.current = practiceLoopEnabled;
+  }, [practiceLoopEnabled]);
 
   useEffect(() => {
     setGlobalPlaybackFrame((prev) => Math.max(0, Math.min(canvasTimelineEnd, Math.round(prev))));
@@ -3238,7 +3261,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [metronomeVolume]
   );
 
-  const stopGlobalPlayback = useCallback(() => {
+  const stopGlobalPlayback = useCallback((options?: { preserveSpeedTrainerSession?: boolean }) => {
     globalPlaybackStartRequestRef.current += 1;
     globalPlaybackStartPendingRef.current = false;
     setGlobalPlaybackIsPreparing(false);
@@ -3251,7 +3274,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     globalPlaybackAudioStartRef.current = null;
     stopGlobalPlaybackAudio();
     setGlobalPlaybackIsPlaying(false);
-  }, [stopGlobalPlaybackAudio]);
+    if (!options?.preserveSpeedTrainerSession) resetSpeedTrainerSession();
+  }, [resetSpeedTrainerSession, stopGlobalPlaybackAudio]);
+
+  useEffect(() => {
+    if (practiceLoopEnabled || !speedTrainerEnabled) return;
+    setSpeedTrainerEnabled(false);
+    stopGlobalPlayback();
+  }, [practiceLoopEnabled, speedTrainerEnabled, stopGlobalPlayback]);
+
+  useEffect(() => {
+    if (practiceModeEnabled || !speedTrainerSessionActiveRef.current) return;
+    stopGlobalPlayback();
+  }, [practiceModeEnabled, stopGlobalPlayback]);
 
   useEffect(() => {
     stopGlobalPlayback();
@@ -3798,16 +3833,32 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         globalPlaybackStartFrameRef.current + elapsed * globalPlaybackFps * runPlaybackSpeed;
       const endFrame = globalPlaybackEndFrameRef.current ?? canvasTimelineEnd;
       if (nextFrame >= endFrame) {
-        if (!options?.oneShotRange && practiceLoopEnabled && globalPracticeLoopRange) {
-          const nextSpeed = speedTrainerEnabled
+        const trainerSessionActive = speedTrainerSessionActiveRef.current;
+        if (
+          trainerSessionActive &&
+          runPlaybackSpeed >= normalizePlaybackSpeed(speedTrainerTarget)
+        ) {
+          syncGlobalPlaybackFrame(endFrame, { forceReact: true });
+          setSpeedTrainerEnabled(false);
+          stopGlobalPlayback();
+          options?.onComplete?.();
+          return;
+        }
+        if (
+          !options?.oneShotRange &&
+          practiceLoopEnabledRef.current &&
+          globalPracticeLoopRange
+        ) {
+          const nextSpeed = trainerSessionActive
             ? nextSpeedTrainerValue(runPlaybackSpeed, speedTrainerStep, speedTrainerTarget)
             : runPlaybackSpeed;
-          if (speedTrainerEnabled) {
+          if (trainerSessionActive) {
             setPlaybackSpeed(nextSpeed);
           }
           syncGlobalPlaybackFrame(globalPracticeLoopRange.startFrame, { forceReact: true });
-          stopGlobalPlayback();
+          stopGlobalPlayback({ preserveSpeedTrainerSession: trainerSessionActive });
           window.setTimeout(() => {
+            if (trainerSessionActive && !speedTrainerSessionActiveRef.current) return;
             void startGlobalPlayback(globalPracticeLoopRange.startFrame, nextSpeed, true);
           }, 0);
           return;
@@ -3830,12 +3881,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     globalPracticeLoopRange,
     globalPlaybackFps,
     normalizedPlaybackSpeed,
-    practiceLoopEnabled,
     scheduleGlobalPlayback,
     selectedPracticePlaybackRange,
     speedTrainerStep,
     speedTrainerTarget,
-    speedTrainerEnabled,
     stopGlobalPlayback,
     stopGlobalPlaybackAudio,
     syncGlobalPlaybackFrame,
@@ -3984,17 +4033,53 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
   }, []);
 
+  const beginSpeedTrainerSession = useCallback(() => {
+    const startSpeed = Math.min(
+      normalizePlaybackSpeed(speedTrainerStart),
+      normalizePlaybackSpeed(speedTrainerTarget)
+    );
+    speedTrainerOriginalSpeedRef.current = normalizedPlaybackSpeed;
+    speedTrainerSessionActiveRef.current = true;
+    setSpeedTrainerSessionActive(true);
+    practiceLoopEnabledRef.current = true;
+    setPracticeLoopEnabled(true);
+    setPlaybackSpeed(startSpeed);
+    return startSpeed;
+  }, [normalizedPlaybackSpeed, speedTrainerStart, speedTrainerTarget]);
+
+  const toggleSpeedTrainer = useCallback(() => {
+    stopGlobalPlayback();
+    if (speedTrainerEnabled) {
+      setSpeedTrainerEnabled(false);
+      return;
+    }
+    practiceLoopEnabledRef.current = true;
+    setPracticeLoopEnabled(true);
+    setSpeedTrainerEnabled(true);
+  }, [speedTrainerEnabled, stopGlobalPlayback]);
+
   const toggleGlobalPlayback = useCallback(() => {
     if (globalPlaybackStartPendingRef.current) return;
     if (globalPlaybackIsPlaying) {
       stopGlobalPlayback();
       return;
     }
+    if (speedTrainerEnabled && globalPracticeLoopRange) {
+      const startSpeed = beginSpeedTrainerSession();
+      void startGlobalPlayback(globalPracticeLoopRange.startFrame, startSpeed).then((started) => {
+        if (!started) resetSpeedTrainerSession();
+      });
+      return;
+    }
     const atTimelineEnd = Math.round(globalPlaybackFrameRef.current) >= canvasTimelineEnd;
     void startGlobalPlayback(atTimelineEnd ? 0 : undefined);
   }, [
+    beginSpeedTrainerSession,
     canvasTimelineEnd,
+    globalPracticeLoopRange,
     globalPlaybackIsPlaying,
+    resetSpeedTrainerSession,
+    speedTrainerEnabled,
     startGlobalPlayback,
     stopGlobalPlayback,
   ]);
@@ -4921,9 +5006,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             <select
               value={normalizedPlaybackSpeed}
               onChange={(event) => setPlaybackSpeed(Number(event.target.value))}
-              className="bg-transparent text-xs font-semibold text-slate-900 outline-none"
+              disabled={speedTrainerSessionActive}
+              className="bg-transparent text-xs font-semibold text-slate-900 outline-none disabled:cursor-not-allowed"
               aria-label="Practice playback speed"
             >
+              {!PLAYBACK_SPEED_OPTIONS.some((speed) => speed === normalizedPlaybackSpeed) && (
+                <option value={normalizedPlaybackSpeed}>
+                  {Math.round(normalizedPlaybackSpeed * 100)}%
+                </option>
+              )}
               {PLAYBACK_SPEED_OPTIONS.map((speed) => (
                 <option key={speed} value={speed}>{Math.round(speed * 100)}%</option>
               ))}
@@ -5129,13 +5220,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               <div className="border-t border-slate-100 pt-3">
                 <button
                   type="button"
-                  onClick={() =>
-                    setSpeedTrainerEnabled((enabled) => {
-                      const next = !enabled;
-                      if (next) setPracticeLoopEnabled(true);
-                      return next;
-                    })
-                  }
+                  onClick={toggleSpeedTrainer}
                   aria-pressed={speedTrainerEnabled}
                   className={`flex h-9 w-full items-center justify-between rounded-lg border px-3 text-xs font-semibold transition ${
                     speedTrainerEnabled
@@ -5144,37 +5229,59 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   }`}
                 >
                   <span>Speed trainer</span>
-                  <span>{speedTrainerEnabled ? "On" : "Off"}</span>
+                  <span>{speedTrainerSessionActive ? "Running" : speedTrainerEnabled ? "On" : "Off"}</span>
                 </button>
               </div>
               {speedTrainerEnabled && (
-                <div className="grid grid-cols-2 gap-2">
-              <label className="flex h-8 items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-2.5 text-xs font-semibold text-violet-900">
-                <span>Target</span>
-                <select
-                  value={speedTrainerTarget}
-                  onChange={(event) => setSpeedTrainerTarget(Number(event.target.value))}
-                  className="bg-transparent font-semibold outline-none"
-                  aria-label="Speed trainer target"
-                >
-                  {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
-                    <option key={speed} value={speed}>{Math.round(speed * 100)}%</option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex h-8 items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-2.5 text-xs font-semibold text-violet-900">
-                <span>Increase</span>
-                <select
-                  value={speedTrainerStep}
-                  onChange={(event) => setSpeedTrainerStep(Number(event.target.value))}
-                  className="bg-transparent font-semibold outline-none"
-                  aria-label="Speed trainer increase"
-                >
-                  {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
-                    <option key={step} value={step}>+{Math.round(step * 100)}%</option>
-                  ))}
-                </select>
-              </label>
+                <div className="grid grid-cols-1 gap-1.5">
+                  <label className="flex h-8 w-full items-center justify-between rounded-lg border border-violet-200 bg-white px-2 text-[11px] font-semibold text-violet-900">
+                    <span>Start</span>
+                    <select
+                      value={speedTrainerStart}
+                      onChange={(event) => setSpeedTrainerStart(Number(event.target.value))}
+                      disabled={speedTrainerSessionActive}
+                      className="min-w-0 bg-transparent text-right text-[11px] font-semibold outline-none disabled:cursor-not-allowed"
+                      aria-label="Speed trainer start"
+                    >
+                      {SPEED_TRAINER_START_OPTIONS.filter(
+                        (speed) => speed <= speedTrainerTarget
+                      ).map((speed) => (
+                        <option key={speed} value={speed}>{Math.round(speed * 100)}%</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex h-8 w-full items-center justify-between rounded-lg border border-violet-200 bg-white px-2 text-[11px] font-semibold text-violet-900">
+                    <span>Target</span>
+                    <select
+                      value={speedTrainerTarget}
+                      onChange={(event) => {
+                        const target = Number(event.target.value);
+                        setSpeedTrainerTarget(target);
+                        setSpeedTrainerStart((start) => Math.min(start, target));
+                      }}
+                      disabled={speedTrainerSessionActive}
+                      className="min-w-0 bg-transparent text-right text-[11px] font-semibold outline-none disabled:cursor-not-allowed"
+                      aria-label="Speed trainer target"
+                    >
+                      {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
+                        <option key={speed} value={speed}>{Math.round(speed * 100)}%</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex h-8 w-full items-center justify-between rounded-lg border border-violet-200 bg-white px-2 text-[11px] font-semibold text-violet-900">
+                    <span>Step</span>
+                    <select
+                      value={speedTrainerStep}
+                      onChange={(event) => setSpeedTrainerStep(Number(event.target.value))}
+                      disabled={speedTrainerSessionActive}
+                      className="min-w-0 bg-transparent text-right text-[11px] font-semibold outline-none disabled:cursor-not-allowed"
+                      aria-label="Speed trainer increase"
+                    >
+                      {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
+                        <option key={step} value={step}>+{Math.round(step * 100)}%</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
               )}
               <div className="border-t border-slate-100 pt-2 text-[10px] leading-4 text-slate-500">
@@ -6356,10 +6463,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setSpeedTrainerEnabled((enabled) => !enabled)}
-                        disabled={!practiceLoopEnabled}
+                        onClick={toggleSpeedTrainer}
                         aria-pressed={speedTrainerEnabled}
-                        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                       >
                         <span>Speed trainer</span>
                         <span className="text-xs">{speedTrainerEnabled ? "On" : "Off"}</span>

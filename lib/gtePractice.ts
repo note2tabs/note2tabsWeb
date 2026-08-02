@@ -9,9 +9,10 @@ export type MetronomeClick = {
   accent: boolean;
 };
 
-export const PLAYBACK_SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5] as const;
+export const PLAYBACK_SPEED_OPTIONS = [0.25,0.5, 0.75, 1, 1.25, 1.5] as const;
+export const SPEED_TRAINER_START_OPTIONS = [0.1,0.25,0.4,0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 1, 1.25, 1.5] as const;
 export const SPEED_TRAINER_TARGET_OPTIONS = [0.75, 1, 1.25, 1.5, 1.75, 2] as const;
-export const SPEED_TRAINER_STEP_OPTIONS = [0.05, 0.1, 0.25] as const;
+export const SPEED_TRAINER_STEP_OPTIONS = [0.01, 0.02, 0.03, 0.05, 0.1, 0.25] as const;
 export const SPEED_TRAINER_STEP = 0.05;
 export const SPEED_TRAINER_TARGET = 1.5;
 
