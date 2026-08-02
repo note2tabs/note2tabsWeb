@@ -117,7 +117,20 @@ describe("editor practice mode", () => {
   });
 
   it("enables looping when speed trainer is turned on", () => {
-    expect(editorPage).toContain("if (next) setPracticeLoopEnabled(true)");
+    expect(editorPage).toContain("const toggleSpeedTrainer = useCallback");
+    expect(editorPage).toContain("setPracticeLoopEnabled(true)");
+    expect(editorPage).toContain("practiceLoopEnabledRef.current = true");
+  });
+
+  it("runs speed training from a configured start and restores the previous speed", () => {
+    expect(editorPage).toContain('aria-label="Speed trainer start"');
+    expect(editorPage).toContain("SPEED_TRAINER_START_OPTIONS.filter");
+    expect(editorPage).toContain("speedTrainerOriginalSpeedRef.current = normalizedPlaybackSpeed");
+    expect(editorPage).toContain("setPlaybackSpeed(nextSpeed)");
+    expect(editorPage).toContain("resetSpeedTrainerSession()");
+    expect(editorPage).toContain("runPlaybackSpeed >= normalizePlaybackSpeed(speedTrainerTarget)");
+    expect(editorPage).toContain("globalPracticeLoopRange.startFrame, startSpeed");
+    expect(editorPage).toContain('className="grid grid-cols-1 gap-1.5"');
   });
 
   it("provides focused, persistent practice utilities", () => {
@@ -129,6 +142,14 @@ describe("editor practice mode", () => {
     expect(editorPage).not.toContain("<PracticeFretboard");
     expect(workspace).toContain("practiceFocusBarRange");
     expect(workspace).toContain("practiceDisplayStartBar");
+  });
+
+  it("keeps shortcuts and bar-selection guidance on the right in practice", () => {
+    expect(editorPage).toContain("const renderPracticeHelp = () => (");
+    expect(editorPage).toContain("Practice shortcuts");
+    expect(editorPage).toContain("min-[1400px]:right-[max(1rem,calc(50vw-700px))]");
+    expect(editorPage).toContain("Select one or more bars for playback");
+    expect(editorPage).toContain("Shift-click another bar");
   });
 
   it("paints the full viewport with the app background in fullscreen", () => {

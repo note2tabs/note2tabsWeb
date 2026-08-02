@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  SPEED_TRAINER_START_OPTIONS,
+  SPEED_TRAINER_STEP_OPTIONS,
   buildMetronomeClicks,
   equalPowerPanGains,
   frameDeltaToSeconds,
@@ -52,6 +54,9 @@ describe("gte practice helpers", () => {
   it("steps speed trainer toward its target", () => {
     expect(nextSpeedTrainerValue(1)).toBe(1.05);
     expect(nextSpeedTrainerValue(1.49)).toBe(1.5);
+    expect(nextSpeedTrainerValue(0.75, 0.01, 1)).toBe(0.76);
+    expect(SPEED_TRAINER_STEP_OPTIONS.slice(0, 3)).toEqual([0.01, 0.02, 0.03]);
+    expect(SPEED_TRAINER_START_OPTIONS).toContain(0.75);
   });
 
   it("normalizes track pan", () => {

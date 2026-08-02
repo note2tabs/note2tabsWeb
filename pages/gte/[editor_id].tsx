@@ -5284,11 +5284,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </label>
                 </div>
               )}
-              <div className="border-t border-slate-100 pt-2 text-[10px] leading-4 text-slate-500">
-                <p className="font-semibold text-slate-700">Keyboard &amp; pedal shortcuts</p>
-                <p>Space play · ←/→ bars · L loop · M metronome · [/] speed</p>
-                <p className="mt-1">Bluetooth pedals that send arrow or Page keys work automatically.</p>
-              </div>
             </div>
           </details>
           {PRACTICE_RATING_UI_ENABLED && practiceRatingError && (
@@ -5321,12 +5316,26 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           )}
         </div>
       </div>
-      {!barSelection?.barIndices.length && (
-        <p className="mt-2 text-[11px] leading-4 text-slate-500">
-          Select one or more bars in the score to practise a section.
-        </p>
-      )}
     </section>
+  );
+
+  const renderPracticeHelp = () => (
+    <aside className="mx-auto w-full max-w-[900px] rounded-xl border border-slate-200 bg-white p-3 text-[11px] leading-4 text-slate-500 shadow-sm min-[1400px]:fixed min-[1400px]:right-[max(1rem,calc(50vw-700px))] min-[1400px]:top-28 min-[1400px]:z-40 min-[1400px]:w-56 min-[1400px]:max-w-none">
+      <h2 className="text-xs font-semibold text-slate-800">Practice shortcuts</h2>
+      <div className="mt-2 space-y-1">
+        <p><span className="font-semibold text-slate-700">Space</span> Play or pause</p>
+        <p><span className="font-semibold text-slate-700">← / →</span> Previous or next bar</p>
+        <p><span className="font-semibold text-slate-700">L</span> Toggle loop</p>
+        <p><span className="font-semibold text-slate-700">M</span> Toggle metronome</p>
+        <p><span className="font-semibold text-slate-700">[ / ]</span> Change speed</p>
+      </div>
+      <p className="mt-3 border-t border-slate-100 pt-3">
+        {barSelection?.barIndices.length
+          ? `${barSelection.barIndices.length} bar${barSelection.barIndices.length === 1 ? "" : "s"} selected for playback.`
+          : "Select one or more bars for playback. Shift-click another bar to select everything in between."}
+      </p>
+      <p className="mt-2">Bluetooth pedals that send arrow or Page keys work automatically.</p>
+    </aside>
   );
 
   const bootstrapEditorPath = `${
@@ -7422,7 +7431,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             )}
           </div>
         )}
-        {practiceModeEnabled && !isMobileEditMode && renderPracticeControls()}
+        {practiceModeEnabled && !isMobileEditMode && (
+          <>
+            {renderPracticeControls()}
+            {renderPracticeHelp()}
+          </>
+        )}
         {loading && !canvas && (
           <EditorLoadingState />
         )}
