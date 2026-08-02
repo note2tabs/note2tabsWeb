@@ -31,8 +31,14 @@ import {
   buildPracticeRatingBars,
   encodeMonoWav,
   normalizePracticeRatingReplay,
+  trimPracticeRecordingSamples,
   type PracticeRatingReplay,
 } from "../../lib/gtePracticeRating";
+import {
+  deletePracticeReplayAudio,
+  readPracticeReplayAudio,
+  storePracticeReplayAudio,
+} from "../../lib/gtePracticeReplayAudio";
 import {
   DEFAULT_TRACK_INSTRUMENT_ID,
   getTrackInstrumentOptions,
@@ -1155,6 +1161,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [practiceRatingReplays, setPracticeRatingReplays] = useState<PracticeRatingReplay[]>([]);
   const [selectedPracticeRatingId, setSelectedPracticeRatingId] = useState<string | null>(null);
+  const [practiceReplayPlayingId, setPracticeReplayPlayingId] = useState<string | null>(null);
   const [showPracticeRating, setShowPracticeRating] = useState(true);
   const [practiceRatingState, setPracticeRatingState] = useState<
     "idle" | "permission" | "countdown" | "recording" | "scoring"
@@ -1208,6 +1215,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const applyingGlobalTimelineScrollbarRef = useRef(false);
   const globalPlaybackAudioRef = useRef<AudioContext | null>(null);
   const globalPlaybackMasterGainRef = useRef<GainNode | null>(null);
+  const practiceReplayAudioRef = useRef<HTMLAudioElement | null>(null);
+  const practiceReplayAudioUrlRef = useRef<string | null>(null);
+  const practiceReplayAudioCacheRef = useRef<Map<string, Blob>>(new Map());
   const globalPlaybackRafRef = useRef<number | null>(null);
   const globalPlaybackStartRequestRef = useRef(0);
   const globalPlaybackStartPendingRef = useRef(false);
@@ -2697,7 +2707,20 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (typeof window === "undefined") return;
     try {
       const saved = JSON.parse(window.localStorage.getItem(practiceRatingsStorageKey) || "[]");
-      const replays = Array.isArray(saved) ? saved.slice(0, 3) : [];
+      const replayCountByLane = new Map<string, number>();
+      const replays = Array.isArray(saved)
+        ? saved.filter((replay: unknown): replay is PracticeRatingReplay => {
+            if (!replay || typeof replay !== "object") {
+              return false;
+            }
+            const candidate = replay as Partial<PracticeRatingReplay>;
+            if (typeof candidate.laneId !== "string") return false;
+            const count = replayCountByLane.get(candidate.laneId) ?? 0;
+            if (count >= 3) return false;
+            replayCountByLane.set(candidate.laneId, count + 1);
+            return true;
+          })
+        : [];
       setPracticeRatingReplays(replays);
       setSelectedPracticeRatingId(replays[0]?.id ?? null);
     } catch {
@@ -2705,13 +2728,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setSelectedPracticeRatingId(null);
     }
   }, [practiceRatingsStorageKey]);
-
-  const latestPracticeRatingId = practiceRatingReplays[0]?.id ?? null;
-  useEffect(() => {
-    if (!latestPracticeRatingId) return;
-    setSelectedPracticeRatingId(latestPracticeRatingId);
-    setShowPracticeRating(true);
-  }, [latestPracticeRatingId]);
 
   useEffect(() => {
     if (!canvas || practiceSettingsHydratedRef.current || typeof window === "undefined") return;
@@ -3156,6 +3172,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   );
 
   const stopGlobalPlaybackAudio = useCallback(() => {
+    setPracticeReplayPlayingId(null);
+    if (practiceReplayAudioRef.current) {
+      practiceReplayAudioRef.current.pause();
+      practiceReplayAudioRef.current.removeAttribute("src");
+      practiceReplayAudioRef.current.load();
+      practiceReplayAudioRef.current = null;
+    }
+    if (practiceReplayAudioUrlRef.current) {
+      URL.revokeObjectURL(practiceReplayAudioUrlRef.current);
+      practiceReplayAudioUrlRef.current = null;
+    }
     if (globalPlaybackAudioRef.current) {
       closeAudioContext(globalPlaybackAudioRef.current);
       globalPlaybackAudioRef.current = null;
@@ -3763,6 +3790,114 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     syncGlobalPlaybackFrame,
   ]);
 
+  const startPracticeReplayPlayback = useCallback(
+    async (replay: PracticeRatingReplay, startFrameOverride?: number) => {
+      const audioStorageKey = replay.audioStorageKey;
+      if (!audioStorageKey) {
+        setPracticeRatingError("Audio was not saved for this older replay. Record a new Play & rate attempt to listen back.");
+        return false;
+      }
+      if (globalPlaybackRafRef.current !== null || globalPlaybackStartPendingRef.current) {
+        return false;
+      }
+
+      globalPlaybackStartPendingRef.current = true;
+      setGlobalPlaybackIsPreparing(true);
+      setPracticeRatingError(null);
+      const requestId = globalPlaybackStartRequestRef.current + 1;
+      globalPlaybackStartRequestRef.current = requestId;
+      stopGlobalPlaybackAudio();
+
+      let objectUrl: string | null = null;
+      try {
+        const cachedAudio = practiceReplayAudioCacheRef.current.get(audioStorageKey);
+        const audioBlob = cachedAudio ?? (await readPracticeReplayAudio(audioStorageKey));
+        if (!audioBlob) {
+          throw new Error("The recorded audio for this replay is no longer available.");
+        }
+        practiceReplayAudioCacheRef.current.set(audioStorageKey, audioBlob);
+        if (globalPlaybackStartRequestRef.current !== requestId) return false;
+
+        objectUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(objectUrl);
+        practiceReplayAudioUrlRef.current = objectUrl;
+        practiceReplayAudioRef.current = audio;
+        audio.preload = "auto";
+        audio.volume = Math.max(0, Math.min(1, globalPlaybackVolume));
+        await new Promise<void>((resolve, reject) => {
+          audio.addEventListener("loadedmetadata", () => resolve(), { once: true });
+          audio.addEventListener("error", () => reject(new Error("The recorded replay audio could not be loaded.")), {
+            once: true,
+          });
+          audio.load();
+        });
+        if (globalPlaybackStartRequestRef.current !== requestId) return false;
+
+        const requestedFrame = Math.round(startFrameOverride ?? globalPlaybackFrameRef.current);
+        const startFrame =
+          requestedFrame >= replay.startFrame && requestedFrame < replay.endFrame
+            ? requestedFrame
+            : replay.startFrame;
+        const replaySpeed = normalizePlaybackSpeed(replay.playbackSpeed);
+        const audioOffsetSeconds = Math.max(
+          0,
+          (startFrame - replay.startFrame) / (globalPlaybackFps * replaySpeed)
+        );
+        audio.currentTime = Math.min(audio.duration || audioOffsetSeconds, audioOffsetSeconds);
+        await audio.play();
+        if (globalPlaybackStartRequestRef.current !== requestId) return false;
+
+        syncGlobalPlaybackFrame(startFrame, { forceReact: true });
+        setPracticeReplayPlayingId(replay.id);
+        setGlobalPlaybackIsPlaying(true);
+        const tick = () => {
+          if (
+            globalPlaybackStartRequestRef.current !== requestId ||
+            practiceReplayAudioRef.current !== audio
+          ) {
+            return;
+          }
+          const nextFrame = Math.min(
+            replay.endFrame,
+            replay.startFrame + audio.currentTime * globalPlaybackFps * replaySpeed
+          );
+          if (audio.ended || nextFrame >= replay.endFrame) {
+            syncGlobalPlaybackFrame(replay.endFrame, { forceReact: true });
+            stopGlobalPlayback();
+            return;
+          }
+          incrementGtePlaybackFrameUpdates();
+          syncGlobalPlaybackFrame(nextFrame);
+          globalPlaybackRafRef.current = window.requestAnimationFrame(tick);
+        };
+        globalPlaybackRafRef.current = window.requestAnimationFrame(tick);
+        return true;
+      } catch (error) {
+        if (globalPlaybackStartRequestRef.current === requestId) {
+          stopGlobalPlaybackAudio();
+          setPracticeRatingError(
+            error instanceof Error ? error.message : "The recorded replay audio could not be played."
+          );
+        } else if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+        }
+        return false;
+      } finally {
+        if (globalPlaybackStartRequestRef.current === requestId) {
+          globalPlaybackStartPendingRef.current = false;
+          setGlobalPlaybackIsPreparing(false);
+        }
+      }
+    },
+    [
+      globalPlaybackFps,
+      globalPlaybackVolume,
+      stopGlobalPlayback,
+      stopGlobalPlaybackAudio,
+      syncGlobalPlaybackFrame,
+    ]
+  );
+
   const toggleGlobalPlayback = useCallback(() => {
     if (globalPlaybackStartPendingRef.current) return;
     if (globalPlaybackIsPlaying) {
@@ -3771,7 +3906,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
     const atTimelineEnd = Math.round(globalPlaybackFrameRef.current) >= canvasTimelineEnd;
     void startGlobalPlayback(atTimelineEnd ? 0 : undefined);
-  }, [canvasTimelineEnd, globalPlaybackIsPlaying, startGlobalPlayback, stopGlobalPlayback]);
+  }, [
+    canvasTimelineEnd,
+    globalPlaybackIsPlaying,
+    startGlobalPlayback,
+    stopGlobalPlayback,
+  ]);
 
   useEffect(() => {
     if (activeLaneId !== null) return;
@@ -3887,7 +4027,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   ]);
 
   const handleGlobalPlaybackVolumeChange = useCallback((nextVolume: number) => {
-    setGlobalPlaybackVolume(Math.max(0, Math.min(1, nextVolume)));
+    const volume = Math.max(0, Math.min(1, nextVolume));
+    setGlobalPlaybackVolume(volume);
+    if (practiceReplayAudioRef.current) {
+      practiceReplayAudioRef.current.volume = volume;
+    }
   }, []);
 
   const persistTrackPlaybackCanvas = useCallback(
@@ -4196,14 +4340,50 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const practiceInstrumentValue = practiceLane
     ? normalizeTrackInstrumentId(practiceLane.instrumentId)
     : DEFAULT_TRACK_INSTRUMENT_ID;
+  const practiceRatingReplaysForLane = useMemo(
+    () => practiceRatingReplays.filter((replay) => replay.laneId === practiceLaneId),
+    [practiceLaneId, practiceRatingReplays]
+  );
+  useEffect(() => {
+    if (!practiceReplayPlayingId) return;
+    const playingReplay = practiceRatingReplays.find(
+      (replay) => replay.id === practiceReplayPlayingId
+    );
+    if (playingReplay?.laneId === practiceLaneId) return;
+    stopGlobalPlayback();
+  }, [practiceLaneId, practiceRatingReplays, practiceReplayPlayingId, stopGlobalPlayback]);
+  useEffect(() => {
+    if (
+      selectedPracticeRatingId &&
+      practiceRatingReplaysForLane.some((replay) => replay.id === selectedPracticeRatingId)
+    ) {
+      return;
+    }
+    setSelectedPracticeRatingId(practiceRatingReplaysForLane[0]?.id ?? null);
+    if (practiceRatingReplaysForLane.length > 0) setShowPracticeRating(true);
+  }, [practiceRatingReplaysForLane, selectedPracticeRatingId]);
+  const selectedPracticeRatingForPlayback =
+    practiceRatingReplaysForLane.find((replay) => replay.id === selectedPracticeRatingId) ?? null;
   const selectedPracticeRating =
     showPracticeRating
-      ? practiceRatingReplays.find(
-          (replay) =>
-            replay.id === selectedPracticeRatingId && replay.laneId === practiceLaneId
-        ) ?? null
+      ? selectedPracticeRatingForPlayback
       : null;
   const practiceRatingBusy = practiceRatingState !== "idle";
+
+  const toggleSelectedPracticeReplay = () => {
+    const replay = selectedPracticeRatingForPlayback;
+    if (!replay) return;
+    if (globalPlaybackIsPlaying && practiceReplayPlayingId === replay.id) {
+      stopGlobalPlayback();
+      return;
+    }
+    stopGlobalPlayback();
+    const atReplayEnd = Math.round(globalPlaybackFrameRef.current) >= replay.endFrame;
+    void startPracticeReplayPlayback(
+      replay,
+      atReplayEnd ? replay.startFrame : undefined
+    );
+  };
 
   const startPracticeRating = async () => {
     if (
@@ -4227,6 +4407,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setPracticeRatingState("permission");
       stream = await navigator.mediaDevices.getUserMedia({
         audio: {
+          // Preserve the full guitar spectrum. Browser speech processing can
+          // remove harmonics and sustained instrument tones that the
+          // polyphonic pitch detector needs.
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
@@ -4313,8 +4496,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         playbackSpeed: normalizedPlaybackSpeed,
         recordingLeadSeconds: playbackLeadSeconds,
       });
+      const ratingAudio = encodeMonoWav(samples, sampleRate);
+      const replaySamples = trimPracticeRecordingSamples(
+        samples,
+        sampleRate,
+        playbackLeadSeconds,
+        playbackDurationSeconds
+      );
+      const replayAudio = encodeMonoWav(replaySamples, sampleRate);
       const body = new FormData();
-      body.set("audio", encodeMonoWav(samples, sampleRate), "practice.wav");
+      body.set("audio", ratingAudio, "practice.wav");
       body.set("sample_rate", String(sampleRate));
       body.set("bars", JSON.stringify(bars));
       const response = await fetch("/api/practice-rate", { method: "POST", body });
@@ -4324,7 +4515,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           payload?.error || payload?.detail || "The performance could not be rated.";
         throw new Error(payload?.reason ? `${message} ${payload.reason}` : message);
       }
-      const replay = normalizePracticeRatingReplay({
+      const ratedReplay = normalizePracticeRatingReplay({
         laneId: practiceLaneId,
         startFrame: globalPracticeLoopRange.startFrame,
         endFrame: globalPracticeLoopRange.endFrame,
@@ -4335,7 +4526,29 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         recordingLeadSeconds: playbackLeadSeconds,
         framesPerBar: FIXED_FRAMES_PER_BAR,
       });
-      const nextReplays = [replay, ...practiceRatingReplays].slice(0, 3);
+      const replay: PracticeRatingReplay = {
+        ...ratedReplay,
+        audioStorageKey: ratedReplay.id,
+        audioDurationSeconds: replaySamples.length / sampleRate,
+      };
+      practiceReplayAudioCacheRef.current.set(replay.audioStorageKey!, replayAudio);
+      void storePracticeReplayAudio(replay.audioStorageKey!, replayAudio).catch(() => {
+        // Keep the in-memory copy playable for this session if durable browser storage is unavailable.
+      });
+      const nextLaneReplays = [
+        replay,
+        ...practiceRatingReplays.filter((item) => item.laneId === replay.laneId),
+      ].slice(0, 3);
+      const nextReplays = [
+        ...nextLaneReplays,
+        ...practiceRatingReplays.filter((item) => item.laneId !== replay.laneId),
+      ];
+      const retainedReplayIds = new Set(nextReplays.map((item) => item.id));
+      practiceRatingReplays.forEach((discardedReplay) => {
+        if (retainedReplayIds.has(discardedReplay.id) || !discardedReplay.audioStorageKey) return;
+        practiceReplayAudioCacheRef.current.delete(discardedReplay.audioStorageKey);
+        void deletePracticeReplayAudio(discardedReplay.audioStorageKey).catch(() => undefined);
+      });
       setPracticeRatingReplays(nextReplays);
       setSelectedPracticeRatingId(replay.id);
       setShowPracticeRating(true);
@@ -4385,7 +4598,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           role="group"
           aria-label="Practice controls"
         >
-          {practiceRatingReplays.length > 0 && (
+          {practiceRatingReplaysForLane.length > 0 && (
             <div className="order-[1] w-full rounded-lg border border-slate-200 bg-slate-50 p-2">
               <button
                 type="button"
@@ -4408,13 +4621,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </span>
               </button>
               <div className="mt-2 grid grid-cols-3 gap-1" aria-label="Choose a rated replay">
-                {practiceRatingReplays.map((replay, index) => (
+                {practiceRatingReplaysForLane.map((replay, index) => (
                   <button
                     key={replay.id}
                     type="button"
                     onClick={() => {
+                      stopGlobalPlayback();
                       setSelectedPracticeRatingId(replay.id);
                       setShowPracticeRating(true);
+                      syncGlobalPlaybackFrame(replay.startFrame, { forceReact: true });
                     }}
                     aria-pressed={selectedPracticeRatingId === replay.id}
                     className={`rounded border px-1 py-1 text-[10px] font-semibold ${
@@ -4427,6 +4642,45 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </button>
                 ))}
               </div>
+              {selectedPracticeRatingForPlayback && (
+                <div
+                  className="mt-2 flex items-center justify-between gap-2 border-t border-slate-200 pt-2"
+                  role="group"
+                  aria-label="Replay audio"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                      Replay audio
+                    </p>
+                    <p className="truncate text-[9px] leading-3 text-slate-400">
+                      {selectedPracticeRatingForPlayback.audioStorageKey
+                        ? "Plays this recording on the timeline"
+                        : "Audio is unavailable for this older replay"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleSelectedPracticeReplay}
+                    disabled={
+                      !selectedPracticeRatingForPlayback.audioStorageKey ||
+                      globalPlaybackIsPreparing
+                    }
+                    className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-2.5 text-[10px] font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label={
+                      practiceReplayPlayingId === selectedPracticeRatingForPlayback.id
+                        ? "Pause replay audio"
+                        : "Play replay audio"
+                    }
+                  >
+                    <span aria-hidden="true">
+                      {practiceReplayPlayingId === selectedPracticeRatingForPlayback.id ? "Ⅱ" : "▶"}
+                    </span>
+                    {practiceReplayPlayingId === selectedPracticeRatingForPlayback.id
+                      ? "Pause"
+                      : "Play"}
+                  </button>
+                </div>
+              )}
               {selectedPracticeRating && (
                 <div
                   className={`mt-2 rounded bg-white px-1 py-1 ${

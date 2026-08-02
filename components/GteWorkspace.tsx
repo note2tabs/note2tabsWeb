@@ -13677,6 +13677,14 @@ export default function GteWorkspace({
                           : rating?.status === "missed"
                           ? "rounded bg-rose-600 text-white"
                           : "bg-white text-slate-900";
+                      const timingDetail =
+                        rating?.onsetErrorMs == null
+                          ? ""
+                          : Math.abs(rating.onsetErrorMs) < 1
+                          ? " · on time"
+                          : ` · ${Math.abs(Math.round(rating.onsetErrorMs))} ms ${
+                              rating.onsetErrorMs < 0 ? "early" : "late"
+                            }`;
                       return (
                         <div
                           key={`practice-${rowIndex}-${placement.key}`}
@@ -13689,7 +13697,7 @@ export default function GteWorkspace({
                             rating
                               ? rating.status === "missed"
                                 ? "Missed note"
-                                : `Timing ${Math.round(rating.timingAccuracy)}% · length ${Math.round(rating.lengthAccuracy)}%`
+                                : `Timing ${Math.round(rating.timingAccuracy)}%${timingDetail}`
                               : undefined
                           }
                         >

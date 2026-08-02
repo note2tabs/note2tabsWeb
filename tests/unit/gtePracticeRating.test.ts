@@ -3,6 +3,7 @@ import {
   buildPracticeRatingBars,
   encodeMonoWav,
   normalizePracticeRatingReplay,
+  trimPracticeRecordingSamples,
 } from "../../lib/gtePracticeRating";
 import type { EditorSnapshot } from "../../types/gte";
 
@@ -50,6 +51,33 @@ describe("practice rating helpers", () => {
     expect(result.eventMap[1].placementKey).toBe("chord-3-0");
   });
 
+  it("does not request or display a perfect score for rest-only bars", () => {
+    const built = buildPracticeRatingBars({
+      snapshot,
+      range: { startFrame: 0, endFrame: 960 },
+      framesPerBar: 480,
+      fps: 240,
+      playbackSpeed: 1,
+      recordingLeadSeconds: 0,
+    });
+
+    expect(built.bars.map((bar) => bar.bar_index)).toEqual([1]);
+
+    const replay = normalizePracticeRatingReplay({
+      laneId: "lane-1",
+      startFrame: 0,
+      endFrame: 960,
+      playbackSpeed: 1,
+      fps: 240,
+      recordingLeadSeconds: 0,
+      framesPerBar: 480,
+      eventMap: {},
+      responseBars: [{ bar_index: 0, notes: [], false_notes: [] }],
+    });
+
+    expect(replay.bars).toEqual([]);
+  });
+
   it("classifies matched, timing, missed, and unexpected notes", () => {
     const replay = normalizePracticeRatingReplay({
       laneId: "lane-1",
@@ -68,7 +96,7 @@ describe("practice rating helpers", () => {
         {
           bar_index: 1,
           notes: [
-            { event_index: 0, status: "matched", timing_accuracy: 95, length_accuracy: 92 },
+            { event_index: 0, status: "matched", timing_accuracy: 95, length_accuracy: 0 },
             { event_index: 1, status: "matched", timing_accuracy: 80, length_accuracy: 95 },
             { event_index: 2, status: "missed", timing_accuracy: 0, length_accuracy: 0 },
           ],
@@ -94,5 +122,12 @@ describe("practice rating helpers", () => {
     expect(new TextDecoder().decode(bytes.slice(0, 4))).toBe("RIFF");
     expect(new DataView(bytes.buffer).getUint32(24, true)).toBe(44_100);
     expect(blob.size).toBe(50);
+  });
+
+  it("trims recording setup time and the trailing capture from replay audio", () => {
+    const samples = Float32Array.from({ length: 20 }, (_, index) => index);
+    const replaySamples = trimPracticeRecordingSamples(samples, 10, 0.5, 1);
+
+    expect(Array.from(replaySamples)).toEqual([5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
   });
 });

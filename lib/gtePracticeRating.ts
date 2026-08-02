@@ -13,9 +13,7 @@ export type PracticeRatingNote = {
   pitchMidi: number;
   status: PracticeRatingStatus;
   timingAccuracy: number;
-  lengthAccuracy: number;
   onsetErrorMs: number | null;
-  durationErrorMs: number | null;
 };
 
 export type PracticeRatingFalseNote = {
@@ -41,10 +39,31 @@ export type PracticeRatingReplay = {
   startFrame: number;
   endFrame: number;
   playbackSpeed: number;
+  audioStorageKey?: string;
+  audioDurationSeconds?: number;
   notes: PracticeRatingNote[];
   falseNotes: PracticeRatingFalseNote[];
   bars: PracticeRatingBar[];
 };
+
+export function trimPracticeRecordingSamples(
+  samples: Float32Array,
+  sampleRate: number,
+  recordingLeadSeconds: number,
+  playbackDurationSeconds: number
+) {
+  const safeSampleRate = Math.max(1, Math.round(safeNumber(sampleRate, 1)));
+  const start = Math.max(
+    0,
+    Math.min(samples.length, Math.round(Math.max(0, safeNumber(recordingLeadSeconds)) * safeSampleRate))
+  );
+  const requestedLength = Math.max(
+    0,
+    Math.round(Math.max(0, safeNumber(playbackDurationSeconds)) * safeSampleRate)
+  );
+  const end = Math.max(start, Math.min(samples.length, start + requestedLength));
+  return samples.slice(start, end);
+}
 
 export type PracticeRatingExpectedEvent = {
   source_index: number;
@@ -166,7 +185,9 @@ export function buildPracticeRatingBars(input: {
     });
   });
 
-  return { bars, eventMap };
+  // A rest-only bar has nothing to grade. Sending it to the scorer produces
+  // an empty result which used to be displayed as a misleading 100% score.
+  return { bars: bars.filter((bar) => bar.note_events.length > 0), eventMap };
 }
 
 export function encodeMonoWav(samples: Float32Array, sampleRate: number) {
@@ -222,11 +243,10 @@ export function normalizePracticeRatingReplay(input: {
       const mapped = input.eventMap[Math.round(safeNumber(note?.event_index, -1))];
       if (!mapped) return;
       const timingAccuracy = safeNumber(note?.timing_accuracy);
-      const lengthAccuracy = safeNumber(note?.length_accuracy);
       const status: PracticeRatingStatus =
         note?.status === "missed"
           ? "missed"
-          : timingAccuracy >= 85 && lengthAccuracy >= 85
+          : timingAccuracy >= 85
           ? "correct"
           : "timing";
       if (status === "correct") correct += 1;
@@ -240,10 +260,7 @@ export function normalizePracticeRatingReplay(input: {
         pitchMidi: mapped.pitchMidi,
         status,
         timingAccuracy,
-        lengthAccuracy,
         onsetErrorMs: note?.onset_error_ms == null ? null : safeNumber(note.onset_error_ms),
-        durationErrorMs:
-          note?.duration_error_ms == null ? null : safeNumber(note.duration_error_ms),
       });
     });
     const rawFalseNotes = Array.isArray(barResult?.false_notes) ? barResult.false_notes : [];
@@ -260,6 +277,7 @@ export function normalizePracticeRatingReplay(input: {
       });
     });
     const total = correct + timing + missed + rawFalseNotes.length;
+    if (total === 0) return;
     bars.push({
       barIndex,
       score:
