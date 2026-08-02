@@ -164,6 +164,17 @@ input[type="number"] {
   background: transparent;
 }
 
+.gte-practice-fullscreen {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+}
+
+.gte-practice-fullscreen::backdrop {
+  background: var(--bg);
+}
+
 .page-header {
   display: flex;
   align-items: center;

@@ -10,6 +10,10 @@ const workspace = fs.readFileSync(
   path.join(process.cwd(), "components/GteWorkspace.tsx"),
   "utf8"
 );
+const globalStyles = fs.readFileSync(
+  path.join(process.cwd(), "styles/globals.css"),
+  "utf8"
+);
 
 describe("editor practice mode", () => {
   it("keeps play and rate hidden behind its frontend feature flag", () => {
@@ -67,6 +71,14 @@ describe("editor practice mode", () => {
     expect(editorPage).toContain("{canvas.editors.map((candidate, candidateIndex) => {");
   });
 
+  it("selects every bar between the anchor and a shift-click in practice", () => {
+    expect(workspace).toContain(
+      "const rangeSelect = event.shiftKey && (isActive || practiceMode)"
+    );
+    expect(workspace).toContain("{ length: end - start + 1 }");
+    expect(workspace).toContain("(_, offset) => start + offset");
+  });
+
   it("keeps playback sound controls available in practice", () => {
     expect(editorPage).toContain('aria-label="Practice instrument"');
     expect(editorPage).toContain("toggleTrackMute(practiceSoundLaneId)");
@@ -86,6 +98,9 @@ describe("editor practice mode", () => {
     expect(workspace).toContain("gteApi.getChordFingerings(lookup.root, lookup.type)");
     expect(workspace).toContain("practiceChordFingeringsByKey[lookup.key]");
     expect(workspace).toContain("group-hover:visible");
+    expect(workspace).toContain(
+      "top: TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height + 2"
+    );
     expect(workspace).toContain("border-slate-300 bg-slate-100");
     expect(workspace).not.toContain("border-violet-200 bg-violet-50");
     expect(editorPage).toContain("`Track ${trackNumber} · ${chordLane.name");
@@ -114,5 +129,12 @@ describe("editor practice mode", () => {
     expect(editorPage).not.toContain("<PracticeFretboard");
     expect(workspace).toContain("practiceFocusBarRange");
     expect(workspace).toContain("practiceDisplayStartBar");
+  });
+
+  it("paints the full viewport with the app background in fullscreen", () => {
+    expect(editorPage).toContain('"gte-practice-fullscreen overflow-y-auto"');
+    expect(globalStyles).toContain(".gte-practice-fullscreen::backdrop");
+    expect(globalStyles).toContain("min-height: 100dvh");
+    expect(globalStyles).toContain("background: var(--bg)");
   });
 });

@@ -5239,7 +5239,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         ref={practiceRootRef}
         className={`page page-tight ${
           isMobileEditMode ? "h-[100dvh] overflow-hidden overscroll-none py-3" : ""
-        } ${practiceFullscreen ? "overflow-y-auto bg-[var(--bg)]" : ""}`}
+        } ${practiceFullscreen ? "gte-practice-fullscreen overflow-y-auto" : ""}`}
   style={
     !isMobileEditMode
       ? { paddingTop: isMobileViewport ? 76 : 12 }

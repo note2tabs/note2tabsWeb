@@ -9523,6 +9523,18 @@ export default function GteWorkspace({
       setChordMenuDraft(null);
       setContextMenu(null);
 
+      const rangeSelect = event.shiftKey && (isActive || practiceMode);
+      if (rangeSelect && barSelectionAnchor !== null) {
+        const start = Math.min(barSelectionAnchor, index);
+        const end = Math.max(barSelectionAnchor, index);
+        const nextRange = Array.from(
+          { length: end - start + 1 },
+          (_, offset) => start + offset
+        );
+        setSelectedBarIndices(nextRange);
+        return;
+      }
+
       if (mobileViewport) {
         const nextSelection = selectedBarIndexSet.has(index)
           ? selectedBarIndices.filter((value) => value !== index)
@@ -9533,14 +9545,6 @@ export default function GteWorkspace({
       }
 
       const additive = (event.ctrlKey || event.metaKey) && isActive;
-      const rangeSelect = event.shiftKey && isActive;
-      if (rangeSelect && barSelectionAnchor !== null) {
-        const start = Math.min(barSelectionAnchor, index);
-        const end = Math.max(barSelectionAnchor, index);
-        const nextRange = Array.from({ length: end - start + 1 }, (_, offset) => start + offset);
-        setSelectedBarIndices(nextRange);
-        return;
-      }
       if (additive) {
         setSelectedBarIndices((prev) => {
           if (prev.includes(index)) return prev;
@@ -9557,7 +9561,14 @@ export default function GteWorkspace({
       setSelectedBarIndices([index]);
       setBarSelectionAnchor(index);
     },
-    [barSelectionAnchor, isActive, mobileViewport, selectedBarIndexSet, selectedBarIndices]
+    [
+      barSelectionAnchor,
+      isActive,
+      mobileViewport,
+      practiceMode,
+      selectedBarIndexSet,
+      selectedBarIndices,
+    ]
   );
 
   const handleBarContextMenu = useCallback(
@@ -13759,8 +13770,11 @@ export default function GteWorkspace({
                       return (
                         <div
                           key={`practice-chord-overlay-${rowIndex}-${item.chord.id}`}
-                          className="group absolute top-0 z-40 -translate-x-1/2"
-                          style={{ left: sourceX - sourceLeft }}
+                          className="group absolute z-40 -translate-x-1/2"
+                          style={{
+                            left: sourceX - sourceLeft,
+                            top: TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height + 2,
+                          }}
                         >
                           <button
                             type="button"
