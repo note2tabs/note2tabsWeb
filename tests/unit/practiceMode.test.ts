@@ -76,6 +76,8 @@ describe("editor practice mode", () => {
     expect(workspace).toContain("gteApi.getChordFingerings(lookup.root, lookup.type)");
     expect(workspace).toContain("practiceChordFingeringsByKey[lookup.key]");
     expect(workspace).toContain("group-hover:visible");
+    expect(workspace).toContain("border-slate-300 bg-slate-100");
+    expect(workspace).not.toContain("border-violet-200 bg-violet-50");
     expect(editorPage).toContain("`Track ${trackNumber} · ${chordLane.name");
     expect(editorPage).toContain("`Track ${candidateIndex + 1} · Chords`");
   });

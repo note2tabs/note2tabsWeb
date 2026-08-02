@@ -13764,7 +13764,7 @@ export default function GteWorkspace({
                         >
                           <button
                             type="button"
-                            className="h-5 max-w-24 truncate rounded-md border border-violet-200 bg-violet-50 px-1.5 text-[10px] font-bold text-violet-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                            className="h-5 max-w-24 truncate rounded-md border border-slate-300 bg-slate-100 px-1.5 text-[10px] font-bold text-slate-800 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
                             aria-label={`${item.label} chord diagram`}
                           >
                             {item.label}
