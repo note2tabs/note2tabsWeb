@@ -12,6 +12,16 @@ const workspace = fs.readFileSync(
 );
 
 describe("editor practice mode", () => {
+  it("keeps play and rate hidden behind its frontend feature flag", () => {
+    expect(editorPage).toContain("const PRACTICE_RATING_UI_ENABLED = false");
+    expect(editorPage).toContain(
+      "PRACTICE_RATING_UI_ENABLED && practiceRatingReplaysForLane.length > 0"
+    );
+    expect(editorPage).toContain(
+      'PRACTICE_RATING_UI_ENABLED && practiceRatingState === "countdown"'
+    );
+  });
+
   it("offers Canvas, Tab view, and Practice as equal workspace modes", () => {
     expect(editorPage).toContain('"canvas" | "tab" | "practice"');
     expect(editorPage).toContain('setEditorMode("canvas")');

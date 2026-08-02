@@ -173,6 +173,7 @@ const MOBILE_EDITOR_BREAKPOINT_PX = 768;
 const GTE_GUEST_CANVAS_STORAGE_KEY = "note2tabs:gte:guest-canvas:v1";
 const AUDIO_CONTEXT_RESUME_ERROR =
   "Your browser blocked audio playback. Tap Play again to allow sound.";
+const PRACTICE_RATING_UI_ENABLED = false;
 
 const serializeForInlineScript = (value: string) =>
   JSON.stringify(value)
@@ -4470,7 +4471,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const selectedPracticeRatingForPlayback =
     practiceRatingReplaysForLane.find((replay) => replay.id === selectedPracticeRatingId) ?? null;
   const selectedPracticeRating =
-    showPracticeRating
+    PRACTICE_RATING_UI_ENABLED && showPracticeRating
       ? selectedPracticeRatingForPlayback
       : null;
   const practiceChordLaneOptions = useMemo(
@@ -4727,7 +4728,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           role="group"
           aria-label="Practice controls"
         >
-          {practiceRatingReplaysForLane.length > 0 && (
+          {PRACTICE_RATING_UI_ENABLED && practiceRatingReplaysForLane.length > 0 && (
             <div className="order-[1] w-full rounded-lg border border-slate-200 bg-slate-50 p-2">
               <button
                 type="button"
@@ -5183,11 +5184,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               </div>
             </div>
           </details>
-          {practiceRatingError && (
+          {PRACTICE_RATING_UI_ENABLED && practiceRatingError && (
             <p className="order-[2] w-full rounded-lg bg-rose-50 px-2 py-1.5 text-[10px] leading-4 text-rose-700" role="alert">
               {practiceRatingError}
             </p>
           )}
+          {PRACTICE_RATING_UI_ENABLED && (
+            <>
           <button
             type="button"
             onClick={() => void startPracticeRating()}
@@ -5207,6 +5210,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           <p className="order-[4] px-1 text-[9px] leading-3 text-slate-400">
             Rating playback is silent so the microphone records only your instrument.
           </p>
+            </>
+          )}
         </div>
       </div>
       {!barSelection?.barIndices.length && (
@@ -5242,7 +5247,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         }
         onMouseDownCapture={handleMainMouseDownCapture}
       >
-      {practiceRatingState === "countdown" && (
+      {PRACTICE_RATING_UI_ENABLED && practiceRatingState === "countdown" && (
         <div
           className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center"
           role="status"
