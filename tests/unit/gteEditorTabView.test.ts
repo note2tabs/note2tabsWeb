@@ -66,6 +66,25 @@ describe("gte editor tab view", () => {
     expect(view.cursorX).toBe(view.placements.find((placement) => placement.startTime === 0)?.x);
   });
 
+  it("shares one compact width across consecutive empty practice bars", () => {
+    const snapshot = baseSnapshot();
+    snapshot.notes = snapshot.notes.slice(0, 1);
+    snapshot.chords = [];
+    const view = buildEditorTabView(snapshot, {
+      framesPerBar: 480,
+      beatsPerBar: 7,
+      scale: 1,
+      playheadFrame: 0,
+      minBarCount: 4,
+      variableBarWidths: true,
+      collapseConsecutiveEmptyBars: true,
+    });
+
+    expect(view.barWidths[0]).toBe(112);
+    expect(view.barWidths.slice(1)).toEqual([24, 24, 24]);
+    expect(view.barStartXs[4] - view.barStartXs[1]).toBe(72);
+  });
+
   it("spreads dense practice notes apart and keeps dense bars the same width", () => {
     const snapshot = baseSnapshot();
     snapshot.totalFrames = 960;

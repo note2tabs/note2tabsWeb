@@ -3947,20 +3947,40 @@ export default function GteWorkspace({
     useExternalPlayback ? playbackSpeed ?? localPlaybackSpeed : localPlaybackSpeed
   );
   const editorTabView = useMemo(
-    () =>
-      buildEditorTabView(snapshot, {
+    () => {
+      const layoutSnapshot =
+        practiceMode && practiceChordOverlay?.chords.length
+          ? {
+              ...snapshot,
+              chords: [...snapshot.chords, ...practiceChordOverlay.chords],
+            }
+          : snapshot;
+      return buildEditorTabView(layoutSnapshot, {
         framesPerBar: framesPerMeasure,
         beatsPerBar: timeSignature,
         scale,
         playheadFrame: effectivePlayheadFrame,
         minBarCount: viewportBarCount,
         variableBarWidths: practiceMode,
-      }),
-    [effectivePlayheadFrame, framesPerMeasure, practiceMode, scale, snapshot, timeSignature, viewportBarCount]
+        collapseConsecutiveEmptyBars: practiceMode,
+      });
+    },
+    [
+      effectivePlayheadFrame,
+      framesPerMeasure,
+      practiceChordOverlay,
+      practiceMode,
+      scale,
+      snapshot,
+      timeSignature,
+      viewportBarCount,
+    ]
   );
-  const practiceRowGap = 26;
+  const practiceVerticalScale = 0.6;
+  const practiceTabHeight = Math.round(editorTabView.height * practiceVerticalScale);
+  const practiceRowGap = 42;
   const practiceRowHeight =
-    editorTabView.height + TIMELINE_BAR_HEADER_HEIGHT + practiceRowGap;
+    practiceTabHeight + TIMELINE_BAR_HEADER_HEIGHT + practiceRowGap;
   const practiceDisplayStartBar = Math.max(
     0,
     Math.min(editorTabView.barCount - 1, practiceFocusBarRange?.startBar ?? 0)
@@ -3969,31 +3989,101 @@ export default function GteWorkspace({
     practiceDisplayStartBar + 1,
     Math.min(editorTabView.barCount, practiceFocusBarRange?.endBar ?? editorTabView.barCount)
   );
+  const practiceOccupiedBarIndexSet = useMemo(() => {
+    const occupied = new Set<number>();
+    const addEvents = (events: Array<{ startTime: number }>) => {
+      events.forEach((event) => {
+        const barIndex = Math.max(
+          0,
+          Math.min(
+            editorTabView.barCount - 1,
+            Math.floor(Math.max(0, Number(event.startTime) || 0) / framesPerMeasure)
+          )
+        );
+        occupied.add(barIndex);
+      });
+    };
+    addEvents(snapshot.notes);
+    addEvents(snapshot.chords);
+    addEvents(practiceChordOverlay?.chords || []);
+    return occupied;
+  }, [editorTabView.barCount, framesPerMeasure, practiceChordOverlay, snapshot.chords, snapshot.notes]);
+  const practiceBarSegments = useMemo(() => {
+    const segments: Array<{
+      startBar: number;
+      endBar: number;
+      collapsed: boolean;
+      width: number;
+    }> = [];
+    let startBar = practiceDisplayStartBar;
+    while (startBar < practiceDisplayEndBar) {
+      let endBar = startBar + 1;
+      if (!practiceOccupiedBarIndexSet.has(startBar)) {
+        while (
+          endBar < practiceDisplayEndBar &&
+          !practiceOccupiedBarIndexSet.has(endBar)
+        ) {
+          endBar += 1;
+        }
+      }
+      const collapsed = endBar - startBar > 1;
+      if (!collapsed) endBar = startBar + 1;
+      segments.push({
+        startBar,
+        endBar,
+        collapsed,
+        width:
+          editorTabView.barStartXs[endBar] - editorTabView.barStartXs[startBar],
+      });
+      startBar = endBar;
+    }
+    return segments;
+  }, [
+    editorTabView.barStartXs,
+    practiceDisplayEndBar,
+    practiceDisplayStartBar,
+    practiceOccupiedBarIndexSet,
+  ]);
   const practiceRows = useMemo(() => {
-    const maximumBarWidth = Math.max(1, ...editorTabView.barWidths);
+    const maximumBarWidth = Math.max(
+      1,
+      ...practiceBarSegments.map((segment) => segment.width)
+    );
     const availableWidth =
       practiceScoreWidth > 0
         ? Math.max(42, practiceScoreWidth - 46)
         : maximumBarWidth * 4;
-    const rows: Array<{ firstBar: number; lastBar: number }> = [];
-    let firstBar = practiceDisplayStartBar;
-    while (firstBar < practiceDisplayEndBar) {
-      let lastBar = firstBar;
+    const rows: Array<{
+      firstBar: number;
+      lastBar: number;
+      segments: typeof practiceBarSegments;
+    }> = [];
+    let segmentIndex = 0;
+    while (segmentIndex < practiceBarSegments.length) {
+      const firstSegmentIndex = segmentIndex;
       let usedWidth = 0;
-      while (lastBar < practiceDisplayEndBar) {
-        const nextWidth = editorTabView.barWidths[lastBar] || 42;
-        if (lastBar > firstBar && usedWidth + nextWidth > availableWidth) break;
+      while (segmentIndex < practiceBarSegments.length) {
+        const nextWidth = practiceBarSegments[segmentIndex].width || 42;
+        if (segmentIndex > firstSegmentIndex && usedWidth + nextWidth > availableWidth) break;
         usedWidth += nextWidth;
-        lastBar += 1;
+        segmentIndex += 1;
       }
-      rows.push({ firstBar, lastBar: Math.max(firstBar + 1, lastBar) });
-      firstBar = Math.max(firstBar + 1, lastBar);
+      const segments = practiceBarSegments.slice(firstSegmentIndex, segmentIndex);
+      rows.push({
+        firstBar: segments[0].startBar,
+        lastBar: segments[segments.length - 1].endBar,
+        segments,
+      });
     }
     return rows.length
       ? rows
-      : [{ firstBar: practiceDisplayStartBar, lastBar: practiceDisplayEndBar }];
+      : [{
+          firstBar: practiceDisplayStartBar,
+          lastBar: practiceDisplayEndBar,
+          segments: practiceBarSegments,
+        }];
   }, [
-    editorTabView.barWidths,
+    practiceBarSegments,
     practiceDisplayEndBar,
     practiceDisplayStartBar,
     practiceScoreWidth,
@@ -9571,6 +9661,36 @@ export default function GteWorkspace({
     ]
   );
 
+  const handlePracticeBarSegmentSelection = useCallback(
+    (
+      startBar: number,
+      endBar: number,
+      event: ReactMouseEvent<HTMLButtonElement>
+    ) => {
+      if (endBar <= startBar + 1) {
+        handleBarSelection(startBar, event);
+        return;
+      }
+      handleBarSelection(startBar, event);
+      const rangeStart =
+        event.shiftKey && barSelectionAnchor !== null
+          ? Math.min(barSelectionAnchor, startBar)
+          : startBar;
+      const rangeEnd =
+        event.shiftKey && barSelectionAnchor !== null
+          ? Math.max(barSelectionAnchor + 1, endBar)
+          : endBar;
+      setSelectedBarIndices(
+        Array.from(
+          { length: rangeEnd - rangeStart },
+          (_, offset) => rangeStart + offset
+        )
+      );
+      if (!event.shiftKey) setBarSelectionAnchor(startBar);
+    },
+    [barSelectionAnchor, handleBarSelection]
+  );
+
   const handleBarContextMenu = useCallback(
     (index: number, event: ReactMouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
@@ -13709,7 +13829,7 @@ export default function GteWorkspace({
             data-gte-practice-score="true"
             style={{ height: practiceRowCount * practiceRowHeight }}
           >
-            {practiceRows.map(({ firstBar, lastBar }, rowIndex) => {
+            {practiceRows.map(({ firstBar, lastBar, segments }, rowIndex) => {
               const sourceLeft = editorTabView.barStartXs[firstBar] - 30;
               const sourceRight = editorTabView.barStartXs[lastBar] - 30;
               const rowContentWidth = sourceRight - sourceLeft;
@@ -13724,33 +13844,53 @@ export default function GteWorkspace({
                     height: practiceRowHeight - practiceRowGap,
                   }}
                 >
-                  {Array.from({ length: lastBar - firstBar }).map((__, offset) => {
-                    const barIndex = firstBar + offset;
-                    const selected = selectedBarIndexSet.has(barIndex);
+                  {segments.map((segment) => {
+                    const barIndices = Array.from(
+                      { length: segment.endBar - segment.startBar },
+                      (_, offset) => segment.startBar + offset
+                    );
+                    const selected = barIndices.every((barIndex) =>
+                      selectedBarIndexSet.has(barIndex)
+                    );
+                    const partiallySelected =
+                      !selected &&
+                      barIndices.some((barIndex) => selectedBarIndexSet.has(barIndex));
+                    const label = segment.collapsed
+                      ? `Bar ${segment.startBar + 1}–${segment.endBar}`
+                      : `Bar ${segment.startBar + 1}`;
                     return (
                       <button
-                        key={`practice-bar-${barIndex}`}
+                        key={`practice-bar-${segment.startBar}-${segment.endBar}`}
                         type="button"
                         data-bar-select="true"
                         data-bar-select-editor={editorId}
-                        data-bar-index={barIndex}
-                        onClick={(event) => handleBarSelection(barIndex, event)}
-                        className={`absolute top-0 z-20 flex items-center px-1.5 text-[9px] transition-colors ${
+                        data-bar-index={segment.startBar}
+                        data-bar-end-index={segment.endBar - 1}
+                        onClick={(event) =>
+                          handlePracticeBarSegmentSelection(
+                            segment.startBar,
+                            segment.endBar,
+                            event
+                          )
+                        }
+                        className={`absolute top-0 z-20 flex items-center justify-center overflow-hidden whitespace-nowrap px-1.5 text-[9px] transition-colors ${
                           selected
                             ? "bg-emerald-50 text-emerald-800"
+                            : partiallySelected
+                            ? "bg-emerald-50/60 text-emerald-700"
                             : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                         }`}
                         style={{
                           left:
                             30 +
-                            editorTabView.barStartXs[barIndex] -
+                            editorTabView.barStartXs[segment.startBar] -
                             editorTabView.barStartXs[firstBar],
-                          width: editorTabView.barWidths[barIndex],
+                          width: segment.width,
                           height: TIMELINE_BAR_HEADER_HEIGHT,
                         }}
-                        aria-label={`Select Bar ${barIndex + 1}`}
+                        aria-label={`Select ${label}`}
                       >
-                        Bar {barIndex + 1}
+                        {label}
                       </button>
                     );
                   })}
@@ -13773,7 +13913,7 @@ export default function GteWorkspace({
                           className="group absolute z-40 -translate-x-1/2"
                           style={{
                             left: sourceX - sourceLeft,
-                            top: TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height + 2,
+                            top: TIMELINE_BAR_HEADER_HEIGHT + practiceTabHeight - 4,
                           }}
                         >
                           <button
@@ -13801,17 +13941,17 @@ export default function GteWorkspace({
                         </div>
                       );
                     })}
-                  {Array.from({ length: lastBar - firstBar + 1 }).map((__, offset) => (
+                  {[...segments.map((segment) => segment.startBar), lastBar].map((barIndex) => (
                     <div
-                      key={`practice-bar-line-${rowIndex}-${offset}`}
+                      key={`practice-bar-line-${rowIndex}-${barIndex}`}
                       className="absolute w-px bg-slate-400"
                       style={{
                         left:
                           30 +
-                          editorTabView.barStartXs[firstBar + offset] -
+                          editorTabView.barStartXs[barIndex] -
                           editorTabView.barStartXs[firstBar],
                         top: TIMELINE_BAR_HEADER_HEIGHT,
-                        height: editorTabView.height,
+                        height: practiceTabHeight,
                       }}
                     />
                   ))}
@@ -13821,7 +13961,9 @@ export default function GteWorkspace({
                         className="absolute z-20 flex w-7 -translate-y-1/2 justify-end bg-white pr-1 text-[10px] font-semibold text-slate-500"
                         style={{
                           left: 0,
-                          top: TIMELINE_BAR_HEADER_HEIGHT + line.y,
+                          top:
+                            TIMELINE_BAR_HEADER_HEIGHT +
+                            line.y * practiceVerticalScale,
                         }}
                       >
                         {line.label}
@@ -13831,7 +13973,9 @@ export default function GteWorkspace({
                         style={{
                           left: 30,
                           width: rowContentWidth,
-                          top: TIMELINE_BAR_HEADER_HEIGHT + line.y,
+                          top:
+                            TIMELINE_BAR_HEADER_HEIGHT +
+                            line.y * practiceVerticalScale,
                         }}
                       />
                     </div>
@@ -13868,7 +14012,9 @@ export default function GteWorkspace({
                           className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer px-0.5 text-[11px] font-bold leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${ratingClass}`}
                           style={{
                             left: placement.x - sourceLeft,
-                            top: TIMELINE_BAR_HEADER_HEIGHT + y,
+                            top:
+                              TIMELINE_BAR_HEADER_HEIGHT +
+                              y * practiceVerticalScale,
                           }}
                           title={
                             rating
@@ -13928,7 +14074,10 @@ export default function GteWorkspace({
                           className="pointer-events-none absolute"
                           style={{
                             left,
-                            top: TIMELINE_BAR_HEADER_HEIGHT + y - 13,
+                            top:
+                              TIMELINE_BAR_HEADER_HEIGHT +
+                              y * practiceVerticalScale -
+                              13,
                             width: Math.max(10, right - left),
                           }}
                         >
@@ -13948,7 +14097,7 @@ export default function GteWorkspace({
               style={{
                 left: 0,
                 top: TIMELINE_BAR_HEADER_HEIGHT + 3,
-                height: Math.max(20, editorTabView.height - 6),
+                height: Math.max(20, practiceTabHeight - 6),
                 transform: (() => {
                   const position = getPracticePosition(editorTabView.cursorX);
                   return `translate3d(${position.x}px, ${position.y}px, 0) translateX(-1px)`;

@@ -50,6 +50,7 @@ type BuildEditorTabViewOptions = {
   playheadFrame: number;
   minBarCount?: number;
   variableBarWidths?: boolean;
+  collapseConsecutiveEmptyBars?: boolean;
 };
 
 export type TimedVisualAnchor = {
@@ -75,6 +76,7 @@ const RIGHT_PADDING = 32;
 const TOP_PADDING = 18;
 const STRING_GAP = 28;
 const NUMBER_WIDTH = 18;
+const COLLAPSED_EMPTY_BAR_RUN_WIDTH = 72;
 
 const toSafeInt = (value: unknown, fallback: number) => {
   const num = Number(value);
@@ -199,6 +201,7 @@ export const buildEditorTabView = (
     playheadFrame,
     minBarCount,
     variableBarWidths = false,
+    collapseConsecutiveEmptyBars = false,
   }: BuildEditorTabViewOptions
 ): EditorTabViewModel => {
   const safeFramesPerBar = Math.max(1, Math.round(framesPerBar));
@@ -237,6 +240,27 @@ export const buildEditorTabView = (
     if (times.size === 0) return 42;
     return times.size <= 4 ? 112 : denseBarWidth;
   });
+  if (variableBarWidths && collapseConsecutiveEmptyBars) {
+    let startIndex = 0;
+    while (startIndex < barCount) {
+      if (onsetTimesByBar[startIndex].size > 0) {
+        startIndex += 1;
+        continue;
+      }
+      let endIndex = startIndex + 1;
+      while (endIndex < barCount && onsetTimesByBar[endIndex].size === 0) {
+        endIndex += 1;
+      }
+      const runLength = endIndex - startIndex;
+      if (runLength > 1) {
+        const sharedWidth = COLLAPSED_EMPTY_BAR_RUN_WIDTH / runLength;
+        for (let index = startIndex; index < endIndex; index += 1) {
+          barWidths[index] = sharedWidth;
+        }
+      }
+      startIndex = endIndex;
+    }
+  }
   const barStartXs = [LEFT_LABEL_WIDTH];
   barWidths.forEach((currentBarWidth) => {
     barStartXs.push(barStartXs[barStartXs.length - 1] + currentBarWidth);

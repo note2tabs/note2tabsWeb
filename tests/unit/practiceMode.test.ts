@@ -79,6 +79,14 @@ describe("editor practice mode", () => {
     expect(workspace).toContain("(_, offset) => start + offset");
   });
 
+  it("compresses consecutive empty bars into one selectable range", () => {
+    expect(workspace).toContain("collapseConsecutiveEmptyBars: practiceMode");
+    expect(workspace).toContain("const practiceBarSegments = useMemo");
+    expect(workspace).toContain("handlePracticeBarSegmentSelection");
+    expect(workspace).toContain("segment.startBar + 1");
+    expect(workspace).toContain("data-bar-end-index={segment.endBar - 1}");
+  });
+
   it("keeps playback sound controls available in practice", () => {
     expect(editorPage).toContain('aria-label="Practice instrument"');
     expect(editorPage).toContain("toggleTrackMute(practiceSoundLaneId)");
@@ -99,12 +107,20 @@ describe("editor practice mode", () => {
     expect(workspace).toContain("practiceChordFingeringsByKey[lookup.key]");
     expect(workspace).toContain("group-hover:visible");
     expect(workspace).toContain(
-      "top: TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height + 2"
+      "top: TIMELINE_BAR_HEADER_HEIGHT + practiceTabHeight - 4"
     );
     expect(workspace).toContain("border-slate-300 bg-slate-100");
     expect(workspace).not.toContain("border-violet-200 bg-violet-50");
     expect(editorPage).toContain("`Track ${trackNumber} · ${chordLane.name");
     expect(editorPage).toContain("`Track ${candidateIndex + 1} · Chords`");
+  });
+
+  it("uses compact tab staffs with clearer row and chord spacing", () => {
+    expect(workspace).toContain("const practiceVerticalScale = 0.6");
+    expect(workspace).toContain("const practiceRowGap = 42");
+    expect(workspace).toContain("line.y * practiceVerticalScale");
+    expect(workspace).toContain("y * practiceVerticalScale");
+    expect(workspace).toContain("height: practiceTabHeight");
   });
 
   it("exposes per-tab sound controls inside the practice tab selector", () => {
