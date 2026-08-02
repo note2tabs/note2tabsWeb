@@ -14110,7 +14110,9 @@ export default function GteWorkspace({
             className={`min-w-0 bg-white ${
               practiceMode ? "rounded-none border-0" : "rounded-xl border border-slate-200"
             } ${
-              embedded && !mobileViewport ? "overflow-x-hidden" : "overflow-x-auto"
+              embedded && !mobileViewport
+                ? "hide-scrollbar overflow-x-auto"
+                : "overflow-x-auto"
             } ${
               isMobileEditMode ? "min-h-0 flex-1" : ""
             }`}
