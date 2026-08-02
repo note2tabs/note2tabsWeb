@@ -6,6 +6,7 @@ import {
   nextSpeedTrainerValue,
   normalizePlaybackSpeed,
   normalizeTrackPan,
+  resolvePracticePlaybackStart,
   resolvePracticeLoopRange,
 } from "../../lib/gtePractice";
 
@@ -26,6 +27,14 @@ describe("gte practice helpers", () => {
       startFrame: 1440,
       endFrame: 2000,
     });
+  });
+
+  it("starts clicked-note playback inside the selected range", () => {
+    const range = { startFrame: 480, endFrame: 1440 };
+    expect(resolvePracticePlaybackStart(960, range)).toBe(960);
+    expect(resolvePracticePlaybackStart(240, range)).toBe(480);
+    expect(resolvePracticePlaybackStart(1440, range)).toBe(480);
+    expect(resolvePracticePlaybackStart(960, range, true)).toBe(480);
   });
 
   it("scales frame duration by playback speed", () => {

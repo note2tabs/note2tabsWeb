@@ -79,6 +79,21 @@ export const resolvePracticeLoopRange = (
   return { startFrame, endFrame };
 };
 
+export const resolvePracticePlaybackStart = (
+  requestedFrame: number,
+  range: PracticeLoopRange | null | undefined,
+  restartAtRangeStart = false
+) => {
+  const requested = Math.max(0, Math.round(Number(requestedFrame) || 0));
+  if (!range) return requested;
+  const startFrame = Math.max(0, Math.round(Number(range.startFrame) || 0));
+  const endFrame = Math.max(startFrame, Math.round(Number(range.endFrame) || 0));
+  if (restartAtRangeStart || requested < startFrame || requested >= endFrame) {
+    return startFrame;
+  }
+  return requested;
+};
+
 export const buildMetronomeClicks = (input: {
   startFrame: number;
   endFrame: number;

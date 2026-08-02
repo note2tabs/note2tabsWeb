@@ -25,6 +25,7 @@ import {
   nextSpeedTrainerValue,
   normalizePlaybackSpeed,
   normalizeTrackPan,
+  resolvePracticePlaybackStart,
   resolvePracticeLoopRange,
 } from "../../lib/gtePractice";
 import {
@@ -1583,6 +1584,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, []);
 
   const handleMainMouseDownCapture = useCallback((event: ReactMouseEvent<HTMLElement>) => {
+    if (practiceModeEnabled) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
     if (isMobileViewport && mobileEditLaneId) return;
@@ -1591,7 +1593,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (target.closest("[data-gte-floating-ui='true']")) return;
     if (target.closest("button, a, input, textarea, select, label, [role='button']")) return;
     setActiveLaneId(null);
-  }, [isMobileViewport, mobileEditLaneId]);
+  }, [isMobileViewport, mobileEditLaneId, practiceModeEnabled]);
 
   const activateLaneForEditing = useCallback((laneId: string) => {
     setActiveLaneId(laneId);
@@ -2688,11 +2690,28 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     () => fpsFromSecondsPerBar(Math.max(0.1, toNumber(canvas?.secondsPerBar, DEFAULT_SECONDS_PER_BAR))),
     [canvas?.secondsPerBar]
   );
+  const selectedPracticePlaybackRange = useMemo(
+    () =>
+      practiceModeEnabled && barSelection?.laneId === globalControlsLaneId
+        ? resolvePracticeLoopRange(
+            barSelection.barIndices,
+            FIXED_FRAMES_PER_BAR,
+            canvasTimelineEnd
+          )
+        : null,
+    [
+      barSelection?.barIndices,
+      barSelection?.laneId,
+      canvasTimelineEnd,
+      globalControlsLaneId,
+      practiceModeEnabled,
+    ]
+  );
   const globalPracticeLoopRange = useMemo(
     () =>
-      resolvePracticeLoopRange(barSelection?.barIndices, FIXED_FRAMES_PER_BAR, canvasTimelineEnd) ||
+      selectedPracticePlaybackRange ||
       (canvasTimelineEnd > 0 ? { startFrame: 0, endFrame: canvasTimelineEnd } : null),
-    [barSelection?.barIndices, canvasTimelineEnd]
+    [canvasTimelineEnd, selectedPracticePlaybackRange]
   );
   const normalizedPlaybackSpeed = normalizePlaybackSpeed(playbackSpeed);
   const globalMetronomeBeatsPerBar = normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
@@ -3238,17 +3257,26 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       startFrame: number,
       speedOverride?: number,
       isLoopRestart = false,
-      oneShotRange?: { startFrame: number; endFrame: number }
+      oneShotRange?: { startFrame: number; endFrame: number },
+      forceRequestedStart = false
     ) => {
       if (!canvas) return null;
       const scheduleStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
       const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? normalizedPlaybackSpeed);
       const playbackStartFrame =
         oneShotRange?.startFrame ??
-        (practiceLoopEnabled && globalPracticeLoopRange ? globalPracticeLoopRange.startFrame : startFrame);
+        resolvePracticePlaybackStart(
+          startFrame,
+          selectedPracticePlaybackRange ??
+            (practiceLoopEnabled ? globalPracticeLoopRange : null),
+          practiceLoopEnabled && !forceRequestedStart
+        );
       const playbackEndFrame =
         oneShotRange?.endFrame ??
-        (practiceLoopEnabled && globalPracticeLoopRange ? globalPracticeLoopRange.endFrame : canvasTimelineEnd);
+        (selectedPracticePlaybackRange?.endFrame ??
+          (practiceLoopEnabled && globalPracticeLoopRange
+            ? globalPracticeLoopRange.endFrame
+            : canvasTimelineEnd));
 
       const getMidiFromTab = (lane: EditorSnapshot, tab: [number, number], fallback?: number) => {
         const fromRef = lane.tabRef?.[tab[0]]?.[tab[1]];
@@ -3637,6 +3665,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       normalizedPlaybackSpeed,
       practiceLoopEnabled,
       scheduleMetronomeClick,
+      selectedPracticePlaybackRange,
       trackMuteById,
       trackPanById,
       trackVolumeById,
@@ -3651,6 +3680,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       oneShotRange?: { startFrame: number; endFrame: number };
       onScheduled?: (delaySeconds: number) => void;
       onComplete?: () => void;
+      forceRequestedStart?: boolean;
     }
   ) => {
     if (!canvas) return false;
@@ -3668,9 +3698,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     );
     const startFrame =
       options?.oneShotRange?.startFrame ??
-      (practiceLoopEnabled && globalPracticeLoopRange
-        ? globalPracticeLoopRange.startFrame
-        : requestedStartFrame);
+      resolvePracticePlaybackStart(
+        requestedStartFrame,
+        selectedPracticePlaybackRange ??
+          (practiceLoopEnabled ? globalPracticeLoopRange : null),
+        practiceLoopEnabled && !options?.forceRequestedStart
+      );
     stopGlobalPlaybackAudio();
     const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? normalizedPlaybackSpeed);
     let scheduled: Awaited<ReturnType<typeof scheduleGlobalPlayback>>;
@@ -3689,7 +3722,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         startFrame,
         runPlaybackSpeed,
         isLoopRestart,
-        options?.oneShotRange
+        options?.oneShotRange,
+        options?.forceRequestedStart
       );
     } catch (error) {
       if (playbackContext) {
@@ -3782,6 +3816,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     normalizedPlaybackSpeed,
     practiceLoopEnabled,
     scheduleGlobalPlayback,
+    selectedPracticePlaybackRange,
     speedTrainerStep,
     speedTrainerTarget,
     speedTrainerEnabled,
@@ -3912,6 +3947,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     startGlobalPlayback,
     stopGlobalPlayback,
   ]);
+
+  const playPracticeFromFrame = useCallback(
+    (frame: number) => {
+      stopGlobalPlayback();
+      void startGlobalPlayback(frame, undefined, false, { forceRequestedStart: true });
+    },
+    [startGlobalPlayback, stopGlobalPlayback]
+  );
 
   useEffect(() => {
     if (activeLaneId !== null) return;
@@ -4094,6 +4137,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     return [
       `iso:${isolatedTrackId ?? ""}`,
       `loop:${practiceLoopEnabled ? globalPracticeLoopRange?.startFrame ?? "-" : "-"}:${practiceLoopEnabled ? globalPracticeLoopRange?.endFrame ?? "-" : "-"}`,
+      `selection:${selectedPracticePlaybackRange?.startFrame ?? "-"}:${selectedPracticePlaybackRange?.endFrame ?? "-"}`,
       `met:${metronomeEnabled ? 1 : 0}`,
       `count:${countInEnabled ? 1 : 0}`,
       `train:${speedTrainerEnabled ? 1 : 0}`,
@@ -4113,6 +4157,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     metronomeEnabled,
     normalizedPlaybackSpeed,
     practiceLoopEnabled,
+    selectedPracticePlaybackRange,
     speedTrainerEnabled,
     trackMuteById,
     trackPanById,
@@ -7249,6 +7294,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     style={mobileEditing ? { backgroundColor: "var(--bg)", minHeight: 0 } : undefined}
                     onMouseDownCapture={(event) => {
                       const target = event.target as HTMLElement | null;
+                      if (practiceModeEnabled) {
+                        setPendingTrackReorder(null);
+                        return;
+                      }
                       const clickedBarSelector = Boolean(target?.closest("[data-bar-select='true']"));
                       const clickedEditorControl = Boolean(
                         target?.closest("[data-gte-editor-control='true']")
@@ -7295,6 +7344,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     }}
                     onTouchStartCapture={(event) => {
                       const target = event.target as HTMLElement | null;
+                      if (practiceModeEnabled) {
+                        setPendingTrackReorder(null);
+                        return;
+                      }
                       const clickedBarSelector = Boolean(target?.closest("[data-bar-select='true']"));
                       const clickedEditorControl = Boolean(
                         target?.closest("[data-gte-editor-control='true']")
@@ -8135,8 +8188,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           isActive={isActive}
                           mobileViewport={isMobileViewport}
                           playbackUiVisible={laneId === globalControlsLaneId}
-                          onFocusWorkspace={() =>
-                            practiceModeEnabled ? setActiveLaneId(laneId) : activateLaneForEditing(laneId)
+                          onFocusWorkspace={
+                            practiceModeEnabled ? undefined : () => activateLaneForEditing(laneId)
                           }
                           tabViewEnabled={tabViewEnabled}
                           globalSnapToGridEnabled={globalSnapToGridEnabled}
@@ -8201,6 +8254,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           playbackSpeed={normalizedPlaybackSpeed}
                           onPlaybackSpeedChange={setPlaybackSpeed}
                           practiceMode={practiceModeEnabled}
+                          onPracticeNotePlay={
+                            practiceModeEnabled ? playPracticeFromFrame : undefined
+                          }
                           practiceFocusBarRange={
                             practiceFocusEnabled && barSelection?.laneId === laneId && barSelection.barIndices.length
                               ? {

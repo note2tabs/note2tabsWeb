@@ -194,6 +194,7 @@ type Props = {
   playbackSpeed?: number;
   onPlaybackSpeedChange?: (speed: number) => void;
   practiceMode?: boolean;
+  onPracticeNotePlay?: (frame: number) => void;
   practiceFocusBarRange?: { startBar: number; endBar: number } | null;
   practiceRatingReplay?: PracticeRatingReplay | null;
   practiceControlsVisible?: boolean;
@@ -3336,6 +3337,7 @@ export default function GteWorkspace({
   playbackSpeed,
   onPlaybackSpeedChange,
   practiceMode = false,
+  onPracticeNotePlay,
   practiceFocusBarRange,
   practiceRatingReplay,
   practiceControlsVisible = false,
@@ -13686,9 +13688,11 @@ export default function GteWorkspace({
                               rating.onsetErrorMs < 0 ? "early" : "late"
                             }`;
                       return (
-                        <div
+                        <button
                           key={`practice-${rowIndex}-${placement.key}`}
-                          className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 px-0.5 text-[11px] font-bold leading-none ${ratingClass}`}
+                          type="button"
+                          onClick={() => onPracticeNotePlay?.(placement.startTime)}
+                          className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer px-0.5 text-[11px] font-bold leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${ratingClass}`}
                           style={{
                             left: placement.x - sourceLeft,
                             top: TIMELINE_BAR_HEADER_HEIGHT + y,
@@ -13700,9 +13704,10 @@ export default function GteWorkspace({
                                 : `Timing ${Math.round(rating.timingAccuracy)}%${timingDetail}`
                               : undefined
                           }
+                          aria-label={`Play from fret ${placement.fret}`}
                         >
                           {placement.fret}
-                        </div>
+                        </button>
                       );
                     })}
                   {(practiceRatingReplay?.falseNotes || [])
