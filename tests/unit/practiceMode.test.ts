@@ -54,14 +54,39 @@ describe("editor practice mode", () => {
     expect(editorPage).toContain(
       "practiceModeEnabled && laneId !== globalControlsLaneId"
     );
+    expect(editorPage).toContain("{canvas.editors.map((candidate, candidateIndex) => {");
   });
 
   it("keeps playback sound controls available in practice", () => {
     expect(editorPage).toContain('aria-label="Practice instrument"');
-    expect(editorPage).toContain("toggleTrackMute(practiceLaneId)");
-    expect(editorPage).toContain("toggleTrackIsolation(practiceLaneId)");
-    expect(editorPage).toContain("handleTrackVolumeChange(practiceLaneId");
-    expect(editorPage).toContain("handleTrackPanChange(practiceLaneId");
+    expect(editorPage).toContain("toggleTrackMute(practiceSoundLaneId)");
+    expect(editorPage).toContain("toggleTrackIsolation(practiceSoundLaneId)");
+    expect(editorPage).toContain("handleTrackVolumeChange(practiceSoundLaneId");
+    expect(editorPage).toContain("handleTrackPanChange(practiceSoundLaneId");
+  });
+
+  it("supports standalone chord tracks and chord overlays in practice", () => {
+    expect(editorPage).toContain('aria-label="Chord overlay"');
+    expect(editorPage).toContain("practiceChordOverlayLaneId");
+    expect(editorPage).toContain("practiceChordOverlay={");
+    expect(editorPage).toContain("`Track ${candidateIndex + 1} · Chords`");
+    expect(workspace).toContain("practiceChordOverlay?: EditorSnapshot | null");
+    expect(workspace).toContain("practiceChordOverlayItems");
+    expect(workspace).toContain("getPracticeChordFingering");
+    expect(workspace).toContain("gteApi.getChordFingerings(lookup.root, lookup.type)");
+    expect(workspace).toContain("practiceChordFingeringsByKey[lookup.key]");
+    expect(workspace).toContain("group-hover:visible");
+    expect(editorPage).toContain("`Track ${trackNumber} · ${chordLane.name");
+    expect(editorPage).toContain("`Track ${candidateIndex + 1} · Chords`");
+  });
+
+  it("exposes per-tab sound controls inside the practice tab selector", () => {
+    expect(editorPage).toContain("Sound controls for");
+    expect(editorPage).toContain("toggleTrackMute(candidateId)");
+    expect(editorPage).toContain("toggleTrackIsolation(candidateId)");
+    expect(editorPage).toContain("handleTrackVolumeChange(candidateId");
+    expect(editorPage).toContain('className="w-12 shrink-0 accent-slate-700"');
+    expect(editorPage).not.toContain('aria-label={`Pan for ${candidate.name');
   });
 
   it("enables looping when speed trainer is turned on", () => {

@@ -1155,6 +1155,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [countInBars, setCountInBars] = useState(1);
   const [countInEveryLoop, setCountInEveryLoop] = useState(false);
   const [practiceFocusEnabled, setPracticeFocusEnabled] = useState(false);
+  const [practiceChordOverlayLaneId, setPracticeChordOverlayLaneId] = useState<string | null>(null);
   const [practiceFullscreen, setPracticeFullscreen] = useState(false);
   const [speedTrainerEnabled, setSpeedTrainerEnabled] = useState(false);
   const [speedTrainerTarget, setSpeedTrainerTarget] = useState(1.5);
@@ -2626,7 +2627,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (
       practiceModeEnabled &&
       activeLaneId &&
-      canvas.editors.some((lane) => (lane.id || null) === activeLaneId && !isChordLane(lane))
+      canvas.editors.some((lane) => (lane.id || null) === activeLaneId)
     ) {
       return activeLaneId;
     }
@@ -2762,6 +2763,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (typeof saved.countInEnabled === "boolean") setCountInEnabled(saved.countInEnabled);
       if (typeof saved.speedTrainerEnabled === "boolean") setSpeedTrainerEnabled(saved.speedTrainerEnabled);
       if (typeof saved.practiceFocusEnabled === "boolean") setPracticeFocusEnabled(saved.practiceFocusEnabled);
+      if (typeof saved.chordOverlayLaneId === "string") {
+        setPracticeChordOverlayLaneId(saved.chordOverlayLaneId);
+      } else {
+        setPracticeChordOverlayLaneId(null);
+      }
       setMetronomeVolume(Math.max(0, Math.min(1, Number(saved.metronomeVolume) || 0.7)));
       setCountInBars(Math.max(1, Math.min(3, Math.round(Number(saved.countInBars) || 1))));
       if (typeof saved.countInEveryLoop === "boolean") setCountInEveryLoop(saved.countInEveryLoop);
@@ -2804,6 +2810,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           speedTrainerTarget,
           speedTrainerStep,
           practiceFocusEnabled,
+          chordOverlayLaneId: practiceChordOverlayLaneId,
           barLaneId: barSelection?.laneId ?? null,
           barIndices: barSelection?.barIndices ?? [],
         })
@@ -2822,6 +2829,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     metronomeVolume,
     normalizedPlaybackSpeed,
     practiceFocusEnabled,
+    practiceChordOverlayLaneId,
     practiceLoopEnabled,
     practiceSettingsStorageKey,
     speedTrainerEnabled,
@@ -4382,8 +4390,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     practiceLane && practiceLaneIndex >= 0
       ? practiceLane.id || `ed-${practiceLaneIndex + 1}`
       : null;
-  const practiceInstrumentValue = practiceLane
-    ? normalizeTrackInstrumentId(practiceLane.instrumentId)
+  const practiceSoundLaneIndex =
+    canvas?.editors.findIndex(
+      (lane, index) => (lane.id || `ed-${index + 1}`) === globalControlsLaneId
+    ) ?? -1;
+  const practiceSoundLane =
+    practiceSoundLaneIndex >= 0 ? canvas?.editors[practiceSoundLaneIndex] ?? null : null;
+  const practiceSoundLaneId =
+    practiceSoundLane && practiceSoundLaneIndex >= 0
+      ? practiceSoundLane.id || `ed-${practiceSoundLaneIndex + 1}`
+      : null;
+  const practiceInstrumentValue = practiceSoundLane
+    ? normalizeTrackInstrumentId(practiceSoundLane.instrumentId)
     : DEFAULT_TRACK_INSTRUMENT_ID;
   const practiceRatingReplaysForLane = useMemo(
     () => practiceRatingReplays.filter((replay) => replay.laneId === practiceLaneId),
@@ -4413,6 +4431,26 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     showPracticeRating
       ? selectedPracticeRatingForPlayback
       : null;
+  const practiceChordLaneOptions = useMemo(
+    () =>
+      canvas?.editors.flatMap((lane, index) =>
+        isChordLane(lane)
+          ? [{ lane, laneId: lane.id || `ed-${index + 1}`, trackNumber: index + 1 }]
+          : []
+      ) ?? [],
+    [canvas?.editors]
+  );
+  const practiceChordOverlay = useMemo(
+    () =>
+      practiceChordLaneOptions.find(
+        (option) => option.laneId === practiceChordOverlayLaneId
+      )?.lane ?? null,
+    [practiceChordLaneOptions, practiceChordOverlayLaneId]
+  );
+  useEffect(() => {
+    if (!practiceChordOverlayLaneId || practiceChordOverlay) return;
+    setPracticeChordOverlayLaneId(null);
+  }, [practiceChordOverlay, practiceChordOverlayLaneId]);
   const practiceRatingBusy = practiceRatingState !== "idle";
 
   const toggleSelectedPracticeReplay = () => {
@@ -4876,7 +4914,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           >
             Focus {practiceFocusEnabled ? "on" : "selection"}
           </button>
-          {practiceLaneId && (
+          {practiceSoundLaneId && (
             <details className="group relative">
               <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                 Sound
@@ -4890,7 +4928,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   <select
                     value={practiceInstrumentValue}
                     onChange={(event) =>
-                      handleLaneInstrumentChange(practiceLaneId, event.target.value)
+                      handleLaneInstrumentChange(practiceSoundLaneId, event.target.value)
                     }
                     className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
                     aria-label="Practice instrument"
@@ -4905,27 +4943,27 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => toggleTrackMute(practiceLaneId)}
-                    aria-pressed={Boolean(trackMuteById[practiceLaneId])}
+                    onClick={() => toggleTrackMute(practiceSoundLaneId)}
+                    aria-pressed={Boolean(trackMuteById[practiceSoundLaneId])}
                     className={`h-9 rounded-lg border text-xs font-semibold ${
-                      trackMuteById[practiceLaneId]
+                      trackMuteById[practiceSoundLaneId]
                         ? "border-amber-300 bg-amber-50 text-amber-800"
                         : "border-slate-200 text-slate-700"
                     }`}
                   >
-                    {trackMuteById[practiceLaneId] ? "Muted" : "Mute"}
+                    {trackMuteById[practiceSoundLaneId] ? "Muted" : "Mute"}
                   </button>
                   <button
                     type="button"
-                    onClick={() => toggleTrackIsolation(practiceLaneId)}
-                    aria-pressed={isolatedTrackId === practiceLaneId}
+                    onClick={() => toggleTrackIsolation(practiceSoundLaneId)}
+                    aria-pressed={isolatedTrackId === practiceSoundLaneId}
                     className={`h-9 rounded-lg border text-xs font-semibold ${
-                      isolatedTrackId === practiceLaneId
+                      isolatedTrackId === practiceSoundLaneId
                         ? "border-sky-300 bg-sky-50 text-sky-800"
                         : "border-slate-200 text-slate-700"
                     }`}
                   >
-                    {isolatedTrackId === practiceLaneId ? "Soloed" : "Solo"}
+                    {isolatedTrackId === practiceSoundLaneId ? "Soloed" : "Solo"}
                   </button>
                 </div>
                 <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -4935,9 +4973,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     min={0}
                     max={1}
                     step={0.01}
-                    value={normalizeTrackVolume(trackVolumeById[practiceLaneId] ?? 1)}
+                    value={normalizeTrackVolume(trackVolumeById[practiceSoundLaneId] ?? 1)}
                     onChange={(event) =>
-                      handleTrackVolumeChange(practiceLaneId, Number(event.target.value))
+                      handleTrackVolumeChange(practiceSoundLaneId, Number(event.target.value))
                     }
                     className="mt-1.5 w-full accent-slate-700"
                   />
@@ -4949,9 +4987,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     min={-1}
                     max={1}
                     step={0.01}
-                    value={normalizeTrackPan(trackPanById[practiceLaneId] ?? 0)}
+                    value={normalizeTrackPan(trackPanById[practiceSoundLaneId] ?? 0)}
                     onChange={(event) =>
-                      handleTrackPanChange(practiceLaneId, Number(event.target.value))
+                      handleTrackPanChange(practiceSoundLaneId, Number(event.target.value))
                     }
                     className="mt-1.5 w-full accent-slate-700"
                   />
@@ -8079,7 +8117,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       <div ref={sharedTimelineMeasureRef} className="min-w-0 flex-1">
                         {practiceModeEnabled && (
                           <div className="mb-2 flex items-baseline justify-between border-b border-slate-200 pb-2">
-                            {canvas.editors.filter((candidate) => !isChordLane(candidate)).length > 1 ? (
+                            {canvas.editors.length > 1 ? (
                               <details className="group relative">
                                 <summary
                                   className="-ml-2 flex cursor-pointer list-none items-center gap-2 rounded-lg border border-transparent px-2 py-1 text-left transition hover:border-slate-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
@@ -8107,9 +8145,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                   <div className="px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
                                     Choose a track
                                   </div>
-                                  {canvas.editors
-                                    .filter((candidate) => !isChordLane(candidate))
-                                    .map((candidate, candidateIndex) => {
+                                  {canvas.editors.map((candidate, candidateIndex) => {
                                       const candidateId =
                                         candidate.id || `ed-${candidateIndex + 1}`;
                                       const selected = candidateId === globalControlsLaneId;
@@ -8119,62 +8155,139 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                             option.id ===
                                             normalizeTrackInstrumentId(candidate.instrumentId)
                                         )?.label || "Guitar";
+                                      const candidateMuted = Boolean(trackMuteById[candidateId]);
+                                      const candidateIsolated = isolatedTrackId === candidateId;
+                                      const candidateVolume = normalizeTrackVolume(
+                                        trackVolumeById[candidateId] ?? 1
+                                      );
                                       return (
-                                        <button
+                                        <div
                                           key={candidateId}
-                                          type="button"
-                                          aria-pressed={selected}
-                                          onClick={(event) => {
-                                            setActiveLaneId(candidateId);
-                                            const picker = event.currentTarget.closest("details");
-                                            if (picker) picker.open = false;
-                                          }}
-                                          className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition ${
+                                          className={`flex items-center gap-1 rounded-lg px-1 py-1 transition ${
                                             selected
                                               ? "bg-emerald-50 text-emerald-950"
                                               : "text-slate-700 hover:bg-slate-50"
                                           }`}
+                                          role="group"
+                                          aria-label={`Sound controls for ${candidate.name || `Track ${candidateIndex + 1}`}`}
                                         >
-                                          <span
-                                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                                              selected
-                                                ? "border-emerald-500 bg-emerald-500 text-white"
-                                                : "border-slate-300 bg-white"
-                                            }`}
-                                            aria-hidden="true"
+                                          <button
+                                            type="button"
+                                            aria-pressed={selected}
+                                            onClick={(event) => {
+                                              setActiveLaneId(candidateId);
+                                              const picker = event.currentTarget.closest("details");
+                                              if (picker) picker.open = false;
+                                            }}
+                                            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left"
                                           >
-                                            {selected && (
-                                              <svg viewBox="0 0 20 20" className="h-3 w-3 fill-current">
-                                                <path d="m7.8 13.7-3.4-3.4 1.2-1.2 2.2 2.2 6.6-6.6 1.2 1.2z" />
-                                              </svg>
-                                            )}
-                                          </span>
-                                          <span className="min-w-0 flex-1">
-                                            <span className="block truncate text-xs font-semibold">
-                                              {candidate.name || `Track ${candidateIndex + 1}`}
+                                            <span
+                                              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                                                selected
+                                                  ? "border-emerald-500 bg-emerald-500 text-white"
+                                                  : "border-slate-300 bg-white"
+                                              }`}
+                                              aria-hidden="true"
+                                            >
+                                              {selected && (
+                                                <svg viewBox="0 0 20 20" className="h-3 w-3 fill-current">
+                                                  <path d="m7.8 13.7-3.4-3.4 1.2-1.2 2.2 2.2 6.6-6.6 1.2 1.2z" />
+                                                </svg>
+                                              )}
                                             </span>
-                                            <span className="block truncate text-[10px] text-slate-500">
-                                              {candidateInstrument}
+                                            <span className="min-w-0 flex-1">
+                                              <span className="block truncate text-xs font-semibold">
+                                                {candidate.name || `Track ${candidateIndex + 1}`}
+                                              </span>
+                                              <span className="block truncate text-[10px] text-slate-500">
+                                                {isChordLane(candidate)
+                                                  ? `Track ${candidateIndex + 1} · Chords`
+                                                  : candidateInstrument}
+                                              </span>
                                             </span>
-                                          </span>
-                                          {selected && (
-                                            <span className="text-[10px] font-semibold text-emerald-700">
-                                              Current
-                                            </span>
-                                          )}
-                                        </button>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleTrackMute(candidateId)}
+                                            aria-pressed={candidateMuted}
+                                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-[9px] font-bold transition ${
+                                              candidateMuted
+                                                ? "border-amber-300 bg-amber-50 text-amber-800"
+                                                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                                            }`}
+                                            title={candidateMuted ? "Unmute track" : "Mute track"}
+                                            aria-label={`${candidateMuted ? "Unmute" : "Mute"} ${candidate.name || `Track ${candidateIndex + 1}`}`}
+                                          >
+                                            M
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleTrackIsolation(candidateId)}
+                                            aria-pressed={candidateIsolated}
+                                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-[9px] font-bold transition ${
+                                              candidateIsolated
+                                                ? "border-sky-300 bg-sky-50 text-sky-800"
+                                                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                                            }`}
+                                            title={candidateIsolated ? "Stop soloing track" : "Solo track"}
+                                            aria-label={`${candidateIsolated ? "Stop soloing" : "Solo"} ${candidate.name || `Track ${candidateIndex + 1}`}`}
+                                          >
+                                            S
+                                          </button>
+                                          <input
+                                            type="range"
+                                            min={0}
+                                            max={1}
+                                            step={0.01}
+                                            value={candidateVolume}
+                                            onChange={(event) =>
+                                              handleTrackVolumeChange(candidateId, Number(event.target.value))
+                                            }
+                                            className="w-12 shrink-0 accent-slate-700"
+                                            title={`Volume ${Math.round(candidateVolume * 100)}%`}
+                                            aria-label={`Volume for ${candidate.name || `Track ${candidateIndex + 1}`}`}
+                                          />
+                                        </div>
                                       );
                                     })}
                                 </div>
                               </details>
                             ) : (
                               <h3 className="text-sm font-semibold text-slate-800">
-                                {lane.name || `Track ${index + 1}`}
+                                {isChordLane(lane)
+                                  ? `Track ${index + 1} · ${lane.name || "Chords"}`
+                                  : lane.name || `Track ${index + 1}`}
                               </h3>
                             )}
-                            <span className="text-[11px] text-slate-500">
-                              {instrumentLabel} · {laneBarCount} bars
-                            </span>
+                            <div className="flex items-center gap-2">
+                              {!isChordLane(lane) && practiceChordLaneOptions.length > 0 && (
+                                <label className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500">
+                                  <span>Chord overlay</span>
+                                  <select
+                                    value={practiceChordOverlayLaneId ?? ""}
+                                    onChange={(event) =>
+                                      setPracticeChordOverlayLaneId(event.target.value || null)
+                                    }
+                                    className="max-w-32 bg-transparent text-[10px] font-semibold text-slate-700 outline-none"
+                                    aria-label="Chord overlay"
+                                  >
+                                    <option value="">None</option>
+                                    {practiceChordLaneOptions.map(
+                                      ({ lane: chordLane, laneId: chordLaneId, trackNumber }) => {
+                                        return (
+                                          <option key={chordLaneId} value={chordLaneId}>
+                                            {`Track ${trackNumber} · ${chordLane.name || "Chords"}`}
+                                          </option>
+                                        );
+                                      }
+                                    )}
+                                  </select>
+                                </label>
+                              )}
+                              <span className="text-[11px] text-slate-500">
+                                {isChordLane(lane) ? "Chords" : instrumentLabel} · {laneBarCount} bars
+                              </span>
+                            </div>
                           </div>
                         )}
                         <GteWorkspace
@@ -8254,6 +8367,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           playbackSpeed={normalizedPlaybackSpeed}
                           onPlaybackSpeedChange={setPlaybackSpeed}
                           practiceMode={practiceModeEnabled}
+                          practiceChordOverlay={
+                            practiceModeEnabled && !isChordLane(lane)
+                              ? practiceChordOverlay
+                              : null
+                          }
                           onPracticeNotePlay={
                             practiceModeEnabled ? playPracticeFromFrame : undefined
                           }

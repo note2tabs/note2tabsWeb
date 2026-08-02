@@ -195,6 +195,7 @@ type Props = {
   onPlaybackSpeedChange?: (speed: number) => void;
   practiceMode?: boolean;
   onPracticeNotePlay?: (frame: number) => void;
+  practiceChordOverlay?: EditorSnapshot | null;
   practiceFocusBarRange?: { startBar: number; endBar: number } | null;
   practiceRatingReplay?: PracticeRatingReplay | null;
   practiceControlsVisible?: boolean;
@@ -1588,6 +1589,63 @@ function ChordFingeringDiagram({
     </div>
   );
 }
+
+const getPracticeChordLabel = (chord: Chord) => {
+  const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+  return (
+    chord.label ||
+    inferred?.label ||
+    getChordEditorLabel(
+      chord.root || inferred?.root || "C",
+      chord.quality || inferred?.quality || "major",
+      chord.extension || inferred?.extension || ""
+    )
+  );
+};
+
+const getPracticeChordFingeringLookup = (chord: Chord) => {
+  const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+  const root = chord.root || inferred?.root || "C";
+  const quality = chord.quality || inferred?.quality || "major";
+  const extension = chord.extension || inferred?.extension || "";
+  const type = getChordFingeringDatasetType({ quality, extension });
+  return { root, type, key: `${root}:${type}` };
+};
+
+const getPracticeChordFingering = (
+  chord: Chord,
+  fingeringOptions: ChordFingering[] = []
+): ChordFingering | null => {
+  const savedFingeringIndex = Number.isFinite(Number(chord.fingeringIndex))
+    ? Math.max(
+        0,
+        Math.min(fingeringOptions.length - 1, Math.round(Number(chord.fingeringIndex)))
+      )
+    : 0;
+  const savedFingering =
+    (fingeringOptions.length ? fingeringOptions[savedFingeringIndex] : undefined) ||
+    chord.fingering;
+  if (savedFingering) return hydrateChordFingering(savedFingering);
+  const positions: Array<number | null> = Array.from({ length: 6 }, () => null);
+  chord.currentTabs.forEach((tab) => {
+    const rawStringIndex = Number(tab[0]);
+    const rawFret = Number(tab[1]);
+    if (!Number.isFinite(rawStringIndex) || !Number.isFinite(rawFret)) return;
+    const stringIndex = Math.max(0, Math.min(5, Math.round(rawStringIndex)));
+    positions[5 - stringIndex] = Math.max(0, Math.round(rawFret));
+  });
+  if (!positions.some((position) => position !== null)) return null;
+  const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+  return hydrateChordFingering({
+    root: chord.root || inferred?.root || "C",
+    type: getChordFingeringDatasetType({
+      quality: chord.quality || inferred?.quality || "major",
+      extension: chord.extension || inferred?.extension || "",
+    }),
+    positions,
+    tabs: chord.currentTabs,
+  });
+};
 
 function ChordLaneWorkspace({
   editorId,
@@ -3338,6 +3396,7 @@ export default function GteWorkspace({
   onPlaybackSpeedChange,
   practiceMode = false,
   onPracticeNotePlay,
+  practiceChordOverlay,
   practiceFocusBarRange,
   practiceRatingReplay,
   practiceControlsVisible = false,
@@ -3447,6 +3506,9 @@ export default function GteWorkspace({
   }
 
   const [autoBaseScale, setAutoBaseScale] = useState(4);
+  const [practiceChordFingeringsByKey, setPracticeChordFingeringsByKey] = useState<
+    Record<string, ChordFingering[]>
+  >({});
   const [secondsPerBar, setSecondsPerBar] = useState(2);
   const [bpmInput, setBpmInput] = useState(formatBpm(secondsPerBarToBpm(2, 8)));
   const [timeSignature, setTimeSignature] = useState(8);
@@ -3979,6 +4041,59 @@ export default function GteWorkspace({
         (practiceRatingReplay?.notes || []).map((note) => [note.placementKey, note])
       ),
     [practiceRatingReplay]
+  );
+  useEffect(() => {
+    if (!practiceMode || !practiceChordOverlay?.chords.length) return;
+    const lookups = Array.from(
+      new Map(
+        practiceChordOverlay.chords.map((chord) => {
+          const lookup = getPracticeChordFingeringLookup(chord);
+          return [lookup.key, lookup];
+        })
+      ).values()
+    ).filter((lookup) => practiceChordFingeringsByKey[lookup.key] === undefined);
+    if (!lookups.length) return;
+    let cancelled = false;
+    void Promise.all(
+      lookups.map(async (lookup) => {
+        try {
+          const response = await gteApi.getChordFingerings(lookup.root, lookup.type);
+          return [
+            lookup.key,
+            (response.fingerings || []).map(hydrateChordFingering),
+          ] as const;
+        } catch {
+          return [lookup.key, []] as const;
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      setPracticeChordFingeringsByKey((previous) => ({
+        ...previous,
+        ...Object.fromEntries(entries),
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [practiceChordFingeringsByKey, practiceChordOverlay, practiceMode]);
+  const practiceChordOverlayItems = useMemo(
+    () =>
+      (practiceChordOverlay?.chords || [])
+        .map((chord) => {
+          const lookup = getPracticeChordFingeringLookup(chord);
+          return {
+            chord,
+            frame: Math.max(0, Math.round(Number(chord.startTime) || 0)),
+            label: getPracticeChordLabel(chord),
+            fingering: getPracticeChordFingering(
+              chord,
+              practiceChordFingeringsByKey[lookup.key]
+            ),
+          };
+        })
+        .sort((left, right) => left.frame - right.frame || left.chord.id - right.chord.id),
+    [practiceChordFingeringsByKey, practiceChordOverlay]
   );
   useEffect(() => {
     if (!practiceMode) {
@@ -13578,7 +13693,7 @@ export default function GteWorkspace({
           practiceMode ? (
           <div
             ref={practiceScoreRef}
-            className="relative min-w-0 overflow-hidden bg-white"
+            className="relative min-w-0 overflow-visible bg-white"
             data-gte-tab-view="true"
             data-gte-practice-score="true"
             style={{ height: practiceRowCount * practiceRowHeight }}
@@ -13628,6 +13743,50 @@ export default function GteWorkspace({
                       </button>
                     );
                   })}
+                  {practiceChordOverlayItems
+                    .filter(
+                      (item) =>
+                        item.frame >= firstBar * framesPerMeasure &&
+                        item.frame < lastBar * framesPerMeasure
+                    )
+                    .map((item) => {
+                      const sourceX = getEditorTabViewCursorX(
+                        editorTabView.cursorAnchors,
+                        item.frame,
+                        Math.max(1, editorTabView.barCount * framesPerMeasure),
+                        editorTabView.width
+                      );
+                      return (
+                        <div
+                          key={`practice-chord-overlay-${rowIndex}-${item.chord.id}`}
+                          className="group absolute top-0 z-40 -translate-x-1/2"
+                          style={{ left: sourceX - sourceLeft }}
+                        >
+                          <button
+                            type="button"
+                            className="h-5 max-w-24 truncate rounded-md border border-violet-200 bg-violet-50 px-1.5 text-[10px] font-bold text-violet-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                            aria-label={`${item.label} chord diagram`}
+                          >
+                            {item.label}
+                          </button>
+                          <div className="invisible absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 rounded-lg border border-slate-200 bg-white p-2 opacity-0 shadow-xl transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                            <div className="mb-1 text-center text-xs font-bold text-slate-800">
+                              {item.label}
+                            </div>
+                            {item.fingering ? (
+                              <ChordFingeringDiagram
+                                fingering={item.fingering}
+                                leftHanded={leftHandedChordDiagrams}
+                              />
+                            ) : (
+                              <div className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">
+                                No shape
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   {Array.from({ length: lastBar - firstBar + 1 }).map((__, offset) => (
                     <div
                       key={`practice-bar-line-${rowIndex}-${offset}`}
