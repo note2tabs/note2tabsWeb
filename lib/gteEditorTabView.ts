@@ -31,6 +31,8 @@ export type EditorTabViewBarLine = {
 export type EditorTabViewModel = {
   strings: EditorTabViewString[];
   barLines: EditorTabViewBarLine[];
+  barWidths: number[];
+  barStartXs: number[];
   placements: EditorTabViewPlacement[];
   effects: EditorTabViewEffect[];
   barCount: number;
@@ -47,6 +49,8 @@ type BuildEditorTabViewOptions = {
   scale: number;
   playheadFrame: number;
   minBarCount?: number;
+  variableBarWidths?: boolean;
+  collapseConsecutiveEmptyBars?: boolean;
 };
 
 export type TimedVisualAnchor = {
@@ -72,6 +76,7 @@ const RIGHT_PADDING = 32;
 const TOP_PADDING = 18;
 const STRING_GAP = 28;
 const NUMBER_WIDTH = 18;
+const COLLAPSED_EMPTY_BAR_RUN_WIDTH = 72;
 
 const toSafeInt = (value: unknown, fallback: number) => {
   const num = Number(value);
@@ -189,7 +194,15 @@ export const getEditorTabViewCursorX = (
 
 export const buildEditorTabView = (
   snapshot: EditorSnapshot,
-  { framesPerBar, beatsPerBar, scale, playheadFrame, minBarCount }: BuildEditorTabViewOptions
+  {
+    framesPerBar,
+    beatsPerBar,
+    scale,
+    playheadFrame,
+    minBarCount,
+    variableBarWidths = false,
+    collapseConsecutiveEmptyBars = false,
+  }: BuildEditorTabViewOptions
 ): EditorTabViewModel => {
   const safeFramesPerBar = Math.max(1, Math.round(framesPerBar));
   const safeBeatsPerBar = Math.max(1, Math.round(beatsPerBar));
@@ -206,7 +219,53 @@ export const buildEditorTabView = (
     Math.ceil(totalFrames / safeFramesPerBar),
     Number.isFinite(minBarCount) ? Math.round(minBarCount || 0) : 0
   );
-  const width = LEFT_LABEL_WIDTH + barCount * barWidth + RIGHT_PADDING;
+  const onsetTimesByBar = Array.from({ length: barCount }, () => new Set<number>());
+  snapshot.notes.forEach((note) => {
+    const startTime = Math.max(0, toSafeInt(note.startTime, 0));
+    const barIndex = clamp(Math.floor(startTime / safeFramesPerBar), 0, barCount - 1);
+    onsetTimesByBar[barIndex].add(startTime);
+  });
+  snapshot.chords.forEach((chord) => {
+    const startTime = Math.max(0, toSafeInt(chord.startTime, 0));
+    const barIndex = clamp(Math.floor(startTime / safeFramesPerBar), 0, barCount - 1);
+    onsetTimesByBar[barIndex].add(startTime);
+  });
+  const maximumDenseOnsets = Math.max(
+    5,
+    ...onsetTimesByBar.map((times) => times.size)
+  );
+  const denseBarWidth = Math.max(176, 28 + maximumDenseOnsets * 22);
+  const barWidths = onsetTimesByBar.map((times) => {
+    if (!variableBarWidths) return barWidth;
+    if (times.size === 0) return 42;
+    return times.size <= 4 ? 112 : denseBarWidth;
+  });
+  if (variableBarWidths && collapseConsecutiveEmptyBars) {
+    let startIndex = 0;
+    while (startIndex < barCount) {
+      if (onsetTimesByBar[startIndex].size > 0) {
+        startIndex += 1;
+        continue;
+      }
+      let endIndex = startIndex + 1;
+      while (endIndex < barCount && onsetTimesByBar[endIndex].size === 0) {
+        endIndex += 1;
+      }
+      const runLength = endIndex - startIndex;
+      if (runLength > 1) {
+        const sharedWidth = COLLAPSED_EMPTY_BAR_RUN_WIDTH / runLength;
+        for (let index = startIndex; index < endIndex; index += 1) {
+          barWidths[index] = sharedWidth;
+        }
+      }
+      startIndex = endIndex;
+    }
+  }
+  const barStartXs = [LEFT_LABEL_WIDTH];
+  barWidths.forEach((currentBarWidth) => {
+    barStartXs.push(barStartXs[barStartXs.length - 1] + currentBarWidth);
+  });
+  const width = barStartXs[barStartXs.length - 1] + RIGHT_PADDING;
   const height = TOP_PADDING * 2 + (STRING_COUNT - 1) * STRING_GAP;
   const strings = stringLabels.map((label, stringIndex) => ({
     label,
@@ -214,10 +273,29 @@ export const buildEditorTabView = (
   }));
   const barLines = Array.from({ length: barCount + 1 }, (_, barIndex) => ({
     key: `bar-${barIndex}`,
-    x: LEFT_LABEL_WIDTH + barIndex * slotsPerBar * slotWidth,
+    x: barStartXs[barIndex],
   }));
   const notePlacements = new Map<number, NotePlacement>();
   const placements: EditorTabViewPlacement[] = [];
+  const getPlacementX = (startTime: number) => {
+    if (!variableBarWidths) {
+      return getRoundedX(startTime, safeFramesPerBar, slotsPerBar, slotWidth, barCount);
+    }
+    const barIndex = clamp(Math.floor(startTime / safeFramesPerBar), 0, barCount - 1);
+    const onsetTimes = [...onsetTimesByBar[barIndex]].sort((left, right) => left - right);
+    const onsetIndex = Math.max(0, onsetTimes.indexOf(startTime));
+    const currentBarWidth = barWidths[barIndex];
+    const horizontalPadding = Math.min(16, currentBarWidth * 0.2);
+    if (onsetTimes.length <= 1) {
+      return barStartXs[barIndex] + currentBarWidth / 2;
+    }
+    return (
+      barStartXs[barIndex] +
+      horizontalPadding +
+      (onsetIndex / (onsetTimes.length - 1)) *
+        (currentBarWidth - horizontalPadding * 2)
+    );
+  };
 
   snapshot.notes.forEach((note) => {
     const tab = normalizeTab(note.tab);
@@ -229,7 +307,7 @@ export const buildEditorTabView = (
       startTime,
       stringIndex: tab[0],
       fret: tab[1],
-      x: getRoundedX(startTime, safeFramesPerBar, slotsPerBar, slotWidth, barCount),
+      x: getPlacementX(startTime),
     };
     notePlacements.set(note.id, placement);
     placements.push(placement);
@@ -237,7 +315,7 @@ export const buildEditorTabView = (
 
   snapshot.chords.forEach((chord) => {
     const startTime = Math.max(0, toSafeInt(chord.startTime, 0));
-    const x = getRoundedX(startTime, safeFramesPerBar, slotsPerBar, slotWidth, barCount);
+    const x = getPlacementX(startTime);
     chord.currentTabs.forEach((rawTab, tabIndex) => {
       const tab = normalizeTab(rawTab);
       if (!tab) return;
@@ -268,14 +346,29 @@ export const buildEditorTabView = (
     })
     .filter((effect): effect is EditorTabViewEffect => effect !== null);
 
-  const anchors = placements
-    .map((placement) => ({ time: placement.startTime, x: placement.x }))
+  const timedAnchors = [
+    ...(variableBarWidths
+      ? barStartXs.map((x, barIndex) => ({
+          time: barIndex * safeFramesPerBar,
+          x,
+        }))
+      : []),
+    ...placements.map((placement) => ({ time: placement.startTime, x: placement.x })),
+  ];
+  const anchors = [...new Map(timedAnchors.map((anchor) => [anchor.time, anchor])).values()]
     .sort((a, b) => a.time - b.time || a.x - b.x)
-    .filter((anchor, index, source) => index === 0 || anchor.time !== source[index - 1].time || anchor.x !== source[index - 1].x);
+    .filter(
+      (anchor, index, source) =>
+        index === 0 ||
+        anchor.time !== source[index - 1].time ||
+        anchor.x !== source[index - 1].x
+    );
 
   return {
     strings,
     barLines,
+    barWidths,
+    barStartXs,
     placements: placements.sort((a, b) => a.startTime - b.startTime || a.stringIndex - b.stringIndex || a.fret - b.fret),
     effects,
     barCount,

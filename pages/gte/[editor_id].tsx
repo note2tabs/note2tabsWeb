@@ -17,6 +17,7 @@ import dynamic from "next/dynamic";
 import { buildLaneEditorRef, gteApi } from "../../lib/gteApi";
 import {
   PLAYBACK_SPEED_OPTIONS,
+  SPEED_TRAINER_START_OPTIONS,
   SPEED_TRAINER_STEP_OPTIONS,
   SPEED_TRAINER_TARGET_OPTIONS,
   buildMetronomeClicks,
@@ -25,8 +26,21 @@ import {
   nextSpeedTrainerValue,
   normalizePlaybackSpeed,
   normalizeTrackPan,
+  resolvePracticePlaybackStart,
   resolvePracticeLoopRange,
 } from "../../lib/gtePractice";
+import {
+  buildPracticeRatingBars,
+  encodeMonoWav,
+  normalizePracticeRatingReplay,
+  trimPracticeRecordingSamples,
+  type PracticeRatingReplay,
+} from "../../lib/gtePracticeRating";
+import {
+  deletePracticeReplayAudio,
+  readPracticeReplayAudio,
+  storePracticeReplayAudio,
+} from "../../lib/gtePracticeReplayAudio";
 import {
   DEFAULT_TRACK_INSTRUMENT_ID,
   getTrackInstrumentOptions,
@@ -142,6 +156,7 @@ const SHORTCUT_HELP_SECTIONS: ReadonlyArray<
   ["Tools", TOOL_SHORTCUT_HELP],
   ["Track cursor", TRACK_CURSOR_SHORTCUT_HELP],
 ];
+
 const KEY_BASE_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const KEY_TYPE_OPTIONS = [
   "Major",
@@ -159,6 +174,7 @@ const MOBILE_EDITOR_BREAKPOINT_PX = 768;
 const GTE_GUEST_CANVAS_STORAGE_KEY = "note2tabs:gte:guest-canvas:v1";
 const AUDIO_CONTEXT_RESUME_ERROR =
   "Your browser blocked audio playback. Tap Play again to allow sound.";
+const PRACTICE_RATING_UI_ENABLED = false;
 
 const serializeForInlineScript = (value: string) =>
   JSON.stringify(value)
@@ -1116,7 +1132,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [openTrackMenuId, setOpenTrackMenuId] = useState<string | null>(null);
   const [openMobileBarMenuLaneId, setOpenMobileBarMenuLaneId] = useState<string | null>(null);
   const [editMenuPortalTarget, setEditMenuPortalTarget] = useState<HTMLDivElement | null>(null);
-  const [tabViewEnabled, setTabViewEnabled] = useState(false);
+  const [editorMode, setEditorMode] = useState<"canvas" | "tab" | "practice">("canvas");
+  const practiceModeEnabled = editorMode === "practice";
+  const tabViewEnabled = editorMode !== "canvas";
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
   const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabledState] = useState(false);
   const [globalSnapSubdivisionsPerBeat, setGlobalSnapSubdivisionsPerBeat] = useState(4);
@@ -1134,11 +1152,28 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [globalPlaybackVolume, setGlobalPlaybackVolume] = useState(0.6);
   const [practiceLoopEnabled, setPracticeLoopEnabled] = useState(false);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
+  const [metronomeVolume, setMetronomeVolume] = useState(0.7);
   const [countInEnabled, setCountInEnabled] = useState(false);
+  const [countInBars, setCountInBars] = useState(1);
+  const [countInEveryLoop, setCountInEveryLoop] = useState(false);
+  const [practiceFocusEnabled, setPracticeFocusEnabled] = useState(false);
+  const [practiceChordOverlayLaneId, setPracticeChordOverlayLaneId] = useState<string | null>(null);
+  const [practiceFullscreen, setPracticeFullscreen] = useState(false);
   const [speedTrainerEnabled, setSpeedTrainerEnabled] = useState(false);
+  const [speedTrainerSessionActive, setSpeedTrainerSessionActive] = useState(false);
+  const [speedTrainerStart, setSpeedTrainerStart] = useState(0.75);
   const [speedTrainerTarget, setSpeedTrainerTarget] = useState(1.5);
   const [speedTrainerStep, setSpeedTrainerStep] = useState(0.05);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [practiceRatingReplays, setPracticeRatingReplays] = useState<PracticeRatingReplay[]>([]);
+  const [selectedPracticeRatingId, setSelectedPracticeRatingId] = useState<string | null>(null);
+  const [practiceReplayPlayingId, setPracticeReplayPlayingId] = useState<string | null>(null);
+  const [showPracticeRating, setShowPracticeRating] = useState(true);
+  const [practiceRatingState, setPracticeRatingState] = useState<
+    "idle" | "permission" | "countdown" | "recording" | "scoring"
+  >("idle");
+  const [practiceRatingCountdown, setPracticeRatingCountdown] = useState(5);
+  const [practiceRatingError, setPracticeRatingError] = useState<string | null>(null);
   const [trackMuteById, setTrackMuteById] = useState<Record<string, boolean>>({});
   const [trackVolumeById, setTrackVolumeById] = useState<Record<string, number>>({});
   const [trackPanById, setTrackPanById] = useState<Record<string, number>>({});
@@ -1169,6 +1204,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     getTrackInstrumentOptions()
   );
   const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const practiceRootRef = useRef<HTMLElement | null>(null);
+  const practiceSettingsHydratedRef = useRef(false);
   const globalPlaybackFrameRef = useRef(0);
   const bpmCommitTimerRef = useRef<number | null>(null);
   const queuedBpmValueRef = useRef<string | number | null>(null);
@@ -1184,6 +1221,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const applyingGlobalTimelineScrollbarRef = useRef(false);
   const globalPlaybackAudioRef = useRef<AudioContext | null>(null);
   const globalPlaybackMasterGainRef = useRef<GainNode | null>(null);
+  const practiceReplayAudioRef = useRef<HTMLAudioElement | null>(null);
+  const practiceReplayAudioUrlRef = useRef<string | null>(null);
+  const practiceReplayAudioCacheRef = useRef<Map<string, Blob>>(new Map());
   const globalPlaybackRafRef = useRef<number | null>(null);
   const globalPlaybackStartRequestRef = useRef(0);
   const globalPlaybackStartPendingRef = useRef(false);
@@ -1191,12 +1231,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const globalPlaybackStartFrameRef = useRef(0);
   const globalPlaybackEndFrameRef = useRef<number | null>(null);
   const globalPlaybackAudioStartRef = useRef<number | null>(null);
+  const practiceLoopEnabledRef = useRef(practiceLoopEnabled);
+  const speedTrainerSessionActiveRef = useRef(false);
+  const speedTrainerOriginalSpeedRef = useRef<number | null>(null);
   const previousTrackPlaybackStateSignatureRef = useRef<string | null>(null);
   const previousTrackInstrumentSignatureRef = useRef<string | null>(null);
   const canvasUndoRef = useRef<CanvasSnapshot[]>([]);
   const canvasRedoRef = useRef<CanvasSnapshot[]>([]);
   const trackSectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const [sharedTimelineBaseScale, setSharedTimelineBaseScale] = useState<number | undefined>(undefined);
+  const resetSpeedTrainerSession = useCallback(() => {
+    const originalSpeed = speedTrainerOriginalSpeedRef.current;
+    speedTrainerOriginalSpeedRef.current = null;
+    speedTrainerSessionActiveRef.current = false;
+    setSpeedTrainerSessionActive(false);
+    if (originalSpeed !== null) setPlaybackSpeed(originalSpeed);
+  }, []);
   const router = useRouter();
   const saveToAccountPath = "/gte?importGuest=1";
   const loginSaveHref = `/auth/login?next=${encodeURIComponent(saveToAccountPath)}`;
@@ -1549,6 +1599,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, []);
 
   const handleMainMouseDownCapture = useCallback((event: ReactMouseEvent<HTMLElement>) => {
+    if (practiceModeEnabled) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
     if (isMobileViewport && mobileEditLaneId) return;
@@ -1557,7 +1608,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (target.closest("[data-gte-floating-ui='true']")) return;
     if (target.closest("button, a, input, textarea, select, label, [role='button']")) return;
     setActiveLaneId(null);
-  }, [isMobileViewport, mobileEditLaneId]);
+  }, [isMobileViewport, mobileEditLaneId, practiceModeEnabled]);
 
   const activateLaneForEditing = useCallback((laneId: string) => {
     setActiveLaneId(laneId);
@@ -2587,10 +2638,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const globalControlsLaneId = useMemo(() => {
     if (!canvas?.editors.length) return null;
     if (mobileEditLaneId && canvas.editors.some((lane) => lane.id === mobileEditLaneId)) return mobileEditLaneId;
+    if (
+      practiceModeEnabled &&
+      activeLaneId &&
+      canvas.editors.some((lane) => (lane.id || null) === activeLaneId)
+    ) {
+      return activeLaneId;
+    }
     const tabLane = canvas.editors.find((lane) => !isChordLane(lane));
     if (tabLane) return tabLane.id || null;
     return canvas.editors[0]?.id || null;
-  }, [canvas?.editors, mobileEditLaneId]);
+  }, [activeLaneId, canvas?.editors, mobileEditLaneId, practiceModeEnabled]);
   const activeEditableLaneId = useMemo(() => {
     if (!activeLaneId || !canvas?.editors.length) return null;
     const lane = canvas.editors.find((candidate) => (candidate.id || null) === activeLaneId);
@@ -2647,23 +2705,174 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     () => fpsFromSecondsPerBar(Math.max(0.1, toNumber(canvas?.secondsPerBar, DEFAULT_SECONDS_PER_BAR))),
     [canvas?.secondsPerBar]
   );
+  const selectedPracticePlaybackRange = useMemo(
+    () =>
+      practiceModeEnabled && barSelection?.laneId === globalControlsLaneId
+        ? resolvePracticeLoopRange(
+            barSelection.barIndices,
+            FIXED_FRAMES_PER_BAR,
+            canvasTimelineEnd
+          )
+        : null,
+    [
+      barSelection?.barIndices,
+      barSelection?.laneId,
+      canvasTimelineEnd,
+      globalControlsLaneId,
+      practiceModeEnabled,
+    ]
+  );
   const globalPracticeLoopRange = useMemo(
     () =>
-      resolvePracticeLoopRange(barSelection?.barIndices, FIXED_FRAMES_PER_BAR, canvasTimelineEnd) ||
+      selectedPracticePlaybackRange ||
       (canvasTimelineEnd > 0 ? { startFrame: 0, endFrame: canvasTimelineEnd } : null),
-    [barSelection?.barIndices, canvasTimelineEnd]
+    [canvasTimelineEnd, selectedPracticePlaybackRange]
   );
   const normalizedPlaybackSpeed = normalizePlaybackSpeed(playbackSpeed);
   const globalMetronomeBeatsPerBar = normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
+  const practiceSettingsStorageKey = `note2tabs:practice:${editorId}:v1`;
+  const practiceRatingsStorageKey = `note2tabs:practice-ratings:${editorId}:v1`;
+
+  useEffect(() => {
+    practiceSettingsHydratedRef.current = false;
+  }, [editorId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(practiceRatingsStorageKey) || "[]");
+      const replayCountByLane = new Map<string, number>();
+      const replays = Array.isArray(saved)
+        ? saved.filter((replay: unknown): replay is PracticeRatingReplay => {
+            if (!replay || typeof replay !== "object") {
+              return false;
+            }
+            const candidate = replay as Partial<PracticeRatingReplay>;
+            if (typeof candidate.laneId !== "string") return false;
+            const count = replayCountByLane.get(candidate.laneId) ?? 0;
+            if (count >= 3) return false;
+            replayCountByLane.set(candidate.laneId, count + 1);
+            return true;
+          })
+        : [];
+      setPracticeRatingReplays(replays);
+      setSelectedPracticeRatingId(replays[0]?.id ?? null);
+    } catch {
+      setPracticeRatingReplays([]);
+      setSelectedPracticeRatingId(null);
+    }
+  }, [practiceRatingsStorageKey]);
+
+  useEffect(() => {
+    if (!canvas || practiceSettingsHydratedRef.current || typeof window === "undefined") return;
+    practiceSettingsHydratedRef.current = true;
+    try {
+      const raw = window.localStorage.getItem(practiceSettingsStorageKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof saved.activeLaneId === "string") setActiveLaneId(saved.activeLaneId);
+      setPlaybackSpeed(normalizePlaybackSpeed(saved.playbackSpeed));
+      if (typeof saved.practiceLoopEnabled === "boolean") setPracticeLoopEnabled(saved.practiceLoopEnabled);
+      if (typeof saved.metronomeEnabled === "boolean") setMetronomeEnabled(saved.metronomeEnabled);
+      if (typeof saved.countInEnabled === "boolean") setCountInEnabled(saved.countInEnabled);
+      if (typeof saved.speedTrainerEnabled === "boolean") setSpeedTrainerEnabled(saved.speedTrainerEnabled);
+      if (typeof saved.practiceFocusEnabled === "boolean") setPracticeFocusEnabled(saved.practiceFocusEnabled);
+      if (typeof saved.chordOverlayLaneId === "string") {
+        setPracticeChordOverlayLaneId(saved.chordOverlayLaneId);
+      } else {
+        setPracticeChordOverlayLaneId(null);
+      }
+      setMetronomeVolume(Math.max(0, Math.min(1, Number(saved.metronomeVolume) || 0.7)));
+      setCountInBars(Math.max(1, Math.min(3, Math.round(Number(saved.countInBars) || 1))));
+      if (typeof saved.countInEveryLoop === "boolean") setCountInEveryLoop(saved.countInEveryLoop);
+      setSpeedTrainerStart(normalizePlaybackSpeed(saved.speedTrainerStart ?? 0.75));
+      setSpeedTrainerTarget(normalizePlaybackSpeed(saved.speedTrainerTarget));
+      setSpeedTrainerStep(Math.max(0.01, Number(saved.speedTrainerStep) || 0.05));
+      if (Array.isArray(saved.barIndices) && typeof saved.barLaneId === "string") {
+        setBarSelection({
+          laneId: saved.barLaneId,
+          barIndices: saved.barIndices.map(Number).filter(Number.isFinite),
+        });
+      }
+      const savedFrame = Number(saved.playbackFrame);
+      if (Number.isFinite(savedFrame)) {
+        const frame = Math.max(0, Math.min(canvasTimelineEnd, Math.round(savedFrame)));
+        globalPlaybackFrameRef.current = frame;
+        setGlobalPlaybackFrame(frame);
+        setGlobalPlaybackFrameRevision((revision) => revision + 1);
+      }
+    } catch {
+      // Ignore malformed local settings and continue with defaults.
+    }
+  }, [canvas, canvasTimelineEnd, practiceSettingsStorageKey]);
+
+  useEffect(() => {
+    if (!canvas || !practiceSettingsHydratedRef.current || typeof window === "undefined") return;
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem(
+        practiceSettingsStorageKey,
+        JSON.stringify({
+          activeLaneId: globalControlsLaneId,
+          playbackSpeed:
+            speedTrainerSessionActiveRef.current && speedTrainerOriginalSpeedRef.current !== null
+              ? speedTrainerOriginalSpeedRef.current
+              : normalizedPlaybackSpeed,
+          playbackFrame: globalPlaybackFrameRef.current,
+          practiceLoopEnabled,
+          metronomeEnabled,
+          metronomeVolume,
+          countInEnabled,
+          countInBars,
+          countInEveryLoop,
+          speedTrainerEnabled,
+          speedTrainerStart,
+          speedTrainerTarget,
+          speedTrainerStep,
+          practiceFocusEnabled,
+          chordOverlayLaneId: practiceChordOverlayLaneId,
+          barLaneId: barSelection?.laneId ?? null,
+          barIndices: barSelection?.barIndices ?? [],
+        })
+      );
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [
+    barSelection,
+    canvas,
+    countInBars,
+    countInEnabled,
+    countInEveryLoop,
+    globalControlsLaneId,
+    globalPlaybackFrameRevision,
+    metronomeEnabled,
+    metronomeVolume,
+    normalizedPlaybackSpeed,
+    practiceFocusEnabled,
+    practiceChordOverlayLaneId,
+    practiceLoopEnabled,
+    practiceSettingsStorageKey,
+    speedTrainerEnabled,
+    speedTrainerStart,
+    speedTrainerStep,
+    speedTrainerTarget,
+  ]);
+
+  useEffect(() => {
+    if (!barSelection?.barIndices.length) setPracticeFocusEnabled(false);
+  }, [barSelection]);
+
+  useEffect(() => {
+    if (speedTrainerStart <= speedTrainerTarget) return;
+    setSpeedTrainerStart(speedTrainerTarget);
+  }, [speedTrainerStart, speedTrainerTarget]);
 
   useEffect(() => {
     if (globalPracticeLoopRange) return;
     if (practiceLoopEnabled) setPracticeLoopEnabled(false);
   }, [globalPracticeLoopRange, practiceLoopEnabled]);
   useEffect(() => {
-    if (practiceLoopEnabled) return;
-    if (speedTrainerEnabled) setSpeedTrainerEnabled(false);
-  }, [practiceLoopEnabled, speedTrainerEnabled]);
+    practiceLoopEnabledRef.current = practiceLoopEnabled;
+  }, [practiceLoopEnabled]);
 
   useEffect(() => {
     setGlobalPlaybackFrame((prev) => Math.max(0, Math.min(canvasTimelineEnd, Math.round(prev))));
@@ -3014,6 +3223,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   );
 
   const stopGlobalPlaybackAudio = useCallback(() => {
+    setPracticeReplayPlayingId(null);
+    if (practiceReplayAudioRef.current) {
+      practiceReplayAudioRef.current.pause();
+      practiceReplayAudioRef.current.removeAttribute("src");
+      practiceReplayAudioRef.current.load();
+      practiceReplayAudioRef.current = null;
+    }
+    if (practiceReplayAudioUrlRef.current) {
+      URL.revokeObjectURL(practiceReplayAudioUrlRef.current);
+      practiceReplayAudioUrlRef.current = null;
+    }
     if (globalPlaybackAudioRef.current) {
       closeAudioContext(globalPlaybackAudioRef.current);
       globalPlaybackAudioRef.current = null;
@@ -3028,17 +3248,20 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       oscillator.type = "square";
       oscillator.frequency.setValueAtTime(accent ? 1320 : 880, startTime);
       gain.gain.setValueAtTime(0.0001, startTime);
-      gain.gain.exponentialRampToValueAtTime(accent ? 0.18 : 0.11, startTime + 0.004);
+      gain.gain.exponentialRampToValueAtTime(
+        (accent ? 0.18 : 0.11) * metronomeVolume,
+        startTime + 0.004
+      );
       gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.055);
       oscillator.connect(gain);
       gain.connect(destination);
       oscillator.start(startTime);
       oscillator.stop(startTime + 0.06);
     },
-    []
+    [metronomeVolume]
   );
 
-  const stopGlobalPlayback = useCallback(() => {
+  const stopGlobalPlayback = useCallback((options?: { preserveSpeedTrainerSession?: boolean }) => {
     globalPlaybackStartRequestRef.current += 1;
     globalPlaybackStartPendingRef.current = false;
     setGlobalPlaybackIsPreparing(false);
@@ -3051,7 +3274,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     globalPlaybackAudioStartRef.current = null;
     stopGlobalPlaybackAudio();
     setGlobalPlaybackIsPlaying(false);
-  }, [stopGlobalPlaybackAudio]);
+    if (!options?.preserveSpeedTrainerSession) resetSpeedTrainerSession();
+  }, [resetSpeedTrainerSession, stopGlobalPlaybackAudio]);
+
+  useEffect(() => {
+    if (practiceLoopEnabled || !speedTrainerEnabled) return;
+    setSpeedTrainerEnabled(false);
+    stopGlobalPlayback();
+  }, [practiceLoopEnabled, speedTrainerEnabled, stopGlobalPlayback]);
+
+  useEffect(() => {
+    if (practiceModeEnabled || !speedTrainerSessionActiveRef.current) return;
+    stopGlobalPlayback();
+  }, [practiceModeEnabled, stopGlobalPlayback]);
 
   useEffect(() => {
     stopGlobalPlayback();
@@ -3064,15 +3299,29 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       audioReady: Promise<void>,
       isCurrentRequest: () => boolean,
       startFrame: number,
-      speedOverride?: number
+      speedOverride?: number,
+      isLoopRestart = false,
+      oneShotRange?: { startFrame: number; endFrame: number },
+      forceRequestedStart = false,
+      muteOutput = false
     ) => {
       if (!canvas) return null;
       const scheduleStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
       const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? normalizedPlaybackSpeed);
       const playbackStartFrame =
-        practiceLoopEnabled && globalPracticeLoopRange ? globalPracticeLoopRange.startFrame : startFrame;
+        oneShotRange?.startFrame ??
+        resolvePracticePlaybackStart(
+          startFrame,
+          selectedPracticePlaybackRange ??
+            (practiceLoopEnabled ? globalPracticeLoopRange : null),
+          practiceLoopEnabled && !forceRequestedStart
+        );
       const playbackEndFrame =
-        practiceLoopEnabled && globalPracticeLoopRange ? globalPracticeLoopRange.endFrame : canvasTimelineEnd;
+        oneShotRange?.endFrame ??
+        (selectedPracticePlaybackRange?.endFrame ??
+          (practiceLoopEnabled && globalPracticeLoopRange
+            ? globalPracticeLoopRange.endFrame
+            : canvasTimelineEnd));
 
       const getMidiFromTab = (lane: EditorSnapshot, tab: [number, number], fallback?: number) => {
         const fromRef = lane.tabRef?.[tab[0]]?.[tab[1]];
@@ -3355,12 +3604,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       });
 
       const [preparedEntries] = await Promise.all([
-        Promise.all(
-          [...new Set(events.map((event) => event.instrumentId))].map(async (instrumentId) => {
-            const instrument = await prepareTrackInstrument(ctx, instrumentId);
-            return [instrumentId, instrument] as const;
-          })
-        ),
+        muteOutput
+          ? Promise.resolve([] as Array<readonly [string, Awaited<ReturnType<typeof prepareTrackInstrument>>]>)
+          : Promise.all(
+              [...new Set(events.map((event) => event.instrumentId))].map(async (instrumentId) => {
+                const instrument = await prepareTrackInstrument(ctx, instrumentId);
+                return [instrumentId, instrument] as const;
+              })
+            ),
         audioReady,
       ]);
       if (!isCurrentRequest() || ctx.state !== "running") {
@@ -3381,12 +3632,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       master.gain.value = globalPlaybackVolume;
       master.connect(ctx.destination);
       globalPlaybackMasterGainRef.current = master;
-      const countInSec = countInEnabled
-        ? frameDeltaToSeconds(FIXED_FRAMES_PER_BAR, globalPlaybackFps, runPlaybackSpeed)
+      const shouldCountIn = !oneShotRange && countInEnabled && (!isLoopRestart || countInEveryLoop);
+      const countInSec = shouldCountIn
+        ? frameDeltaToSeconds(FIXED_FRAMES_PER_BAR * countInBars, globalPlaybackFps, runPlaybackSpeed)
         : 0;
       const playBase = base + countInSec;
 
-      if (metronomeEnabled || countInEnabled) {
+      if (!muteOutput && (metronomeEnabled || shouldCountIn)) {
         buildMetronomeClicks({
           startFrame: playbackStartFrame,
           endFrame,
@@ -3394,49 +3646,51 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           beatsPerBar: globalMetronomeBeatsPerBar,
           fps: globalPlaybackFps,
           playbackSpeed: runPlaybackSpeed,
-          countInBars: countInEnabled ? 1 : 0,
+          countInBars: shouldCountIn ? countInBars : 0,
         }).forEach((click) => {
           if (!metronomeEnabled && click.timeSec >= 0) return;
           scheduleMetronomeClick(ctx, master, playBase + click.timeSec, click.accent);
         });
       }
 
-      events.forEach((evt) => {
-        if (!Number.isFinite(evt.midi) || evt.midi <= 0) return;
-        const instrument = preparedByInstrumentId.get(evt.instrumentId);
-        if (!instrument) return;
-        const destination = (() => {
-          if (typeof ctx.createStereoPanner === "function") {
-            const panner = ctx.createStereoPanner();
-            panner.pan.value = normalizeTrackPan(evt.pan);
-            panner.connect(master);
-            return panner;
-          }
-          const merger = ctx.createChannelMerger(2);
-          const left = ctx.createGain();
-          const right = ctx.createGain();
-          const gains = equalPowerPanGains(evt.pan);
-          left.gain.value = gains.leftGain;
-          right.gain.value = gains.rightGain;
-          left.connect(merger, 0, 0);
-          right.connect(merger, 0, 1);
-          merger.connect(master);
-          const splitter = ctx.createGain();
-          splitter.connect(left);
-          splitter.connect(right);
-          return splitter;
-        })();
-        schedulePreparedTrackNote({
-          ctx,
-          destination,
-          instrument,
-          midi: evt.midi,
-          gain: evt.gain,
-          startTime: playBase + evt.start,
-          duration: Math.max(0.05, evt.duration),
-          bendSegments: evt.bendSegments,
+      if (!muteOutput) {
+        events.forEach((evt) => {
+          if (!Number.isFinite(evt.midi) || evt.midi <= 0) return;
+          const instrument = preparedByInstrumentId.get(evt.instrumentId);
+          if (!instrument) return;
+          const destination = (() => {
+            if (typeof ctx.createStereoPanner === "function") {
+              const panner = ctx.createStereoPanner();
+              panner.pan.value = normalizeTrackPan(evt.pan);
+              panner.connect(master);
+              return panner;
+            }
+            const merger = ctx.createChannelMerger(2);
+            const left = ctx.createGain();
+            const right = ctx.createGain();
+            const gains = equalPowerPanGains(evt.pan);
+            left.gain.value = gains.leftGain;
+            right.gain.value = gains.rightGain;
+            left.connect(merger, 0, 0);
+            right.connect(merger, 0, 1);
+            merger.connect(master);
+            const splitter = ctx.createGain();
+            splitter.connect(left);
+            splitter.connect(right);
+            return splitter;
+          })();
+          schedulePreparedTrackNote({
+            ctx,
+            destination,
+            instrument,
+            midi: evt.midi,
+            gain: evt.gain,
+            startTime: playBase + evt.start,
+            duration: Math.max(0.05, evt.duration),
+            bendSegments: evt.bendSegments,
+          });
         });
-      });
+      }
 
       recordGtePerfMeasure("global-playback-schedule", (typeof performance !== "undefined" ? performance.now() : Date.now()) - scheduleStartedAt, {
         eventCount: events.length,
@@ -3449,6 +3703,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       canvas,
       canvasTimelineEnd,
       countInEnabled,
+      countInBars,
+      countInEveryLoop,
       globalMetronomeBeatsPerBar,
       globalPlaybackFps,
       globalPlaybackVolume,
@@ -3458,15 +3714,27 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       normalizedPlaybackSpeed,
       practiceLoopEnabled,
       scheduleMetronomeClick,
+      selectedPracticePlaybackRange,
       trackMuteById,
       trackPanById,
       trackVolumeById,
     ]
   );
 
-  const startGlobalPlayback = useCallback(async (startFrameOverride?: number, speedOverride?: number) => {
-    if (!canvas) return;
-    if (globalPlaybackRafRef.current !== null || globalPlaybackStartPendingRef.current) return;
+  const startGlobalPlayback = useCallback(async (
+    startFrameOverride?: number,
+    speedOverride?: number,
+    isLoopRestart = false,
+    options?: {
+      oneShotRange?: { startFrame: number; endFrame: number };
+      onScheduled?: (delaySeconds: number) => void;
+      onComplete?: () => void;
+      forceRequestedStart?: boolean;
+      muteOutput?: boolean;
+    }
+  ) => {
+    if (!canvas) return false;
+    if (globalPlaybackRafRef.current !== null || globalPlaybackStartPendingRef.current) return false;
     globalPlaybackStartPendingRef.current = true;
     setGlobalPlaybackIsPreparing(true);
     const requestId = globalPlaybackStartRequestRef.current + 1;
@@ -3479,9 +3747,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       )
     );
     const startFrame =
-      practiceLoopEnabled && globalPracticeLoopRange
-        ? globalPracticeLoopRange.startFrame
-        : requestedStartFrame;
+      options?.oneShotRange?.startFrame ??
+      resolvePracticePlaybackStart(
+        requestedStartFrame,
+        selectedPracticePlaybackRange ??
+          (practiceLoopEnabled ? globalPracticeLoopRange : null),
+        practiceLoopEnabled && !options?.forceRequestedStart
+      );
     stopGlobalPlaybackAudio();
     const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? normalizedPlaybackSpeed);
     let scheduled: Awaited<ReturnType<typeof scheduleGlobalPlayback>>;
@@ -3498,7 +3770,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           globalPlaybackStartRequestRef.current === requestId &&
           globalPlaybackAudioRef.current === playbackContext,
         startFrame,
-        runPlaybackSpeed
+        runPlaybackSpeed,
+        isLoopRestart,
+        options?.oneShotRange,
+        options?.forceRequestedStart,
+        options?.muteOutput
       );
     } catch (error) {
       if (playbackContext) {
@@ -3511,7 +3787,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (globalPlaybackStartRequestRef.current === requestId) {
         setSaveError(error instanceof Error ? error.message : "Could not load the selected guitar sound.");
       }
-      return;
+      return false;
     } finally {
       if (globalPlaybackStartRequestRef.current === requestId) {
         globalPlaybackStartPendingRef.current = false;
@@ -3522,7 +3798,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (scheduled?.ctx) {
         closeAudioContext(scheduled.ctx);
       }
-      return;
+      return false;
     }
     if (!scheduled?.ctx) {
       if (playbackContext) {
@@ -3533,13 +3809,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         }
       }
       setGlobalPlaybackIsPlaying(false);
-      return;
+      return false;
     }
 
     globalPlaybackAudioStartRef.current = scheduled.startTimeSec ?? null;
     globalPlaybackEndFrameRef.current = Math.max(startFrame, Math.round(scheduled.endFrame ?? startFrame));
     globalPlaybackStartFrameRef.current = Math.round(scheduled.startFrame ?? startFrame);
     globalPlaybackStartTimeRef.current = performance.now();
+    options?.onScheduled?.(
+      Math.max(0, (scheduled.startTimeSec ?? scheduled.ctx.currentTime) - scheduled.ctx.currentTime)
+    );
     syncGlobalPlaybackFrame(startFrame, { forceReact: true });
     setGlobalPlaybackIsPlaying(true);
 
@@ -3554,22 +3833,39 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         globalPlaybackStartFrameRef.current + elapsed * globalPlaybackFps * runPlaybackSpeed;
       const endFrame = globalPlaybackEndFrameRef.current ?? canvasTimelineEnd;
       if (nextFrame >= endFrame) {
-        if (practiceLoopEnabled && globalPracticeLoopRange) {
-          const nextSpeed = speedTrainerEnabled
+        const trainerSessionActive = speedTrainerSessionActiveRef.current;
+        if (
+          trainerSessionActive &&
+          runPlaybackSpeed >= normalizePlaybackSpeed(speedTrainerTarget)
+        ) {
+          syncGlobalPlaybackFrame(endFrame, { forceReact: true });
+          setSpeedTrainerEnabled(false);
+          stopGlobalPlayback();
+          options?.onComplete?.();
+          return;
+        }
+        if (
+          !options?.oneShotRange &&
+          practiceLoopEnabledRef.current &&
+          globalPracticeLoopRange
+        ) {
+          const nextSpeed = trainerSessionActive
             ? nextSpeedTrainerValue(runPlaybackSpeed, speedTrainerStep, speedTrainerTarget)
             : runPlaybackSpeed;
-          if (speedTrainerEnabled) {
+          if (trainerSessionActive) {
             setPlaybackSpeed(nextSpeed);
           }
           syncGlobalPlaybackFrame(globalPracticeLoopRange.startFrame, { forceReact: true });
-          stopGlobalPlayback();
+          stopGlobalPlayback({ preserveSpeedTrainerSession: trainerSessionActive });
           window.setTimeout(() => {
-            void startGlobalPlayback(globalPracticeLoopRange.startFrame, nextSpeed);
+            if (trainerSessionActive && !speedTrainerSessionActiveRef.current) return;
+            void startGlobalPlayback(globalPracticeLoopRange.startFrame, nextSpeed, true);
           }, 0);
           return;
         }
         syncGlobalPlaybackFrame(endFrame, { forceReact: true });
         stopGlobalPlayback();
+        options?.onComplete?.();
         return;
       }
       incrementGtePlaybackFrameUpdates();
@@ -3578,21 +3874,189 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     };
 
     globalPlaybackRafRef.current = window.requestAnimationFrame(tick);
+    return true;
   }, [
     canvas,
     canvasTimelineEnd,
     globalPracticeLoopRange,
     globalPlaybackFps,
     normalizedPlaybackSpeed,
-    practiceLoopEnabled,
     scheduleGlobalPlayback,
+    selectedPracticePlaybackRange,
     speedTrainerStep,
     speedTrainerTarget,
-    speedTrainerEnabled,
     stopGlobalPlayback,
     stopGlobalPlaybackAudio,
     syncGlobalPlaybackFrame,
   ]);
+
+  const startPracticeReplayPlayback = useCallback(
+    async (replay: PracticeRatingReplay, startFrameOverride?: number) => {
+      const audioStorageKey = replay.audioStorageKey;
+      if (!audioStorageKey) {
+        setPracticeRatingError("Audio was not saved for this older replay. Record a new Play & rate attempt to listen back.");
+        return false;
+      }
+      if (globalPlaybackRafRef.current !== null || globalPlaybackStartPendingRef.current) {
+        return false;
+      }
+
+      globalPlaybackStartPendingRef.current = true;
+      setGlobalPlaybackIsPreparing(true);
+      setPracticeRatingError(null);
+      const requestId = globalPlaybackStartRequestRef.current + 1;
+      globalPlaybackStartRequestRef.current = requestId;
+      stopGlobalPlaybackAudio();
+
+      let objectUrl: string | null = null;
+      try {
+        const cachedAudio = practiceReplayAudioCacheRef.current.get(audioStorageKey);
+        const audioBlob = cachedAudio ?? (await readPracticeReplayAudio(audioStorageKey));
+        if (!audioBlob) {
+          throw new Error("The recorded audio for this replay is no longer available.");
+        }
+        practiceReplayAudioCacheRef.current.set(audioStorageKey, audioBlob);
+        if (globalPlaybackStartRequestRef.current !== requestId) return false;
+
+        objectUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(objectUrl);
+        practiceReplayAudioUrlRef.current = objectUrl;
+        practiceReplayAudioRef.current = audio;
+        audio.preload = "auto";
+        audio.volume = Math.max(0, Math.min(1, globalPlaybackVolume));
+        await new Promise<void>((resolve, reject) => {
+          audio.addEventListener("loadedmetadata", () => resolve(), { once: true });
+          audio.addEventListener("error", () => reject(new Error("The recorded replay audio could not be loaded.")), {
+            once: true,
+          });
+          audio.load();
+        });
+        if (globalPlaybackStartRequestRef.current !== requestId) return false;
+
+        const requestedFrame = Math.round(startFrameOverride ?? globalPlaybackFrameRef.current);
+        const startFrame =
+          requestedFrame >= replay.startFrame && requestedFrame < replay.endFrame
+            ? requestedFrame
+            : replay.startFrame;
+        const replaySpeed = normalizePlaybackSpeed(replay.playbackSpeed);
+        const audioOffsetSeconds = Math.max(
+          0,
+          (startFrame - replay.startFrame) / (globalPlaybackFps * replaySpeed)
+        );
+        audio.currentTime = Math.min(audio.duration || audioOffsetSeconds, audioOffsetSeconds);
+        await audio.play();
+        if (globalPlaybackStartRequestRef.current !== requestId) return false;
+
+        syncGlobalPlaybackFrame(startFrame, { forceReact: true });
+        setPracticeReplayPlayingId(replay.id);
+        setGlobalPlaybackIsPlaying(true);
+        const tick = () => {
+          if (
+            globalPlaybackStartRequestRef.current !== requestId ||
+            practiceReplayAudioRef.current !== audio
+          ) {
+            return;
+          }
+          const nextFrame = Math.min(
+            replay.endFrame,
+            replay.startFrame + audio.currentTime * globalPlaybackFps * replaySpeed
+          );
+          if (audio.ended || nextFrame >= replay.endFrame) {
+            syncGlobalPlaybackFrame(replay.endFrame, { forceReact: true });
+            stopGlobalPlayback();
+            return;
+          }
+          incrementGtePlaybackFrameUpdates();
+          syncGlobalPlaybackFrame(nextFrame);
+          globalPlaybackRafRef.current = window.requestAnimationFrame(tick);
+        };
+        globalPlaybackRafRef.current = window.requestAnimationFrame(tick);
+        return true;
+      } catch (error) {
+        if (globalPlaybackStartRequestRef.current === requestId) {
+          stopGlobalPlaybackAudio();
+          setPracticeRatingError(
+            error instanceof Error ? error.message : "The recorded replay audio could not be played."
+          );
+        } else if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+        }
+        return false;
+      } finally {
+        if (globalPlaybackStartRequestRef.current === requestId) {
+          globalPlaybackStartPendingRef.current = false;
+          setGlobalPlaybackIsPreparing(false);
+        }
+      }
+    },
+    [
+      globalPlaybackFps,
+      globalPlaybackVolume,
+      stopGlobalPlayback,
+      stopGlobalPlaybackAudio,
+      syncGlobalPlaybackFrame,
+    ]
+  );
+
+  const downloadPracticeReplayAudio = useCallback(async (replay: PracticeRatingReplay) => {
+    const audioStorageKey = replay.audioStorageKey;
+    if (!audioStorageKey) {
+      setPracticeRatingError("Audio was not saved for this older replay.");
+      return;
+    }
+
+    try {
+      setPracticeRatingError(null);
+      const cachedAudio = practiceReplayAudioCacheRef.current.get(audioStorageKey);
+      const audioBlob = cachedAudio ?? (await readPracticeReplayAudio(audioStorageKey));
+      if (!audioBlob) {
+        throw new Error("The recorded audio for this replay is no longer available.");
+      }
+      practiceReplayAudioCacheRef.current.set(audioStorageKey, audioBlob);
+      const extension = audioBlob.type.includes("ogg")
+        ? "ogg"
+        : audioBlob.type.includes("mp4")
+          ? "m4a"
+          : "webm";
+      const objectUrl = URL.createObjectURL(audioBlob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `practice-replay-${replay.id}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    } catch (error) {
+      setPracticeRatingError(
+        error instanceof Error ? error.message : "The recorded replay audio could not be downloaded."
+      );
+    }
+  }, []);
+
+  const beginSpeedTrainerSession = useCallback(() => {
+    const startSpeed = Math.min(
+      normalizePlaybackSpeed(speedTrainerStart),
+      normalizePlaybackSpeed(speedTrainerTarget)
+    );
+    speedTrainerOriginalSpeedRef.current = normalizedPlaybackSpeed;
+    speedTrainerSessionActiveRef.current = true;
+    setSpeedTrainerSessionActive(true);
+    practiceLoopEnabledRef.current = true;
+    setPracticeLoopEnabled(true);
+    setPlaybackSpeed(startSpeed);
+    return startSpeed;
+  }, [normalizedPlaybackSpeed, speedTrainerStart, speedTrainerTarget]);
+
+  const toggleSpeedTrainer = useCallback(() => {
+    stopGlobalPlayback();
+    if (speedTrainerEnabled) {
+      setSpeedTrainerEnabled(false);
+      return;
+    }
+    practiceLoopEnabledRef.current = true;
+    setPracticeLoopEnabled(true);
+    setSpeedTrainerEnabled(true);
+  }, [speedTrainerEnabled, stopGlobalPlayback]);
 
   const toggleGlobalPlayback = useCallback(() => {
     if (globalPlaybackStartPendingRef.current) return;
@@ -3600,9 +4064,33 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       stopGlobalPlayback();
       return;
     }
+    if (speedTrainerEnabled && globalPracticeLoopRange) {
+      const startSpeed = beginSpeedTrainerSession();
+      void startGlobalPlayback(globalPracticeLoopRange.startFrame, startSpeed).then((started) => {
+        if (!started) resetSpeedTrainerSession();
+      });
+      return;
+    }
     const atTimelineEnd = Math.round(globalPlaybackFrameRef.current) >= canvasTimelineEnd;
     void startGlobalPlayback(atTimelineEnd ? 0 : undefined);
-  }, [canvasTimelineEnd, globalPlaybackIsPlaying, startGlobalPlayback, stopGlobalPlayback]);
+  }, [
+    beginSpeedTrainerSession,
+    canvasTimelineEnd,
+    globalPracticeLoopRange,
+    globalPlaybackIsPlaying,
+    resetSpeedTrainerSession,
+    speedTrainerEnabled,
+    startGlobalPlayback,
+    stopGlobalPlayback,
+  ]);
+
+  const playPracticeFromFrame = useCallback(
+    (frame: number) => {
+      stopGlobalPlayback();
+      void startGlobalPlayback(frame, undefined, false, { forceRequestedStart: true });
+    },
+    [startGlobalPlayback, stopGlobalPlayback]
+  );
 
   useEffect(() => {
     if (activeLaneId !== null) return;
@@ -3633,6 +4121,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [activeLaneId, toggleGlobalPlayback]);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setPracticeFullscreen(document.fullscreenElement === practiceRootRef.current);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
   const seekGlobalPlayback = useCallback(
     (frame: number) => {
       const clamped = Math.max(0, Math.min(canvasTimelineEnd, Math.round(frame)));
@@ -3662,8 +4158,59 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     seekGlobalPlayback(target);
   }, [canvasTimelineEnd, seekGlobalPlayback]);
 
+  useEffect(() => {
+    if (!practiceModeEnabled) return;
+    const handlePracticeShortcut = (event: KeyboardEvent) => {
+      if (isShortcutTextEntryTarget(event.target as HTMLElement | null)) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (event.code === "Space") {
+        event.preventDefault();
+        toggleGlobalPlayback();
+      } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
+        event.preventDefault();
+        skipGlobalPlaybackBackwardBar();
+      } else if (event.key === "ArrowRight" || event.key === "PageDown") {
+        event.preventDefault();
+        skipGlobalPlaybackForwardBar();
+      } else if (key === "l") {
+        event.preventDefault();
+        setPracticeLoopEnabled((enabled) => !enabled);
+      } else if (key === "m") {
+        event.preventDefault();
+        setMetronomeEnabled((enabled) => !enabled);
+      } else if (event.key === "[" || event.key === "]") {
+        event.preventDefault();
+        const direction = event.key === "[" ? -1 : 1;
+        const currentIndex = PLAYBACK_SPEED_OPTIONS.findIndex(
+          (speed) => speed >= normalizedPlaybackSpeed
+        );
+        const nextIndex = Math.max(
+          0,
+          Math.min(
+            PLAYBACK_SPEED_OPTIONS.length - 1,
+            (currentIndex < 0 ? 2 : currentIndex) + direction
+          )
+        );
+        setPlaybackSpeed(PLAYBACK_SPEED_OPTIONS[nextIndex]);
+      }
+    };
+    window.addEventListener("keydown", handlePracticeShortcut, true);
+    return () => window.removeEventListener("keydown", handlePracticeShortcut, true);
+  }, [
+    normalizedPlaybackSpeed,
+    practiceModeEnabled,
+    skipGlobalPlaybackBackwardBar,
+    skipGlobalPlaybackForwardBar,
+    toggleGlobalPlayback,
+  ]);
+
   const handleGlobalPlaybackVolumeChange = useCallback((nextVolume: number) => {
-    setGlobalPlaybackVolume(Math.max(0, Math.min(1, nextVolume)));
+    const volume = Math.max(0, Math.min(1, nextVolume));
+    setGlobalPlaybackVolume(volume);
+    if (practiceReplayAudioRef.current) {
+      practiceReplayAudioRef.current.volume = volume;
+    }
   }, []);
 
   const persistTrackPlaybackCanvas = useCallback(
@@ -3726,6 +4273,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     return [
       `iso:${isolatedTrackId ?? ""}`,
       `loop:${practiceLoopEnabled ? globalPracticeLoopRange?.startFrame ?? "-" : "-"}:${practiceLoopEnabled ? globalPracticeLoopRange?.endFrame ?? "-" : "-"}`,
+      `selection:${selectedPracticePlaybackRange?.startFrame ?? "-"}:${selectedPracticePlaybackRange?.endFrame ?? "-"}`,
       `met:${metronomeEnabled ? 1 : 0}`,
       `count:${countInEnabled ? 1 : 0}`,
       `train:${speedTrainerEnabled ? 1 : 0}`,
@@ -3745,6 +4293,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     metronomeEnabled,
     normalizedPlaybackSpeed,
     practiceLoopEnabled,
+    selectedPracticePlaybackRange,
     speedTrainerEnabled,
     trackMuteById,
     trackPanById,
@@ -3904,45 +4453,889 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     </div>
   );
 
-  const renderViewModeSwitch = (compact = false) => (
+  const renderViewModeSwitch = (compact = false) => {
+    const activeIndex = editorMode === "canvas" ? 0 : editorMode === "tab" ? 1 : 2;
+    return (
     <div
       className={`rounded-lg border border-slate-200 bg-slate-100 p-0.5 ${
-        compact ? "w-48" : "w-52"
+        compact ? "w-64" : "w-72"
       }`}
     >
       <div
-        className="relative grid grid-cols-2"
+        className="relative grid grid-cols-3"
         role="group"
-        aria-label="Editor view"
+        aria-label="Workspace mode"
       >
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-y-0 left-0 w-1/2 rounded-md bg-white shadow-sm ring-1 ring-slate-200/70 transition-transform duration-200 ease-out ${
-            tabViewEnabled ? "translate-x-full" : "translate-x-0"
-          }`}
+          className="pointer-events-none absolute inset-y-0 left-0 w-1/3 rounded-md bg-white shadow-sm ring-1 ring-slate-200/70 transition-transform duration-200 ease-out"
+          style={{ transform: `translateX(${activeIndex * 100}%)` }}
         />
         <button
           type="button"
-          onClick={() => setTabViewEnabled(false)}
-          aria-pressed={!tabViewEnabled}
+          onClick={() => setEditorMode("canvas")}
+          aria-pressed={editorMode === "canvas"}
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
-            !tabViewEnabled ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
+            editorMode === "canvas" ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
           }`}
         >
           Canvas
         </button>
         <button
           type="button"
-          onClick={() => setTabViewEnabled(true)}
-          aria-pressed={tabViewEnabled}
+          onClick={() => setEditorMode("tab")}
+          aria-pressed={editorMode === "tab"}
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
-            tabViewEnabled ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
+            editorMode === "tab" ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
           }`}
         >
           Tab view
         </button>
+        <button
+          type="button"
+          onClick={() => setEditorMode("practice")}
+          aria-pressed={practiceModeEnabled}
+          className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${
+            practiceModeEnabled ? "text-emerald-800" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          Practice
+        </button>
       </div>
     </div>
+    );
+  };
+
+  const practiceLaneIndex =
+    canvas?.editors.findIndex(
+      (lane, index) =>
+        !isChordLane(lane) &&
+        (lane.id || `ed-${index + 1}`) === globalControlsLaneId
+    ) ?? -1;
+  const practiceLane =
+    practiceLaneIndex >= 0 ? canvas?.editors[practiceLaneIndex] ?? null : null;
+  const practiceLaneId =
+    practiceLane && practiceLaneIndex >= 0
+      ? practiceLane.id || `ed-${practiceLaneIndex + 1}`
+      : null;
+  const practiceSoundLaneIndex =
+    canvas?.editors.findIndex(
+      (lane, index) => (lane.id || `ed-${index + 1}`) === globalControlsLaneId
+    ) ?? -1;
+  const practiceSoundLane =
+    practiceSoundLaneIndex >= 0 ? canvas?.editors[practiceSoundLaneIndex] ?? null : null;
+  const practiceSoundLaneId =
+    practiceSoundLane && practiceSoundLaneIndex >= 0
+      ? practiceSoundLane.id || `ed-${practiceSoundLaneIndex + 1}`
+      : null;
+  const practiceInstrumentValue = practiceSoundLane
+    ? normalizeTrackInstrumentId(practiceSoundLane.instrumentId)
+    : DEFAULT_TRACK_INSTRUMENT_ID;
+  const practiceRatingReplaysForLane = useMemo(
+    () => practiceRatingReplays.filter((replay) => replay.laneId === practiceLaneId),
+    [practiceLaneId, practiceRatingReplays]
+  );
+  useEffect(() => {
+    if (!practiceReplayPlayingId) return;
+    const playingReplay = practiceRatingReplays.find(
+      (replay) => replay.id === practiceReplayPlayingId
+    );
+    if (playingReplay?.laneId === practiceLaneId) return;
+    stopGlobalPlayback();
+  }, [practiceLaneId, practiceRatingReplays, practiceReplayPlayingId, stopGlobalPlayback]);
+  useEffect(() => {
+    if (
+      selectedPracticeRatingId &&
+      practiceRatingReplaysForLane.some((replay) => replay.id === selectedPracticeRatingId)
+    ) {
+      return;
+    }
+    setSelectedPracticeRatingId(practiceRatingReplaysForLane[0]?.id ?? null);
+    if (practiceRatingReplaysForLane.length > 0) setShowPracticeRating(true);
+  }, [practiceRatingReplaysForLane, selectedPracticeRatingId]);
+  const selectedPracticeRatingForPlayback =
+    practiceRatingReplaysForLane.find((replay) => replay.id === selectedPracticeRatingId) ?? null;
+  const selectedPracticeRating =
+    PRACTICE_RATING_UI_ENABLED && showPracticeRating
+      ? selectedPracticeRatingForPlayback
+      : null;
+  const practiceChordLaneOptions = useMemo(
+    () =>
+      canvas?.editors.flatMap((lane, index) =>
+        isChordLane(lane)
+          ? [{ lane, laneId: lane.id || `ed-${index + 1}`, trackNumber: index + 1 }]
+          : []
+      ) ?? [],
+    [canvas?.editors]
+  );
+  const practiceChordOverlay = useMemo(
+    () =>
+      practiceChordLaneOptions.find(
+        (option) => option.laneId === practiceChordOverlayLaneId
+      )?.lane ?? null,
+    [practiceChordLaneOptions, practiceChordOverlayLaneId]
+  );
+  useEffect(() => {
+    if (!practiceChordOverlayLaneId || practiceChordOverlay) return;
+    setPracticeChordOverlayLaneId(null);
+  }, [practiceChordOverlay, practiceChordOverlayLaneId]);
+  const practiceRatingBusy = practiceRatingState !== "idle";
+
+  const toggleSelectedPracticeReplay = () => {
+    const replay = selectedPracticeRatingForPlayback;
+    if (!replay) return;
+    if (globalPlaybackIsPlaying && practiceReplayPlayingId === replay.id) {
+      stopGlobalPlayback();
+      return;
+    }
+    stopGlobalPlayback();
+    const atReplayEnd = Math.round(globalPlaybackFrameRef.current) >= replay.endFrame;
+    void startPracticeReplayPlayback(
+      replay,
+      atReplayEnd ? replay.startFrame : undefined
+    );
+  };
+
+  const startPracticeRating = async () => {
+    if (
+      !practiceLane ||
+      !practiceLaneId ||
+      !globalPracticeLoopRange ||
+      practiceRatingBusy
+    ) {
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setPracticeRatingError("Microphone recording is not supported by this browser.");
+      return;
+    }
+
+    let stream: MediaStream | null = null;
+    let microphoneContext: AudioContext | null = null;
+    try {
+      setPracticeRatingError(null);
+      stopGlobalPlayback();
+      setPracticeRatingState("permission");
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          // Preserve the full guitar spectrum. Browser speech processing can
+          // remove harmonics and sustained instrument tones that the
+          // polyphonic pitch detector needs.
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          channelCount: 1,
+        },
+      });
+
+      setPracticeRatingState("countdown");
+      for (let count = 5; count > 0; count -= 1) {
+        setPracticeRatingCountdown(count);
+        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      }
+
+      microphoneContext = new AudioContext();
+      await resumeAudioContext(microphoneContext);
+      const source = microphoneContext.createMediaStreamSource(stream);
+      const processor = microphoneContext.createScriptProcessor(4096, 1, 1);
+      const silentOutput = microphoneContext.createGain();
+      silentOutput.gain.value = 0;
+      const chunks: Float32Array[] = [];
+      processor.onaudioprocess = (event) => {
+        chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+      };
+      source.connect(processor);
+      processor.connect(silentOutput);
+      silentOutput.connect(microphoneContext.destination);
+
+      setPracticeRatingState("recording");
+      const recordingStartedAt = performance.now();
+      let playbackLeadSeconds = 0;
+      const playbackDurationSeconds =
+        (globalPracticeLoopRange.endFrame - globalPracticeLoopRange.startFrame) /
+        (globalPlaybackFps * normalizedPlaybackSpeed);
+      await Promise.race([
+        new Promise<void>((resolve, reject) => {
+          void startGlobalPlayback(
+            globalPracticeLoopRange.startFrame,
+            normalizedPlaybackSpeed,
+            false,
+            {
+              oneShotRange: globalPracticeLoopRange,
+              // Raw microphone mode cannot use browser echo cancellation.
+              // Do not create audible synth or metronome nodes while rating,
+              // otherwise the speakers become a perfect false performance.
+              muteOutput: true,
+              onScheduled: (delaySeconds) => {
+                playbackLeadSeconds =
+                  (performance.now() - recordingStartedAt) / 1000 + delaySeconds;
+              },
+              onComplete: resolve,
+            }
+          ).then((started) => {
+            if (!started) reject(new Error("Practice playback could not start."));
+          });
+        }),
+        new Promise<void>((_, reject) =>
+          window.setTimeout(
+            () => reject(new Error("Practice playback did not finish in time.")),
+            Math.ceil((playbackDurationSeconds + 15) * 1000)
+          )
+        ),
+      ]);
+      await new Promise((resolve) => window.setTimeout(resolve, 250));
+
+      processor.disconnect();
+      source.disconnect();
+      silentOutput.disconnect();
+      processor.onaudioprocess = null;
+      const totalSamples = chunks.reduce((total, chunk) => total + chunk.length, 0);
+      const samples = new Float32Array(totalSamples);
+      let sampleOffset = 0;
+      chunks.forEach((chunk) => {
+        samples.set(chunk, sampleOffset);
+        sampleOffset += chunk.length;
+      });
+      const sampleRate = microphoneContext.sampleRate;
+      await microphoneContext.close();
+      microphoneContext = null;
+      stream.getTracks().forEach((track) => track.stop());
+      stream = null;
+
+      setPracticeRatingState("scoring");
+      const { bars, eventMap } = buildPracticeRatingBars({
+        snapshot: practiceLane,
+        range: globalPracticeLoopRange,
+        framesPerBar: FIXED_FRAMES_PER_BAR,
+        fps: globalPlaybackFps,
+        playbackSpeed: normalizedPlaybackSpeed,
+        recordingLeadSeconds: playbackLeadSeconds,
+      });
+      const ratingAudio = encodeMonoWav(samples, sampleRate);
+      const replaySamples = trimPracticeRecordingSamples(
+        samples,
+        sampleRate,
+        playbackLeadSeconds,
+        playbackDurationSeconds
+      );
+      const replayAudio = encodeMonoWav(replaySamples, sampleRate);
+      const body = new FormData();
+      body.set("audio", ratingAudio, "practice.wav");
+      body.set("sample_rate", String(sampleRate));
+      body.set("bars", JSON.stringify(bars));
+      const response = await fetch("/api/practice-rate", { method: "POST", body });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message =
+          payload?.error || payload?.detail || "The performance could not be rated.";
+        throw new Error(payload?.reason ? `${message} ${payload.reason}` : message);
+      }
+      const ratedReplay = normalizePracticeRatingReplay({
+        laneId: practiceLaneId,
+        startFrame: globalPracticeLoopRange.startFrame,
+        endFrame: globalPracticeLoopRange.endFrame,
+        playbackSpeed: normalizedPlaybackSpeed,
+        eventMap,
+        responseBars: payload?.bars,
+        fps: globalPlaybackFps,
+        recordingLeadSeconds: playbackLeadSeconds,
+        framesPerBar: FIXED_FRAMES_PER_BAR,
+      });
+      const replay: PracticeRatingReplay = {
+        ...ratedReplay,
+        audioStorageKey: ratedReplay.id,
+        audioDurationSeconds: replaySamples.length / sampleRate,
+      };
+      practiceReplayAudioCacheRef.current.set(replay.audioStorageKey!, replayAudio);
+      void storePracticeReplayAudio(replay.audioStorageKey!, replayAudio).catch(() => {
+        // Keep the in-memory copy playable for this session if durable browser storage is unavailable.
+      });
+      const nextLaneReplays = [
+        replay,
+        ...practiceRatingReplays.filter((item) => item.laneId === replay.laneId),
+      ].slice(0, 3);
+      const nextReplays = [
+        ...nextLaneReplays,
+        ...practiceRatingReplays.filter((item) => item.laneId !== replay.laneId),
+      ];
+      const retainedReplayIds = new Set(nextReplays.map((item) => item.id));
+      practiceRatingReplays.forEach((discardedReplay) => {
+        if (retainedReplayIds.has(discardedReplay.id) || !discardedReplay.audioStorageKey) return;
+        practiceReplayAudioCacheRef.current.delete(discardedReplay.audioStorageKey);
+        void deletePracticeReplayAudio(discardedReplay.audioStorageKey).catch(() => undefined);
+      });
+      setPracticeRatingReplays(nextReplays);
+      setSelectedPracticeRatingId(replay.id);
+      setShowPracticeRating(true);
+      window.localStorage.setItem(practiceRatingsStorageKey, JSON.stringify(nextReplays));
+    } catch (error) {
+      stopGlobalPlayback();
+      const errorName =
+        error && typeof error === "object" && "name" in error
+          ? String((error as { name?: unknown }).name)
+          : "";
+      const microphonePermissionDenied =
+        errorName === "NotAllowedError" ||
+        errorName === "PermissionDeniedError" ||
+        errorName === "SecurityError";
+      setPracticeRatingError(
+        microphonePermissionDenied
+          ? "Permission to use the microphone has to be given before your playing can be rated. Allow Microphone in the browser's site controls, then try again."
+          : error instanceof Error
+          ? error.message
+          : "The performance could not be rated."
+      );
+    } finally {
+      if (microphoneContext && microphoneContext.state !== "closed") {
+        await microphoneContext.close().catch(() => undefined);
+      }
+      stream?.getTracks().forEach((track) => track.stop());
+      setPracticeRatingState("idle");
+    }
+  };
+
+  const renderPracticeControls = () => (
+    <section
+      className="mx-auto w-full max-w-[900px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm min-[1400px]:fixed min-[1400px]:left-[max(1rem,calc(50vw-700px))] min-[1400px]:top-28 min-[1400px]:z-40 min-[1400px]:w-56 min-[1400px]:max-w-none min-[1400px]:p-3"
+      aria-labelledby="practice-mode-title"
+    >
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center min-[1400px]:block">
+        <div className="flex min-w-36 items-center gap-2 border-b border-slate-100 pb-2 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3 min-[1400px]:border-b min-[1400px]:border-r-0 min-[1400px]:pb-2 min-[1400px]:pr-0">
+          <h2 id="practice-mode-title" className="text-sm font-semibold text-slate-900">Practice</h2>
+          <span className="text-xs text-slate-500">
+            {barSelection?.barIndices.length
+              ? `${barSelection.barIndices.length} bar${barSelection.barIndices.length === 1 ? "" : "s"}`
+              : "Whole song"}
+          </span>
+        </div>
+        <div
+          className="flex flex-1 flex-wrap items-center gap-1.5 min-[1400px]:mt-3 min-[1400px]:flex-col min-[1400px]:items-stretch"
+          role="group"
+          aria-label="Practice controls"
+        >
+          {PRACTICE_RATING_UI_ENABLED && practiceRatingReplaysForLane.length > 0 && (
+            <div className="order-[1] w-full rounded-lg border border-slate-200 bg-slate-50 p-2">
+              <button
+                type="button"
+                onClick={() => setShowPracticeRating((shown) => !shown)}
+                aria-pressed={showPracticeRating}
+                className="flex w-full items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-slate-600"
+              >
+                <span>Show replay feedback</span>
+                <span
+                  className={`relative h-5 w-9 rounded-full transition ${
+                    showPracticeRating ? "bg-emerald-500" : "bg-slate-300"
+                  }`}
+                  aria-hidden="true"
+                >
+                  <span
+                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
+                      showPracticeRating ? "left-[18px]" : "left-0.5"
+                    }`}
+                  />
+                </span>
+              </button>
+              <div className="mt-2 grid grid-cols-3 gap-1" aria-label="Choose a rated replay">
+                {practiceRatingReplaysForLane.map((replay, index) => (
+                  <button
+                    key={replay.id}
+                    type="button"
+                    onClick={() => {
+                      stopGlobalPlayback();
+                      setSelectedPracticeRatingId(replay.id);
+                      setShowPracticeRating(true);
+                      syncGlobalPlaybackFrame(replay.startFrame, { forceReact: true });
+                    }}
+                    aria-pressed={selectedPracticeRatingId === replay.id}
+                    className={`rounded border px-1 py-1 text-[10px] font-semibold ${
+                      selectedPracticeRatingId === replay.id
+                        ? "border-emerald-400 bg-white text-emerald-800"
+                        : "border-slate-200 bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {index === 0 ? "Latest" : `Replay ${index + 1}`}
+                  </button>
+                ))}
+              </div>
+              {selectedPracticeRatingForPlayback && (
+                <div
+                  className="mt-2 flex items-center justify-between gap-2 border-t border-slate-200 pt-2"
+                  role="group"
+                  aria-label="Replay audio"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                      Replay audio
+                    </p>
+                    <p className="truncate text-[9px] leading-3 text-slate-400">
+                      {selectedPracticeRatingForPlayback.audioStorageKey
+                        ? "Plays this recording on the timeline"
+                        : "Audio is unavailable for this older replay"}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => void downloadPracticeReplayAudio(selectedPracticeRatingForPlayback)}
+                      disabled={!selectedPracticeRatingForPlayback.audioStorageKey}
+                      className="flex h-8 items-center rounded-lg border border-slate-300 bg-white px-2 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="Download replay audio"
+                      title="Download this microphone recording"
+                    >
+                      Download
+                    </button>
+                  <button
+                    type="button"
+                    onClick={toggleSelectedPracticeReplay}
+                    disabled={
+                      !selectedPracticeRatingForPlayback.audioStorageKey ||
+                      globalPlaybackIsPreparing
+                    }
+                    className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-2.5 text-[10px] font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label={
+                      practiceReplayPlayingId === selectedPracticeRatingForPlayback.id
+                        ? "Pause replay audio"
+                        : "Play replay audio"
+                    }
+                  >
+                    <span aria-hidden="true">
+                      {practiceReplayPlayingId === selectedPracticeRatingForPlayback.id ? "Ⅱ" : "▶"}
+                    </span>
+                    {practiceReplayPlayingId === selectedPracticeRatingForPlayback.id
+                      ? "Pause"
+                      : "Play"}
+                  </button>
+                  </div>
+                </div>
+              )}
+              {selectedPracticeRating && (
+                <div
+                  className={`mt-2 rounded bg-white px-1 py-1 ${
+                    selectedPracticeRating.bars.length > 15 ? "overflow-x-auto" : "overflow-hidden"
+                  }`}
+                  role="img"
+                  aria-label={`Accuracy by bar: ${selectedPracticeRating.bars
+                    .map((bar) => `Bar ${bar.barIndex + 1}, ${bar.score}%`)
+                    .join("; ")}`}
+                >
+                  {(() => {
+                    const bars = selectedPracticeRating.bars;
+                    const chartWidth =
+                      bars.length <= 15 ? 190 : Math.max(190, 18 + (bars.length - 1) * 16);
+                    const left = 9;
+                    const right = chartWidth - 9;
+                    const step = bars.length > 1 ? (right - left) / (bars.length - 1) : 0;
+                    const points = bars.map((bar, index) => {
+                      const score = Math.max(0, Math.min(100, bar.score));
+                      return {
+                        ...bar,
+                        score,
+                        x: bars.length === 1 ? chartWidth / 2 : left + index * step,
+                        y: 13 + ((100 - score) / 100) * 45,
+                      };
+                    });
+                    return (
+                      <svg
+                        viewBox={`0 0 ${chartWidth} 76`}
+                        className="block h-[76px] max-w-none"
+                        style={{ width: bars.length <= 15 ? "100%" : `${chartWidth}px` }}
+                        aria-hidden="true"
+                      >
+                        {[13, 35.5, 58].map((y) => (
+                          <line
+                            key={`accuracy-grid-${y}`}
+                            x1={left}
+                            x2={right}
+                            y1={y}
+                            y2={y}
+                            stroke="#e2e8f0"
+                            strokeWidth="0.7"
+                          />
+                        ))}
+                        <polyline
+                          points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+                          fill="none"
+                          stroke="#0f766e"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                          strokeLinecap="round"
+                        />
+                        {points.map((point) => {
+                          const fill =
+                            point.score >= 85
+                              ? "#10b981"
+                              : point.score >= 60
+                              ? "#f59e0b"
+                              : "#f43f5e";
+                          return (
+                            <g key={`${selectedPracticeRating.id}-bar-${point.barIndex}`}>
+                              <title>{`Bar ${point.barIndex + 1}: ${point.score}% accuracy`}</title>
+                              <circle cx={point.x} cy={point.y} r="2.4" fill={fill} stroke="white" strokeWidth="0.8" />
+                              <text
+                                x={point.x}
+                                y={Math.max(7, point.y - 4)}
+                                textAnchor="middle"
+                                fontSize="5.5"
+                                fontWeight="700"
+                                fill="#334155"
+                              >
+                                {point.score}%
+                              </text>
+                              <text
+                                x={point.x}
+                                y="70"
+                                textAnchor="middle"
+                                fontSize="5.5"
+                                fontWeight="600"
+                                fill="#64748b"
+                              >
+                                B{point.barIndex + 1}
+                              </text>
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+          <label className="flex h-9 items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
+            <span>Speed</span>
+            <select
+              value={normalizedPlaybackSpeed}
+              onChange={(event) => setPlaybackSpeed(Number(event.target.value))}
+              disabled={speedTrainerSessionActive}
+              className="bg-transparent text-xs font-semibold text-slate-900 outline-none disabled:cursor-not-allowed"
+              aria-label="Practice playback speed"
+            >
+              {!PLAYBACK_SPEED_OPTIONS.some((speed) => speed === normalizedPlaybackSpeed) && (
+                <option value={normalizedPlaybackSpeed}>
+                  {Math.round(normalizedPlaybackSpeed * 100)}%
+                </option>
+              )}
+              {PLAYBACK_SPEED_OPTIONS.map((speed) => (
+                <option key={speed} value={speed}>{Math.round(speed * 100)}%</option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => setPracticeLoopEnabled((enabled) => !enabled)}
+            disabled={!globalPracticeLoopRange}
+            aria-pressed={practiceLoopEnabled}
+            className={`h-9 rounded-lg border px-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+              practiceLoopEnabled
+                ? "border-emerald-300 bg-emerald-100 text-emerald-900"
+                : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300"
+            }`}
+          >
+            Loop {practiceLoopEnabled ? "on" : "off"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMetronomeEnabled((enabled) => !enabled)}
+            aria-pressed={metronomeEnabled}
+            className={`h-9 rounded-lg border px-2.5 text-xs font-semibold transition ${
+              metronomeEnabled
+                ? "border-sky-300 bg-sky-100 text-sky-900"
+                : "border-slate-200 bg-white text-slate-700 hover:border-sky-300"
+            }`}
+          >
+            Metronome {metronomeEnabled ? "on" : "off"}
+          </button>
+          <button
+            type="button"
+            disabled={!barSelection?.barIndices.length}
+            onClick={() => {
+              setPracticeFocusEnabled((enabled) => {
+                const next = !enabled;
+                if (next) setPracticeLoopEnabled(true);
+                return next;
+              });
+            }}
+            aria-pressed={practiceFocusEnabled}
+            className={`h-9 rounded-lg border px-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+              practiceFocusEnabled
+                ? "border-violet-300 bg-violet-100 text-violet-900"
+                : "border-slate-200 bg-white text-slate-700 hover:border-violet-300"
+            }`}
+          >
+            Focus {practiceFocusEnabled ? "on" : "selection"}
+          </button>
+          {practiceSoundLaneId && (
+            <details className="group relative">
+              <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                Sound
+                <span className="truncate text-[10px] font-medium text-slate-500">
+                  {trackInstrumentOptions.find((option) => option.id === practiceInstrumentValue)?.label || "Guitar"}
+                </span>
+              </summary>
+              <div className="absolute right-0 top-11 z-50 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl min-[1400px]:static min-[1400px]:mt-2 min-[1400px]:w-full min-[1400px]:shadow-sm">
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  Instrument
+                  <select
+                    value={practiceInstrumentValue}
+                    onChange={(event) =>
+                      handleLaneInstrumentChange(practiceSoundLaneId, event.target.value)
+                    }
+                    className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                    aria-label="Practice instrument"
+                  >
+                    {trackInstrumentOptions.map((option) => (
+                      <option key={`practice-instrument-${option.id}`} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleTrackMute(practiceSoundLaneId)}
+                    aria-pressed={Boolean(trackMuteById[practiceSoundLaneId])}
+                    className={`h-9 rounded-lg border text-xs font-semibold ${
+                      trackMuteById[practiceSoundLaneId]
+                        ? "border-amber-300 bg-amber-50 text-amber-800"
+                        : "border-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {trackMuteById[practiceSoundLaneId] ? "Muted" : "Mute"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleTrackIsolation(practiceSoundLaneId)}
+                    aria-pressed={isolatedTrackId === practiceSoundLaneId}
+                    className={`h-9 rounded-lg border text-xs font-semibold ${
+                      isolatedTrackId === practiceSoundLaneId
+                        ? "border-sky-300 bg-sky-50 text-sky-800"
+                        : "border-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {isolatedTrackId === practiceSoundLaneId ? "Soloed" : "Solo"}
+                  </button>
+                </div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  Volume
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={normalizeTrackVolume(trackVolumeById[practiceSoundLaneId] ?? 1)}
+                    onChange={(event) =>
+                      handleTrackVolumeChange(practiceSoundLaneId, Number(event.target.value))
+                    }
+                    className="mt-1.5 w-full accent-slate-700"
+                  />
+                </label>
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  Pan
+                  <input
+                    type="range"
+                    min={-1}
+                    max={1}
+                    step={0.01}
+                    value={normalizeTrackPan(trackPanById[practiceSoundLaneId] ?? 0)}
+                    onChange={(event) =>
+                      handleTrackPanChange(practiceSoundLaneId, Number(event.target.value))
+                    }
+                    className="mt-1.5 w-full accent-slate-700"
+                  />
+                </label>
+              </div>
+            </details>
+          )}
+          <details className="group relative">
+            <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+              More
+              {(countInEnabled || speedTrainerEnabled) && (
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-label="Additional practice settings active" />
+              )}
+              <span className="text-[10px] text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
+            </summary>
+            <div className="absolute right-0 top-11 z-50 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl min-[1400px]:static min-[1400px]:mt-2 min-[1400px]:w-full min-[1400px]:shadow-sm">
+              <button
+                type="button"
+                onClick={() => setCountInEnabled((enabled) => !enabled)}
+                aria-pressed={countInEnabled}
+                className={`flex h-9 w-full items-center justify-between rounded-lg border px-3 text-xs font-semibold transition ${
+                  countInEnabled
+                    ? "border-amber-300 bg-amber-50 text-amber-900"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <span>Count-in</span>
+                <span>{countInEnabled ? "On" : "Off"}</span>
+              </button>
+              {countInEnabled && (
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    Length
+                    <select
+                      value={countInBars}
+                      onChange={(event) => setCountInBars(Number(event.target.value))}
+                      className="mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs normal-case text-slate-700"
+                      aria-label="Count-in bars"
+                    >
+                      {[1, 2, 3].map((bars) => <option key={bars} value={bars}>{bars} bar{bars === 1 ? "" : "s"}</option>)}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setCountInEveryLoop((enabled) => !enabled)}
+                    aria-pressed={countInEveryLoop}
+                    className={`mt-4 h-8 rounded-lg border px-2 text-[10px] font-semibold ${
+                      countInEveryLoop ? "border-amber-300 bg-amber-50 text-amber-900" : "border-slate-200 text-slate-600"
+                    }`}
+                  >
+                    Every loop {countInEveryLoop ? "on" : "off"}
+                  </button>
+                </div>
+              )}
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                Metronome volume
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={metronomeVolume}
+                  onChange={(event) => setMetronomeVolume(Number(event.target.value))}
+                  className="mt-1 w-full accent-sky-600"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (document.fullscreenElement) await document.exitFullscreen();
+                  else await practiceRootRef.current?.requestFullscreen();
+                }}
+                className="flex h-9 w-full items-center justify-between rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <span>Fullscreen</span>
+                <span>{practiceFullscreen ? "Exit" : "Open"}</span>
+              </button>
+              <div className="border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={toggleSpeedTrainer}
+                  aria-pressed={speedTrainerEnabled}
+                  className={`flex h-9 w-full items-center justify-between rounded-lg border px-3 text-xs font-semibold transition ${
+                    speedTrainerEnabled
+                      ? "border-violet-300 bg-violet-50 text-violet-900"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <span>Speed trainer</span>
+                  <span>{speedTrainerSessionActive ? "Running" : speedTrainerEnabled ? "On" : "Off"}</span>
+                </button>
+              </div>
+              {speedTrainerEnabled && (
+                <div className="grid grid-cols-1 gap-1.5">
+                  <label className="flex h-8 w-full items-center justify-between rounded-lg border border-violet-200 bg-white px-2 text-[11px] font-semibold text-violet-900">
+                    <span>Start</span>
+                    <select
+                      value={speedTrainerStart}
+                      onChange={(event) => setSpeedTrainerStart(Number(event.target.value))}
+                      disabled={speedTrainerSessionActive}
+                      className="min-w-0 bg-transparent text-right text-[11px] font-semibold outline-none disabled:cursor-not-allowed"
+                      aria-label="Speed trainer start"
+                    >
+                      {SPEED_TRAINER_START_OPTIONS.filter(
+                        (speed) => speed <= speedTrainerTarget
+                      ).map((speed) => (
+                        <option key={speed} value={speed}>{Math.round(speed * 100)}%</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex h-8 w-full items-center justify-between rounded-lg border border-violet-200 bg-white px-2 text-[11px] font-semibold text-violet-900">
+                    <span>Target</span>
+                    <select
+                      value={speedTrainerTarget}
+                      onChange={(event) => {
+                        const target = Number(event.target.value);
+                        setSpeedTrainerTarget(target);
+                        setSpeedTrainerStart((start) => Math.min(start, target));
+                      }}
+                      disabled={speedTrainerSessionActive}
+                      className="min-w-0 bg-transparent text-right text-[11px] font-semibold outline-none disabled:cursor-not-allowed"
+                      aria-label="Speed trainer target"
+                    >
+                      {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
+                        <option key={speed} value={speed}>{Math.round(speed * 100)}%</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex h-8 w-full items-center justify-between rounded-lg border border-violet-200 bg-white px-2 text-[11px] font-semibold text-violet-900">
+                    <span>Step</span>
+                    <select
+                      value={speedTrainerStep}
+                      onChange={(event) => setSpeedTrainerStep(Number(event.target.value))}
+                      disabled={speedTrainerSessionActive}
+                      className="min-w-0 bg-transparent text-right text-[11px] font-semibold outline-none disabled:cursor-not-allowed"
+                      aria-label="Speed trainer increase"
+                    >
+                      {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
+                        <option key={step} value={step}>+{Math.round(step * 100)}%</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
+            </div>
+          </details>
+          {PRACTICE_RATING_UI_ENABLED && practiceRatingError && (
+            <p className="order-[2] w-full rounded-lg bg-rose-50 px-2 py-1.5 text-[10px] leading-4 text-rose-700" role="alert">
+              {practiceRatingError}
+            </p>
+          )}
+          {PRACTICE_RATING_UI_ENABLED && (
+            <>
+          <button
+            type="button"
+            onClick={() => void startPracticeRating()}
+            disabled={practiceRatingBusy || !practiceLaneId}
+            className="order-[3] h-9 rounded-lg border border-emerald-400 bg-emerald-600 px-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {practiceRatingState === "countdown"
+              ? `Starting in ${practiceRatingCountdown}`
+              : practiceRatingState === "permission"
+              ? "Allow microphone…"
+              : practiceRatingState === "recording"
+              ? "Listening…"
+              : practiceRatingState === "scoring"
+              ? "Rating…"
+              : "Play & rate"}
+          </button>
+          <p className="order-[4] px-1 text-[9px] leading-3 text-slate-400">
+            Rating playback is silent so the microphone records only your instrument.
+          </p>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+
+  const renderPracticeHelp = () => (
+    <aside className="mx-auto w-full max-w-[900px] rounded-xl border border-slate-200 bg-white p-3 text-[11px] leading-4 text-slate-500 shadow-sm min-[1400px]:fixed min-[1400px]:right-[max(1rem,calc(50vw-700px))] min-[1400px]:top-28 min-[1400px]:z-40 min-[1400px]:w-56 min-[1400px]:max-w-none">
+      <h2 className="text-xs font-semibold text-slate-800">Practice shortcuts</h2>
+      <div className="mt-2 space-y-1">
+        <p><span className="font-semibold text-slate-700">Space</span> Play or pause</p>
+        <p><span className="font-semibold text-slate-700">← / →</span> Previous or next bar</p>
+        <p><span className="font-semibold text-slate-700">L</span> Toggle loop</p>
+        <p><span className="font-semibold text-slate-700">M</span> Toggle metronome</p>
+        <p><span className="font-semibold text-slate-700">[ / ]</span> Change speed</p>
+      </div>
+      <p className="mt-3 border-t border-slate-100 pt-3">
+        {barSelection?.barIndices.length
+          ? `${barSelection.barIndices.length} bar${barSelection.barIndices.length === 1 ? "" : "s"} selected for playback.`
+          : "Select one or more bars for playback. Shift-click another bar to select everything in between."}
+      </p>
+      <p className="mt-2">Bluetooth pedals that send arrow or Page keys work automatically.</p>
+    </aside>
   );
 
   const bootstrapEditorPath = `${
@@ -3959,16 +5352,28 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       <script dangerouslySetInnerHTML={{ __html: bootstrapEditorScript }} />
       <NoIndexHead title="Guitar Tab Editor Workspace | Note2Tabs" canonicalPath={`/gte/${editorId}`} />
       <main
+        ref={practiceRootRef}
         className={`page page-tight ${
           isMobileEditMode ? "h-[100dvh] overflow-hidden overscroll-none py-3" : ""
-        }`}
+        } ${practiceFullscreen ? "gte-practice-fullscreen overflow-y-auto" : ""}`}
   style={
     !isMobileEditMode
       ? { paddingTop: isMobileViewport ? 76 : 12 }
       : undefined
-  }
+        }
         onMouseDownCapture={handleMainMouseDownCapture}
       >
+      {PRACTICE_RATING_UI_ENABLED && practiceRatingState === "countdown" && (
+        <div
+          className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center"
+          role="status"
+          aria-live="assertive"
+        >
+          <span className="text-7xl font-black text-slate-950 drop-shadow-[0_2px_2px_rgba(255,255,255,0.95)]">
+            {practiceRatingCountdown}
+          </span>
+        </div>
+      )}
       <div
         className={`container gte-wide ${
           isMobileEditMode
@@ -4102,7 +5507,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               </div>
               {renderViewModeSwitch(true)}
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className={practiceModeEnabled ? "hidden" : "rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"}>
               <button
                 type="button"
                 onClick={() => setMobileControlsOpen((prev) => !prev)}
@@ -4582,7 +5987,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               <div className="mt-1 space-y-1">
                 <div
                   data-gte-floating-ui="true"
-                  className="gte-top-menu-bar relative flex flex-wrap items-center gap-0.5 border-y border-slate-200 py-0.5"
+                  className={`gte-top-menu-bar relative flex flex-wrap items-center gap-0.5 border-y border-slate-200 py-0.5 ${
+                    practiceModeEnabled ? "[&>details]:hidden" : ""
+                  }`}
                 >
                   <details
                     className="group relative order-1"
@@ -5021,7 +6428,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </details>
 
                   <details
-                    className="group relative order-5"
+                    className="hidden"
                     open={openTopMenu === "playback"}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
@@ -5065,10 +6472,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setSpeedTrainerEnabled((enabled) => !enabled)}
-                        disabled={!practiceLoopEnabled}
+                        onClick={toggleSpeedTrainer}
                         aria-pressed={speedTrainerEnabled}
-                        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                       >
                         <span>Speed trainer</span>
                         <span className="text-xs">{speedTrainerEnabled ? "On" : "Off"}</span>
@@ -5119,7 +6525,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>
                   </details>
 
-                  <div className="order-7 flex shrink-0 items-center gap-2 xl:ml-auto">
+                  <div className={`order-7 shrink-0 items-center gap-2 xl:ml-auto ${
+                    practiceModeEnabled ? "hidden" : "flex"
+                  }`}>
                     <button
                       type="button"
                       onClick={handleCanvasUndo}
@@ -5163,6 +6571,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </div>
                 </div>
 
+                {!practiceModeEnabled && (
                 <details className="group w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
                     <span className="font-semibold text-slate-700">Song settings</span>
@@ -5318,6 +6727,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </button>
                   </div>
                 </details>
+                )}
+                {!practiceModeEnabled && (
                 <details className="group w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
                     <span className="font-semibold text-slate-700">Editing settings</span>
@@ -5399,6 +6810,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </label>
                   </div>
                 </details>
+                )}
                 {(((nameSaving || bpmSaving) && !isGuestMode) ||
                   nameError ||
                   bpmError ||
@@ -5713,7 +7125,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             </div>
             </>
             )}
-            {isMobileViewport && (
+            {isMobileViewport && !practiceModeEnabled && (
               <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <button
                   type="button"
@@ -5985,7 +7397,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         </div>
         )}
-        {isGuestMode && !isMobileEditMode && (
+        {isGuestMode && !isMobileEditMode && !practiceModeEnabled && (
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
             <div className="min-w-0">
               <div className="text-sm font-semibold text-slate-800">Keep your work safe</div>
@@ -6019,6 +7431,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             )}
           </div>
         )}
+        {practiceModeEnabled && !isMobileEditMode && (
+          <>
+            {renderPracticeControls()}
+            {renderPracticeHelp()}
+          </>
+        )}
         {loading && !canvas && (
           <EditorLoadingState />
         )}
@@ -6046,11 +7464,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         {canvas && (
           <div
             className={`gte-editor-stage stack min-w-0 content-start overflow-x-hidden ${
-              isMobileEditMode ? "gte-editor-stage--mobile-edit flex-1 min-h-0 space-y-0" : "space-y-2"
+              isMobileEditMode
+                ? "gte-editor-stage--mobile-edit flex-1 min-h-0 space-y-0"
+                : practiceModeEnabled
+                ? "mx-auto min-h-[1050px] w-full max-w-[900px] space-y-5 rounded-[3px] border border-slate-200 bg-white px-8 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.12)] max-sm:min-h-0 max-sm:px-3 max-sm:py-5"
+                : "space-y-2"
             }`}
           >
             {canvas.editors.map((lane, index) => {
               const laneId = lane.id || `ed-${index + 1}`;
+              if (practiceModeEnabled && laneId !== globalControlsLaneId) {
+                return null;
+              }
               if (isMobileViewport && mobileEditLaneId && laneId !== mobileEditLaneId) {
                 return null;
               }
@@ -6093,6 +7518,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     style={mobileEditing ? { backgroundColor: "var(--bg)", minHeight: 0 } : undefined}
                     onMouseDownCapture={(event) => {
                       const target = event.target as HTMLElement | null;
+                      if (practiceModeEnabled) {
+                        setPendingTrackReorder(null);
+                        return;
+                      }
                       const clickedBarSelector = Boolean(target?.closest("[data-bar-select='true']"));
                       const clickedEditorControl = Boolean(
                         target?.closest("[data-gte-editor-control='true']")
@@ -6139,6 +7568,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     }}
                     onTouchStartCapture={(event) => {
                       const target = event.target as HTMLElement | null;
+                      if (practiceModeEnabled) {
+                        setPendingTrackReorder(null);
+                        return;
+                      }
                       const clickedBarSelector = Boolean(target?.closest("[data-bar-select='true']"));
                       const clickedEditorControl = Boolean(
                         target?.closest("[data-gte-editor-control='true']")
@@ -6167,7 +7600,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     {trackDragLaneId !== null && trackDropIndex === index + 1 && (
                       <div className="pointer-events-none absolute -bottom-1 left-4 right-4 z-30 h-1 rounded-full bg-sky-400 shadow-sm" />
                     )}
-                    {isMobileViewport ? (
+                    {isMobileViewport && !practiceModeEnabled ? (
                       mobileEditing ? (
                         <div className="flex min-h-0 flex-1 flex-col justify-center">
                           {mobileSelectedBars.length > 0 && (
@@ -6277,7 +7710,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               sharedViewportBarCount={sharedViewportBarCount}
                               sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
-                              timelineZoomFactor={timelineZoomPercent / 100}
+                              timelineZoomFactor={
+                                practiceModeEnabled
+                                  ? Math.min(timelineZoomPercent / 100, 0.5)
+                                  : timelineZoomPercent / 100
+                              }
                               historyUndoCount={canvasUndoCount}
                               historyRedoCount={canvasRedoCount}
                               onRequestUndo={handleCanvasUndo}
@@ -6309,6 +7746,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSpeedTrainerStepChange={setSpeedTrainerStep}
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
+                              practiceMode={practiceModeEnabled}
+                              practiceFocusBarRange={
+                                practiceFocusEnabled && barSelection?.laneId === laneId && barSelection.barIndices.length
+                                  ? {
+                                      startBar: Math.min(...barSelection.barIndices),
+                                      endBar: Math.max(...barSelection.barIndices) + 1,
+                                    }
+                                  : null
+                              }
+                              practiceRatingReplay={
+                                selectedPracticeRating?.laneId === laneId ? selectedPracticeRating : null
+                              }
+                              practiceControlsVisible={false}
                               showToolbarWhenInactive={false}
                               multiTrackSelectionActive={multiTrackSelectionActive}
                               onSelectionStateChange={(selection) =>
@@ -6560,7 +8010,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               sharedViewportBarCount={sharedViewportBarCount}
                               sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
-                              timelineZoomFactor={timelineZoomPercent / 100}
+                              timelineZoomFactor={
+                                practiceModeEnabled
+                                  ? Math.min(timelineZoomPercent / 100, 0.5)
+                                  : timelineZoomPercent / 100
+                              }
                               historyUndoCount={canvasUndoCount}
                               historyRedoCount={canvasRedoCount}
                               onRequestUndo={handleCanvasUndo}
@@ -6592,6 +8046,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSpeedTrainerStepChange={setSpeedTrainerStep}
                               playbackSpeed={normalizedPlaybackSpeed}
                               onPlaybackSpeedChange={setPlaybackSpeed}
+                              practiceMode={practiceModeEnabled}
+                              practiceFocusBarRange={
+                                practiceFocusEnabled && barSelection?.laneId === laneId && barSelection.barIndices.length
+                                  ? {
+                                      startBar: Math.min(...barSelection.barIndices),
+                                      endBar: Math.max(...barSelection.barIndices) + 1,
+                                    }
+                                  : null
+                              }
+                              practiceRatingReplay={
+                                selectedPracticeRating?.laneId === laneId ? selectedPracticeRating : null
+                              }
+                              practiceControlsVisible={false}
                               showToolbarWhenInactive={laneId === globalControlsLaneId}
                               multiTrackSelectionActive={multiTrackSelectionActive}
                               onSelectionStateChange={(selection) =>
@@ -6622,7 +8089,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         </div>
                       )
                     ) : (
-                    <div className="flex flex-col gap-3 lg:flex-row">
+                    <div className={practiceModeEnabled ? "block" : "flex flex-col gap-3 lg:flex-row"}>
+                      {!practiceModeEnabled && (
                       <aside
                         className="flex w-full shrink-0 flex-col rounded-xl border border-slate-200 bg-white/90 p-2.5 shadow-sm lg:w-36 lg:self-stretch"
                         data-track-reorder-block="true"
@@ -6831,7 +8299,183 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           </div>
                         </div>
                       </aside>
+                      )}
                       <div ref={sharedTimelineMeasureRef} className="min-w-0 flex-1">
+                        {practiceModeEnabled && (
+                          <div className="mb-2 flex items-baseline justify-between border-b border-slate-200 pb-2">
+                            {canvas.editors.length > 1 ? (
+                              <details className="group relative">
+                                <summary
+                                  className="-ml-2 flex cursor-pointer list-none items-center gap-2 rounded-lg border border-transparent px-2 py-1 text-left transition hover:border-slate-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                                  aria-label={`Switch practice track. Current track: ${lane.name || `Track ${index + 1}`}`}
+                                >
+                                  <span className="min-w-0">
+                                    <span className="block text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                                      Switch track
+                                    </span>
+                                    <span className="block max-w-56 truncate text-sm font-semibold text-slate-800">
+                                      {lane.name || `Track ${index + 1}`}
+                                    </span>
+                                  </span>
+                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500 transition group-open:rotate-180 group-open:bg-slate-200" aria-hidden="true">
+                                    <svg viewBox="0 0 20 20" className="h-3.5 w-3.5 fill-current">
+                                      <path d="M5.5 7.5 10 12l4.5-4.5 1.1 1.1L10 14.2 4.4 8.6z" />
+                                    </svg>
+                                  </span>
+                                </summary>
+                                <div
+                                  className="absolute left-0 top-[calc(100%+0.35rem)] z-50 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+                                  role="group"
+                                  aria-label="Choose a track to practice"
+                                >
+                                  <div className="px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                                    Choose a track
+                                  </div>
+                                  {canvas.editors.map((candidate, candidateIndex) => {
+                                      const candidateId =
+                                        candidate.id || `ed-${candidateIndex + 1}`;
+                                      const selected = candidateId === globalControlsLaneId;
+                                      const candidateInstrument =
+                                        trackInstrumentOptions.find(
+                                          (option) =>
+                                            option.id ===
+                                            normalizeTrackInstrumentId(candidate.instrumentId)
+                                        )?.label || "Guitar";
+                                      const candidateMuted = Boolean(trackMuteById[candidateId]);
+                                      const candidateIsolated = isolatedTrackId === candidateId;
+                                      const candidateVolume = normalizeTrackVolume(
+                                        trackVolumeById[candidateId] ?? 1
+                                      );
+                                      return (
+                                        <div
+                                          key={candidateId}
+                                          className={`flex items-center gap-1 rounded-lg px-1 py-1 transition ${
+                                            selected
+                                              ? "bg-emerald-50 text-emerald-950"
+                                              : "text-slate-700 hover:bg-slate-50"
+                                          }`}
+                                          role="group"
+                                          aria-label={`Sound controls for ${candidate.name || `Track ${candidateIndex + 1}`}`}
+                                        >
+                                          <button
+                                            type="button"
+                                            aria-pressed={selected}
+                                            onClick={(event) => {
+                                              setActiveLaneId(candidateId);
+                                              const picker = event.currentTarget.closest("details");
+                                              if (picker) picker.open = false;
+                                            }}
+                                            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left"
+                                          >
+                                            <span
+                                              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                                                selected
+                                                  ? "border-emerald-500 bg-emerald-500 text-white"
+                                                  : "border-slate-300 bg-white"
+                                              }`}
+                                              aria-hidden="true"
+                                            >
+                                              {selected && (
+                                                <svg viewBox="0 0 20 20" className="h-3 w-3 fill-current">
+                                                  <path d="m7.8 13.7-3.4-3.4 1.2-1.2 2.2 2.2 6.6-6.6 1.2 1.2z" />
+                                                </svg>
+                                              )}
+                                            </span>
+                                            <span className="min-w-0 flex-1">
+                                              <span className="block truncate text-xs font-semibold">
+                                                {candidate.name || `Track ${candidateIndex + 1}`}
+                                              </span>
+                                              <span className="block truncate text-[10px] text-slate-500">
+                                                {isChordLane(candidate)
+                                                  ? `Track ${candidateIndex + 1} · Chords`
+                                                  : candidateInstrument}
+                                              </span>
+                                            </span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleTrackMute(candidateId)}
+                                            aria-pressed={candidateMuted}
+                                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-[9px] font-bold transition ${
+                                              candidateMuted
+                                                ? "border-amber-300 bg-amber-50 text-amber-800"
+                                                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                                            }`}
+                                            title={candidateMuted ? "Unmute track" : "Mute track"}
+                                            aria-label={`${candidateMuted ? "Unmute" : "Mute"} ${candidate.name || `Track ${candidateIndex + 1}`}`}
+                                          >
+                                            M
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleTrackIsolation(candidateId)}
+                                            aria-pressed={candidateIsolated}
+                                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-[9px] font-bold transition ${
+                                              candidateIsolated
+                                                ? "border-sky-300 bg-sky-50 text-sky-800"
+                                                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                                            }`}
+                                            title={candidateIsolated ? "Stop soloing track" : "Solo track"}
+                                            aria-label={`${candidateIsolated ? "Stop soloing" : "Solo"} ${candidate.name || `Track ${candidateIndex + 1}`}`}
+                                          >
+                                            S
+                                          </button>
+                                          <input
+                                            type="range"
+                                            min={0}
+                                            max={1}
+                                            step={0.01}
+                                            value={candidateVolume}
+                                            onChange={(event) =>
+                                              handleTrackVolumeChange(candidateId, Number(event.target.value))
+                                            }
+                                            className="w-12 shrink-0 accent-slate-700"
+                                            title={`Volume ${Math.round(candidateVolume * 100)}%`}
+                                            aria-label={`Volume for ${candidate.name || `Track ${candidateIndex + 1}`}`}
+                                          />
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                              </details>
+                            ) : (
+                              <h3 className="text-sm font-semibold text-slate-800">
+                                {isChordLane(lane)
+                                  ? `Track ${index + 1} · ${lane.name || "Chords"}`
+                                  : lane.name || `Track ${index + 1}`}
+                              </h3>
+                            )}
+                            <div className="flex items-center gap-2">
+                              {!isChordLane(lane) && practiceChordLaneOptions.length > 0 && (
+                                <label className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500">
+                                  <span>Chord overlay</span>
+                                  <select
+                                    value={practiceChordOverlayLaneId ?? ""}
+                                    onChange={(event) =>
+                                      setPracticeChordOverlayLaneId(event.target.value || null)
+                                    }
+                                    className="max-w-32 bg-transparent text-[10px] font-semibold text-slate-700 outline-none"
+                                    aria-label="Chord overlay"
+                                  >
+                                    <option value="">None</option>
+                                    {practiceChordLaneOptions.map(
+                                      ({ lane: chordLane, laneId: chordLaneId, trackNumber }) => {
+                                        return (
+                                          <option key={chordLaneId} value={chordLaneId}>
+                                            {`Track ${trackNumber} · ${chordLane.name || "Chords"}`}
+                                          </option>
+                                        );
+                                      }
+                                    )}
+                                  </select>
+                                </label>
+                              )}
+                              <span className="text-[11px] text-slate-500">
+                                {isChordLane(lane) ? "Chords" : instrumentLabel} · {laneBarCount} bars
+                              </span>
+                            </div>
+                          </div>
+                        )}
                         <GteWorkspace
                           editorId={laneEditorRef}
                           snapshot={lane}
@@ -6843,7 +8487,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           isActive={isActive}
                           mobileViewport={isMobileViewport}
                           playbackUiVisible={laneId === globalControlsLaneId}
-                          onFocusWorkspace={() => activateLaneForEditing(laneId)}
+                          onFocusWorkspace={
+                            practiceModeEnabled ? undefined : () => activateLaneForEditing(laneId)
+                          }
                           tabViewEnabled={tabViewEnabled}
                           globalSnapToGridEnabled={globalSnapToGridEnabled}
                           onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
@@ -6859,7 +8505,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           editMenuPortalTarget={
                             laneId === editMenuOwnerLaneId ? editMenuPortalTarget : null
                           }
-                          editMenuDisabled={editMenuDisabled}
+                          editMenuDisabled={editMenuDisabled || practiceModeEnabled}
                           onEditMenuPointerEnter={cancelEditMenuClose}
                           onEditMenuPointerLeave={scheduleEditMenuClose}
                           canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
@@ -6870,7 +8516,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           sharedTimelineBaseScale={sharedTimelineBaseScale}
                           sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                           onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
-                          timelineZoomFactor={timelineZoomPercent / 100}
+                          timelineZoomFactor={
+                            practiceModeEnabled
+                              ? Math.min(timelineZoomPercent / 100, 0.5)
+                              : timelineZoomPercent / 100
+                          }
                           historyUndoCount={canvasUndoCount}
                           historyRedoCount={canvasRedoCount}
                           onRequestUndo={handleCanvasUndo}
@@ -6902,7 +8552,28 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onSpeedTrainerStepChange={setSpeedTrainerStep}
                           playbackSpeed={normalizedPlaybackSpeed}
                           onPlaybackSpeedChange={setPlaybackSpeed}
-                          showToolbarWhenInactive={laneId === globalControlsLaneId}
+                          practiceMode={practiceModeEnabled}
+                          practiceChordOverlay={
+                            practiceModeEnabled && !isChordLane(lane)
+                              ? practiceChordOverlay
+                              : null
+                          }
+                          onPracticeNotePlay={
+                            practiceModeEnabled ? playPracticeFromFrame : undefined
+                          }
+                          practiceFocusBarRange={
+                            practiceFocusEnabled && barSelection?.laneId === laneId && barSelection.barIndices.length
+                              ? {
+                                  startBar: Math.min(...barSelection.barIndices),
+                                  endBar: Math.max(...barSelection.barIndices) + 1,
+                                }
+                              : null
+                          }
+                          practiceRatingReplay={
+                            selectedPracticeRating?.laneId === laneId ? selectedPracticeRating : null
+                          }
+                          practiceControlsVisible={false}
+                          showToolbarWhenInactive={!practiceModeEnabled && laneId === globalControlsLaneId}
                           multiTrackSelectionActive={multiTrackSelectionActive}
                           onSelectionStateChange={(selection) =>
                             handleLaneSelectionStateChange(laneId, selection)
@@ -6954,7 +8625,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </section>
               );
             })}
-            {(!isMobileViewport || !mobileEditLaneId) && (
+            {!practiceModeEnabled && (!isMobileViewport || !mobileEditLaneId) && (
               <div className="relative flex justify-center pt-1">
                 <button
                   type="button"
@@ -7211,7 +8882,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         </div>
       )}
-      {!isMobileViewport && canvas && (
+      {!isMobileViewport && canvas && !practiceModeEnabled && (
         <div className="fixed bottom-0 left-0 right-0 z-40 border-slate-200">
           <div className="container gte-wide py-1">
             <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-1 shadow-sm">

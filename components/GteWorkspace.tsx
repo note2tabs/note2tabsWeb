@@ -22,6 +22,7 @@ import {
   resolvePracticeLoopRange,
   type PracticeLoopRange,
 } from "../lib/gtePractice";
+import type { PracticeRatingReplay } from "../lib/gtePracticeRating";
 import {
   DEFAULT_TRACK_INSTRUMENT_ID,
   prepareTrackInstrument,
@@ -192,6 +193,12 @@ type Props = {
   onSpeedTrainerStepChange?: (step: number) => void;
   playbackSpeed?: number;
   onPlaybackSpeedChange?: (speed: number) => void;
+  practiceMode?: boolean;
+  onPracticeNotePlay?: (frame: number) => void;
+  practiceChordOverlay?: EditorSnapshot | null;
+  practiceFocusBarRange?: { startBar: number; endBar: number } | null;
+  practiceRatingReplay?: PracticeRatingReplay | null;
+  practiceControlsVisible?: boolean;
   playbackUiVisible?: boolean;
   showToolbarWhenInactive?: boolean;
   toolbarOpen?: boolean;
@@ -1582,6 +1589,63 @@ function ChordFingeringDiagram({
     </div>
   );
 }
+
+const getPracticeChordLabel = (chord: Chord) => {
+  const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+  return (
+    chord.label ||
+    inferred?.label ||
+    getChordEditorLabel(
+      chord.root || inferred?.root || "C",
+      chord.quality || inferred?.quality || "major",
+      chord.extension || inferred?.extension || ""
+    )
+  );
+};
+
+const getPracticeChordFingeringLookup = (chord: Chord) => {
+  const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+  const root = chord.root || inferred?.root || "C";
+  const quality = chord.quality || inferred?.quality || "major";
+  const extension = chord.extension || inferred?.extension || "";
+  const type = getChordFingeringDatasetType({ quality, extension });
+  return { root, type, key: `${root}:${type}` };
+};
+
+const getPracticeChordFingering = (
+  chord: Chord,
+  fingeringOptions: ChordFingering[] = []
+): ChordFingering | null => {
+  const savedFingeringIndex = Number.isFinite(Number(chord.fingeringIndex))
+    ? Math.max(
+        0,
+        Math.min(fingeringOptions.length - 1, Math.round(Number(chord.fingeringIndex)))
+      )
+    : 0;
+  const savedFingering =
+    (fingeringOptions.length ? fingeringOptions[savedFingeringIndex] : undefined) ||
+    chord.fingering;
+  if (savedFingering) return hydrateChordFingering(savedFingering);
+  const positions: Array<number | null> = Array.from({ length: 6 }, () => null);
+  chord.currentTabs.forEach((tab) => {
+    const rawStringIndex = Number(tab[0]);
+    const rawFret = Number(tab[1]);
+    if (!Number.isFinite(rawStringIndex) || !Number.isFinite(rawFret)) return;
+    const stringIndex = Math.max(0, Math.min(5, Math.round(rawStringIndex)));
+    positions[5 - stringIndex] = Math.max(0, Math.round(rawFret));
+  });
+  if (!positions.some((position) => position !== null)) return null;
+  const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+  return hydrateChordFingering({
+    root: chord.root || inferred?.root || "C",
+    type: getChordFingeringDatasetType({
+      quality: chord.quality || inferred?.quality || "major",
+      extension: chord.extension || inferred?.extension || "",
+    }),
+    positions,
+    tabs: chord.currentTabs,
+  });
+};
 
 function ChordLaneWorkspace({
   editorId,
@@ -3330,6 +3394,12 @@ export default function GteWorkspace({
   onSpeedTrainerStepChange,
   playbackSpeed,
   onPlaybackSpeedChange,
+  practiceMode = false,
+  onPracticeNotePlay,
+  practiceChordOverlay,
+  practiceFocusBarRange,
+  practiceRatingReplay,
+  practiceControlsVisible = false,
   playbackUiVisible,
   showToolbarWhenInactive = false,
   toolbarOpen: controlledToolbarOpen,
@@ -3436,6 +3506,9 @@ export default function GteWorkspace({
   }
 
   const [autoBaseScale, setAutoBaseScale] = useState(4);
+  const [practiceChordFingeringsByKey, setPracticeChordFingeringsByKey] = useState<
+    Record<string, ChordFingering[]>
+  >({});
   const [secondsPerBar, setSecondsPerBar] = useState(2);
   const [bpmInput, setBpmInput] = useState(formatBpm(secondsPerBarToBpm(2, 8)));
   const [timeSignature, setTimeSignature] = useState(8);
@@ -3634,7 +3707,10 @@ export default function GteWorkspace({
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const timelineOuterRef = useRef<HTMLDivElement | null>(null);
   const tabViewScrollRef = useRef<HTMLDivElement | null>(null);
+  const practiceScoreRef = useRef<HTMLDivElement | null>(null);
+  const lastPracticeRowRef = useRef(-1);
   const tabViewCursorRef = useRef<HTMLDivElement | null>(null);
+  const [practiceScoreWidth, setPracticeScoreWidth] = useState(0);
   const timelinePlayheadRef = useRef<HTMLButtonElement | null>(null);
   const draftFretRef = useRef<HTMLInputElement | null>(null);
   const draftHasFocusedRef = useRef(false);
@@ -3871,16 +3947,263 @@ export default function GteWorkspace({
     useExternalPlayback ? playbackSpeed ?? localPlaybackSpeed : localPlaybackSpeed
   );
   const editorTabView = useMemo(
-    () =>
-      buildEditorTabView(snapshot, {
+    () => {
+      const layoutSnapshot =
+        practiceMode && practiceChordOverlay?.chords.length
+          ? {
+              ...snapshot,
+              chords: [...snapshot.chords, ...practiceChordOverlay.chords],
+            }
+          : snapshot;
+      return buildEditorTabView(layoutSnapshot, {
         framesPerBar: framesPerMeasure,
         beatsPerBar: timeSignature,
         scale,
         playheadFrame: effectivePlayheadFrame,
         minBarCount: viewportBarCount,
-      }),
-    [effectivePlayheadFrame, framesPerMeasure, scale, snapshot, timeSignature, viewportBarCount]
+        variableBarWidths: practiceMode,
+        collapseConsecutiveEmptyBars: practiceMode,
+      });
+    },
+    [
+      effectivePlayheadFrame,
+      framesPerMeasure,
+      practiceChordOverlay,
+      practiceMode,
+      scale,
+      snapshot,
+      timeSignature,
+      viewportBarCount,
+    ]
   );
+  const practiceVerticalScale = 0.6;
+  const practiceTabHeight = Math.round(editorTabView.height * practiceVerticalScale);
+  const practiceRowGap = 42;
+  const practiceRowHeight =
+    practiceTabHeight + TIMELINE_BAR_HEADER_HEIGHT + practiceRowGap;
+  const practiceDisplayStartBar = Math.max(
+    0,
+    Math.min(editorTabView.barCount - 1, practiceFocusBarRange?.startBar ?? 0)
+  );
+  const practiceDisplayEndBar = Math.max(
+    practiceDisplayStartBar + 1,
+    Math.min(editorTabView.barCount, practiceFocusBarRange?.endBar ?? editorTabView.barCount)
+  );
+  const practiceOccupiedBarIndexSet = useMemo(() => {
+    const occupied = new Set<number>();
+    const addEvents = (events: Array<{ startTime: number }>) => {
+      events.forEach((event) => {
+        const barIndex = Math.max(
+          0,
+          Math.min(
+            editorTabView.barCount - 1,
+            Math.floor(Math.max(0, Number(event.startTime) || 0) / framesPerMeasure)
+          )
+        );
+        occupied.add(barIndex);
+      });
+    };
+    addEvents(snapshot.notes);
+    addEvents(snapshot.chords);
+    addEvents(practiceChordOverlay?.chords || []);
+    return occupied;
+  }, [editorTabView.barCount, framesPerMeasure, practiceChordOverlay, snapshot.chords, snapshot.notes]);
+  const practiceBarSegments = useMemo(() => {
+    const segments: Array<{
+      startBar: number;
+      endBar: number;
+      collapsed: boolean;
+      width: number;
+    }> = [];
+    let startBar = practiceDisplayStartBar;
+    while (startBar < practiceDisplayEndBar) {
+      let endBar = startBar + 1;
+      if (!practiceOccupiedBarIndexSet.has(startBar)) {
+        while (
+          endBar < practiceDisplayEndBar &&
+          !practiceOccupiedBarIndexSet.has(endBar)
+        ) {
+          endBar += 1;
+        }
+      }
+      const collapsed = endBar - startBar > 1;
+      if (!collapsed) endBar = startBar + 1;
+      segments.push({
+        startBar,
+        endBar,
+        collapsed,
+        width:
+          editorTabView.barStartXs[endBar] - editorTabView.barStartXs[startBar],
+      });
+      startBar = endBar;
+    }
+    return segments;
+  }, [
+    editorTabView.barStartXs,
+    practiceDisplayEndBar,
+    practiceDisplayStartBar,
+    practiceOccupiedBarIndexSet,
+  ]);
+  const practiceRows = useMemo(() => {
+    const maximumBarWidth = Math.max(
+      1,
+      ...practiceBarSegments.map((segment) => segment.width)
+    );
+    const availableWidth =
+      practiceScoreWidth > 0
+        ? Math.max(42, practiceScoreWidth - 46)
+        : maximumBarWidth * 4;
+    const rows: Array<{
+      firstBar: number;
+      lastBar: number;
+      segments: typeof practiceBarSegments;
+    }> = [];
+    let segmentIndex = 0;
+    while (segmentIndex < practiceBarSegments.length) {
+      const firstSegmentIndex = segmentIndex;
+      let usedWidth = 0;
+      while (segmentIndex < practiceBarSegments.length) {
+        const nextWidth = practiceBarSegments[segmentIndex].width || 42;
+        if (segmentIndex > firstSegmentIndex && usedWidth + nextWidth > availableWidth) break;
+        usedWidth += nextWidth;
+        segmentIndex += 1;
+      }
+      const segments = practiceBarSegments.slice(firstSegmentIndex, segmentIndex);
+      rows.push({
+        firstBar: segments[0].startBar,
+        lastBar: segments[segments.length - 1].endBar,
+        segments,
+      });
+    }
+    return rows.length
+      ? rows
+      : [{
+          firstBar: practiceDisplayStartBar,
+          lastBar: practiceDisplayEndBar,
+          segments: practiceBarSegments,
+        }];
+  }, [
+    practiceBarSegments,
+    practiceDisplayEndBar,
+    practiceDisplayStartBar,
+    practiceScoreWidth,
+  ]);
+  const practiceRowCount = practiceRows.length;
+  const getPracticePosition = useCallback(
+    (sourceX: number) => {
+      const clampedSourceX = Math.max(
+        editorTabView.barStartXs[practiceDisplayStartBar],
+        Math.min(editorTabView.barStartXs[practiceDisplayEndBar], sourceX)
+      );
+      let barIndex = practiceDisplayStartBar;
+      for (
+        let candidate = practiceDisplayStartBar;
+        candidate < practiceDisplayEndBar;
+        candidate += 1
+      ) {
+        barIndex = candidate;
+        if (clampedSourceX < editorTabView.barStartXs[candidate + 1]) break;
+      }
+      const rowIndex = Math.max(
+        0,
+        practiceRows.findIndex(
+          (row) => barIndex >= row.firstBar && barIndex < row.lastBar
+        )
+      );
+      const rowFirstBar = practiceRows[rowIndex]?.firstBar ?? practiceDisplayStartBar;
+      return {
+        rowIndex,
+        x: 30 + clampedSourceX - editorTabView.barStartXs[rowFirstBar],
+        y: rowIndex * practiceRowHeight,
+      };
+    },
+    [
+      editorTabView.barStartXs,
+      practiceDisplayEndBar,
+      practiceDisplayStartBar,
+      practiceRowHeight,
+      practiceRows,
+    ]
+  );
+  const practiceRatingByPlacement = useMemo(
+    () =>
+      new Map(
+        (practiceRatingReplay?.notes || []).map((note) => [note.placementKey, note])
+      ),
+    [practiceRatingReplay]
+  );
+  useEffect(() => {
+    if (!practiceMode || !practiceChordOverlay?.chords.length) return;
+    const lookups = Array.from(
+      new Map(
+        practiceChordOverlay.chords.map((chord) => {
+          const lookup = getPracticeChordFingeringLookup(chord);
+          return [lookup.key, lookup];
+        })
+      ).values()
+    ).filter((lookup) => practiceChordFingeringsByKey[lookup.key] === undefined);
+    if (!lookups.length) return;
+    let cancelled = false;
+    void Promise.all(
+      lookups.map(async (lookup) => {
+        try {
+          const response = await gteApi.getChordFingerings(lookup.root, lookup.type);
+          return [
+            lookup.key,
+            (response.fingerings || []).map(hydrateChordFingering),
+          ] as const;
+        } catch {
+          return [lookup.key, []] as const;
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      setPracticeChordFingeringsByKey((previous) => ({
+        ...previous,
+        ...Object.fromEntries(entries),
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [practiceChordFingeringsByKey, practiceChordOverlay, practiceMode]);
+  const practiceChordOverlayItems = useMemo(
+    () =>
+      (practiceChordOverlay?.chords || [])
+        .map((chord) => {
+          const lookup = getPracticeChordFingeringLookup(chord);
+          return {
+            chord,
+            frame: Math.max(0, Math.round(Number(chord.startTime) || 0)),
+            label: getPracticeChordLabel(chord),
+            fingering: getPracticeChordFingering(
+              chord,
+              practiceChordFingeringsByKey[lookup.key]
+            ),
+          };
+        })
+        .sort((left, right) => left.frame - right.frame || left.chord.id - right.chord.id),
+    [practiceChordFingeringsByKey, practiceChordOverlay]
+  );
+  useEffect(() => {
+    if (!practiceMode) {
+      setPracticeScoreWidth(0);
+      lastPracticeRowRef.current = -1;
+      return;
+    }
+    const score = practiceScoreRef.current;
+    if (!score) return;
+    const updateWidth = () => {
+      setPracticeScoreWidth((previous) => {
+        const next = Math.round(score.getBoundingClientRect().width);
+        return Math.abs(previous - next) > 1 ? next : previous;
+      });
+    };
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(score);
+    return () => observer.disconnect();
+  }, [practiceMode]);
   const effectivePlaybackSpeedOptions = useMemo(() => {
     const values = new Set<number>(PLAYBACK_SPEED_OPTIONS.map((speed) => normalizePlaybackSpeed(speed)));
     values.add(Math.round(effectivePlaybackSpeed * 100) / 100);
@@ -4289,7 +4612,36 @@ export default function GteWorkspace({
           totalFrames,
           editorTabView.width
         );
-        tabViewCursorRef.current.style.transform = `translate3d(${x}px, 0, 0) translateX(-1px)`;
+        if (practiceMode) {
+          const position = getPracticePosition(x);
+          tabViewCursorRef.current.style.transform =
+            `translate3d(${position.x}px, ${position.y}px, 0) translateX(-1px)`;
+          if (
+            effectiveIsPlaying &&
+            position.rowIndex !== lastPracticeRowRef.current
+          ) {
+            lastPracticeRowRef.current = position.rowIndex;
+            const row = practiceScoreRef.current?.querySelector<HTMLElement>(
+              `[data-practice-row="${position.rowIndex}"]`
+            );
+            if (row) {
+              const bounds = row.getBoundingClientRect();
+              const viewportTop = 96;
+              const viewportBottom = window.innerHeight - 112;
+              if (bounds.top < viewportTop || bounds.bottom > viewportBottom) {
+                const reducedMotion = window.matchMedia(
+                  "(prefers-reduced-motion: reduce)"
+                ).matches;
+                row.scrollIntoView({
+                  block: "center",
+                  behavior: reducedMotion ? "auto" : "smooth",
+                });
+              }
+            }
+          }
+        } else {
+          tabViewCursorRef.current.style.transform = `translate3d(${x}px, 0, 0) translateX(-1px)`;
+        }
       }
       if (timelinePlayheadRef.current) {
         const rowIndex =
@@ -4306,7 +4658,10 @@ export default function GteWorkspace({
       editorTabView.barCount,
       editorTabView.cursorAnchors,
       editorTabView.width,
+      effectiveIsPlaying,
       framesPerMeasure,
+      getPracticePosition,
+      practiceMode,
       rowFrames,
       rowStride,
       rows,
@@ -4631,12 +4986,11 @@ export default function GteWorkspace({
         return { scrollLeft: nextScrollLeft, clientWidth: nextClientWidth };
       });
       if (!onSharedTimelineScrollRatioChange || applyingSharedScrollRef.current) return;
-      if (embedded && !mobileViewport) return;
       const maxScroll = Math.max(0, target.scrollWidth - nextClientWidth);
       if (maxScroll <= 0) return;
       onSharedTimelineScrollRatioChange(nextScrollLeft / maxScroll);
     },
-    [embedded, mobileViewport, onSharedTimelineScrollRatioChange]
+    [onSharedTimelineScrollRatioChange]
   );
 
   useEffect(() => {
@@ -9258,6 +9612,18 @@ export default function GteWorkspace({
       setChordMenuDraft(null);
       setContextMenu(null);
 
+      const rangeSelect = event.shiftKey && (isActive || practiceMode);
+      if (rangeSelect && barSelectionAnchor !== null) {
+        const start = Math.min(barSelectionAnchor, index);
+        const end = Math.max(barSelectionAnchor, index);
+        const nextRange = Array.from(
+          { length: end - start + 1 },
+          (_, offset) => start + offset
+        );
+        setSelectedBarIndices(nextRange);
+        return;
+      }
+
       if (mobileViewport) {
         const nextSelection = selectedBarIndexSet.has(index)
           ? selectedBarIndices.filter((value) => value !== index)
@@ -9268,14 +9634,6 @@ export default function GteWorkspace({
       }
 
       const additive = (event.ctrlKey || event.metaKey) && isActive;
-      const rangeSelect = event.shiftKey && isActive;
-      if (rangeSelect && barSelectionAnchor !== null) {
-        const start = Math.min(barSelectionAnchor, index);
-        const end = Math.max(barSelectionAnchor, index);
-        const nextRange = Array.from({ length: end - start + 1 }, (_, offset) => start + offset);
-        setSelectedBarIndices(nextRange);
-        return;
-      }
       if (additive) {
         setSelectedBarIndices((prev) => {
           if (prev.includes(index)) return prev;
@@ -9292,7 +9650,44 @@ export default function GteWorkspace({
       setSelectedBarIndices([index]);
       setBarSelectionAnchor(index);
     },
-    [barSelectionAnchor, isActive, mobileViewport, selectedBarIndexSet, selectedBarIndices]
+    [
+      barSelectionAnchor,
+      isActive,
+      mobileViewport,
+      practiceMode,
+      selectedBarIndexSet,
+      selectedBarIndices,
+    ]
+  );
+
+  const handlePracticeBarSegmentSelection = useCallback(
+    (
+      startBar: number,
+      endBar: number,
+      event: ReactMouseEvent<HTMLButtonElement>
+    ) => {
+      if (endBar <= startBar + 1) {
+        handleBarSelection(startBar, event);
+        return;
+      }
+      handleBarSelection(startBar, event);
+      const rangeStart =
+        event.shiftKey && barSelectionAnchor !== null
+          ? Math.min(barSelectionAnchor, startBar)
+          : startBar;
+      const rangeEnd =
+        event.shiftKey && barSelectionAnchor !== null
+          ? Math.max(barSelectionAnchor + 1, endBar)
+          : endBar;
+      setSelectedBarIndices(
+        Array.from(
+          { length: rangeEnd - rangeStart },
+          (_, offset) => rangeStart + offset
+        )
+      );
+      if (!event.shiftKey) setBarSelectionAnchor(startBar);
+    },
+    [barSelectionAnchor, handleBarSelection]
   );
 
   const handleBarContextMenu = useCallback(
@@ -11528,7 +11923,9 @@ export default function GteWorkspace({
   }, [setToolbarOpen, tabViewEnabled]);
 
   const workspaceClass = embedded
-    ? `relative w-full min-w-0 max-w-full border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${
+    ? practiceMode
+      ? "relative w-full min-w-0 max-w-full bg-white"
+      : `relative w-full min-w-0 max-w-full border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${
         isMobileEditMode
           ? "flex h-full min-h-0 flex-col p-1.5"
           : `${compactEmbeddedMobile ? "rounded-lg p-1.5" : "rounded-xl p-2"} space-y-2`
@@ -12310,7 +12707,7 @@ export default function GteWorkspace({
         onFocusWorkspace?.();
       }}
     >
-      {embedded && isActive && (
+      {embedded && isActive && !practiceMode && (
         <div
           className={`pointer-events-none absolute inset-0 z-10 border border-sky-300 ${
             isMobileEditMode ? "" : compactEmbeddedMobile ? "rounded-lg" : "rounded-xl"
@@ -12898,9 +13295,15 @@ export default function GteWorkspace({
       {showPlaybackUi && (
         <div
           data-gte-floating-ui="true"
-          className={`fixed left-1/2 z-[9997] -translate-x-1/2 px-2 pointer-events-none ${
-            mobileViewport ? "bottom-3 w-[min(calc(100vw-1.25rem),28rem)]" : "bottom-16 w-[min(calc(100vw-2rem),64rem)]"
-          }`}
+          className={
+            practiceMode
+              ? "fixed bottom-5 left-1/2 z-[9997] w-fit -translate-x-1/2 px-2 pointer-events-none"
+              : `fixed left-1/2 z-[9997] -translate-x-1/2 px-2 pointer-events-none ${
+                  mobileViewport
+                    ? "bottom-3 w-[min(calc(100vw-1.25rem),28rem)]"
+                    : "bottom-16 w-[min(calc(100vw-2rem),64rem)]"
+                }`
+          }
         >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
             {mobileViewport ? (
@@ -12985,6 +13388,8 @@ export default function GteWorkspace({
                     title="Volume"
                   />
                 </div>
+                {practiceControlsVisible && (
+                  <>
                 <button
                   type="button"
                   onClick={() => setEffectivePracticeLoopEnabled(!effectivePracticeLoopEnabled)}
@@ -13073,6 +13478,8 @@ export default function GteWorkspace({
                         </option>
                       ))}
                     </select>
+                  </>
+                )}
                   </>
                 )}
               </div>
@@ -13413,10 +13820,299 @@ export default function GteWorkspace({
         }`}
       >
         {tabViewEnabled && (
+          practiceMode ? (
+          <div
+            ref={practiceScoreRef}
+            className="relative min-w-0 overflow-visible bg-white"
+            data-gte-tab-view="true"
+            data-gte-practice-score="true"
+            style={{ height: practiceRowCount * practiceRowHeight }}
+          >
+            {practiceRows.map(({ firstBar, lastBar, segments }, rowIndex) => {
+              const sourceLeft = editorTabView.barStartXs[firstBar] - 30;
+              const sourceRight = editorTabView.barStartXs[lastBar] - 30;
+              const rowContentWidth = sourceRight - sourceLeft;
+              const rowTop = rowIndex * practiceRowHeight;
+              return (
+                <div
+                  key={`practice-tab-row-${rowIndex}`}
+                  data-practice-row={rowIndex}
+                  className="absolute left-0 right-0"
+                  style={{
+                    top: rowTop,
+                    height: practiceRowHeight - practiceRowGap,
+                  }}
+                >
+                  {segments.map((segment) => {
+                    const barIndices = Array.from(
+                      { length: segment.endBar - segment.startBar },
+                      (_, offset) => segment.startBar + offset
+                    );
+                    const selected = barIndices.every((barIndex) =>
+                      selectedBarIndexSet.has(barIndex)
+                    );
+                    const partiallySelected =
+                      !selected &&
+                      barIndices.some((barIndex) => selectedBarIndexSet.has(barIndex));
+                    const label = segment.collapsed
+                      ? `Bar ${segment.startBar + 1}–${segment.endBar}`
+                      : `Bar ${segment.startBar + 1}`;
+                    return (
+                      <button
+                        key={`practice-bar-${segment.startBar}-${segment.endBar}`}
+                        type="button"
+                        data-bar-select="true"
+                        data-bar-select-editor={editorId}
+                        data-bar-index={segment.startBar}
+                        data-bar-end-index={segment.endBar - 1}
+                        onClick={(event) =>
+                          handlePracticeBarSegmentSelection(
+                            segment.startBar,
+                            segment.endBar,
+                            event
+                          )
+                        }
+                        className={`absolute top-0 z-20 flex items-center justify-center overflow-hidden whitespace-nowrap px-1.5 text-[9px] transition-colors ${
+                          selected
+                            ? "bg-emerald-50 text-emerald-800"
+                            : partiallySelected
+                            ? "bg-emerald-50/60 text-emerald-700"
+                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                        }`}
+                        style={{
+                          left:
+                            30 +
+                            editorTabView.barStartXs[segment.startBar] -
+                            editorTabView.barStartXs[firstBar],
+                          width: segment.width,
+                          height: TIMELINE_BAR_HEADER_HEIGHT,
+                        }}
+                        aria-label={`Select ${label}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                  {practiceChordOverlayItems
+                    .filter(
+                      (item) =>
+                        item.frame >= firstBar * framesPerMeasure &&
+                        item.frame < lastBar * framesPerMeasure
+                    )
+                    .map((item) => {
+                      const sourceX = getEditorTabViewCursorX(
+                        editorTabView.cursorAnchors,
+                        item.frame,
+                        Math.max(1, editorTabView.barCount * framesPerMeasure),
+                        editorTabView.width
+                      );
+                      return (
+                        <div
+                          key={`practice-chord-overlay-${rowIndex}-${item.chord.id}`}
+                          className="group absolute z-40 -translate-x-1/2"
+                          style={{
+                            left: sourceX - sourceLeft,
+                            top: TIMELINE_BAR_HEADER_HEIGHT + practiceTabHeight - 4,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="h-5 max-w-24 truncate rounded-md border border-slate-300 bg-slate-100 px-1.5 text-[10px] font-bold text-slate-800 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+                            aria-label={`${item.label} chord diagram`}
+                          >
+                            {item.label}
+                          </button>
+                          <div className="invisible absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 rounded-lg border border-slate-200 bg-white p-2 opacity-0 shadow-xl transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                            <div className="mb-1 text-center text-xs font-bold text-slate-800">
+                              {item.label}
+                            </div>
+                            {item.fingering ? (
+                              <ChordFingeringDiagram
+                                fingering={item.fingering}
+                                leftHanded={leftHandedChordDiagrams}
+                              />
+                            ) : (
+                              <div className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">
+                                No shape
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {[...segments.map((segment) => segment.startBar), lastBar].map((barIndex) => (
+                    <div
+                      key={`practice-bar-line-${rowIndex}-${barIndex}`}
+                      className="absolute w-px bg-slate-400"
+                      style={{
+                        left:
+                          30 +
+                          editorTabView.barStartXs[barIndex] -
+                          editorTabView.barStartXs[firstBar],
+                        top: TIMELINE_BAR_HEADER_HEIGHT,
+                        height: practiceTabHeight,
+                      }}
+                    />
+                  ))}
+                  {editorTabView.strings.map((line, stringIndex) => (
+                    <div key={`practice-string-${rowIndex}-${stringIndex}`}>
+                      <div
+                        className="absolute z-20 flex w-7 -translate-y-1/2 justify-end bg-white pr-1 text-[10px] font-semibold text-slate-500"
+                        style={{
+                          left: 0,
+                          top:
+                            TIMELINE_BAR_HEADER_HEIGHT +
+                            line.y * practiceVerticalScale,
+                        }}
+                      >
+                        {line.label}
+                      </div>
+                      <div
+                        className="absolute h-px bg-slate-500"
+                        style={{
+                          left: 30,
+                          width: rowContentWidth,
+                          top:
+                            TIMELINE_BAR_HEADER_HEIGHT +
+                            line.y * practiceVerticalScale,
+                        }}
+                      />
+                    </div>
+                  ))}
+                  {editorTabView.placements
+                    .filter((placement) => {
+                      const contentX = placement.x - 30;
+                      return contentX >= sourceLeft && contentX < sourceRight;
+                    })
+                    .map((placement) => {
+                      const y = editorTabView.strings[placement.stringIndex]?.y ?? 0;
+                      const rating = practiceRatingByPlacement.get(placement.key);
+                      const ratingClass =
+                        rating?.status === "correct"
+                          ? "rounded bg-emerald-500 text-white"
+                          : rating?.status === "timing"
+                          ? "rounded bg-amber-300 text-amber-950"
+                          : rating?.status === "missed"
+                          ? "rounded bg-rose-600 text-white"
+                          : "bg-white text-slate-900";
+                      const timingDetail =
+                        rating?.onsetErrorMs == null
+                          ? ""
+                          : Math.abs(rating.onsetErrorMs) < 1
+                          ? " · on time"
+                          : ` · ${Math.abs(Math.round(rating.onsetErrorMs))} ms ${
+                              rating.onsetErrorMs < 0 ? "early" : "late"
+                            }`;
+                      return (
+                        <button
+                          key={`practice-${rowIndex}-${placement.key}`}
+                          type="button"
+                          onClick={() => onPracticeNotePlay?.(placement.startTime)}
+                          className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer px-0.5 text-[11px] font-bold leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${ratingClass}`}
+                          style={{
+                            left: placement.x - sourceLeft,
+                            top:
+                              TIMELINE_BAR_HEADER_HEIGHT +
+                              y * practiceVerticalScale,
+                          }}
+                          title={
+                            rating
+                              ? rating.status === "missed"
+                                ? "Missed note"
+                                : `Timing ${Math.round(rating.timingAccuracy)}%${timingDetail}`
+                              : undefined
+                          }
+                          aria-label={`Play from fret ${placement.fret}`}
+                        >
+                          {placement.fret}
+                        </button>
+                      );
+                    })}
+                  {(practiceRatingReplay?.falseNotes || [])
+                    .filter(
+                      (falseNote) =>
+                        falseNote.barIndex >= firstBar && falseNote.barIndex < lastBar
+                    )
+                    .map((falseNote, falseIndex) => {
+                      const sourceX = getEditorTabViewCursorX(
+                        editorTabView.cursorAnchors,
+                        falseNote.frame,
+                        Math.max(1, editorTabView.barCount * framesPerMeasure),
+                        editorTabView.width
+                      );
+                      return (
+                        <span
+                          key={`practice-false-${rowIndex}-${falseIndex}-${falseNote.frame}`}
+                          className="pointer-events-none absolute z-30 -translate-x-1/2 text-sm font-black text-rose-600"
+                          style={{
+                            left: sourceX - sourceLeft,
+                            top: TIMELINE_BAR_HEADER_HEIGHT + 1,
+                          }}
+                          title={`Unexpected MIDI note ${falseNote.pitchMidi}`}
+                          aria-label="Unexpected note"
+                        >
+                          ?
+                        </span>
+                      );
+                    })}
+                  {editorTabView.effects
+                    .filter((effect) => {
+                      const contentX = effect.x - 30;
+                      return contentX >= sourceLeft && contentX < sourceRight;
+                    })
+                    .map((effect) => {
+                      const y = editorTabView.strings[effect.stringIndex]?.y ?? 0;
+                      const left = Math.max(30, Math.min(effect.x1, effect.x2) - sourceLeft);
+                      const right = Math.min(
+                        30 + rowContentWidth,
+                        Math.max(effect.x1, effect.x2) - sourceLeft
+                      );
+                      return (
+                        <div
+                          key={`practice-${rowIndex}-${effect.key}`}
+                          className="pointer-events-none absolute"
+                          style={{
+                            left,
+                            top:
+                              TIMELINE_BAR_HEADER_HEIGHT +
+                              y * practiceVerticalScale -
+                              13,
+                            width: Math.max(10, right - left),
+                          }}
+                        >
+                          <div className="absolute left-0 right-0 top-2 h-px bg-slate-600" />
+                          <span className="absolute top-0 bg-white px-0.5 text-[9px] font-bold text-slate-700">
+                            {effect.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+              );
+            })}
+            <div
+              ref={tabViewCursorRef}
+              className="pointer-events-none absolute z-30 w-[2px] rounded-full bg-rose-500"
+              style={{
+                left: 0,
+                top: TIMELINE_BAR_HEADER_HEIGHT + 3,
+                height: Math.max(20, practiceTabHeight - 6),
+                transform: (() => {
+                  const position = getPracticePosition(editorTabView.cursorX);
+                  return `translate3d(${position.x}px, ${position.y}px, 0) translateX(-1px)`;
+                })(),
+              }}
+            />
+          </div>
+          ) : (
           <div
             ref={tabViewScrollRef}
-            className={`min-w-0 rounded-xl border border-slate-200 bg-white ${
-              embedded && !mobileViewport ? "overflow-x-hidden" : "overflow-x-auto"
+            className={`min-w-0 bg-white ${
+              practiceMode ? "rounded-none border-0" : "rounded-xl border border-slate-200"
+            } ${
+              embedded && !mobileViewport
+                ? "hide-scrollbar overflow-x-auto"
+                : "overflow-x-auto"
             } ${
               isMobileEditMode ? "min-h-0 flex-1" : ""
             }`}
@@ -13451,10 +14147,18 @@ export default function GteWorkspace({
                         }
                         handleBarSelection(barIndex, event);
                       }}
-                      onContextMenu={(event) => handleBarContextMenu(barIndex, event)}
-                      draggable={selected && !mobileViewport}
-                      onDragStart={(event) => handleSelectedBarDragStart(barIndex, event)}
-                      onDragEnd={handleSelectedBarDragEnd}
+                      onContextMenu={(event) => {
+                        if (practiceMode) {
+                          event.preventDefault();
+                          return;
+                        }
+                        handleBarContextMenu(barIndex, event);
+                      }}
+                      draggable={!practiceMode && selected && !mobileViewport}
+                      onDragStart={(event) => {
+                        if (!practiceMode) handleSelectedBarDragStart(barIndex, event);
+                      }}
+                      onDragEnd={practiceMode ? undefined : handleSelectedBarDragEnd}
                       className={`absolute top-0 z-20 flex items-center px-2 text-[10px] ${
                         selected
                           ? "bg-slate-200/90 text-slate-800"
@@ -13479,7 +14183,7 @@ export default function GteWorkspace({
                   );
                   const isActiveDrop =
                     Boolean(activeBarDrag && onRequestBarDrop) && barDropIndex === insertIndex;
-                  const dragEnabled = Boolean(activeBarDrag && onRequestBarDrop);
+                  const dragEnabled = !practiceMode && Boolean(activeBarDrag && onRequestBarDrop);
                   return (
                     <button
                       key={`tab-view-bar-drop-${insertIndex}`}
@@ -13614,6 +14318,7 @@ export default function GteWorkspace({
               </div>
             </div>
           </div>
+          )
         )}
         <div
           className={`flex min-w-0 ${tabViewEnabled ? "hidden" : ""} ${
