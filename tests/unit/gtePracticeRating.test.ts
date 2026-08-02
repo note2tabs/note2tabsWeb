@@ -108,7 +108,7 @@ describe("practice rating helpers", () => {
     expect(replay.notes.map((note) => note.status)).toEqual(["correct", "timing", "missed"]);
     expect(replay.falseNotes[0]).toMatchObject({ frame: 720, barIndex: 1, pitchMidi: 71 });
     expect(replay.bars[0]).toMatchObject({
-      score: 38,
+      score: 44,
       correct: 1,
       timing: 1,
       missed: 1,
@@ -122,6 +122,31 @@ describe("practice rating helpers", () => {
     expect(new TextDecoder().decode(bytes.slice(0, 4))).toBe("RIFF");
     expect(new DataView(bytes.buffer).getUint32(24, true)).toBe(44_100);
     expect(blob.size).toBe(50);
+  });
+
+  it("does not award half credit to a pitch match with zero timing accuracy", () => {
+    const replay = normalizePracticeRatingReplay({
+      laneId: "lane-1",
+      startFrame: 480,
+      endFrame: 960,
+      playbackSpeed: 1,
+      fps: 240,
+      recordingLeadSeconds: 0,
+      framesPerBar: 480,
+      eventMap: {
+        0: { placementKey: "note-7", frame: 480, barIndex: 1, pitchMidi: 64 },
+      },
+      responseBars: [
+        {
+          bar_index: 1,
+          notes: [{ event_index: 0, status: "matched", timing_accuracy: 0 }],
+          false_notes: [],
+        },
+      ],
+    });
+
+    expect(replay.notes[0].status).toBe("timing");
+    expect(replay.bars[0].score).toBe(0);
   });
 
   it("trims recording setup time and the trailing capture from replay audio", () => {

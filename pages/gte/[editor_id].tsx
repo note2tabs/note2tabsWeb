@@ -3266,7 +3266,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       speedOverride?: number,
       isLoopRestart = false,
       oneShotRange?: { startFrame: number; endFrame: number },
-      forceRequestedStart = false
+      forceRequestedStart = false,
+      muteOutput = false
     ) => {
       if (!canvas) return null;
       const scheduleStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -3567,12 +3568,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       });
 
       const [preparedEntries] = await Promise.all([
-        Promise.all(
-          [...new Set(events.map((event) => event.instrumentId))].map(async (instrumentId) => {
-            const instrument = await prepareTrackInstrument(ctx, instrumentId);
-            return [instrumentId, instrument] as const;
-          })
-        ),
+        muteOutput
+          ? Promise.resolve([] as Array<readonly [string, Awaited<ReturnType<typeof prepareTrackInstrument>>]>)
+          : Promise.all(
+              [...new Set(events.map((event) => event.instrumentId))].map(async (instrumentId) => {
+                const instrument = await prepareTrackInstrument(ctx, instrumentId);
+                return [instrumentId, instrument] as const;
+              })
+            ),
         audioReady,
       ]);
       if (!isCurrentRequest() || ctx.state !== "running") {
@@ -3599,7 +3602,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         : 0;
       const playBase = base + countInSec;
 
-      if (metronomeEnabled || shouldCountIn) {
+      if (!muteOutput && (metronomeEnabled || shouldCountIn)) {
         buildMetronomeClicks({
           startFrame: playbackStartFrame,
           endFrame,
@@ -3614,42 +3617,44 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         });
       }
 
-      events.forEach((evt) => {
-        if (!Number.isFinite(evt.midi) || evt.midi <= 0) return;
-        const instrument = preparedByInstrumentId.get(evt.instrumentId);
-        if (!instrument) return;
-        const destination = (() => {
-          if (typeof ctx.createStereoPanner === "function") {
-            const panner = ctx.createStereoPanner();
-            panner.pan.value = normalizeTrackPan(evt.pan);
-            panner.connect(master);
-            return panner;
-          }
-          const merger = ctx.createChannelMerger(2);
-          const left = ctx.createGain();
-          const right = ctx.createGain();
-          const gains = equalPowerPanGains(evt.pan);
-          left.gain.value = gains.leftGain;
-          right.gain.value = gains.rightGain;
-          left.connect(merger, 0, 0);
-          right.connect(merger, 0, 1);
-          merger.connect(master);
-          const splitter = ctx.createGain();
-          splitter.connect(left);
-          splitter.connect(right);
-          return splitter;
-        })();
-        schedulePreparedTrackNote({
-          ctx,
-          destination,
-          instrument,
-          midi: evt.midi,
-          gain: evt.gain,
-          startTime: playBase + evt.start,
-          duration: Math.max(0.05, evt.duration),
-          bendSegments: evt.bendSegments,
+      if (!muteOutput) {
+        events.forEach((evt) => {
+          if (!Number.isFinite(evt.midi) || evt.midi <= 0) return;
+          const instrument = preparedByInstrumentId.get(evt.instrumentId);
+          if (!instrument) return;
+          const destination = (() => {
+            if (typeof ctx.createStereoPanner === "function") {
+              const panner = ctx.createStereoPanner();
+              panner.pan.value = normalizeTrackPan(evt.pan);
+              panner.connect(master);
+              return panner;
+            }
+            const merger = ctx.createChannelMerger(2);
+            const left = ctx.createGain();
+            const right = ctx.createGain();
+            const gains = equalPowerPanGains(evt.pan);
+            left.gain.value = gains.leftGain;
+            right.gain.value = gains.rightGain;
+            left.connect(merger, 0, 0);
+            right.connect(merger, 0, 1);
+            merger.connect(master);
+            const splitter = ctx.createGain();
+            splitter.connect(left);
+            splitter.connect(right);
+            return splitter;
+          })();
+          schedulePreparedTrackNote({
+            ctx,
+            destination,
+            instrument,
+            midi: evt.midi,
+            gain: evt.gain,
+            startTime: playBase + evt.start,
+            duration: Math.max(0.05, evt.duration),
+            bendSegments: evt.bendSegments,
+          });
         });
-      });
+      }
 
       recordGtePerfMeasure("global-playback-schedule", (typeof performance !== "undefined" ? performance.now() : Date.now()) - scheduleStartedAt, {
         eventCount: events.length,
@@ -3689,6 +3694,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       onScheduled?: (delaySeconds: number) => void;
       onComplete?: () => void;
       forceRequestedStart?: boolean;
+      muteOutput?: boolean;
     }
   ) => {
     if (!canvas) return false;
@@ -3731,7 +3737,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         runPlaybackSpeed,
         isLoopRestart,
         options?.oneShotRange,
-        options?.forceRequestedStart
+        options?.forceRequestedStart,
+        options?.muteOutput
       );
     } catch (error) {
       if (playbackContext) {
@@ -3940,6 +3947,41 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       syncGlobalPlaybackFrame,
     ]
   );
+
+  const downloadPracticeReplayAudio = useCallback(async (replay: PracticeRatingReplay) => {
+    const audioStorageKey = replay.audioStorageKey;
+    if (!audioStorageKey) {
+      setPracticeRatingError("Audio was not saved for this older replay.");
+      return;
+    }
+
+    try {
+      setPracticeRatingError(null);
+      const cachedAudio = practiceReplayAudioCacheRef.current.get(audioStorageKey);
+      const audioBlob = cachedAudio ?? (await readPracticeReplayAudio(audioStorageKey));
+      if (!audioBlob) {
+        throw new Error("The recorded audio for this replay is no longer available.");
+      }
+      practiceReplayAudioCacheRef.current.set(audioStorageKey, audioBlob);
+      const extension = audioBlob.type.includes("ogg")
+        ? "ogg"
+        : audioBlob.type.includes("mp4")
+          ? "m4a"
+          : "webm";
+      const objectUrl = URL.createObjectURL(audioBlob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `practice-replay-${replay.id}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    } catch (error) {
+      setPracticeRatingError(
+        error instanceof Error ? error.message : "The recorded replay audio could not be downloaded."
+      );
+    }
+  }, []);
 
   const toggleGlobalPlayback = useCallback(() => {
     if (globalPlaybackStartPendingRef.current) return;
@@ -4534,6 +4576,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             false,
             {
               oneShotRange: globalPracticeLoopRange,
+              // Raw microphone mode cannot use browser echo cancellation.
+              // Do not create audible synth or metronome nodes while rating,
+              // otherwise the speakers become a perfect false performance.
+              muteOutput: true,
               onScheduled: (delaySeconds) => {
                 playbackLeadSeconds =
                   (performance.now() - recordingStartedAt) / 1000 + delaySeconds;
@@ -4741,6 +4787,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         : "Audio is unavailable for this older replay"}
                     </p>
                   </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => void downloadPracticeReplayAudio(selectedPracticeRatingForPlayback)}
+                      disabled={!selectedPracticeRatingForPlayback.audioStorageKey}
+                      className="flex h-8 items-center rounded-lg border border-slate-300 bg-white px-2 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="Download replay audio"
+                      title="Download this microphone recording"
+                    >
+                      Download
+                    </button>
                   <button
                     type="button"
                     onClick={toggleSelectedPracticeReplay}
@@ -4762,6 +4819,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       ? "Pause"
                       : "Play"}
                   </button>
+                  </div>
                 </div>
               )}
               {selectedPracticeRating && (
@@ -5146,6 +5204,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               ? "Rating…"
               : "Play & rate"}
           </button>
+          <p className="order-[4] px-1 text-[9px] leading-3 text-slate-400">
+            Rating playback is silent so the microphone records only your instrument.
+          </p>
         </div>
       </div>
       {!barSelection?.barIndices.length && (

@@ -239,6 +239,7 @@ export function normalizePracticeRatingReplay(input: {
     let correct = 0;
     let timing = 0;
     let missed = 0;
+    let earnedTimingAccuracy = 0;
     (Array.isArray(barResult?.notes) ? barResult.notes : []).forEach((note: any) => {
       const mapped = input.eventMap[Math.round(safeNumber(note?.event_index, -1))];
       if (!mapped) return;
@@ -252,6 +253,9 @@ export function normalizePracticeRatingReplay(input: {
       if (status === "correct") correct += 1;
       else if (status === "timing") timing += 1;
       else missed += 1;
+      if (status !== "missed") {
+        earnedTimingAccuracy += Math.max(0, Math.min(100, timingAccuracy)) / 100;
+      }
       notes.push({
         eventIndex: Math.round(safeNumber(note?.event_index)),
         placementKey: mapped.placementKey,
@@ -282,7 +286,7 @@ export function normalizePracticeRatingReplay(input: {
       barIndex,
       score:
         total > 0
-          ? Math.round(((correct + timing * 0.5) / total) * 100)
+          ? Math.round((earnedTimingAccuracy / total) * 100)
           : 100,
       correct,
       timing,
