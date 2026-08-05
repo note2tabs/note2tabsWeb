@@ -1033,18 +1033,26 @@ export default function TranscriberPage() {
       const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ returnTo: "/transcribe?resumeTranscription=1" }),
+        body: JSON.stringify({
+          returnTo: "/transcribe?resumeTranscription=1",
+          source: "large_upload_gate",
+        }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.url) {
         throw new Error(payload?.error || "Could not start checkout.");
       }
-      sendEvent(ANALYTICS_EVENTS.checkoutStarted, {
+      sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         source: "large_upload_gate",
         plan: "premium_monthly",
+        checkout_attempt_id: payload.checkoutAttemptId,
       });
       window.location.assign(payload.url);
     } catch (upgradeError) {
+      sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
+        source: "large_upload_gate",
+        plan: "premium_monthly",
+      });
       setError(upgradeError instanceof Error ? upgradeError.message : "Could not start checkout.");
       setUpgradeBusy(false);
     }

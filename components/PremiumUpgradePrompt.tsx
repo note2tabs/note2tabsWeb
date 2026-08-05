@@ -10,7 +10,8 @@ import {
 } from "../lib/premiumPromptSignals";
 
 const DISMISSED_AT_KEY = "note2tabs:premium-prompt-dismissed-at";
-const LAST_SHOWN_AT_KEY = "note2tabs:premium-prompt-last-shown-at";
+const LAST_PASSIVE_SHOWN_AT_KEY = "note2tabs:premium-prompt-passive-last-shown-at";
+const LAST_CONTEXTUAL_SHOWN_AT_KEY = "note2tabs:premium-prompt-contextual-last-shown-at";
 const DISMISS_FOR_MS = 14 * 24 * 60 * 60 * 1000;
 const PASSIVE_FREQUENCY_MS = 7 * 24 * 60 * 60 * 1000;
 const COMPLETION_FREQUENCY_MS = 3 * 24 * 60 * 60 * 1000;
@@ -37,6 +38,9 @@ const getFrequencyForReason = (reason: PromptReason) => {
   if (reason === "transcription_completed") return COMPLETION_FREQUENCY_MS;
   return PASSIVE_FREQUENCY_MS;
 };
+
+const getLastShownKey = (reason: PromptReason) =>
+  reason === "passive" ? LAST_PASSIVE_SHOWN_AT_KEY : LAST_CONTEXTUAL_SHOWN_AT_KEY;
 
 const promptCopy: Record<PromptReason, { title: string; body: string }> = {
   passive: {
@@ -85,11 +89,12 @@ export default function PremiumUpgradePrompt() {
     const schedule = (nextReason: PromptReason, delay: number) => {
       const now = Date.now();
       if (now - readTimestamp(DISMISSED_AT_KEY) < DISMISS_FOR_MS) return;
-      if (now - readTimestamp(LAST_SHOWN_AT_KEY) < getFrequencyForReason(nextReason)) return;
+      const lastShownKey = getLastShownKey(nextReason);
+      if (now - readTimestamp(lastShownKey) < getFrequencyForReason(nextReason)) return;
       if (timeout !== null) window.clearTimeout(timeout);
       timeout = window.setTimeout(() => {
         try {
-          window.localStorage.setItem(LAST_SHOWN_AT_KEY, String(Date.now()));
+          window.localStorage.setItem(lastShownKey, String(Date.now()));
         } catch {
           // Frequency limiting is best effort in hardened browser contexts.
         }
@@ -161,13 +166,17 @@ export default function PremiumUpgradePrompt() {
       <strong>{copy.title}</strong>
       <p>{copy.body}</p>
       <Link
-        href="/pricing"
-        onClick={() =>
+        href={{ pathname: "/pricing", query: { source: "premium_prompt", reason } }}
+        onClick={() => {
+          sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, {
+            reason,
+            surface: "floating_prompt",
+          });
           trackCtaClick("premium_prompt_view_plans", {
             reason,
             surface: "floating_prompt",
-          })
-        }
+          });
+        }}
       >
         Explore Premium
       </Link>

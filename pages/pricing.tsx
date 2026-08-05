@@ -34,6 +34,7 @@ export default function PricingPage() {
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const resumedCheckoutRef = useRef(false);
+  const pricingViewTrackedRef = useRef(false);
   const currentRole = session?.user?.role || "";
   const hasPaidPremium = currentRole === "PREMIUM";
   const hasStaffAccess = ["ADMIN", "MODERATOR", "MOD"].includes(currentRole);
@@ -81,9 +82,22 @@ export default function PricingPage() {
     },
   ];
 
+  const entrySource = router.query.source === "premium_prompt"
+    ? "premium_prompt"
+    : "pricing_page";
+
   useEffect(() => {
-    sendEvent(ANALYTICS_EVENTS.pricingViewed, { path: "/pricing" });
-  }, []);
+    if (!router.isReady || pricingViewTrackedRef.current) return;
+    pricingViewTrackedRef.current = true;
+    sendEvent(ANALYTICS_EVENTS.pricingViewed, {
+      path: "/pricing",
+      source: entrySource,
+      prompt_reason:
+        entrySource === "premium_prompt" && typeof router.query.reason === "string"
+          ? router.query.reason
+          : undefined,
+    });
+  }, [entrySource, router.isReady, router.query.reason]);
 
   const startCheckout = useCallback(async () => {
     if (checkoutBusy) return;
@@ -91,6 +105,7 @@ export default function PricingPage() {
       cta: "premium_trial",
       signedIn: Boolean(session),
       path: "/pricing",
+      source: entrySource,
     });
     if (!session) {
       await signIn(undefined, { callbackUrl: "/pricing?checkout=1" });
@@ -104,21 +119,30 @@ export default function PricingPage() {
     setCheckoutBusy(true);
     setCheckoutError(null);
     try {
-      const response = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
+      const response = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: entrySource }),
+      });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.url) {
         throw new Error(payload?.error || "Could not start checkout.");
       }
-      sendEvent(ANALYTICS_EVENTS.checkoutStarted, {
-        source: "pricing_page",
+      sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
+        source: entrySource,
         plan: "premium_monthly",
+        checkout_attempt_id: payload.checkoutAttemptId,
       });
       window.location.assign(payload.url);
     } catch (error) {
+      sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
+        source: entrySource,
+        plan: "premium_monthly",
+      });
       setCheckoutError(error instanceof Error ? error.message : "Could not start checkout.");
       setCheckoutBusy(false);
     }
-  }, [checkoutBusy, hasPaidPremium, hasPremiumAccess, router, session]);
+  }, [checkoutBusy, entrySource, hasPaidPremium, hasPremiumAccess, router, session]);
 
   useEffect(() => {
     if (!router.isReady || router.query.checkout !== "1") return;

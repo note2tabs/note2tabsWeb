@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMocks, createResponse } from "node-mocks-http";
 import { PREMIUM_MONTHLY_CREDITS, STARTING_CREDITS } from "../../lib/credits";
 
-const { sessionMock, stripeMock, prismaMock } = vi.hoisted(() => {
+const { sessionMock, stripeMock, prismaMock, posthogMock } = vi.hoisted(() => {
   return {
     sessionMock: vi.fn(),
     stripeMock: {
@@ -56,6 +56,10 @@ const { sessionMock, stripeMock, prismaMock } = vi.hoisted(() => {
       },
       $transaction: vi.fn(),
     },
+    posthogMock: {
+      capture: vi.fn(),
+      flush: vi.fn().mockResolvedValue(undefined),
+    },
   };
 });
 
@@ -69,6 +73,11 @@ vi.mock("../../lib/stripe", () => ({
 
 vi.mock("../../lib/prisma", () => ({
   prisma: prismaMock,
+}));
+
+vi.mock("../../lib/posthogServer", () => ({
+  createPostHogServerClient: vi.fn(() => posthogMock),
+  flushPostHogServerClientInBackground: vi.fn(),
 }));
 
 function buildWebhookReq(signature = "sig_test", body = "{}") {
@@ -123,6 +132,7 @@ describe("stripe premium flow", () => {
       user: { id: "user_1", email: "user@example.com" },
     });
     stripeMock.checkout.sessions.create.mockResolvedValue({
+      id: "cs_test_123",
       url: "https://checkout.stripe.test/session_123",
     });
     stripeMock.checkout.sessions.retrieve.mockResolvedValue(null);
@@ -165,6 +175,7 @@ describe("stripe premium flow", () => {
       const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
       const { req, res } = createMocks({
         method: "POST",
+        body: { source: "pricing_page" },
         headers: {
           host: "note2tabs.test",
           "x-forwarded-proto": "https",
@@ -176,7 +187,18 @@ describe("stripe premium flow", () => {
       expect(res._getStatusCode()).toBe(200);
       expect(res._getJSONData()).toEqual({
         url: "https://checkout.stripe.test/session_123",
+        checkoutAttemptId: "local",
       });
+      expect(posthogMock.capture).toHaveBeenCalledWith({
+        distinctId: "user_1",
+        event: "checkout_started",
+        properties: expect.objectContaining({
+          plan: "premium_monthly",
+          source: "pricing_page",
+          $insert_id: "checkout-started:cs_test_123",
+        }),
+      });
+      expect(posthogMock.flush).toHaveBeenCalled();
       expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
           customer_email: "user@example.com",
@@ -207,6 +229,30 @@ describe("stripe premium flow", () => {
       await handler(req as any, res as any);
 
       expect(res._getStatusCode()).toBe(401);
+    });
+
+    it("records checkout creation failures without exposing Stripe details", async () => {
+      stripeMock.checkout.sessions.create.mockRejectedValueOnce(
+        new Error("Sensitive Stripe failure")
+      );
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({
+        method: "POST",
+        body: { source: "settings" },
+      });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(500);
+      expect(res._getJSONData()).toEqual({ error: "Could not create checkout session." });
+      expect(posthogMock.capture).toHaveBeenCalledWith({
+        distinctId: "user_1",
+        event: "checkout_failed",
+        properties: expect.objectContaining({
+          source: "settings",
+          failure_stage: "stripe_session_creation",
+        }),
+      });
     });
 
     it("returns a preserved upload to the transcriber after checkout", async () => {

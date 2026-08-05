@@ -4,8 +4,8 @@ export default function AudioToGuitarTabConverterPage() {
   return (
     <SeoLandingPage
       title="Audio to Guitar Tab Converter"
-      metaTitle="Audio to Guitar Tabs Converter (MP3 & WAV) | Note2Tabs"
-      description="Convert MP3, WAV, and other audio into structured, editable guitar tabs online. Play, arrange, practise, and export the result with Note2Tabs."
+      metaTitle="Audio to Guitar Tab Converter – MP3, WAV & More"
+      description="Convert audio to playable, editable guitar tabs online. Upload MP3, WAV, M4A, or FLAC, generate tablature, then practise, edit, and export it."
       canonicalPath="/audio-to-guitar-tab-converter"
       primaryCta={{ label: "Start transcribing", href: "/transcribe" }}
       secondaryCta={{ label: "Open editor", href: "/editor" }}

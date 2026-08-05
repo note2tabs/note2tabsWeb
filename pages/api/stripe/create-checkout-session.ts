@@ -9,6 +9,7 @@ import {
   stripeSubscriptionMatchesPremium,
 } from "../../../lib/stripePremium";
 import { getFreshUserRole } from "../../../lib/serverAuth";
+import { createPostHogServerClient } from "../../../lib/posthogServer";
 
 const PREMIUM_TRIAL_DAYS = 7;
 const PREMIUM_ACCESS_ROLES = new Set(["PREMIUM", "ADMIN", "MODERATOR", "MOD"]);
@@ -19,6 +20,34 @@ const PORTAL_SUBSCRIPTION_STATUSES = new Set([
   "paused",
   "unpaid",
 ]);
+
+const CHECKOUT_SOURCES = new Set([
+  "pricing_page",
+  "home_pricing",
+  "large_upload_gate",
+  "settings",
+  "premium_prompt",
+]);
+
+const checkoutSource = (value: unknown) =>
+  typeof value === "string" && CHECKOUT_SOURCES.has(value) ? value : "unknown";
+
+async function trackCheckoutEvent(
+  distinctId: string,
+  event: "checkout_session_requested" | "checkout_started" | "checkout_failed",
+  properties: Record<string, unknown>
+) {
+  const client = createPostHogServerClient();
+  if (!client) return;
+  client.capture({ distinctId, event, properties });
+  try {
+    // Checkout is a low-volume, business-critical funnel. Awaiting this flush
+    // prevents Vercel from ending the invocation before PostHog receives it.
+    await client.flush();
+  } catch {
+    // Analytics must never prevent a customer from reaching Stripe.
+  }
+}
 
 const appendCheckoutSessionId = (path: string) => {
   const hashIndex = path.indexOf("#");
@@ -51,6 +80,8 @@ const resolveCheckoutReturnPaths = (requestedPath: unknown) => {
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const startedAt = Date.now();
+  const requestId = String(req.headers["x-vercel-id"] || "local");
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });
@@ -73,6 +104,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (PREMIUM_ACCESS_ROLES.has(currentRole)) {
     return res.status(409).json({ error: "This account already has Premium access." });
   }
+
+  const source = checkoutSource(req.body?.source);
+  console.log(JSON.stringify({
+    level: "info",
+    message: "checkout_session_requested",
+    route: "/api/stripe/create-checkout-session",
+    requestId,
+    source,
+  }));
+  await trackCheckoutEvent(session.user.id, "checkout_session_requested", {
+    plan: "premium_monthly",
+    source,
+    request_id: requestId,
+  });
 
   try {
     const baseUrl = getAppBaseUrl(req);
@@ -120,6 +165,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           customer: customer.id,
           return_url: `${baseUrl}${returnPaths.manage}`,
         });
+        console.log(JSON.stringify({
+          level: "info",
+          message: "checkout_routed_to_portal",
+          route: "/api/stripe/create-checkout-session",
+          requestId,
+          source,
+          duration_ms: Date.now() - startedAt,
+        }));
         return res.status(200).json({
           url: portal.url,
           action: "manage_subscription",
@@ -153,12 +206,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       { idempotencyKey: `premium-checkout-${session.user.id}-${checkoutStateHash}` }
     );
+    if (!checkout.url) {
+      throw new Error("Stripe returned a checkout session without a URL");
+    }
     for (const subscriptionId of incompleteSubscriptionIds) {
       await stripeClient.subscriptions.cancel(subscriptionId);
     }
-    return res.status(200).json({ url: checkout.url });
+    await trackCheckoutEvent(session.user.id, "checkout_started", {
+      plan: "premium_monthly",
+      source,
+      request_id: requestId,
+      $insert_id: `checkout-started:${checkout.id}`,
+    });
+    console.log(JSON.stringify({
+      level: "info",
+      message: "checkout_session_created",
+      route: "/api/stripe/create-checkout-session",
+      requestId,
+      source,
+      duration_ms: Date.now() - startedAt,
+    }));
+    return res.status(200).json({ url: checkout.url, checkoutAttemptId: requestId });
   } catch (error) {
-    console.error("stripe checkout error", error);
+    await trackCheckoutEvent(session.user.id, "checkout_failed", {
+      plan: "premium_monthly",
+      source,
+      request_id: requestId,
+      failure_stage: "stripe_session_creation",
+    });
+    console.error(JSON.stringify({
+      level: "error",
+      message: "checkout_session_failed",
+      route: "/api/stripe/create-checkout-session",
+      requestId,
+      source,
+      error_type: error instanceof Error ? error.name : "UnknownError",
+      duration_ms: Date.now() - startedAt,
+    }));
     return res.status(500).json({ error: "Could not create checkout session." });
   }
 }

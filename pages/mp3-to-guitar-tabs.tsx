@@ -4,8 +4,8 @@ export default function Mp3ToGuitarTabsPage() {
   return (
     <SeoLandingPage
       title="MP3 to Guitar Tabs Converter"
-      metaTitle="MP3 to Guitar Tabs Converter Online | Note2Tabs"
-      description="Convert an MP3 into structured, editable guitar tabs online. Play, arrange, practise, and export the result with Note2Tabs."
+      metaTitle="MP3 to Guitar Tabs Converter – Online & Editable"
+      description="Convert MP3 audio to playable, editable guitar tabs online. Select a song section, generate tablature, then practise, edit, and export it with Note2Tabs."
       canonicalPath="/mp3-to-guitar-tabs"
       primaryCta={{ label: "Upload an MP3", href: "/transcribe" }}
       secondaryCta={{ label: "Open editor", href: "/editor" }}

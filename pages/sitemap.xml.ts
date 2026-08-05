@@ -38,6 +38,11 @@ const recentlyUpdatedSeoPaths = new Set([
   ...seoFeaturePages.map((page) => `/features/${page.slug}`),
 ]);
 
+const refreshedSeoPathDates = new Map([
+  ["/audio-to-guitar-tab-converter", "2026-08-05"],
+  ["/mp3-to-guitar-tabs", "2026-08-05"],
+]);
+
 const buildUrl = (baseUrl: string, path: string) =>
   path.startsWith("http") ? path : `${baseUrl}${path}`;
 
@@ -77,7 +82,11 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const entries: SitemapEntry[] = staticPaths.map((path) => ({
     loc: buildUrl(baseUrl, path),
     ...(recentlyUpdatedSeoPaths.has(path)
-      ? { lastmod: `${SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED}T00:00:00.000Z` }
+      ? {
+          lastmod: `${
+            refreshedSeoPathDates.get(path) || SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED
+          }T00:00:00.000Z`,
+        }
       : {}),
   }));
 

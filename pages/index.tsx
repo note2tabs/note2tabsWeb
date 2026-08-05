@@ -1306,15 +1306,31 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     setPricingBusy(true);
     setPricingError(null);
     try {
-      const res = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
+      const res = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "home_pricing" }),
+      });
       const data = await res.json();
       if (!res.ok || !data?.url) {
+        sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
+          source: "home_pricing",
+          plan: "premium_monthly",
+        });
         setPricingError(data?.error || "Could not start checkout.");
         return;
       }
-      sendEvent(ANALYTICS_EVENTS.checkoutStarted, { source: "home_pricing", plan: "premium_monthly" });
+      sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
+        source: "home_pricing",
+        plan: "premium_monthly",
+        checkout_attempt_id: data.checkoutAttemptId,
+      });
       window.location.href = data.url;
     } catch (err: any) {
+      sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
+        source: "home_pricing",
+        plan: "premium_monthly",
+      });
       setPricingError(err?.message || "Could not start checkout.");
     } finally {
       setPricingBusy(false);
@@ -1336,18 +1352,26 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ returnTo: "/?resumeTranscription=1" }),
+        body: JSON.stringify({
+          returnTo: "/?resumeTranscription=1",
+          source: "large_upload_gate",
+        }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.url) {
         throw new Error(payload?.error || "Could not start checkout.");
       }
-      sendEvent(ANALYTICS_EVENTS.checkoutStarted, {
+      sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         source: "large_upload_gate",
         plan: "premium_monthly",
+        checkout_attempt_id: payload.checkoutAttemptId,
       });
       window.location.assign(payload.url);
     } catch (upgradeError) {
+      sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
+        source: "large_upload_gate",
+        plan: "premium_monthly",
+      });
       setPricingError(
         upgradeError instanceof Error ? upgradeError.message : "Could not start checkout."
       );

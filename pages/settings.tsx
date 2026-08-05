@@ -18,6 +18,7 @@ import {
 } from "../lib/backendCredits";
 import { prisma } from "../lib/prisma";
 import { resetPostHogIdentity, setPostHogConsent } from "../lib/posthogClient";
+import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { clearPendingTranscription } from "../lib/pendingTranscription";
 import {
   clearRecoverableCheckoutSessionId,
@@ -247,14 +248,26 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     setUpgradeBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
+      const res = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "settings" }),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.url) {
+        sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
+          source: "settings",
+          plan: "premium_monthly",
+        });
         setError(data?.error || "Could not start checkout.");
         return;
       }
       window.location.href = data.url;
     } catch {
+      sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
+        source: "settings",
+        plan: "premium_monthly",
+      });
       setError("Could not reach checkout. Check your connection and try again.");
     } finally {
       setUpgradeBusy(false);
