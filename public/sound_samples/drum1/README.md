@@ -1,13 +1,14 @@
-# Drum kit samples
+# Drum 1
 
-Add one sample per drum voice using `.opus`, `.wav`, or `.mp3`:
+Compact seven-piece acoustic kit used by the drum-track player:
 
-- `cymbal`
-- `closed_hi_hat`
-- `open_hi_hat`
-- `bass`
-- `kick`
-- `snare`
-- `sticks`
+- `cymbal.opus` — crash cymbal
+- `closed_hi_hat.opus` — closed acoustic hi-hat
+- `open_hi_hat.opus` — open acoustic hi-hat
+- `bass.opus` — low acoustic tom
+- `kick.opus` — acoustic kick
+- `snare.opus` — acoustic snare
+- `sticks.opus` — short block/rim-style hit
 
-For example: `snare.opus` or `snare.wav`.
+The playback code loads these filenames directly. Keep one file per voice and use
+the existing stem names when replacing a sound.

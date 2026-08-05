@@ -5,8 +5,18 @@ import {
   getDrumVoiceForNote,
   isDrumTrackType,
 } from "../../lib/gteDrums";
+import { DRUM1_SAMPLE_URLS } from "../../lib/gteDrumPlayback";
 
 describe("drum tracks", () => {
+  it("maps every drum voice to its Drum 1 Opus playback sample", () => {
+    expect(Object.keys(DRUM1_SAMPLE_URLS)).toHaveLength(DRUM_VOICES.length);
+    DRUM_VOICES.forEach((voice) => {
+      expect(DRUM1_SAMPLE_URLS[voice.id]).toBe(
+        `/sound_samples/drum1/${voice.sampleStem}.opus`
+      );
+    });
+  });
+
   it("defines the seven requested drum voices and number shortcuts", () => {
     expect(DRUM_VOICES.map((voice) => voice.label)).toEqual([
       "Cymbal",

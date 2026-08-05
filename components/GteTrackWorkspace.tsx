@@ -35,6 +35,17 @@ export default function GteTrackWorkspace(props: Props) {
       onEditMenuPointerEnter={props.onEditMenuPointerEnter}
       onEditMenuPointerLeave={props.onEditMenuPointerLeave}
       onSelectionStateChange={props.onSelectionStateChange}
+      barSelectionClearEpoch={props.barSelectionClearEpoch}
+      barSelectionClearExemptEditorId={props.barSelectionClearExemptEditorId}
+      onBarSelectionStateChange={props.onBarSelectionStateChange}
+      onRequestSelectedBarsCopy={props.onRequestSelectedBarsCopy}
+      onRequestSelectedBarsPaste={props.onRequestSelectedBarsPaste}
+      onRequestSelectedBarsDelete={props.onRequestSelectedBarsDelete}
+      barClipboardAvailable={props.barClipboardAvailable}
+      activeBarDrag={props.activeBarDrag}
+      onBarDragStart={props.onBarDragStart}
+      onBarDragEnd={props.onBarDragEnd}
+      onRequestBarDrop={props.onRequestBarDrop}
       sharedViewportBarCount={props.sharedViewportBarCount}
       sharedTimelineScrollRatio={props.sharedTimelineScrollRatio}
       onSharedTimelineScrollRatioChange={props.onSharedTimelineScrollRatioChange}

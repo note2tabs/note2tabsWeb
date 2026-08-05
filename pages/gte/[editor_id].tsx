@@ -48,6 +48,7 @@ import {
   prepareDrumKit,
   schedulePreparedDrumHit,
 } from "../../lib/gteDrumPlayback";
+import { materializeDrumLoopNotes, normalizeDrumLoops } from "../../lib/gteDrumLoops";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import { getChordEditorMidiNotes } from "../../lib/gteChordEditor";
 import GteFileImportButton from "../../components/GteFileImportButton";
@@ -303,6 +304,7 @@ const normalizeLane = (
     notes: Array.isArray(lane.notes) ? lane.notes : [],
     chords: Array.isArray(lane.chords) ? lane.chords : [],
     noteEffects: Array.isArray(lane.noteEffects) ? lane.noteEffects : [],
+    drumLoops: normalizeDrumLoops(lane.drumLoops, totalFrames),
     cutPositionsWithCoords:
       Array.isArray(lane.cutPositionsWithCoords) && lane.cutPositionsWithCoords.length
         ? lane.cutPositionsWithCoords
@@ -3203,7 +3205,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         if (laneVolume <= 0) return;
         const instrumentId = normalizeTrackInstrumentId(lane.instrumentId);
         if (isDrumLane(lane)) {
-          lane.notes.forEach((note) => {
+          materializeDrumLoopNotes(
+            lane.notes,
+            lane.drumLoops || [],
+            lane.totalFrames
+          ).forEach(({ note }) => {
             const roundedStart = Math.round(note.startTime);
             if (
               roundedStart < playbackStartFrame ||

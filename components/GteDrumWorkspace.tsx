@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent as ReactDragEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { createPortal } from "react-dom";
-import type { EditorSnapshot, Note } from "../types/gte";
+import type { DrumLoopRegion, EditorSnapshot, Note } from "../types/gte";
 import { gteApi } from "../lib/gteApi";
 import {
   buildDrumNote,
@@ -9,6 +18,16 @@ import {
 } from "../lib/gteDrums";
 import { previewDrumVoice } from "../lib/gteDrumPlayback";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
+import {
+  materializeDrumLoopNotes,
+  normalizeDrumLoops,
+  removeNotesCoveredByLoopRepeats,
+} from "../lib/gteDrumLoops";
+import {
+  applyDrumBeatPattern,
+  DRUM_BEAT_PATTERNS,
+  type DrumBeatPatternId,
+} from "../lib/gteDrumPatterns";
 
 const FRAMES_PER_BAR = 480;
 // Match the compact gutter used by chord and tab timelines.
@@ -45,7 +64,22 @@ type NoteDragInteraction = {
   moved: boolean;
 };
 
-type PointerInteraction = MarqueeInteraction | NoteDragInteraction;
+type LoopInteraction = {
+  kind: "loop";
+  mode: "move" | "resize-loop" | "resize-source-start" | "resize-source-end";
+  startClientX: number;
+  originalLoop: DrumLoopRegion;
+  originalNotes: Note[];
+};
+
+type PointerInteraction = MarqueeInteraction | NoteDragInteraction | LoopInteraction;
+
+type DrumNoteClipboard = {
+  anchor: number;
+  notes: Array<Pick<Note, "startTime" | "length" | "midiNum" | "tab">>;
+};
+
+const DRUM_NOTE_CLIPBOARD_PREFIX = "GTE_DRUM_NOTES_V1:";
 
 type GteDrumWorkspaceProps = {
   canvasId: string;
@@ -67,6 +101,17 @@ type GteDrumWorkspaceProps = {
     noteIds: number[];
     chordIds: number[];
   }) => void;
+  barSelectionClearEpoch?: number;
+  barSelectionClearExemptEditorId?: string | null;
+  onBarSelectionStateChange?: (barIndices: number[]) => void;
+  onRequestSelectedBarsCopy?: (barIndices: number[]) => void | Promise<void>;
+  onRequestSelectedBarsPaste?: (insertIndex: number) => void | Promise<void>;
+  onRequestSelectedBarsDelete?: (barIndices: number[]) => void | Promise<void>;
+  barClipboardAvailable?: boolean;
+  activeBarDrag?: { sourceLaneId: string; barIndices: number[] } | null;
+  onBarDragStart?: (barIndices: number[]) => void;
+  onBarDragEnd?: () => void;
+  onRequestBarDrop?: (insertIndex: number) => void | Promise<void>;
   sharedViewportBarCount?: number;
   sharedTimelineScrollRatio?: number;
   onSharedTimelineScrollRatioChange?: (ratio: number) => void;
@@ -104,6 +149,9 @@ const shortLabelForVoice = (voiceId: string) => {
   return "St";
 };
 
+const loopRangesOverlap = (left: DrumLoopRegion, right: DrumLoopRegion) =>
+  left.sourceStart < right.loopEnd && right.sourceStart < left.loopEnd;
+
 export default function GteDrumWorkspace({
   canvasId,
   laneId,
@@ -116,6 +164,17 @@ export default function GteDrumWorkspace({
   onEditMenuPointerEnter,
   onEditMenuPointerLeave,
   onSelectionStateChange,
+  barSelectionClearEpoch,
+  barSelectionClearExemptEditorId,
+  onBarSelectionStateChange,
+  onRequestSelectedBarsCopy,
+  onRequestSelectedBarsPaste,
+  onRequestSelectedBarsDelete,
+  barClipboardAvailable = false,
+  activeBarDrag,
+  onBarDragStart,
+  onBarDragEnd,
+  onRequestBarDrop,
   sharedViewportBarCount,
   sharedTimelineScrollRatio,
   onSharedTimelineScrollRatioChange,
@@ -138,10 +197,38 @@ export default function GteDrumWorkspace({
   const selectedNoteIdsRef = useRef<Set<number>>(new Set());
   const snapshotNotesRef = useRef(snapshot.notes);
   const dragPreviewNotesRef = useRef<Note[] | null>(null);
+  const loopPreviewRef = useRef<{ loop: DrumLoopRegion; notes: Note[] } | null>(null);
+  const noteClipboardRef = useRef<DrumNoteClipboard | null>(null);
   const [cursor, setCursor] = useState({ time: 0, voiceIndex: 0 });
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<number>>(
     () => new Set()
   );
+  const [selectedBarIndices, setSelectedBarIndices] = useState<number[]>([]);
+  const [barSelectionAnchor, setBarSelectionAnchor] = useState<number | null>(null);
+  const [lastBarInsertIndex, setLastBarInsertIndex] = useState<number | null>(null);
+  const [barDropIndex, setBarDropIndex] = useState<number | null>(null);
+  const [barContextMenu, setBarContextMenu] = useState<{
+    x: number;
+    y: number;
+    insertIndex: number;
+    targetFrame: number;
+    selectionActions: boolean;
+    copyMode: "bars" | "notes";
+  } | null>(null);
+  const [sampleBeatMenuOpen, setSampleBeatMenuOpen] = useState(false);
+  const [noteClipboardAvailable, setNoteClipboardAvailable] = useState(false);
+  const [lastClipboardKind, setLastClipboardKind] = useState<"bars" | "notes" | null>(null);
+  const [loopContextMenu, setLoopContextMenu] = useState<{
+    x: number;
+    y: number;
+    loopId: string;
+  } | null>(null);
+  const [selectedLoopId, setSelectedLoopId] = useState<string | null>(null);
+  const [editingLoopSourceId, setEditingLoopSourceId] = useState<string | null>(null);
+  const [loopPreview, setLoopPreview] = useState<{
+    loop: DrumLoopRegion;
+    notes: Note[];
+  } | null>(null);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const [dragPreviewNotes, setDragPreviewNotes] = useState<Note[] | null>(null);
   const [toolPreviewNotes, setToolPreviewNotes] = useState<Note[] | null>(null);
@@ -156,6 +243,7 @@ export default function GteDrumWorkspace({
   );
   const [saveError, setSaveError] = useState<string | null>(null);
   const tableBacked = canvasId !== GTE_GUEST_EDITOR_ID;
+  const editorId = `${canvasId}__ed__${laneId}`;
 
   const beatsPerBar = Math.max(1, Math.round(Number(snapshot.timeSignature) || 8));
   const barCount = Math.max(
@@ -164,6 +252,10 @@ export default function GteDrumWorkspace({
     Math.ceil(Math.max(FRAMES_PER_BAR, snapshot.totalFrames) / FRAMES_PER_BAR)
   );
   const totalFrames = barCount * FRAMES_PER_BAR;
+  const drumLoops = useMemo(
+    () => normalizeDrumLoops(snapshot.drumLoops, totalFrames),
+    [snapshot.drumLoops, totalFrames]
+  );
   const baseScale =
     sharedTimelineBaseScale !== undefined && Number.isFinite(sharedTimelineBaseScale)
       ? Math.max(0.5, Math.min(4, sharedTimelineBaseScale))
@@ -189,6 +281,441 @@ export default function GteDrumWorkspace({
     setSelectedNoteIds(next);
   }, []);
 
+  const selectedBarIndexSet = useMemo(
+    () => new Set(selectedBarIndices),
+    [selectedBarIndices]
+  );
+
+  const handleBarSelection = useCallback(
+    (index: number, event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const pointerX = Number.isFinite(event.clientX)
+        ? event.clientX - rect.left
+        : rect.width;
+      setLastBarInsertIndex(pointerX < rect.width / 2 ? index : index + 1);
+      replaceSelection(new Set());
+      setSelectedLoopId(null);
+      setEditingLoopSourceId(null);
+      setLoopContextMenu(null);
+      setBarContextMenu(null);
+
+      if (mobileViewport) {
+        const nextSelection = selectedBarIndexSet.has(index)
+          ? selectedBarIndices.filter((value) => value !== index)
+          : [...selectedBarIndices, index].sort((left, right) => left - right);
+        setSelectedBarIndices(nextSelection);
+        setBarSelectionAnchor(nextSelection.length ? index : null);
+        return;
+      }
+
+      const additive = (event.ctrlKey || event.metaKey) && isActive;
+      const rangeSelect = event.shiftKey && isActive;
+      if (rangeSelect && barSelectionAnchor !== null) {
+        const start = Math.min(barSelectionAnchor, index);
+        const end = Math.max(barSelectionAnchor, index);
+        setSelectedBarIndices(
+          Array.from({ length: end - start + 1 }, (_, offset) => start + offset)
+        );
+        return;
+      }
+      if (additive) {
+        setSelectedBarIndices((current) =>
+          current.includes(index)
+            ? current
+            : [...current, index].sort((left, right) => left - right)
+        );
+        setBarSelectionAnchor(index);
+        return;
+      }
+      if (selectedBarIndices.length === 1 && selectedBarIndices[0] === index) {
+        setSelectedBarIndices([]);
+        setBarSelectionAnchor(null);
+        return;
+      }
+      setSelectedBarIndices([index]);
+      setBarSelectionAnchor(index);
+    },
+    [
+      barSelectionAnchor,
+      isActive,
+      mobileViewport,
+      replaceSelection,
+      selectedBarIndexSet,
+      selectedBarIndices,
+    ]
+  );
+
+  const handleBarContextMenu = useCallback(
+    (index: number, event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const pointerX = Number.isFinite(event.clientX)
+        ? event.clientX - rect.left
+        : rect.width;
+      const insertIndex = pointerX < rect.width / 2 ? index : index + 1;
+      setLastBarInsertIndex(insertIndex);
+      replaceSelection(new Set());
+      if (!selectedBarIndexSet.has(index)) {
+        setSelectedBarIndices([index]);
+        setBarSelectionAnchor(index);
+      }
+      setBarContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        insertIndex,
+        targetFrame: Math.max(
+          0,
+          Math.min(
+            totalFrames - 1,
+            Math.round((index + Math.max(0, Math.min(1, pointerX / rect.width))) * FRAMES_PER_BAR)
+          )
+        ),
+        selectionActions: true,
+        copyMode: "bars",
+      });
+      setSampleBeatMenuOpen(false);
+    },
+    [replaceSelection, selectedBarIndexSet, totalFrames]
+  );
+
+  const handleNoteContextMenu = useCallback(
+    (note: Note, event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const selectedIds = selectedNoteIdsRef.current;
+      const notesForBars = selectedIds.has(note.id)
+        ? snapshot.notes.filter((candidate) => selectedIds.has(candidate.id))
+        : [note];
+      const barIndices = Array.from(
+        new Set(
+          notesForBars.map((candidate) =>
+            Math.max(0, Math.min(barCount - 1, Math.floor(candidate.startTime / FRAMES_PER_BAR)))
+          )
+        )
+      ).sort((left, right) => left - right);
+      const clickedBar = Math.max(
+        0,
+        Math.min(barCount - 1, Math.floor(note.startTime / FRAMES_PER_BAR))
+      );
+      const insertIndex = Math.min(barCount, clickedBar + 1);
+
+      if (!selectedIds.has(note.id)) replaceSelection(new Set([note.id]));
+      setSelectedBarIndices(barIndices);
+      setBarSelectionAnchor(clickedBar);
+      setLastBarInsertIndex(insertIndex);
+      setSelectedLoopId(null);
+      setEditingLoopSourceId(null);
+      setLoopContextMenu(null);
+      setBarContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        insertIndex,
+        targetFrame: note.startTime,
+        selectionActions: true,
+        copyMode: "notes",
+      });
+      setSampleBeatMenuOpen(false);
+      onFocusWorkspace?.();
+    },
+    [barCount, onFocusWorkspace, replaceSelection, snapshot.notes]
+  );
+
+  const handleTrackContextMenu = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      const element = scrollRef.current;
+      if (!element) return;
+      const rect = element.getBoundingClientRect();
+      const contentX = event.clientX - rect.left + element.scrollLeft - LABEL_WIDTH;
+      const boundedFrame = Math.max(0, Math.min(totalFrames - 1, contentX / pxPerFrame));
+      const barIndex = Math.max(
+        0,
+        Math.min(barCount - 1, Math.floor(boundedFrame / FRAMES_PER_BAR))
+      );
+      const frameWithinBar = boundedFrame - barIndex * FRAMES_PER_BAR;
+      const insertIndex = Math.min(
+        barCount,
+        barIndex + (frameWithinBar >= FRAMES_PER_BAR / 2 ? 1 : 0)
+      );
+
+      setLastBarInsertIndex(insertIndex);
+      setLoopContextMenu(null);
+      setBarContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        insertIndex,
+        targetFrame: Math.round(boundedFrame),
+        selectionActions: selectedBarIndices.length > 0,
+        copyMode: "bars",
+      });
+      setSampleBeatMenuOpen(false);
+      onFocusWorkspace?.();
+    },
+    [barCount, onFocusWorkspace, pxPerFrame, selectedBarIndices.length, totalFrames]
+  );
+
+  const copySelectedBars = useCallback(() => {
+    if (!selectedBarIndices.length) return;
+    setLastClipboardKind("bars");
+    void onRequestSelectedBarsCopy?.([...selectedBarIndices]);
+  }, [onRequestSelectedBarsCopy, selectedBarIndices]);
+
+  const copySelectedNotes = useCallback(async () => {
+    const selectedIds = selectedNoteIdsRef.current;
+    const selectedNotes = snapshot.notes.filter((note) => selectedIds.has(note.id));
+    if (!selectedNotes.length) return;
+    const anchor = Math.min(...selectedNotes.map((note) => note.startTime));
+    const payload: DrumNoteClipboard = {
+      anchor,
+      notes: selectedNotes.map((note) => ({
+        startTime: note.startTime,
+        length: note.length,
+        midiNum: note.midiNum,
+        tab: [...note.tab],
+      })),
+    };
+    noteClipboardRef.current = payload;
+    setNoteClipboardAvailable(true);
+    setLastClipboardKind("notes");
+    try {
+      await navigator.clipboard?.writeText(
+        `${DRUM_NOTE_CLIPBOARD_PREFIX}${JSON.stringify(payload)}`
+      );
+    } catch {
+      // The in-memory clipboard remains available when browser permission is denied.
+    }
+  }, [snapshot.notes]);
+
+  const pasteSelectedBars = useCallback(
+    (insertIndex?: number) => {
+      if (!barClipboardAvailable || !onRequestSelectedBarsPaste) return;
+      const target =
+        insertIndex ??
+        lastBarInsertIndex ??
+        Math.min(barCount, selectedBarIndices[0] ?? 0);
+      void onRequestSelectedBarsPaste(target);
+    },
+    [
+      barClipboardAvailable,
+      barCount,
+      lastBarInsertIndex,
+      onRequestSelectedBarsPaste,
+      selectedBarIndices,
+    ]
+  );
+
+  const deleteSelectedBars = useCallback(() => {
+    if (!selectedBarIndices.length) return;
+    void onRequestSelectedBarsDelete?.([...selectedBarIndices]);
+  }, [onRequestSelectedBarsDelete, selectedBarIndices]);
+
+  const commitLoopSnapshot = useCallback(
+    async (nextLoops: DrumLoopRegion[], nextNotes: Note[], errorMessage: string) => {
+      const normalizedLoops = normalizeDrumLoops(nextLoops, totalFrames);
+      const cleanedNotes = removeNotesCoveredByLoopRepeats(nextNotes, normalizedLoops);
+      const nextSnapshot: EditorSnapshot = {
+        ...snapshot,
+        drumLoops: normalizedLoops,
+        notes: cleanedNotes,
+        updatedAt: new Date().toISOString(),
+      };
+      onSnapshotChange(nextSnapshot, { recordHistory: true });
+      setSaveError(null);
+      if (!tableBacked) return;
+      try {
+        await gteApi.applySnapshot(editorId, nextSnapshot);
+      } catch (error: any) {
+        onSnapshotChange(snapshot, { recordHistory: false });
+        setSaveError(error?.message || errorMessage);
+      }
+    },
+    [editorId, onSnapshotChange, snapshot, tableBacked, totalFrames]
+  );
+
+  const readNoteClipboard = useCallback(async () => {
+    if (navigator.clipboard?.readText) {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text.startsWith(DRUM_NOTE_CLIPBOARD_PREFIX)) {
+          const parsed = JSON.parse(
+            text.slice(DRUM_NOTE_CLIPBOARD_PREFIX.length)
+          ) as DrumNoteClipboard;
+          if (Array.isArray(parsed.notes) && parsed.notes.length) return parsed;
+        }
+      } catch {
+        // Fall back to the in-memory clipboard.
+      }
+    }
+    return noteClipboardRef.current;
+  }, []);
+
+  const pasteSelectedNotes = useCallback(
+    async (rawTargetFrame: number) => {
+      const payload = await readNoteClipboard();
+      if (!payload?.notes.length) return;
+      const targetFrame = Math.max(
+        0,
+        Math.min(
+          totalFrames - 1,
+          globalSnapToGridEnabled
+            ? Math.round(rawTargetFrame / gridStep) * gridStep
+            : Math.round(rawTargetFrame)
+        )
+      );
+      const nextIds: number[] = [];
+      let nextId = snapshot.notes.reduce((maximum, note) => Math.max(maximum, note.id), 0) + 1;
+      const pastedNotes = payload.notes.flatMap((clipboardNote) => {
+        const startTime = targetFrame + clipboardNote.startTime - payload.anchor;
+        if (startTime < 0 || startTime >= totalFrames) return [];
+        const voiceIndex = DRUM_VOICES.findIndex(
+          (voice) => voice.midi === Number(clipboardNote.midiNum)
+        );
+        const note = buildDrumNote({
+          id: nextId++,
+          startTime,
+          voiceIndex: voiceIndex >= 0 ? voiceIndex : Number(clipboardNote.tab?.[0]) || 0,
+          length: clipboardNote.length,
+        });
+        nextIds.push(note.id);
+        return [note];
+      });
+      if (!pastedNotes.length) return;
+
+      const pastedKeys = new Set(
+        pastedNotes.map((note) => `${getDrumVoiceForNote(note).id}:${note.startTime}`)
+      );
+      const retainedNotes = snapshot.notes.filter(
+        (note) => !pastedKeys.has(`${getDrumVoiceForNote(note).id}:${note.startTime}`)
+      );
+      const nextLoops = drumLoops.filter(
+        (loop) =>
+          !pastedNotes.some(
+            (note) => note.startTime >= loop.sourceEnd && note.startTime < loop.loopEnd
+          )
+      );
+      replaceSelection(new Set(nextIds));
+      setSelectedBarIndices([]);
+      setBarSelectionAnchor(null);
+      setBarContextMenu(null);
+      await commitLoopSnapshot(
+        nextLoops,
+        [...retainedNotes, ...pastedNotes],
+        "Could not paste the selected drum notes."
+      );
+    },
+    [
+      commitLoopSnapshot,
+      drumLoops,
+      globalSnapToGridEnabled,
+      gridStep,
+      readNoteClipboard,
+      replaceSelection,
+      snapshot.notes,
+      totalFrames,
+    ]
+  );
+
+  const pasteFromContextMenu = useCallback(
+    (menu: NonNullable<typeof barContextMenu>) => {
+      if (lastClipboardKind === "notes" && noteClipboardAvailable) {
+        void pasteSelectedNotes(menu.targetFrame);
+        return;
+      }
+      pasteSelectedBars(menu.insertIndex);
+      setBarContextMenu(null);
+    }, [lastClipboardKind, noteClipboardAvailable, pasteSelectedBars, pasteSelectedNotes]
+  );
+
+  const applySampleBeat = useCallback(
+    (patternId: DrumBeatPatternId) => {
+      if (!selectedBarIndices.length) return;
+      const selectedRanges = selectedBarIndices.map((barIndex) => ({
+        start: barIndex * FRAMES_PER_BAR,
+        end: (barIndex + 1) * FRAMES_PER_BAR,
+      }));
+      const nextLoops = drumLoops.filter(
+        (loop) =>
+          !selectedRanges.some(
+            (range) => range.start < loop.loopEnd && range.end > loop.sourceEnd
+          )
+      );
+      const nextNotes = applyDrumBeatPattern({
+        notes: snapshot.notes,
+        barIndices: selectedBarIndices,
+        patternId,
+        beatsPerBar,
+        framesPerBar: FRAMES_PER_BAR,
+      });
+      replaceSelection(new Set());
+      setSampleBeatMenuOpen(false);
+      setBarContextMenu(null);
+      void commitLoopSnapshot(nextLoops, nextNotes, "Could not apply the sample beat.");
+    },
+    [beatsPerBar, commitLoopSnapshot, drumLoops, replaceSelection, selectedBarIndices, snapshot.notes]
+  );
+
+  const createLoopFromSelectedBars = useCallback(() => {
+    if (!selectedBarIndices.length) return;
+    const firstBar = Math.min(...selectedBarIndices);
+    const lastBar = Math.max(...selectedBarIndices);
+    const loop: DrumLoopRegion = {
+      id:
+        typeof globalThis.crypto?.randomUUID === "function"
+          ? globalThis.crypto.randomUUID()
+          : `drum-loop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      sourceStart: firstBar * FRAMES_PER_BAR,
+      sourceEnd: Math.min(totalFrames, (lastBar + 1) * FRAMES_PER_BAR),
+      loopEnd: Math.min(totalFrames, (lastBar + 1) * FRAMES_PER_BAR),
+    };
+    const nextLoops = [...drumLoops.filter((current) => !loopRangesOverlap(current, loop)), loop];
+    setSelectedLoopId(loop.id);
+    setEditingLoopSourceId(null);
+    setSelectedBarIndices([]);
+    setBarSelectionAnchor(null);
+    setBarContextMenu(null);
+    void commitLoopSnapshot(nextLoops, snapshot.notes, "Could not create drum loop.");
+  }, [commitLoopSnapshot, drumLoops, selectedBarIndices, snapshot.notes, totalFrames]);
+
+  const deleteLoop = useCallback(
+    (loopId: string) => {
+      const nextLoops = drumLoops.filter((loop) => loop.id !== loopId);
+      setSelectedLoopId((current) => (current === loopId ? null : current));
+      setEditingLoopSourceId((current) => (current === loopId ? null : current));
+      setLoopContextMenu(null);
+      void commitLoopSnapshot(nextLoops, snapshot.notes, "Could not delete drum loop.");
+    },
+    [commitLoopSnapshot, drumLoops, snapshot.notes]
+  );
+
+  const handleSelectedBarDragStart = useCallback(
+    (index: number, event: ReactDragEvent<HTMLButtonElement>) => {
+      if (!selectedBarIndexSet.has(index) || !selectedBarIndices.length) {
+        event.preventDefault();
+        return;
+      }
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData(
+        "application/x-gte-bars",
+        JSON.stringify({ editorId, barIndices: selectedBarIndices })
+      );
+      onBarDragStart?.([...selectedBarIndices]);
+    },
+    [editorId, onBarDragStart, selectedBarIndexSet, selectedBarIndices]
+  );
+
+  const handleBarDrop = useCallback(
+    (insertIndex: number, event: ReactDragEvent<HTMLButtonElement>) => {
+      if (!activeBarDrag || !onRequestBarDrop) return;
+      event.preventDefault();
+      setBarDropIndex(null);
+      void onRequestBarDrop(insertIndex);
+    },
+    [activeBarDrag, onRequestBarDrop]
+  );
+
   useEffect(() => {
     onSelectionStateChange?.({
       noteCount: selectedNoteIds.size,
@@ -197,6 +724,78 @@ export default function GteDrumWorkspace({
       chordIds: [],
     });
   }, [onSelectionStateChange, selectedNoteIds]);
+
+  useEffect(() => {
+    onBarSelectionStateChange?.([...selectedBarIndices]);
+  }, [onBarSelectionStateChange, selectedBarIndices]);
+
+  useEffect(() => {
+    if (!barSelectionClearEpoch) return;
+    if (
+      barSelectionClearExemptEditorId &&
+      barSelectionClearExemptEditorId === editorId
+    ) {
+      return;
+    }
+    setSelectedBarIndices([]);
+    setBarSelectionAnchor(null);
+    setLastBarInsertIndex(null);
+    setBarContextMenu(null);
+  }, [barSelectionClearEpoch, barSelectionClearExemptEditorId, editorId]);
+
+  useEffect(() => {
+    if (activeBarDrag) return;
+    setBarDropIndex(null);
+  }, [activeBarDrag]);
+
+  useEffect(() => {
+    if (!barContextMenu) return;
+    const closeMenu = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest("[data-drum-bar-context='true']")) return;
+      setBarContextMenu(null);
+    };
+    window.addEventListener("pointerdown", closeMenu);
+    return () => window.removeEventListener("pointerdown", closeMenu);
+  }, [barContextMenu]);
+
+  useEffect(() => {
+    if (!loopContextMenu) return;
+    const closeMenu = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest("[data-drum-loop-context='true']")) return;
+      setLoopContextMenu(null);
+    };
+    window.addEventListener("pointerdown", closeMenu);
+    return () => window.removeEventListener("pointerdown", closeMenu);
+  }, [loopContextMenu]);
+
+  const startLoopInteraction = useCallback(
+    (
+      loop: DrumLoopRegion,
+      mode: LoopInteraction["mode"],
+      event: ReactPointerEvent<HTMLElement>
+    ) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setSelectedLoopId(loop.id);
+      setLoopContextMenu(null);
+      replaceSelection(new Set());
+      setSelectedBarIndices([]);
+      setBarSelectionAnchor(null);
+      loopPreviewRef.current = { loop, notes: snapshot.notes };
+      setLoopPreview({ loop, notes: snapshot.notes });
+      interactionRef.current = {
+        kind: "loop",
+        mode,
+        startClientX: event.clientX,
+        originalLoop: loop,
+        originalNotes: snapshot.notes,
+      };
+    },
+    [replaceSelection, snapshot.notes]
+  );
 
   const snapTime = useCallback(
     (time: number) => {
@@ -210,19 +809,20 @@ export default function GteDrumWorkspace({
 
   const updateSnapshotNotes = useCallback(
     (notes: Note[]) => {
+      const cleanedNotes = removeNotesCoveredByLoopRepeats(notes, drumLoops);
       onSnapshotChange(
         {
           ...snapshot,
           editorType: "drums",
           type: "drums",
           trackType: "drums",
-          notes,
+          notes: cleanedNotes,
           totalFrames: Math.max(
             snapshot.totalFrames,
             Math.ceil(
               Math.max(
                 FRAMES_PER_BAR,
-                ...notes.map((note) => note.startTime + note.length)
+                ...cleanedNotes.map((note) => note.startTime + note.length)
               ) / FRAMES_PER_BAR
             ) * FRAMES_PER_BAR
           ),
@@ -233,7 +833,7 @@ export default function GteDrumWorkspace({
         { recordHistory: !tableBacked }
       );
     },
-    [onSnapshotChange, snapshot, tableBacked]
+    [drumLoops, onSnapshotChange, snapshot, tableBacked]
   );
 
   const addHit = useCallback(
@@ -516,6 +1116,75 @@ export default function GteDrumWorkspace({
       const interaction = interactionRef.current;
       if (!interaction) return;
 
+      if (interaction.kind === "loop") {
+        const rawDelta = Math.round((event.clientX - interaction.startClientX) / pxPerFrame);
+        const minimumLength = Math.max(1, globalSnapToGridEnabled ? gridStep : 1);
+        const snapBoundary = (frame: number) =>
+          globalSnapToGridEnabled ? Math.round(frame / gridStep) * gridStep : Math.round(frame);
+        let nextLoop = { ...interaction.originalLoop };
+        let nextNotes = interaction.originalNotes;
+
+        if (interaction.mode === "move") {
+          const delta = Math.max(
+            -interaction.originalLoop.sourceStart,
+            Math.min(totalFrames - interaction.originalLoop.loopEnd, rawDelta)
+          );
+          nextLoop = {
+            ...nextLoop,
+            sourceStart: nextLoop.sourceStart + delta,
+            sourceEnd: nextLoop.sourceEnd + delta,
+            loopEnd: nextLoop.loopEnd + delta,
+          };
+          const sourceIds = new Set(
+            interaction.originalNotes
+              .filter(
+                (note) =>
+                  note.startTime >= interaction.originalLoop.sourceStart &&
+                  note.startTime < interaction.originalLoop.sourceEnd
+              )
+              .map((note) => note.id)
+          );
+          const movedSource = interaction.originalNotes
+            .filter((note) => sourceIds.has(note.id))
+            .map((note) => ({ ...note, startTime: note.startTime + delta }));
+          nextNotes = [
+            ...interaction.originalNotes.filter(
+              (note) =>
+                !sourceIds.has(note.id) &&
+                (note.startTime < nextLoop.sourceStart || note.startTime >= nextLoop.loopEnd)
+            ),
+            ...movedSource,
+          ];
+        } else if (interaction.mode === "resize-loop") {
+          nextLoop.loopEnd = Math.max(
+            nextLoop.sourceEnd,
+            Math.min(totalFrames, snapBoundary(interaction.originalLoop.loopEnd + rawDelta))
+          );
+        } else if (interaction.mode === "resize-source-start") {
+          nextLoop.sourceStart = Math.max(
+            0,
+            Math.min(
+              nextLoop.sourceEnd - minimumLength,
+              snapBoundary(interaction.originalLoop.sourceStart + rawDelta)
+            )
+          );
+        } else {
+          nextLoop.sourceEnd = Math.max(
+            nextLoop.sourceStart + minimumLength,
+            Math.min(
+              nextLoop.loopEnd,
+              snapBoundary(interaction.originalLoop.sourceEnd + rawDelta)
+            )
+          );
+        }
+
+        nextNotes = removeNotesCoveredByLoopRepeats(nextNotes, [nextLoop]);
+        const preview = { loop: nextLoop, notes: nextNotes };
+        loopPreviewRef.current = preview;
+        setLoopPreview(preview);
+        return;
+      }
+
       if (interaction.kind === "marquee") {
         const point = pointerContentPoint(event.clientX, event.clientY);
         if (!point) return;
@@ -624,6 +1293,21 @@ export default function GteDrumWorkspace({
       interactionRef.current = null;
       setSelectionBox(null);
 
+      if (interaction.kind === "loop") {
+        const preview = loopPreviewRef.current;
+        loopPreviewRef.current = null;
+        setLoopPreview(null);
+        if (!preview) return;
+        const nextLoops = [
+          ...drumLoops.filter(
+            (loop) => loop.id !== preview.loop.id && !loopRangesOverlap(loop, preview.loop)
+          ),
+          preview.loop,
+        ];
+        void commitLoopSnapshot(nextLoops, preview.notes, "Could not update drum loop.");
+        return;
+      }
+
       if (interaction.kind === "marquee") {
         if (!interaction.moved) {
           const position = pointerPosition(event.clientX, event.clientY);
@@ -725,6 +1409,28 @@ export default function GteDrumWorkspace({
         commitTransformTool();
         return;
       }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
+        if (selectedNoteIdsRef.current.size > 0) {
+          event.preventDefault();
+          void copySelectedNotes();
+          return;
+        }
+        if (!selectedBarIndices.length || !onRequestSelectedBarsCopy) return;
+        event.preventDefault();
+        copySelectedBars();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v") {
+        if (lastClipboardKind === "notes" && noteClipboardAvailable) {
+          event.preventDefault();
+          void pasteSelectedNotes(cursor.time);
+          return;
+        }
+        if (!barClipboardAvailable || !onRequestSelectedBarsPaste) return;
+        event.preventDefault();
+        pasteSelectedBars();
+        return;
+      }
       if (event.key.toLowerCase() === "s") {
         event.preventDefault();
         openScaleTool();
@@ -771,6 +1477,15 @@ export default function GteDrumWorkspace({
       }
       if (
         (event.key === "Delete" || event.key === "Backspace") &&
+        selectedBarIndices.length > 0 &&
+        onRequestSelectedBarsDelete
+      ) {
+        event.preventDefault();
+        deleteSelectedBars();
+        return;
+      }
+      if (
+        (event.key === "Delete" || event.key === "Backspace") &&
         selectedNoteIdsRef.current.size > 0
       ) {
         event.preventDefault();
@@ -779,25 +1494,46 @@ export default function GteDrumWorkspace({
       }
       if (event.key === "Escape") {
         replaceSelection(new Set());
+        setSelectedBarIndices([]);
+        setBarSelectionAnchor(null);
+        setBarContextMenu(null);
+        setSelectedLoopId(null);
+        setEditingLoopSourceId(null);
+        setLoopContextMenu(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
     addHit,
+    commitLoopSnapshot,
+    drumLoops,
+    globalSnapToGridEnabled,
+    barClipboardAvailable,
+    copySelectedNotes,
+    copySelectedBars,
     cursor.time,
     cursor.voiceIndex,
     closeTransformTools,
     commitTransformTool,
     deleteHits,
+    deleteSelectedBars,
     gridStep,
     isActive,
+    lastClipboardKind,
     mobileViewport,
+    noteClipboardAvailable,
     onGlobalPlaybackToggle,
+    onRequestSelectedBarsCopy,
+    onRequestSelectedBarsDelete,
+    onRequestSelectedBarsPaste,
     openScaleTool,
+    pasteSelectedBars,
+    pasteSelectedNotes,
     quantizeDialogOpen,
     replaceSelection,
     scaleDialogOpen,
+    selectedBarIndices.length,
     snapTime,
     snapshot.notes,
   ]);
@@ -831,6 +1567,26 @@ export default function GteDrumWorkspace({
     lines.push({ frame: totalFrames, kind: "bar" });
     return lines;
   }, [barCount, beatsPerBar, totalFrames]);
+
+  const visualLoops = useMemo(() => {
+    if (!loopPreview) return drumLoops;
+    return [
+      ...drumLoops.filter(
+        (loop) => loop.id !== loopPreview.loop.id && !loopRangesOverlap(loop, loopPreview.loop)
+      ),
+      loopPreview.loop,
+    ];
+  }, [drumLoops, loopPreview]);
+
+  const materializedNotes = useMemo(
+    () =>
+      materializeDrumLoopNotes(
+        loopPreview?.notes ?? toolPreviewNotes ?? dragPreviewNotes ?? snapshot.notes,
+        visualLoops,
+        totalFrames
+      ),
+    [dragPreviewNotes, loopPreview, snapshot.notes, toolPreviewNotes, totalFrames, visualLoops]
+  );
 
   return (
     <div
@@ -897,10 +1653,131 @@ export default function GteDrumWorkspace({
           {saveError}
         </div>
       )}
+      {barContextMenu && (
+        <div
+          data-drum-bar-context="true"
+          className="fixed z-[9999] w-52 rounded-md border border-slate-200 bg-white/95 py-1 text-xs shadow-lg backdrop-blur"
+          style={{ left: barContextMenu.x, top: barContextMenu.y }}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          {barContextMenu.selectionActions && (
+            <>
+              <button
+                type="button"
+                onClick={createLoopFromSelectedBars}
+                disabled={!selectedBarIndices.length}
+                className="flex w-full px-3 py-2 text-left font-semibold text-sky-700 hover:bg-sky-50 disabled:text-slate-400"
+              >
+                Loop
+              </button>
+              <button
+                type="button"
+                onClick={() => setSampleBeatMenuOpen((open) => !open)}
+                disabled={!selectedBarIndices.length}
+                aria-expanded={sampleBeatMenuOpen}
+                className="flex w-full items-center justify-between px-3 py-2 text-left font-semibold text-violet-700 hover:bg-violet-50 disabled:text-slate-400"
+              >
+                <span>Sample beat</span>
+                <span aria-hidden="true">{sampleBeatMenuOpen ? "v" : ">"}</span>
+              </button>
+              {sampleBeatMenuOpen && (
+                <div className="mx-1 rounded border border-violet-100 bg-violet-50/50 py-1">
+                  {DRUM_BEAT_PATTERNS.map((pattern) => (
+                    <button
+                      key={pattern.id}
+                      type="button"
+                      onClick={() => applySampleBeat(pattern.id)}
+                      title={pattern.description}
+                      className="block w-full px-3 py-1.5 text-left text-slate-700 hover:bg-violet-100"
+                    >
+                      {pattern.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="mx-2 my-1 border-t border-slate-200" />
+              <button
+                type="button"
+                onClick={() => {
+                  if (barContextMenu.copyMode === "notes") {
+                    void copySelectedNotes();
+                  } else {
+                    copySelectedBars();
+                  }
+                  setBarContextMenu(null);
+                }}
+                disabled={
+                  barContextMenu.copyMode === "notes"
+                    ? selectedNoteIds.size === 0
+                    : selectedBarIndices.length === 0
+                }
+                className="flex w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+              >
+                {barContextMenu.copyMode === "notes" ? "Copy notes" : "Copy bars"}
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => pasteFromContextMenu(barContextMenu)}
+            disabled={!barClipboardAvailable && !noteClipboardAvailable}
+            className="flex w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+          >
+            {lastClipboardKind === "notes" && noteClipboardAvailable
+              ? "Paste notes"
+              : "Paste bars"}
+          </button>
+          {barContextMenu.selectionActions && (
+            <button
+              type="button"
+              onClick={() => {
+                deleteSelectedBars();
+                setBarContextMenu(null);
+              }}
+              disabled={!selectedBarIndices.length}
+              className="flex w-full px-3 py-2 text-left text-rose-600 hover:bg-rose-50 disabled:text-slate-400"
+            >
+              Delete bars
+            </button>
+          )}
+        </div>
+      )}
+      {loopContextMenu && (() => {
+        const loop = drumLoops.find((entry) => entry.id === loopContextMenu.loopId);
+        if (!loop) return null;
+        return (
+          <div
+            data-drum-loop-context="true"
+            className="fixed z-[9999] w-48 rounded-md border border-slate-200 bg-white/95 py-1 text-xs shadow-lg backdrop-blur"
+            style={{ left: loopContextMenu.x, top: loopContextMenu.y }}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedLoopId(loop.id);
+                setEditingLoopSourceId(loop.id);
+                setLoopContextMenu(null);
+              }}
+              className="flex w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-100"
+            >
+              Change selected section
+            </button>
+            <button
+              type="button"
+              onClick={() => deleteLoop(loop.id)}
+              className="flex w-full px-3 py-2 text-left text-rose-600 hover:bg-rose-50"
+            >
+              Delete loop
+            </button>
+          </div>
+        );
+      })()}
       <div
         ref={scrollRef}
         className="hide-scrollbar overflow-x-auto overflow-y-hidden"
         style={{ height: RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length }}
+        onContextMenu={handleTrackContextMenu}
         onScroll={(event) => {
           if (syncingScrollRef.current) return;
           const element = event.currentTarget;
@@ -912,6 +1789,7 @@ export default function GteDrumWorkspace({
         onPointerDown={(event) => {
           if (event.button !== 0) return;
           const target = event.target as Element;
+          if (target.closest("[data-bar-select='true']")) return;
           if (target.closest("[data-drum-hit='true']")) return;
           const point = pointerContentPoint(event.clientX, event.clientY);
           if (
@@ -922,6 +1800,12 @@ export default function GteDrumWorkspace({
             return;
           }
           event.preventDefault();
+          setSelectedLoopId(null);
+          setEditingLoopSourceId(null);
+          setLoopContextMenu(null);
+          setSelectedBarIndices([]);
+          setBarSelectionAnchor(null);
+          setBarContextMenu(null);
           const baseSelection = event.shiftKey
             ? new Set(selectedNoteIdsRef.current)
             : new Set<number>();
@@ -943,23 +1827,87 @@ export default function GteDrumWorkspace({
           }}
         >
           <div
-            className="absolute left-0 top-0 z-30 border-b border-r border-slate-200 bg-slate-100"
+            className="sticky left-0 top-0 z-50 border-b border-r border-slate-200 bg-slate-100"
             style={{ width: LABEL_WIDTH, height: RULER_HEIGHT }}
           />
           <div
             className="absolute top-0 border-b border-slate-200 bg-slate-50"
             style={{ left: LABEL_WIDTH, right: 0, height: RULER_HEIGHT }}
           >
-            {Array.from({ length: barCount }, (_, index) => (
-              <span
-                key={`drum-bar-${index}`}
-                className="absolute top-0.5 text-[9px] font-semibold text-slate-500"
-                style={{ left: index * barWidth + 6 }}
-              >
-                Bar {index + 1}
-              </span>
-            ))}
+            {Array.from({ length: barCount }, (_, index) => {
+              const selected = selectedBarIndexSet.has(index);
+              return (
+                <button
+                  key={`drum-bar-${index}`}
+                  type="button"
+                  data-bar-select="true"
+                  data-bar-select-editor={editorId}
+                  data-bar-index={index}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={(event) => handleBarSelection(index, event)}
+                  onContextMenu={(event) => handleBarContextMenu(index, event)}
+                  draggable={selected && !mobileViewport}
+                  onDragStart={(event) => handleSelectedBarDragStart(index, event)}
+                  onDragEnd={() => {
+                    setBarDropIndex(null);
+                    onBarDragEnd?.();
+                  }}
+                  className={`absolute top-0 z-20 flex items-center px-2 text-[9px] font-semibold ${
+                    selected
+                      ? "bg-slate-200/90 text-slate-800"
+                      : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                  }`}
+                  style={{
+                    left: index * barWidth,
+                    width: barWidth,
+                    height: RULER_HEIGHT,
+                  }}
+                  title={`Select Bar ${index + 1}`}
+                  aria-label={`Select Bar ${index + 1}`}
+                >
+                  <span className="truncate">Bar {index + 1}</span>
+                </button>
+              );
+            })}
           </div>
+
+          {Array.from({ length: barCount + 1 }, (_, insertIndex) => {
+            const dragEnabled = Boolean(activeBarDrag && onRequestBarDrop);
+            const active = barDropIndex === insertIndex;
+            return (
+              <button
+                key={`drum-bar-drop-${insertIndex}`}
+                type="button"
+                aria-hidden={!dragEnabled}
+                tabIndex={-1}
+                onMouseDown={(event) => event.preventDefault()}
+                onDragOver={(event) => {
+                  if (!dragEnabled) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setBarDropIndex(insertIndex);
+                }}
+                onDragEnter={(event) => {
+                  if (!dragEnabled) return;
+                  event.preventDefault();
+                  setBarDropIndex(insertIndex);
+                }}
+                onDrop={(event) => handleBarDrop(insertIndex, event)}
+                onDragLeave={() => {
+                  if (active) setBarDropIndex(null);
+                }}
+                className={`absolute top-0 z-30 w-5 -translate-x-1/2 rounded-full ${
+                  dragEnabled ? "pointer-events-auto" : "pointer-events-none"
+                } ${active ? "bg-sky-500/80" : "bg-transparent"}`}
+                style={{
+                  left: LABEL_WIDTH + insertIndex * barWidth,
+                  height: RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length,
+                  opacity: dragEnabled ? (active ? 0.95 : 0.35) : 0,
+                }}
+                title={dragEnabled ? `Insert bars at ${insertIndex + 1}` : undefined}
+              />
+            );
+          })}
 
           {DRUM_VOICES.map((voice, voiceIndex) => (
             <div
@@ -975,7 +1923,7 @@ export default function GteDrumWorkspace({
               }}
             >
               <div
-                className="sticky left-0 z-20 flex h-full items-center justify-center border-r border-slate-200 bg-slate-100 px-0.5 text-[9px] font-semibold text-slate-700"
+                className="sticky left-0 z-50 flex h-full items-center justify-center border-r border-slate-200 bg-slate-100 px-0.5 text-[9px] font-semibold text-slate-700"
                 style={{ width: LABEL_WIDTH }}
                 title={`${voice.label} · key ${voice.key}`}
               >
@@ -1007,6 +1955,74 @@ export default function GteDrumWorkspace({
             );
           })}
 
+          {visualLoops.map((loop) => {
+            const selected = selectedLoopId === loop.id;
+            const editingSource = editingLoopSourceId === loop.id;
+            const sourceWidth = Math.max(1, (loop.sourceEnd - loop.sourceStart) * pxPerFrame);
+            const loopWidth = Math.max(sourceWidth, (loop.loopEnd - loop.sourceStart) * pxPerFrame);
+            const repetitions = Math.max(
+              1,
+              (loop.loopEnd - loop.sourceStart) / Math.max(1, loop.sourceEnd - loop.sourceStart)
+            );
+            return (
+              <div
+                key={loop.id}
+                data-drum-loop="true"
+                className={`absolute z-10 cursor-grab touch-none border-2 bg-sky-300/20 active:cursor-grabbing ${
+                  selected ? "border-sky-600" : "border-sky-400/80"
+                }`}
+                style={{
+                  left: LABEL_WIDTH + loop.sourceStart * pxPerFrame,
+                  top: RULER_HEIGHT,
+                  width: loopWidth,
+                  height: ROW_HEIGHT * DRUM_VOICES.length,
+                }}
+                title="Drag loop · Right-click for loop actions"
+                onPointerDown={(event) => startLoopInteraction(loop, "move", event)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setSelectedLoopId(loop.id);
+                  setLoopContextMenu({ x: event.clientX, y: event.clientY, loopId: loop.id });
+                }}
+              >
+                <div
+                  className="pointer-events-none absolute inset-y-0 left-0 border-r border-dashed border-sky-600/70 bg-sky-200/25"
+                  style={{ width: sourceWidth }}
+                />
+                <span className="pointer-events-none absolute left-1 top-0.5 rounded bg-white/80 px-1 text-[8px] font-bold text-sky-800 shadow-sm">
+                  Loop ×{repetitions.toFixed(repetitions % 1 === 0 ? 0 : 1)}
+                </span>
+                {editingSource && (
+                  <>
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 left-0 z-30 w-3 -translate-x-1/2 cursor-ew-resize bg-sky-500/30"
+                      onPointerDown={(event) => startLoopInteraction(loop, "resize-source-start", event)}
+                      title="Change loop source start"
+                      aria-label="Change loop source start"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 z-30 w-3 -translate-x-1/2 cursor-ew-resize bg-sky-500/30"
+                      style={{ left: sourceWidth }}
+                      onPointerDown={(event) => startLoopInteraction(loop, "resize-source-end", event)}
+                      title="Change loop source end"
+                      aria-label="Change loop source end"
+                    />
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 z-30 w-3 translate-x-1/2 cursor-ew-resize bg-sky-600/35"
+                  onPointerDown={(event) => startLoopInteraction(loop, "resize-loop", event)}
+                  title="Extend loop"
+                  aria-label="Extend loop"
+                />
+              </div>
+            );
+          })}
+
           {isActive && (
             <div
               className="pointer-events-none absolute z-10 rounded border border-sky-400 bg-sky-100/50"
@@ -1026,17 +2042,21 @@ export default function GteDrumWorkspace({
             />
           )}
 
-          {(toolPreviewNotes ?? dragPreviewNotes ?? snapshot.notes).map((note) => {
+          {materializedNotes.map((item) => {
+            const { note, virtual } = item;
             const voice = getDrumVoiceForNote(note);
             const voiceIndex = DRUM_VOICES.findIndex((candidate) => candidate.id === voice.id);
-            const selected = selectedNoteIds.has(note.id);
+            const selected = !virtual && selectedNoteIds.has(note.id);
             return (
               <button
-                key={note.id}
+                key={item.key}
                 type="button"
-                data-drum-hit="true"
+                data-drum-hit={virtual ? undefined : "true"}
+                tabIndex={virtual ? -1 : 0}
                 className={`absolute z-20 flex h-3.5 w-3.5 cursor-grab touch-none items-center justify-center rounded border text-[9px] font-bold shadow-sm active:cursor-grabbing ${
-                  selected
+                  virtual
+                    ? "pointer-events-none border-sky-400/70 bg-sky-100/80 text-sky-700 opacity-75"
+                    : selected
                     ? "border-sky-700 bg-sky-600 text-white"
                     : "border-slate-600 bg-white text-slate-800 hover:bg-sky-50"
                 }`}
@@ -1047,12 +2067,19 @@ export default function GteDrumWorkspace({
                     7,
                   top: RULER_HEIGHT + voiceIndex * ROW_HEIGHT + 3,
                 }}
-                title={`${voice.label} at frame ${note.startTime}`}
-                aria-label={`${voice.label} drum hit`}
+                title={`${virtual ? "Virtual " : ""}${voice.label} at frame ${note.startTime}`}
+                aria-label={`${virtual ? "Virtual " : ""}${voice.label} drum hit`}
                 onPointerDown={(event) => {
+                  if (virtual) return;
                   if (event.button !== 0) return;
                   event.stopPropagation();
                   event.preventDefault();
+                  setSelectedLoopId(null);
+                  setEditingLoopSourceId(null);
+                  setLoopContextMenu(null);
+                  setSelectedBarIndices([]);
+                  setBarSelectionAnchor(null);
+                  setBarContextMenu(null);
                   const currentSelection = new Set(selectedNoteIdsRef.current);
                   let nextSelection: Set<number>;
                   if (event.shiftKey) {
@@ -1085,12 +2112,18 @@ export default function GteDrumWorkspace({
                   onFocusWorkspace?.();
                 }}
                 onClick={(event) => {
+                  if (virtual) return;
                   event.stopPropagation();
                   void previewDrumVoice(voice.id).catch(() => {});
                 }}
                 onDoubleClick={(event) => {
+                  if (virtual) return;
                   event.stopPropagation();
                   void deleteHits([note.id]);
+                }}
+                onContextMenu={(event) => {
+                  if (virtual) return;
+                  handleNoteContextMenu(note, event);
                 }}
               >
                 {symbolForVoice(voice.id)}

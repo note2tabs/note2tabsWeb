@@ -10,7 +10,12 @@ const sampleData = new Map<string, Promise<ArrayBuffer | null>>();
 const preparedByContext = new WeakMap<AudioContext, Promise<PreparedDrumKit>>();
 let previewContext: AudioContext | null = null;
 
-const SAMPLE_EXTENSIONS = ["opus", "wav", "mp3"] as const;
+export const DRUM1_SAMPLE_URLS = Object.fromEntries(
+  DRUM_VOICES.map((voice) => [
+    voice.id,
+    `/sound_samples/drum1/${voice.sampleStem}.opus`,
+  ])
+) as Record<DrumVoiceId, string>;
 
 const fetchCandidate = (url: string) => {
   const cached = sampleData.get(url);
@@ -23,18 +28,13 @@ const fetchCandidate = (url: string) => {
 };
 
 const loadVoiceSample = async (ctx: AudioContext, voice: DrumVoice) => {
-  for (const extension of SAMPLE_EXTENSIONS) {
-    const encoded = await fetchCandidate(
-      `/sound_samples/drum1/${voice.sampleStem}.${extension}`
-    );
-    if (!encoded) continue;
-    try {
-      return await ctx.decodeAudioData(encoded.slice(0));
-    } catch {
-      // Try the next supported file extension.
-    }
+  const encoded = await fetchCandidate(DRUM1_SAMPLE_URLS[voice.id]);
+  if (!encoded) return null;
+  try {
+    return await ctx.decodeAudioData(encoded.slice(0));
+  } catch {
+    return null;
   }
-  return null;
 };
 
 export const prepareDrumKit = (ctx: AudioContext) => {

@@ -11,6 +11,13 @@ export type Note = {
 
 export type GteTrackType = "tab" | "chords" | "drums";
 
+export type DrumLoopRegion = {
+  id: string;
+  sourceStart: number;
+  sourceEnd: number;
+  loopEnd: number;
+};
+
 export type NoteEffect = {
   id: number;
   type: number;
@@ -83,6 +90,7 @@ export type EditorSnapshot = {
   notes: Note[];
   chords: Chord[];
   noteEffects?: NoteEffect[];
+  drumLoops?: DrumLoopRegion[];
   cutPositionsWithCoords: CutWithCoord[];
   optimalsByTime: Record<string, Record<string, TabCoord[]>>;
   tabRef?: number[][];
