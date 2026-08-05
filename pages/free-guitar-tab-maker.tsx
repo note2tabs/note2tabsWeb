@@ -7,8 +7,8 @@ export default function FreeGuitarTabMakerPage() {
       metaTitle="Free Guitar Tab Maker | Note2Tabs"
       description="Start creating guitar tabs for free with browser-based transcription and editing tools from Note2Tabs."
       canonicalPath="/free-guitar-tab-maker"
-      primaryCta={{ label: "Start free", href: "/transcribe" }}
-      secondaryCta={{ label: "Open editor", href: "/editor" }}
+      primaryCta={{ label: "Open free tab maker", href: "/editor" }}
+      secondaryCta={{ label: "Create tabs from audio", href: "/transcribe" }}
       steps={[
         {
           title: "Start with audio or blank tabs",

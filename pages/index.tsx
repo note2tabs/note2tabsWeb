@@ -57,6 +57,7 @@ import {
   analyticsHttpStatusClass,
   categorizeAnalyticsError,
 } from "../lib/analyticsErrors";
+import { formatCreditResetDate } from "../lib/formatCreditResetDate";
 
 type TabsResponse = {
   tabs: string[][];
@@ -1381,8 +1382,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   const creditsSummaryLabel = displayedCredits ? String(displayedCredits.remaining) : "0";
   const creditsResetDate = isSignedIn && displayedCredits ? new Date(displayedCredits.resetAt) : null;
-  const creditsResetLabel =
-    creditsResetDate && !Number.isNaN(creditsResetDate.getTime()) ? creditsResetDate.toLocaleDateString() : "";
+  const creditsResetLabel = formatCreditResetDate(creditsResetDate);
   const creditsDaysUntilReset =
     creditsResetDate && !Number.isNaN(creditsResetDate.getTime())
       ? Math.max(0, Math.ceil((creditsResetDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))

@@ -49,6 +49,7 @@ import {
   analyticsHttpStatusClass,
   categorizeAnalyticsError,
 } from "../lib/analyticsErrors";
+import { formatCreditResetDate } from "../lib/formatCreditResetDate";
 
 type TabsResponse = {
   tabs: string[][];
@@ -1173,7 +1174,7 @@ export default function TranscriberPage() {
     : transcriberSession || disableDbInDev
     ? "-"
     : "10";
-  const creditsResetLabel = displayedCredits ? new Date(displayedCredits.resetAt).toLocaleDateString() : "";
+  const creditsResetLabel = formatCreditResetDate(displayedCredits?.resetAt);
   const showCreditsLow = displayedCredits && displayedCredits.remaining <= 3;
   const resetLabelText = isPremiumRole(transcriberSession?.user?.role) ? "Next credits" : "Resets";
   const transcriberDescription =
@@ -1225,28 +1226,34 @@ export default function TranscriberPage() {
       />
 
       <main className="page page-home">
-        <section className="hero hero--transcriber" id="hero">
-          <div className="hero-glow hero-glow--one" aria-hidden="true" />
-          <div className="hero-glow hero-glow--two" aria-hidden="true" />
+        <section className="hero hero--landing-funnel hero--transcriber-page" id="hero">
+          <div className="hero-doodle-field" aria-hidden="true">
+            <span className="hero-doodle hero-doodle--guitar" />
+            <span className="hero-doodle hero-doodle--notes" />
+            <span className="hero-doodle hero-doodle--fretboard" />
+            <span className="hero-doodle hero-doodle--picks" />
+          </div>
           <div className="container hero-stack hero-stack--centered">
             <div className="hero-heading" data-reveal>
+              <p className="hero-eyebrow">AI tabs built for guitarists</p>
               <div className="hero-title-row">
-                <h1 className="hero-title">Transcriber</h1>
+                <h1 className="hero-title">Turn recordings into playable guitar tabs</h1>
               </div>
-              <p className="hero-subtitle">
-                Upload audio or enter a YouTube segment and get a structured guitar tab ready to play, practise, and edit.
+              <p className="hero-subtitle hero-subtitle--conversion">
+                Upload audio or paste a YouTube link, then edit, practise, and export the result.
               </p>
             </div>
             <form
-              className="prompt-shell"
+              className="prompt-shell prompt-shell--funnel transcriber-workspace"
               data-reveal
               onSubmit={(event) => {
                 event.preventDefault();
                 void handleConvert();
               }}
             >
-              {displayedCredits && (
-                <div className="prompt-top prompt-top--solo">
+              <div className="transcriber-workspace-header">
+                {displayedCredits && (
+                  <div className="prompt-top prompt-top--solo">
                   <div className="prompt-balance">
                     <span>Credits</span>
                     <strong>{creditsUsageLabel}</strong>
@@ -1254,10 +1261,10 @@ export default function TranscriberPage() {
                       {resetLabelText} {creditsResetLabel}
                     </span>
                   </div>
-                </div>
-              )}
+                  </div>
+                )}
 
-              <div className="mode-switch" role="group" aria-label="Input mode">
+                <div className="mode-switch mode-switch--hero" role="group" aria-label="Input mode">
                 <button
                   type="button"
                   className={mode === "FILE" ? "active" : ""}
@@ -1274,14 +1281,15 @@ export default function TranscriberPage() {
                 >
                   YouTube link
                 </button>
+                </div>
               </div>
 
-              <div className="prompt-field">
+              <div className="prompt-field transcriber-input-panel">
                 {(loading || authHandoffBusy) && status ? (
                   <TranscriptionStartStatus status={status} compact />
                 ) : mode === "FILE" ? (
                   <div
-                    className={`dropzone ${dragActive ? "active" : ""}`}
+                    className={`dropzone transcriber-dropzone ${dragActive ? "active" : ""}`}
                     onDrop={onDrop}
                     onDragOver={onDragOver}
                     onDragEnter={onDragEnter}
@@ -1315,6 +1323,7 @@ export default function TranscriberPage() {
                   </>
                 )}
 
+                <div className="transcriber-settings-label">Recording details</div>
                 <div className="transcriber-checkbox-row">
                   <label className="checkbox">
                     <input
@@ -1426,10 +1435,10 @@ export default function TranscriberPage() {
                 </div>
               )}
 
-              <div className="prompt-actions">
+              <div className="prompt-actions transcriber-actions">
                 <button
                   type="submit"
-                  className="button-primary"
+                  className="button-primary funnel-submit"
                   disabled={!canSubmit}
                 >
                   {submitLabel}
@@ -1471,6 +1480,12 @@ export default function TranscriberPage() {
                 )
               )}
             </form>
+
+            <div className="hero-outcome-row" data-reveal>
+              <span>MP3, WAV, M4A</span>
+              <span>YouTube clips</span>
+              <span>Editable tab</span>
+            </div>
 
           </div>
         </section>
