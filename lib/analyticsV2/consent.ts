@@ -125,5 +125,5 @@ export async function persistConsentState(input: PersistConsentInput) {
 }
 
 export function isConsentDenied(cookies: Record<string, string>) {
-  return cookies[ANALYTICS_CONSENT_COOKIE] !== "granted";
+  return cookies[ANALYTICS_CONSENT_COOKIE] === "denied";
 }

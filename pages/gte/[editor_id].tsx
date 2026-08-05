@@ -1436,7 +1436,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [canvas, isGuestMode]);
 
   useEffect(() => {
-    if (!editorId || isGuestMode) return;
+    if (!editorId) return;
 
     const createSessionId = () => {
       if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function") {
@@ -1449,17 +1449,37 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     telemetrySessionRef.current = sessionId;
     telemetryStartedAtRef.current = Date.now();
     telemetryClosedRef.current = false;
+    let activeDurationMs = 0;
+    let visibleStartedAt = document.visibilityState === "visible" ? Date.now() : null;
+    let heartbeatSequence = 0;
+
+    const currentActiveDurationSec = () =>
+      Math.max(
+        0,
+        Math.round(
+          (activeDurationMs + (visibleStartedAt === null ? 0 : Date.now() - visibleStartedAt)) /
+            1000
+        )
+      );
 
     const sendTelemetry = (
-      event: "gte_editor_visit" | "gte_editor_session_start" | "gte_editor_session_end",
-      durationSec?: number
+      event:
+        | "gte_editor_visit"
+        | "gte_editor_session_start"
+        | "gte_editor_session_end"
+        | "gte_editor_session_heartbeat",
+      properties: {
+        durationSec?: number;
+        activeDurationSec?: number;
+        heartbeatSequence?: number;
+      } = {}
     ) => {
       const payload = {
         event,
         editorId,
         sessionId,
         path: window.location.pathname,
-        ...(durationSec !== undefined ? { durationSec } : {}),
+        ...properties,
       };
       return fetch("/api/gte/telemetry", {
         method: "POST",
@@ -1472,6 +1492,29 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     void sendTelemetry("gte_editor_visit").catch(() => {});
     void sendTelemetry("gte_editor_session_start").catch(() => {});
 
+    const heartbeatId = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      heartbeatSequence += 1;
+      const startedAt = telemetryStartedAtRef.current ?? Date.now();
+      void sendTelemetry("gte_editor_session_heartbeat", {
+        durationSec: Math.max(0, Math.round((Date.now() - startedAt) / 1000)),
+        activeDurationSec: currentActiveDurationSec(),
+        heartbeatSequence,
+      }).catch(() => {});
+    }, 60_000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        if (visibleStartedAt === null) visibleStartedAt = Date.now();
+        return;
+      }
+      if (visibleStartedAt !== null) {
+        activeDurationMs += Date.now() - visibleStartedAt;
+        visibleStartedAt = null;
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     const flushSessionEnd = () => {
       if (telemetryClosedRef.current) return;
       telemetryClosedRef.current = true;
@@ -1482,6 +1525,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         editorId,
         sessionId,
         durationSec,
+        activeDurationSec: currentActiveDurationSec(),
         path: window.location.pathname,
       });
 
@@ -1504,11 +1548,29 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     window.addEventListener("beforeunload", handlePageHide);
 
     return () => {
+      window.clearInterval(heartbeatId);
       flushSessionEnd();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", handlePageHide);
       window.removeEventListener("beforeunload", handlePageHide);
     };
   }, [editorId, isGuestMode]);
+
+  useEffect(() => {
+    if (!editorId || editorMode !== "practice" || !telemetrySessionRef.current) return;
+    void fetch("/api/gte/telemetry", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "gte_practice_started",
+        editorId,
+        sessionId: telemetrySessionRef.current,
+        mode: "practice",
+        path: window.location.pathname,
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  }, [editorId, editorMode]);
 
   useEffect(() => {
     if (!canvas) return;

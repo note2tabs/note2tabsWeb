@@ -65,7 +65,8 @@ function randomId() {
 function shouldTrack() {
   if (typeof document === "undefined") return false;
   const consent = getCookie(ANALYTICS_CONSENT_COOKIE);
-  return consent === "granted";
+  // Analytics is enabled by default; an explicit Settings opt-out is authoritative.
+  return consent !== "denied";
 }
 
 function ensureIds() {

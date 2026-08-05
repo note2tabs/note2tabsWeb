@@ -96,7 +96,7 @@ describe("PostHog analytics ingestion", () => {
     expect(capture).not.toHaveBeenCalled();
   });
 
-  it("blocks events when consent has not been chosen", async () => {
+  it("captures events by default when the user has not opted out", async () => {
     const result = await ingestAnalyticsEvents({
       cookies: {},
       body: {
@@ -105,12 +105,8 @@ describe("PostHog analytics ingestion", () => {
       },
     });
 
-    expect(result).toMatchObject({
-      reason: "consent_denied",
-      written: 0,
-      blocked: 1,
-    });
-    expect(capture).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ written: 1, blocked: 0 });
+    expect(capture).toHaveBeenCalledOnce();
   });
 
   it("sanitizes URLs, private routes, PII, and raw errors server-side", async () => {
