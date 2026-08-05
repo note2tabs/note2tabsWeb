@@ -51,6 +51,7 @@ type MarqueeInteraction = {
   startY: number;
   baseSelection: Set<number>;
   moved: boolean;
+  canAddHit: boolean;
 };
 
 type NoteDragInteraction = {
@@ -133,7 +134,6 @@ const symbolForVoice = (voiceId: string) => {
   if (voiceId === "cymbal") return "✕";
   if (voiceId === "closed_hi_hat") return "×";
   if (voiceId === "open_hi_hat") return "○";
-  if (voiceId === "sticks") return "Ⅱ";
   if (voiceId === "snare") return "S";
   if (voiceId === "kick") return "K";
   return "B";
@@ -213,7 +213,6 @@ export default function GteDrumWorkspace({
     insertIndex: number;
     targetFrame: number;
     selectionActions: boolean;
-    copyMode: "bars" | "notes";
   } | null>(null);
   const [sampleBeatMenuOpen, setSampleBeatMenuOpen] = useState(false);
   const [noteClipboardAvailable, setNoteClipboardAvailable] = useState(false);
@@ -281,9 +280,36 @@ export default function GteDrumWorkspace({
     setSelectedNoteIds(next);
   }, []);
 
+  const selectTrackOnly = useCallback(() => {
+    replaceSelection(new Set());
+    setSelectedBarIndices([]);
+    setBarSelectionAnchor(null);
+    setSelectedLoopId(null);
+    setEditingLoopSourceId(null);
+    setBarContextMenu(null);
+    setLoopContextMenu(null);
+    onFocusWorkspace?.();
+  }, [onFocusWorkspace, replaceSelection]);
+
   const selectedBarIndexSet = useMemo(
     () => new Set(selectedBarIndices),
     [selectedBarIndices]
+  );
+  const selectedNoteBarIndices = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          snapshot.notes
+            .filter((note) => selectedNoteIds.has(note.id))
+            .map((note) =>
+              Math.max(
+                0,
+                Math.min(barCount - 1, Math.floor(note.startTime / FRAMES_PER_BAR))
+              )
+            )
+        )
+      ).sort((left, right) => left - right),
+    [barCount, selectedNoteIds, snapshot.notes]
   );
 
   const handleBarSelection = useCallback(
@@ -357,8 +383,11 @@ export default function GteDrumWorkspace({
         : rect.width;
       const insertIndex = pointerX < rect.width / 2 ? index : index + 1;
       setLastBarInsertIndex(insertIndex);
-      replaceSelection(new Set());
-      if (!selectedBarIndexSet.has(index)) {
+      const notesTakePriority = selectedNoteIdsRef.current.size > 0;
+      if (notesTakePriority) {
+        setSelectedBarIndices(selectedNoteBarIndices);
+        setBarSelectionAnchor(selectedNoteBarIndices[0] ?? null);
+      } else if (!selectedBarIndexSet.has(index)) {
         setSelectedBarIndices([index]);
         setBarSelectionAnchor(index);
       }
@@ -374,11 +403,10 @@ export default function GteDrumWorkspace({
           )
         ),
         selectionActions: true,
-        copyMode: "bars",
       });
       setSampleBeatMenuOpen(false);
     },
-    [replaceSelection, selectedBarIndexSet, totalFrames]
+    [selectedBarIndexSet, selectedNoteBarIndices, totalFrames]
   );
 
   const handleNoteContextMenu = useCallback(
@@ -415,7 +443,6 @@ export default function GteDrumWorkspace({
         insertIndex,
         targetFrame: note.startTime,
         selectionActions: true,
-        copyMode: "notes",
       });
       setSampleBeatMenuOpen(false);
       onFocusWorkspace?.();
@@ -440,21 +467,32 @@ export default function GteDrumWorkspace({
         barCount,
         barIndex + (frameWithinBar >= FRAMES_PER_BAR / 2 ? 1 : 0)
       );
+      const notesTakePriority = selectedNoteIdsRef.current.size > 0;
 
       setLastBarInsertIndex(insertIndex);
       setLoopContextMenu(null);
+      if (notesTakePriority) {
+        setSelectedBarIndices(selectedNoteBarIndices);
+        setBarSelectionAnchor(selectedNoteBarIndices[0] ?? null);
+      }
       setBarContextMenu({
         x: event.clientX,
         y: event.clientY,
         insertIndex,
         targetFrame: Math.round(boundedFrame),
-        selectionActions: selectedBarIndices.length > 0,
-        copyMode: "bars",
+        selectionActions: notesTakePriority || selectedBarIndices.length > 0,
       });
       setSampleBeatMenuOpen(false);
       onFocusWorkspace?.();
     },
-    [barCount, onFocusWorkspace, pxPerFrame, selectedBarIndices.length, totalFrames]
+    [
+      barCount,
+      onFocusWorkspace,
+      pxPerFrame,
+      selectedBarIndices.length,
+      selectedNoteBarIndices,
+      totalFrames,
+    ]
   );
 
   const copySelectedBars = useCallback(() => {
@@ -1309,7 +1347,7 @@ export default function GteDrumWorkspace({
       }
 
       if (interaction.kind === "marquee") {
-        if (!interaction.moved) {
+        if (!interaction.moved && interaction.canAddHit) {
           const position = pointerPosition(event.clientX, event.clientY);
           if (position) void addHit(position.voiceIndex, position.time);
         }
@@ -1477,19 +1515,19 @@ export default function GteDrumWorkspace({
       }
       if (
         (event.key === "Delete" || event.key === "Backspace") &&
+        selectedNoteIdsRef.current.size > 0
+      ) {
+        event.preventDefault();
+        void deleteHits(selectedNoteIdsRef.current);
+        return;
+      }
+      if (
+        (event.key === "Delete" || event.key === "Backspace") &&
         selectedBarIndices.length > 0 &&
         onRequestSelectedBarsDelete
       ) {
         event.preventDefault();
         deleteSelectedBars();
-        return;
-      }
-      if (
-        (event.key === "Delete" || event.key === "Backspace") &&
-        selectedNoteIdsRef.current.size > 0
-      ) {
-        event.preventDefault();
-        void deleteHits(selectedNoteIdsRef.current);
         return;
       }
       if (event.key === "Escape") {
@@ -1699,21 +1737,17 @@ export default function GteDrumWorkspace({
               <button
                 type="button"
                 onClick={() => {
-                  if (barContextMenu.copyMode === "notes") {
+                  if (selectedNoteIds.size > 0) {
                     void copySelectedNotes();
                   } else {
                     copySelectedBars();
                   }
                   setBarContextMenu(null);
                 }}
-                disabled={
-                  barContextMenu.copyMode === "notes"
-                    ? selectedNoteIds.size === 0
-                    : selectedBarIndices.length === 0
-                }
+                disabled={selectedNoteIds.size === 0 && selectedBarIndices.length === 0}
                 className="flex w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
               >
-                {barContextMenu.copyMode === "notes" ? "Copy notes" : "Copy bars"}
+                {selectedNoteIds.size > 0 ? "Copy notes" : "Copy bars"}
               </button>
             </>
           )}
@@ -1731,13 +1765,17 @@ export default function GteDrumWorkspace({
             <button
               type="button"
               onClick={() => {
-                deleteSelectedBars();
+                if (selectedNoteIds.size > 0) {
+                  void deleteHits(selectedNoteIds);
+                } else {
+                  deleteSelectedBars();
+                }
                 setBarContextMenu(null);
               }}
-              disabled={!selectedBarIndices.length}
+              disabled={selectedNoteIds.size === 0 && selectedBarIndices.length === 0}
               className="flex w-full px-3 py-2 text-left text-rose-600 hover:bg-rose-50 disabled:text-slate-400"
             >
-              Delete bars
+              {selectedNoteIds.size > 0 ? "Delete notes" : "Delete bars"}
             </button>
           )}
         </div>
@@ -1773,6 +1811,19 @@ export default function GteDrumWorkspace({
           </div>
         );
       })()}
+      <button
+        type="button"
+        data-drum-track-selector="true"
+        aria-label="Select drum track for editing"
+        title="Select drum track for editing"
+        onMouseDown={(event) => event.stopPropagation()}
+        onClick={selectTrackOnly}
+        className={`block h-3.5 w-full border-b transition-colors ${
+          isActive
+            ? "border-sky-200 bg-sky-50 hover:bg-sky-100"
+            : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+        }`}
+      />
       <div
         ref={scrollRef}
         className="hide-scrollbar overflow-x-auto overflow-y-hidden"
@@ -1816,6 +1867,7 @@ export default function GteDrumWorkspace({
             startY: point.y,
             baseSelection,
             moved: false,
+            canAddHit: isActive,
           };
         }}
       >

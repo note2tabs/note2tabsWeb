@@ -1,5 +1,5 @@
 ALTER TABLE "canvas_lanes"
-ADD COLUMN "track_type" TEXT NOT NULL DEFAULT 'tab';
+ADD COLUMN IF NOT EXISTS "track_type" TEXT NOT NULL DEFAULT 'tab';
 
-CREATE INDEX "idx_canvas_lanes_track_type"
+CREATE INDEX IF NOT EXISTS "idx_canvas_lanes_track_type"
 ON "canvas_lanes" ("user_id", "canvas_id", "track_type");

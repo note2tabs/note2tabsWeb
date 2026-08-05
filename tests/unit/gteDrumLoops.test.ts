@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   materializeDrumLoopNotes,
   normalizeDrumLoops,
+  preserveDrumLoopsAcrossCanvasUpdate,
   removeNotesCoveredByLoopRepeats,
 } from "../../lib/gteDrumLoops";
-import type { DrumLoopRegion, Note } from "../../types/gte";
+import type { CanvasSnapshot, DrumLoopRegion, Note } from "../../types/gte";
 
 const note = (id: number, startTime: number, voice = 4): Note => ({
   id,
@@ -61,5 +62,22 @@ describe("drum loop regions", () => {
         (entry) => !entry.virtual && entry.note.id === 2
       )
     ).toBe(false);
+  });
+
+  it("preserves loops when a save response omits them", () => {
+    const loop: DrumLoopRegion = {
+      id: "loop-a",
+      sourceStart: 0,
+      sourceEnd: 240,
+      loopEnd: 720,
+    };
+    const lane = (drumLoops?: DrumLoopRegion[]) =>
+      ({ id: "drums-1", totalFrames: 960, notes: [], chords: [], drumLoops }) as any;
+    const current = { id: "canvas-1", editors: [lane([loop])] } as CanvasSnapshot;
+    const saved = { id: "canvas-1", editors: [lane()] } as CanvasSnapshot;
+
+    expect(
+      preserveDrumLoopsAcrossCanvasUpdate(saved, current).editors[0].drumLoops
+    ).toEqual([loop]);
   });
 });

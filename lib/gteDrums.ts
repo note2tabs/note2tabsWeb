@@ -6,8 +6,7 @@ export type DrumVoiceId =
   | "open_hi_hat"
   | "bass"
   | "kick"
-  | "snare"
-  | "sticks";
+  | "snare";
 
 export type DrumVoice = {
   id: DrumVoiceId;
@@ -39,7 +38,6 @@ export const DRUM_VOICES: readonly DrumVoice[] = [
   { id: "bass", label: "Bass", shortLabel: "BAS", midi: 41, key: 4, sampleStem: "bass" },
   { id: "kick", label: "Kick", shortLabel: "KIK", midi: 36, key: 5, sampleStem: "kick" },
   { id: "snare", label: "Snare", shortLabel: "SNR", midi: 38, key: 6, sampleStem: "snare" },
-  { id: "sticks", label: "Sticks", shortLabel: "STK", midi: 37, key: 7, sampleStem: "sticks" },
 ] as const;
 
 export const DEFAULT_DRUM_HIT_LENGTH = 30;
@@ -60,6 +58,12 @@ export const getDrumVoiceByMidi = (midi: unknown) => {
 
 export const getDrumVoiceForNote = (note: Pick<Note, "tab" | "midiNum">) =>
   getDrumVoiceByMidi(note.midiNum) ?? getDrumVoiceByIndex(note.tab?.[0]);
+
+export const isSupportedDrumNote = (note: Pick<Note, "tab" | "midiNum">) => {
+  if (getDrumVoiceByMidi(note.midiNum)) return true;
+  const voiceIndex = Number(note.tab?.[0]);
+  return Number.isInteger(voiceIndex) && voiceIndex >= 0 && voiceIndex < DRUM_VOICES.length;
+};
 
 export const buildDrumNote = (input: {
   id: number;

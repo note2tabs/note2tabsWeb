@@ -42,13 +42,18 @@ import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
 import {
   getDrumVoiceForNote,
   isDrumTrackType,
+  isSupportedDrumNote,
   type DrumVoiceId,
 } from "../../lib/gteDrums";
 import {
   prepareDrumKit,
   schedulePreparedDrumHit,
 } from "../../lib/gteDrumPlayback";
-import { materializeDrumLoopNotes, normalizeDrumLoops } from "../../lib/gteDrumLoops";
+import {
+  materializeDrumLoopNotes,
+  normalizeDrumLoops,
+  preserveDrumLoopsAcrossCanvasUpdate,
+} from "../../lib/gteDrumLoops";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import { getChordEditorMidiNotes } from "../../lib/gteChordEditor";
 import GteFileImportButton from "../../components/GteFileImportButton";
@@ -301,7 +306,12 @@ const normalizeLane = (
     totalFrames,
     timeSignature: Math.max(1, Math.min(64, Math.round(toNumber(lane.timeSignature, 8)))),
     timeSignatureBottom: Math.max(1, Math.min(64, Math.round(toNumber(lane.timeSignatureBottom, 4)))),
-    notes: Array.isArray(lane.notes) ? lane.notes : [],
+    notes:
+      Array.isArray(lane.notes) && editorKind === "drums"
+        ? lane.notes.filter(isSupportedDrumNote)
+        : Array.isArray(lane.notes)
+          ? lane.notes
+          : [],
     chords: Array.isArray(lane.chords) ? lane.chords : [],
     noteEffects: Array.isArray(lane.noteEffects) ? lane.noteEffects : [],
     drumLoops: normalizeDrumLoops(lane.drumLoops, totalFrames),
@@ -1593,7 +1603,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         setSaveError(null);
         try {
           const res = await gteApi.applySnapshot(editorId, cloneCanvas(canvas));
-          const normalized = normalizeCanvas((res as any).canvas ?? res.snapshot ?? canvas, editorId);
+          const normalized = preserveDrumLoopsAcrossCanvasUpdate(
+            normalizeCanvas((res as any).canvas ?? res.snapshot ?? canvas, editorId),
+            canvas
+          );
           setCanvas(normalized);
           setLastCommittedAt(normalized.updatedAt || new Date().toISOString());
           setHasPendingCommit(false);
@@ -1609,7 +1622,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setSaveError(null);
       try {
         const res = await gteApi.commitEditor(editorId, { keepalive: options?.keepalive });
-        const normalized = normalizeCanvas(res.snapshot, editorId);
+        const normalized = preserveDrumLoopsAcrossCanvasUpdate(
+          normalizeCanvas(res.snapshot, editorId),
+          canvas
+        );
         setCanvas(normalized);
         setLastCommittedAt(normalized.updatedAt || new Date().toISOString());
         setHasPendingCommit(false);
@@ -1676,10 +1692,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const applyCanvasUpdate = useCallback(
     (next: CanvasSnapshot, options?: { markDirty?: boolean; recordHistory?: boolean }) => {
       setCanvas((prev) => {
+        const merged = prev ? preserveDrumLoopsAcrossCanvasUpdate(next, prev) : next;
         if (prev && options?.recordHistory !== false) {
-          recordCanvasHistory(prev, next);
+          recordCanvasHistory(prev, merged);
         }
-        return next;
+        return merged;
       });
       if (options?.markDirty !== false) {
         setHasPendingCommit(true);

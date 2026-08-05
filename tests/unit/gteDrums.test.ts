@@ -4,6 +4,7 @@ import {
   buildDrumNote,
   getDrumVoiceForNote,
   isDrumTrackType,
+  isSupportedDrumNote,
 } from "../../lib/gteDrums";
 import { DRUM1_SAMPLE_URLS } from "../../lib/gteDrumPlayback";
 
@@ -17,7 +18,7 @@ describe("drum tracks", () => {
     });
   });
 
-  it("defines the seven requested drum voices and number shortcuts", () => {
+  it("defines the six active drum voices and number shortcuts", () => {
     expect(DRUM_VOICES.map((voice) => voice.label)).toEqual([
       "Cymbal",
       "Closed hi-hat",
@@ -25,9 +26,8 @@ describe("drum tracks", () => {
       "Bass",
       "Kick",
       "Snare",
-      "Sticks",
     ]);
-    expect(DRUM_VOICES.map((voice) => voice.key)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(DRUM_VOICES.map((voice) => voice.key)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it("encodes a drum voice in lane_notes-compatible note fields", () => {
@@ -51,5 +51,9 @@ describe("drum tracks", () => {
     expect(isDrumTrackType("drums")).toBe(true);
     expect(isDrumTrackType("percussion")).toBe(true);
     expect(isDrumTrackType("tab")).toBe(false);
+  });
+
+  it("rejects legacy sticks hits while sticks are disabled", () => {
+    expect(isSupportedDrumNote({ midiNum: 37, tab: [6, 0] })).toBe(false);
   });
 });

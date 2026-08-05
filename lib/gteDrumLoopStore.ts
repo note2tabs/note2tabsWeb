@@ -13,6 +13,14 @@ type LoopSelection = { laneId: string; loops: DrumLoopRegion[] };
 
 let tableAvailability: "unknown" | "available" | "missing" = "unknown";
 let missingTableLogged = false;
+let retryMissingTableAfterMs = 0;
+
+const canUseTable = () => {
+  if (tableAvailability !== "missing") return true;
+  if (Date.now() < retryMissingTableAfterMs) return false;
+  tableAvailability = "unknown";
+  return true;
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === "object");
@@ -35,6 +43,7 @@ const handleError = (error: unknown) => {
   const code = isRecord(error) && "code" in error ? String(error.code) : "";
   if (code === "42P01" || /GteDrumLoopState|does not exist/i.test(message)) {
     tableAvailability = "missing";
+    retryMissingTableAfterMs = Date.now() + 5000;
     if (!missingTableLogged) {
       missingTableLogged = true;
       console.warn("[gteDrumLoopStore] Drum loop table is missing. Run the Prisma migration.");
@@ -67,7 +76,7 @@ const collectSelections = (snapshot: unknown, ref: EditorRefParts): LoopSelectio
 };
 
 const loadRows = async (userId: string, canvasId: string) => {
-  if (!userId || !canvasId || tableAvailability === "missing") return [];
+  if (!userId || !canvasId || !canUseTable()) return [];
   try {
     const rows = await prisma.$queryRaw<StoredLoopRow[]>(Prisma.sql`
       SELECT "laneId", "loops"
@@ -101,7 +110,7 @@ export const hydrateDrumLoopsFromStore = async <T>(
   editorRef: string | null,
   payload: T
 ): Promise<T> => {
-  if (!editorRef || !isRecord(payload) || tableAvailability === "missing") return payload;
+  if (!editorRef || !isRecord(payload) || !canUseTable()) return payload;
   const ref = parseEditorRef(editorRef);
   const rows = await loadRows(userId, ref.canvasId);
   if (!rows.length) return payload;
@@ -116,7 +125,7 @@ export const persistDrumLoopsFromSnapshot = async (
   editorRef: string | null,
   snapshot: unknown
 ) => {
-  if (!editorRef || tableAvailability === "missing") return;
+  if (!editorRef || !canUseTable()) return;
   const ref = parseEditorRef(editorRef);
   const selections = collectSelections(snapshot, ref);
   if (!selections.length && !isCanvas(snapshot)) return;

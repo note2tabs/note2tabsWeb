@@ -2,6 +2,7 @@ import type { Note } from "../types/gte";
 import { buildDrumNote, DRUM_VOICES, type DrumVoiceId } from "./gteDrums";
 
 export type DrumBeatPatternId =
+  | "slow-ballad"
   | "classic-rock"
   | "four-on-the-floor"
   | "half-time"
@@ -27,13 +28,25 @@ const sixteenths = Array.from({ length: 16 }, (_, index) => index / 4);
 
 export const DRUM_BEAT_PATTERNS: readonly DrumBeatPattern[] = [
   {
-    id: "classic-rock",
-    label: "Classic Rock",
-    description: "Straight eighth-note hats with a driving backbeat",
+    id: "slow-ballad",
+    label: "Slow Ballad",
+    description: "Very sparse half-note pulse for high-tempo projects",
     cycleBeats: 4,
     hits: [
-      ...eighths.map((beat) => ({ voice: "closed_hi_hat" as const, beat })),
-      ...[0, 2, 2.5].map((beat) => ({ voice: "kick" as const, beat })),
+      ...[0, 2].map((beat) => ({ voice: "closed_hi_hat" as const, beat })),
+      { voice: "kick", beat: 0 },
+      { voice: "snare", beat: 2 },
+      { voice: "cymbal", beat: 0 },
+    ],
+  },
+  {
+    id: "classic-rock",
+    label: "Slow Rock",
+    description: "Simple quarter-note hats with a restrained backbeat",
+    cycleBeats: 4,
+    hits: [
+      ...[0, 1, 2, 3].map((beat) => ({ voice: "closed_hi_hat" as const, beat })),
+      ...[0, 2].map((beat) => ({ voice: "kick" as const, beat })),
       ...[1, 3].map((beat) => ({ voice: "snare" as const, beat })),
       { voice: "cymbal", beat: 0 },
     ],
@@ -41,29 +54,28 @@ export const DRUM_BEAT_PATTERNS: readonly DrumBeatPattern[] = [
   {
     id: "four-on-the-floor",
     label: "Four on the Floor",
-    description: "Steady dance kick with straight eighth-note hats",
+    description: "Steady dance kick with uncluttered quarter-note hats",
     cycleBeats: 4,
     hits: [
       ...[0, 1, 2, 3].map((beat) => ({ voice: "kick" as const, beat })),
       ...[1, 3].map((beat) => ({ voice: "snare" as const, beat })),
-      ...eighths.map((beat) => ({ voice: "closed_hi_hat" as const, beat })),
+      ...[0, 1, 2, 3].map((beat) => ({ voice: "closed_hi_hat" as const, beat })),
     ],
   },
   {
     id: "half-time",
     label: "Half-Time",
-    description: "Heavy pocket with the snare on beat three",
+    description: "Sparse heavy pocket with one snare per bar",
     cycleBeats: 4,
     hits: [
-      ...eighths.map((beat) => ({ voice: "closed_hi_hat" as const, beat })),
-      ...[0, 1.5, 3.25].map((beat) => ({ voice: "kick" as const, beat })),
+      ...[0, 1, 2, 3].map((beat) => ({ voice: "closed_hi_hat" as const, beat })),
+      ...[0, 3].map((beat) => ({ voice: "kick" as const, beat })),
       { voice: "snare", beat: 2 },
-      { voice: "open_hi_hat", beat: 3.5 },
     ],
   },
   {
     id: "funk",
-    label: "Funk",
+    label: "Funk (Busy)",
     description: "Syncopated kick beneath busy sixteenth-note hats",
     cycleBeats: 4,
     hits: [
@@ -90,7 +102,7 @@ export const DRUM_BEAT_PATTERNS: readonly DrumBeatPattern[] = [
   },
   {
     id: "punk",
-    label: "Punk",
+    label: "Punk (Fast)",
     description: "Fast alternating kicks with a strong backbeat",
     cycleBeats: 4,
     hits: [
@@ -122,28 +134,29 @@ export const applyDrumBeatPattern = (input: {
     (note) => !selectedBars.has(Math.floor(note.startTime / framesPerBar))
   );
   let nextId = input.notes.reduce((maximum, note) => Math.max(maximum, note.id), 0) + 1;
-  const hitLength = Math.max(1, Math.min(30, Math.round(framesPerBar / beatsPerBar / 4)));
+  const patternBeats = Math.min(beatsPerBar, pattern.cycleBeats);
+  const hitLength = Math.max(
+    1,
+    Math.min(30, Math.round(framesPerBar / patternBeats / 4))
+  );
   const generatedNotes: Note[] = [];
 
   [...selectedBars]
     .sort((left, right) => left - right)
     .forEach((barIndex) => {
       const barStart = barIndex * framesPerBar;
-      for (let cycleStart = 0; cycleStart < beatsPerBar; cycleStart += pattern.cycleBeats) {
-        pattern.hits.forEach((hit) => {
-          const beat = cycleStart + hit.beat;
-          if (beat >= beatsPerBar) return;
-          const voiceIndex = DRUM_VOICES.findIndex((voice) => voice.id === hit.voice);
-          generatedNotes.push(
-            buildDrumNote({
-              id: nextId++,
-              startTime: barStart + Math.round((beat / beatsPerBar) * framesPerBar),
-              voiceIndex,
-              length: hitLength,
-            })
-          );
-        });
-      }
+      pattern.hits.forEach((hit) => {
+        if (hit.beat >= patternBeats) return;
+        const voiceIndex = DRUM_VOICES.findIndex((voice) => voice.id === hit.voice);
+        generatedNotes.push(
+          buildDrumNote({
+            id: nextId++,
+            startTime: barStart + Math.round((hit.beat / patternBeats) * framesPerBar),
+            voiceIndex,
+            length: hitLength,
+          })
+        );
+      });
     });
 
   return [...retainedNotes, ...generatedNotes].sort(

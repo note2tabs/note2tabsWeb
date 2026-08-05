@@ -1,4 +1,4 @@
-import type { DrumLoopRegion, Note } from "../types/gte";
+import type { CanvasSnapshot, DrumLoopRegion, Note } from "../types/gte";
 
 export type MaterializedDrumNote = {
   note: Note;
@@ -46,6 +46,25 @@ export const removeNotesCoveredByLoopRepeats = (
   notes: Note[],
   loops: DrumLoopRegion[]
 ) => notes.filter((note) => !loops.some((loop) => isFrameInLoopRepeat(note.startTime, loop)));
+
+export const preserveDrumLoopsAcrossCanvasUpdate = (
+  next: CanvasSnapshot,
+  current: CanvasSnapshot
+): CanvasSnapshot => {
+  const currentById = new Map(current.editors.map((lane) => [lane.id, lane]));
+  return {
+    ...next,
+    editors: next.editors.map((lane, index) => {
+      const currentLane = currentById.get(lane.id) ?? current.editors[index];
+      const nextLoops = normalizeDrumLoops(lane.drumLoops, lane.totalFrames);
+      const currentLoops = normalizeDrumLoops(currentLane?.drumLoops, lane.totalFrames);
+      return {
+        ...lane,
+        drumLoops: nextLoops.length ? nextLoops : currentLoops,
+      };
+    }),
+  };
+};
 
 export const materializeDrumLoopNotes = (
   notes: Note[],

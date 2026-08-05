@@ -5,13 +5,27 @@ import { buildDrumNote, getDrumVoiceForNote } from "../../lib/gteDrums";
 describe("drum beat patterns", () => {
   it("provides a useful selection of named beats", () => {
     expect(DRUM_BEAT_PATTERNS.map((pattern) => pattern.label)).toEqual([
-      "Classic Rock",
+      "Slow Ballad",
+      "Slow Rock",
       "Four on the Floor",
       "Half-Time",
-      "Funk",
+      "Funk (Busy)",
       "Disco",
-      "Punk",
+      "Punk (Fast)",
     ]);
+  });
+
+  it("keeps the slow ballad sparse enough for high-tempo songs", () => {
+    const notes = applyDrumBeatPattern({
+      notes: [],
+      barIndices: [0],
+      patternId: "slow-ballad",
+      beatsPerBar: 4,
+      framesPerBar: 480,
+    });
+
+    expect(notes).toHaveLength(5);
+    expect([...new Set(notes.map((note) => note.startTime))]).toEqual([0, 240]);
   });
 
   it("clears and replaces every selected bar without changing other bars", () => {
@@ -31,7 +45,7 @@ describe("drum beat patterns", () => {
     expect(notes.some((note) => note.startTime >= 480 && note.startTime < 960)).toBe(true);
   });
 
-  it("repeats four-beat grooves across longer meters", () => {
+  it("spreads one four-beat groove across the full default eight-count bar", () => {
     const notes = applyDrumBeatPattern({
       notes: [],
       barIndices: [0],
@@ -41,7 +55,7 @@ describe("drum beat patterns", () => {
     });
     const kicks = notes.filter((note) => getDrumVoiceForNote(note).id === "kick");
 
-    expect(kicks).toHaveLength(8);
-    expect(kicks.map((note) => note.startTime)).toEqual([0, 60, 120, 180, 240, 300, 360, 420]);
+    expect(kicks).toHaveLength(4);
+    expect(kicks.map((note) => note.startTime)).toEqual([0, 120, 240, 360]);
   });
 });
