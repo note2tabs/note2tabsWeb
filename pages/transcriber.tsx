@@ -8,6 +8,7 @@ import {
   ANALYTICS_EVENTS,
   sendEvent,
   sendTranscriptionStartedEvents,
+  trackCtaClick,
 } from "../lib/analytics";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
@@ -183,8 +184,9 @@ export default function TranscriberPage() {
   const [fileEndTime, setFileEndTime] = useState<number | null>(DEFAULT_FILE_SNIPPET_SEC);
   const [fileStartInput, setFileStartInput] = useState("0:00");
   const [fileEndInput, setFileEndInput] = useState(formatTimestamp(DEFAULT_FILE_SNIPPET_SEC));
-  const [separateGuitar, setSeparateGuitar] = useState(true);
-  const [multipleGuitars, setMultipleGuitars] = useState(false);
+  const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
+  const [separateGuitar, setSeparateGuitar] = useState<boolean | null>(null);
+  const [multipleGuitars, setMultipleGuitars] = useState<boolean | null>(null);
   const [transcriptionModel, setTranscriptionModel] =
     useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
   const [loading, setLoading] = useState(false);
@@ -703,7 +705,7 @@ export default function TranscriberPage() {
     return groups.length > 0 ? groups : null;
   };
 
-  const handleConvert = async () => {
+  const handleConvert = async (startTranscription = false) => {
     if (convertInFlightRef.current || authHandoffInFlightRef.current || loading) return;
     if (sessionStatus === "loading") {
       setStatus("Checking your account…");
@@ -819,7 +821,16 @@ export default function TranscriberPage() {
       }
     }
 
+    if (!startTranscription) {
+      setError(null);
+      setSeparateGuitar(null);
+      setMultipleGuitars(null);
+      setShowInstrumentPrompt(true);
+      return;
+    }
+
     convertInFlightRef.current = true;
+    setShowInstrumentPrompt(false);
     setError(null);
     setImportError(null);
     setTabsResult(null);
@@ -1017,6 +1028,23 @@ export default function TranscriberPage() {
       setLoading(false);
       convertInFlightRef.current = false;
     }
+  };
+
+  const handleHeroPrimaryAction = () => {
+    if (mode === "FILE" && !selectedFile) {
+      trackCtaClick("choose_audio_file", { surface: "transcriber_funnel" });
+      fileInputRef.current?.click();
+      return;
+    }
+    trackCtaClick("convert_to_tabs", { surface: "transcriber_funnel", mode });
+    void handleConvert();
+  };
+
+  const instrumentPromptComplete = separateGuitar !== null && multipleGuitars !== null;
+
+  const handleInstrumentPromptStart = () => {
+    if (!instrumentPromptComplete) return;
+    void handleConvert(true);
   };
 
   const handlePreservedUploadUpgrade = async () => {
@@ -1226,7 +1254,7 @@ export default function TranscriberPage() {
       />
 
       <main className="page page-home">
-        <section className="hero hero--landing-funnel hero--transcriber-page" id="hero">
+        <section className="hero hero--landing-funnel" id="hero">
           <div className="hero-doodle-field" aria-hidden="true">
             <span className="hero-doodle hero-doodle--guitar" />
             <span className="hero-doodle hero-doodle--notes" />
@@ -1237,213 +1265,216 @@ export default function TranscriberPage() {
             <div className="hero-heading" data-reveal>
               <p className="hero-eyebrow">AI tabs built for guitarists</p>
               <div className="hero-title-row">
-                <h1 className="hero-title">Turn recordings into playable guitar tabs</h1>
+                <h1 className="hero-title">Convert Any Song to Guitar Tabs</h1>
               </div>
               <p className="hero-subtitle hero-subtitle--conversion">
-                Upload audio or paste a YouTube link, then edit, practise, and export the result.
+                Turn recordings into guitar tab you can edit, practice, and export.
               </p>
             </div>
             <form
-              className="prompt-shell prompt-shell--funnel transcriber-workspace"
+              className="prompt-shell prompt-shell--funnel"
               data-reveal
               onSubmit={(event) => {
                 event.preventDefault();
-                void handleConvert();
+                handleHeroPrimaryAction();
               }}
             >
-              <div className="transcriber-workspace-header">
-                {displayedCredits && (
-                  <div className="prompt-top prompt-top--solo">
-                  <div className="prompt-balance">
-                    <span>Credits</span>
-                    <strong>{creditsUsageLabel}</strong>
-                    <span className="prompt-reset">
-                      {resetLabelText} {creditsResetLabel}
-                    </span>
-                  </div>
-                  </div>
-                )}
-
-                <div className="mode-switch mode-switch--hero" role="group" aria-label="Input mode">
-                <button
-                  type="button"
-                  className={mode === "FILE" ? "active" : ""}
-                  aria-pressed={mode === "FILE"}
-                  onClick={() => setMode("FILE")}
-                >
-                  Audio file
-                </button>
-                <button
-                  type="button"
-                  className={mode === "YOUTUBE" ? "active" : ""}
-                  aria-pressed={mode === "YOUTUBE"}
-                  onClick={() => setMode("YOUTUBE")}
-                >
-                  YouTube link
-                </button>
+              <div className="prompt-meta-row">
+                <div className="prompt-meta-left">
+                  {!showInstrumentPrompt && (
+                    <div className="model-choice model-choice--meta">
+                      <TranscriptionModelDropdown
+                        id="transcriber-transcription-model"
+                        value={transcriptionModel}
+                        onChange={setTranscriptionModel}
+                        disabled={loading || authHandoffBusy}
+                      />
+                    </div>
+                  )}
                 </div>
+                {isSignedIn && displayedCredits && (
+                  <p className="hero-credits-inline">
+                    Credits: <strong>{creditsUsageLabel}</strong>
+                    <span className="hero-credits-next">• {resetLabelText} {creditsResetLabel}</span>
+                  </p>
+                )}
               </div>
 
-              <div className="prompt-field transcriber-input-panel">
-                {(loading || authHandoffBusy) && status ? (
-                  <TranscriptionStartStatus status={status} compact />
-                ) : mode === "FILE" ? (
-                  <div
-                    className={`dropzone transcriber-dropzone ${dragActive ? "active" : ""}`}
-                    onDrop={onDrop}
-                    onDragOver={onDragOver}
-                    onDragEnter={onDragEnter}
-                    onDragLeave={onDragLeave}
-                  >
-                    <div className="dropzone-text">
-                      <strong>{selectedFile ? "Audio attached" : "Drag audio here"}</strong>
-                      <span>{selectedFile ? selectedFile.name : "Click to browse or drop a file."}</span>
-                    </div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept={AUDIO_ACCEPT}
-                      className="native-file-input"
-                      aria-label="Choose audio file"
-                      disabled={loading || authHandoffBusy}
-                      onChange={onFileChange}
-                    />
-                  </div>
-                ) : (
-                  <>
-                    <label className="url-field">
-                      <span>YouTube URL</span>
-                      <input
-                        type="url"
-                        value={youtubeUrl}
-                        onChange={(event) => setYoutubeUrl(event.target.value)}
-                        placeholder="https://www.youtube.com/..."
-                      />
-                    </label>
-                  </>
-                )}
-
-                <div className="transcriber-settings-label">Recording details</div>
-                <div className="transcriber-checkbox-row">
-                  <label className="checkbox">
-                    <input
-                      type="checkbox"
-                      checked={separateGuitar}
-                      onChange={(event) => setSeparateGuitar(event.target.checked)}
-                      disabled={loading || authHandoffBusy}
-                    />
-                    <span>Does your audio include other instruments?</span>
-                  </label>
-                </div>
-                <div className="transcriber-checkbox-row">
-                  <label className="checkbox">
-                    <input
-                      type="checkbox"
-                      checked={multipleGuitars}
-                      onChange={(event) => setMultipleGuitars(event.target.checked)}
-                      disabled={loading || authHandoffBusy}
-                    />
-                    <span>Does your audio include more than one guitar?</span>
-                  </label>
-                </div>
-                <div className="model-choice">
-                  <TranscriptionModelDropdown
-                    id="transcriber-transcription-model"
-                    value={transcriptionModel}
-                    onChange={setTranscriptionModel}
-                    disabled={loading || authHandoffBusy}
-                  />
-                </div>
+              {!showInstrumentPrompt && (
                 <TranscriptionModelValueNote
                   model={transcriptionModel}
                   isPremium={isPremiumUser}
-                  onSelectHeavy={() => setTranscriptionModel("heavy")}
-                  surface="transcriber"
+                  onSelectHeavy={() => {
+                    setTranscriptionModel("heavy");
+                    trackCtaClick("try_heavy_model", { surface: "transcriber_funnel" });
+                  }}
+                  surface="transcriber_funnel"
                 />
-              </div>
-
-              {mode === "YOUTUBE" && (
-                <div className="advanced-grid">
-                  <label>
-                    Start time
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9:]*"
-                      autoComplete="off"
-                      placeholder="0:00"
-                      value={ytStartInput}
-                      onChange={(event) => handleYtStartInputChange(event.target.value)}
-                      onKeyDown={preventTimestampColonDelete}
-                      onBlur={handleYtStartInputBlur}
-                      required
-                    />
-                  </label>
-                  <label>
-                    End time
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9:]*"
-                      autoComplete="off"
-                      placeholder="0:30"
-                      value={ytEndInput}
-                      onChange={(event) => handleYtEndInputChange(event.target.value)}
-                      onKeyDown={preventTimestampColonDelete}
-                      onBlur={handleYtEndInputBlur}
-                      required
-                    />
-                  </label>
-                  <p className="advanced-note">Max length is 30 s.</p>
-                </div>
-              )}
-              {mode === "FILE" && selectedFile && (
-                <div className="advanced-grid">
-                  <label>
-                    Start time
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9:]*"
-                      autoComplete="off"
-                      placeholder="0:00"
-                      value={fileStartInput}
-                      onChange={(event) => handleFileStartInputChange(event.target.value)}
-                      onKeyDown={preventTimestampColonDelete}
-                      onBlur={handleFileStartInputBlur}
-                      required
-                    />
-                  </label>
-                  <label>
-                    End time
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9:]*"
-                      autoComplete="off"
-                      placeholder="1:00"
-                      value={fileEndInput}
-                      onChange={(event) => handleFileEndInputChange(event.target.value)}
-                      onKeyDown={preventTimestampColonDelete}
-                      onBlur={handleFileEndInputBlur}
-                      required
-                    />
-                  </label>
-                  <p className="advanced-note">
-                    {isPremiumUser ? "Pick any section within the file." : "Free file uploads are limited to 60 s."}
-                  </p>
-                </div>
               )}
 
-              <div className="prompt-actions transcriber-actions">
-                <button
-                  type="submit"
-                  className="button-primary funnel-submit"
-                  disabled={!canSubmit}
-                >
-                  {submitLabel}
-                </button>
-              </div>
+              {showInstrumentPrompt ? (
+                <div className="instrument-prompt">
+                  <div className="instrument-choice-group">
+                    <p className="instrument-question">Does your audio include other instruments?</p>
+                    <div className="button-row instrument-choice-row">
+                      <button
+                        type="button"
+                        className={`button-secondary instrument-choice-button ${separateGuitar === true ? "active" : ""}`}
+                        onClick={() => setSeparateGuitar(true)}
+                        aria-pressed={separateGuitar === true}
+                        disabled={loading || authHandoffBusy}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        className={`button-secondary instrument-choice-button ${separateGuitar === false ? "active" : ""}`}
+                        onClick={() => setSeparateGuitar(false)}
+                        aria-pressed={separateGuitar === false}
+                        disabled={loading || authHandoffBusy}
+                      >
+                        No
+                      </button>
+                    </div>
+                  </div>
+                  <div className="instrument-choice-group">
+                    <p className="instrument-question">Does your audio include more than one guitar?</p>
+                    <div className="button-row instrument-choice-row">
+                      <button
+                        type="button"
+                        className={`button-secondary instrument-choice-button ${multipleGuitars === true ? "active" : ""}`}
+                        onClick={() => setMultipleGuitars(true)}
+                        aria-pressed={multipleGuitars === true}
+                        disabled={loading || authHandoffBusy}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        className={`button-secondary instrument-choice-button ${multipleGuitars === false ? "active" : ""}`}
+                        onClick={() => setMultipleGuitars(false)}
+                        aria-pressed={multipleGuitars === false}
+                        disabled={loading || authHandoffBusy}
+                      >
+                        No
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="button-primary instrument-start-button"
+                    onClick={handleInstrumentPromptStart}
+                    disabled={loading || !instrumentPromptComplete}
+                  >
+                    Start transcription
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="funnel-panel">
+                    <div className="funnel-row">
+                      <div
+                        className={`funnel-input ${mode === "FILE" ? "is-file" : "is-url"} ${dragActive ? "active" : ""}`}
+                        onDrop={mode === "FILE" ? onDrop : undefined}
+                        onDragOver={mode === "FILE" ? onDragOver : undefined}
+                        onDragEnter={mode === "FILE" ? onDragEnter : undefined}
+                        onDragLeave={mode === "FILE" ? onDragLeave : undefined}
+                      >
+                        {(loading || authHandoffBusy) && status ? (
+                          <TranscriptionStartStatus status={status} compact />
+                        ) : (
+                          <>
+                            <span className={`funnel-icon ${mode === "YOUTUBE" ? "funnel-icon--youtube" : ""}`} aria-hidden="true">
+                              {mode === "YOUTUBE" ? (
+                                <svg className="youtube-mark" viewBox="0 0 28 20" fill="none">
+                                  <path d="M27.4 3.1c-.32-1.2-1.24-2.15-2.4-2.48C22.9 0 14 0 14 0S5.1 0 3 .62C1.84.95.92 1.9.6 3.1.03 5.28.03 10 .03 10s0 4.72.57 6.9c.32 1.2 1.24 2.15 2.4 2.48C5.1 20 14 20s8.9 0 11-.62c1.16-.33 2.08-1.28 2.4-2.48.57-2.18.57-6.9.57-6.9s0-4.72-.57-6.9Z" fill="currentColor" />
+                                  <path d="M11.2 14.25V5.75L18.45 10l-7.25 4.25Z" fill="#fff" />
+                                </svg>
+                              ) : (
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M8 5.5v13l10-6.5-10-6.5z" />
+                                </svg>
+                              )}
+                            </span>
+                            {mode === "FILE" ? (
+                              <span className="funnel-file-label">
+                                {selectedFile ? selectedFile.name : "Upload audio file or drop it here"}
+                              </span>
+                            ) : (
+                              <>
+                                <label className="sr-only" htmlFor="transcriber-youtube-url">YouTube link</label>
+                                <input
+                                  id="transcriber-youtube-url"
+                                  name="youtubeUrl"
+                                  type="url"
+                                  value={youtubeUrl}
+                                  onChange={(event) => setYoutubeUrl(event.target.value)}
+                                  placeholder="https://www.youtube.com/..."
+                                />
+                              </>
+                            )}
+                          </>
+                        )}
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept={AUDIO_ACCEPT}
+                          className="native-file-input"
+                          aria-label="Choose audio file"
+                          disabled={mode !== "FILE" || loading || authHandoffBusy}
+                          onChange={onFileChange}
+                        />
+                      </div>
+                    </div>
+                    <div className="funnel-toolbar">
+                      <div className="mode-switch mode-switch--hero" role="group" aria-label="Input mode">
+                        <button
+                          type="button"
+                          className={mode === "FILE" ? "active" : ""}
+                          aria-pressed={mode === "FILE"}
+                          onClick={() => { setMode("FILE"); setShowInstrumentPrompt(false); }}
+                        >
+                          Audio file
+                        </button>
+                        <button
+                          type="button"
+                          className={mode === "YOUTUBE" ? "active" : ""}
+                          aria-pressed={mode === "YOUTUBE"}
+                          onClick={() => { setMode("YOUTUBE"); setShowInstrumentPrompt(false); }}
+                        >
+                          YouTube link
+                        </button>
+                      </div>
+                      <button
+                        type="submit"
+                        className="button-primary funnel-submit"
+                        disabled={loading || authHandoffBusy || (mode === "YOUTUBE" && !canSubmit)}
+                      >
+                        {submitLabel}
+                      </button>
+                    </div>
+                  </div>
+
+                  {mode === "YOUTUBE" && (
+                    <div className="prompt-field prompt-field--compact">
+                      <div className="advanced-grid">
+                        <label>Start time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:00" value={ytStartInput} onChange={(event) => handleYtStartInputChange(event.target.value)} onKeyDown={preventTimestampColonDelete} onBlur={handleYtStartInputBlur} required /></label>
+                        <label>End time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:30" value={ytEndInput} onChange={(event) => handleYtEndInputChange(event.target.value)} onKeyDown={preventTimestampColonDelete} onBlur={handleYtEndInputBlur} required /></label>
+                        <p className="advanced-note">Max length is 30 s.</p>
+                      </div>
+                    </div>
+                  )}
+                  {mode === "FILE" && selectedFile && (
+                    <div className="prompt-field prompt-field--compact">
+                      <div className="advanced-grid">
+                        <label>Start time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:00" value={fileStartInput} onChange={(event) => handleFileStartInputChange(event.target.value)} onKeyDown={preventTimestampColonDelete} onBlur={handleFileStartInputBlur} required /></label>
+                        <label>End time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="1:00" value={fileEndInput} onChange={(event) => handleFileEndInputChange(event.target.value)} onKeyDown={preventTimestampColonDelete} onBlur={handleFileEndInputBlur} required /></label>
+                        <p className="advanced-note">{isPremiumUser ? "Pick any section within the file." : "Free file uploads are limited to 60 s."}</p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
 
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
               {error && <div className="error" role="alert">{error}</div>}
