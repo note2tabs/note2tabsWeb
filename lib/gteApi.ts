@@ -1,9 +1,34 @@
-import type { CanvasSnapshot, EditorListItem, EditorSnapshot, TabCoord } from "../types/gte";
+import type { CanvasSnapshot, ChordFingering, EditorListItem, EditorSnapshot, TabCoord } from "../types/gte";
 import { GTE_GUEST_EDITOR_ID } from "./gteGuestDraft";
 
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
 const LANE_DELIMITER = "__ed__";
+const EDITOR_PREFETCH_TTL_MS = 15_000;
+type EditorBootstrapResult = {
+  ok: boolean;
+  status: number;
+  text: string;
+};
+type EditorBootstrap = {
+  editorId: string;
+  promise: Promise<EditorBootstrapResult>;
+};
+
+declare global {
+  interface Window {
+    __note2tabsEditorBootstrap?: EditorBootstrap;
+  }
+}
+
+const editorPrefetches = new Map<
+  string,
+  {
+    expiresAt: number;
+    promise: Promise<EditorOrCanvasSnapshot>;
+  }
+>();
+export const MAX_EDITOR_NAME_LENGTH = 80;
 export const TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES = 96_000;
 export const TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS = 24;
 const TRANSCRIBER_IMPORT_MAX_SPLIT_DEPTH = 6;
@@ -40,6 +65,12 @@ type ImportTranscriberToSavedPayload = {
   editorId?: string;
   name?: string;
   quantize?: boolean;
+};
+
+export const normalizeEditorName = (name?: string) => {
+  const normalized = name?.normalize("NFKC").replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  if (!normalized) return undefined;
+  return normalized.slice(0, MAX_EDITOR_NAME_LENGTH).trimEnd();
 };
 
 export const buildLaneEditorRef = (canvasId: string, laneId: string) =>
@@ -82,6 +113,55 @@ async function requestForEditor<T>(
   return request<T>(path, options, getBaseForEditor(editorId));
 }
 
+function fetchEditor(editorId: string) {
+  return requestForEditor<EditorOrCanvasSnapshot>(
+    editorId,
+    `/editors/${encodeURIComponent(editorId)}`
+  );
+}
+
+function takeBootstrappedEditor(editorId: string) {
+  if (typeof window === "undefined") return null;
+  const bootstrap = window.__note2tabsEditorBootstrap;
+  if (!bootstrap || bootstrap.editorId !== editorId) return null;
+  delete window.__note2tabsEditorBootstrap;
+  return bootstrap.promise.then(({ ok, text }) => {
+    if (!ok) throw new Error(text || "Request failed");
+    if (!text) return {} as EditorOrCanvasSnapshot;
+    try {
+      return JSON.parse(text) as EditorOrCanvasSnapshot;
+    } catch {
+      return text as unknown as EditorOrCanvasSnapshot;
+    }
+  });
+}
+
+function prefetchEditor(editorId: string) {
+  const now = Date.now();
+  const cached = editorPrefetches.get(editorId);
+  if (cached && cached.expiresAt > now) return cached.promise;
+  if (cached) editorPrefetches.delete(editorId);
+
+  const promise = fetchEditor(editorId).catch((error) => {
+    editorPrefetches.delete(editorId);
+    throw error;
+  });
+  editorPrefetches.set(editorId, {
+    expiresAt: now + EDITOR_PREFETCH_TTL_MS,
+    promise,
+  });
+  return promise;
+}
+
+function getPrefetchedEditor(editorId: string) {
+  const cached = editorPrefetches.get(editorId);
+  editorPrefetches.delete(editorId);
+  if (!cached || cached.expiresAt <= Date.now()) {
+    return takeBootstrappedEditor(editorId) ?? fetchEditor(editorId);
+  }
+  return cached.promise;
+}
+
 export function chunkTranscriberSegmentGroups(
   groups: TranscriberSegmentGroup[],
   maxBytes: number = TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES,
@@ -118,7 +198,7 @@ const postTranscriberImportSaved = (payload: ImportTranscriberToSavedPayload) =>
   request<TranscriberImportResponse>("/transcriber/import", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, name: normalizeEditorName(payload.name) }),
   });
 
 type TranscriberChunkImportResult = {
@@ -175,7 +255,7 @@ const createSavedEditor = (name?: string) =>
   request<{ editorId: string; snapshot: CanvasSnapshot }>("/editors", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name: normalizeEditorName(name) }),
   });
 
 async function importTranscriberToSaved(
@@ -227,7 +307,7 @@ export const gteApi = {
     request<{ editorId: string; snapshot: CanvasSnapshot }>("/editors", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ editorId, name }),
+      body: JSON.stringify({ editorId, name: normalizeEditorName(name) }),
     }),
   importTranscriberToSaved: (payload: ImportTranscriberToSavedPayload) =>
     importTranscriberToSaved(payload),
@@ -246,7 +326,8 @@ export const gteApi = {
       },
       GUEST_BASE
     ),
-  getEditor: (editorId: string) => requestForEditor<EditorOrCanvasSnapshot>(editorId, `/editors/${editorId}`),
+  prefetchEditor,
+  getEditor: getPrefetchedEditor,
   deleteEditor: (editorId: string) =>
     requestForEditor<{ ok: true }>(editorId, `/editors/${editorId}`, {
       method: "DELETE",
@@ -278,14 +359,23 @@ export const gteApi = {
       body: JSON.stringify({ name }),
       }
     ),
-  addCanvasEditor: (editorId: string, name?: string) =>
+  addCanvasEditor: (
+    editorId: string,
+    name?: string,
+    options?: {
+      editorType?: "tab" | "chords" | string;
+      trackType?: "tab" | "chords" | string;
+      type?: "tab" | "chords" | string;
+      chordEditor?: Record<string, unknown>;
+    }
+  ) =>
     requestForEditor<{ ok: true; canvas: CanvasSnapshot; editor: EditorSnapshot }>(
       editorId,
       `/editors/${editorId}/canvas/editors`,
       {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, ...options }),
       }
     ),
   deleteCanvasEditor: (editorId: string, laneId: string) =>
@@ -506,6 +596,12 @@ export const gteApi = {
     }),
   getChordAlternatives: (editorId: string, chordId: number) =>
     requestForEditor<{ alternatives: TabCoord[][] }>(editorId, `/editors/${editorId}/chords/${chordId}/alternatives`),
+  getChordFingerings: (root: string, type: string) =>
+    request<{ fingerings: ChordFingering[] }>(
+      `/api/chord-fingerings?root=${encodeURIComponent(root)}&type=${encodeURIComponent(type)}`,
+      {},
+      ""
+    ),
   shiftChordOctave: (editorId: string, chordId: number, direction: number) =>
     requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/chords/${chordId}/octave`, {
       method: "POST",

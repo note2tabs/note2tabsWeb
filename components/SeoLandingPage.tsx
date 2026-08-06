@@ -1,5 +1,5 @@
 import Link from "next/link";
-import SeoHead, { SITE_NAME, absoluteUrl } from "./SeoHead";
+import SeoHead, { ORGANIZATION_ID, SITE_NAME, WEBSITE_ID, absoluteUrl } from "./SeoHead";
 
 type SeoLandingPageProps = {
   title: string;
@@ -18,6 +18,22 @@ type SeoLandingPageProps = {
     title: string;
     body: string;
   }>;
+  detail?: {
+    title: string;
+    paragraphs: string[];
+    benefits: Array<{ title: string; body: string }>;
+  };
+  contentSections?: Array<{
+    title: string;
+    paragraphs: string[];
+    bullets?: string[];
+  }>;
+  faqs?: Array<{ question: string; answer: string }>;
+  relatedLinks?: Array<{
+    label: string;
+    href: string;
+    description: string;
+  }>;
 };
 
 export default function SeoLandingPage({
@@ -28,6 +44,10 @@ export default function SeoLandingPage({
   primaryCta,
   secondaryCta,
   steps,
+  detail,
+  contentSections = [],
+  faqs = [],
+  relatedLinks = [],
 }: SeoLandingPageProps) {
   const jsonLd = [
     {
@@ -37,9 +57,7 @@ export default function SeoLandingPage({
       url: absoluteUrl(canonicalPath),
       description,
       isPartOf: {
-        "@type": "WebSite",
-        name: SITE_NAME,
-        url: absoluteUrl("/"),
+        "@id": WEBSITE_ID,
       },
     },
     {
@@ -50,6 +68,8 @@ export default function SeoLandingPage({
       operatingSystem: "Web",
       url: absoluteUrl(canonicalPath),
       description,
+      isPartOf: { "@id": WEBSITE_ID },
+      provider: { "@id": ORGANIZATION_ID },
       offers: {
         "@type": "Offer",
         price: "0",
@@ -74,6 +94,19 @@ export default function SeoLandingPage({
         },
       ],
     },
+    ...(faqs.length
+      ? [
+          {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: faqs.map((faq) => ({
+              "@type": "Question",
+              name: faq.question,
+              acceptedAnswer: { "@type": "Answer", text: faq.answer },
+            })),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -113,6 +146,93 @@ export default function SeoLandingPage({
                 </article>
               ))}
             </div>
+          </div>
+        </section>
+
+        {detail && (
+          <section className="seo-landing-detail">
+            <div className="container seo-landing-detail-layout">
+              <div className="seo-landing-copy">
+                <h2>{detail.title}</h2>
+                {detail.paragraphs.map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+              </div>
+              <div className="seo-landing-benefits">
+                {detail.benefits.map((benefit) => (
+                  <article key={benefit.title}>
+                    <h3>{benefit.title}</h3>
+                    <p>{benefit.body}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {contentSections.length > 0 && (
+          <section className="seo-landing-content">
+            <div className="container seo-landing-content-list">
+              {contentSections.map((section) => (
+                <article className="seo-landing-content-section" key={section.title}>
+                  <h2>{section.title}</h2>
+                  <div>
+                    {section.paragraphs.map((paragraph) => (
+                      <p key={paragraph}>{paragraph}</p>
+                    ))}
+                    {section.bullets && section.bullets.length > 0 && (
+                      <ul>
+                        {section.bullets.map((bullet) => (
+                          <li key={bullet}>{bullet}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {faqs.length > 0 && (
+          <section className="seo-landing-faq">
+            <div className="container seo-landing-faq-layout">
+              <div>
+                <span className="pill">Questions</span>
+                <h2>Frequently asked questions</h2>
+              </div>
+              <div className="seo-landing-faq-list">
+                {faqs.map((faq) => (
+                  <details key={faq.question}>
+                    <summary>{faq.question}</summary>
+                    <p>{faq.answer}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        <section className="seo-landing-related">
+          <div className="container">
+            <h2>{relatedLinks.length > 0 ? "Related guides and tools" : "Keep creating"}</h2>
+            {relatedLinks.length > 0 ? (
+              <div className="seo-landing-resource-grid">
+                {relatedLinks.map((link) => (
+                  <Link href={link.href} className="seo-landing-resource-card" key={link.href}>
+                    <strong>{link.label}</strong>
+                    <span>{link.description}</span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="seo-landing-related-links">
+                <Link href="/transcribe">Audio transcriber</Link>
+                <Link href="/editor">Guitar tab editor</Link>
+                <Link href="/pricing">Plans and limits</Link>
+                <Link href="/blog">Guitar tab guides</Link>
+              </div>
+            )}
           </div>
         </section>
       </main>

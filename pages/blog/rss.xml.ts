@@ -1,5 +1,6 @@
 import type { GetServerSideProps } from "next";
 import { prisma } from "../../lib/prisma";
+import { withPrismaReadRetry } from "../../lib/prismaRetry";
 import { getBaseUrl, getPublishedWhere } from "../../lib/blog";
 
 const escapeXml = (value: string) =>
@@ -12,12 +13,12 @@ const escapeXml = (value: string) =>
 
 export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const baseUrl = getBaseUrl();
-  const posts = await prisma.post.findMany({
+  const posts = await withPrismaReadRetry(() => prisma.post.findMany({
     where: getPublishedWhere(),
     orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
     take: 50,
     select: { title: true, slug: true, excerpt: true, publishedAt: true, publishAt: true, updatedAt: true },
-  });
+  }));
 
   const items = posts
     .map((post) => {

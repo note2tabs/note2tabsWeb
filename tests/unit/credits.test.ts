@@ -41,7 +41,7 @@ describe("credits", () => {
     expect(marchCredits.remaining).toBe(FREE_MONTHLY_CREDITS);
   });
 
-  it("caps premium rollovers at 100 credits on the account anniversary window", () => {
+  it("caps premium rollovers at 200 credits on the account anniversary window", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-13T12:00:00.000Z"));
 
@@ -77,10 +77,10 @@ describe("credits", () => {
       LEGACY_UNLIMITED_CREDIT_BALANCE
     );
 
-    expect(reconciled.remaining).toBe(49);
+    expect(reconciled.remaining).toBe(99);
   });
 
-  it("caps stored premium rollover balances above 100", () => {
+  it("caps stored premium rollover balances above 200", () => {
     const reconciled = reconcileCreditsWithStoredBalance(
       {
         used: 0,
@@ -89,7 +89,7 @@ describe("credits", () => {
         resetAt: "2026-07-03T08:00:00.000Z",
         unlimited: false,
       },
-      150
+      250
     );
 
     expect(reconciled.limit).toBe(PREMIUM_ROLLOVER_CREDIT_CAP);
@@ -100,8 +100,8 @@ describe("credits", () => {
     const reconciled = reconcileCreditsWithStoredBalance(
       {
         used: 0,
-        limit: 50,
-        remaining: 50,
+        limit: 100,
+        remaining: 100,
         resetAt: "2026-07-03T08:00:00.000Z",
         unlimited: false,
       },
@@ -109,6 +109,6 @@ describe("credits", () => {
     );
 
     expect(reconciled.remaining).toBe(7);
-    expect(reconciled.limit).toBe(50);
+    expect(reconciled.limit).toBe(100);
   });
 });

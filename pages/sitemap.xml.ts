@@ -1,6 +1,8 @@
 import type { GetServerSideProps } from "next";
 import { prisma } from "../lib/prisma";
+import { withPrismaReadRetry } from "../lib/prismaRetry";
 import { getBaseUrl, getPublishedWhere } from "../lib/blog";
+import { SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED, seoFeaturePages } from "../lib/seoFeaturePages";
 
 type SitemapEntry = {
   loc: string;
@@ -20,10 +22,26 @@ const staticPaths = [
   "/audio-to-guitar-tab-converter",
   "/youtube-to-guitar-tabs",
   "/mp3-to-guitar-tabs",
-  "/online-guitar-tab-editor",
   "/ai-guitar-tab-generator",
   "/free-guitar-tab-maker",
+  "/features",
+  ...seoFeaturePages.map((page) => `/features/${page.slug}`),
 ];
+
+const recentlyUpdatedSeoPaths = new Set([
+  "/editor",
+  "/audio-to-guitar-tab-converter",
+  "/mp3-to-guitar-tabs",
+  "/ai-guitar-tab-generator",
+  "/free-guitar-tab-maker",
+  "/features",
+  ...seoFeaturePages.map((page) => `/features/${page.slug}`),
+]);
+
+const refreshedSeoPathDates = new Map([
+  ["/audio-to-guitar-tab-converter", "2026-08-05"],
+  ["/mp3-to-guitar-tabs", "2026-08-05"],
+]);
 
 const buildUrl = (baseUrl: string, path: string) =>
   path.startsWith("http") ? path : `${baseUrl}${path}`;
@@ -40,26 +58,37 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const baseUrl = getBaseUrl();
   const publishedWhere = getPublishedWhere();
 
-  const [posts, categories, tags, clusters] = await Promise.all([
-    prisma.post.findMany({
+  const [posts, categories, tags, clusters] = await withPrismaReadRetry(() =>
+    prisma.$transaction([
+      prisma.post.findMany({
       where: publishedWhere,
       select: { slug: true, updatedAt: true, publishedAt: true, publishAt: true },
-    }),
-    prisma.category.findMany({
+      }),
+      prisma.category.findMany({
       where: { posts: { some: { post: publishedWhere } } },
       select: { slug: true, updatedAt: true },
-    }),
-    prisma.tag.findMany({
+      }),
+      prisma.tag.findMany({
       where: { posts: { some: { post: publishedWhere } } },
       select: { slug: true, updatedAt: true },
-    }),
-    prisma.topicCluster.findMany({
+      }),
+      prisma.topicCluster.findMany({
       where: { posts: { some: { post: publishedWhere } } },
       select: { slug: true, updatedAt: true },
-    }),
-  ]);
+      }),
+    ])
+  );
 
-  const entries: SitemapEntry[] = staticPaths.map((path) => ({ loc: buildUrl(baseUrl, path) }));
+  const entries: SitemapEntry[] = staticPaths.map((path) => ({
+    loc: buildUrl(baseUrl, path),
+    ...(recentlyUpdatedSeoPaths.has(path)
+      ? {
+          lastmod: `${
+            refreshedSeoPathDates.get(path) || SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED
+          }T00:00:00.000Z`,
+        }
+      : {}),
+  }));
 
   posts.forEach((post) => {
     entries.push({

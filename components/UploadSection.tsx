@@ -4,6 +4,7 @@ import {
   type TranscriptionModelChoice,
 } from "../lib/transcriptionModels";
 import TranscriptionModelDropdown from "./TranscriptionModelDropdown";
+import { normalizeUploadFilename } from "../lib/uploadFilename";
 
 type UploadSectionProps = {
   onResult: (segments: string[][], sourceLabel: string, audioUrl?: string) => void;
@@ -88,11 +89,12 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
   };
 
   const uploadToS3 = async (file: File) => {
+    const uploadFileName = normalizeUploadFilename(file.name);
     const presignRes = await fetch("/api/uploads/presign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        fileName: file.name,
+        fileName: uploadFileName,
         contentType: file.type || "application/octet-stream",
         size: file.size,
       }),
@@ -132,7 +134,7 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
     const payload: Record<string, unknown> = {
       mode: "FILE",
       s3Key,
-      fileName: file.name,
+      fileName: normalizeUploadFilename(file.name),
       transcriptionModel,
     };
     const response = await fetch("/api/transcribe", {

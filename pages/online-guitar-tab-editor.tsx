@@ -8,11 +8,11 @@ export default function OnlineGuitarTabEditorPage() {
       description="Write, edit, organize, and refine guitar tabs online with controls for timing, chord shapes, and playable fingerings."
       canonicalPath="/online-guitar-tab-editor"
       primaryCta={{ label: "Open editor", href: "/gte" }}
-      secondaryCta={{ label: "Start transcribing", href: "/#hero" }}
+      secondaryCta={{ label: "Start transcribing", href: "/transcribe" }}
       steps={[
         {
-          title: "Start a tab",
-          body: "Open a blank tab or continue from a transcription draft.",
+          title: "Choose a starting point",
+          body: "Write from a blank tab, import a supported file, or open a tab created from audio.",
         },
         {
           title: "Shape the song",

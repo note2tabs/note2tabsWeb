@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { stripeClient } from "../../../lib/stripe";
 import { getAppBaseUrl } from "../../../lib/urls";
+import {
+  getStripePremiumConfig,
+  stripeSubscriptionMatchesPremium,
+} from "../../../lib/stripePremium";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -15,7 +19,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: "Not authenticated" });
   }
 
-  if (!stripeClient) {
+  const premiumConfig = getStripePremiumConfig();
+  if (!stripeClient || !premiumConfig) {
     return res.status(503).json({ error: "Stripe not configured yet." });
   }
 
@@ -24,7 +29,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       email: session.user.email,
       limit: 10,
     });
-    const customer = customers.data.find((entry) => entry && !("deleted" in entry));
+    let customer = null as (typeof customers.data)[number] | null;
+    for (const entry of customers.data) {
+      if (!entry || "deleted" in entry) continue;
+      const subscriptions = await stripeClient.subscriptions.list({
+        customer: entry.id,
+        status: "all",
+        limit: 100,
+      });
+      if (subscriptions.data.some((subscription) => stripeSubscriptionMatchesPremium(subscription, premiumConfig))) {
+        customer = entry;
+        break;
+      }
+    }
     if (!customer) {
       return res.status(404).json({
         error: "No active subscription customer was found for this account.",

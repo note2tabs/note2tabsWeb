@@ -47,13 +47,16 @@ export default function TranscriptionModelDropdown({
     >
       <summary
         id={id}
-        aria-label="Transcription model"
+        aria-label={`Transcription model: ${selected.label}`}
         aria-disabled={disabled}
         onClick={(event) => {
           if (disabled) event.preventDefault();
         }}
       >
-        <span>{selected.label}</span>
+        <span className="model-dropdown-summary-copy">
+          <span>{selected.label}</span>
+          <span>{selected.badge}</span>
+        </span>
         <svg aria-hidden="true" viewBox="0 0 20 20" focusable="false">
           <path d="M5.5 7.5 10 12l4.5-4.5" />
         </svg>
@@ -70,7 +73,10 @@ export default function TranscriptionModelDropdown({
             onKeyDown={(event) => onOptionKeyDown(event, option.value)}
           >
             <span className="model-dropdown-option-copy">
-              <span className="model-dropdown-option-title">{option.label}</span>
+              <span className="model-dropdown-option-heading">
+                <span className="model-dropdown-option-title">{option.label}</span>
+                <span className="model-dropdown-option-badge">{option.badge}</span>
+              </span>
               <span className="model-dropdown-option-description">
                 {option.description}
               </span>

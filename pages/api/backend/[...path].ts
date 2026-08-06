@@ -2,15 +2,36 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { createBackendToken } from "../../../lib/backendToken";
+import { getFreshUserRole } from "../../../lib/serverAuth";
 
 const BASE_URL = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
   process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 
+function isSafeBackendPath(path: string): boolean {
+  let decodedPath: string;
+  try {
+    decodedPath = decodeURIComponent(path);
+  } catch {
+    return false;
+  }
+
+  if (decodedPath.includes("\\") || decodedPath.includes("\0")) {
+    return false;
+  }
+
+  const segments = decodedPath.split("/");
+  return segments[0] === "v1" && segments.length > 1 && segments.every((segment) => segment !== "" && segment !== "." && segment !== "..");
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.id) {
     return res.status(401).json({ error: "Not authenticated" });
+  }
+  const currentRole = await getFreshUserRole(session);
+  if (!currentRole) {
+    return res.status(401).json({ error: "Account not found" });
   }
 
   const pathParam = req.query.path;
@@ -18,14 +39,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!path) {
     return res.status(400).json({ error: "Missing path" });
   }
-  if (!path.startsWith("v1/")) {
+  if (!isSafeBackendPath(path)) {
     return res.status(400).json({ error: "Invalid backend path" });
   }
 
   const token = createBackendToken({
     sub: session.user.id,
     email: session.user.email,
-    role: session.user.role,
+    role: currentRole,
   });
 
   const search = req.url?.split("?")[1];

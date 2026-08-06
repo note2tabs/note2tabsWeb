@@ -3,7 +3,7 @@ import { getConsentFromCookies } from "../../lib/analyticsV2/cookies";
 import { isConsentDenied } from "../../lib/analyticsV2/consent";
 
 describe("consent gating", () => {
-  it("treats missing consent cookie as granted", () => {
+  it("tracks by default when no opt-out cookie exists", () => {
     expect(getConsentFromCookies({})).toBe("granted");
     expect(isConsentDenied({})).toBe(false);
   });

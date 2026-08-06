@@ -1,6 +1,10 @@
 {
   "name": "Note2Tabs",
   "short_name": "Note2Tabs",
+  "description": "Convert audio and YouTube clips into editable guitar tabs, then refine and practise them in your browser.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
   "icons": [
     {
       "src": "/android-chrome-192x192.png",

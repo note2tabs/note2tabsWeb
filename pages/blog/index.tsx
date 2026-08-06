@@ -1,9 +1,10 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import { prisma } from "../../lib/prisma";
+import { withPrismaReadRetry } from "../../lib/prismaRetry";
 import { BLOG_PAGE_SIZE, estimateReadingTime, getPublishedWhere } from "../../lib/blog";
 import BlogPostCard from "../../components/blog/BlogPostCard";
-import SeoHead, { absoluteUrl } from "../../components/SeoHead";
+import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 
 type BlogPostCard = {
   id: string;
@@ -51,7 +52,7 @@ export default function BlogIndexPage({
     return `/blog?${params.toString()}`;
   };
   const description =
-    "Learn how to convert audio into guitar tabs, edit tablature, and practice songs with Note2Tabs.";
+    "Learn how to create, arrange, transcribe, and practice guitar tabs with practical guides from Note2Tabs.";
   const blogJsonLd = [
     {
       "@context": "https://schema.org",
@@ -59,6 +60,8 @@ export default function BlogIndexPage({
       name: "Note2Tabs Blog",
       url: absoluteUrl("/blog"),
       description,
+      isPartOf: { "@id": WEBSITE_ID },
+      publisher: { "@id": ORGANIZATION_ID },
     },
     {
       "@context": "https://schema.org",
@@ -96,8 +99,13 @@ export default function BlogIndexPage({
             <span className="blog-kicker">Knowledge Hub</span>
             <h1 className="page-title">Note2Tabs Blog</h1>
             <p className="page-subtitle">
-              Practical guides, workflows, and updates for converting songs into playable guitar tabs.
+              Practical guides for writing better tabs, arranging music for guitar, and turning recordings into
+              playable notation.
             </p>
+            <div className="blog-product-links" aria-label="Try Note2Tabs">
+              <Link href="/editor" className="button-primary">Try the tab editor</Link>
+              <Link href="/transcribe" className="button-secondary">Transcribe audio</Link>
+            </div>
           </div>
           <div className="blog-hero-actions">
             <div className="blog-hero-metrics">
@@ -105,9 +113,7 @@ export default function BlogIndexPage({
               <span>{categories.length} categories</span>
               <span>{tags.length} tags</span>
             </div>
-            <Link href="/" className="button-secondary button-small">
-              Back to app
-            </Link>
+            <p className="blog-tools-note">Use either tool independently, or move between them in one workflow.</p>
           </div>
         </header>
 
@@ -230,9 +236,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     where.tags = { some: { tag: { slug: activeTag } } };
   }
 
-  const [total, postsRaw, categories, tags, pillarsRaw] = await Promise.all([
-    prisma.post.count({ where }),
-    prisma.post.findMany({
+  const [total, postsRaw, categories, tags, pillarsRaw] = await withPrismaReadRetry(() =>
+    prisma.$transaction([
+      prisma.post.count({ where }),
+      prisma.post.findMany({
       where,
       orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
       skip: (page - 1) * BLOG_PAGE_SIZE,
@@ -268,10 +275,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
           },
         },
       },
-    }),
-    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, slug: true } }),
-    prisma.tag.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, slug: true } }),
-    prisma.post.findMany({
+      }),
+      prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, slug: true } }),
+      prisma.tag.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, slug: true } }),
+      prisma.post.findMany({
       where: {
         ...getPublishedWhere(),
         clusters: { some: { isPillar: true } },
@@ -309,8 +316,9 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
           },
         },
       },
-    }),
-  ]);
+      }),
+    ])
+  );
 
   const mapPost = (post: any): BlogPostCard => ({
     id: post.id,

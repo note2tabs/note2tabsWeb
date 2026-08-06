@@ -1,4 +1,3 @@
-import { initPostHog } from "./lib/posthogClient";
+import { schedulePostHogInit } from "./lib/posthogClient";
 
-initPostHog();
-
+schedulePostHogInit();

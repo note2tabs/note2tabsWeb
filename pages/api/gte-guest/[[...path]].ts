@@ -19,6 +19,8 @@ const DEFAULT_MAX_FRET = 22;
 const DEFAULT_CUT_COORD: TabCoord = [2, 0];
 const MAX_EVENT_LENGTH_FRAMES = 800;
 const STANDARD_TUNING_MIDI = [64, 59, 55, 50, 45, 40];
+const KEY_BASE_COUNT = 12;
+const KEY_TYPE_COUNT = 10;
 
 type GuestEntry = { canvas: CanvasSnapshot; updatedAt: number };
 
@@ -30,9 +32,18 @@ const toNumber = (value: unknown, fallback: number) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
+const normalizeKeyBase = (value: unknown) =>
+  clamp(Math.round(toNumber(value, 0)), 0, KEY_BASE_COUNT - 1);
+const normalizeKeyType = (value: unknown) =>
+  clamp(Math.round(toNumber(value, 0)), 0, KEY_TYPE_COUNT - 1);
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const clampEventLength = (value: number) => clamp(Math.round(toNumber(value, 1)), 1, MAX_EVENT_LENGTH_FRAMES);
 const getStoreKey = (sessionId: string, canvasId: string) => `${sessionId}:${canvasId}`;
+const normalizeEditorType = (value: unknown) => {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor") return "chords";
+  return "tab";
+};
 const getLaneOpenStringMidi = (lane: Pick<EditorSnapshot, "tabRef" | "tuning">) => {
   const tuningOpen =
     Array.isArray(lane.tuning?.openStringMidi) &&
@@ -157,7 +168,7 @@ const normalizeNoteEffectsInLane = (lane: EditorSnapshot) => {
 };
 
 const normalizeLane = (raw: unknown, laneId: string, secondsFallback: number, index: number): EditorSnapshot => {
-  const source =
+  const source: Record<string, unknown> =
     raw && typeof raw === "object"
       ? { ...(raw as Record<string, unknown>), secondsPerBar: toNumber((raw as any).secondsPerBar, secondsFallback) }
       : { secondsPerBar: secondsFallback };
@@ -167,6 +178,9 @@ const normalizeLane = (raw: unknown, laneId: string, secondsFallback: number, in
     id: laneId,
     name: lane.name || `Editor ${index + 1}`,
     secondsPerBar: Math.max(0.1, toNumber(lane.secondsPerBar, secondsFallback)),
+    playbackVolume: Math.max(0, Math.min(1, toNumber(source.playbackVolume, 1))),
+    playbackMuted: source.playbackMuted === true,
+    playbackIsolated: source.playbackIsolated === true,
     noteEffects: Array.isArray(lane.noteEffects) ? lane.noteEffects : [],
     cutPositionsWithCoords: lane.cutPositionsWithCoords.length ? lane.cutPositionsWithCoords : buildDefaultCuts(lane),
   };
@@ -191,6 +205,8 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
       canvasSchemaVersion: source.canvasSchemaVersion ?? 1,
       version: Math.max(1, Math.round(toNumber(source.version, 1))),
       updatedAt: source.updatedAt || new Date().toISOString(),
+      keyBase: normalizeKeyBase(source.keyBase),
+      keyType: normalizeKeyType(source.keyType),
       secondsPerBar: seconds,
       editors: editors.length ? editors : [normalizeLane(createGuestSnapshot("ed-1"), "ed-1", seconds, 0)],
     };
@@ -203,6 +219,8 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
     canvasSchemaVersion: 1,
     version: 1,
     updatedAt: lane.updatedAt || new Date().toISOString(),
+    keyBase: 0,
+    keyType: 0,
     secondsPerBar: lane.secondsPerBar || DEFAULT_SECONDS_PER_BAR,
     editors: [lane],
   };
@@ -710,11 +728,20 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         const existing = new Set(canvas.editors.map((lane) => lane.id));
         let laneNumber = canvas.editors.length + 1;
         while (existing.has(`ed-${laneNumber}`)) laneNumber += 1;
+        const editorType = normalizeEditorType(body.editorType ?? body.trackType ?? body.type);
+        const chordEditor =
+          body.chordEditor && typeof body.chordEditor === "object" && !Array.isArray(body.chordEditor)
+            ? { ...(body.chordEditor as Record<string, unknown>) }
+            : undefined;
         const nextLane = normalizeLane(
           {
             ...createGuestSnapshot(`ed-${laneNumber}`),
             id: `ed-${laneNumber}`,
             name: typeof body.name === "string" && body.name.trim() ? body.name.trim() : `Editor ${laneNumber}`,
+            editorType,
+            type: editorType,
+            trackType: editorType,
+            ...(chordEditor ? { chordEditor } : {}),
             secondsPerBar: canvas.secondsPerBar,
           },
           `ed-${laneNumber}`,

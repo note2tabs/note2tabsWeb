@@ -9,8 +9,18 @@ import type { EditorListItem, EditorSnapshot } from "../../types/gte";
 import { clearGuestDraft, GTE_GUEST_EDITOR_ID, readGuestDraft } from "../../lib/gteGuestDraft";
 import NoIndexHead from "../../components/NoIndexHead";
 import GteFileImportButton from "../../components/GteFileImportButton";
+import { EditorLibraryLoadingState } from "../../components/EditorLoadingState";
+import {
+  invalidateEditorListCache,
+  readEditorListCache,
+  writeEditorListCache as persistEditorListCache,
+} from "../../lib/gteEditorListCache";
 
-export default function GteIndexPage() {
+type Props = {
+  userId: string;
+};
+
+export default function GteIndexPage({ userId }: Props) {
   const [editors, setEditors] = useState<EditorListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,12 +77,21 @@ export default function GteIndexPage() {
     return nextLegacy;
   }, [hasGuestDraftContent]);
 
-  const loadEditors = async () => {
-    setLoading(true);
+  const writeEditorListCache = useCallback(
+    (items: EditorListItem[]) => {
+      persistEditorListCache(window.sessionStorage, userId, items);
+    },
+    [userId]
+  );
+
+  const loadEditors = async (showLoading: boolean = true) => {
+    if (showLoading) setLoading(true);
     setError(null);
     try {
       const data = await gteApi.listEditors();
-      setEditors(data.editors || []);
+      const nextEditors = data.editors || [];
+      setEditors(nextEditors);
+      writeEditorListCache(nextEditors);
     } catch (err: any) {
       setError(err?.message || "Could not load editors.");
     } finally {
@@ -81,8 +100,19 @@ export default function GteIndexPage() {
   };
 
   useEffect(() => {
-    void loadEditors();
-  }, []);
+    let hasCachedEditors = false;
+    let cacheIsFresh = false;
+    const cached = readEditorListCache(window.sessionStorage, userId);
+    if (cached.editors) {
+      setEditors(cached.editors);
+      setLoading(false);
+      hasCachedEditors = true;
+      cacheIsFresh = cached.isFresh;
+    }
+    if (!cacheIsFresh) {
+      void loadEditors(!hasCachedEditors);
+    }
+  }, [userId]);
 
   useEffect(() => {
     const refresh = () => {
@@ -109,6 +139,7 @@ export default function GteIndexPage() {
     setError(null);
     try {
       const data = await gteApi.createEditor();
+      invalidateEditorListCache(window.sessionStorage, userId);
       await router.push(`/gte/${data.editorId}`);
     } catch (err: any) {
       setError(err?.message || "Could not create editor.");
@@ -123,7 +154,11 @@ export default function GteIndexPage() {
     setError(null);
     try {
       await gteApi.deleteEditor(editor.id);
-      setEditors((prev) => prev.filter((item) => item.id !== editor.id));
+      setEditors((prev) => {
+        const next = prev.filter((item) => item.id !== editor.id);
+        writeEditorListCache(next);
+        return next;
+      });
       setDeleteDialog((prev) => (prev?.id === editor.id ? null : prev));
     } catch (err: any) {
       setError(err?.message || "Could not delete editor.");
@@ -154,16 +189,18 @@ export default function GteIndexPage() {
         (res as any)?.canvas?.name ||
         (res as any)?.snapshot?.name ||
         normalizedName;
-      setEditors((prev) =>
-        prev.map((item) =>
+      setEditors((prev) => {
+        const next = prev.map((item) =>
           item.id === editorId
             ? {
                 ...item,
                 name: updatedName,
               }
             : item
-        )
-      );
+        );
+        writeEditorListCache(next);
+        return next;
+      });
       setRenameDialog(null);
     } catch (err: any) {
       setError(err?.message || "Could not rename editor.");
@@ -292,7 +329,7 @@ export default function GteIndexPage() {
               </div>
             </div>
           )}
-          {loading && <p className="muted text-small">Loading editors...</p>}
+          {loading && <EditorLibraryLoadingState />}
           {error && <div className="error">{error}</div>}
           {!loading && !editors.length && (
             <p className="muted text-small">No transcriptions yet. Start your first one.</p>
@@ -302,7 +339,17 @@ export default function GteIndexPage() {
               <div key={editor.id} className="card-outline gte-library-row">
                 <div className="gte-library-card-head">
                   <h2 className="gte-library-card-title">
-                    <Link href={`/gte/${editor.id}`}>
+                    <Link
+                      href={`/gte/${editor.id}`}
+                      onPointerDown={() => {
+                        void gteApi.prefetchEditor(editor.id).catch(() => undefined);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          void gteApi.prefetchEditor(editor.id).catch(() => undefined);
+                        }
+                      }}
+                    >
                       {editor.name || "Untitled"}
                     </Link>
                   </h2>
@@ -447,5 +494,5 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       },
     };
   }
-  return { props: {} };
+  return { props: { userId: session.user.id } };
 };

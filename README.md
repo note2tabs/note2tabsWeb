@@ -56,8 +56,8 @@ the `NEXT_PUBLIC_` variable. Do not put a PostHog personal API key in the browse
 
 The browser SDK captures page views, autocaptured interactions, custom product
 events, and web vitals. Server-side GTE and feedback events use `posthog-node`.
-Analytics consent continues to use the `analytics_consent` cookie; denying
-consent opts out and resets the PostHog browser identity.
+Analytics are cookieless and enabled by default. The `analytics_consent` cookie is
+only set when a visitor opts out; opting out resets the PostHog browser identity.
 
 After deployment, create PostHog insights and a dashboard for:
 

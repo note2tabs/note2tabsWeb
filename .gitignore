@@ -11,3 +11,4 @@ prisma/dev.db-journal
 .env.vercel.*
 .vscode/settings.json
 backups/
+public/prod_compare/

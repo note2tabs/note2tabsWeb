@@ -8,6 +8,9 @@ type TelemetryBody = {
   editorId?: string;
   sessionId?: string;
   durationSec?: number;
+  activeDurationSec?: number;
+  heartbeatSequence?: number;
+  mode?: string;
   path?: string;
 };
 
@@ -16,6 +19,8 @@ const ALLOWED_EVENTS = new Set<GteAnalyticsEvent>([
   "gte_editor_visit",
   "gte_editor_session_start",
   "gte_editor_session_end",
+  "gte_editor_session_heartbeat",
+  "gte_practice_started",
 ]);
 
 function parseBody(req: NextApiRequest): TelemetryBody {
@@ -41,10 +46,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.id) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-
   const body = parseBody(req);
   const event = body.event;
   if (!event || !ALLOWED_EVENTS.has(event)) {
@@ -63,11 +64,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     Number.isFinite(rawDuration) && rawDuration >= 0
       ? Math.max(0, Math.min(60 * 60 * 24, Math.round(rawDuration)))
       : undefined;
+  const rawActiveDuration = Number(body.activeDurationSec);
+  const activeDurationSec =
+    Number.isFinite(rawActiveDuration) && rawActiveDuration >= 0
+      ? Math.max(0, Math.min(60 * 60 * 24, Math.round(rawActiveDuration)))
+      : undefined;
+  const rawHeartbeatSequence = Number(body.heartbeatSequence);
+  const heartbeatSequence =
+    Number.isFinite(rawHeartbeatSequence) && rawHeartbeatSequence >= 0
+      ? Math.min(24 * 60, Math.floor(rawHeartbeatSequence))
+      : undefined;
+  const mode = body.mode === "practice" ? "practice" : undefined;
   const path =
     typeof body.path === "string" && body.path.trim() ? body.path.trim() : `/gte/${editorId}`;
 
   await logGteAnalyticsEvent({
-    userId: session.user.id,
+    userId: session?.user?.id || null,
     event,
     path,
     sessionId,
@@ -75,6 +87,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       editorId,
       ...(sessionId ? { sessionId } : {}),
       ...(durationSec !== undefined ? { durationSec } : {}),
+      ...(activeDurationSec !== undefined ? { activeDurationSec } : {}),
+      ...(heartbeatSequence !== undefined ? { heartbeatSequence } : {}),
+      ...(mode ? { mode } : {}),
     },
     req,
     res,

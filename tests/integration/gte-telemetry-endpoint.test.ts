@@ -23,6 +23,8 @@ describe("gte telemetry endpoint", () => {
     "gte_editor_visit",
     "gte_editor_session_start",
     "gte_editor_session_end",
+    "gte_editor_session_heartbeat",
+    "gte_practice_started",
   ] as const)("accepts %s events", async (eventName) => {
     sessionMock.mockResolvedValue({ user: { id: "user_1" } });
     logMock.mockResolvedValue(undefined);
@@ -35,6 +37,9 @@ describe("gte telemetry endpoint", () => {
         editorId: "ed_123",
         sessionId: "sess_123",
         durationSec: 12,
+        activeDurationSec: 9,
+        heartbeatSequence: 2,
+        mode: "practice",
         path: "/gte/ed_123",
       },
     });
@@ -46,6 +51,12 @@ describe("gte telemetry endpoint", () => {
     expect(logMock.mock.calls[0][0]).toMatchObject({
       userId: "user_1",
       event: eventName,
+      payload: expect.objectContaining({
+        durationSec: 12,
+        activeDurationSec: 9,
+        heartbeatSequence: 2,
+        mode: "practice",
+      }),
     });
   });
 
@@ -84,7 +95,7 @@ describe("gte telemetry endpoint", () => {
     expect(logMock).not.toHaveBeenCalled();
   });
 
-  it("returns 401 when user is unauthenticated", async () => {
+  it("captures privacy-safe guest editor telemetry without an account", async () => {
     sessionMock.mockResolvedValue(null);
 
     const handler = (await import("../../pages/api/gte/telemetry")).default;
@@ -98,7 +109,10 @@ describe("gte telemetry endpoint", () => {
 
     await handler(req as any, res as any);
 
-    expect(res._getStatusCode()).toBe(401);
-    expect(logMock).not.toHaveBeenCalled();
+    expect(res._getStatusCode()).toBe(200);
+    expect(logMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: null,
+      event: "gte_editor_visit",
+    }));
   });
 });

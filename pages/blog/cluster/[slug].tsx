@@ -1,6 +1,7 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import { prisma } from "../../../lib/prisma";
+import { withPrismaReadRetry } from "../../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
 import BlogPostCard from "../../../components/blog/BlogPostCard";
 import SeoHead, { absoluteUrl } from "../../../components/SeoHead";
@@ -57,7 +58,7 @@ export default function BlogClusterPage({ cluster, pillarPost, supportingPosts }
   return (
     <main className="page blog-page">
       <SeoHead
-        title={`${cluster.name} | Note2Tabs Blog`}
+        title={`${cluster.name} Topic Hub | Note2Tabs Blog`}
         description={description}
         canonicalPath={canonicalPath}
         noindex={!pillarPost && supportingPosts.length === 0}
@@ -125,16 +126,16 @@ export default function BlogClusterPage({ cluster, pillarPost, supportingPosts }
 
 export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (ctx) => {
   const slug = ctx.params?.slug as string;
-  const cluster = await prisma.topicCluster.findUnique({
+  const cluster = await withPrismaReadRetry(() => prisma.topicCluster.findUnique({
     where: { slug },
     select: { id: true, name: true, slug: true, description: true },
-  });
+  }));
   if (!cluster) {
     return { notFound: true };
   }
   ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
 
-  const postsRaw = await prisma.post.findMany({
+  const postsRaw = await withPrismaReadRetry(() => prisma.post.findMany({
     where: {
       ...getPublishedWhere(),
       clusters: { some: { clusterId: cluster.id } },
@@ -152,7 +153,7 @@ export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (c
         select: { clusterId: true, isPillar: true },
       },
     },
-  });
+  }));
 
   const pillar = postsRaw.find((post) =>
     post.clusters.some((rel) => rel.clusterId === cluster.id && rel.isPillar)

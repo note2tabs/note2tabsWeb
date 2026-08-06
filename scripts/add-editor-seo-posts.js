@@ -66,7 +66,7 @@ For players working on longer arrangements, cut generation and segment editing c
 
 If you already use an automatic tab tool, editing becomes even more important.
 
-The [transcriber](/transcriber) helps you get to a first draft quickly. The editor is where that draft becomes usable. This is where you clean up timing, replace awkward fingerings, improve chord shapes, and organize the song into better sections.
+The [transcriber](/transcribe) helps you get to a first draft quickly. The editor is where that draft becomes usable. This is where you clean up timing, replace awkward fingerings, improve chord shapes, and organize the song into better sections.
 
 That is why a good guitar tab editor is not just a nice extra. It is the part that turns rough output into playable music.
 
@@ -157,7 +157,7 @@ That is why the editor matters so much, especially after a first draft has alrea
 
 ## Where Note2Tabs fits
 
-With Note2Tabs, the [transcriber](/transcriber) helps you get to a draft quickly, and the [Guitar Editor Canvas](/editor) helps you turn that draft into a playable arrangement.
+With Note2Tabs, the [transcriber](/transcribe) helps you get to a draft quickly, and the [Guitar Editor Canvas](/editor) helps you turn that draft into a playable arrangement.
 
 If you want a tab editor that helps you optimize fingerings, choose different chord shapes, and generate cuts for cleaner segments, that is exactly what the editor is built to do.
 
@@ -300,7 +300,7 @@ Generate cuts, cut regions, and Optimize work best together.
 
 Generate gives you structure. Cut region editing helps you shape that structure. Optimize helps you improve what happens inside it.
 
-If you want to use all three in one workflow, start in the [Guitar Editor Canvas](/editor) and use the [transcriber](/transcriber) whenever you want a draft to clean up first.`,
+If you want to use all three in one workflow, start in the [Guitar Editor Canvas](/editor) and use the [transcriber](/transcribe) whenever you want a draft to clean up first.`,
   },
 ];
 

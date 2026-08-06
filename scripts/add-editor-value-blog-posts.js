@@ -174,7 +174,7 @@ In practice, the best workflow is not maker versus editor. It is maker plus edit
 4. Organize the song into sections.
 5. Save or export the playable version.
 
-Note2Tabs is built around that workflow. You can start from audio with the [transcriber](/transcriber), then use the editor to make the result more playable.
+Note2Tabs is built around that workflow. You can start from audio with the [transcriber](/transcribe), then use the editor to make the result more playable.
 
 ## What to look for before choosing a tool
 

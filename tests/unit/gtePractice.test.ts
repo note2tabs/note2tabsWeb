@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  SPEED_TRAINER_START_OPTIONS,
+  SPEED_TRAINER_STEP_OPTIONS,
   buildMetronomeClicks,
   equalPowerPanGains,
   frameDeltaToSeconds,
   nextSpeedTrainerValue,
   normalizePlaybackSpeed,
   normalizeTrackPan,
+  resolvePracticePlaybackStart,
   resolvePracticeLoopRange,
 } from "../../lib/gtePractice";
 
@@ -28,6 +31,14 @@ describe("gte practice helpers", () => {
     });
   });
 
+  it("starts clicked-note playback inside the selected range", () => {
+    const range = { startFrame: 480, endFrame: 1440 };
+    expect(resolvePracticePlaybackStart(960, range)).toBe(960);
+    expect(resolvePracticePlaybackStart(240, range)).toBe(480);
+    expect(resolvePracticePlaybackStart(1440, range)).toBe(480);
+    expect(resolvePracticePlaybackStart(960, range, true)).toBe(480);
+  });
+
   it("scales frame duration by playback speed", () => {
     expect(frameDeltaToSeconds(480, 240, 1)).toBe(2);
     expect(frameDeltaToSeconds(480, 240, 0.5)).toBe(4);
@@ -43,6 +54,9 @@ describe("gte practice helpers", () => {
   it("steps speed trainer toward its target", () => {
     expect(nextSpeedTrainerValue(1)).toBe(1.05);
     expect(nextSpeedTrainerValue(1.49)).toBe(1.5);
+    expect(nextSpeedTrainerValue(0.75, 0.01, 1)).toBe(0.76);
+    expect(SPEED_TRAINER_STEP_OPTIONS.slice(0, 3)).toEqual([0.01, 0.02, 0.03]);
+    expect(SPEED_TRAINER_START_OPTIONS).toContain(0.75);
   });
 
   it("normalizes track pan", () => {

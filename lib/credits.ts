@@ -8,8 +8,8 @@ export type CreditsSummary = {
 
 export const STARTING_CREDITS = 10;
 export const FREE_MONTHLY_CREDITS = 10;
-export const PREMIUM_MONTHLY_CREDITS = 50;
-export const PREMIUM_ROLLOVER_CREDIT_CAP = 100;
+export const PREMIUM_MONTHLY_CREDITS = 100;
+export const PREMIUM_ROLLOVER_CREDIT_CAP = 200;
 export const CREDIT_INTERVAL_SEC = 30;
 export const DEFAULT_DURATION_SEC = 30;
 export const DEV_CREDITS_LIMIT = 9999;

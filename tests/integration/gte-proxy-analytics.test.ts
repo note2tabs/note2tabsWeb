@@ -21,6 +21,11 @@ vi.mock("../../lib/gteTrackInstrumentStore", () => ({
   persistTrackInstrumentsFromSnapshot: vi.fn(),
 }));
 
+vi.mock("../../lib/gteTrackPlaybackStore", () => ({
+  hydrateTrackPlaybackFromStore: async (_userId: string, _editorRef: string, payload: unknown) => payload,
+  persistTrackPlaybackFromSnapshot: vi.fn(),
+}));
+
 describe("gte proxy analytics", () => {
   beforeEach(() => {
     sessionMock.mockReset();

@@ -34,6 +34,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const session = await getServerSession(req, res, authOptions);
+  if (!session?.user?.id) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
   const jobId = Array.isArray(req.query.job_id) ? req.query.job_id[0] : req.query.job_id;
   if (!jobId) {
     return res.status(400).json({ error: "Missing job id" });
@@ -41,8 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (BACKEND_SECRET) headers["X-Backend-Secret"] = BACKEND_SECRET;
-  const session = await getServerSession(req, res, authOptions);
-  if (session?.user?.id) headers["X-User-Id"] = session.user.id;
+  headers["X-User-Id"] = session.user.id;
 
   let upstream: Response;
   try {

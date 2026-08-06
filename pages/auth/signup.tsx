@@ -1,10 +1,13 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { signIn } from "next-auth/react";
 import { generateFingerprint } from "../../lib/fingerprint";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../../lib/analytics";
 import NoIndexHead from "../../components/NoIndexHead";
+import { clearOAuthIntent, saveOAuthIntent } from "../../lib/oauthAnalytics";
+import { categorizeAnalyticsDestination } from "../../lib/analyticsPrivacy";
+import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
 
 const authErrorMessage = (error?: string | string[]) => {
   const value = Array.isArray(error) ? error[0] : error;
@@ -37,11 +40,17 @@ export default function SignupPage() {
     nextHref === "/" ? "/auth/login" : `/auth/login?next=${encodeURIComponent(nextHref)}`;
   const routeError = useMemo(() => authErrorMessage(router.query.error), [router.query.error]);
 
+  useEffect(() => {
+    if (router.query.error) clearOAuthIntent();
+  }, [router.query.error]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    clearOAuthIntent();
     setError(null);
     setLoading(true);
-    sendEvent(ANALYTICS_EVENTS.signupStarted, { method: "email", next: nextHref });
+    const destination = categorizeAnalyticsDestination(nextHref);
+    sendEvent(ANALYTICS_EVENTS.signupStarted, { method: "email", destination });
     let fingerprintId: string | undefined;
     try {
       const fingerprint = await generateFingerprint();
@@ -58,10 +67,13 @@ export default function SignupPage() {
     const data = await res.json();
     if (!res.ok) {
       setError(data?.error || "Could not sign up.");
-      sendEvent(ANALYTICS_EVENTS.signupFailed, { method: "email", error: data?.error || "unknown" });
+      sendEvent(ANALYTICS_EVENTS.signupFailed, {
+        method: "email",
+        error_code: categorizeAnalyticsError(data?.error, "signup_failed"),
+      });
       return;
     }
-    sendEvent(ANALYTICS_EVENTS.signupCompleted, { method: "email", next: nextHref });
+    sendEvent(ANALYTICS_EVENTS.signupCompleted, { method: "email", destination });
     const nextEmail = encodeURIComponent((data?.email as string) || email);
     const sentParam = data?.emailSent === false ? "&sent=0" : "";
     const nextParam = nextHref === "/" ? "" : `&next=${encodeURIComponent(nextHref)}`;
@@ -80,8 +92,9 @@ export default function SignupPage() {
           </div>
           <form className="stack" onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="label">Name (optional)</label>
+              <label className="label" htmlFor="signup-name">Name (optional)</label>
               <input
+                id="signup-name"
                 type="text"
                 name="name"
                 autoComplete="name"
@@ -91,8 +104,9 @@ export default function SignupPage() {
               />
             </div>
             <div className="form-group">
-              <label className="label">Email</label>
+              <label className="label" htmlFor="signup-email">Email</label>
               <input
+                id="signup-email"
                 type="email"
                 name="email"
                 autoComplete="email"
@@ -103,8 +117,9 @@ export default function SignupPage() {
               />
             </div>
             <div className="form-group">
-              <label className="label">Password</label>
+              <label className="label" htmlFor="signup-password">Password</label>
               <input
+                id="signup-password"
                 type="password"
                 name="new-password"
                 autoComplete="new-password"
@@ -115,7 +130,7 @@ export default function SignupPage() {
                 className="form-input"
               />
             </div>
-            {(error || routeError) && <div className="error">{error || routeError}</div>}
+            {(error || routeError) && <div className="error" role="alert">{error || routeError}</div>}
             <button type="submit" disabled={loading} className="button-primary">
               {loading ? "Creating account..." : "Sign up"}
             </button>
@@ -126,8 +141,12 @@ export default function SignupPage() {
           <button
             type="button"
             onClick={() => {
-              sendEvent(ANALYTICS_EVENTS.signupStarted, { method: "google", next: nextHref });
+              sendEvent(ANALYTICS_EVENTS.signupStarted, {
+                method: "google",
+                destination: categorizeAnalyticsDestination(nextHref),
+              });
               trackCtaClick("signup_google", { surface: "signup_page" });
+              saveOAuthIntent("signup", nextHref);
               signIn("google", { callbackUrl: nextHref });
             }}
             className="button-secondary"

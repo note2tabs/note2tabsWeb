@@ -1,9 +1,16 @@
 import Link from "next/link";
+import Image from "next/image";
+import type { GetStaticProps } from "next";
 import { useRouter } from "next/router";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
-import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
+import {
+  ANALYTICS_EVENTS,
+  sendEvent,
+  sendTranscriptionStartedEvents,
+  trackCtaClick,
+} from "../lib/analytics";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
@@ -21,9 +28,36 @@ import {
   getDefaultFileClipRange,
   isFileClipRangeValid,
 } from "../lib/transcriptionClip";
-import SeoHead, { SITE_NAME, SITE_URL, absoluteUrl } from "../components/SeoHead";
+import SeoHead, {
+  ORGANIZATION_ID,
+  SITE_IDENTITY_JSON_LD,
+  SITE_NAME,
+  SITE_URL,
+  WEBSITE_ID,
+} from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
+import TranscriptionModelValueNote from "../components/TranscriptionModelValueNote";
+import PremiumConversionCard from "../components/PremiumConversionCard";
+import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
+import { normalizeUploadFilename } from "../lib/uploadFilename";
+import {
+  clearPendingTranscription,
+  peekPendingTranscription,
+  savePendingTranscription,
+} from "../lib/pendingTranscription";
+import {
+  clearRecoverableCheckoutSessionId,
+  confirmPremiumCheckout,
+  getRecoverableCheckoutSessionId,
+  hideCheckoutSessionIdFromAddressBar,
+  waitForPremiumEntitlement,
+} from "../lib/premiumEntitlement";
+import {
+  analyticsHttpStatusClass,
+  categorizeAnalyticsError,
+} from "../lib/analyticsErrors";
+import { formatCreditResetDate } from "../lib/formatCreditResetDate";
 
 type TabsResponse = {
   tabs: string[][];
@@ -39,6 +73,12 @@ type TabsResponse = {
 };
 type CreditsResponse = {
   credits?: CreditsSummary;
+};
+type HomePageProps = {
+  trustMetrics: {
+    transcriptionsCompleted: number;
+    editorsCreated: number;
+  } | null;
 };
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
@@ -143,8 +183,10 @@ const parseYouTubeId = (value: string): string | null => {
   return null;
 };
 
-export default function HomePage() {
-  const { data: session } = useSession();
+const formatTrustMetric = (value: number) => new Intl.NumberFormat("en-US").format(value);
+
+export default function HomePage({ trustMetrics }: HomePageProps) {
+  const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const router = useRouter();
   const [mode, setMode] = useState<"FILE" | "YOUTUBE">("FILE");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -174,6 +216,7 @@ export default function HomePage() {
   const [editorLoading, setEditorLoading] = useState(false);
   const [pricingBusy, setPricingBusy] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
+  const [authHandoffBusy, setAuthHandoffBusy] = useState(false);
   const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
   const [includesOtherInstruments, setIncludesOtherInstruments] = useState<boolean | null>(null);
   const [transcriptionModel, setTranscriptionModel] =
@@ -183,10 +226,16 @@ export default function HomePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
   const convertInFlightRef = useRef(false);
+  const authHandoffInFlightRef = useRef(false);
+  const resumeHandoffAttemptRef = useRef(0);
   const disableDbInDev = isLocalNoDbClientMode;
   const transcriberSession = session ?? null;
   const isSignedIn = Boolean(transcriberSession);
   const isPremiumUser = isPremiumRole(transcriberSession?.user?.role);
+  const isStaffUser = ["ADMIN", "MODERATOR", "MOD"].includes(transcriberSession?.user?.role || "");
+  const needsPremiumForSelectedFile = Boolean(
+    transcriberSession && !isPremiumUser && selectedFile && selectedFile.size > MAX_FREE_BYTES
+  );
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
   const unverifiedTranscriptionUsed =
@@ -266,19 +315,10 @@ export default function HomePage() {
   }, [session, disableDbInDev]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const elements = document.querySelectorAll("[data-reveal]");
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) entry.target.classList.add("visible");
-        });
-      },
-      { threshold: 0.2 }
-    );
-    elements.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, []);
+    if (!isPremiumUser && displayedCredits) {
+      publishCreditsForPremiumPrompt(displayedCredits.remaining);
+    }
+  }, [displayedCredits, isPremiumUser]);
 
   useEffect(() => {
     if (appendEditorId) {
@@ -324,6 +364,11 @@ export default function HomePage() {
     }
   }, [mode]);
 
+  useEffect(() => {
+    if (!router.isReady || router.query.mode !== "youtube") return;
+    setMode("YOUTUBE");
+  }, [router.isReady, router.query.mode]);
+
   const applyFileClipDefaults = (duration: number | null) => {
     const nextRange = getDefaultFileClipRange(duration, isPremiumUser);
     setFileStartTime(nextRange.start);
@@ -342,6 +387,113 @@ export default function HomePage() {
       applyFileClipDefaults(duration);
     });
   };
+
+  useEffect(() => {
+    if (!router.isReady || sessionStatus !== "authenticated") return;
+    if (router.query.resumeTranscription !== "1") return;
+    const attemptId = resumeHandoffAttemptRef.current + 1;
+    resumeHandoffAttemptRef.current = attemptId;
+    let cancelled = false;
+
+    const restorePendingTranscription = async () => {
+      const pending = await peekPendingTranscription();
+      if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
+      if (!pending) {
+        setError("Your saved upload expired or could not be restored. Please choose it again to continue.");
+        await router.replace("/#hero", undefined, { shallow: true });
+        return;
+      }
+
+      const returnedFromBilling =
+        router.query.upgrade === "success" || router.query.upgrade === "manage";
+      const requiresPremium = pending.mode === "FILE" && pending.file.size > MAX_FREE_BYTES;
+      let premiumEntitlementReady = isPremiumUser;
+      const checkoutSessionIdValue = router.query.session_id;
+      const checkoutSessionIdFromQuery = Array.isArray(checkoutSessionIdValue)
+        ? checkoutSessionIdValue[0]
+        : checkoutSessionIdValue;
+      if (returnedFromBilling) hideCheckoutSessionIdFromAddressBar();
+      const checkoutSessionId =
+        router.query.upgrade === "success"
+          ? typeof checkoutSessionIdFromQuery === "string"
+            ? checkoutSessionIdFromQuery
+            : getRecoverableCheckoutSessionId()
+          : null;
+
+      if (returnedFromBilling && requiresPremium && !premiumEntitlementReady) {
+        setError(null);
+        setStatus("Payment received. Activating Premium and restoring your upload…");
+        if (typeof checkoutSessionId === "string") {
+          await confirmPremiumCheckout(checkoutSessionId);
+        }
+        if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
+        premiumEntitlementReady = await waitForPremiumEntitlement(
+          () => updateSession(),
+          {
+            shouldStop: () => cancelled || resumeHandoffAttemptRef.current !== attemptId,
+          }
+        );
+        if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
+        if (!premiumEntitlementReady) {
+          setStatus(null);
+          setError(
+            "Premium is still activating. Your upload is safe—reload this page to retry."
+          );
+          return;
+        }
+        clearRecoverableCheckoutSessionId();
+      } else if (returnedFromBilling && premiumEntitlementReady) {
+        clearRecoverableCheckoutSessionId();
+      }
+
+      setError(null);
+      setShowInstrumentPrompt(false);
+      if (pending.mode === "FILE") {
+        setMode("FILE");
+        setSelectedFile(pending.file);
+        setFileDuration(null);
+        setFileStartTime(pending.fileStartTime);
+        setFileStartInput(formatTimestamp(pending.fileStartTime));
+        setFileEndTime(pending.fileEndTime);
+        setFileEndInput(formatTimestamp(pending.fileEndTime));
+        const duration = await getAudioFileDuration(pending.file);
+        if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
+        setFileDuration(duration);
+      } else {
+        setMode("YOUTUBE");
+        setYoutubeUrl(pending.youtubeUrl);
+        setYtStartTime(pending.startTime);
+        setYtStartInput(formatTimestamp(pending.startTime));
+        setYtEndTime(pending.endTime);
+        setYtEndInput(formatTimestamp(pending.endTime));
+      }
+
+      if (pending.mode === "FILE" && pending.file.size > MAX_PREMIUM_BYTES) {
+        setError(`The restored file exceeds the ${formatMb(MAX_PREMIUM_BYTES)} upload limit.`);
+        setStatus("Choose a smaller audio file to continue.");
+      } else if (requiresPremium && !premiumEntitlementReady) {
+        setStatus("Your upload is restored. Upgrade to Premium to transcribe this file.");
+      } else if (!canUseUnverifiedTranscription) {
+        setError("Please verify your email to continue using the transcriber.");
+        setStatus("Your upload is restored and will remain available after verification.");
+      } else {
+        setShowInstrumentPrompt(true);
+        setStatus("Welcome back — your transcription is ready to continue.");
+      }
+
+      sendEvent(ANALYTICS_EVENTS.authHandoffResumed, { mode: pending.mode, path: "/" });
+      await router.replace("/#hero", undefined, { shallow: true });
+    };
+
+    void restorePendingTranscription()
+      .catch(() => {
+        if (!cancelled) setError("You are signed in. Please choose the audio again to continue.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router.isReady, router.query.resumeTranscription, sessionStatus]);
 
   useEffect(() => {
     if (!selectedFile || fileDuration === null || fileStartTime !== 0 || fileEndTime === null) return;
@@ -468,9 +620,9 @@ export default function HomePage() {
   const youtubeValid = useMemo(() => Boolean(youtubeId), [youtubeId]);
 
   const canSubmit = useMemo(() => {
-    if (isSignedIn && !canUseUnverifiedTranscription) return false;
-    if (mode === "FILE") return Boolean(selectedFile) && fileTimeRangeValid && !loading;
-    return youtubeValid && youtubeTimeRangeValid && !loading;
+    if (sessionStatus === "loading" || (isSignedIn && !canUseUnverifiedTranscription)) return false;
+    if (mode === "FILE") return Boolean(selectedFile) && fileTimeRangeValid && !loading && !authHandoffBusy;
+    return youtubeValid && youtubeTimeRangeValid && !loading && !authHandoffBusy;
   }, [
     mode,
     selectedFile,
@@ -478,10 +630,14 @@ export default function HomePage() {
     youtubeValid,
     youtubeTimeRangeValid,
     loading,
+    authHandoffBusy,
     isSignedIn,
     canUseUnverifiedTranscription,
+    sessionStatus,
   ]);
-  const submitLabel = loading
+  const submitLabel = authHandoffBusy
+    ? "Opening sign in…"
+    : loading
     ? mode === "YOUTUBE"
       ? "Downloading..."
       : "Generating..."
@@ -667,12 +823,11 @@ export default function HomePage() {
     setTranscriberSegments(null);
     setStatus(mode === "FILE" ? "Uploading audio..." : "Preparing YouTube download...");
     setLoading(true);
-    sendEvent(ANALYTICS_EVENTS.tabGenerationStarted, {
+    sendTranscriptionStartedEvents(transcriptionModel, {
       mode,
       sourceType: mode,
       separateGuitar,
       multipleGuitars,
-      transcriptionModel,
       fileSize: selectedFile?.size,
       durationSec: mode === "YOUTUBE" ? resolvedYtDuration : resolvedFileDuration,
       hasAppendEditorId: Boolean(appendEditorId),
@@ -681,6 +836,7 @@ export default function HomePage() {
     try {
       let response: Response | null = null;
       if (mode === "FILE" && selectedFile) {
+        const uploadFileName = normalizeUploadFilename(selectedFile.name);
         const postFileDirectly = async () => {
           const fd = new FormData();
           fd.append("mode", "FILE");
@@ -692,7 +848,7 @@ export default function HomePage() {
           if (shouldDeferEditorSync) {
             fd.append("skipAutoEditorSync", "true");
           }
-          fd.append("file", selectedFile);
+          fd.append("file", selectedFile, uploadFileName);
           setStatus(transcribingStatusLabel);
           return await fetch("/api/transcribe", { method: "POST", body: fd });
         };
@@ -706,7 +862,7 @@ export default function HomePage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              fileName: selectedFile.name,
+              fileName: uploadFileName,
               contentType: selectedFile.type || "application/octet-stream",
               size: selectedFile.size,
             }),
@@ -716,7 +872,11 @@ export default function HomePage() {
             sendEvent(ANALYTICS_EVENTS.uploadStorageFailed, {
               mode,
               step: "presign",
-              error: presignData?.error || "presign_failed",
+              error_code: categorizeAnalyticsError(
+                presignData?.error,
+                "presign_rejected"
+              ),
+              http_status_class: analyticsHttpStatusClass(presignRes.status),
             });
             throw new Error(presignData?.error || uploadStorageError);
           } else {
@@ -742,7 +902,7 @@ export default function HomePage() {
             const payload: Record<string, unknown> = {
               mode: "FILE",
               s3Key: presignData.key,
-              fileName: selectedFile.name,
+              fileName: uploadFileName,
               separateGuitar,
               multipleGuitars,
               transcriptionModel,
@@ -782,11 +942,13 @@ export default function HomePage() {
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
       if (response.status === 202 && data.jobId) {
+        await clearPendingTranscription().catch(() => {});
         if (data.credits) {
           setCredits(data.credits);
         }
         if (data.unverifiedTranscriptionUsed) {
           setLocalUnverifiedTranscriptionUsed(true);
+          await updateSession().catch(() => null);
         }
         setStatus("Getting things started. Opening progress screen...");
         sendEvent(ANALYTICS_EVENTS.tabGenerationQueued, { mode, jobId: data.jobId, status: data.status || "queued" });
@@ -813,25 +975,39 @@ export default function HomePage() {
         }
         if (data.verificationRequired) {
           setLocalUnverifiedTranscriptionUsed(true);
+          await updateSession().catch(() => null);
           setError("Please verify your email to continue using the transcriber.");
           return;
         }
+        if (response.status === 403 && data.credits) {
+          setError(null);
+          return;
+        }
         setError(data?.error || "Transcription failed. Please try again.");
-        sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, { mode, error: data?.error || "unknown" });
+        sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
+          mode,
+          error_code: categorizeAnalyticsError(data?.error, "transcription_failed"),
+          http_status_class: analyticsHttpStatusClass(response.status),
+        });
         return;
       }
       if (!data.tabs || !Array.isArray(data.tabs)) {
         setError("No tabs returned from server.");
-        sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, { mode, error: "no tabs" });
+        sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
+          mode,
+          error_code: "no_tabs",
+        });
         return;
       }
       const nextTabs = data.tabs;
+      await clearPendingTranscription().catch(() => {});
       setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
       if (data.credits) {
         setCredits(data.credits);
       }
       if (data.unverifiedTranscriptionUsed) {
         setLocalUnverifiedTranscriptionUsed(true);
+        await updateSession().catch(() => null);
       }
       sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
         mode,
@@ -863,15 +1039,66 @@ export default function HomePage() {
       return;
     } catch (err: any) {
       setError(err?.message || "Something went wrong. Please try again.");
-      sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, { mode, error: err?.message || "unknown" });
+      sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
+        mode,
+        error_code: categorizeAnalyticsError(err, "transcription_failed"),
+      });
     } finally {
       setLoading(false);
       convertInFlightRef.current = false;
     }
   };
 
-  const handleConvert = () => {
-    if (convertInFlightRef.current || loading) return;
+  const handleConvert = async () => {
+    if (convertInFlightRef.current || authHandoffInFlightRef.current || loading) return;
+    if (sessionStatus === "loading") {
+      setStatus("Checking your account…");
+      return;
+    }
+    if (!transcriberSession && !disableDbInDev) {
+      if (mode === "FILE" && selectedFile && selectedFile.size > MAX_PREMIUM_BYTES) {
+        setError(`Files over ${formatMb(MAX_PREMIUM_BYTES)} cannot be preserved through sign-in.`);
+        sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, {
+          reason: "file_too_large",
+          mode,
+          size: selectedFile.size,
+          maxBytes: MAX_PREMIUM_BYTES,
+        });
+        return;
+      }
+      authHandoffInFlightRef.current = true;
+      setAuthHandoffBusy(true);
+      setError(null);
+      setStatus("Saving your selection before sign-in…");
+      try {
+        await savePendingTranscription(
+          mode === "FILE" && selectedFile
+            ? {
+                mode: "FILE",
+                file: selectedFile,
+                fileStartTime: Math.max(0, fileStartTime ?? 0),
+                fileEndTime: Math.max(1, fileEndTime ?? DEFAULT_FILE_SNIPPET_SEC),
+                savedAt: Date.now(),
+              }
+            : {
+                mode: "YOUTUBE",
+                youtubeUrl: youtubeUrl.trim(),
+                startTime: Math.max(0, ytStartTime ?? 0),
+                endTime: Math.max(1, ytEndTime ?? MAX_YT_SNIPPET_SEC),
+                savedAt: Date.now(),
+              }
+        );
+        sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "signed_out", mode });
+        sendEvent(ANALYTICS_EVENTS.authHandoffSaved, { mode, path: "/" });
+        await signIn(undefined, { callbackUrl: "/?resumeTranscription=1#hero" });
+      } catch {
+        setError("We could not safely preserve this audio for sign-in. Please sign in first, then choose it again.");
+      } finally {
+        authHandoffInFlightRef.current = false;
+        setAuthHandoffBusy(false);
+      }
+      return;
+    }
     if (!validateConvertInputs()) return;
     setError(null);
     setIncludesOtherInstruments(null);
@@ -893,6 +1120,10 @@ export default function HomePage() {
 
   const handleInstrumentPromptStart = () => {
     if (includesOtherInstruments === null || multipleGuitars === null) return;
+    if (!validateConvertInputs()) {
+      setShowInstrumentPrompt(false);
+      return;
+    }
     void startConvert(includesOtherInstruments);
   };
 
@@ -939,11 +1170,11 @@ export default function HomePage() {
       title: "Upload or paste a YouTube link",
       text: "Start with a riff, solo, rehearsal recording, or YouTube clip.",
       video: "/videos/upload.mp4",
-      poster: "/videos/posters/upload.jpg",
+      poster: "/videos/posters/upload-640.webp",
     },
     {
       title: "Edit your guitar tabs",
-      text: "Clean up timing, adjust fingerings, and shape the result into playable tab.",
+      text: "Arrange sections, choose fingerings, add techniques, and shape the tab your way.",
       video: "/videos/edit.mp4",
       poster: "/videos/posters/edit.jpg",
     },
@@ -958,9 +1189,21 @@ export default function HomePage() {
     const [activeHowStep, setActiveHowStep] = useState(0);
   const [howAutoAdvanceEnabled, setHowAutoAdvanceEnabled] = useState(true);
   const [howManualPlayNonce, setHowManualPlayNonce] = useState(0);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const howRef = useRef<HTMLElement | null>(null);
   const howVideoRef = useRef<HTMLVideoElement | null>(null);
   const [hasViewedHowSection, setHasViewedHowSection] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncPreference = () => {
+      setPrefersReducedMotion(media.matches);
+      if (media.matches) setHowAutoAdvanceEnabled(false);
+    };
+    syncPreference();
+    media.addEventListener?.("change", syncPreference);
+    return () => media.removeEventListener?.("change", syncPreference);
+  }, []);
 
   useEffect(() => {
     const el = howRef.current;
@@ -984,7 +1227,7 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (!howAutoAdvanceEnabled || !hasViewedHowSection || howSteps.length === 0) return;
+    if (prefersReducedMotion || !howAutoAdvanceEnabled || !hasViewedHowSection || howSteps.length === 0) return;
 
     const video = howVideoRef.current;
     if (!video) return;
@@ -1004,10 +1247,10 @@ export default function HomePage() {
     return () => {
       video.removeEventListener("ended", handleEnded);
     };
-  }, [activeHowStep, hasViewedHowSection, howAutoAdvanceEnabled, howSteps.length]);
+  }, [activeHowStep, hasViewedHowSection, howAutoAdvanceEnabled, howSteps.length, prefersReducedMotion]);
 
   useEffect(() => {
-    if (!hasViewedHowSection) return;
+    if (!hasViewedHowSection || prefersReducedMotion) return;
     const video = howVideoRef.current;
     if (!video) return;
     if (!howAutoAdvanceEnabled && howManualPlayNonce === 0) return;
@@ -1015,7 +1258,7 @@ export default function HomePage() {
     if (playPromise && typeof playPromise.catch === "function") {
       playPromise.catch(() => {});
     }
-  }, [activeHowStep, hasViewedHowSection, howAutoAdvanceEnabled, howManualPlayNonce]);
+  }, [activeHowStep, hasViewedHowSection, howAutoAdvanceEnabled, howManualPlayNonce, prefersReducedMotion]);
 
   const handleHowStepClick = (index: number) => {
     setHowAutoAdvanceEnabled(false);
@@ -1048,71 +1291,118 @@ export default function HomePage() {
 
   const handlePricingClick = async () => {
     if (pricingBusy) return;
+    sendEvent(ANALYTICS_EVENTS.pricingCtaClicked, {
+      cta: "premium_card",
+      signedIn: Boolean(session),
+      path: "/",
+    });
     if (!session) {
-      sendEvent(ANALYTICS_EVENTS.pricingCtaClicked, { cta: "premium_card", signedIn: false, path: "/" });
-      signIn(undefined, { callbackUrl: "/" });
+      signIn(undefined, { callbackUrl: "/pricing?checkout=1" });
+      return;
+    }
+    if (isPremiumUser) {
+      await router.push(isStaffUser ? "/transcribe" : "/settings");
       return;
     }
     setPricingBusy(true);
     setPricingError(null);
     try {
-      const res = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
+      const res = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "home_pricing" }),
+      });
       const data = await res.json();
       if (!res.ok || !data?.url) {
+        sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
+          source: "home_pricing",
+          plan: "premium_monthly",
+        });
         setPricingError(data?.error || "Could not start checkout.");
         return;
       }
-      sendEvent(ANALYTICS_EVENTS.checkoutStarted, { source: "home_pricing", plan: "premium_monthly" });
+      sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
+        source: "home_pricing",
+        plan: "premium_monthly",
+        checkout_attempt_id: data.checkoutAttemptId,
+      });
       window.location.href = data.url;
     } catch (err: any) {
+      sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
+        source: "home_pricing",
+        plan: "premium_monthly",
+      });
       setPricingError(err?.message || "Could not start checkout.");
     } finally {
       setPricingBusy(false);
     }
   };
 
-  const preventEnterSubmit = (event: KeyboardEvent<HTMLFormElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
+  const handlePreservedUploadUpgrade = async () => {
+    if (!selectedFile || pricingBusy) return;
+    setPricingBusy(true);
+    setPricingError(null);
+    try {
+      await savePendingTranscription({
+        mode: "FILE",
+        file: selectedFile,
+        fileStartTime: Math.max(0, fileStartTime ?? 0),
+        fileEndTime: Math.max(1, fileEndTime ?? DEFAULT_FILE_SNIPPET_SEC),
+        savedAt: Date.now(),
+      });
+      const response = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          returnTo: "/?resumeTranscription=1",
+          source: "large_upload_gate",
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.url) {
+        throw new Error(payload?.error || "Could not start checkout.");
+      }
+      sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
+        source: "large_upload_gate",
+        plan: "premium_monthly",
+        checkout_attempt_id: payload.checkoutAttemptId,
+      });
+      window.location.assign(payload.url);
+    } catch (upgradeError) {
+      sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
+        source: "large_upload_gate",
+        plan: "premium_monthly",
+      });
+      setPricingError(
+        upgradeError instanceof Error ? upgradeError.message : "Could not start checkout."
+      );
+      setPricingBusy(false);
     }
   };
+
   const creditsSummaryLabel = displayedCredits ? String(displayedCredits.remaining) : "0";
   const creditsResetDate = isSignedIn && displayedCredits ? new Date(displayedCredits.resetAt) : null;
-  const creditsResetLabel =
-    creditsResetDate && !Number.isNaN(creditsResetDate.getTime()) ? creditsResetDate.toLocaleDateString() : "";
+  const creditsResetLabel = formatCreditResetDate(creditsResetDate);
   const creditsDaysUntilReset =
     creditsResetDate && !Number.isNaN(creditsResetDate.getTime())
       ? Math.max(0, Math.ceil((creditsResetDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
       : null;
-  const showCreditsEmpty = displayedCredits && displayedCredits.remaining === 0;
+  const showCreditsLow = displayedCredits && displayedCredits.remaining <= 3;
   const homeJsonLd = [
-    {
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      name: SITE_NAME,
-      url: SITE_URL,
-      logo: absoluteUrl("/logo01black.png"),
-      sameAs: [
-        "https://instagram.com/note2tabs",
-        "https://tiktok.com/@note2tabs",
-        "https://youtube.com/@note2tabs",
-      ],
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      name: SITE_NAME,
-      url: SITE_URL,
-    },
+    ...SITE_IDENTITY_JSON_LD,
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
+      "@id": `${SITE_URL}/#software-application`,
       name: SITE_NAME,
       applicationCategory: "MusicApplication",
+      applicationSubCategory: "Guitar tablature transcription and editing",
       operatingSystem: "Web",
-      url: SITE_URL,
+      url: `${SITE_URL}/`,
       description:
         "Convert audio files and YouTube links into editable guitar tabs in the browser.",
+      isPartOf: { "@id": WEBSITE_ID },
+      provider: { "@id": ORGANIZATION_ID },
       offers: {
         "@type": "Offer",
         price: "0",
@@ -1125,55 +1415,23 @@ export default function HomePage() {
     <>
       <SeoHead
         title="Note2Tabs | Convert Audio and YouTube to Guitar Tabs"
-        description="Convert audio files or YouTube links into playable guitar tabs online. Upload a song, generate tabs, and refine them in the browser."
+        description="Convert audio files or YouTube links into playable guitar tabs online, then open them in a complete browser-based guitar tab editor."
         canonicalPath="/"
         jsonLd={homeJsonLd}
       />
       <main className="page page-home">
         <section className="hero hero--landing-funnel" id="hero">
           <div className="hero-doodle-field" aria-hidden="true">
-            <img
-              className="hero-doodle hero-doodle--guitar"
-              src="/images/doodles/hand-drawn-guitar.png"
-              alt=""
-              width="644"
-              height="472"
-              loading="eager"
-              decoding="async"
-            />
-            <img
-              className="hero-doodle hero-doodle--notes"
-              src="/images/doodles/music-notes.png"
-              alt=""
-              width="1095"
-              height="759"
-              loading="eager"
-              decoding="async"
-            />
-            <img
-              className="hero-doodle hero-doodle--fretboard"
-              src="/images/doodles/fretboard-segment.png"
-              alt=""
-              width="1601"
-              height="690"
-              loading="eager"
-              decoding="async"
-            />
-            <img
-              className="hero-doodle hero-doodle--picks"
-              src="/images/doodles/alternatives/guitar-picks.png"
-              alt=""
-              width="920"
-              height="739"
-              loading="eager"
-              decoding="async"
-            />
+            <span className="hero-doodle hero-doodle--guitar" />
+            <span className="hero-doodle hero-doodle--notes" />
+            <span className="hero-doodle hero-doodle--fretboard" />
+            <span className="hero-doodle hero-doodle--picks" />
           </div>
           <div className="container hero-stack hero-stack--centered">
             <div className="hero-heading" data-reveal>
               <p className="hero-eyebrow">AI tabs built for guitarists</p>
               <div className="hero-title-row">
-                <h1 className="hero-title">Convert Any Song to Tabs</h1>
+                <h1 className="hero-title">Convert Any Song to Guitar Tabs</h1>
               </div>
               <p className="hero-subtitle hero-subtitle--conversion">
                 Turn recordings into guitar tab you can edit, practice, and export.
@@ -1183,7 +1441,10 @@ export default function HomePage() {
               id="transcriber-start"
               className="prompt-shell prompt-shell--funnel"
               data-reveal
-              onKeyDown={preventEnterSubmit}
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleHeroPrimaryAction();
+              }}
             >
               <div
                 className={`prompt-meta-row ${
@@ -1204,7 +1465,7 @@ export default function HomePage() {
                         id="home-transcription-model"
                         value={transcriptionModel}
                         onChange={setTranscriptionModel}
-                        disabled={loading}
+                        disabled={loading || authHandoffBusy}
                       />
                     </div>
                   )}
@@ -1224,6 +1485,17 @@ export default function HomePage() {
                   </p>
                 )}
               </div>
+              {!showInstrumentPrompt && (
+                <TranscriptionModelValueNote
+                  model={transcriptionModel}
+                  isPremium={isPremiumUser}
+                  onSelectHeavy={() => {
+                    setTranscriptionModel("heavy");
+                    trackCtaClick("try_heavy_model", { surface: "hero_funnel" });
+                  }}
+                  surface="hero_funnel"
+                />
+              )}
 
               {showInstrumentPrompt ? (
                 <div className="instrument-prompt">
@@ -1236,7 +1508,8 @@ export default function HomePage() {
                           includesOtherInstruments === true ? "active" : ""
                         }`}
                         onClick={() => setIncludesOtherInstruments(true)}
-                        disabled={loading}
+                        aria-pressed={includesOtherInstruments === true}
+                        disabled={loading || authHandoffBusy}
                       >
                         Yes
                       </button>
@@ -1246,7 +1519,8 @@ export default function HomePage() {
                           includesOtherInstruments === false ? "active" : ""
                         }`}
                         onClick={() => setIncludesOtherInstruments(false)}
-                        disabled={loading}
+                        aria-pressed={includesOtherInstruments === false}
+                        disabled={loading || authHandoffBusy}
                       >
                         No
                       </button>
@@ -1261,7 +1535,8 @@ export default function HomePage() {
                           multipleGuitars === true ? "active" : ""
                         }`}
                         onClick={() => setMultipleGuitars(true)}
-                        disabled={loading}
+                        aria-pressed={multipleGuitars === true}
+                        disabled={loading || authHandoffBusy}
                       >
                         Yes
                       </button>
@@ -1271,7 +1546,8 @@ export default function HomePage() {
                           multipleGuitars === false ? "active" : ""
                         }`}
                         onClick={() => setMultipleGuitars(false)}
-                        disabled={loading}
+                        aria-pressed={multipleGuitars === false}
+                        disabled={loading || authHandoffBusy}
                       >
                         No
                       </button>
@@ -1299,7 +1575,7 @@ export default function HomePage() {
                         onDragEnter={mode === "FILE" ? onDragEnter : undefined}
                         onDragLeave={mode === "FILE" ? onDragLeave : undefined}
                       >
-                        {loading && status ? (
+                        {(loading || authHandoffBusy) && status ? (
                           <TranscriptionStartStatus status={status} compact />
                         ) : (
                           <>
@@ -1326,12 +1602,19 @@ export default function HomePage() {
                                 {selectedFile ? selectedFile.name : "Upload audio file or drop it here"}
                               </span>
                             ) : (
-                              <input
-                                type="url"
-                                value={youtubeUrl}
-                                onChange={(event) => setYoutubeUrl(event.target.value)}
-                                placeholder="https://www.youtube.com/..."
-                              />
+                              <>
+                                <label className="sr-only" htmlFor="home-youtube-url">
+                                  YouTube link
+                                </label>
+                                <input
+                                  id="home-youtube-url"
+                                  name="youtubeUrl"
+                                  type="url"
+                                  value={youtubeUrl}
+                                  onChange={(event) => setYoutubeUrl(event.target.value)}
+                                  placeholder="https://www.youtube.com/..."
+                                />
+                              </>
                             )}
                           </>
                         )}
@@ -1347,10 +1630,11 @@ export default function HomePage() {
                       </div>
                     </div>
                     <div className="funnel-toolbar">
-                      <div className="mode-switch mode-switch--hero" role="tablist" aria-label="Input mode">
+                      <div className="mode-switch mode-switch--hero" role="group" aria-label="Input mode">
                         <button
                           type="button"
                           className={mode === "FILE" ? "active" : ""}
+                          aria-pressed={mode === "FILE"}
                           onClick={() => {
                             setMode("FILE");
                             setShowInstrumentPrompt(false);
@@ -1362,6 +1646,7 @@ export default function HomePage() {
                         <button
                           type="button"
                           className={mode === "YOUTUBE" ? "active" : ""}
+                          aria-pressed={mode === "YOUTUBE"}
                           onClick={() => {
                             setMode("YOUTUBE");
                             setShowInstrumentPrompt(false);
@@ -1372,10 +1657,14 @@ export default function HomePage() {
                         </button>
                       </div>
                       <button
-                        type="button"
+                        type="submit"
                         className="button-primary funnel-submit"
-                        disabled={!canSubmit}
-                        onClick={handleHeroPrimaryAction}
+                        disabled={
+                          loading ||
+                          authHandoffBusy ||
+                          (mode === "YOUTUBE" && !canSubmit) ||
+                          (mode === "FILE" && Boolean(selectedFile) && !canSubmit)
+                        }
                       >
                         {submitLabel}
                       </button>
@@ -1461,8 +1750,20 @@ export default function HomePage() {
                 </>
               )}
 
-              {status && !loading && <div className="status">{status}</div>}
-              {error && <div className="error">{error}</div>}
+              {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
+              {error && <div className="error" role="alert">{error}</div>}
+              {needsPremiumForSelectedFile && (
+                <PremiumConversionCard
+                  title="Continue with this upload"
+                  description="Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription."
+                  actionLabel="Continue with Premium"
+                  onAction={() => void handlePreservedUploadUpgrade()}
+                  busy={pricingBusy}
+                />
+              )}
+              {needsPremiumForSelectedFile && pricingError && (
+                <div className="error" role="alert">{pricingError}</div>
+              )}
               {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
                 <div className="notice">
                   Verify your email to continue using the transcriber.{" "}
@@ -1471,12 +1772,21 @@ export default function HomePage() {
                   </Link>
                 </div>
               )}
-              {isSignedIn && showCreditsEmpty && (
-                <div className="notice">
-                  {isPremiumRole(transcriberSession?.user?.role)
-                    ? `Credits used. Next credits arrive on ${creditsResetLabel}.`
-                    : `Monthly credits used. Upgrade to Premium or wait until ${creditsResetLabel}.`}
-                </div>
+              {isSignedIn && showCreditsLow && (
+                isPremiumRole(transcriberSession?.user?.role) ? (
+                  <div className="notice">
+                    Your credits will be refreshed on {creditsResetLabel}.
+                  </div>
+                ) : (
+                  <PremiumConversionCard
+                    title="Keep transcribing today"
+                    description="Premium includes 100 monthly credits, rollover, faster processing, and full-song uploads."
+                    actionLabel="Get Premium"
+                    onAction={() => void handlePricingClick()}
+                    busy={pricingBusy}
+                    resetMessage={`Free credits reset ${creditsResetLabel}`}
+                  />
+                )
               )}
             </form>
 
@@ -1552,12 +1862,20 @@ export default function HomePage() {
                   ref={howVideoRef}
                   key={`${howSteps[activeHowStep].video}-${howManualPlayNonce}`}
                   className="how-video active"
-                  src={howSteps[activeHowStep].video}
+                  src={hasViewedHowSection ? howSteps[activeHowStep].video : undefined}
                   poster={howSteps[activeHowStep].poster}
-                  autoPlay={(hasViewedHowSection && howAutoAdvanceEnabled) || howManualPlayNonce > 0}
+                  autoPlay={
+                    !prefersReducedMotion &&
+                    ((hasViewedHowSection && howAutoAdvanceEnabled) || howManualPlayNonce > 0)
+                  }
                   muted
                   loop={false}
                   playsInline
+                  preload="none"
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  disablePictureInPicture
+                  disableRemotePlayback
                 />
               </div>
 
@@ -1578,46 +1896,80 @@ export default function HomePage() {
           </div>
         </section>
 
+        <section className="home-workflow-links" aria-labelledby="home-workflow-links-title">
+          <div className="container">
+            <div className="home-workflow-links-header">
+              <h2 id="home-workflow-links-title">A focused path for every source</h2>
+              <p>Choose the workflow that matches your recording, then finish the result in the same editor.</p>
+            </div>
+            <div className="home-workflow-link-grid">
+              <Link href="/audio-to-guitar-tab-converter">
+                <strong>Convert an audio file</strong>
+                <span>Upload MP3, WAV, or another recording and generate a structured, editable guitar tab.</span>
+              </Link>
+              <Link href="/youtube-to-guitar-tabs">
+                <strong>Convert a YouTube clip</strong>
+                <span>Paste a public link, choose a riff or solo, and transcribe the focused section.</span>
+              </Link>
+              <Link href="/ai-guitar-tab-generator">
+                <strong>Understand the AI workflow</strong>
+                <span>See how Note2Tabs turns a performance into structured, playable guitar tablature.</span>
+              </Link>
+            </div>
+          </div>
+        </section>
+
         <section className="editor-showcase" id="editor-showcase">
           <div className="container">
             <div className="editor-showcase-header" data-reveal>
-              <span className="pill">Editor</span>
               <h2>Create, edit and play your own guitar tabs.</h2>
               <p>
-                Note2Tabs guitar-tab editor is a web-based workspace for making guitar tabulature.
+                Note2Tabs guitar-tab editor is a web-based workspace for making guitar tablature.
               </p>
             </div>
 
             <div className="editor-showcase-sections">
               <article className="editor-showcase-row" data-reveal>
                 <div className="editor-showcase-image editor-showcase-image--workspace">
-                  <img
-                    src="/images/editor-previews/Editor-main.png"
+                  <Image
+                    src="/images/editor-previews/Editor-main.webp"
                     alt="Guitar tab editor workspace"
+                    width="1897"
+                    height="949"
+                    loading="lazy"
+                    sizes="(max-width: 980px) calc(100vw - 36px), 50vw"
+                    quality={72}
+                    decoding="async"
                   />
                 </div>
                 <div className="editor-showcase-text">
                   <h3>A complete workspace for guitar tabs</h3>
                   <p>
-                    Keep the whole song  in one place: unlimited songs, unlimited tracks.
+                    Keep the whole song in one place: unlimited songs, unlimited tracks.
                     The editor has over 30 unique tools helping you create tabs your way.
-                    From quick fixes to detailed arrangements, everything you need is built into a single workflow.
+                    From the first note to detailed arrangements and practice, everything you need is built into a single workflow.
                   </p>
                 </div>
               </article>
 
               <article className="editor-showcase-row editor-showcase-row--reverse" data-reveal>
                 <div className="editor-showcase-image editor-showcase-image--tools">
-                  <img
-                    src="/images/editor-previews/collage.png"
+                  <Image
+                    src="/images/editor-previews/collage.webp"
                     alt="Guitar tab editing tools"
+                    width="822"
+                    height="604"
+                    loading="lazy"
+                    sizes="(max-width: 980px) calc(100vw - 36px), 50vw"
+                    quality={72}
+                    decoding="async"
                   />
                 </div>
                 <div className="editor-showcase-text">
                   <h3>Tab-making tools tailored to guitarists</h3>
                   <p>
-                    What sets us appart from the standard guitar-tab editor are our specialised tools.
-                    Fingering selection, and optimizer tools help you find cleaner positions faster instead
+                    What sets us apart from standard guitar-tab editors is our set of specialised tools.
+                    Fingering selection and optimizer tools help you find cleaner positions faster instead
                     of manually testing every string and fret combination. Our unique "playing-coordinate" system
                     lets you pick where on the fretboard you'd like to play and "snap to key" lets you quickly type out riffs
                     without thinking about theory.
@@ -1627,9 +1979,15 @@ export default function HomePage() {
 
               <article className="editor-showcase-row" data-reveal>
                 <div className="editor-showcase-image editor-showcase-image--training">
-                  <img
-                    src="/images/editor-previews/collage-training.png"
+                  <Image
+                    src="/images/editor-previews/collage-training.webp"
                     alt="Guitar tab practice and playback tools"
+                    width="1242"
+                    height="772"
+                    loading="lazy"
+                    sizes="(max-width: 980px) calc(100vw - 36px), 50vw"
+                    quality={72}
+                    decoding="async"
                   />
                 </div>
                 <div className="editor-showcase-text">
@@ -1637,7 +1995,7 @@ export default function HomePage() {
                   <p>
                     Import text-tabs, use your transcribed or own creations and learn the riffs.
                     Playback with different guitar sounds, loop difficult sections and follow along with
-                    our train mode, on increasing speed.
+                    train mode at increasing speeds.
                   </p>
                 </div>
               </article>
@@ -1646,84 +2004,95 @@ export default function HomePage() {
             <div className="editor-showcase-feature-list" data-reveal>
               <h3>Editor features</h3>
               <ul>
-                <li>Keyboard shortcuts for everything</li>
-                <li>String and fret optimization</li>
-                <li>Snap notes to key</li>
-                <li>automatic fingering selection</li>
-                <li>Playback and practice loops</li>
-                <li>Section-based song workflow</li>
-                <li>Fast cleanup after transcription</li>
-                <li>Browser-based tab creation</li>
+                <li><Link href="/features/guitar-tab-editor-shortcuts">Keyboard shortcuts for everything</Link></li>
+                <li><Link href="/features/guitar-tab-fingering-optimizer">String and fret optimization</Link></li>
+                <li><Link href="/features/guitar-tab-key-detector">Key detection and snap to key</Link></li>
+                <li><Link href="/features/guitar-tab-fingering-optimizer">Alternative note and chord fingerings</Link></li>
+                <li><Link href="/features/guitar-chord-strumming-editor">Chord tracks and strumming tools</Link></li>
+                <li><Link href="/features/guitar-tab-import-export">Import and export tab files</Link></li>
+                <li><Link href="/features/guitar-tab-practice-trainer">Playback loops and speed training</Link></li>
+                <li><Link href="/features/guitar-tab-editor-shortcuts">Browser-based tab creation</Link></li>
               </ul>
+            </div>
+            <div className="editor-showcase-actions" data-reveal>
+              <Link href="/editor" className="button-primary">
+                Try the guitar tab editor
+              </Link>
             </div>
           </div>
         </section>
 
-        <section className="pricing" id="pricing">
+        <section className="pricing home-pricing" id="pricing">
           <div className="container">
             <div className="pricing-intro" data-reveal>
-              <span className="pill">Plans</span>
-              <h2>Start small. Upgrade for full songs.</h2>
-              <p>Try out our transcriber and editor, upgrade if you like it.</p>
+              <h2>Choose your plan.</h2>
+              <p>Start free. Upgrade when you want more transcriptions and full songs.</p>
             </div>
-            <div className="pricing-grid">
-              <div className="pricing-card pricing-card--free" data-reveal>
-                <div className="pricing-header">
-                  <span className="pill">Free</span>
-                  <div className="pricing-price">
-                    <span className="pricing-amount">$0</span>
-                    <span className="pricing-interval">/ month</span>
+            <div className="pricing-page__plans home-pricing__plans">
+              <article className="pricing-plan pricing-plan--free" data-reveal>
+                <div className="pricing-plan__top">
+                  <h3>Free</h3>
+                  <div className="pricing-plan__price">
+                    <strong>$0</strong>
+                    <span>/ month</span>
                   </div>
                 </div>
-                <div className="pricing-plan-copy">
-                  <h3>Start transcribing</h3>
-                  <p>Best for testing riffs, solos, and short ideas.</p>
-                </div>
-                <ul className="pricing-list">
-                  <li>10 credits per month</li>
-                  <li>Upload size: 50 MB</li>
-                  <li>YouTube length: 30s</li>
-                  <li>Standard speed</li>
-                  <li>Full access to our guitar-tab editor</li>
-
+                <Link href="/transcribe" className="pricing-plan__cta pricing-plan__cta--secondary">
+                  Start free
+                </Link>
+                <p className="pricing-plan__reassurance">No credit card required</p>
+                <div className="pricing-plan__divider" />
+                <ul className="pricing-plan__features">
+                  <li><strong>10</strong> credits each month</li>
+                  <li>Light and Heavy transcription models</li>
+                  <li>Audio clips up to 60 seconds</li>
+                  <li>Uploads up to 50 MB</li>
+                  <li>Full editor and practice tools</li>
                 </ul>
-              </div>
-              <button
-                type="button"
-                className="pricing-card pricing-card--premium pricing-card--trial"
+              </article>
+              <article
+                className="pricing-plan pricing-plan--premium"
                 data-reveal
-                onClick={() => {
-                  sendEvent(ANALYTICS_EVENTS.pricingCtaClicked, {
-                    cta: "premium_card",
-                    signedIn: Boolean(session),
-                    path: "/",
-                  });
-                  void handlePricingClick();
-                }}
-                disabled={pricingBusy}
               >
-                <span className="pricing-trial-ribbon">7-day trial</span>
-                <div className="pricing-header">
-                  <span className="pill">Premium</span>
-                  <div className="pricing-price">
-                    <span className="pricing-amount">$5.99</span>
-                    <span className="pricing-interval">/ month</span>
+                <div className="pricing-plan__badge">Most popular · 7-day trial</div>
+                <div className="pricing-plan__top">
+                  <h3>Premium</h3>
+                  <div className="pricing-plan__price">
+                    <strong>$5.99</strong>
+                    <span>/ month</span>
                   </div>
                 </div>
-                <div className="pricing-plan-copy">
-                  <h3>For full songs</h3>
-                  <p>Built for songs you plan to finish, not just test.</p>
-                </div>
-                <ul className="pricing-list">
-                  <li>50 credits/month, rollover up to 100</li>
-                  <li>Upload size: 200 MB</li>
-                  <li>YouTube length: unlimited</li>
-                  <li>Extra speed</li>
+                <button
+                  type="button"
+                  className="pricing-plan__cta pricing-plan__cta--primary"
+                  onClick={() => void handlePricingClick()}
+                  disabled={pricingBusy}
+                >
+                  {pricingBusy
+                    ? "Opening checkout…"
+                    : isPremiumUser
+                      ? isStaffUser
+                        ? "Premium access included"
+                        : "Manage current plan"
+                      : "Start 7-day trial"}
+                </button>
+                <p className="pricing-plan__reassurance">
+                  $5.99/month after trial · Cancel anytime
+                </p>
+                <div className="pricing-plan__divider" />
+                <ul className="pricing-plan__features">
+                  <li><strong>100</strong> credits each month—10× more</li>
+                  <li>Heavy model for complex recordings</li>
+                  <li>Unused credits roll over, up to 200</li>
+                  <li>Full-length audio-file transcription</li>
+                  <li>Faster processing and 200 MB uploads</li>
                 </ul>
-                <span className="pricing-card-cta">Start 7-day trial</span>
-              </button>
+              </article>
             </div>
             {pricingError && <div className="error">{pricingError}</div>}
+            <div className="home-pricing__details" data-reveal>
+              <Link href="/pricing">Compare all plan details</Link>
+            </div>
           </div>
         </section>
 
@@ -1735,11 +2104,57 @@ export default function HomePage() {
                 <Link href="#hero" className="button-primary">
                   Start transcribing
                 </Link>
+                {isSignedIn && (
+                  <>
+                    <Link href="/tabs" className="button-secondary">
+                      Recent transcriptions
+                    </Link>
+                    <Link href="/gte" className="button-secondary">
+                      Continue editing
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </div>
         </section>
+
+        {trustMetrics && (
+          <section className="home-trust-signal" aria-label="Note2Tabs usage statistics">
+            <div className="container home-trust-signal-inner">
+              <p className="home-trust-signal-kicker">Made for guitarists, used in real workflows</p>
+              <div className="home-trust-signal-stats">
+                <div className="home-trust-signal-stat">
+                  <strong>{formatTrustMetric(trustMetrics.transcriptionsCompleted)}</strong>
+                  <span>transcriptions completed</span>
+                </div>
+                <div className="home-trust-signal-divider" aria-hidden="true" />
+                <div className="home-trust-signal-stat">
+                  <strong>{formatTrustMetric(trustMetrics.editorsCreated)}</strong>
+                  <span>editors created</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
       </main>
     </>
   );
 }
+
+export const getStaticProps: GetStaticProps<HomePageProps> = async () => {
+  try {
+    const { prisma } = await import("../lib/prisma");
+    const [transcriptionsCompleted, editorsCreated] = await Promise.all([
+      prisma.tabJob.count(),
+      prisma.canvases.count(),
+    ]);
+    return {
+      props: { trustMetrics: { transcriptionsCompleted, editorsCreated } },
+      revalidate: 3600,
+    };
+  } catch (error) {
+    console.warn("[home] Could not load public trust metrics.", error);
+    return { props: { trustMetrics: null }, revalidate: 300 };
+  }
+};

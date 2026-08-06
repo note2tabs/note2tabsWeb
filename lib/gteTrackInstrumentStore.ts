@@ -2,9 +2,12 @@ import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
 import type { CanvasSnapshot, EditorSnapshot } from "../types/gte";
 import { prisma } from "./prisma";
+import {
+  DEFAULT_TRACK_INSTRUMENT_ID,
+  normalizeTrackInstrumentId,
+} from "./gteInstrumentManifest";
 
 const LANE_DELIMITER = "__ed__";
-const DEFAULT_TRACK_INSTRUMENT_ID = "builtin:sine";
 const GTE_TRACK_INSTRUMENT_TABLE = Prisma.raw(`"GteTrackInstrument"`);
 
 type EditorRefParts = {
@@ -37,8 +40,7 @@ const isEditorSnapshot = (value: unknown): value is EditorSnapshot =>
   Array.isArray((value as EditorSnapshot).chords);
 
 const normalizeInstrumentId = (value: unknown) => {
-  const trimmed = typeof value === "string" ? value.trim() : "";
-  return trimmed || DEFAULT_TRACK_INSTRUMENT_ID;
+  return normalizeTrackInstrumentId(value);
 };
 
 const toStoredInstrumentId = (value: unknown) => {

@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { publicTranscriptionError } from "../../lib/backendError";
 import { getServerSession } from "next-auth/next";
 import { IncomingForm, type File as FormidableFile } from "formidable";
 import { promises as fs } from "fs";
@@ -34,6 +35,7 @@ import {
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
   process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
+const MAX_FREE_FILE_DURATION_SEC = 60;
 
 type Mode = "FILE" | "YOUTUBE";
 
@@ -652,6 +654,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       mode === "YOUTUBE"
         ? Math.max(1, Math.ceil(youtubePayload?.duration || 0))
         : Math.max(1, Math.ceil(filePayload?.duration || DEFAULT_DURATION_SEC));
+    const fileStartSec = Math.max(0, Math.floor(filePayload?.startTime || 0));
+    if (mode === "FILE" && !isPremium && durationSec > MAX_FREE_FILE_DURATION_SEC) {
+      return res.status(403).json({
+        error: `Free file uploads are limited to ${MAX_FREE_FILE_DURATION_SEC} seconds.`,
+        maxDurationSec: MAX_FREE_FILE_DURATION_SEC,
+      });
+    }
     const requiredCredits = calculateTranscriptionCredits(durationSec, transcriptionModel);
 
     if (user?.id) {
@@ -677,8 +686,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (refreshedCredits.remaining < requiredCredits) {
       const resetLabel = refreshedCredits.resetAt.slice(0, 10);
       const errorMessage = isPremium
-        ? `Credits used. More credits arrive on ${resetLabel}.`
-        : `Monthly credits used. Upgrade to Premium or wait until ${resetLabel} for a reset.`;
+        ? `There are not enough credits for this transcription. More credits arrive on ${resetLabel}.`
+        : `There are not enough credits for this transcription. Free credits reset on ${resetLabel}.`;
       return res
         .status(403)
         .json({
@@ -737,9 +746,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         body: fdYt,
       });
       if (!ytRes.ok) {
-        const bodyText = await ytRes.text();
+        await ytRes.text();
         await releaseUnverifiedTranscriptionReservation();
-        return res.status(ytRes.status).json({ error: `yt_processor error: ${bodyText}` });
+        return res.status(ytRes.status).json({ error: publicTranscriptionError(ytRes.status) });
       }
 
       const data = await fetchJson<unknown>(ytRes);
@@ -757,18 +766,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           body: JSON.stringify({
             s3Key: filePayload.s3Key,
             fileName: filePayload.fileName,
-            start_time: Math.max(0, Number(filePayload.startTime || 0)),
-            startTime: Math.max(0, Number(filePayload.startTime || 0)),
-            duration: Number(filePayload.duration),
+            start_time: fileStartSec,
+            startTime: fileStartSec,
+            duration: durationSec,
             separate_guitar: Boolean(filePayload.separateGuitar),
             multiple_guitars: filePayload.multipleGuitars,
             transcriptionMethod: backendTranscriptionMethod,
           }),
         });
         if (!processRes.ok) {
-          const bodyText = await processRes.text();
+          await processRes.text();
           await releaseUnverifiedTranscriptionReservation();
-          return res.status(processRes.status).json({ error: `process_audio_s3 error: ${bodyText}` });
+          return res.status(processRes.status).json({ error: publicTranscriptionError(processRes.status) });
         }
         const data = await fetchJson<unknown>(processRes);
         backendJobId = extractBackendJobId(data) || undefined;
@@ -785,8 +794,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }),
           uploadedFile.originalFilename || "upload"
         );
-        fd.append("start_time", String(Math.max(0, Number(filePayload?.startTime || 0))));
-        fd.append("duration", String(Number(filePayload?.duration || 0)));
+        fd.append("start_time", String(fileStartSec));
+        fd.append("duration", String(durationSec));
         fd.append("separate_guitar", filePayload?.separateGuitar ? "true" : "false");
         fd.append("transcription_method", backendTranscriptionMethod);
         if (filePayload?.multipleGuitars !== undefined) {
@@ -798,9 +807,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           body: fd,
         });
         if (!processRes.ok) {
-          const bodyText = await processRes.text();
+          await processRes.text();
           await releaseUnverifiedTranscriptionReservation();
-          return res.status(processRes.status).json({ error: `process_audio error: ${bodyText}` });
+          return res.status(processRes.status).json({ error: publicTranscriptionError(processRes.status) });
         }
         const data = await fetchJson<unknown>(processRes);
         backendJobId = extractBackendJobId(data) || undefined;

@@ -3,6 +3,9 @@ import Link from "next/link";
 import { getServerSession } from "next-auth/next";
 import NoIndexHead from "../../components/NoIndexHead";
 import { authOptions } from "../api/auth/[...nextauth]";
+import { hasFreshUserRole } from "../../lib/serverAuth";
+
+const ADMIN_ROLES = new Set(["ADMIN"]);
 
 type Props = {
   dashboardUrl: string | null;
@@ -43,7 +46,7 @@ export default function AnalyticsDashboard({ dashboardUrl }: Props) {
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
-  if (!session?.user?.id || session.user.role !== "ADMIN") {
+  if (!session?.user?.id || !(await hasFreshUserRole(session, ADMIN_ROLES))) {
     return {
       redirect: {
         destination: "/",
@@ -58,4 +61,3 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     },
   };
 };
-

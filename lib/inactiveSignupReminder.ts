@@ -27,7 +27,7 @@ export function buildInactiveSignupReminderIdentifier(userId: string) {
 export function buildInactiveSignupReminderEmail(input: BuildReminderEmailInput = {}) {
   const firstName = (input.name || "").trim() || "there";
   const safeName = escapeHtml(firstName);
-  const transcriberUrl = `${baseUrl()}/transcriber`;
+  const transcriberUrl = `${baseUrl()}/transcribe`;
   const subject = "Still interested in transcribing a song?";
   const text = `Hi ${firstName},
 
@@ -38,7 +38,7 @@ If you are still interested, this might be a great moment to pick up the song yo
 Start here: ${transcriberUrl}
 
 - Paste a YouTube link or upload audio
-- Generate draft tabs quickly
+- Generate guitar tabs from audio
 - Edit and save the result in your account
 
 If now is not the right time, no worries. This is just a quick check-in.
@@ -64,7 +64,7 @@ Note2Tabs`;
         </p>
         <ul style="margin:0 0 16px 20px;padding:0;color:#334155;">
           <li>Paste a YouTube link or upload audio</li>
-          <li>Generate draft tabs quickly</li>
+          <li>Generate guitar tabs from audio</li>
           <li>Edit and save the result in your account</li>
         </ul>
         <p style="margin:0;color:#64748b;font-size:13px;">

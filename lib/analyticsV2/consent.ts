@@ -21,7 +21,7 @@ type EnsureConsentSubjectInput = {
 
 export async function ensureConsentSubject(input: EnsureConsentSubjectInput) {
   const { prismaClient, userId, anonId, fingerprintHash } = input;
-  const state = input.state || "granted";
+  const state = input.state || "denied";
 
   let subject =
     (userId

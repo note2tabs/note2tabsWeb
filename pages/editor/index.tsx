@@ -1,22 +1,28 @@
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { gteApi } from "../../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../../lib/gteGuestDraft";
-import SeoHead, { SITE_NAME, absoluteUrl } from "../../components/SeoHead";
+import SeoHead, {
+  EDITOR_APPLICATION_ID,
+  ORGANIZATION_ID,
+  WEBSITE_ID,
+  absoluteUrl,
+} from "../../components/SeoHead";
 
 const LIBRARY_PATH = "/gte";
 const GUEST_EDITOR_PATH = `/gte/${GTE_GUEST_EDITOR_ID}`;
 
 const editorSteps = [
   {
-    title: "Start a tab",
-    body: "Open a blank guitar tab in the browser, or continue from a draft made by the transcriber.",
+    title: "Start your way",
+    body: "Write from a blank tab, import an existing file, or create a project from audio with the Note2Tabs transcriber.",
   },
   {
-    title: "Clean up the hard parts",
-    body: "Adjust the notes, timing, chord shapes, fingerings, and section breaks that need a guitarist's judgment.",
+    title: "Shape every detail",
+    body: "Compose notes, arrange sections, choose chord shapes and fingerings, and add the techniques that define the part.",
   },
   {
     title: "Keep the playable version",
@@ -27,7 +33,7 @@ const editorSteps = [
 const editAreas = [
   {
     title: "Notes and timing",
-    body: "Move notes into place and tighten the rhythm after a rough transcription.",
+    body: "Write melodies and riffs, control their rhythm, and hear every change during playback.",
   },
   {
     title: "Chord shapes",
@@ -43,37 +49,12 @@ const editAreas = [
   },
 ] as const;
 
-const seoUseCases = [
-  {
-    title: "Online tab writing for riffs, solos, and full songs",
-    body: "Use Note2Tabs as an online guitar tab editor when you need a fast workspace for riffs, lead guitar phrases, rhythm parts, bass-style single note lines, acoustic arrangements, electric guitar solos, practice exercises, and complete song sections. The editor keeps the work in a readable tablature format so you can move from idea to playable guitar tab without installing desktop notation software.",
-  },
-  {
-    title: "AI transcription cleanup without losing guitarist control",
-    body: "Automatic guitar tab generation is useful, but every player knows the first draft usually needs human choices. Clean up AI guitar tabs by adjusting fret positions, note timing, chord voicings, string choices, phrase breaks, and fingering decisions. The goal is a practical guitar tab that feels playable on the fretboard, not just a machine transcription that looks technically busy.",
-  },
-  {
-    title: "Browser-based guitar tab maker for practice material",
-    body: "Create quick practice tabs for lessons, cover songs, songwriting ideas, scale fragments, alternate picking studies, fingerstyle patterns, and rehearsal notes. Because the editor runs in the browser, it works as a free guitar tab maker, guitar tablature editor, tab writer, tab creator, and song sketchpad for musicians who want a lightweight tool instead of a heavy notation suite.",
-  },
-] as const;
-
-const workflowDetails = [
-  {
-    title: "From audio to editable tablature",
-    body: "Start with an MP3, WAV, audio file, or YouTube transcription in Note2Tabs, then open the result in the editor to refine the generated guitar tab. This workflow is built for musicians searching for audio to guitar tab, YouTube to guitar tab, MP3 to guitar tab, AI guitar tab generator, and editable guitar transcription tools.",
-  },
-  {
-    title: "From blank page to organized tab library",
-    body: "Open a blank tab when you already know the part, write the core idea, separate song sections, and save the version you want to keep. The library gives returning users a simple place to collect guitar tabs, editable drafts, practice arrangements, song ideas, and finished tablature.",
-  },
-  {
-    title: "From rough notes to playable guitar parts",
-    body: "Use the editor to turn scattered fret numbers into a clear arrangement with readable timing, sensible chord shapes, repeatable phrases, and practice-friendly structure. That makes it useful for cover guitarists, bedroom producers, teachers, students, session players, and songwriters who need accurate guitar tabs online.",
-  },
-] as const;
-
 const editorFaqs = [
+  {
+    question: "Is the online guitar tab maker free?",
+    answer:
+      "Yes. You can open a blank tab in guest mode and use the editor without paying. Sign in when you want to save work in your library.",
+  },
   {
     question: "Can I use the guitar tab editor without installing anything?",
     answer: "Yes. Note2Tabs runs in the browser, so you can open a blank guitar tab and start editing online.",
@@ -81,7 +62,7 @@ const editorFaqs = [
   {
     question: "Can I edit tabs created from an audio or YouTube transcription?",
     answer:
-      "Yes. The editor is designed to continue from Note2Tabs transcriptions, then refine timing, fingerings, chord shapes, and song sections.",
+      "Yes. A Note2Tabs transcription opens as a native editor project, with the same timing, fingering, chord, arrangement, playback, and practice tools as any tab you create yourself.",
   },
   {
     question: "Do I need an account to try the editor?",
@@ -91,12 +72,12 @@ const editorFaqs = [
   {
     question: "Is this useful as an AI guitar tab editor?",
     answer:
-      "Yes. It is built for editing AI-generated guitar tabs after transcription, especially when you need to correct rhythm, fret choices, chord voicings, and section structure.",
+      "Yes. AI-generated tabs open as fully editable projects. The editor is also a complete standalone tab-making workspace, so transcription is an optional starting point rather than a requirement.",
   },
   {
     question: "What kinds of tabs can I make online?",
     answer:
-      "You can draft riffs, solos, chord progressions, fingerstyle parts, lesson exercises, cover song sections, and full guitar arrangements directly in the browser.",
+      "You can write riffs, solos, chord progressions, fingerstyle parts, lesson exercises, cover song sections, and full guitar arrangements directly in the browser.",
   },
 ] as const;
 
@@ -108,20 +89,20 @@ export default function EditorLandingPage() {
 
   const isSignedIn = Boolean(session?.user?.id);
   const editorDescription =
-    "Open a blank guitar tab, clean up a transcription draft, and save playable tabs in your browser.";
+    "Create, arrange, play, practise, and organize guitar tabs in a complete browser-based editor. Start from a blank tab, import a file, or bring in a Note2Tabs transcription.";
   const editorJsonLd = [
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
-      name: "Note2Tabs Guitar Tab Editor",
+      "@id": EDITOR_APPLICATION_ID,
+      name: "Note2Tabs Online Guitar Tab Maker and Editor",
       applicationCategory: "MusicApplication",
       operatingSystem: "Web",
       url: absoluteUrl("/editor"),
       description: editorDescription,
-      provider: {
-        "@type": "Organization",
-        name: SITE_NAME,
-      },
+      isPartOf: { "@id": WEBSITE_ID },
+      provider: { "@id": ORGANIZATION_ID },
+      hasPart: { "@id": absoluteUrl("/features#collection") },
       offers: {
         "@type": "Offer",
         price: "0",
@@ -182,21 +163,20 @@ export default function EditorLandingPage() {
   return (
     <>
       <SeoHead
-        title="Online Guitar Tab Editor | Note2Tabs"
+        title="Free Online Guitar Tab Maker & Editor | Note2Tabs"
         description={editorDescription}
         canonicalPath="/editor"
         jsonLd={editorJsonLd}
       />
 
-      <main className="page page-home editor-page">
-        <section className="hero editor-landing-hero">
-          <div className="container hero-stack hero-stack--centered editor-landing-shell">
-            <div className="hero-heading">
-              <div className="hero-title-row">
-                <h1 className="hero-title">Online Guitar Tab Editor</h1>
-              </div>
-              <p className="hero-subtitle editor-landing-subtitle">{editorDescription}</p>
-              <div className="button-row hero-cta-row editor-landing-hero-actions">
+      <main className="editor-v2">
+        <section className="editor-v2-hero">
+          <div className="container editor-v2-hero-grid">
+            <div className="editor-v2-hero-copy">
+              <span className="editor-v2-kicker">Free browser-based editor</span>
+              <h1>Make guitar tabs that feel good to play.</h1>
+              <p>{editorDescription}</p>
+              <div className="editor-v2-actions">
                 <button type="button" onClick={() => void handleCreate()} className="button-primary" disabled={creating}>
                   {creating ? "Starting..." : "Start a blank tab"}
                 </button>
@@ -204,56 +184,146 @@ export default function EditorLandingPage() {
                   Open library
                 </Link>
               </div>
-              <p className="editor-landing-note">Guest mode opens right away. Sign in when you want to save work.</p>
+              <div className="editor-v2-proof" aria-label="Editor highlights">
+                <span>No installation</span>
+                <span>Guest mode</span>
+                <span>30+ guitar-specific tools</span>
+              </div>
               {error && <div className="error editor-landing-error">{error}</div>}
+            </div>
+
+            <div className="editor-v2-hero-visual" aria-label="Preview of the Note2Tabs guitar tab editor">
+              <div className="editor-v2-window">
+                <div className="editor-v2-window-bar" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                  <em>note2tabs.com/editor</em>
+                </div>
+                <Image
+                  src="/images/editor-previews/Editor-main.webp"
+                  alt="Note2Tabs guitar tab editor showing a song arranged into editable sections"
+                  width={1897}
+                  height={949}
+                  priority
+                  sizes="(max-width: 900px) calc(100vw - 36px), 54vw"
+                />
+              </div>
+              <div className="editor-v2-float editor-v2-float--top">30+ editing tools</div>
+              <div className="editor-v2-float editor-v2-float--bottom">Play · loop · practise</div>
             </div>
           </div>
         </section>
 
-        <section className="steps">
+        <section className="editor-v2-feature-strip" aria-label="What you can edit">
+          <div className="container editor-v2-feature-grid">
+            {editAreas.map((area, index) => (
+              <article key={area.title}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <div>
+                  <h2>{area.title}</h2>
+                  <p>{area.body}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="editor-v2-showcase">
+          <div className="container editor-v2-showcase-stack">
+            <article className="editor-v2-showcase-row">
+              <div className="editor-v2-showcase-copy">
+                <span className="editor-v2-kicker">Built for guitar decisions</span>
+                <h2>Choose the fingering—not just the note.</h2>
+                <p>
+                  The same pitch can live in several places on the fretboard. Compare positions, choose realistic chord
+                  shapes, snap ideas to a key, and keep phrases in a hand position that makes musical sense.
+                </p>
+                <ul>
+                  <li><Link href="/features/guitar-tab-fingering-optimizer">Automatic fingering suggestions</Link></li>
+                  <li><Link href="/features/guitar-tab-fingering-optimizer">String and fret optimization</Link></li>
+                  <li>Chord shapes and playing coordinates</li>
+                </ul>
+                <Link href="/features" className="editor-v2-showcase-link">
+                  Explore all guitar tab editor features <span aria-hidden="true">→</span>
+                </Link>
+              </div>
+              <div className="editor-v2-showcase-image editor-v2-showcase-image--tools">
+                <Image
+                  src="/images/editor-previews/collage.webp"
+                  alt="Guitar-focused editing tools for fingerings, chords, and fretboard positions"
+                  width={822}
+                  height={604}
+                  sizes="(max-width: 820px) calc(100vw - 36px), 48vw"
+                />
+              </div>
+            </article>
+
+            <article className="editor-v2-showcase-row editor-v2-showcase-row--reverse">
+              <div className="editor-v2-showcase-copy">
+                <span className="editor-v2-kicker">Edit and practise together</span>
+                <h2>Hear it, loop it, learn it.</h2>
+                <p>
+                  Write a tab yourself or open one created by the transcriber, then play it with guitar sounds, loop
+                  difficult sections, and use train mode to build speed gradually.
+                </p>
+                <ul>
+                  <li>Section-based playback</li>
+                  <li><Link href="/features/guitar-tab-practice-trainer">Practice loops and speed training</Link></li>
+                  <li>Import audio or YouTube transcriptions</li>
+                </ul>
+              </div>
+              <div className="editor-v2-showcase-image editor-v2-showcase-image--training">
+                <Image
+                  src="/images/editor-previews/collage-training.webp"
+                  alt="Playback, looping, and speed-training tools in the guitar tab editor"
+                  width={1242}
+                  height={772}
+                  sizes="(max-width: 820px) calc(100vw - 36px), 48vw"
+                />
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section className="editor-v2-steps">
           <div className="container">
-            <h2 className="section-title">How it works</h2>
-            <div className="how-flow">
+            <div className="editor-v2-section-heading">
+              <span className="editor-v2-kicker">Simple workflow</span>
+              <h2>From first note to playable tab.</h2>
+            </div>
+            <div className="editor-v2-step-grid">
               {editorSteps.map((step, index) => (
-                <article className="how-step" key={step.title}>
-                  <span className="how-step-index">{index + 1}</span>
+                <article key={step.title}>
+                  <span>{index + 1}</span>
                   <h3>{step.title}</h3>
                   <p>{step.body}</p>
                 </article>
               ))}
             </div>
-          </div>
-        </section>
-
-        <section className="steps editor-page-section">
-          <div className="container">
-            <div className="page-header">
-              <div>
-                <h2 className="section-title section-title--tight">What you can edit</h2>
-                <p className="section-subtitle editor-page-subtitle">
-                  Use the editor after transcription, or write from scratch when you already know the part.
-                </p>
-              </div>
-              <button type="button" onClick={() => void handleCreate()} className="button-secondary" disabled={creating}>
-                {creating ? "Starting..." : "Open editor"}
+            <div className="editor-v2-paths">
+              <Link href="/ai-guitar-tab-generator">
+                <span>Have a recording?</span>
+                <strong>Create a guitar tab with AI →</strong>
+              </Link>
+              <Link href="/audio-to-guitar-tab-converter">
+                <span>Have an MP3 or WAV?</span>
+                <strong>Convert audio to tab →</strong>
+              </Link>
+              <button type="button" onClick={() => void handleCreate()} disabled={creating}>
+                <span>Already know the part?</span>
+                <strong>Start from a blank tab →</strong>
               </button>
             </div>
-            <div className="editor-edit-grid">
-              {editAreas.map((area) => (
-                <article className="editor-edit-item" key={area.title}>
-                  <h3>{area.title}</h3>
-                  <p>{area.body}</p>
-                </article>
-              ))}
-            </div>
           </div>
         </section>
 
-        <section className="steps editor-faq-section">
-          <div className="container editor-faq-layout">
-            <div>
-              <h2 className="section-title section-title--tight">Questions</h2>
-              <p className="section-subtitle editor-page-subtitle">Short answers before you open a tab.</p>
+        <section className="editor-v2-faq">
+          <div className="container editor-v2-faq-grid">
+            <div className="editor-v2-section-heading">
+              <span className="editor-v2-kicker">Before you start</span>
+              <h2>Questions, answered.</h2>
+              <p>Guest mode opens immediately. Create an account only when you want to save your work.</p>
             </div>
             <div className="editor-faq-list">
               {editorFaqs.map((faq) => (
@@ -266,85 +336,16 @@ export default function EditorLandingPage() {
           </div>
         </section>
 
-        <section className="steps editor-seo-section">
-          <div className="container editor-seo-layout">
-            <div className="editor-seo-intro">
-              <h2 className="section-title section-title--tight">A guitar tab editor built for modern tab workflows</h2>
-              <p>
-                Note2Tabs is an online guitar tab editor for players who want editable tablature, AI-assisted
-                transcription cleanup, and a practical browser-based tab maker in one place. Use it when you need to
-                write guitar tabs online, revise generated tabs, organize song sections, improve fretboard positions,
-                and turn rough guitar transcription output into something you can actually practice.
-              </p>
-              <p>
-                The editor is designed around real guitar decisions: which string should carry the melody, which fret
-                position makes the phrase smoother, whether a chord shape is playable, and where a riff or chorus
-                should be split for reading. That makes it a useful guitar tablature editor for beginners, teachers,
-                cover guitarists, producers, and songwriters who need fast, readable, searchable guitar tabs.
-              </p>
+        <section className="editor-v2-cta">
+          <div className="container editor-v2-cta-card">
+            <div>
+              <span className="editor-v2-kicker">Your next riff starts here</span>
+              <h2>Open a blank tab. Make it yours.</h2>
+              <p>No installation and no account required to begin.</p>
             </div>
-
-            <div className="editor-seo-grid">
-              {seoUseCases.map((item) => (
-                <article className="editor-seo-card" key={item.title}>
-                  <h3>{item.title}</h3>
-                  <p>{item.body}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="steps editor-workflow-section">
-          <div className="container">
-            <div className="page-header">
-              <div>
-                <h2 className="section-title section-title--tight">Use it as a tab maker, tab editor, and transcription finisher</h2>
-                <p className="section-subtitle editor-page-subtitle">
-                  A practical workflow for guitarists comparing online tab editors, AI guitar tab generators, and
-                  browser-based tablature tools.
-                </p>
-              </div>
-              <button type="button" onClick={() => void handleCreate()} className="button-secondary" disabled={creating}>
-                {creating ? "Starting..." : "Try the editor"}
-              </button>
-            </div>
-            <div className="editor-workflow-grid">
-              {workflowDetails.map((item) => (
-                <article className="editor-workflow-item" key={item.title}>
-                  <h3>{item.title}</h3>
-                  <p>{item.body}</p>
-                </article>
-              ))}
-            </div>
-            <div className="editor-keyword-panel" aria-label="Related guitar tab editor searches">
-              <p>
-                Related uses: online guitar tab editor, free guitar tab maker, AI guitar tab editor, guitar tablature
-                editor, guitar tab creator, browser guitar tab writer, editable guitar tabs, guitar transcription
-                editor, audio to guitar tab editor, MP3 to guitar tab editor, YouTube to guitar tab editor, guitar tab
-                generator with editing, chord tab editor, solo tab editor, riff tab maker, and guitar practice tab
-                organizer.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="bottom-transcriber editor-bottom-cta">
-          <div className="container">
-            <div className="bottom-transcriber-shell">
-              <h2 className="bottom-transcriber-title">Start with a blank tab.</h2>
-              <p className="bottom-transcriber-subtitle">
-                Open the editor now, then save the tab later if it becomes something you want to keep.
-              </p>
-              <div className="bottom-transcriber-actions">
-                <button type="button" onClick={() => void handleCreate()} className="button-primary" disabled={creating}>
-                  {creating ? "Starting..." : "Start a blank tab"}
-                </button>
-                <Link href={LIBRARY_PATH} className="button-secondary">
-                  Open library
-                </Link>
-              </div>
-            </div>
+            <button type="button" onClick={() => void handleCreate()} className="button-primary" disabled={creating}>
+              {creating ? "Starting..." : "Start creating free"}
+            </button>
           </div>
         </section>
       </main>

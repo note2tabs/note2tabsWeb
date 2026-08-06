@@ -2,13 +2,17 @@ import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
+import { hasFreshUserRole } from "../../lib/serverAuth";
 import { prisma } from "../../lib/prisma";
+import { withPrismaReadRetry } from "../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../lib/blog";
-import { compilePostContent } from "../../lib/blogContent";
+import { compilePostContent, parseStoredToc } from "../../lib/blogContent";
 import { normalizeCanonicalUrl } from "../../lib/canonical";
 import BlogPostCard from "../../components/blog/BlogPostCard";
-import SeoHead, { absoluteUrl } from "../../components/SeoHead";
+import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 import { formatBlogDate } from "../../lib/dateFormat";
+
+const ADMIN_ROLES = new Set(["ADMIN"]);
 
 type PostPageProps = {
   post: {
@@ -31,10 +35,12 @@ type PostPageProps = {
     clusters: { id: string; name: string; slug: string; isPillar: boolean }[];
   };
   readingMinutes: number;
+  wordCount: number;
+  toc: { id: string; text: string; level: number }[];
   relatedPosts: { id: string; title: string; slug: string }[];
 };
 
-export default function BlogPostPage({ post, readingMinutes, relatedPosts }: PostPageProps) {
+export default function BlogPostPage({ post, readingMinutes, wordCount, toc, relatedPosts }: PostPageProps) {
   const title = post.seoTitle || post.title;
   const description = post.seoDescription || post.excerpt;
   const canonical = normalizeCanonicalUrl(post.canonicalUrl) || absoluteUrl(`/blog/${post.slug}`);
@@ -42,10 +48,15 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
   const published = post.publishedAt || post.publishAt || undefined;
   const displayDate = formatBlogDate(post.publishedAt ?? post.publishAt);
   const hasTaxonomy = post.categories.length > 0 || post.tags.length > 0 || post.clusters.length > 0;
+  const pageTitle = /\bNote2Tabs\b/i.test(title) ? title : `${title} | Note2Tabs`;
+  const isTranscriptionGuide = /\b(audio|ai|youtube|mp3|wav|transcri|song-to)\b/i.test(
+    `${post.slug} ${post.title} ${post.tags.map((tag) => tag.name).join(" ")}`
+  );
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
+    "@id": `${canonical}#article`,
     headline: post.title,
     description,
     datePublished: published,
@@ -53,9 +64,16 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
     author: {
       "@type": "Person",
       name: post.authorName,
+      url: absoluteUrl("/about"),
     },
+    wordCount,
+    timeRequired: `PT${readingMinutes}M`,
+    articleSection: post.categories[0]?.name,
+    keywords: post.tags.map((tag) => tag.name).join(", ") || undefined,
     mainEntityOfPage: canonical,
     image: ogImage,
+    isPartOf: { "@id": WEBSITE_ID },
+    publisher: { "@id": ORGANIZATION_ID },
   };
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
@@ -85,7 +103,7 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
   return (
     <main className="page blog-post">
       <SeoHead
-        title={`${title} | Note2Tabs`}
+        title={pageTitle}
         description={description}
         canonicalUrl={canonical}
         imageUrl={ogImage}
@@ -100,12 +118,10 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
           <p className="blog-breadcrumb">
             <Link href="/blog">Blog</Link> <span>/</span> <span>{post.title}</span>
           </p>
-          <Link href="/blog" className="back-link">
-            ← Back to blog
-          </Link>
+          <span className="blog-kicker">{post.categories[0]?.name || "Note2Tabs guide"}</span>
           <h1 className="post-title">{post.title}</h1>
           <p className="post-meta-line">
-            <span>{post.authorName}</span>
+            <Link href="/about">{post.authorName}</Link>
             {displayDate && (
               <>
                 <span aria-hidden="true">·</span>
@@ -120,21 +136,64 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
 
         {post.coverImageUrl && (
           <figure className="post-cover-shell">
-            <img src={post.coverImageUrl} alt={post.title} className="post-cover" />
+            <img src={post.coverImageUrl} alt={post.title} className="post-cover" loading="eager" decoding="async" />
           </figure>
         )}
 
-        <div>
+        <div className="post-reader-layout">
           <article className="post-content">
             <div className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
           </article>
+          <aside className="post-reader-rail" aria-label="Article navigation and Note2Tabs tools">
+            {toc.length > 1 && (
+              <nav className="toc" aria-label="On this page">
+                <h2>On this page</h2>
+                <ul>
+                  {toc.map((item) => (
+                    <li key={item.id} className={`toc-level-${item.level}`}>
+                      <a href={`#${item.id}`}>{item.text}</a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            )}
+            <section className="post-product-card">
+              <span className="post-product-eyebrow">Try Note2Tabs</span>
+              <h2>{isTranscriptionGuide ? "Turn a recording into playable tabs" : "Put this guide into practice"}</h2>
+              <p>
+                {isTranscriptionGuide
+                  ? "Create a structured transcription, then open it in the editor—or use either tool on its own."
+                  : "Write, arrange, play back, and export guitar tabs in the browser. No transcription required."}
+              </p>
+              <Link href={isTranscriptionGuide ? "/transcribe" : "/editor"} className="button-primary">
+                {isTranscriptionGuide ? "Transcribe a song" : "Open the editor"}
+              </Link>
+              <Link href={isTranscriptionGuide ? "/editor" : "/transcribe"} className="post-product-link">
+                {isTranscriptionGuide ? "Or create a tab yourself" : "Or transcribe a recording"} →
+              </Link>
+            </section>
+          </aside>
         </div>
+
+        <section className="post-end-cta" aria-labelledby="post-end-cta-title">
+          <div>
+            <span className="post-product-eyebrow">Two complete tools</span>
+            <h2 id="post-end-cta-title">Take your next tab from idea to playback</h2>
+            <p>
+              Build tabs directly in the editor, transcribe a recording, or move naturally between both.
+            </p>
+          </div>
+          <div className="post-end-cta-actions">
+            <Link href="/editor" className="button-primary">Try the tab editor</Link>
+            <Link href="/transcribe" className="button-secondary">Transcribe audio</Link>
+          </div>
+        </section>
 
         {hasTaxonomy && (
           <section className="post-taxonomy post-taxonomy--inline">
             {post.categories.length > 0 && (
               <>
-                <h4>Categories</h4>
+                <h2>Categories</h2>
                 <div className="tag-row">
                   {post.categories.map((cat) => (
                     <Link key={cat.id} href={`/blog/category/${cat.slug}`}>
@@ -146,7 +205,7 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
             )}
             {post.tags.length > 0 && (
               <>
-                <h4>Tags</h4>
+                <h2>Tags</h2>
                 <div className="tag-row">
                   {post.tags.map((tag) => (
                     <Link key={tag.id} href={`/blog/tag/${tag.slug}`}>
@@ -158,7 +217,7 @@ export default function BlogPostPage({ post, readingMinutes, relatedPosts }: Pos
             )}
             {post.clusters.length > 0 && (
               <>
-                <h4>Topic clusters</h4>
+                <h2>Topic clusters</h2>
                 <div className="tag-row">
                   {post.clusters.map((cluster) => (
                     <Link key={cluster.id} href={`/blog/cluster/${cluster.slug}`}>
@@ -193,23 +252,14 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
     return { notFound: true };
   }
 
-  const session = await getServerSession(ctx.req, ctx.res, authOptions);
-  const isAdmin = session?.user?.role === "ADMIN";
-  const allowDraft = Boolean(ctx.preview || isAdmin);
-
-  const where = allowDraft
-    ? { slug }
-    : { slug, ...getPublishedWhere() };
-
-  const post = await prisma.post.findFirst({
-    where,
-    select: {
+  const postSelect = {
       id: true,
       title: true,
       slug: true,
       excerpt: true,
       content: true,
       contentHtml: true,
+      contentToc: true,
       contentMode: true,
       coverImageUrl: true,
       publishedAt: true,
@@ -237,8 +287,29 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
           cluster: { select: { id: true, name: true, slug: true } },
         },
       },
-    },
-  });
+  } as const;
+
+  let post = await withPrismaReadRetry(() => prisma.post.findFirst({
+    where: { slug, ...getPublishedWhere() },
+    select: postSelect,
+  }));
+  let allowDraft = false;
+
+  if (!post) {
+    const hasSessionCookie = Boolean(
+      ctx.req.cookies["next-auth.session-token"] ||
+      ctx.req.cookies["__Secure-next-auth.session-token"]
+    );
+    if (ctx.preview || hasSessionCookie) {
+      const session = await getServerSession(ctx.req, ctx.res, authOptions);
+      allowDraft = Boolean(ctx.preview || (await hasFreshUserRole(session, ADMIN_ROLES)));
+      if (allowDraft) {
+        post = await withPrismaReadRetry(() =>
+          prisma.post.findFirst({ where: { slug }, select: postSelect })
+        );
+      }
+    }
+  }
 
   if (!post) {
     return { notFound: true };
@@ -248,19 +319,22 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
   }
 
   let contentHtml = post.contentHtml || "";
+  let contentToc = parseStoredToc(post.contentToc);
   if (post.contentMode === "LATEX") {
     const compiled = await compilePostContent(post.content, post.contentMode, { title: post.title });
     contentHtml = compiled.contentHtml;
+    contentToc = compiled.contentToc;
   } else if (!contentHtml) {
     const compiled = await compilePostContent(post.content, post.contentMode, { title: post.title });
     contentHtml = compiled.contentHtml;
+    contentToc = compiled.contentToc;
   }
-  const { minutes } = estimateReadingTime(post.content);
+  const { minutes, words } = estimateReadingTime(post.content);
 
   const tagIds = post.tags.map((tag) => tag.tagId);
   const clusterIds = post.clusters.map((cluster) => cluster.clusterId);
 
-  const relatedPosts = await prisma.post.findMany({
+  const relatedPosts = await withPrismaReadRetry(() => prisma.post.findMany({
     where: {
       id: { not: post.id },
       ...getPublishedWhere(),
@@ -272,7 +346,7 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
     orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
     take: 4,
     select: { id: true, title: true, slug: true },
-  });
+  }));
 
   return {
     props: {
@@ -298,8 +372,10 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
           isPillar: item.isPillar,
         })),
       },
-        readingMinutes: minutes,
-        relatedPosts,
+      readingMinutes: minutes,
+      wordCount: words,
+      toc: contentToc,
+      relatedPosts,
     },
   };
 };

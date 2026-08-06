@@ -1,5 +1,5 @@
 import { SendEmailCommand, SESClient } from "@aws-sdk/client-ses";
-import nodemailer from "nodemailer";
+import nodemailer from "nodemailer9";
 
 type SendEmailInput = {
   to: string;
@@ -68,6 +68,8 @@ function getSmtpTransporter() {
       port,
       secure: port === 465,
       auth: credentials,
+      disableFileAccess: true,
+      disableUrlAccess: true,
     });
     smtpTransportKey = key;
   }

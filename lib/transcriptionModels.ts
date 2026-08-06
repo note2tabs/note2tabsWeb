@@ -2,26 +2,29 @@ import { durationToCredits } from "./credits";
 
 export type TranscriptionModelChoice = "light" | "heavy";
 
-export const DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "heavy";
+export const DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "light";
 export const LIGHT_TRANSCRIPTION_BACKEND_METHOD = "basic_pitch";
 export const HEAVY_TRANSCRIPTION_BACKEND_METHOD = "yourmt3";
 export const TRANSCRIPTION_MODEL_OPTIONS: Array<{
   value: TranscriptionModelChoice;
   label: string;
+  badge: string;
   description: string;
   creditsPerInterval: number;
 }> = [
   {
-    value: "heavy",
-    label: "Heavy model",
-    description: "Most Accurate Model",
-    creditsPerInterval: 3,
-  },
-  {
     value: "light",
     label: "Light model",
-    description: "Smaller Legacy Model",
+    badge: "Faster",
+    description: "Best for clear, focused guitar recordings.",
     creditsPerInterval: 2,
+  },
+  {
+    value: "heavy",
+    label: "Heavy model",
+    badge: "More accurate",
+    description: "Best for complex and multi-instrument recordings.",
+    creditsPerInterval: 3,
   },
 ];
 

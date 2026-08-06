@@ -2,9 +2,12 @@ import { GetServerSideProps } from "next";
 import Link from "next/link";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
+import { getFreshUserRole } from "../../lib/serverAuth";
 import { prisma } from "../../lib/prisma";
 import { useState } from "react";
 import NoIndexHead from "../../components/NoIndexHead";
+
+const MODERATION_ROLES = new Set(["ADMIN", "MODERATOR", "MOD"]);
 
 type UserRow = {
   id: string;
@@ -126,8 +129,8 @@ export default function UsersAdminPage({ users, canEdit }: Props) {
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
-  const role = session?.user?.role || "";
-  if (!session?.user?.id || (role !== "ADMIN" && role !== "MODERATOR" && role !== "MOD")) {
+  const role = await getFreshUserRole(session);
+  if (!session?.user?.id || !role || !MODERATION_ROLES.has(role)) {
     return {
       redirect: {
         destination: "/",

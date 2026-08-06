@@ -1,5 +1,8 @@
 import { PostHog } from "posthog-node";
 
+let sharedClient: PostHog | null = null;
+let sharedClientKey: string | null = null;
+
 function getPostHogConfig() {
   const token =
     process.env.POSTHOG_PROJECT_TOKEN ||
@@ -20,11 +23,23 @@ export function createPostHogServerClient() {
   const { token, host } = getPostHogConfig();
   if (!token) return null;
 
-  return new PostHog(token, {
+  const clientKey = `${token}:${host}`;
+  if (sharedClient && sharedClientKey === clientKey) return sharedClient;
+
+  sharedClient = new PostHog(token, {
     host,
     flushAt: 1,
     flushInterval: 0,
     disableGeoip: false,
   });
+  sharedClientKey = clientKey;
+  return sharedClient;
 }
 
+export function flushPostHogServerClientInBackground(
+  client: Pick<PostHog, "flush">
+) {
+  void client.flush().catch(() => {
+    // Product requests must not fail or wait because analytics is unavailable.
+  });
+}

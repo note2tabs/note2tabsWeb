@@ -15,6 +15,7 @@ import { normalizeTabSegments, tabSegmentsToStamps, tabsToTabText } from "../../
 import { getAppBaseUrl } from "../../lib/urls";
 import type { EditorListItem } from "../../types/gte";
 import NoIndexHead from "../../components/NoIndexHead";
+import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
 
 const POLL_INTERVAL = 3000;
 const FINALIZE_IMPORT_TIMEOUT_MS = 60_000;
@@ -99,7 +100,7 @@ function formatStageLabel(stageKey: PendingStageKey) {
   if (stageKey === "prepare") return "Get audio ready";
   if (stageKey === "separate") return "Focus on guitar";
   if (stageKey === "predict") return "Find the notes";
-  if (stageKey === "note_events") return "Build first draft";
+  if (stageKey === "note_events") return "Build your tab";
   if (stageKey === "format") return "Get preview ready";
   return "In line";
 }
@@ -271,8 +272,8 @@ function buildPendingPresentation(
       detail: "Finding the notes and their timing.",
     },
     note_events: {
-      phaseLabel: "Building the first draft",
-      detail: "Turning what we heard into a first pass.",
+      phaseLabel: "Building your guitar tab",
+      detail: "Turning the performance into structured tablature.",
     },
     format: {
       phaseLabel: "Getting your preview ready",
@@ -596,6 +597,7 @@ export default function JobPage() {
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewAction, setReviewAction] = useState<ReviewAction>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [storedReviewTabPreviewText, setStoredReviewTabPreviewText] = useState("");
   const [quantizeImportDialog, setQuantizeImportDialog] = useState<"job" | "review" | null>(null);
   const [progressClock, setProgressClock] = useState(() => Date.now());
   const reviewMultipleGuitarsInitRef = useRef<string | null>(null);
@@ -667,10 +669,11 @@ export default function JobPage() {
   const isFinalizedJob = isFinalizedStatus && !showReviewUi;
   const tabSegments = useMemo(() => getJobTabSegments(displayJob), [displayJob]);
   const tabJobId = useMemo(() => getJobTabJobId(displayJob), [displayJob]);
-  const reviewTabPreviewText = useMemo(() => {
+  const localReviewTabPreviewText = useMemo(() => {
     const tabText = displayJob?.tab_text || (tabSegments.length > 0 ? tabsToTabText(tabSegments) : "");
     return getTabPreviewText(tabText);
   }, [displayJob?.tab_text, tabSegments]);
+  const reviewTabPreviewText = localReviewTabPreviewText || storedReviewTabPreviewText;
   const transcriberGroups = useMemo(() => getJobTranscriberGroups(displayJob), [displayJob]);
   const canImportToEditor = isFinalizedJob && (tabSegments.length > 0 || transcriberGroups.length > 0 || Boolean(tabJobId));
   const pendingPresentation = useMemo(
@@ -678,6 +681,7 @@ export default function JobPage() {
     [displayJob, progressClock, modeHint, separateGuitarHint, durationHintSeconds, modelHint]
   );
   const hasPendingPresentation = Boolean(pendingPresentation);
+  const completionTrackedRef = useRef<string | null>(null);
   const loadedMultipleGuitars = useMemo(
     () => parseBooleanValue(getFirstJobValue(displayJob, ["multipleGuitars", "multiple_guitars"])),
     [displayJob]
@@ -686,6 +690,26 @@ export default function JobPage() {
     () => loadedMultipleGuitars !== null && reviewMultipleGuitars !== loadedMultipleGuitars,
     [reviewMultipleGuitars, loadedMultipleGuitars]
   );
+
+  useEffect(() => {
+    if (!showReviewUi || typeof job_id !== "string") return;
+    if (completionTrackedRef.current === job_id) return;
+    completionTrackedRef.current = job_id;
+    const properties = {
+      jobId: job_id,
+      mode: modeHint || undefined,
+      durationSec: durationHintSeconds || undefined,
+      model: modelHint || undefined,
+    };
+    sendEvent(ANALYTICS_EVENTS.jobCompleted, {
+      ...properties,
+      $insert_id: `job-completed:${job_id}`,
+    });
+    sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
+      ...properties,
+      $insert_id: `transcription-succeeded:${job_id}`,
+    });
+  }, [durationHintSeconds, job_id, modeHint, modelHint, showReviewUi]);
 
   useEffect(() => {
     if (!router.isReady || !showReviewUi || typeof job_id !== "string") return;
@@ -725,6 +749,30 @@ export default function JobPage() {
       cancelled = true;
     };
   }, [showReviewUi, isSignedIn, appendEditorId]);
+
+  useEffect(() => {
+    if (!showReviewUi || localReviewTabPreviewText || !tabJobId) {
+      setStoredReviewTabPreviewText("");
+      return;
+    }
+
+    let cancelled = false;
+    setStoredReviewTabPreviewText("");
+    fetchStoredTabPayload(tabJobId)
+      .then((storedTab) => {
+        if (cancelled) return;
+        setStoredReviewTabPreviewText(getTabPreviewText(tabsToTabText(storedTab.tabs)));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStoredReviewTabPreviewText("");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [localReviewTabPreviewText, showReviewUi, tabJobId]);
 
   const fetchJob = async (id: string, options?: { includeOutput?: boolean }): Promise<JobResponse | null> => {
     try {
@@ -872,6 +920,7 @@ export default function JobPage() {
     setReviewError(null);
     setReviewBusy(false);
     setReviewAction(null);
+    setStoredReviewTabPreviewText("");
     setReviewMultipleGuitars(false);
     reviewMultipleGuitarsInitRef.current = null;
   }, [job_id, appendEditorId]);
@@ -1059,7 +1108,7 @@ export default function JobPage() {
     } catch (error: any) {
       sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
         ...eventProperties,
-        error: error?.message || "Failed to import tabs into the editor.",
+        error_code: categorizeAnalyticsError(error, "editor_import_failed"),
       });
       throw error;
     }
@@ -1205,20 +1254,18 @@ export default function JobPage() {
       )}
       <main className="page page-tight">
         <div className="container stack">
-          {showReviewUi ? (
-            <div className="page-header">
-              <div>
-                <h1 className="page-title">Your tab is ready</h1>
-              </div>
+          <div className="page-header job-route-header">
+            <div>
+              <h1 className="page-title">{showReviewUi ? "Your tab is ready" : "Preparing your guitar tab"}</h1>
             </div>
-          ) : (
-            <div className="page-header" style={{ justifyContent: "flex-end" }}>
+            {!showReviewUi && (
               <button type="button" onClick={() => void router.push("/")} className="button-ghost button-small">
                 Back
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
+          <div className="job-route-content">
           {showReviewUi ? (
             <div className="review-shell" aria-busy={reviewBusy}>
               <section className="card review-import-card">
@@ -1305,6 +1352,7 @@ export default function JobPage() {
               shareUrls={hasWatchedAd ? shareUrls : null}
             />
           )}
+          </div>
         </div>
       </main>
       {quantizeImportDialog && (

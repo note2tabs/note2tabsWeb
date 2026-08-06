@@ -6,8 +6,8 @@ import {
 } from "../../lib/transcriptionModels";
 
 describe("transcription models", () => {
-  it("defaults missing values to the heavy model", () => {
-    expect(normalizeTranscriptionModel(undefined)).toBe("heavy");
+  it("defaults missing values to the light model", () => {
+    expect(normalizeTranscriptionModel(undefined)).toBe("light");
   });
 
   it("keeps legacy backend values on the light model", () => {

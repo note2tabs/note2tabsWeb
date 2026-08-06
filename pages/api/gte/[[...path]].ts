@@ -6,6 +6,10 @@ import {
   hydrateTrackInstrumentsFromStore,
   persistTrackInstrumentsFromSnapshot,
 } from "../../../lib/gteTrackInstrumentStore";
+import {
+  hydrateTrackPlaybackFromStore,
+  persistTrackPlaybackFromSnapshot,
+} from "../../../lib/gteTrackPlaybackStore";
 import type { GteAnalyticsEvent } from "../../../lib/gteAnalytics";
 import { parseTextTabImport } from "../../../lib/gteTabImport";
 
@@ -324,6 +328,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   let upstream: Response;
+  const upstreamStartedAt = Date.now();
   try {
     upstream = await fetch(url, {
       method,
@@ -338,6 +343,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       method,
     });
   }
+  const upstreamDurationMs = Date.now() - upstreamStartedAt;
   if (isTranscriberImport && upstream.ok) {
     const requestedEditorId = getRequestedImportEditorId(req);
     if (requestedEditorId) {
@@ -372,18 +378,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader("Content-Type", contentType);
   }
   if (upstream.ok && isSnapshotSave) {
-    await persistTrackInstrumentsFromSnapshot(
-      session.user.id,
-      editorRef,
-      (req.body as { snapshot?: unknown } | undefined)?.snapshot
-    );
+    const snapshot = (req.body as { snapshot?: unknown } | undefined)?.snapshot;
+    await Promise.all([
+      persistTrackInstrumentsFromSnapshot(session.user.id, editorRef, snapshot),
+      persistTrackPlaybackFromSnapshot(session.user.id, editorRef, snapshot),
+    ]);
   }
 
+  let preferenceHydrationDurationMs = 0;
   if (upstream.ok && editorRef && responseText) {
     try {
       const parsed = JSON.parse(responseText) as unknown;
-      const hydrated = await hydrateTrackInstrumentsFromStore(session.user.id, editorRef, parsed);
-      responseText = JSON.stringify(hydrated);
+      const preferenceHydrationStartedAt = Date.now();
+      await Promise.all([
+        hydrateTrackInstrumentsFromStore(session.user.id, editorRef, parsed),
+        hydrateTrackPlaybackFromStore(session.user.id, editorRef, parsed),
+      ]);
+      preferenceHydrationDurationMs = Date.now() - preferenceHydrationStartedAt;
+      responseText = JSON.stringify(parsed);
       res.setHeader("Content-Type", "application/json; charset=utf-8");
     } catch {
       // Keep proxy responses untouched when upstream did not return JSON.
@@ -508,6 +520,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       durationMs: Date.now() - requestStartedAt,
     });
     return res.end();
+  }
+  if (method === "GET" && editorRef) {
+    res.setHeader(
+      "Server-Timing",
+      [
+        `upstream;dur=${upstreamDurationMs}`,
+        `preferences;dur=${preferenceHydrationDurationMs}`,
+        `total;dur=${Date.now() - requestStartedAt}`,
+      ].join(", ")
+    );
   }
   logGteTransferMetric({
     method,

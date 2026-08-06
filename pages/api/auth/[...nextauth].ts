@@ -4,13 +4,8 @@ import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
-import {
-  buildCreditsSummary,
-  buildDevCreditsSummary,
-  calculateCreditsUsedFromDurationCounts,
-  getCreditWindow,
-  reconcileCreditsWithStoredBalance,
-} from "../../../lib/credits";
+import { buildDevCreditsSummary } from "../../../lib/credits";
+import { applyTokenToSession, applyUserStateToToken } from "../../../lib/authSession";
 import { isLocalNoDbServerMode } from "../../../lib/serverDevMode";
 import { parseCookieHeader } from "../../../lib/analyticsV2/cookies";
 import { linkIdentityToUser } from "../../../lib/analyticsV2/identity";
@@ -40,6 +35,7 @@ const providers: NextAuthOptions["providers"] = [
             emailVerified: true,
             emailVerifiedBool: true,
             unverifiedTranscriptionUsed: true,
+            createdAt: true,
           },
         });
         if (!user?.passwordHash) return null;
@@ -56,6 +52,7 @@ const providers: NextAuthOptions["providers"] = [
             source: "login",
             anonId: cookies.analytics_anon,
             sessionId: cookies.analytics_session,
+            consent: cookies.analytics_consent,
             rawFingerprint,
           });
         } catch (linkError) {
@@ -70,6 +67,7 @@ const providers: NextAuthOptions["providers"] = [
           tokensRemaining: user.tokensRemaining,
           isEmailVerified,
           unverifiedTranscriptionUsed: user.unverifiedTranscriptionUsed,
+          createdAt: user.createdAt,
         };
       } catch (error) {
         markPrismaUnavailable(error);
@@ -106,6 +104,7 @@ export const authOptions: NextAuthOptions = {
   adapter: allowDevAuthFallback ? undefined : PrismaAdapter(prisma),
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60,
   },
   secret: process.env.NEXTAUTH_SECRET,
   providers,
@@ -138,18 +137,17 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async jwt({ token, user, account }) {
-      // On initial sign in, persist DB identifiers into the JWT.
+    async jwt({ token, user, trigger }) {
+      // Persist the account state once at sign-in. Routine session reads can
+      // then restore immediately from the encrypted cookie without waking Neon.
       if (user) {
-        token.id = (user as any).id;
-        token.role = (user as any).role;
-        token.tokensRemaining = (user as any).tokensRemaining;
-        token.isEmailVerified = Boolean((user as any).isEmailVerified);
-        token.unverifiedTranscriptionUsed = Boolean((user as any).unverifiedTranscriptionUsed);
+        applyUserStateToToken(token, user);
       }
 
-      // For OAuth logins, fetch the user to sync role/tokens.
-      if (!user && account && token.email && !shouldBypassPrismaSync()) {
+      // useSession().update() is reserved for explicit account refreshes such
+      // as checkout activation. It is intentionally the only post-login path
+      // that synchronizes the JWT from the database.
+      if (trigger === "update" && token.email && !shouldBypassPrismaSync()) {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { email: token.email.toString() },
@@ -160,14 +158,11 @@ export const authOptions: NextAuthOptions = {
               emailVerified: true,
               emailVerifiedBool: true,
               unverifiedTranscriptionUsed: true,
+              createdAt: true,
             },
           });
           if (dbUser) {
-            token.id = dbUser.id;
-            token.role = dbUser.role;
-            token.tokensRemaining = dbUser.tokensRemaining;
-            token.isEmailVerified = Boolean((dbUser as any).emailVerifiedBool || dbUser.emailVerified);
-            token.unverifiedTranscriptionUsed = dbUser.unverifiedTranscriptionUsed;
+            applyUserStateToToken(token, dbUser);
           }
         } catch (error) {
           markPrismaUnavailable(error);
@@ -179,132 +174,10 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (!session.user || !token?.email) return session;
       if (shouldBypassPrismaSync()) {
-        const devCredits = buildDevCreditsSummary();
-        session.user.id = (token.id as string) || session.user.id || "dev-guest";
-        session.user.role = (token.role as string) || "FREE";
-        session.user.tokensRemaining =
-          (token.tokensRemaining as number) ?? devCredits.remaining;
-        session.user.isEmailVerified = Boolean(token.isEmailVerified);
-        session.user.unverifiedTranscriptionUsed = Boolean(token.unverifiedTranscriptionUsed);
-        session.user.monthlyCreditsUsed = devCredits.used;
-        session.user.monthlyCreditsLimit = devCredits.limit;
-        session.user.monthlyCreditsRemaining = devCredits.remaining;
-        session.user.monthlyCreditsResetAt = devCredits.resetAt;
-        session.user.monthlyCreditsUnlimited = devCredits.unlimited;
-        return session;
+        if (!token.id) token.id = session.user.id || "dev-guest";
+        return applyTokenToSession(session, token, buildDevCreditsSummary());
       }
-      // Fetch latest user data to keep tokens/role in sync.
-      let dbUser: {
-        id: string;
-        role: string;
-        tokensRemaining: number;
-        emailVerified: Date | null;
-        emailVerifiedBool: boolean;
-        unverifiedTranscriptionUsed: boolean;
-        createdAt: Date;
-      } | null = null;
-      try {
-        dbUser = await prisma.user.findUnique({
-          where: { email: token.email.toString() },
-          select: {
-            id: true,
-            role: true,
-            tokensRemaining: true,
-            emailVerified: true,
-            emailVerifiedBool: true,
-            unverifiedTranscriptionUsed: true,
-            createdAt: true,
-          },
-        });
-      } catch (error) {
-        markPrismaUnavailable(error);
-        console.error("Session callback user lookup failed", error);
-      }
-      if (dbUser) {
-        session.user.id = dbUser.id;
-        session.user.role = dbUser.role;
-        session.user.tokensRemaining = dbUser.tokensRemaining;
-        const isEmailVerified = Boolean((dbUser as any).emailVerifiedBool || dbUser.emailVerified);
-        session.user.isEmailVerified = isEmailVerified;
-        session.user.unverifiedTranscriptionUsed = dbUser.unverifiedTranscriptionUsed;
-        if (isEmailVerified && !(dbUser as any).emailVerifiedBool) {
-          try {
-            await prisma.user.update({
-              where: { id: dbUser.id },
-              data: { ...( { emailVerifiedBool: true } as any) } as any,
-            });
-          } catch (error) {
-            markPrismaUnavailable(error);
-            console.error("Session callback emailVerifiedBool backfill failed", error);
-          }
-        }
-      } else {
-        session.user.id = token.id as string;
-        session.user.role = (token.role as string) || "FREE";
-        session.user.tokensRemaining = (token.tokensRemaining as number) ?? 0;
-        session.user.isEmailVerified = Boolean(token.isEmailVerified);
-        session.user.unverifiedTranscriptionUsed = Boolean(token.unverifiedTranscriptionUsed);
-      }
-      const creditUserId = session.user.id;
-      if (creditUserId && !shouldBypassPrismaSync()) {
-        try {
-          const isPremium =
-            session.user.role === "PREMIUM" ||
-            session.user.role === "ADMIN" ||
-            session.user.role === "MODERATOR" ||
-            session.user.role === "MOD";
-          const creditWindow = isPremium
-            ? getCreditWindow({ userCreatedAt: dbUser?.createdAt })
-            : getCreditWindow();
-          const creditDurationCounts = await prisma.tabJob.groupBy({
-            by: ["durationSec"],
-            where: isPremium
-              ? { userId: creditUserId }
-              : {
-                  userId: creditUserId,
-                  createdAt: {
-                    gte: creditWindow.start,
-                    lt: creditWindow.resetAt,
-                  },
-                },
-            _count: { _all: true },
-          });
-          const computedCredits = buildCreditsSummary({
-            usedCredits: calculateCreditsUsedFromDurationCounts(
-              creditDurationCounts.map((item) => ({
-                durationSec: item.durationSec,
-                count: item._count._all,
-              }))
-            ),
-            resetAt: creditWindow.resetAt,
-            isPremium,
-            userCreatedAt: dbUser?.createdAt,
-          });
-          const credits = isPremium
-            ? reconcileCreditsWithStoredBalance(computedCredits, dbUser?.tokensRemaining)
-            : computedCredits;
-          session.user.monthlyCreditsUsed = credits.used;
-          session.user.monthlyCreditsLimit = credits.limit;
-          session.user.monthlyCreditsRemaining = credits.remaining;
-          session.user.monthlyCreditsResetAt = credits.resetAt;
-          session.user.monthlyCreditsUnlimited = credits.unlimited;
-          session.user.tokensRemaining = credits.remaining;
-          if (dbUser && dbUser.tokensRemaining !== credits.remaining) {
-            try {
-              await prisma.user.update({
-                where: { id: dbUser.id },
-                data: { tokensRemaining: credits.remaining },
-              });
-            } catch (error) {
-              console.warn("Session callback tokens sync failed", error);
-            }
-          }
-        } catch (error) {
-          markPrismaUnavailable(error);
-          console.error("Session callback credits sync failed", error);
-        }
-      }
-      return session;
+      return applyTokenToSession(session, token);
     },
   },
   pages: {

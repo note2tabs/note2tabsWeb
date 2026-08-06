@@ -18,11 +18,13 @@ export const normalizeSiteUrl = (rawUrl: string) => {
 };
 
 export const getConfiguredSiteUrl = () =>
-  normalizeSiteUrl(
-    process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.NEXTAUTH_URL ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : CANONICAL_SITE_URL)
-  );
+  process.env.NODE_ENV === "production"
+    ? CANONICAL_SITE_URL
+    : normalizeSiteUrl(
+        process.env.NEXT_PUBLIC_APP_URL ||
+          process.env.NEXTAUTH_URL ||
+          (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : CANONICAL_SITE_URL)
+      );
 
 const isLocalHost = (hostname: string) =>
   hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";

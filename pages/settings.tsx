@@ -1,8 +1,9 @@
 import { GetServerSideProps } from "next";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { getServerSession } from "next-auth/next";
-import { signOut } from "next-auth/react";
-import { useEffect, useState, type ReactNode } from "react";
+import { signOut, useSession } from "next-auth/react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { authOptions } from "./api/auth/[...nextauth]";
 import {
   buildCreditsSummary,
@@ -16,8 +17,18 @@ import {
   withBackendRemainingCredits,
 } from "../lib/backendCredits";
 import { prisma } from "../lib/prisma";
-import { setPostHogConsent } from "../lib/posthogClient";
+import { resetPostHogIdentity, setPostHogConsent } from "../lib/posthogClient";
+import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
+import { clearPendingTranscription } from "../lib/pendingTranscription";
+import {
+  clearRecoverableCheckoutSessionId,
+  confirmPremiumCheckout,
+  getRecoverableCheckoutSessionId,
+  hideCheckoutSessionIdFromAddressBar,
+  waitForPremiumEntitlement,
+} from "../lib/premiumEntitlement";
 import NoIndexHead from "../components/NoIndexHead";
+import PremiumConversionCard from "../components/PremiumConversionCard";
 
 type Props = {
   user: {
@@ -72,6 +83,8 @@ function SettingRow({ label, description, value, children }: SettingRowProps) {
 }
 
 export default function SettingsPage({ user, stripeReady, credits }: Props) {
+  const router = useRouter();
+  const { update: updateSession } = useSession();
   const [selectedSection, setSelectedSection] = useState<SettingsSection>("account");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -83,9 +96,12 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [consentBusy, setConsentBusy] = useState(false);
   const [consentMessage, setConsentMessage] = useState<string | null>(null);
-  const [consentState, setConsentState] = useState<"granted" | "denied" | "missing">("missing");
+  const [consentState, setConsentState] = useState<"granted" | "denied">("granted");
   const [upgradeBusy, setUpgradeBusy] = useState(false);
   const [portalBusy, setPortalBusy] = useState(false);
+  const [signOutBusy, setSignOutBusy] = useState(false);
+  const [checkoutStatus, setCheckoutStatus] = useState<string | null>(null);
+  const checkoutReturnHandledRef = useRef(false);
   const verifyHref = `/auth/verify-email?email=${encodeURIComponent(user.email)}`;
   const canContinueDeleteFlow = deleteOriginReason.trim().length >= 8;
   const canFinalizeDelete = deleteConfirmationText.trim().toLowerCase() === "delete";
@@ -96,23 +112,84 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     : "/admin/analytics?view=moderation&range=30d";
   const isPremium =
     user.role === "PREMIUM" || user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
+  const isPaidPremium = user.role === "PREMIUM";
   const resetLabel = new Date(credits.resetAt).toLocaleDateString();
   const creditsUsedLabel = `${credits.used} / ${credits.limit}`;
 
   useEffect(() => {
     if (typeof document === "undefined") return;
     const match = document.cookie.match(/(?:^|; )analytics_consent=([^;]*)/);
-    if (!match?.[1]) {
-      setConsentState("missing");
-      return;
-    }
-    const value = decodeURIComponent(match[1]);
-    if (value === "denied") {
-      setConsentState("denied");
-      return;
-    }
-    setConsentState("granted");
+    const value = match?.[1] ? decodeURIComponent(match[1]) : undefined;
+    setConsentState(value === "denied" ? "denied" : "granted");
   }, []);
+
+  useEffect(() => {
+    if (!router.isReady || checkoutReturnHandledRef.current) return;
+    const outcome = Array.isArray(router.query.upgrade)
+      ? router.query.upgrade[0]
+      : router.query.upgrade;
+    if (outcome === "confirmed") {
+      checkoutReturnHandledRef.current = true;
+      setSelectedSection("plan");
+      setCheckoutStatus("Premium is active. Your upgraded limits are ready to use.");
+      return;
+    }
+    if (outcome !== "success" && outcome !== "manage") return;
+
+    checkoutReturnHandledRef.current = true;
+    setSelectedSection("plan");
+    setUpgradeBusy(true);
+    setError(null);
+    setCheckoutStatus("Checking your Premium access…");
+
+    const sessionIdValue = router.query.session_id;
+    const sessionIdFromQuery = Array.isArray(sessionIdValue)
+      ? sessionIdValue[0]
+      : sessionIdValue;
+    hideCheckoutSessionIdFromAddressBar();
+    if (outcome === "manage") clearRecoverableCheckoutSessionId();
+    const checkoutSessionId =
+      outcome === "success"
+        ? typeof sessionIdFromQuery === "string"
+          ? sessionIdFromQuery
+          : getRecoverableCheckoutSessionId()
+        : null;
+    let cancelled = false;
+
+    const reconcileCheckout = async () => {
+      if (isPremium) {
+        clearRecoverableCheckoutSessionId();
+        setCheckoutStatus("Premium is active. Your upgraded limits are ready to use.");
+        setUpgradeBusy(false);
+        return;
+      }
+
+      if (checkoutSessionId) await confirmPremiumCheckout(checkoutSessionId);
+      const entitlementReady = await waitForPremiumEntitlement(
+        () => updateSession(),
+        { shouldStop: () => cancelled }
+      );
+      if (cancelled) return;
+      if (!entitlementReady) {
+        setCheckoutStatus(null);
+        setError(
+          outcome === "manage"
+            ? "Your subscription is not active yet. Finish the update in billing, then reload this page."
+            : "Premium is still activating. Reload this page to retry."
+        );
+        setUpgradeBusy(false);
+        return;
+      }
+
+      clearRecoverableCheckoutSessionId();
+      window.location.replace("/settings?upgrade=confirmed");
+    };
+
+    void reconcileCheckout();
+    return () => {
+      cancelled = true;
+    };
+  }, [isPremium, router.isReady, router.query.session_id, router.query.upgrade, updateSession]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -140,9 +217,27 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     }
   };
 
-  const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    window.location.href = "/";
+  const handleSignOut = async (pendingTranscriptionAlreadyCleared = false) => {
+    if (signOutBusy) return;
+    setSignOutBusy(true);
+    setError(null);
+    if (!pendingTranscriptionAlreadyCleared) {
+      try {
+        await clearPendingTranscription();
+      } catch {
+        setError("Could not securely clear your saved upload. Please try signing out again.");
+        setSignOutBusy(false);
+        return;
+      }
+    }
+    try {
+      await resetPostHogIdentity();
+      await signOut({ redirect: false });
+      window.location.href = "/";
+    } catch {
+      setError("Could not sign out. Check your connection and try again.");
+      setSignOutBusy(false);
+    }
   };
 
   const handleUpgrade = async () => {
@@ -152,14 +247,31 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     }
     setUpgradeBusy(true);
     setError(null);
-    const res = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
-    const data = await res.json().catch(() => ({}));
-    setUpgradeBusy(false);
-    if (!res.ok || !data?.url) {
-      setError(data?.error || "Could not start checkout.");
-      return;
+    try {
+      const res = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "settings" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.url) {
+        sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
+          source: "settings",
+          plan: "premium_monthly",
+        });
+        setError(data?.error || "Could not start checkout.");
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
+        source: "settings",
+        plan: "premium_monthly",
+      });
+      setError("Could not reach checkout. Check your connection and try again.");
+    } finally {
+      setUpgradeBusy(false);
     }
-    window.location.href = data.url;
   };
 
   const handleManageSubscription = async () => {
@@ -177,6 +289,8 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         return;
       }
       window.location.href = data.url;
+    } catch {
+      setError("Could not reach subscription management. Check your connection and try again.");
     } finally {
       setPortalBusy(false);
     }
@@ -211,13 +325,21 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     setBusy(true);
     setError(null);
     try {
+      try {
+        await clearPendingTranscription();
+      } catch {
+        setError("Could not securely clear your saved upload, so your account was not deleted. Please try again.");
+        return;
+      }
       const res = await fetch("/api/account/delete", { method: "DELETE" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data?.error || "Could not delete account.");
         return;
       }
-      await handleSignOut();
+      await handleSignOut(true);
+    } catch {
+      setError("Could not delete account. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -230,10 +352,21 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     try {
       const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
       const secure = window.location.protocol === "https:" ? "; Secure" : "";
-      document.cookie = `analytics_consent=${state}; expires=${expires}; Max-Age=${
-        365 * 24 * 60 * 60
-      }; path=/; SameSite=Lax${secure}`;
-      setPostHogConsent(state);
+      if (state === "denied") {
+        document.cookie = `analytics_consent=denied; expires=${expires}; Max-Age=${
+          365 * 24 * 60 * 60
+        }; path=/; SameSite=Lax${secure}`;
+        for (const cookieName of ["analytics_session", "analytics_anon"]) {
+          document.cookie = `${cookieName}=; Max-Age=0; expires=${new Date(
+            0
+          ).toUTCString()}; path=/; SameSite=Lax${secure}`;
+        }
+      } else {
+        document.cookie = `analytics_consent=; Max-Age=0; expires=${new Date(
+          0
+        ).toUTCString()}; path=/; SameSite=Lax${secure}`;
+      }
+      await setPostHogConsent(state);
       setConsentState(state);
       setConsentMessage(
         state === "granted"
@@ -304,7 +437,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <div className="settingsRows">
         <SettingRow
           label="Plan"
-          value={isPremium ? `${user.role} - 50 credits/month (rollover up to 100)` : "Free - 10 credits/month"}
+          value={isPremium ? `${user.role} - 100 credits/month (rollover up to 200)` : "Free - 10 credits/month"}
         />
         <SettingRow label="Credits used" value={creditsUsedLabel} />
         <SettingRow label="Remaining" value={credits.remaining} />
@@ -321,7 +454,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
                 {stripeReady ? "Upgrade to Premium" : "Premium (coming soon)"}
               </button>
             )}
-            {isPremium && (
+            {isPaidPremium && (
               <button
                 type="button"
                 onClick={handleManageSubscription}
@@ -345,13 +478,20 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         </SettingRow>
       </div>
       {credits.remaining === 0 && (
-        <div className="notice">
-          {isPremium
-            ? `Credits used. More credits arrive on ${resetLabel}.`
-            : `Monthly credits used. Upgrade to Premium or wait until ${resetLabel}.`}
-        </div>
+        isPremium ? (
+          <div className="notice">Your credits will be refreshed on {resetLabel}.</div>
+        ) : (
+          <PremiumConversionCard
+            title="Keep transcribing today"
+            description="Premium includes 100 monthly credits, rollover, faster processing, and full-song uploads."
+            actionLabel="Get Premium"
+            onAction={() => void handleUpgrade()}
+            busy={upgradeBusy}
+            resetMessage={`Free credits reset ${resetLabel}`}
+          />
+        )
       )}
-      {isPremium && (
+      {isPaidPremium && (
         <p className="footnote">You can cancel your Premium subscription anytime from Manage subscription.</p>
       )}
     </section>
@@ -372,8 +512,13 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         </SettingRow>
         <SettingRow label="Log out" value="Sign out of your current session.">
           <div className="settingsActions">
-            <button type="button" onClick={handleSignOut} className="settingsButton settingsButtonSecondary">
-              Log out
+            <button
+              type="button"
+              onClick={() => void handleSignOut()}
+              className="settingsButton settingsButtonSecondary"
+              disabled={signOutBusy}
+            >
+              {signOutBusy ? "Signing out…" : "Log out"}
             </button>
           </div>
         </SettingRow>
@@ -389,8 +534,8 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <div className="settingsRows">
         <SettingRow
           label="Analytics"
-          description="Analytics help improve Note2Tabs. You can turn them off anytime."
-          value={consentState === "missing" ? "granted (default)" : consentState}
+          description="Cookieless product analytics are enabled by default. You can turn them off anytime."
+          value={consentState}
         >
           <div className="settingsActions">
             <button
@@ -469,8 +614,13 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
                   <Link href="/reset-password" className="button-secondary button-small">
                     Reset password
                   </Link>
-                  <button type="button" onClick={handleSignOut} className="button-secondary button-small">
-                    Log out instead
+                  <button
+                    type="button"
+                    onClick={() => void handleSignOut()}
+                    className="button-secondary button-small"
+                    disabled={signOutBusy}
+                  >
+                    {signOutBusy ? "Signing out…" : "Log out instead"}
                   </button>
                 </div>
               </div>
@@ -585,6 +735,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
           </aside>
 
           <div className="settingsContent" role="tabpanel" id={`settings-panel-${selectedSection}`}>
+            {checkoutStatus && <div className="status" role="status">{checkoutStatus}</div>}
             {selectedSection === "account" && renderAccountSection()}
             {selectedSection === "plan" && renderPlanSection()}
             {selectedSection === "security" && renderSecuritySection()}

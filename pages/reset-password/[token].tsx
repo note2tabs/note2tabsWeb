@@ -89,8 +89,9 @@ export default function ResetPasswordTokenPage() {
           ) : (
             <form className="stack" onSubmit={handleSubmit}>
               <div className="form-group">
-                <label className="label">Reset code</label>
+                <label className="label" htmlFor="reset-code">Reset code</label>
                 <input
+                  id="reset-code"
                   type="text"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
@@ -101,9 +102,11 @@ export default function ResetPasswordTokenPage() {
                 />
               </div>
               <div className="form-group">
-                <label className="label">New password</label>
+                <label className="label" htmlFor="reset-new-password">New password</label>
                 <input
+                  id="reset-new-password"
                   type="password"
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   minLength={10}
@@ -112,9 +115,11 @@ export default function ResetPasswordTokenPage() {
                 />
               </div>
               <div className="form-group">
-                <label className="label">Confirm password</label>
+                <label className="label" htmlFor="reset-confirm-password">Confirm password</label>
                 <input
+                  id="reset-confirm-password"
                   type="password"
+                  autoComplete="new-password"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   minLength={10}

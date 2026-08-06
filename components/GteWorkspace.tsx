@@ -9,6 +9,7 @@ import {
   type TouchEvent as ReactTouchEvent,
   type UIEvent as ReactUiEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { gteApi } from "../lib/gteApi";
 import {
   PLAYBACK_SPEED_OPTIONS,
@@ -21,23 +22,112 @@ import {
   resolvePracticeLoopRange,
   type PracticeLoopRange,
 } from "../lib/gtePractice";
+import type { PracticeRatingReplay } from "../lib/gtePracticeRating";
 import {
+  DEFAULT_TRACK_INSTRUMENT_ID,
   prepareTrackInstrument,
   schedulePreparedTrackNote,
   warmTrackInstrument,
-} from "../lib/gteSoundfonts";
+} from "../lib/gteSamplePlayback";
+import { buildDiscreteSlideSteps } from "../lib/gteSlidePlayback";
 import { getOpenStringMidiFromSnapshot, getStringLabelsForSnapshot } from "../lib/gteTuning";
+import {
+  alignEffectNotesToFirstString,
+  applyNoteFingeringUpdates,
+  getEffectAwareFingeringUpdates,
+  getEffectPairKeys,
+  orderNotesForEffect,
+} from "../lib/gteNoteEffects";
 import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
-import type { CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
+import {
+  getChordFingeringDatasetType,
+  getChordFingeringMidiNotes,
+  getChordFingeringTabs,
+  hydrateChordFingering,
+} from "../lib/gteChordFingerings";
+import {
+  CHORD_EDITOR_EXTENSIONS,
+  CHORD_EDITOR_QUALITIES,
+  CHORD_EDITOR_ROOTS,
+  getChordEditorExtension,
+  getChordEditorLabel,
+  getChordEditorMidiNotes,
+  inferChordEditorMetadataFromMidi,
+} from "../lib/gteChordEditor";
+import type { Chord, ChordFingering, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
-import { buildEditorTabView } from "../lib/gteEditorTabView";
+import { buildEditorTabView, getEditorTabViewCursorX } from "../lib/gteEditorTabView";
+import { useGteRenderInstrumentation } from "../lib/gtePerformanceDiagnostics";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
   buildGteExportFile,
   downloadGteExportFile,
   type GteExportFormat,
 } from "../lib/gteTabExport";
+
+const AUDIO_CONTEXT_RESUME_ERROR =
+  "Your browser blocked audio playback. Tap Play again to allow sound.";
+
+const TOOL_HELP_SECTIONS = [
+  {
+    title: "Notes & chords",
+    tools: [
+      ["Merge to Chord", "Combines selected notes or chords into one chord."],
+      ["Disband Chord", "Turns the selected chord back into separate notes."],
+      ["Optimize Notes", "Finds easier string and fret positions for selected notes."],
+      ["Snap to Key", "Moves selected notes to the nearest notes in the detected key."],
+      ["Quantize", "Aligns selected notes or chords to a rhythmic grid."],
+      ["Merge Notes", "Joins selected notes on each string into longer notes."],
+      ["Scale", "Proportionally changes selected start times, lengths, or both."],
+      ["Slicing Tool", "Click directly inside a note or chord to split it at that point."],
+      ["Move", "Moves selected notes or chords together along the timeline."],
+    ],
+  },
+  {
+    title: "Effects",
+    tools: [
+      ["Hammer/Pull", "Connects selected notes with hammer-ons or pull-offs."],
+      ["Slide", "Connects selected notes with a slide."],
+      ["Bend", "Connects selected notes with a bend."],
+    ],
+  },
+  {
+    title: "Playing coordinates",
+    tools: [
+      ["Clean Playing-Coordinates", "Combines neighboring regions that use the same position."],
+      ["Cut", "Adds a boundary so playing coordinates can change at that point."],
+      ["Merge", "Removes the selected boundary and joins its neighboring regions."],
+    ],
+  },
+] as const;
+
+const TOOL_HELP = new Map<string, string>(
+  TOOL_HELP_SECTIONS.flatMap((section) =>
+    section.tools.map(([name, description]) => [name, description] as [string, string])
+  )
+);
+
+function resumeAudioContext(ctx: AudioContext): Promise<void> {
+  try {
+    return Promise.resolve(ctx.resume())
+      .then(() => {
+        if (ctx.state !== "running") {
+          throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
+        }
+      })
+      .catch(() => {
+        throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
+      });
+  } catch {
+    return Promise.reject(new Error(AUDIO_CONTEXT_RESUME_ERROR));
+  }
+}
+
+function closeAudioContext(ctx: AudioContext) {
+  if (ctx.state === "closed") return;
+  void ctx.close().catch(() => undefined);
+}
 
 type Props = {
   editorId: string;
@@ -50,12 +140,25 @@ type Props = {
   tabViewEnabled?: boolean;
   globalSnapToGridEnabled?: boolean;
   onGlobalSnapToGridEnabledChange?: (enabled: boolean) => void;
+  snapSubdivisionsPerBeat?: number;
   globalSnapToKeyEnabled?: boolean;
   onGlobalSnapToKeyEnabledChange?: (enabled: boolean) => void;
+  generatePlayingCoordinatesRequest?: number;
+  defaultNoteLengthDenominator?: number;
+  onDefaultNoteLengthDenominatorChange?: (denominator: number) => void;
+  cursorSizeDenominator?: number;
+  onCursorSizeDenominatorChange?: (denominator: number) => void;
+  leftHandedChordDiagrams?: boolean;
+  editMenuPortalTarget?: HTMLElement | null;
+  editMenuDisabled?: boolean;
+  onEditMenuPointerEnter?: () => void;
+  onEditMenuPointerLeave?: () => void;
   canvasKeyBase?: number;
   canvasKeyType?: number;
   sharedTimeSignature?: number;
+  sharedTimeSignatureBottom?: number;
   sharedViewportBarCount?: number;
+  sharedTimelineBaseScale?: number;
   sharedTimelineScrollRatio?: number;
   onSharedTimelineScrollRatioChange?: (next: number) => void;
   timelineZoomFactor?: number;
@@ -64,7 +167,9 @@ type Props = {
   onRequestUndo?: () => void;
   onRequestRedo?: () => void;
   globalPlaybackFrame?: number;
+  getGlobalPlaybackFrame?: () => number;
   globalPlaybackIsPlaying?: boolean;
+  globalPlaybackIsPreparing?: boolean;
   globalPlaybackVolume?: number;
   globalPlaybackTimelineEnd?: number;
   onGlobalPlaybackToggle?: () => void;
@@ -88,6 +193,13 @@ type Props = {
   onSpeedTrainerStepChange?: (step: number) => void;
   playbackSpeed?: number;
   onPlaybackSpeedChange?: (speed: number) => void;
+  practiceMode?: boolean;
+  onPracticeNotePlay?: (frame: number) => void;
+  practiceChordOverlay?: EditorSnapshot | null;
+  practiceFocusBarRange?: { startBar: number; endBar: number } | null;
+  practiceRatingReplay?: PracticeRatingReplay | null;
+  practiceControlsVisible?: boolean;
+  playbackUiVisible?: boolean;
   showToolbarWhenInactive?: boolean;
   toolbarOpen?: boolean;
   onToolbarOpenChange?: (open: boolean) => void;
@@ -116,6 +228,14 @@ type Props = {
   mobileMode?: "canvas" | "edit";
 };
 
+type PendingSelectionTool =
+  | "quantize"
+  | "scale"
+  | "move"
+  | "hammer-pull"
+  | "slide"
+  | "bend";
+
 type ContextMenuState =
   | {
       x: number;
@@ -128,6 +248,17 @@ type ContextMenuState =
       y: number;
       kind: "bar";
       insertIndex: number;
+    }
+  | {
+      x: number;
+      y: number;
+      kind: "note";
+      targetFrame: number;
+    }
+  | {
+      x: number;
+      y: number;
+      kind: "playingCoordinates";
     };
 
 const DEFAULT_STRING_LABELS = ["E", "B", "G", "D", "A", "E"];
@@ -139,12 +270,28 @@ const DEFAULT_MAX_FRET = 22;
 const MAX_EVENT_LENGTH_FRAMES = 800;
 const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
+const CHORD_EDITOR_ROW_HEIGHT = 70;
+const CHORD_EDITOR_MIN_BLOCK_WIDTH = 24;
+const CHORD_EDITOR_LABEL_GUTTER_WIDTH = 30;
+const CHORD_STRUM_EDITOR_HEIGHT = 78;
+const CHORD_FINGERING_ROW_HEIGHT = 126;
+const CHORD_EDITOR_SNAP_DENOMINATORS = [1, 2, 4, 8, 16, 32] as const;
+const CHORD_PALETTE_EXTENSIONS = [
+  { value: "", label: "None" },
+  { value: "7", label: "7" },
+  { value: "9", label: "9" },
+] as const;
+const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
+const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
+const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32];
+const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 3, 4, 8, 16, 32, 64];
 const DEFAULT_CUT_COORD: TabCoord = [2, 0];
 const CUT_SEGMENT_HEIGHT = 20;
 const CUT_SEGMENT_OFFSET = 20;
 const CUT_SEGMENT_MIN_WIDTH = 28;
 const CUT_BOUNDARY_OVERHANG = 12;
 const TIMELINE_BAR_HEADER_HEIGHT = 20;
+const TIMELINE_RENDER_OVERSCAN_PX = 900;
 const MAX_HISTORY = 16;
 const AUTOSAVE_DEBOUNCE_MS = 2500;
 const AUTOSAVE_INTERVAL_MS = 20000;
@@ -222,11 +369,60 @@ const formatScaleFactor = (value: number) => {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 };
 
+const parseScaleFactorInput = (value: string) => {
+  const trimmed = value.trim();
+  const reciprocalMatch = trimmed.match(/^1\/(\d+(?:\.\d+)?)$/);
+  if (reciprocalMatch) {
+    const denominator = Number(reciprocalMatch[1]);
+    return Number.isFinite(denominator) && denominator > 0 ? 1 / denominator : null;
+  }
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed < 0) {
+    const denominator = Math.abs(parsed);
+    return denominator > 0 ? 1 / denominator : null;
+  }
+  return parsed;
+};
+
+const getNearestCursorSizeDenominator = (value: number) => {
+  const safeValue = Math.max(1, Number(value) || 1);
+  return CURSOR_SIZE_FRACTION_DENOMINATORS.reduce((best, candidate) =>
+    Math.abs(candidate - safeValue) < Math.abs(best - safeValue) ? candidate : best
+  );
+};
+
+const getNearestNoteLengthDenominator = (value: number) => {
+  const safeValue = Math.max(0.5, Number(value) || 1);
+  return NOTE_LENGTH_FRACTION_DENOMINATORS.reduce((best, candidate) =>
+    Math.abs(candidate - safeValue) < Math.abs(best - safeValue) ? candidate : best
+  );
+};
+
+const formatNoteLengthOption = (denominator: number) => {
+  if (denominator === 0.5) return "2";
+  if (denominator === 1) return "1";
+  return `1/${denominator}`;
+};
+
+const formatScaleFactorInputDraft = (value: string) => {
+  const trimmed = value.trim();
+  if (trimmed === "-") return value;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed >= 0) return value;
+  return `1/${Math.abs(parsed)}`;
+};
+
 const formatTimelineSecondLabel = (seconds: number) => {
   const safeSeconds = Math.max(0, Math.round(seconds));
   const minutes = Math.floor(safeSeconds / 60);
   const remainder = safeSeconds % 60;
   return `${minutes}:${String(remainder).padStart(2, "0")}`;
+};
+
+const formatDurationSeconds = (seconds: number) => {
+  const rounded = Math.round(Math.max(0, seconds) * 10000) / 10000;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded).replace(/0+$/, "").replace(/\.$/, "");
 };
 
 const clampEventLength = (length: number) =>
@@ -254,6 +450,70 @@ const getBeatGridLength = (length: number, beatsPerBar: number, mode: "floor" | 
   const beatCount =
     mode === "floor" ? Math.floor(rawBeatCount) : mode === "ceil" ? Math.ceil(rawBeatCount) : Math.round(rawBeatCount);
   return clampEventLength(Math.round((Math.max(1, beatCount) * FIXED_FRAMES_PER_BAR) / beats));
+};
+
+const getBeatSubdivisionGridTime = (
+  time: number,
+  beatsPerBar: number,
+  subdivisionsPerBeat = 4,
+  mode: "floor" | "round" | "ceil" = "round"
+) => {
+  const beats = normalizeBeatsPerBar(beatsPerBar);
+  const unitsPerBar = Math.max(1, beats * Math.max(1, Math.round(subdivisionsPerBeat)));
+  const safeTime = Math.max(0, Math.round(time));
+  const barIndex = Math.floor(safeTime / FIXED_FRAMES_PER_BAR);
+  const barStart = barIndex * FIXED_FRAMES_PER_BAR;
+  const inBar = safeTime - barStart;
+  const rawUnit = (inBar / FIXED_FRAMES_PER_BAR) * unitsPerBar;
+  const unitIndex =
+    mode === "floor" ? Math.floor(rawUnit) : mode === "ceil" ? Math.ceil(rawUnit) : Math.round(rawUnit);
+  return Math.max(
+    0,
+    barStart + Math.round((Math.max(0, Math.min(unitsPerBar, unitIndex)) * FIXED_FRAMES_PER_BAR) / unitsPerBar)
+  );
+};
+
+const getBeatSubdivisionGridLength = (
+  length: number,
+  beatsPerBar: number,
+  subdivisionsPerBeat = 4,
+  mode: "floor" | "round" | "ceil" = "round"
+) => {
+  const beats = normalizeBeatsPerBar(beatsPerBar);
+  const unitsPerBar = Math.max(1, beats * Math.max(1, Math.round(subdivisionsPerBeat)));
+  const safeLength = clampEventLength(length);
+  const rawUnitCount = (safeLength / FIXED_FRAMES_PER_BAR) * unitsPerBar;
+  const unitCount =
+    mode === "floor" ? Math.floor(rawUnitCount) : mode === "ceil" ? Math.ceil(rawUnitCount) : Math.round(rawUnitCount);
+  return clampEventLength(Math.round((Math.max(1, unitCount) * FIXED_FRAMES_PER_BAR) / unitsPerBar));
+};
+
+const normalizeEditorKind = (value: unknown) => {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor"
+    ? "chords"
+    : "tab";
+};
+
+const isChordEditorSnapshot = (snapshot: EditorSnapshot) =>
+  normalizeEditorKind(snapshot.editorType ?? snapshot.trackType ?? snapshot.type) === "chords";
+
+const normalizeChordEditorStrums = (strums: unknown): NonNullable<Chord["strums"]> => {
+  if (!Array.isArray(strums)) return [{ id: 1, time: 0, direction: "down" }];
+  const normalized = strums
+    .map((entry, index): NonNullable<Chord["strums"]>[number] | null => {
+      if (!entry || typeof entry !== "object") return null;
+      const raw = entry as Record<string, unknown>;
+      const direction: NonNullable<Chord["strums"]>[number]["direction"] =
+        raw.direction === "up" ? "up" : raw.direction === "mute" || raw.direction === "x" ? "mute" : "down";
+      return {
+        id: Number.isFinite(Number(raw.id)) ? Math.round(Number(raw.id)) : index + 1,
+        time: Math.max(0, Math.round(Number(raw.time) || 0)),
+        direction,
+      };
+    })
+    .filter((entry): entry is NonNullable<Chord["strums"]>[number] => entry !== null);
+  return normalized.length ? normalized : [{ id: 1, time: 0, direction: "down" }];
 };
 
 const NON_TEXT_INPUT_TYPES = new Set([
@@ -667,26 +927,26 @@ const removeChordFromSnapshot = (draft: EditorSnapshot, chordId: number) => {
 };
 
 const addNoteEffectToSnapshot = (draft: EditorSnapshot, noteIds: number[], type: number) => {
-  if (noteIds.length !== 2) return;
-  const notes = noteIds
-    .map((id) => draft.notes.find((note) => note.id === id))
-    .filter((note): note is EditorSnapshot["notes"][number] => Boolean(note));
-  if (notes.length !== 2) return;
-  const [first, second] = notes;
-  const effect: NoteEffect = {
-    id: nextNoteEffectId(draft),
-    type,
-    startNoteId: first.id,
-    endNoteId: second.id,
-    noteEffectLabel: getNoteEffectLabelForNotes(type, first, second),
-  };
-  const existingPairKey = noteEffectKey(effect);
+  const notes = orderNotesForEffect(draft, noteIds);
+  if (notes.length < 2) return;
+  const pairKeys = new Set(getEffectPairKeys(notes));
   const remainingEffects = (draft.noteEffects || []).filter(
-    (item) => noteEffectKey(item) !== existingPairKey
+    (item) => !pairKeys.has(noteEffectKey(item))
   );
+  let effectId = nextNoteEffectId(draft);
+  const effects = notes.slice(0, -1).map((first, index) => {
+    const second = notes[index + 1];
+    return {
+      id: effectId++,
+      type,
+      startNoteId: first.id,
+      endNoteId: second.id,
+      noteEffectLabel: getNoteEffectLabelForNotes(type, first, second),
+    } satisfies NoteEffect;
+  });
   draft.noteEffects = normalizeSnapshotNoteEffects({
     ...draft,
-    noteEffects: [...remainingEffects, effect],
+    noteEffects: [...remainingEffects, ...effects],
   });
 };
 
@@ -765,6 +1025,10 @@ const setSecondsPerBarInSnapshot = (draft: EditorSnapshot, secondsPerBar: number
 
 const setTimeSignatureInSnapshot = (draft: EditorSnapshot, timeSignature: number) => {
   draft.timeSignature = Math.max(1, Math.min(64, Math.round(timeSignature)));
+};
+
+const setTimeSignatureBottomInSnapshot = (draft: EditorSnapshot, timeSignatureBottom: number) => {
+  draft.timeSignatureBottom = Math.max(1, Math.min(64, Math.round(timeSignatureBottom)));
 };
 
 const scaleEventsForTimeSignatureChangeInSnapshot = (
@@ -1118,6 +1382,1954 @@ type DragPointerEventLike = {
   stopPropagation: () => void;
 };
 
+type ChordPalettePayload = {
+  root: string;
+  quality: string;
+  extension: string;
+  label: string;
+};
+
+type ChordEditorStrum = NonNullable<Chord["strums"]>[number] & { id: number };
+
+type ChordEditorDragState =
+  | {
+      kind: "move";
+      chordId: number;
+      anchorX: number;
+      originalStart: number;
+      group?: Array<{ chordId: number; originalStart: number }>;
+    }
+  | {
+      kind: "resize-left" | "resize-right";
+      chordId: number;
+      anchorX: number;
+      originalStart: number;
+      originalLength: number;
+    };
+
+type ChordStrumEditorState = {
+  chordId: number;
+  draft: ChordEditorStrum[];
+  selectedIds: number[];
+  menu: { time: number; x: number; y: number } | null;
+  drag: { strumId: number; anchorX: number; originalTime: number } | null;
+};
+
+type ChordClipboardItem = Chord & { offset: number };
+
+type ChordContextMenuState = {
+  chordId: number;
+  x: number;
+  y: number;
+};
+
+function ChordFingeringDiagram({
+  fingering,
+  leftHanded = false,
+}: {
+  fingering: ChordFingering;
+  leftHanded?: boolean;
+}) {
+  const hydrated = hydrateChordFingering(fingering);
+  const positions = hydrated.positions;
+  const fingers = hydrated.fingers || [];
+  const explicitBarreFrets = new Set(hydrated.barreFrets || []);
+  const hasFingerMetadata = fingers.some((finger) => typeof finger === "number");
+  const fretted = positions.filter((value): value is number => typeof value === "number" && value > 0);
+  const minFret = fretted.length ? Math.min(...fretted) : 1;
+  const maxFret = fretted.length ? Math.max(...fretted) : 4;
+  const baseFret = maxFret <= 4 ? 1 : Math.max(1, minFret);
+  const fretCount = 4;
+  const visibleFrets = Array.from({ length: fretCount }, (_, index) => baseFret + index);
+  const maxVisibleFret = visibleFrets[visibleFrets.length - 1] ?? baseFret + fretCount - 1;
+  const barreRuns: Array<{ fret: number; startIndex: number; endIndex: number; finger: number | null }> = [];
+  const barredPositions = new Set<number>();
+
+  visibleFrets.forEach((fret) => {
+    if (explicitBarreFrets.has(fret)) {
+      const barreFingerCandidates = Array.from(
+        new Set(
+          positions
+            .map((position, index) => (position === fret ? fingers[index] : null))
+            .filter((finger): finger is number => typeof finger === "number" && finger > 0)
+        )
+      );
+      const barreFinger =
+        barreFingerCandidates.find(
+          (finger) => positions.filter((position, index) => position === fret && fingers[index] === finger).length >= 2
+        ) ?? null;
+      const barreIndexes = positions
+        .map((position, index) => (position === fret && (barreFinger === null || fingers[index] === barreFinger) ? index : -1))
+        .filter((index) => index >= 0);
+      if (barreIndexes.length >= 2) {
+        barreRuns.push({
+          fret,
+          startIndex: Math.min(...barreIndexes),
+          endIndex: Math.max(...barreIndexes),
+          finger: barreFinger,
+        });
+        return;
+      }
+    }
+
+    // JSON fingerings declare real barres explicitly. Only infer bars for
+    // legacy saved shapes that do not contain finger metadata.
+    if (hasFingerMetadata) return;
+
+    let runStart: number | null = null;
+    positions.forEach((position, index) => {
+      if (position === fret) {
+        if (runStart === null) runStart = index;
+        return;
+      }
+      if (runStart !== null && index - runStart >= 2) {
+        barreRuns.push({ fret, startIndex: runStart, endIndex: index - 1, finger: fingers[runStart] ?? null });
+      }
+      runStart = null;
+    });
+    if (runStart !== null && positions.length - runStart >= 2) {
+      barreRuns.push({
+        fret,
+        startIndex: runStart,
+        endIndex: positions.length - 1,
+        finger: fingers[runStart] ?? null,
+      });
+    }
+  });
+
+  barreRuns.forEach((barre) => {
+    for (let index = barre.startIndex; index <= barre.endIndex; index += 1) {
+      if (
+        positions[index] === barre.fret &&
+        (barre.finger === null || fingers[index] === barre.finger)
+      ) {
+        barredPositions.add(index);
+      }
+    }
+  });
+
+  return (
+    <div className="relative h-[76px] w-[82px] select-none">
+      {baseFret > 1 ? (
+        <span className="absolute left-0 top-[19px] w-5 text-right text-[9px] font-semibold text-slate-500">
+          {baseFret}fr
+        </span>
+      ) : null}
+      <div className="absolute left-5 top-4 h-[54px] w-[54px]">
+        {Array.from({ length: 6 }, (_, stringIndex) => (
+          <span
+            key={`string-${stringIndex}`}
+            className="absolute bottom-0 top-0 border-l border-slate-500"
+            style={{ left: `${(stringIndex / 5) * 100}%` }}
+          />
+        ))}
+        {Array.from({ length: fretCount + 1 }, (_, fretIndex) => (
+          <span
+            key={`fret-${fretIndex}`}
+            className={`absolute left-0 right-0 border-t ${fretIndex === 0 && baseFret === 1 ? "border-slate-900" : "border-slate-300"}`}
+            style={{ top: `${(fretIndex / fretCount) * 100}%` }}
+          />
+        ))}
+        {barreRuns.map((barre) => {
+          const y = (((barre.fret - baseFret) + 0.5) / fretCount) * 100;
+          const displayStartIndex = leftHanded ? 5 - barre.endIndex : barre.startIndex;
+          const displayEndIndex = leftHanded ? 5 - barre.startIndex : barre.endIndex;
+          return (
+            <span
+              key={`barre-${barre.fret}-${barre.startIndex}-${barre.endIndex}`}
+              className="absolute z-10 flex h-3 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900 text-[8px] font-bold leading-none text-white"
+              style={{
+                left: `calc(${(displayStartIndex / 5) * 100}% - 5px)`,
+                top: `${y}%`,
+                width: `calc(${((displayEndIndex - displayStartIndex) / 5) * 100}% + 10px)`,
+              }}
+            >
+              {barre.finger ?? ""}
+            </span>
+          );
+        })}
+        {positions.map((fret, index) => {
+          const displayIndex = leftHanded ? 5 - index : index;
+          const x = (displayIndex / 5) * 100;
+          if (fret === null) {
+            return (
+              <span
+                key={`mute-${index}`}
+                className="absolute -top-4 -translate-x-1/2 text-[10px] font-bold leading-none text-slate-500"
+                style={{ left: `${x}%` }}
+              >
+                x
+              </span>
+            );
+          }
+          if (fret === 0) {
+            return (
+              <span
+                key={`open-${index}`}
+                className="absolute -top-4 -translate-x-1/2 text-[10px] font-bold leading-none text-slate-500"
+                style={{ left: `${x}%` }}
+              >
+                o
+              </span>
+            );
+          }
+          if (fret < baseFret || fret > maxVisibleFret || barredPositions.has(index)) return null;
+          const y = (((fret - baseFret) + 0.5) / fretCount) * 100;
+          return (
+            <span
+              key={`dot-${index}`}
+              className="absolute z-20 flex h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900 text-[7px] font-bold leading-none text-white"
+              style={{ left: `${x}%`, top: `${y}%` }}
+            >
+              {fingers[index] ?? ""}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const getPracticeChordLabel = (chord: Chord) => {
+  const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+  return (
+    chord.label ||
+    inferred?.label ||
+    getChordEditorLabel(
+      chord.root || inferred?.root || "C",
+      chord.quality || inferred?.quality || "major",
+      chord.extension || inferred?.extension || ""
+    )
+  );
+};
+
+const getPracticeChordFingeringLookup = (chord: Chord) => {
+  const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+  const root = chord.root || inferred?.root || "C";
+  const quality = chord.quality || inferred?.quality || "major";
+  const extension = chord.extension || inferred?.extension || "";
+  const type = getChordFingeringDatasetType({ quality, extension });
+  return { root, type, key: `${root}:${type}` };
+};
+
+const getPracticeChordFingering = (
+  chord: Chord,
+  fingeringOptions: ChordFingering[] = []
+): ChordFingering | null => {
+  const savedFingeringIndex = Number.isFinite(Number(chord.fingeringIndex))
+    ? Math.max(
+        0,
+        Math.min(fingeringOptions.length - 1, Math.round(Number(chord.fingeringIndex)))
+      )
+    : 0;
+  const savedFingering =
+    (fingeringOptions.length ? fingeringOptions[savedFingeringIndex] : undefined) ||
+    chord.fingering;
+  if (savedFingering) return hydrateChordFingering(savedFingering);
+  const positions: Array<number | null> = Array.from({ length: 6 }, () => null);
+  chord.currentTabs.forEach((tab) => {
+    const rawStringIndex = Number(tab[0]);
+    const rawFret = Number(tab[1]);
+    if (!Number.isFinite(rawStringIndex) || !Number.isFinite(rawFret)) return;
+    const stringIndex = Math.max(0, Math.min(5, Math.round(rawStringIndex)));
+    positions[5 - stringIndex] = Math.max(0, Math.round(rawFret));
+  });
+  if (!positions.some((position) => position !== null)) return null;
+  const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+  return hydrateChordFingering({
+    root: chord.root || inferred?.root || "C",
+    type: getChordFingeringDatasetType({
+      quality: chord.quality || inferred?.quality || "major",
+      extension: chord.extension || inferred?.extension || "",
+    }),
+    positions,
+    tabs: chord.currentTabs,
+  });
+};
+
+function ChordLaneWorkspace({
+  editorId,
+  snapshot,
+  onSnapshotChange,
+  allowBackend = true,
+  embedded = false,
+  isActive = true,
+  onFocusWorkspace,
+  sharedViewportBarCount,
+  sharedTimelineBaseScale,
+  sharedTimelineScrollRatio,
+  onSharedTimelineScrollRatioChange,
+  timelineZoomFactor,
+  onRequestUndo,
+  onRequestRedo,
+  globalPlaybackFrame,
+  getGlobalPlaybackFrame,
+  globalPlaybackIsPlaying,
+  globalPlaybackVolume,
+  globalPlaybackTimelineEnd,
+  onGlobalPlaybackFrameChange,
+  selectionClearEpoch,
+  selectionClearExemptEditorId,
+  barSelectionClearEpoch,
+  barSelectionClearExemptEditorId,
+  onSelectionStateChange,
+  onBarSelectionStateChange,
+  tabViewEnabled = false,
+  globalSnapToKeyEnabled,
+  leftHandedChordDiagrams = false,
+  canvasKeyBase = 0,
+  canvasKeyType = 0,
+  sharedTimeSignature,
+  activeBarDrag,
+  onBarDragStart,
+  onBarDragEnd,
+  onRequestBarDrop,
+  mobileViewport = false,
+  mobileMode,
+}: Props) {
+  useGteRenderInstrumentation("GteWorkspace", `${editorId}:chords`);
+  const timelineRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<ChordEditorDragState | null>(null);
+  const dragHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressChordClickRef = useRef(false);
+  const chordMouseDownSelectionRef = useRef<{ chordId: number; wasSelected: boolean; shiftKey: boolean } | null>(null);
+  const playbackScrollRafRef = useRef<number | null>(null);
+  const chordLanePlayheadRef = useRef<HTMLDivElement | null>(null);
+  const chordPreviewAudioRef = useRef<AudioContext | null>(null);
+  const chordPreviewGainRef = useRef<GainNode | null>(null);
+  const chordContextMenuRef = useRef<HTMLDivElement | null>(null);
+  const [autoBaseScale, setAutoBaseScale] = useState(4);
+  const [selectedChordIds, setSelectedChordIds] = useState<number[]>([]);
+  const [selectedBarIndices, setSelectedBarIndices] = useState<number[]>([]);
+  const [snapDenominator, setSnapDenominator] = useState<(typeof CHORD_EDITOR_SNAP_DENOMINATORS)[number]>(4);
+  const [chordMenuOpen, setChordMenuOpen] = useState(false);
+  const [chordPaletteExtension, setChordPaletteExtension] =
+    useState<(typeof CHORD_PALETTE_EXTENSIONS)[number]["value"]>("");
+  const [strumEditor, setStrumEditor] = useState<ChordStrumEditorState | null>(null);
+  const [chordClipboard, setChordClipboard] = useState<ChordClipboardItem[]>([]);
+  const [chordContextMenu, setChordContextMenu] = useState<ChordContextMenuState | null>(null);
+  const [fingeringsVisible, setFingeringsVisible] = useState(false);
+  const [fingeringOptionsByChordKey, setFingeringOptionsByChordKey] = useState<Record<string, ChordFingering[]>>({});
+  const [dragRevision, setDragRevision] = useState(0);
+  const isMobileCanvasMode = mobileViewport && mobileMode === "canvas";
+  const snapToKeyEnabled = Boolean(globalSnapToKeyEnabled);
+  const normalizedTimelineZoomFactor =
+    timelineZoomFactor !== undefined && Number.isFinite(timelineZoomFactor)
+      ? Math.max(MIN_TIMELINE_ZOOM, Math.min(MAX_TIMELINE_ZOOM, timelineZoomFactor))
+      : 1;
+  const scale = (sharedTimelineBaseScale ?? autoBaseScale) * normalizedTimelineZoomFactor;
+  const timelineEnd = Math.max(
+    FIXED_FRAMES_PER_BAR,
+    globalPlaybackTimelineEnd ?? snapshot.totalFrames ?? FIXED_FRAMES_PER_BAR
+  );
+  const barCount = Math.max(
+    sharedViewportBarCount ?? 1,
+    Math.ceil(timelineEnd / FIXED_FRAMES_PER_BAR),
+    Math.ceil((snapshot.totalFrames || timelineEnd) / FIXED_FRAMES_PER_BAR)
+  );
+  const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, barCount * FIXED_FRAMES_PER_BAR);
+  const beatsPerBar = Math.max(1, Math.round(Number(sharedTimeSignature ?? snapshot.timeSignature ?? 8) || 8));
+  const readExternalPlaybackFrame = useCallback(
+    () => Math.max(0, Math.round(getGlobalPlaybackFrame?.() ?? globalPlaybackFrame ?? 0)),
+    [getGlobalPlaybackFrame, globalPlaybackFrame]
+  );
+  const editorTabView = useMemo(
+    () =>
+      buildEditorTabView(snapshot, {
+        framesPerBar: FIXED_FRAMES_PER_BAR,
+        beatsPerBar,
+        scale,
+        playheadFrame: readExternalPlaybackFrame(),
+        minBarCount: barCount,
+      }),
+    [barCount, beatsPerBar, readExternalPlaybackFrame, scale, snapshot]
+  );
+  const pxPerFrame = tabViewEnabled
+    ? editorTabView.barWidth / FIXED_FRAMES_PER_BAR
+    : scale;
+  const timelineContentOffset = CHORD_EDITOR_LABEL_GUTTER_WIDTH;
+  const timelineWidth = tabViewEnabled
+    ? editorTabView.width
+    : Math.max(320, Math.round(timelineContentOffset + totalFrames * pxPerFrame));
+  const effectivePlayheadFrame = Math.max(0, Math.min(totalFrames, readExternalPlaybackFrame()));
+  const playheadLeft = timelineContentOffset + effectivePlayheadFrame * pxPerFrame;
+  const fingeringRowTop = CHORD_EDITOR_ROW_HEIGHT;
+  const strumEditorTop = CHORD_EDITOR_ROW_HEIGHT + (fingeringsVisible ? CHORD_FINGERING_ROW_HEIGHT : 0);
+  const timelineRowHeight =
+    CHORD_EDITOR_ROW_HEIGHT +
+    (fingeringsVisible ? CHORD_FINGERING_ROW_HEIGHT : 0) +
+    (strumEditor ? CHORD_STRUM_EDITOR_HEIGHT + 12 : 0);
+
+  const applyChordLanePlayheadDomFrame = useCallback(
+    (frame: number) => {
+      const element = chordLanePlayheadRef.current;
+      if (!element) return;
+      const safeFrame = Math.max(0, Math.min(totalFrames, Math.round(frame)));
+      const x = timelineContentOffset + safeFrame * pxPerFrame;
+      element.style.transform = `translate3d(${x}px, 0, 0) translateX(-1px)`;
+    },
+    [pxPerFrame, timelineContentOffset, totalFrames]
+  );
+
+  useEffect(() => {
+    applyChordLanePlayheadDomFrame(readExternalPlaybackFrame());
+  }, [applyChordLanePlayheadDomFrame, readExternalPlaybackFrame]);
+
+  useEffect(() => {
+    if (!globalPlaybackIsPlaying) return;
+    let rafId: number | null = null;
+    const tick = () => {
+      applyChordLanePlayheadDomFrame(readExternalPlaybackFrame());
+      rafId = window.requestAnimationFrame(tick);
+    };
+    rafId = window.requestAnimationFrame(tick);
+    return () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+    };
+  }, [applyChordLanePlayheadDomFrame, globalPlaybackIsPlaying, readExternalPlaybackFrame]);
+
+  const snapFrame = useCallback(
+    (frame: number, mode: "floor" | "round" | "ceil" = "round") => {
+      const unit = FIXED_FRAMES_PER_BAR / snapDenominator;
+      const raw = Math.max(0, Number(frame) || 0) / unit;
+      const snapped = mode === "floor" ? Math.floor(raw) : mode === "ceil" ? Math.ceil(raw) : Math.round(raw);
+      return Math.max(0, Math.round(snapped * unit));
+    },
+    [snapDenominator]
+  );
+
+  const snapLength = useCallback(
+    (length: number) => {
+      const unit = FIXED_FRAMES_PER_BAR / snapDenominator;
+      return clampEventLength(Math.max(unit, Math.round((Math.max(1, length) / unit)) * unit));
+    },
+    [snapDenominator]
+  );
+
+  const commitSnapshot = useCallback(
+    (nextSnapshot: EditorSnapshot, options?: { recordHistory?: boolean; persist?: boolean }) => {
+      const updated = {
+        ...nextSnapshot,
+        editorType: "chords",
+        type: "chords",
+        trackType: "chords",
+        chordEditor: {
+          ...(nextSnapshot.chordEditor || {}),
+          snapDenominator,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      onSnapshotChange(updated, { recordHistory: options?.recordHistory ?? true });
+      if (allowBackend && options?.persist !== false) {
+        void gteApi.applySnapshot(editorId, updated).catch(() => undefined);
+      }
+    },
+    [allowBackend, editorId, onSnapshotChange, snapDenominator]
+  );
+
+  const updateChord = useCallback(
+    (chordId: number, updater: (chord: Chord) => Chord, options?: { recordHistory?: boolean; persist?: boolean }) => {
+      commitSnapshot(
+        {
+          ...snapshot,
+          chords: snapshot.chords.map((chord) => (chord.id === chordId ? updater(chord) : chord)),
+        },
+        options
+      );
+    },
+    [commitSnapshot, snapshot]
+  );
+
+  const getChordFingeringLookup = useCallback((chord: Chord) => {
+    const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+    const root = chord.root || inferred?.root || "C";
+    const quality = chord.quality || inferred?.quality || "major";
+    const extension = chord.extension || inferred?.extension || "";
+    const type = getChordFingeringDatasetType({ quality, extension });
+    return { root, quality, extension, type, key: `${root}:${type}` };
+  }, []);
+
+  const applyChordFingering = useCallback(
+    (chordId: number, fingering: ChordFingering, index: number) => {
+      const hydrated = hydrateChordFingering(fingering);
+      const originalMidi = hydrated.midiNotes?.length ? hydrated.midiNotes : getChordFingeringMidiNotes(hydrated.positions);
+      const currentTabs = hydrated.tabs?.length ? hydrated.tabs : getChordFingeringTabs(hydrated.positions);
+      updateChord(
+        chordId,
+        (chord) => ({
+          ...chord,
+          fingering: {
+            ...hydrated,
+            midiNotes: originalMidi,
+            tabs: currentTabs,
+          },
+          fingeringIndex: index,
+          originalMidi,
+          currentTabs,
+          ogTabs: currentTabs.map((tab) => [...tab] as TabCoord),
+        }),
+        { recordHistory: true }
+      );
+    },
+    [updateChord]
+  );
+
+  const getStrumGridStep = useCallback(
+    (chordLength: number) => {
+      const beatFrames = FIXED_FRAMES_PER_BAR / Math.max(1, beatsPerBar);
+      return Math.max(1, Math.round(beatFrames / 4));
+    },
+    [beatsPerBar]
+  );
+
+  const snapStrumTime = useCallback(
+    (rawTime: number, chordLength: number) => {
+      const step = getStrumGridStep(chordLength);
+      const maxTime = Math.max(0, clampEventLength(chordLength) - 1);
+      return Math.max(0, Math.min(maxTime, Math.round(Math.round((Number(rawTime) || 0) / step) * step)));
+    },
+    [getStrumGridStep]
+  );
+
+  const openStrumEditor = useCallback(
+    (chord: Chord) => {
+      const length = clampEventLength(chord.length);
+      const draft = normalizeChordEditorStrums(chord.strums)
+        .map((strum, index): ChordEditorStrum => ({
+          id: Number.isFinite(Number(strum.id)) ? Math.round(Number(strum.id)) : index + 1,
+          time: snapStrumTime(strum.time, length),
+          direction: strum.direction,
+        }))
+        .sort((left, right) => left.time - right.time || left.id - right.id);
+      setSelectedBarIndices([]);
+      setStrumEditor({
+        chordId: chord.id,
+        draft,
+        selectedIds: [],
+        menu: null,
+        drag: null,
+      });
+    },
+    [snapStrumTime]
+  );
+
+  const closeStrumEditor = useCallback(() => {
+    if (!strumEditor) return;
+    const chord = snapshot.chords.find((item) => item.id === strumEditor.chordId);
+    if (chord) {
+      const length = clampEventLength(chord.length);
+      const strums = strumEditor.draft
+        .map((strum, index) => ({
+          id: index + 1,
+          time: snapStrumTime(strum.time, length),
+          direction: strum.direction,
+        }))
+        .sort((left, right) => left.time - right.time || left.id - right.id);
+      commitSnapshot(
+        {
+          ...snapshot,
+          chords: snapshot.chords.map((item) => (item.id === chord.id ? { ...item, strums } : item)),
+        },
+        { recordHistory: true }
+      );
+    }
+    setStrumEditor(null);
+  }, [commitSnapshot, snapStrumTime, snapshot, strumEditor]);
+
+  const getContextTargetChordIds = useCallback(
+    (chordId: number) => {
+      if (selectedChordIds.includes(chordId) && selectedChordIds.length > 1) {
+        return selectedChordIds.filter((id) => snapshot.chords.some((chord) => chord.id === id));
+      }
+      return [chordId];
+    },
+    [selectedChordIds, snapshot.chords]
+  );
+
+  const applyChordExtension = useCallback(
+    (chordId: number, extension: (typeof CHORD_PALETTE_EXTENSIONS)[number]["value"]) => {
+      const chord = snapshot.chords.find((item) => item.id === chordId);
+      if (!chord) return;
+      const currentExtension = getChordEditorExtension(chord.extension).name;
+      if (currentExtension === extension) {
+        setChordContextMenu(null);
+        return;
+      }
+      const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+      const root = chord.root || inferred?.root || "C";
+      const quality = chord.quality || inferred?.quality || "major";
+      const payload = {
+        root,
+        quality,
+        extension,
+        label: getChordEditorLabel(root, quality, extension),
+      };
+      commitSnapshot(
+        {
+          ...snapshot,
+          chords: snapshot.chords.map((item) =>
+            item.id === chordId
+              ? {
+                  ...item,
+                  ...payload,
+                  originalMidi: getChordEditorMidiNotes(payload),
+                  currentTabs: [],
+                  ogTabs: [],
+                  fingering: undefined,
+                  fingeringIndex: 0,
+                }
+              : item
+          ),
+        },
+        { recordHistory: true }
+      );
+      setChordContextMenu(null);
+    },
+    [commitSnapshot, snapshot]
+  );
+
+  const copyChordIds = useCallback(
+    (chordIds: number[]) => {
+      const chords = chordIds
+        .map((id) => snapshot.chords.find((chord) => chord.id === id))
+        .filter((chord): chord is Chord => Boolean(chord))
+        .sort((left, right) => left.startTime - right.startTime || left.id - right.id);
+      if (!chords.length) return;
+      const firstStart = Math.min(...chords.map((chord) => chord.startTime));
+      setChordClipboard(
+        chords.map((chord) => ({
+          ...chord,
+          offset: Math.max(0, Math.round(chord.startTime - firstStart)),
+          originalMidi: [...chord.originalMidi],
+          currentTabs: chord.currentTabs.map((tab) => [...tab] as TabCoord),
+          ogTabs: chord.ogTabs.map((tab) => [...tab] as TabCoord),
+          fingering: chord.fingering ? hydrateChordFingering(chord.fingering) : undefined,
+          strums: normalizeChordEditorStrums(chord.strums).map((strum) => ({ ...strum })),
+        }))
+      );
+    },
+    [snapshot.chords]
+  );
+
+  const pasteChordsAtFrame = useCallback(
+    (rawFrame: number) => {
+      if (!chordClipboard.length) return;
+      const baseFrame = snapFrame(rawFrame);
+      let nextId = nextLocalChordId(snapshot);
+      const pasted = chordClipboard.map((item) => {
+        const { offset, ...copiedChord } = item;
+        const startTime = Math.max(0, snapFrame(baseFrame + offset));
+        const chord: Chord = {
+          ...copiedChord,
+          id: nextId,
+          startTime,
+          length: clampEventLength(item.length),
+          originalMidi: [...item.originalMidi],
+          currentTabs: item.currentTabs.map((tab) => [...tab] as TabCoord),
+          ogTabs: item.ogTabs.map((tab) => [...tab] as TabCoord),
+          fingering: item.fingering ? hydrateChordFingering(item.fingering) : undefined,
+          fingeringIndex: item.fingeringIndex,
+          strums: normalizeChordEditorStrums(item.strums).map((strum, index) => ({ ...strum, id: index + 1 })),
+        };
+        nextId += 1;
+        return chord;
+      });
+      const nextTotalFrames = Math.max(
+        snapshot.totalFrames || FIXED_FRAMES_PER_BAR,
+        totalFrames,
+        ...pasted.map((chord) => chord.startTime + chord.length)
+      );
+      commitSnapshot(
+        {
+          ...snapshot,
+          totalFrames: nextTotalFrames,
+          chords: [...snapshot.chords, ...pasted].sort((left, right) => left.startTime - right.startTime || left.id - right.id),
+        },
+        { recordHistory: true }
+      );
+      setSelectedChordIds(pasted.map((chord) => chord.id));
+      setChordContextMenu(null);
+    },
+    [chordClipboard, commitSnapshot, snapFrame, snapshot, totalFrames]
+  );
+
+  const buildQuickStrums = useCallback(
+    (chordLength: number, division: "whole" | "half" | "quarter" | "clear") => {
+      if (division === "clear") return [{ id: 1, time: 0, direction: "down" as const }];
+      const beatFrames = FIXED_FRAMES_PER_BAR / Math.max(1, beatsPerBar);
+      const step = division === "whole" ? beatFrames : division === "half" ? beatFrames / 2 : beatFrames / 4;
+      const length = clampEventLength(chordLength);
+      const count = Math.max(1, Math.ceil(length / Math.max(1, step)));
+      return Array.from({ length: count }, (_, index) => ({
+        id: index + 1,
+        time: snapStrumTime(index * step, length),
+        direction: (index % 2 === 0 ? "down" : "up") as "down" | "up",
+      })).filter(
+        (strum, index, values) => strum.time < length && values.findIndex((item) => item.time === strum.time) === index
+      );
+    },
+    [beatsPerBar, snapStrumTime]
+  );
+
+  const applyQuickStrumming = useCallback(
+    (chordIds: number[], division: "whole" | "half" | "quarter" | "clear") => {
+      const targets = new Set(chordIds);
+      if (!targets.size) return;
+      commitSnapshot(
+        {
+          ...snapshot,
+          chords: snapshot.chords.map((chord) =>
+            targets.has(chord.id)
+              ? {
+                  ...chord,
+                  strums: buildQuickStrums(chord.length, division),
+                }
+              : chord
+          ),
+        },
+        { recordHistory: true }
+      );
+      setStrumEditor((prev) => {
+        if (!prev || !targets.has(prev.chordId)) return prev;
+        const chord = snapshot.chords.find((item) => item.id === prev.chordId);
+        return chord
+          ? {
+              ...prev,
+              draft: buildQuickStrums(chord.length, division).map((strum) => ({ ...strum })),
+              selectedIds: [],
+              menu: null,
+              drag: null,
+            }
+          : prev;
+      });
+      setChordContextMenu(null);
+    },
+    [buildQuickStrums, commitSnapshot, snapshot]
+  );
+
+  const ensureChordPreviewAudio = useCallback(() => {
+    let ctx = chordPreviewAudioRef.current;
+    let master = chordPreviewGainRef.current;
+    if (!ctx || ctx.state === "closed" || !master) {
+      ctx = new AudioContext();
+      master = ctx.createGain();
+      master.connect(ctx.destination);
+      chordPreviewAudioRef.current = ctx;
+      chordPreviewGainRef.current = master;
+    }
+    master.gain.value = Math.max(0, Math.min(1, Number(globalPlaybackVolume ?? 0.6)));
+    return { ctx, master };
+  }, [globalPlaybackVolume]);
+
+  const playChordPalettePreview = useCallback(
+    async (payload: ChordPalettePayload) => {
+      const volume = Math.max(0, Math.min(1, Number(globalPlaybackVolume ?? 0.6)));
+      if (volume <= 0) return;
+
+      const midiNotes = getChordEditorMidiNotes(payload).filter((midi) => Number.isFinite(midi) && midi > 0);
+      if (!midiNotes.length) return;
+
+      const { ctx, master } = ensureChordPreviewAudio();
+      const audioReady = resumeAudioContext(ctx);
+      const [instrument] = await Promise.all([
+        prepareTrackInstrument(ctx, DEFAULT_TRACK_INSTRUMENT_ID),
+        audioReady,
+      ]);
+      const startTime = ctx.currentTime + 0.005;
+      const gain = Math.min(0.5, 0.9 / Math.sqrt(midiNotes.length));
+      midiNotes.forEach((midi, index) => {
+        schedulePreparedTrackNote({
+          ctx,
+          destination: master,
+          instrument,
+          midi,
+          gain,
+          startTime: startTime + index * 0.012,
+          duration: 0.75,
+        });
+      });
+    },
+    [ensureChordPreviewAudio, globalPlaybackVolume]
+  );
+
+  const addChordAtFrame = useCallback(
+    (payload: ChordPalettePayload, rawFrame: number) => {
+      const startTime = snapFrame(rawFrame);
+      const length = snapLength(FIXED_FRAMES_PER_BAR / 4);
+      const nextChord: Chord = {
+        id: nextLocalChordId(snapshot),
+        startTime,
+        length,
+        originalMidi: getChordEditorMidiNotes(payload),
+        currentTabs: [],
+        ogTabs: [],
+        root: payload.root,
+        quality: payload.quality,
+        extension: payload.extension,
+        label: payload.label,
+        strums: [{ id: 1, time: 0, direction: "down" }],
+      };
+      commitSnapshot(
+        {
+          ...snapshot,
+          totalFrames: Math.max(snapshot.totalFrames || FIXED_FRAMES_PER_BAR, startTime + length, totalFrames),
+          chords: [...snapshot.chords, nextChord].sort((left, right) => left.startTime - right.startTime),
+        },
+        { recordHistory: true }
+      );
+      setSelectedChordIds([nextChord.id]);
+    },
+    [commitSnapshot, snapFrame, snapLength, snapshot, totalFrames]
+  );
+
+  useEffect(() => {
+    if (selectionClearEpoch === undefined || selectionClearExemptEditorId === editorId) return;
+    setSelectedChordIds([]);
+  }, [editorId, selectionClearEpoch, selectionClearExemptEditorId]);
+
+  useEffect(() => {
+    if (chordMenuOpen) {
+      void warmTrackInstrument(DEFAULT_TRACK_INSTRUMENT_ID);
+    }
+  }, [chordMenuOpen]);
+
+  useEffect(
+    () => () => {
+      if (chordPreviewAudioRef.current) {
+        void chordPreviewAudioRef.current.close();
+        chordPreviewAudioRef.current = null;
+      }
+      chordPreviewGainRef.current = null;
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!fingeringsVisible) return;
+    const lookups = snapshot.chords.map((chord) => getChordFingeringLookup(chord));
+    const missing = Array.from(new Map(lookups.map((lookup) => [lookup.key, lookup])).values()).filter(
+      (lookup) => fingeringOptionsByChordKey[lookup.key] === undefined
+    );
+    if (!missing.length) return;
+    let cancelled = false;
+    missing.forEach((lookup) => {
+      void gteApi
+        .getChordFingerings(lookup.root, lookup.type)
+        .then((response) => {
+          if (cancelled) return;
+          setFingeringOptionsByChordKey((previous) => ({
+            ...previous,
+            [lookup.key]: (response.fingerings || []).map(hydrateChordFingering),
+          }));
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setFingeringOptionsByChordKey((previous) => ({ ...previous, [lookup.key]: [] }));
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fingeringOptionsByChordKey, fingeringsVisible, getChordFingeringLookup, snapshot.chords]);
+
+  useEffect(() => {
+    if (barSelectionClearEpoch === undefined || barSelectionClearExemptEditorId === editorId) return;
+    setSelectedBarIndices([]);
+  }, [barSelectionClearEpoch, barSelectionClearExemptEditorId, editorId]);
+
+  useEffect(() => {
+    if (!chordContextMenu) return;
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (target && chordContextMenuRef.current?.contains(target)) return;
+      setChordContextMenu(null);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown, true);
+    document.addEventListener("touchstart", handlePointerDown, true);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown, true);
+      document.removeEventListener("touchstart", handlePointerDown, true);
+    };
+  }, [chordContextMenu]);
+
+  useEffect(() => {
+    onSelectionStateChange?.({
+      noteCount: 0,
+      chordCount: selectedChordIds.length,
+      noteIds: [],
+      chordIds: selectedChordIds,
+    });
+  }, [onSelectionStateChange, selectedChordIds]);
+
+  useEffect(() => {
+    onBarSelectionStateChange?.(selectedBarIndices);
+  }, [onBarSelectionStateChange, selectedBarIndices]);
+
+  useEffect(() => {
+    if (sharedTimelineBaseScale !== undefined) return;
+    const container = timelineRef.current;
+    if (!container) return;
+
+    const computeScale = () => {
+      const availableWidth = Math.max(240, container.clientWidth - 16);
+      const rawScale = availableWidth / Math.max(1, FIXED_FRAMES_PER_BAR * TARGET_VISIBLE_BARS);
+      const nextScale = Math.max(0.5, Math.min(4, rawScale));
+      setAutoBaseScale((prev) => (Math.abs(prev - nextScale) < 0.01 ? prev : nextScale));
+    };
+
+    computeScale();
+    const observer = new ResizeObserver(computeScale);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [sharedTimelineBaseScale]);
+
+  const deleteSelectedChords = useCallback(() => {
+    if (!selectedChordIds.length) return;
+    const selectedIds = new Set(selectedChordIds);
+    commitSnapshot(
+      {
+        ...snapshot,
+        chords: snapshot.chords.filter((chord) => !selectedIds.has(chord.id)),
+      },
+      { recordHistory: true }
+    );
+    setSelectedChordIds([]);
+  }, [commitSnapshot, selectedChordIds, snapshot]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (isShortcutTextEntryTarget(target)) return;
+      if ((event.ctrlKey || event.metaKey) && (event.key === "z" || event.key === "Z")) {
+        event.preventDefault();
+        if (event.shiftKey) {
+          onRequestRedo?.();
+        } else {
+          onRequestUndo?.();
+        }
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && (event.key === "y" || event.key === "Y")) {
+        event.preventDefault();
+        onRequestRedo?.();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && (event.key === "c" || event.key === "C")) {
+        if (!selectedChordIds.length) return;
+        event.preventDefault();
+        copyChordIds(selectedChordIds);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && (event.key === "v" || event.key === "V")) {
+        if (!chordClipboard.length) return;
+        event.preventDefault();
+        pasteChordsAtFrame(readExternalPlaybackFrame());
+        return;
+      }
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      if (strumEditor) {
+        event.preventDefault();
+        const selectedIds = new Set(strumEditor.selectedIds);
+        if (selectedIds.size > 0) {
+          setStrumEditor((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  draft: prev.draft.filter((strum) => !selectedIds.has(strum.id)),
+                  selectedIds: [],
+                  menu: null,
+                  drag: null,
+                }
+              : prev
+          );
+        }
+        return;
+      }
+      if (!selectedChordIds.length) return;
+      event.preventDefault();
+      deleteSelectedChords();
+    };
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [
+    chordClipboard.length,
+    copyChordIds,
+    deleteSelectedChords,
+    isActive,
+    onRequestRedo,
+    onRequestUndo,
+    pasteChordsAtFrame,
+    readExternalPlaybackFrame,
+    selectedChordIds,
+    selectedChordIds.length,
+    strumEditor,
+  ]);
+
+  useEffect(() => {
+    const element = timelineRef.current;
+    if (!element || sharedTimelineScrollRatio === undefined) return;
+    if (globalPlaybackIsPlaying) return;
+    const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
+    element.scrollLeft = maxScroll * Math.max(0, Math.min(1, sharedTimelineScrollRatio));
+  }, [globalPlaybackIsPlaying, sharedTimelineScrollRatio, timelineWidth]);
+
+  useEffect(() => {
+    if (playbackScrollRafRef.current !== null) {
+      window.cancelAnimationFrame(playbackScrollRafRef.current);
+      playbackScrollRafRef.current = null;
+    }
+    if (mobileViewport || !globalPlaybackIsPlaying) return;
+    const container = timelineRef.current;
+    if (!container) return;
+
+    const tick = () => {
+      const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+      if (maxScroll <= 0) {
+        playbackScrollRafRef.current = window.requestAnimationFrame(tick);
+        return;
+      }
+
+      const rect = container.getBoundingClientRect();
+      const visibleLeft = Math.max(rect.left, 0);
+      const visibleRight = Math.min(rect.right, window.innerWidth);
+      const visibleWidth = Math.max(1, visibleRight - visibleLeft);
+      const visibleStartInContainer = Math.max(0, visibleLeft - rect.left);
+      const minPlayheadOffset =
+        visibleStartInContainer + Math.max(48, Math.min(120, visibleWidth * 0.18));
+      const followPlayheadOffset = visibleStartInContainer + visibleWidth * 0.45;
+      const maxPlayheadOffset = visibleStartInContainer + visibleWidth * (2 / 3);
+      const currentPlayheadLeft = timelineContentOffset + readExternalPlaybackFrame() * pxPerFrame;
+      const playheadViewportX = currentPlayheadLeft - container.scrollLeft;
+
+      let nextScrollLeft = container.scrollLeft;
+      if (playheadViewportX < minPlayheadOffset) {
+        nextScrollLeft = Math.max(0, currentPlayheadLeft - minPlayheadOffset);
+      } else if (playheadViewportX > followPlayheadOffset) {
+        const targetScrollLeft = Math.max(0, Math.min(maxScroll, currentPlayheadLeft - followPlayheadOffset));
+        const hardLimitScrollLeft = Math.max(0, Math.min(maxScroll, currentPlayheadLeft - maxPlayheadOffset));
+        const easedScrollLeft = container.scrollLeft + (targetScrollLeft - container.scrollLeft) * 0.22;
+        nextScrollLeft = Math.max(hardLimitScrollLeft, Math.min(maxScroll, easedScrollLeft));
+      }
+
+      if (Math.abs(nextScrollLeft - container.scrollLeft) >= 0.5) {
+        container.scrollLeft = nextScrollLeft;
+      }
+      playbackScrollRafRef.current = window.requestAnimationFrame(tick);
+    };
+
+    playbackScrollRafRef.current = window.requestAnimationFrame(tick);
+    return () => {
+      if (playbackScrollRafRef.current !== null) {
+        window.cancelAnimationFrame(playbackScrollRafRef.current);
+        playbackScrollRafRef.current = null;
+      }
+    };
+  }, [globalPlaybackIsPlaying, mobileViewport, pxPerFrame, readExternalPlaybackFrame, timelineContentOffset]);
+
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      const activeStrumDrag = strumEditor?.drag;
+      if (activeStrumDrag) {
+        const chord = snapshot.chords.find((item) => item.id === strumEditor.chordId);
+        if (!chord) return;
+        const deltaFrames = Math.round((event.clientX - activeStrumDrag.anchorX) / pxPerFrame);
+        const nextTime = snapStrumTime(activeStrumDrag.originalTime + deltaFrames, chord.length);
+        setStrumEditor((prev) =>
+          prev && prev.drag?.strumId === activeStrumDrag.strumId
+            ? {
+                ...prev,
+                draft: prev.draft.map((strum) =>
+                  strum.id === activeStrumDrag.strumId ? { ...strum, time: nextTime } : strum
+                ),
+              }
+            : prev
+        );
+        return;
+      }
+      const dragState = dragStateRef.current;
+      if (!dragState) return;
+      const chord = snapshot.chords.find((item) => item.id === dragState.chordId);
+      if (!chord) return;
+      const deltaFrames = Math.round((event.clientX - dragState.anchorX) / pxPerFrame);
+      if (dragState.kind === "move") {
+        const startTime = Math.max(0, snapFrame(dragState.originalStart + deltaFrames));
+        if (dragState.group?.length) {
+          const startsById = new Map(
+            dragState.group.map((item) => [item.chordId, Math.max(0, snapFrame(item.originalStart + deltaFrames))])
+          );
+          commitSnapshot(
+            {
+              ...snapshot,
+              chords: snapshot.chords.map((item) =>
+                startsById.has(item.id) ? { ...item, startTime: startsById.get(item.id) ?? item.startTime } : item
+              ),
+            },
+            { recordHistory: false, persist: false }
+          );
+        } else {
+          updateChord(
+            chord.id,
+            (item) => ({ ...item, startTime }),
+            { recordHistory: false, persist: false }
+          );
+        }
+        setDragRevision((value) => value + 1);
+        return;
+      }
+      if (dragState.kind === "resize-left") {
+        const originalEnd = dragState.originalStart + dragState.originalLength;
+        const nextStart = Math.min(originalEnd - 1, Math.max(0, snapFrame(dragState.originalStart + deltaFrames)));
+        const nextLength = snapLength(originalEnd - nextStart);
+        updateChord(
+          chord.id,
+          (item) => ({ ...item, startTime: originalEnd - nextLength, length: nextLength }),
+          { recordHistory: false, persist: false }
+        );
+        setDragRevision((value) => value + 1);
+        return;
+      }
+      const nextLength = snapLength(dragState.originalLength + deltaFrames);
+      updateChord(
+        chord.id,
+        (item) => ({
+          ...item,
+          length: nextLength,
+          strums: normalizeChordEditorStrums(item.strums)
+            .filter((strum) => Math.max(0, Math.round(Number(strum.time) || 0)) < nextLength)
+            .map((strum) => ({ ...strum, time: snapStrumTime(strum.time, nextLength) })),
+        }),
+        { recordHistory: false, persist: false }
+      );
+      setDragRevision((value) => value + 1);
+    };
+
+    const handleMouseUp = () => {
+      if (dragHoldTimeoutRef.current) {
+        clearTimeout(dragHoldTimeoutRef.current);
+        dragHoldTimeoutRef.current = null;
+      }
+      if (strumEditor?.drag) {
+        setStrumEditor((prev) => (prev ? { ...prev, drag: null } : prev));
+        return;
+      }
+      if (!dragStateRef.current) return;
+      dragStateRef.current = null;
+      suppressChordClickRef.current = true;
+      commitSnapshot({ ...snapshot, chords: snapshot.chords }, { recordHistory: true });
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      if (dragHoldTimeoutRef.current) {
+        clearTimeout(dragHoldTimeoutRef.current);
+        dragHoldTimeoutRef.current = null;
+      }
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [commitSnapshot, dragRevision, pxPerFrame, snapFrame, snapLength, snapStrumTime, snapshot, strumEditor, updateChord]);
+
+  const handlePaletteDragStart = (event: ReactDragEvent<HTMLButtonElement>, payload: ChordPalettePayload) => {
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("application/x-gte-chord", JSON.stringify(payload));
+  };
+
+  const getFrameFromClientX = (clientX: number) => {
+    const element = timelineRef.current;
+    if (!element) return 0;
+    const rect = element.getBoundingClientRect();
+    return Math.max(0, Math.round((clientX - rect.left + element.scrollLeft - timelineContentOffset) / pxPerFrame));
+  };
+
+  const handleTimelineDrop = (event: ReactDragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const raw = event.dataTransfer.getData("application/x-gte-chord");
+    if (!raw) return;
+    try {
+      const payload = JSON.parse(raw) as ChordPalettePayload;
+      if (!payload.root || !payload.quality || !payload.label) return;
+      addChordAtFrame(payload, getFrameFromClientX(event.clientX));
+    } catch {
+      return;
+    }
+  };
+
+  const toggleBarSelection = (barIndex: number, event: ReactMouseEvent<HTMLButtonElement>) => {
+    setSelectedChordIds([]);
+    setSelectedBarIndices((prev) => {
+      if (event.shiftKey && prev.length) {
+        const anchor = prev[prev.length - 1];
+        const start = Math.min(anchor, barIndex);
+        const end = Math.max(anchor, barIndex);
+        return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+      }
+      if (event.ctrlKey || event.metaKey) {
+        return prev.includes(barIndex) ? prev.filter((item) => item !== barIndex) : [...prev, barIndex].sort((a, b) => a - b);
+      }
+      return [barIndex];
+    });
+  };
+
+  const handleTimelineScroll = (event: ReactUiEvent<HTMLDivElement>) => {
+    const element = event.currentTarget;
+    const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
+    onSharedTimelineScrollRatioChange?.(maxScroll > 0 ? element.scrollLeft / maxScroll : 0);
+  };
+
+  return (
+    <div
+      className={`w-full ${embedded ? "" : "rounded-xl border border-slate-200 bg-white shadow-sm"} ${
+        isActive ? "ring-0" : ""
+      }`}
+      onMouseDown={onFocusWorkspace}
+    >
+      {chordMenuOpen && !isMobileCanvasMode && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          className="fixed right-4 top-1/2 z-[9998] max-h-[calc(100vh-6rem)] w-[min(18rem,calc(100vw-5rem))] -translate-y-1/2 overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2.5 shadow-xl shadow-slate-900/10 backdrop-blur"
+          onMouseDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
+        >
+          <div className="mb-2 grid grid-cols-[1fr_auto_1fr] items-start gap-2">
+            <div className="pt-1 text-[11px] font-bold text-slate-800">Chords</div>
+            <label className="flex flex-col items-center gap-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+              <span>Extension</span>
+              <select
+                value={chordPaletteExtension}
+                onChange={(event) => {
+                  setChordPaletteExtension(
+                    event.currentTarget.value as (typeof CHORD_PALETTE_EXTENSIONS)[number]["value"]
+                  );
+                  event.currentTarget.blur();
+                }}
+                className="h-7 min-w-20 rounded-md border border-slate-300 bg-white px-2 text-center text-xs font-semibold normal-case tracking-normal text-slate-700 shadow-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                aria-label="Chord extension"
+              >
+                {CHORD_PALETTE_EXTENSIONS.map((extension) => (
+                  <option key={extension.value || "none"} value={extension.value}>
+                    {extension.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() => setChordMenuOpen(false)}
+              className="grid h-6 w-6 place-items-center justify-self-end rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
+              aria-label="Close chords"
+            >
+              x
+            </button>
+          </div>
+          <div className="space-y-2">
+            {CHORD_EDITOR_QUALITIES.map((quality) => (
+              <details key={quality.name} open={quality.name === "major" || quality.name === "minor"}>
+                <summary className="cursor-pointer select-none text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  {quality.name}
+                </summary>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {CHORD_EDITOR_ROOTS.map((root) => {
+                    const label = getChordEditorLabel(root, quality.name, chordPaletteExtension);
+                    const payload = {
+                      root,
+                      quality: quality.name,
+                      extension: chordPaletteExtension,
+                      label,
+                    };
+                    const chordInKey =
+                      !snapToKeyEnabled ||
+                      getChordEditorMidiNotes(payload).every((midi) => isMidiInKey(midi, canvasKeyBase, canvasKeyType));
+                    return (
+                      <button
+                        key={`${quality.name}-${root}-${chordPaletteExtension || "none"}`}
+                        type="button"
+                        draggable={chordInKey}
+                        disabled={!chordInKey}
+                        onDragStart={(event) => {
+                          if (!chordInKey) {
+                            event.preventDefault();
+                            return;
+                          }
+                          handlePaletteDragStart(event, payload);
+                        }}
+                        onClick={() => {
+                          if (!chordInKey) return;
+                          void playChordPalettePreview(payload);
+                        }}
+                        className={`min-w-11 rounded border px-2 py-1 text-xs font-semibold shadow-sm ${
+                          chordInKey
+                            ? "border-slate-300 bg-white text-slate-800 hover:border-sky-400 hover:bg-sky-50"
+                            : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-60"
+                        }`}
+                        title={
+                          chordInKey
+                            ? `Drag ${label} to the chord editor`
+                            : `${label} is outside the current key`
+                        }
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      )}
+      {!isMobileCanvasMode && (
+        <div data-gte-floating-ui="true" className="fixed bottom-28 right-4 z-[9997] pointer-events-none">
+          <button
+            type="button"
+            data-gte-editor-control="true"
+            onClick={() => setChordMenuOpen((open) => !open)}
+            aria-pressed={chordMenuOpen}
+            className={`pointer-events-auto flex h-10 items-center justify-center rounded-full border px-3 text-xs font-semibold shadow-md backdrop-blur transition ${
+              chordMenuOpen
+                ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
+                : "border-sky-300 bg-sky-100/95 text-sky-900 hover:bg-sky-50"
+            }`}
+          >
+            Chords
+          </button>
+        </div>
+      )}
+      <div className="flex items-center justify-end border-b border-slate-100 bg-white px-3 py-2">
+        <button
+          type="button"
+          data-gte-editor-control="true"
+          onClick={(event) => {
+            event.stopPropagation();
+            setFingeringsVisible((visible) => !visible);
+          }}
+          className={`rounded-full border px-3 py-1 text-xs font-semibold shadow-sm transition ${
+            fingeringsVisible
+              ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
+              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          Fingerings
+        </button>
+      </div>
+      <div
+        ref={timelineRef}
+        className="relative overflow-x-auto bg-white"
+        onScroll={handleTimelineScroll}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={handleTimelineDrop}
+        onMouseDown={() => {
+          setSelectedChordIds([]);
+          setSelectedBarIndices([]);
+          setChordContextMenu(null);
+        }}
+      >
+        <div className="relative" style={{ width: timelineWidth, minHeight: TIMELINE_BAR_HEADER_HEIGHT + timelineRowHeight + 18 }}>
+          <div className="sticky top-0 z-10 flex h-5 bg-slate-100" style={{ paddingLeft: timelineContentOffset }}>
+            {Array.from({ length: barCount }, (_, barIndex) => {
+              const selected = selectedBarIndices.includes(barIndex);
+              const draggingOver = activeBarDrag && activeBarDrag.sourceLaneId !== editorId;
+              return (
+                <button
+                  key={barIndex}
+                  type="button"
+                  draggable={selected && selectedBarIndices.length > 0}
+                  onClick={(event) => toggleBarSelection(barIndex, event)}
+                  onDragStart={() => {
+                    const indices = selected ? selectedBarIndices : [barIndex];
+                    setSelectedBarIndices(indices);
+                    onBarDragStart?.(indices);
+                  }}
+                  onDragEnd={onBarDragEnd}
+                  onDragOver={(event) => {
+                    if (!draggingOver) return;
+                    event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    if (!draggingOver) return;
+                    event.preventDefault();
+                    onRequestBarDrop?.(barIndex);
+                  }}
+                  className={`h-5 border-r border-slate-300 text-[10px] font-semibold ${
+                    selected ? "bg-sky-500 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  }`}
+                  style={{ width: FIXED_FRAMES_PER_BAR * pxPerFrame }}
+                >
+                  {barIndex + 1}
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            className="relative border-t border-slate-300 bg-white"
+            style={{ height: timelineRowHeight }}
+            onClick={(event) => {
+              if (event.currentTarget !== event.target) return;
+              onGlobalPlaybackFrameChange?.(snapFrame(getFrameFromClientX(event.clientX)));
+            }}
+          >
+            {Array.from({ length: barCount + 1 }, (_, index) => (
+              <div
+                key={`bar-line-${index}`}
+                className="pointer-events-none absolute top-0 h-full border-l border-slate-300"
+                style={{ left: timelineContentOffset + index * FIXED_FRAMES_PER_BAR * pxPerFrame }}
+              />
+            ))}
+            {Array.from({ length: barCount * snapDenominator }, (_, index) => (
+              <div
+                key={`grid-line-${index}`}
+                className="pointer-events-none absolute top-0 h-full border-l border-slate-100"
+                style={{ left: timelineContentOffset + (index * FIXED_FRAMES_PER_BAR * pxPerFrame) / snapDenominator }}
+              />
+            ))}
+            <div
+              ref={chordLanePlayheadRef}
+              className="pointer-events-none absolute top-0 z-20 h-full w-px bg-rose-500"
+              style={{
+                left: 0,
+                transform: `translate3d(${playheadLeft}px, 0, 0) translateX(-1px)`,
+                willChange: globalPlaybackIsPlaying ? "transform" : undefined,
+              }}
+            />
+            {snapshot.chords.map((chord) => {
+              const start = Math.max(0, Math.round(chord.startTime));
+              const length = clampEventLength(chord.length);
+              const isSelected = selectedChordIds.includes(chord.id);
+              const strums = normalizeChordEditorStrums(chord.strums);
+              const inferred = inferChordEditorMetadataFromMidi(chord.originalMidi);
+              const chordLabel =
+                chord.label ||
+                inferred?.label ||
+                getChordEditorLabel(
+                  chord.root || inferred?.root || "C",
+                  chord.quality || inferred?.quality || "major",
+                  chord.extension || inferred?.extension || ""
+                );
+              const chordWidth = Math.max(CHORD_EDITOR_MIN_BLOCK_WIDTH, length * pxPerFrame);
+              const isStrumEditing = strumEditor?.chordId === chord.id;
+              const strumGridStep = getStrumGridStep(length);
+              const beatGridStep = Math.max(1, Math.round(FIXED_FRAMES_PER_BAR / Math.max(1, beatsPerBar)));
+              const fingeringLookup = getChordFingeringLookup(chord);
+              const fingeringOptions = fingeringOptionsByChordKey[fingeringLookup.key] || [];
+              const savedFingeringIndex =
+                Number.isFinite(Number(chord.fingeringIndex)) && fingeringOptions.length
+                  ? Math.max(0, Math.min(fingeringOptions.length - 1, Math.round(Number(chord.fingeringIndex))))
+                  : 0;
+              // Saved chords created before the JSON migration only contain
+              // fret positions. Prefer the matching dataset entry so its
+              // finger and barre metadata is available to the diagram.
+              const visibleFingering =
+                (fingeringOptions.length ? fingeringOptions[savedFingeringIndex] : undefined) ||
+                chord.fingering;
+              return (
+                <div
+                  key={chord.id}
+                  data-track-reorder-block="true"
+                  className={`absolute top-3 flex h-8 cursor-pointer select-none items-center justify-center rounded border px-2 text-sm font-semibold shadow-sm ${
+                    isSelected
+                      ? "border-sky-500 bg-sky-100 text-sky-950"
+                      : "border-slate-300 bg-emerald-50 text-slate-900"
+                  }`}
+                  style={{
+                    left: timelineContentOffset + start * pxPerFrame,
+                    width: chordWidth,
+                  }}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (dragHoldTimeoutRef.current) {
+                      clearTimeout(dragHoldTimeoutRef.current);
+                      dragHoldTimeoutRef.current = null;
+                    }
+                    chordMouseDownSelectionRef.current = {
+                      chordId: chord.id,
+                      wasSelected: isSelected,
+                      shiftKey: event.shiftKey,
+                    };
+                    setSelectedBarIndices([]);
+                    if (event.shiftKey) {
+                      setSelectedChordIds((previousSelected) =>
+                        previousSelected.includes(chord.id)
+                          ? previousSelected.filter((value) => value !== chord.id)
+                          : [...previousSelected, chord.id]
+                      );
+                      return;
+                    }
+                    if (!isSelected) {
+                      setSelectedChordIds([chord.id]);
+                    }
+                    const anchorX = event.clientX;
+                    const originalStart = chord.startTime;
+                    const selectedIdsForDrag = isSelected && selectedChordIds.length > 1 ? new Set(selectedChordIds) : null;
+                    const dragGroup = selectedIdsForDrag
+                      ? snapshot.chords
+                          .filter((item) => selectedIdsForDrag.has(item.id))
+                          .map((item) => ({ chordId: item.id, originalStart: item.startTime }))
+                      : undefined;
+                    dragHoldTimeoutRef.current = setTimeout(() => {
+                      dragHoldTimeoutRef.current = null;
+                      dragStateRef.current = {
+                        kind: "move",
+                        chordId: chord.id,
+                        anchorX,
+                        originalStart,
+                        group: dragGroup,
+                      };
+                    }, TOUCH_DRAG_HOLD_MS);
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (event.detail > 1) return;
+                    if (suppressChordClickRef.current) {
+                      suppressChordClickRef.current = false;
+                      chordMouseDownSelectionRef.current = null;
+                      return;
+                    }
+                    const mouseDownSelection = chordMouseDownSelectionRef.current;
+                    chordMouseDownSelectionRef.current = null;
+                    if (mouseDownSelection?.shiftKey) return;
+                    if (mouseDownSelection?.chordId === chord.id && mouseDownSelection.wasSelected) {
+                      setSelectedChordIds([]);
+                    } else {
+                      setSelectedChordIds([chord.id]);
+                    }
+                  }}
+                  onDoubleClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openStrumEditor(chord);
+                  }}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setChordContextMenu({
+                      chordId: chord.id,
+                      x: event.clientX,
+                      y: event.clientY,
+                    });
+                    setSelectedBarIndices([]);
+                    if (!selectedChordIds.includes(chord.id)) {
+                      setSelectedChordIds([chord.id]);
+                    }
+                  }}
+                >
+                  <button
+                    type="button"
+                    data-track-reorder-block="true"
+                    className="absolute left-0 top-0 z-20 h-full w-2 cursor-ew-resize rounded-l bg-transparent"
+                    aria-label="Resize chord start"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (dragHoldTimeoutRef.current) {
+                        clearTimeout(dragHoldTimeoutRef.current);
+                        dragHoldTimeoutRef.current = null;
+                      }
+                      setSelectedBarIndices([]);
+                      setSelectedChordIds([chord.id]);
+                      dragStateRef.current = {
+                        kind: "resize-left",
+                        chordId: chord.id,
+                        anchorX: event.clientX,
+                        originalStart: chord.startTime,
+                        originalLength: chord.length,
+                      };
+                    }}
+                  />
+                  <div className="pointer-events-none absolute inset-0 rounded bg-sky-100/45" />
+                  {strums.map((strum) => (
+                    <span
+                      key={`${chord.id}-${strum.id ?? strum.time}-${strum.direction}`}
+                      className="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 text-base leading-none text-slate-700"
+                      style={{ left: Math.max(0, Math.min(chordWidth, strum.time * pxPerFrame)) }}
+                    >
+                      {strum.direction === "mute" ? "x" : strum.direction === "up" ? "↑" : "↓"}
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    data-track-reorder-block="true"
+                    className="absolute right-0 top-0 z-20 h-full w-2 cursor-ew-resize rounded-r bg-transparent"
+                    aria-label="Resize chord end"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (dragHoldTimeoutRef.current) {
+                        clearTimeout(dragHoldTimeoutRef.current);
+                        dragHoldTimeoutRef.current = null;
+                      }
+                      setSelectedBarIndices([]);
+                      setSelectedChordIds([chord.id]);
+                      dragStateRef.current = {
+                        kind: "resize-right",
+                        chordId: chord.id,
+                        anchorX: event.clientX,
+                        originalStart: chord.startTime,
+                        originalLength: chord.length,
+                      };
+                    }}
+                  />
+                  <span className="pointer-events-none absolute left-0 top-full mt-1 w-full truncate text-center text-[11px] font-semibold leading-none text-slate-700">
+                    {chordLabel}
+                  </span>
+                  {fingeringsVisible ? (
+                    <div
+                      data-track-reorder-block="true"
+                      className="absolute left-1/2 z-30 flex w-[122px] -translate-x-1/2 flex-col items-center rounded-md border border-slate-200 bg-white px-1.5 py-1 shadow-sm"
+                      style={{ top: fingeringRowTop }}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      onClick={(event) => event.stopPropagation()}
+                      onDoubleClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                    >
+                      <div className="flex w-full items-center justify-between gap-1">
+                        <button
+                          type="button"
+                          className="grid h-6 w-6 place-items-center rounded border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          disabled={fingeringOptions.length <= 1}
+                          aria-label={`Previous ${chordLabel} fingering`}
+                          onClick={() => {
+                            if (!fingeringOptions.length) return;
+                            const nextIndex = (savedFingeringIndex - 1 + fingeringOptions.length) % fingeringOptions.length;
+                            applyChordFingering(chord.id, fingeringOptions[nextIndex], nextIndex);
+                          }}
+                        >
+                          {"<"}
+                        </button>
+                        <span className="max-w-[58px] truncate text-center text-[10px] font-semibold text-slate-700">
+                          {fingeringOptions.length ? `${savedFingeringIndex + 1}/${fingeringOptions.length}` : "0/0"}
+                        </span>
+                        <button
+                          type="button"
+                          className="grid h-6 w-6 place-items-center rounded border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          disabled={fingeringOptions.length <= 1}
+                          aria-label={`Next ${chordLabel} fingering`}
+                          onClick={() => {
+                            if (!fingeringOptions.length) return;
+                            const nextIndex = (savedFingeringIndex + 1) % fingeringOptions.length;
+                            applyChordFingering(chord.id, fingeringOptions[nextIndex], nextIndex);
+                          }}
+                        >
+                          {">"}
+                        </button>
+                      </div>
+                      {visibleFingering ? (
+                        <ChordFingeringDiagram
+                          fingering={visibleFingering}
+                          leftHanded={leftHandedChordDiagrams}
+                        />
+                      ) : (
+                        <div className="grid h-[76px] place-items-center text-[10px] font-semibold text-slate-400">
+                          No shape
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                  {isStrumEditing && strumEditor ? (
+                    <div
+                      data-track-reorder-block="true"
+                      className="absolute left-0 z-50 rounded-md border border-slate-300 bg-white shadow-lg"
+                      style={{
+                        top: strumEditorTop,
+                        width: chordWidth,
+                        minWidth: 80,
+                        height: CHORD_STRUM_EDITOR_HEIGHT,
+                      }}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        chordMouseDownSelectionRef.current = null;
+                      }}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        className="absolute right-1 top-1 z-20 grid h-5 w-5 place-items-center rounded border border-slate-200 bg-white text-[11px] font-bold text-slate-500 hover:bg-slate-50"
+                        onClick={closeStrumEditor}
+                        aria-label="Close strum editor"
+                      >
+                        x
+                      </button>
+                      <div
+                        className="absolute bottom-2 left-2 right-2 top-7 rounded border border-slate-200 bg-slate-50"
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          if (event.currentTarget !== event.target) return;
+                          const rect = event.currentTarget.getBoundingClientRect();
+                          const rawTime = ((event.clientX - rect.left) / Math.max(1, rect.width)) * length;
+                          const time = snapStrumTime(rawTime, length);
+                          setStrumEditor((prev) =>
+                            prev && prev.chordId === chord.id
+                              ? {
+                                  ...prev,
+                                  selectedIds: [],
+                                  menu: {
+                                    time,
+                                    x: Math.max(6, Math.min(rect.width - 6, (time / Math.max(1, length)) * rect.width)),
+                                    y: 10,
+                                  },
+                                }
+                              : prev
+                          );
+                        }}
+                      >
+                        {Array.from({ length: Math.floor(length / strumGridStep) + 1 }, (_, index) => {
+                          const time = Math.min(length, index * strumGridStep);
+                          const isBeat = time % beatGridStep === 0;
+                          return (
+                            <span
+                              key={`strum-grid-${chord.id}-${index}`}
+                              className={`pointer-events-none absolute bottom-0 top-0 border-l ${
+                                isBeat ? "border-slate-700" : "border-slate-300"
+                              }`}
+                              style={{
+                                left: `${(time / Math.max(1, length)) * 100}%`,
+                                opacity: isBeat ? 0.9 : 0.55,
+                              }}
+                            />
+                          );
+                        })}
+                        {strumEditor.draft.map((strum) => {
+                          const markerSelected = strumEditor.selectedIds.includes(strum.id);
+                          return (
+                            <button
+                              key={`strum-editor-${chord.id}-${strum.id}`}
+                              type="button"
+                              className={`absolute top-1/2 z-10 grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border text-sm font-bold shadow-sm ${
+                                markerSelected
+                                  ? "border-sky-500 bg-sky-100 text-sky-900"
+                                  : "border-slate-300 bg-white text-slate-700"
+                              }`}
+                              style={{ left: `${(strum.time / Math.max(1, length)) * 100}%` }}
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setStrumEditor((prev) => {
+                                  if (!prev || prev.chordId !== chord.id) return prev;
+                                  const nextSelected = event.shiftKey
+                                    ? prev.selectedIds.includes(strum.id)
+                                      ? prev.selectedIds.filter((id) => id !== strum.id)
+                                      : [...prev.selectedIds, strum.id]
+                                    : [strum.id];
+                                  return {
+                                    ...prev,
+                                    selectedIds: nextSelected,
+                                    menu: null,
+                                    drag: {
+                                      strumId: strum.id,
+                                      anchorX: event.clientX,
+                                      originalTime: strum.time,
+                                    },
+                                  };
+                                });
+                              }}
+                            >
+                              {strum.direction === "mute" ? "x" : strum.direction === "up" ? "↑" : "↓"}
+                            </button>
+                          );
+                        })}
+                        {strumEditor.menu ? (
+                          <div
+                            className="absolute z-20 flex -translate-x-1/2 -translate-y-full items-center gap-1 rounded-md border border-slate-200 bg-white p-1 shadow-md"
+                            style={{ left: strumEditor.menu.x, top: strumEditor.menu.y }}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                            }}
+                          >
+                            {(
+                              [
+                                ["down", "↓"],
+                                ["up", "↑"],
+                                ["mute", "x"],
+                              ] as const
+                            ).map(([direction, label]) => (
+                              <button
+                                key={direction}
+                                type="button"
+                                className="grid h-7 w-7 place-items-center rounded border border-slate-200 bg-white text-sm font-bold text-slate-700 hover:bg-slate-50"
+                                onClick={() => {
+                                  setStrumEditor((prev) => {
+                                    if (!prev || !prev.menu || prev.chordId !== chord.id) return prev;
+                                    const id = Math.max(0, ...prev.draft.map((item) => item.id)) + 1;
+                                    return {
+                                      ...prev,
+                                      draft: [
+                                        ...prev.draft,
+                                        {
+                                          id,
+                                          time: prev.menu.time,
+                                          direction,
+                                        },
+                                      ].sort((left, right) => left.time - right.time || left.id - right.id),
+                                      selectedIds: [id],
+                                      menu: null,
+                                    };
+                                  });
+                                }}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      {chordContextMenu
+        ? (() => {
+            const chord = snapshot.chords.find((item) => item.id === chordContextMenu.chordId);
+            if (!chord) return null;
+            const targetChordIds = getContextTargetChordIds(chord.id);
+            const currentExtension = getChordEditorExtension(chord.extension).name;
+            const inferredChord = inferChordEditorMetadataFromMidi(chord.originalMidi);
+            const contextChordRoot = chord.root || inferredChord?.root || "C";
+            const contextChordQuality = chord.quality || inferredChord?.quality || "major";
+            const menuItemClass =
+              "block w-full rounded px-3 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300";
+            return (
+              <div
+                ref={chordContextMenuRef}
+                data-gte-floating-ui="true"
+                data-gte-editor-control="true"
+                className="fixed z-[10000] w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl"
+                style={{ left: chordContextMenu.x, top: chordContextMenu.y }}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onClick={(event) => event.stopPropagation()}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+              >
+                <button
+                  type="button"
+                  className={menuItemClass}
+                  onClick={() => {
+                    copyChordIds(targetChordIds);
+                    setChordContextMenu(null);
+                  }}
+                >
+                  Copy
+                </button>
+                <button
+                  type="button"
+                  className={menuItemClass}
+                  disabled={!chordClipboard.length}
+                  onClick={() => pasteChordsAtFrame(readExternalPlaybackFrame())}
+                >
+                  Paste
+                </button>
+                {targetChordIds.length === 1 ? (
+                  <>
+                    <div className="my-1 border-t border-slate-100" />
+                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      Extension
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 px-1 pb-1">
+                      {CHORD_PALETTE_EXTENSIONS.map((extension) => {
+                        const active = currentExtension === extension.value;
+                        const extensionInKey =
+                          extension.value === "" ||
+                          !snapToKeyEnabled ||
+                          getChordEditorMidiNotes({
+                            root: contextChordRoot,
+                            quality: contextChordQuality,
+                            extension: extension.value,
+                          }).every((midi) => isMidiInKey(midi, canvasKeyBase, canvasKeyType));
+                        return (
+                          <button
+                            key={extension.value || "none"}
+                            type="button"
+                            aria-pressed={active}
+                            disabled={!extensionInKey}
+                            title={
+                              extensionInKey
+                                ? `Set extension to ${extension.label}`
+                                : `${getChordEditorLabel(
+                                    contextChordRoot,
+                                    contextChordQuality,
+                                    extension.value
+                                  )} is outside the current key`
+                            }
+                            className={`rounded border px-1.5 py-1 text-xs font-semibold transition ${
+                              !extensionInKey
+                                ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-60"
+                                : active
+                                ? "border-sky-500 bg-sky-100 text-sky-900"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:bg-sky-50"
+                            }`}
+                            onClick={() => applyChordExtension(chord.id, extension.value)}
+                          >
+                            {extension.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : null}
+                <div className="my-1 border-t border-slate-100" />
+                <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                  Quick strumming
+                </div>
+                <button
+                  type="button"
+                  className={menuItemClass}
+                  onClick={() => applyQuickStrumming(targetChordIds, "whole")}
+                >
+                  Whole beat strum
+                </button>
+                <button
+                  type="button"
+                  className={menuItemClass}
+                  onClick={() => applyQuickStrumming(targetChordIds, "half")}
+                >
+                  Half beat strum
+                </button>
+                <button
+                  type="button"
+                  className={menuItemClass}
+                  onClick={() => applyQuickStrumming(targetChordIds, "quarter")}
+                >
+                  Quarter beat strum
+                </button>
+                <button
+                  type="button"
+                  className={menuItemClass}
+                  onClick={() => applyQuickStrumming(targetChordIds, "clear")}
+                >
+                  Clear
+                </button>
+              </div>
+            );
+          })()
+        : null}
+    </div>
+  );
+}
+
 export default function GteWorkspace({
   editorId,
   snapshot,
@@ -1129,12 +3341,25 @@ export default function GteWorkspace({
   tabViewEnabled = false,
   globalSnapToGridEnabled,
   onGlobalSnapToGridEnabledChange,
+  snapSubdivisionsPerBeat = 4,
   globalSnapToKeyEnabled,
   onGlobalSnapToKeyEnabledChange,
+  generatePlayingCoordinatesRequest,
+  defaultNoteLengthDenominator: controlledDefaultNoteLengthDenominator,
+  onDefaultNoteLengthDenominatorChange,
+  cursorSizeDenominator: controlledCursorSizeDenominator,
+  onCursorSizeDenominatorChange,
+  leftHandedChordDiagrams = false,
+  editMenuPortalTarget,
+  editMenuDisabled = false,
+  onEditMenuPointerEnter,
+  onEditMenuPointerLeave,
   canvasKeyBase = 0,
   canvasKeyType = 0,
   sharedTimeSignature,
+  sharedTimeSignatureBottom,
   sharedViewportBarCount,
+  sharedTimelineBaseScale,
   sharedTimelineScrollRatio,
   onSharedTimelineScrollRatioChange,
   timelineZoomFactor,
@@ -1143,7 +3368,9 @@ export default function GteWorkspace({
   onRequestUndo,
   onRequestRedo,
   globalPlaybackFrame,
+  getGlobalPlaybackFrame,
   globalPlaybackIsPlaying,
+  globalPlaybackIsPreparing,
   globalPlaybackVolume,
   globalPlaybackTimelineEnd,
   onGlobalPlaybackToggle,
@@ -1167,6 +3394,13 @@ export default function GteWorkspace({
   onSpeedTrainerStepChange,
   playbackSpeed,
   onPlaybackSpeedChange,
+  practiceMode = false,
+  onPracticeNotePlay,
+  practiceChordOverlay,
+  practiceFocusBarRange,
+  practiceRatingReplay,
+  practiceControlsVisible = false,
+  playbackUiVisible,
   showToolbarWhenInactive = false,
   toolbarOpen: controlledToolbarOpen,
   onToolbarOpenChange,
@@ -1189,11 +3423,124 @@ export default function GteWorkspace({
   mobileViewport = false,
   mobileMode,
 }: Props) {
-  const [baseScale, setBaseScale] = useState(4);
+  useGteRenderInstrumentation("GteWorkspace", `${editorId}:tab`);
+  if (isChordEditorSnapshot(snapshot)) {
+    return (
+      <ChordLaneWorkspace
+        editorId={editorId}
+        snapshot={snapshot}
+        onSnapshotChange={onSnapshotChange}
+        allowBackend={allowBackend}
+        embedded={embedded}
+        isActive={isActive}
+        onFocusWorkspace={onFocusWorkspace}
+        tabViewEnabled={tabViewEnabled}
+        globalSnapToGridEnabled={globalSnapToGridEnabled}
+        onGlobalSnapToGridEnabledChange={onGlobalSnapToGridEnabledChange}
+        globalSnapToKeyEnabled={globalSnapToKeyEnabled}
+        onGlobalSnapToKeyEnabledChange={onGlobalSnapToKeyEnabledChange}
+        leftHandedChordDiagrams={leftHandedChordDiagrams}
+        canvasKeyBase={canvasKeyBase}
+        canvasKeyType={canvasKeyType}
+        sharedTimeSignature={sharedTimeSignature}
+        sharedTimeSignatureBottom={sharedTimeSignatureBottom}
+        sharedViewportBarCount={sharedViewportBarCount}
+        sharedTimelineBaseScale={sharedTimelineBaseScale}
+        sharedTimelineScrollRatio={sharedTimelineScrollRatio}
+        onSharedTimelineScrollRatioChange={onSharedTimelineScrollRatioChange}
+        timelineZoomFactor={timelineZoomFactor}
+        historyUndoCount={historyUndoCount}
+        historyRedoCount={historyRedoCount}
+        onRequestUndo={onRequestUndo}
+        onRequestRedo={onRequestRedo}
+        globalPlaybackFrame={globalPlaybackFrame}
+        getGlobalPlaybackFrame={getGlobalPlaybackFrame}
+        globalPlaybackIsPlaying={globalPlaybackIsPlaying}
+        globalPlaybackVolume={globalPlaybackVolume}
+        globalPlaybackTimelineEnd={globalPlaybackTimelineEnd}
+        onGlobalPlaybackToggle={onGlobalPlaybackToggle}
+        onGlobalPlaybackFrameChange={onGlobalPlaybackFrameChange}
+        onGlobalPlaybackVolumeChange={onGlobalPlaybackVolumeChange}
+        onGlobalPlaybackSkipToStart={onGlobalPlaybackSkipToStart}
+        onGlobalPlaybackSkipBackwardBar={onGlobalPlaybackSkipBackwardBar}
+        onGlobalPlaybackSkipForwardBar={onGlobalPlaybackSkipForwardBar}
+        practiceLoopEnabled={practiceLoopEnabled}
+        practiceLoopRange={practiceLoopRange}
+        onPracticeLoopEnabledChange={onPracticeLoopEnabledChange}
+        metronomeEnabled={metronomeEnabled}
+        onMetronomeEnabledChange={onMetronomeEnabledChange}
+        countInEnabled={countInEnabled}
+        onCountInEnabledChange={onCountInEnabledChange}
+        speedTrainerEnabled={speedTrainerEnabled}
+        onSpeedTrainerEnabledChange={onSpeedTrainerEnabledChange}
+        speedTrainerTarget={speedTrainerTarget}
+        onSpeedTrainerTargetChange={onSpeedTrainerTargetChange}
+        speedTrainerStep={speedTrainerStep}
+        onSpeedTrainerStepChange={onSpeedTrainerStepChange}
+        playbackSpeed={playbackSpeed}
+        onPlaybackSpeedChange={onPlaybackSpeedChange}
+        playbackUiVisible={playbackUiVisible}
+        showToolbarWhenInactive={showToolbarWhenInactive}
+        toolbarOpen={controlledToolbarOpen}
+        onToolbarOpenChange={onToolbarOpenChange}
+        selectionClearEpoch={selectionClearEpoch}
+        selectionClearExemptEditorId={selectionClearExemptEditorId}
+        barSelectionClearEpoch={barSelectionClearEpoch}
+        barSelectionClearExemptEditorId={barSelectionClearExemptEditorId}
+        multiTrackSelectionActive={multiTrackSelectionActive}
+        onSelectionStateChange={onSelectionStateChange}
+        onRequestGlobalSelectedShift={onRequestGlobalSelectedShift}
+        onBarSelectionStateChange={onBarSelectionStateChange}
+        onRequestSelectedBarsCopy={onRequestSelectedBarsCopy}
+        onRequestSelectedBarsPaste={onRequestSelectedBarsPaste}
+        onRequestSelectedBarsDelete={onRequestSelectedBarsDelete}
+        barClipboardAvailable={barClipboardAvailable}
+        activeBarDrag={activeBarDrag}
+        onBarDragStart={onBarDragStart}
+        onBarDragEnd={onBarDragEnd}
+        onRequestBarDrop={onRequestBarDrop}
+        mobileViewport={mobileViewport}
+        mobileMode={mobileMode}
+      />
+    );
+  }
+
+  const [autoBaseScale, setAutoBaseScale] = useState(4);
+  const [practiceChordFingeringsByKey, setPracticeChordFingeringsByKey] = useState<
+    Record<string, ChordFingering[]>
+  >({});
   const [secondsPerBar, setSecondsPerBar] = useState(2);
   const [bpmInput, setBpmInput] = useState(formatBpm(secondsPerBarToBpm(2, 8)));
   const [timeSignature, setTimeSignature] = useState(8);
   const [timeSignatureInput, setTimeSignatureInput] = useState("8");
+  const [timeSignatureBottom, setTimeSignatureBottom] = useState(4);
+  const [localDefaultNoteLengthDenominator, setLocalDefaultNoteLengthDenominator] = useState(4);
+  const [localCursorSizeDenominator, setLocalCursorSizeDenominator] = useState(4);
+  const defaultNoteLengthDenominator =
+    controlledDefaultNoteLengthDenominator ?? localDefaultNoteLengthDenominator;
+  const cursorSizeDenominator = controlledCursorSizeDenominator ?? localCursorSizeDenominator;
+  const setDefaultNoteLengthDenominator = useCallback(
+    (value: number | ((current: number) => number)) => {
+      const next = typeof value === "function" ? value(defaultNoteLengthDenominator) : value;
+      if (onDefaultNoteLengthDenominatorChange) {
+        onDefaultNoteLengthDenominatorChange(next);
+      } else {
+        setLocalDefaultNoteLengthDenominator(next);
+      }
+    },
+    [defaultNoteLengthDenominator, onDefaultNoteLengthDenominatorChange]
+  );
+  const setCursorSizeDenominator = useCallback(
+    (value: number | ((current: number) => number)) => {
+      const next = typeof value === "function" ? value(cursorSizeDenominator) : value;
+      if (onCursorSizeDenominatorChange) {
+        onCursorSizeDenominatorChange(next);
+      } else {
+        setLocalCursorSizeDenominator(next);
+      }
+    },
+    [cursorSizeDenominator, onCursorSizeDenominatorChange]
+  );
   const [keepNotesOnBeat, setKeepNotesOnBeat] = useState(false);
   const [localSnapToGridEnabled, setLocalSnapToGridEnabled] = useState(true);
   const [localSnapToKeyEnabled, setLocalSnapToKeyEnabled] = useState(false);
@@ -1232,7 +3579,9 @@ export default function GteWorkspace({
   const [shiftBoundaryTime, setShiftBoundaryTime] = useState<OptionalNumber>(null);
   const [deleteBoundaryIndex, setDeleteBoundaryIndex] = useState<OptionalNumber>(null);
   const [showGenerateCutsConfirm, setShowGenerateCutsConfirm] = useState(false);
+  const lastGeneratePlayingCoordinatesRequestRef = useRef(generatePlayingCoordinatesRequest);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackPreparing, setPlaybackPreparing] = useState(false);
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
   const [multiDrag, setMultiDrag] = useState<MultiDragState | null>(null);
@@ -1269,8 +3618,22 @@ export default function GteWorkspace({
   const [segmentDragIndex, setSegmentDragIndex] = useState<number | null>(null);
   const [ioPayload, setIoPayload] = useState("");
   const [ioMessage, setIoMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      generatePlayingCoordinatesRequest === undefined ||
+      generatePlayingCoordinatesRequest === lastGeneratePlayingCoordinatesRequestRef.current
+    ) {
+      return;
+    }
+    lastGeneratePlayingCoordinatesRequestRef.current = generatePlayingCoordinatesRequest;
+    if (isActive) {
+      setShowGenerateCutsConfirm(true);
+    }
+  }, [generatePlayingCoordinatesRequest, isActive]);
   const [exportFormat, setExportFormat] = useState<GteExportFormat>("txt");
   const [localToolbarOpen, setLocalToolbarOpen] = useState(false);
+  const [toolHelpOpen, setToolHelpOpen] = useState(false);
   const [tabPreviewOpen, setTabPreviewOpen] = useState(false);
   const [sliceToolActive, setSliceToolActive] = useState(false);
   const [sliceCursor, setSliceCursor] = useState<{ time: number; rowIndex: number } | null>(null);
@@ -1289,11 +3652,13 @@ export default function GteWorkspace({
   const [quantizeSubdivisionInput, setQuantizeSubdivisionInput] = useState("4");
   const [quantizePreScale, setQuantizePreScale] = useState(1);
   const [quantizePreScaleInput, setQuantizePreScaleInput] = useState("1");
-  const [quantizeApplyToLength, setQuantizeApplyToLength] = useState(false);
+  const [quantizeApplyToLength, setQuantizeApplyToLength] = useState(true);
   const [quantizePreviewNotes, setQuantizePreviewNotes] = useState<Record<number, QuantizePreviewEntity>>({});
   const [quantizePreviewChords, setQuantizePreviewChords] = useState<Record<number, QuantizePreviewEntity>>({});
   const [quantizePreviewMaxEnd, setQuantizePreviewMaxEnd] = useState(0);
   const [moveToolActive, setMoveToolActive] = useState(false);
+  const [pendingSelectionTool, setPendingSelectionTool] =
+    useState<PendingSelectionTool | null>(null);
   const [movePreviewNotes, setMovePreviewNotes] = useState<Record<number, QuantizePreviewEntity>>({});
   const [movePreviewChords, setMovePreviewChords] = useState<Record<number, QuantizePreviewEntity>>({});
   const [movePreviewMaxEnd, setMovePreviewMaxEnd] = useState(0);
@@ -1342,7 +3707,11 @@ export default function GteWorkspace({
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const timelineOuterRef = useRef<HTMLDivElement | null>(null);
   const tabViewScrollRef = useRef<HTMLDivElement | null>(null);
+  const practiceScoreRef = useRef<HTMLDivElement | null>(null);
+  const lastPracticeRowRef = useRef(-1);
   const tabViewCursorRef = useRef<HTMLDivElement | null>(null);
+  const [practiceScoreWidth, setPracticeScoreWidth] = useState(0);
+  const timelinePlayheadRef = useRef<HTMLButtonElement | null>(null);
   const draftFretRef = useRef<HTMLInputElement | null>(null);
   const draftHasFocusedRef = useRef(false);
   const draftPopupRef = useRef<HTMLDivElement | null>(null);
@@ -1377,6 +3746,9 @@ export default function GteWorkspace({
   const keyboardAddModeRef = useRef<KeyboardAddMode | null>(null);
   const noteFretTypingBufferRef = useRef("");
   const noteFretTypingAtRef = useRef(0);
+  const defaultNoteLengthUserChangedRef = useRef(false);
+  const previousTimeSignatureRef = useRef(8);
+  const previousTimeSignatureBottomRef = useRef(4);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosaveInFlightRef = useRef(false);
   const autosaveQueuedRef = useRef(false);
@@ -1427,7 +3799,7 @@ export default function GteWorkspace({
     timelineZoomFactor !== undefined && Number.isFinite(timelineZoomFactor)
       ? Math.max(MIN_TIMELINE_ZOOM, Math.min(MAX_TIMELINE_ZOOM, timelineZoomFactor))
       : 1;
-  const scale = baseScale * normalizedTimelineZoomFactor;
+  const scale = (sharedTimelineBaseScale ?? autoBaseScale) * normalizedTimelineZoomFactor;
   const timelineWidth = Math.max(1, computedTotalFrames) * scale;
   const viewportTimelineWidth = Math.max(1, viewportTotalFrames) * scale;
   const timelineChromeWidth = viewportTimelineWidth + 40;
@@ -1439,6 +3811,74 @@ export default function GteWorkspace({
   const timelineEnd = barCount * framesPerMeasure;
   const snapThresholdFrames = Math.max(1, Math.round(4 / Math.max(1, scale)));
   const playbackFps = fps;
+  const framesToDurationSeconds = useCallback(
+    (frames: number) => Math.max(0, Number(frames) || 0) / Math.max(1, playbackFps),
+    [playbackFps]
+  );
+  const formatLengthFramesAsSeconds = useCallback(
+    (frames: number) => formatDurationSeconds(framesToDurationSeconds(frames)),
+    [framesToDurationSeconds]
+  );
+  const parseLengthSecondsToFrames = useCallback(
+    (value: unknown) => {
+      const seconds = Number(value);
+      if (!Number.isFinite(seconds) || seconds <= 0) return null;
+      return clampEventLength(Math.round(seconds * Math.max(1, playbackFps)));
+    },
+    [playbackFps]
+  );
+  const noteFractionDenominatorToFrames = useCallback(
+    (denominator: number) => {
+      const safeDenominator = Math.max(0.5, Math.min(64, Number(denominator) || 1));
+      const beatsPerBar = Math.max(1, Math.round(timeSignature));
+      const beatUnit = Math.max(1, Math.round(timeSignatureBottom));
+      return clampEventLength(Math.round((framesPerMeasure * beatUnit) / (beatsPerBar * safeDenominator)));
+    },
+    [framesPerMeasure, timeSignature, timeSignatureBottom]
+  );
+  const cursorSizeDenominatorToFrames = useCallback(
+    (denominator: number) => {
+      const safeDenominator = getNearestCursorSizeDenominator(denominator);
+      const beatsPerBar = Math.max(1, Math.round(timeSignature));
+      const beatUnit = Math.max(1, Math.round(timeSignatureBottom));
+      return Math.max(1, Math.round((framesPerMeasure * beatUnit) / (beatsPerBar * safeDenominator)));
+    },
+    [framesPerMeasure, timeSignature, timeSignatureBottom]
+  );
+  const getNearestNoteFractionDenominator = useCallback(
+    (frames: number) => {
+      const safeFrames = clampEventLength(frames);
+      const beatsPerBar = Math.max(1, Math.round(timeSignature));
+      const beatUnit = Math.max(1, Math.round(timeSignatureBottom));
+      const rawDenominator = (framesPerMeasure * beatUnit) / (beatsPerBar * safeFrames);
+      if (!Number.isFinite(rawDenominator)) return 1;
+      return getNearestNoteLengthDenominator(rawDenominator);
+    },
+    [framesPerMeasure, timeSignature, timeSignatureBottom]
+  );
+  const formatLengthFramesAsFraction = useCallback(
+    (frames: number) => formatNoteLengthOption(getNearestNoteFractionDenominator(frames)),
+    [getNearestNoteFractionDenominator]
+  );
+  useEffect(() => {
+    if (defaultNoteLengthUserChangedRef.current) return;
+    setDefaultNoteLengthDenominator(getNearestNoteLengthDenominator(timeSignatureBottom));
+  }, [timeSignatureBottom]);
+  useEffect(() => {
+    const previousTop = Math.max(1, Math.round(previousTimeSignatureRef.current));
+    const previousBottom = Math.max(1, Math.round(previousTimeSignatureBottomRef.current));
+    const nextTop = Math.max(1, Math.round(timeSignature));
+    const nextBottom = Math.max(1, Math.round(timeSignatureBottom));
+    previousTimeSignatureRef.current = nextTop;
+    previousTimeSignatureBottomRef.current = nextBottom;
+    if (previousTop === nextTop && previousBottom === nextBottom) return;
+    setCursorSizeDenominator((prev) =>
+      getNearestCursorSizeDenominator((Math.max(1, prev) * nextBottom * previousTop) / (previousBottom * nextTop))
+    );
+  }, [timeSignature, timeSignatureBottom]);
+  useEffect(() => {
+    lastAddedNoteLengthRef.current = noteFractionDenominatorToFrames(defaultNoteLengthDenominator);
+  }, [defaultNoteLengthDenominator, noteFractionDenominatorToFrames]);
   const tabPreviewText = useMemo(
     () => buildTabTextFromSnapshot(snapshot, { barsPerRow: BARS_PER_ROW }),
     [snapshot]
@@ -1459,7 +3899,7 @@ export default function GteWorkspace({
     [onToolbarOpenChange, toolbarOpen]
   );
   const showFloatingUi = true;
-  const showPlaybackUi = isActive || showToolbarWhenInactive;
+  const showPlaybackUi = playbackUiVisible ?? (isActive || showToolbarWhenInactive);
   const showToolbarUi = showPlaybackUi && !isMobileCanvasMode && !tabViewEnabled;
   const compactEmbeddedMobile = embedded && mobileViewport;
   const selectedBarIndexSet = useMemo(() => new Set(selectedBarIndices), [selectedBarIndices]);
@@ -1470,12 +3910,18 @@ export default function GteWorkspace({
     [selectedBarIndices, timelineEnd]
   );
   const useExternalPlayback =
-    globalPlaybackFrame !== undefined &&
     globalPlaybackIsPlaying !== undefined &&
     typeof onGlobalPlaybackToggle === "function" &&
     typeof onGlobalPlaybackFrameChange === "function";
-  const effectivePlayheadFrame = useExternalPlayback ? globalPlaybackFrame ?? 0 : playheadFrame;
+  const readExternalPlaybackFrame = useCallback(
+    () => Math.max(0, Math.round(getGlobalPlaybackFrame?.() ?? globalPlaybackFrame ?? 0)),
+    [getGlobalPlaybackFrame, globalPlaybackFrame]
+  );
+  const effectivePlayheadFrame = useExternalPlayback ? readExternalPlaybackFrame() : playheadFrame;
   const effectiveIsPlaying = useExternalPlayback ? Boolean(globalPlaybackIsPlaying) : isPlaying;
+  const effectivePlaybackPreparing = useExternalPlayback
+    ? Boolean(globalPlaybackIsPreparing)
+    : playbackPreparing;
   const effectivePlaybackVolume = useExternalPlayback
     ? Math.max(0, Math.min(1, globalPlaybackVolume ?? playbackVolume))
     : playbackVolume;
@@ -1501,16 +3947,263 @@ export default function GteWorkspace({
     useExternalPlayback ? playbackSpeed ?? localPlaybackSpeed : localPlaybackSpeed
   );
   const editorTabView = useMemo(
-    () =>
-      buildEditorTabView(snapshot, {
+    () => {
+      const layoutSnapshot =
+        practiceMode && practiceChordOverlay?.chords.length
+          ? {
+              ...snapshot,
+              chords: [...snapshot.chords, ...practiceChordOverlay.chords],
+            }
+          : snapshot;
+      return buildEditorTabView(layoutSnapshot, {
         framesPerBar: framesPerMeasure,
         beatsPerBar: timeSignature,
         scale,
         playheadFrame: effectivePlayheadFrame,
         minBarCount: viewportBarCount,
-      }),
-    [effectivePlayheadFrame, framesPerMeasure, scale, snapshot, timeSignature, viewportBarCount]
+        variableBarWidths: practiceMode,
+        collapseConsecutiveEmptyBars: practiceMode,
+      });
+    },
+    [
+      effectivePlayheadFrame,
+      framesPerMeasure,
+      practiceChordOverlay,
+      practiceMode,
+      scale,
+      snapshot,
+      timeSignature,
+      viewportBarCount,
+    ]
   );
+  const practiceVerticalScale = 0.6;
+  const practiceTabHeight = Math.round(editorTabView.height * practiceVerticalScale);
+  const practiceRowGap = 42;
+  const practiceRowHeight =
+    practiceTabHeight + TIMELINE_BAR_HEADER_HEIGHT + practiceRowGap;
+  const practiceDisplayStartBar = Math.max(
+    0,
+    Math.min(editorTabView.barCount - 1, practiceFocusBarRange?.startBar ?? 0)
+  );
+  const practiceDisplayEndBar = Math.max(
+    practiceDisplayStartBar + 1,
+    Math.min(editorTabView.barCount, practiceFocusBarRange?.endBar ?? editorTabView.barCount)
+  );
+  const practiceOccupiedBarIndexSet = useMemo(() => {
+    const occupied = new Set<number>();
+    const addEvents = (events: Array<{ startTime: number }>) => {
+      events.forEach((event) => {
+        const barIndex = Math.max(
+          0,
+          Math.min(
+            editorTabView.barCount - 1,
+            Math.floor(Math.max(0, Number(event.startTime) || 0) / framesPerMeasure)
+          )
+        );
+        occupied.add(barIndex);
+      });
+    };
+    addEvents(snapshot.notes);
+    addEvents(snapshot.chords);
+    addEvents(practiceChordOverlay?.chords || []);
+    return occupied;
+  }, [editorTabView.barCount, framesPerMeasure, practiceChordOverlay, snapshot.chords, snapshot.notes]);
+  const practiceBarSegments = useMemo(() => {
+    const segments: Array<{
+      startBar: number;
+      endBar: number;
+      collapsed: boolean;
+      width: number;
+    }> = [];
+    let startBar = practiceDisplayStartBar;
+    while (startBar < practiceDisplayEndBar) {
+      let endBar = startBar + 1;
+      if (!practiceOccupiedBarIndexSet.has(startBar)) {
+        while (
+          endBar < practiceDisplayEndBar &&
+          !practiceOccupiedBarIndexSet.has(endBar)
+        ) {
+          endBar += 1;
+        }
+      }
+      const collapsed = endBar - startBar > 1;
+      if (!collapsed) endBar = startBar + 1;
+      segments.push({
+        startBar,
+        endBar,
+        collapsed,
+        width:
+          editorTabView.barStartXs[endBar] - editorTabView.barStartXs[startBar],
+      });
+      startBar = endBar;
+    }
+    return segments;
+  }, [
+    editorTabView.barStartXs,
+    practiceDisplayEndBar,
+    practiceDisplayStartBar,
+    practiceOccupiedBarIndexSet,
+  ]);
+  const practiceRows = useMemo(() => {
+    const maximumBarWidth = Math.max(
+      1,
+      ...practiceBarSegments.map((segment) => segment.width)
+    );
+    const availableWidth =
+      practiceScoreWidth > 0
+        ? Math.max(42, practiceScoreWidth - 46)
+        : maximumBarWidth * 4;
+    const rows: Array<{
+      firstBar: number;
+      lastBar: number;
+      segments: typeof practiceBarSegments;
+    }> = [];
+    let segmentIndex = 0;
+    while (segmentIndex < practiceBarSegments.length) {
+      const firstSegmentIndex = segmentIndex;
+      let usedWidth = 0;
+      while (segmentIndex < practiceBarSegments.length) {
+        const nextWidth = practiceBarSegments[segmentIndex].width || 42;
+        if (segmentIndex > firstSegmentIndex && usedWidth + nextWidth > availableWidth) break;
+        usedWidth += nextWidth;
+        segmentIndex += 1;
+      }
+      const segments = practiceBarSegments.slice(firstSegmentIndex, segmentIndex);
+      rows.push({
+        firstBar: segments[0].startBar,
+        lastBar: segments[segments.length - 1].endBar,
+        segments,
+      });
+    }
+    return rows.length
+      ? rows
+      : [{
+          firstBar: practiceDisplayStartBar,
+          lastBar: practiceDisplayEndBar,
+          segments: practiceBarSegments,
+        }];
+  }, [
+    practiceBarSegments,
+    practiceDisplayEndBar,
+    practiceDisplayStartBar,
+    practiceScoreWidth,
+  ]);
+  const practiceRowCount = practiceRows.length;
+  const getPracticePosition = useCallback(
+    (sourceX: number) => {
+      const clampedSourceX = Math.max(
+        editorTabView.barStartXs[practiceDisplayStartBar],
+        Math.min(editorTabView.barStartXs[practiceDisplayEndBar], sourceX)
+      );
+      let barIndex = practiceDisplayStartBar;
+      for (
+        let candidate = practiceDisplayStartBar;
+        candidate < practiceDisplayEndBar;
+        candidate += 1
+      ) {
+        barIndex = candidate;
+        if (clampedSourceX < editorTabView.barStartXs[candidate + 1]) break;
+      }
+      const rowIndex = Math.max(
+        0,
+        practiceRows.findIndex(
+          (row) => barIndex >= row.firstBar && barIndex < row.lastBar
+        )
+      );
+      const rowFirstBar = practiceRows[rowIndex]?.firstBar ?? practiceDisplayStartBar;
+      return {
+        rowIndex,
+        x: 30 + clampedSourceX - editorTabView.barStartXs[rowFirstBar],
+        y: rowIndex * practiceRowHeight,
+      };
+    },
+    [
+      editorTabView.barStartXs,
+      practiceDisplayEndBar,
+      practiceDisplayStartBar,
+      practiceRowHeight,
+      practiceRows,
+    ]
+  );
+  const practiceRatingByPlacement = useMemo(
+    () =>
+      new Map(
+        (practiceRatingReplay?.notes || []).map((note) => [note.placementKey, note])
+      ),
+    [practiceRatingReplay]
+  );
+  useEffect(() => {
+    if (!practiceMode || !practiceChordOverlay?.chords.length) return;
+    const lookups = Array.from(
+      new Map(
+        practiceChordOverlay.chords.map((chord) => {
+          const lookup = getPracticeChordFingeringLookup(chord);
+          return [lookup.key, lookup];
+        })
+      ).values()
+    ).filter((lookup) => practiceChordFingeringsByKey[lookup.key] === undefined);
+    if (!lookups.length) return;
+    let cancelled = false;
+    void Promise.all(
+      lookups.map(async (lookup) => {
+        try {
+          const response = await gteApi.getChordFingerings(lookup.root, lookup.type);
+          return [
+            lookup.key,
+            (response.fingerings || []).map(hydrateChordFingering),
+          ] as const;
+        } catch {
+          return [lookup.key, []] as const;
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      setPracticeChordFingeringsByKey((previous) => ({
+        ...previous,
+        ...Object.fromEntries(entries),
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [practiceChordFingeringsByKey, practiceChordOverlay, practiceMode]);
+  const practiceChordOverlayItems = useMemo(
+    () =>
+      (practiceChordOverlay?.chords || [])
+        .map((chord) => {
+          const lookup = getPracticeChordFingeringLookup(chord);
+          return {
+            chord,
+            frame: Math.max(0, Math.round(Number(chord.startTime) || 0)),
+            label: getPracticeChordLabel(chord),
+            fingering: getPracticeChordFingering(
+              chord,
+              practiceChordFingeringsByKey[lookup.key]
+            ),
+          };
+        })
+        .sort((left, right) => left.frame - right.frame || left.chord.id - right.chord.id),
+    [practiceChordFingeringsByKey, practiceChordOverlay]
+  );
+  useEffect(() => {
+    if (!practiceMode) {
+      setPracticeScoreWidth(0);
+      lastPracticeRowRef.current = -1;
+      return;
+    }
+    const score = practiceScoreRef.current;
+    if (!score) return;
+    const updateWidth = () => {
+      setPracticeScoreWidth((previous) => {
+        const next = Math.round(score.getBoundingClientRect().width);
+        return Math.abs(previous - next) > 1 ? next : previous;
+      });
+    };
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(score);
+    return () => observer.disconnect();
+  }, [practiceMode]);
   const effectivePlaybackSpeedOptions = useMemo(() => {
     const values = new Set<number>(PLAYBACK_SPEED_OPTIONS.map((speed) => normalizePlaybackSpeed(speed)));
     values.add(Math.round(effectivePlaybackSpeed * 100) / 100);
@@ -1536,6 +4229,48 @@ export default function GteWorkspace({
       isLabel: second % 5 === 0,
     }));
   }, [editorTabView.barCount, editorTabView.barWidth, framesPerMeasure, playbackFps]);
+  const timelineRenderWindow = useMemo(() => {
+    const safeScale = Math.max(0.0001, scale);
+    const fallbackClientWidth = Math.min(
+      viewportTimelineWidth,
+      Math.max(framesPerMeasure * TARGET_VISIBLE_BARS * safeScale, 1)
+    );
+    const clientWidth = timelineViewport.clientWidth > 0 ? timelineViewport.clientWidth : fallbackClientWidth;
+    const leftPx = Math.max(0, timelineViewport.scrollLeft - TIMELINE_RENDER_OVERSCAN_PX);
+    const rightPx = timelineViewport.scrollLeft + clientWidth + TIMELINE_RENDER_OVERSCAN_PX;
+    return {
+      startFrame: Math.max(0, Math.floor(leftPx / safeScale)),
+      endFrame: Math.min(timelineEnd, Math.ceil(rightPx / safeScale)),
+    };
+  }, [framesPerMeasure, scale, timelineEnd, timelineViewport.clientWidth, timelineViewport.scrollLeft, viewportTimelineWidth]);
+  const selectedNoteIdSet = useMemo(() => new Set(selectedNoteIds), [selectedNoteIds]);
+  const selectedChordIdSet = useMemo(() => new Set(selectedChordIds), [selectedChordIds]);
+  const visibleNotes = useMemo(() => {
+    const { startFrame, endFrame } = timelineRenderWindow;
+    return snapshot.notes.filter((note) => {
+      if (selectedNoteIdSet.has(note.id)) return true;
+      if (resizingNote?.id === note.id) return true;
+      if (dragging?.type === "note" && dragging.id === note.id) return true;
+      if (noteMenuNoteId === note.id) return true;
+      const start = Math.round(note.startTime);
+      const end = start + Math.max(1, Math.round(note.length));
+      return end >= startFrame && start <= endFrame;
+    });
+  }, [dragging, noteMenuNoteId, resizingNote, selectedNoteIdSet, snapshot.notes, timelineRenderWindow]);
+  const visibleChords = useMemo(() => {
+    const { startFrame, endFrame } = timelineRenderWindow;
+    return snapshot.chords.filter((chord) => {
+      if (selectedChordIdSet.has(chord.id)) return true;
+      if (resizingChord?.id === chord.id) return true;
+      if (dragging?.type === "chord" && dragging.id === chord.id) return true;
+      if (editingChordId === chord.id) return true;
+      if (chordMenuChordId === chord.id) return true;
+      const start = Math.round(chord.startTime);
+      const end = start + Math.max(1, Math.round(chord.length));
+      return end >= startFrame && start <= endFrame;
+    });
+  }, [chordMenuChordId, dragging, editingChordId, resizingChord, selectedChordIdSet, snapshot.chords, timelineRenderWindow]);
+  const visibleNoteIdSet = useMemo(() => new Set(visibleNotes.map((note) => note.id)), [visibleNotes]);
   const setEffectivePracticeLoopEnabled = useCallback(
     (enabled: boolean) => {
       if (onPracticeLoopEnabledChange) {
@@ -1673,6 +4408,10 @@ export default function GteWorkspace({
   const effectiveRedoCount = useExternalHistory ? Math.max(0, historyRedoCount ?? 0) : redoCount;
   const selectionActionsLocked = Boolean(multiTrackSelectionActive);
   const snapToGridEnabled = globalSnapToGridEnabled ?? localSnapToGridEnabled;
+  const normalizedSnapSubdivisionsPerBeat = Math.max(
+    1,
+    Math.min(8, Math.round(Number(snapSubdivisionsPerBeat) || 4))
+  );
   const snapToKeyEnabled = globalSnapToKeyEnabled ?? localSnapToKeyEnabled;
   const setSnapToGridEnabled = useCallback(
     (nextValue: boolean | ((prev: boolean) => boolean)) => {
@@ -1726,8 +4465,29 @@ export default function GteWorkspace({
     (snapshotValue: EditorSnapshot, currentTab: TabCoord, delta: number) => {
       const normalizedTab = clampTabCoordInSnapshot(snapshotValue, currentTab);
       if (!snapToKeyEnabled) {
-        const nextFret = Math.max(0, Math.min(getMaxFret(snapshotValue), normalizedTab[1] + delta));
-        return [normalizedTab[0], nextFret] as TabCoord;
+        const maxSnapshotFret = getMaxFret(snapshotValue);
+        const nextFret = normalizedTab[1] + delta;
+        if (nextFret >= 0 && nextFret <= maxSnapshotFret) {
+          return [normalizedTab[0], nextFret] as TabCoord;
+        }
+
+        const currentMidi = getTabMidi(snapshotValue, normalizedTab);
+        const stringStep = delta < 0 ? 1 : -1;
+        for (
+          let stringIndex = normalizedTab[0] + stringStep;
+          stringIndex >= 0 && stringIndex < DEFAULT_STRING_LABELS.length;
+          stringIndex += stringStep
+        ) {
+          const samePitchFret =
+            snapshotValue.tabRef?.[stringIndex]?.findIndex((midi) => Number(midi) === currentMidi) ?? -1;
+          if (samePitchFret < 0) continue;
+          const crossedFret = samePitchFret + delta;
+          if (crossedFret >= 0 && crossedFret <= maxSnapshotFret) {
+            return [stringIndex, crossedFret] as TabCoord;
+          }
+        }
+
+        return normalizedTab;
       }
       const currentMidi = getTabMidi(snapshotValue, normalizedTab);
       const targetMidi = getDirectionalMidiInKey(currentMidi, canvasKeyBase, canvasKeyType, delta);
@@ -1813,10 +4573,6 @@ export default function GteWorkspace({
   }, [effectivePlaybackVolume]);
 
   useEffect(() => {
-    void warmTrackInstrument(snapshot.instrumentId);
-  }, [snapshot.instrumentId]);
-
-  useEffect(() => {
     if (useExternalPlayback) return;
     if (playheadFrame > timelineEnd) {
       setPlayheadFrame(timelineEnd);
@@ -1830,7 +4586,7 @@ export default function GteWorkspace({
         autosaveTimerRef.current = null;
       }
       if (previewAudioRef.current) {
-        void previewAudioRef.current.close();
+        closeAudioContext(previewAudioRef.current);
         previewAudioRef.current = null;
       }
       previewGainRef.current = null;
@@ -1838,6 +4594,100 @@ export default function GteWorkspace({
   }, []);
 
   const getRowBarCount = (rowIndex: number) => (rowIndex === 0 ? barsPerRow : 0);
+
+  const getCurrentPlayheadFrame = useCallback(() => {
+    const rawFrame = useExternalPlayback ? readExternalPlaybackFrame() : playheadFrameRef.current;
+    return Math.max(0, Math.min(timelineEnd, Math.round(rawFrame)));
+  }, [readExternalPlaybackFrame, timelineEnd, useExternalPlayback]);
+
+  const applyPlayheadDomFrame = useCallback(
+    (frame: number) => {
+      const safeFrame = Math.max(0, Math.min(timelineEnd, Math.round(frame)));
+      playheadFrameRef.current = safeFrame;
+      if (tabViewCursorRef.current) {
+        const totalFrames = Math.max(1, editorTabView.barCount * framesPerMeasure);
+        const x = getEditorTabViewCursorX(
+          editorTabView.cursorAnchors,
+          safeFrame,
+          totalFrames,
+          editorTabView.width
+        );
+        if (practiceMode) {
+          const position = getPracticePosition(x);
+          tabViewCursorRef.current.style.transform =
+            `translate3d(${position.x}px, ${position.y}px, 0) translateX(-1px)`;
+          if (
+            effectiveIsPlaying &&
+            position.rowIndex !== lastPracticeRowRef.current
+          ) {
+            lastPracticeRowRef.current = position.rowIndex;
+            const row = practiceScoreRef.current?.querySelector<HTMLElement>(
+              `[data-practice-row="${position.rowIndex}"]`
+            );
+            if (row) {
+              const bounds = row.getBoundingClientRect();
+              const viewportTop = 96;
+              const viewportBottom = window.innerHeight - 112;
+              if (bounds.top < viewportTop || bounds.bottom > viewportBottom) {
+                const reducedMotion = window.matchMedia(
+                  "(prefers-reduced-motion: reduce)"
+                ).matches;
+                row.scrollIntoView({
+                  block: "center",
+                  behavior: reducedMotion ? "auto" : "smooth",
+                });
+              }
+            }
+          }
+        } else {
+          tabViewCursorRef.current.style.transform = `translate3d(${x}px, 0, 0) translateX(-1px)`;
+        }
+      }
+      if (timelinePlayheadRef.current) {
+        const rowIndex =
+          rowFrames > 0 ? Math.max(0, Math.min(rows - 1, Math.floor(safeFrame / rowFrames))) : 0;
+        const rowBarCount = getRowBarCount(rowIndex);
+        const availableFrames = Math.max(1, rowBarCount * framesPerMeasure);
+        const rowStart = rowIndex * rowFrames;
+        const x = Math.max(0, Math.min(availableFrames, safeFrame - rowStart)) * scale;
+        const y = rowIndex * rowStride;
+        timelinePlayheadRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) translateX(-1px)`;
+      }
+    },
+    [
+      editorTabView.barCount,
+      editorTabView.cursorAnchors,
+      editorTabView.width,
+      effectiveIsPlaying,
+      framesPerMeasure,
+      getPracticePosition,
+      practiceMode,
+      rowFrames,
+      rowStride,
+      rows,
+      scale,
+      timelineEnd,
+    ]
+  );
+
+  useEffect(() => {
+    applyPlayheadDomFrame(getCurrentPlayheadFrame());
+  }, [applyPlayheadDomFrame, getCurrentPlayheadFrame]);
+
+  useEffect(() => {
+    if (!effectiveIsPlaying) return;
+    let rafId: number | null = null;
+    const tick = () => {
+      applyPlayheadDomFrame(getCurrentPlayheadFrame());
+      rafId = window.requestAnimationFrame(tick);
+    };
+    rafId = window.requestAnimationFrame(tick);
+    return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
+  }, [applyPlayheadDomFrame, effectiveIsPlaying, getCurrentPlayheadFrame]);
 
   const snapCandidates = useMemo(() => {
     const candidates: Array<{ time: number; noteId?: number; chordId?: number }> = [];
@@ -1869,6 +4719,17 @@ export default function GteWorkspace({
       max?: number;
     }
   ) => {
+    if (snapToGridEnabled) {
+      const min = options?.min ?? 0;
+      const max = options?.max ?? Infinity;
+      const snapped = getBeatSubdivisionGridTime(
+        rawTime,
+        timeSignature,
+        normalizedSnapSubdivisionsPerBeat,
+        "floor"
+      );
+      return Math.max(min, Math.min(snapped, max));
+    }
     if (!snapCandidates.length) return rawTime;
     const excludeNotes = new Set(options?.excludeNoteIds ?? []);
     const excludeChords = new Set(options?.excludeChordIds ?? []);
@@ -1918,7 +4779,7 @@ export default function GteWorkspace({
     () => selectedChordIds.filter((id) => snapshot.chords.some((chord) => chord.id === id)),
     [snapshot.chords, selectedChordIds]
   );
-  const canCreateNoteEffect = selectedNoteIds.length === 2 && activeChordIds.length === 0 && !selectionActionsLocked;
+  const canCreateNoteEffect = selectedNoteIds.length >= 2 && activeChordIds.length === 0 && !selectionActionsLocked;
 
   const selectedChord = useMemo(() => {
     const activeId = activeChordIds[0];
@@ -2069,6 +4930,14 @@ export default function GteWorkspace({
   }, [sharedTimeSignature, snapshot.timeSignature]);
 
   useEffect(() => {
+    const source = sharedTimeSignatureBottom ?? snapshot.timeSignatureBottom ?? 4;
+    const next = Number(source);
+    if (!Number.isFinite(next) || next < 1) return;
+    setTimeSignatureBottom(Math.max(1, Math.min(64, Math.round(next))));
+  }, [sharedTimeSignatureBottom, snapshot.timeSignatureBottom]);
+
+  useEffect(() => {
+    if (sharedTimelineBaseScale !== undefined) return;
     const container = timelineOuterRef.current;
     if (!container || framesPerMeasure <= 0) return;
 
@@ -2076,14 +4945,14 @@ export default function GteWorkspace({
       const availableWidth = Math.max(240, container.clientWidth - 16);
       const rawScale = availableWidth / Math.max(1, framesPerMeasure * TARGET_VISIBLE_BARS);
       const nextScale = Math.max(0.5, Math.min(4, rawScale));
-      setBaseScale((prev) => (Math.abs(prev - nextScale) < 0.01 ? prev : nextScale));
+      setAutoBaseScale((prev) => (Math.abs(prev - nextScale) < 0.01 ? prev : nextScale));
     };
 
     computeScale();
     const observer = new ResizeObserver(computeScale);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [framesPerMeasure]);
+  }, [framesPerMeasure, sharedTimelineBaseScale]);
 
   useEffect(() => {
     const container = tabViewEnabled ? tabViewScrollRef.current : timelineOuterRef.current;
@@ -2117,12 +4986,11 @@ export default function GteWorkspace({
         return { scrollLeft: nextScrollLeft, clientWidth: nextClientWidth };
       });
       if (!onSharedTimelineScrollRatioChange || applyingSharedScrollRef.current) return;
-      if (embedded && !mobileViewport) return;
       const maxScroll = Math.max(0, target.scrollWidth - nextClientWidth);
       if (maxScroll <= 0) return;
       onSharedTimelineScrollRatioChange(nextScrollLeft / maxScroll);
     },
-    [embedded, mobileViewport, onSharedTimelineScrollRatioChange]
+    [onSharedTimelineScrollRatioChange]
   );
 
   useEffect(() => {
@@ -2263,7 +5131,7 @@ export default function GteWorkspace({
   useEffect(() => {
     return () => {
       if (audioRef.current) {
-        void audioRef.current.close();
+        closeAudioContext(audioRef.current);
         audioRef.current = null;
       }
     };
@@ -2768,9 +5636,30 @@ export default function GteWorkspace({
       if (!snapToGridEnabled) {
         return safeStart;
       }
-      return getBeatGridTime(safeStart, timeSignature, "floor");
+      return getBeatSubdivisionGridTime(
+        safeStart,
+        timeSignature,
+        normalizedSnapSubdivisionsPerBeat,
+        "floor"
+      );
     },
-    [snapToGridEnabled, timeSignature]
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
+  );
+
+  const snapMoveStartTimeToGrid = useCallback(
+    (startTime: number) => {
+      const safeStart = Math.max(0, Math.round(startTime));
+      if (!snapToGridEnabled) {
+        return safeStart;
+      }
+      return getBeatSubdivisionGridTime(
+        safeStart,
+        timeSignature,
+        normalizedSnapSubdivisionsPerBeat,
+        "floor"
+      );
+    },
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
   );
 
   const snapNoteToGrid = useCallback(
@@ -2783,9 +5672,25 @@ export default function GteWorkspace({
         };
       }
       const snappedStart = snapStartTimeToGrid(startTime);
-      return { startTime: snappedStart, length: getBeatGridLength(safeLength, timeSignature, "floor") };
+      return {
+        startTime: snappedStart,
+        length: getBeatSubdivisionGridLength(
+          safeLength,
+          timeSignature,
+          normalizedSnapSubdivisionsPerBeat,
+          "floor"
+        ),
+      };
     },
-    [snapStartTimeToGrid, snapToGridEnabled, timeSignature]
+    [normalizedSnapSubdivisionsPerBeat, snapStartTimeToGrid, snapToGridEnabled, timeSignature]
+  );
+
+  const snapNewNoteToGrid = useCallback(
+    (startTime: number, length: number) => ({
+      startTime: snapStartTimeToGrid(startTime),
+      length: clampEventLength(length),
+    }),
+    [snapStartTimeToGrid]
   );
 
   const snapLengthToGrid = useCallback(
@@ -2794,9 +5699,14 @@ export default function GteWorkspace({
       if (!snapToGridEnabled) {
         return safeLength;
       }
-      return getBeatGridLength(safeLength, timeSignature, "floor");
+      return getBeatSubdivisionGridLength(
+        safeLength,
+        timeSignature,
+        normalizedSnapSubdivisionsPerBeat,
+        "floor"
+      );
     },
-    [snapToGridEnabled, timeSignature]
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
   );
 
   const computeScalePreview = useCallback(
@@ -2811,14 +5721,24 @@ export default function GteWorkspace({
       const scaleStartTime = (value: number) => {
         let next = Math.trunc((value - session.minTime) * normalizedFactor + session.minTime);
         if (snapToGridEnabled) {
-          next = getBeatGridTime(next, timeSignature, "floor");
+          next = getBeatSubdivisionGridTime(
+            next,
+            timeSignature,
+            normalizedSnapSubdivisionsPerBeat,
+            "round"
+          );
         }
         return Math.max(0, next);
       };
 
       const scaleItemLength = (value: number) => {
         if (snapToGridEnabled) {
-          return getBeatGridLength(value * normalizedFactor, timeSignature, "round");
+          return getBeatSubdivisionGridLength(
+            value * normalizedFactor,
+            timeSignature,
+            normalizedSnapSubdivisionsPerBeat,
+            "round"
+          );
         }
         return clampEventLength(Math.trunc(value * normalizedFactor));
       };
@@ -2839,7 +5759,7 @@ export default function GteWorkspace({
 
       return { notes, chords, maxEnd, factor: normalizedFactor };
     },
-    [clamp, framesPerMeasure, snapToGridEnabled, timeSignature]
+    [clamp, framesPerMeasure, normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
   );
 
   const applyScalePreview = useCallback(
@@ -3313,7 +6233,12 @@ export default function GteWorkspace({
     (session: MoveSession, deltaFrames: number) => {
       const rawDelta = Math.round(deltaFrames);
       const targetAnchor = snapToGridEnabled
-        ? snapStartTimeToGrid(session.anchorStart + rawDelta)
+        ? getBeatSubdivisionGridTime(
+            session.anchorStart + rawDelta,
+            timeSignature,
+            normalizedSnapSubdivisionsPerBeat,
+            "round"
+          )
         : Math.round(session.anchorStart + rawDelta);
       const delta = Math.max(0, targetAnchor) - session.anchorStart;
       const notes: Record<number, QuantizePreviewEntity> = {};
@@ -3336,7 +6261,7 @@ export default function GteWorkspace({
 
       return { notes, chords, maxEnd, delta };
     },
-    [snapStartTimeToGrid, snapToGridEnabled]
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
   );
 
   const applyMovePreview = useCallback(
@@ -3458,10 +6383,10 @@ export default function GteWorkspace({
       commit: async () => {
         let last: { snapshot?: EditorSnapshot } | null = null;
         for (const update of noteUpdates) {
-          last = await gteApi.setNoteStartTime(editorId, resolveNoteId(update.id), update.startTime, snapToGridEnabled);
+          last = await gteApi.setNoteStartTime(editorId, resolveNoteId(update.id), update.startTime, false);
         }
         for (const update of chordUpdates) {
-          last = await gteApi.setChordStartTime(editorId, resolveChordId(update.id), update.startTime, snapToGridEnabled);
+          last = await gteApi.setChordStartTime(editorId, resolveChordId(update.id), update.startTime, false);
         }
         return last ?? {};
       },
@@ -3475,7 +6400,6 @@ export default function GteWorkspace({
     moveToolActive,
     resolveChordId,
     resolveNoteId,
-    snapToGridEnabled,
   ]);
 
   useEffect(() => {
@@ -3698,6 +6622,7 @@ export default function GteWorkspace({
     setCutToolActive((prev) => {
       const next = !prev;
       if (next) {
+        setPendingSelectionTool(null);
         setSliceToolActive(false);
         deactivateScaleTool();
       }
@@ -3709,6 +6634,7 @@ export default function GteWorkspace({
     setSliceToolActive((prev) => {
       const next = !prev;
       if (next) {
+        setPendingSelectionTool(null);
         setCutToolActive(false);
         deactivateScaleTool();
       }
@@ -3738,10 +6664,10 @@ export default function GteWorkspace({
 
   const handleScaleFactorInputChange = useCallback(
     (value: string) => {
-      setScaleFactorInput(value);
+      setScaleFactorInput(formatScaleFactorInputDraft(value));
       if (value.trim() === "") return;
-      const parsed = Number(value);
-      if (!Number.isFinite(parsed)) return;
+      const parsed = parseScaleFactorInput(value);
+      if (parsed === null) return;
       applyScalePreview(parsed, { mode: scaleToolMode, syncInput: false });
       scaleFactorTypingRef.current = value;
       scaleFactorTypingAtRef.current = Date.now();
@@ -3805,9 +6731,24 @@ export default function GteWorkspace({
     return true;
   };
 
-  const handleSliceAtTime = (sliceTime: number) => {
+  const handleSliceAtTime = (
+    sliceTime: number,
+    clickedTarget?: { type: "note" | "chord"; id: number }
+  ) => {
+    const noteIdsToSlice =
+      clickedTarget?.type === "note"
+        ? [clickedTarget.id]
+        : clickedTarget?.type === "chord"
+        ? []
+        : selectedNoteIds;
+    const chordIdsToSlice =
+      clickedTarget?.type === "chord"
+        ? [clickedTarget.id]
+        : clickedTarget?.type === "note"
+        ? []
+        : selectedChordIds;
     const notesToSlice = snapshot.notes
-      .filter((note) => selectedNoteIds.includes(note.id))
+      .filter((note) => noteIdsToSlice.includes(note.id))
       .map((note) => {
         const start = note.startTime;
         const end = note.startTime + note.length;
@@ -3837,7 +6778,7 @@ export default function GteWorkspace({
         } => Boolean(item)
       );
     const chordsToSlice = snapshot.chords
-      .filter((chord) => selectedChordIds.includes(chord.id))
+      .filter((chord) => chordIdsToSlice.includes(chord.id))
       .map((chord) => {
         const start = chord.startTime;
         const end = chord.startTime + chord.length;
@@ -3964,8 +6905,8 @@ export default function GteWorkspace({
       const clampedStart = clamp(snappedStart, 0, maxStart);
       const startTime =
         dragging.type === "note"
-          ? clamp(snapStartTimeToGrid(clampedStart), 0, maxStart)
-          : clamp(snapStartTimeToGrid(clampedStart), 0, maxStart);
+          ? clamp(snapMoveStartTimeToGrid(clampedStart), 0, maxStart)
+          : clamp(snapMoveStartTimeToGrid(clampedStart), 0, maxStart);
       if (dragging.type === "note") {
         const localY = y - rowIndex * rowStride;
         const stringIndex = multiTrackSelectionActive
@@ -4010,7 +6951,7 @@ export default function GteWorkspace({
         const rawStart = Math.round(preview.startTime ?? dragging.startTime);
         const maxStart = Math.max(0, timelineEnd - safeLength);
         const clampedStart = clamp(rawStart, 0, maxStart);
-        const targetStart = clamp(snapStartTimeToGrid(clampedStart), 0, maxStart);
+        const targetStart = clamp(snapMoveStartTimeToGrid(clampedStart), 0, maxStart);
         const didChangeString = targetString !== dragging.stringIndex;
         const didChangeStart = targetStart !== dragging.startTime;
         if (
@@ -4026,6 +6967,11 @@ export default function GteWorkspace({
         }
         if (didChangeString || didChangeStart) {
           const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [targetString, dragging.fret ?? 0]);
+          const fingeringUpdates = didChangeString
+            ? getEffectAwareFingeringUpdates(snapshotRef.current, [
+                { noteId: resolveNoteId(dragging.id), tab: nextTab },
+              ])
+            : [];
           enqueueOptimisticMutation({
             label: "drag-note",
             apply: (draft) => {
@@ -4033,8 +6979,13 @@ export default function GteWorkspace({
               const note = draft.notes.find((item) => item.id === noteId);
               if (!note) return draft;
               if (didChangeString) {
-                note.tab = [nextTab[0], nextTab[1]];
-                note.midiNum = getTabMidi(draft, note.tab);
+                applyNoteFingeringUpdates(
+                  draft,
+                  fingeringUpdates.map((update) => ({
+                    ...update,
+                    noteId: resolveNoteId(update.noteId),
+                  }))
+                );
               }
               if (didChangeStart) {
                 note.startTime = targetStart;
@@ -4045,7 +6996,13 @@ export default function GteWorkspace({
               let last: { snapshot?: EditorSnapshot } | null = null;
               const resolvedId = resolveNoteId(dragging.id);
               if (didChangeString) {
-                last = await gteApi.assignNoteTab(editorId, resolvedId, nextTab);
+                for (const update of fingeringUpdates) {
+                  last = await gteApi.assignNoteTab(
+                    editorId,
+                    resolveNoteId(update.noteId),
+                    update.tab
+                  );
+                }
                 playNotePreview(nextTab);
               }
               if (didChangeStart) {
@@ -4053,7 +7010,7 @@ export default function GteWorkspace({
                   editorId,
                   resolvedId,
                   targetStart,
-                  snapToGridEnabled
+                  false
                 );
               }
               return last ?? {};
@@ -4064,7 +7021,7 @@ export default function GteWorkspace({
         const safeLength = Math.max(1, Math.round(dragging.length));
         const rawStart = Math.round(preview.startTime ?? dragging.startTime);
         const maxStart = Math.max(0, timelineEnd - safeLength);
-        const targetStart = clamp(snapStartTimeToGrid(rawStart), 0, maxStart);
+        const targetStart = clamp(snapMoveStartTimeToGrid(rawStart), 0, maxStart);
         if (targetStart !== dragging.startTime) {
           if (
             multiTrackSelectionActive &&
@@ -4090,7 +7047,7 @@ export default function GteWorkspace({
                 editorId,
                 resolveChordId(dragging.id),
                 targetStart,
-                snapToGridEnabled
+                false
               ),
           });
         }
@@ -4120,12 +7077,11 @@ export default function GteWorkspace({
       resolveNoteId,
       onRequestGlobalSelectedShift,
       multiTrackSelectionActive,
-      snapToGridEnabled,
       scale,
       totalFrames,
       rowFrames,
       rows,
-      snapStartTimeToGrid,
+      snapMoveStartTimeToGrid,
       snapTabToKeyIfEnabled,
       timelineHeight,
       timelineWidth,
@@ -4167,7 +7123,7 @@ export default function GteWorkspace({
         maxDelta = Math.min(maxDelta, timelineEnd - chord.length - chord.startTime);
       });
       const anchorCandidate = shouldGridSnapStarts
-        ? snapStartTimeToGrid(snappedStart)
+        ? snapMoveStartTimeToGrid(snappedStart)
         : snappedStart;
       const targetAnchorStart = clamp(
         anchorCandidate,
@@ -4210,7 +7166,7 @@ export default function GteWorkspace({
               if (target) {
                 const rawStart = note.startTime + delta;
                 const maxStart = Math.max(0, timelineEnd - note.length);
-                const snappedStart = shouldGridSnapStarts ? snapStartTimeToGrid(rawStart) : rawStart;
+                const snappedStart = shouldGridSnapStarts ? snapMoveStartTimeToGrid(rawStart) : rawStart;
                 target.startTime = clamp(snappedStart, 0, maxStart);
               }
             });
@@ -4220,7 +7176,7 @@ export default function GteWorkspace({
               if (target) {
                 const rawStart = chord.startTime + delta;
                 const maxStart = Math.max(0, timelineEnd - chord.length);
-                const snappedStart = snapStartTimeToGrid(rawStart);
+                const snappedStart = shouldGridSnapStarts ? snapMoveStartTimeToGrid(rawStart) : rawStart;
                 target.startTime = clamp(snappedStart, 0, maxStart);
               }
             });
@@ -4231,25 +7187,25 @@ export default function GteWorkspace({
             for (const note of multiDrag.notes) {
               const rawStart = note.startTime + delta;
               const maxStart = Math.max(0, timelineEnd - note.length);
-              const snappedStart = shouldGridSnapStarts ? snapStartTimeToGrid(rawStart) : rawStart;
+              const snappedStart = shouldGridSnapStarts ? snapMoveStartTimeToGrid(rawStart) : rawStart;
               const nextStart = clamp(snappedStart, 0, maxStart);
               last = await gteApi.setNoteStartTime(
                 editorId,
                 resolveNoteId(note.id),
                 nextStart,
-                snapToGridEnabled
+                false
               );
             }
             for (const chord of multiDrag.chords) {
               const rawStart = chord.startTime + delta;
               const maxStart = Math.max(0, timelineEnd - chord.length);
-              const snappedStart = snapStartTimeToGrid(rawStart);
+              const snappedStart = shouldGridSnapStarts ? snapMoveStartTimeToGrid(rawStart) : rawStart;
               const nextStart = clamp(snappedStart, 0, maxStart);
               last = await gteApi.setChordStartTime(
                 editorId,
                 resolveChordId(chord.id),
                 nextStart,
-                snapToGridEnabled
+                false
               );
             }
             return last ?? {};
@@ -4281,7 +7237,7 @@ export default function GteWorkspace({
       onRequestGlobalSelectedShift,
       multiTrackSelectionActive,
       snapToGridEnabled,
-      snapStartTimeToGrid,
+      snapMoveStartTimeToGrid,
       clamp,
       scale,
       rowFrames,
@@ -4337,7 +7293,7 @@ export default function GteWorkspace({
                 editorId,
                 resolveNoteId(resizingNote.id),
                 snappedPreviewLength,
-                snapToGridEnabled
+                false
               ),
           });
         }
@@ -4413,7 +7369,7 @@ export default function GteWorkspace({
                 editorId,
                 resolveChordId(resizingChord.id),
                 snappedPreviewLength,
-                snapToGridEnabled
+                false
               ),
           });
         }
@@ -4535,11 +7491,8 @@ export default function GteWorkspace({
         const rowBarCount = getRowBarCount(rowIndex);
         const availableFrames = Math.max(1, rowBarCount * framesPerMeasure);
         const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, 5);
-        const startTime = clamp(
-          Math.round(current.startX / scale) + rowStart,
-          rowStart,
-          rowStart + availableFrames - 1
-        );
+        const rawStartTime = Math.round(current.startX / scale) + rowStart;
+        const startTime = clamp(snapStartTimeToGrid(rawStartTime), rowStart, rowStart + availableFrames - 1);
         const defaultLength = lastAddedNoteLengthRef.current;
         setDraftNote({
           stringIndex,
@@ -4648,6 +7601,7 @@ export default function GteWorkspace({
     snapshot.notes,
     snapshot.chords,
     clamp,
+    snapStartTimeToGrid,
   ]);
 
   useEffect(() => {
@@ -4815,6 +7769,51 @@ export default function GteWorkspace({
     setContextMenu({ x: event.clientX, y: event.clientY, kind: "timeline", targetFrame });
   };
 
+  const handleNoteContextMenu = (
+    note: Pick<EditorSnapshot["notes"][number], "id" | "startTime">,
+    event: ReactMouseEvent<HTMLButtonElement>
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!selectedNoteIds.includes(note.id)) {
+      setSelectedNoteIds([note.id]);
+      setSelectedChordIds([]);
+    }
+    setSelectedNoteEffectId(null);
+    setSelectedBarIndices([]);
+    setNoteMenuAnchor(null);
+    setNoteMenuNoteId(null);
+    setNoteMenuDraft(null);
+    setChordMenuAnchor(null);
+    setChordMenuChordId(null);
+    setChordMenuDraft(null);
+    const menuWidth = 256;
+    const menuHeight = Math.min(620, Math.max(240, window.innerHeight - 24));
+    setContextMenu({
+      x: clamp(event.clientX, 12, Math.max(12, window.innerWidth - menuWidth - 12)),
+      y: clamp(event.clientY, 12, Math.max(12, window.innerHeight - menuHeight - 12)),
+      kind: "note",
+      targetFrame: note.startTime,
+    });
+  };
+
+  const handlePlayingCoordinatesContextMenu = (
+    event: ReactMouseEvent<HTMLElement>,
+    boundaryIndex: number | null = null
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setSelectedCutBoundaryIndex(boundaryIndex);
+    setSelectedNoteIds([]);
+    setSelectedChordIds([]);
+    setSelectedNoteEffectId(null);
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      kind: "playingCoordinates",
+    });
+  };
+
   const clearTouchHold = useCallback(() => {
     if (touchHoldTimerRef.current !== null) {
       window.clearTimeout(touchHoldTimerRef.current);
@@ -4879,11 +7878,11 @@ export default function GteWorkspace({
       stringIndex: clamp(Math.round(stringIndex), 0, 5),
     });
     const shiftKey = Boolean(event.shiftKey);
-    if (sliceToolActive && !shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
+    if (sliceToolActive && !shiftKey) {
       multiDragMovedRef.current = true;
       const target = getPointerFrame(event.clientX, event.clientY);
       if (target) {
-        handleSliceAtTime(target.time);
+        handleSliceAtTime(target.time, { type: "note", id: noteId });
       }
       return;
     }
@@ -4960,10 +7959,10 @@ export default function GteWorkspace({
       stringIndex: clamp(Math.round(stringIndex), 0, 5),
     });
     const shiftKey = Boolean(event.shiftKey);
-    if (sliceToolActive && !shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
+    if (sliceToolActive && !shiftKey) {
       const target = getPointerFrame(event.clientX, event.clientY);
       if (target) {
-        handleSliceAtTime(target.time);
+        handleSliceAtTime(target.time, { type: "chord", id: chordId });
       }
       return;
     }
@@ -5181,7 +8180,7 @@ export default function GteWorkspace({
       setError(`Fret must be between 0 and ${maxFret}.`);
       return;
     }
-    const snapped = snapNoteToGrid(draftNote.startTime, rawLength);
+    const snapped = snapNewNoteToGrid(draftNote.startTime, rawLength);
     const rawTab: TabCoord = [draftNote.stringIndex, fret];
     const tab = snapTabToKeyIfEnabled(snapshotRef.current, rawTab);
     const tempId = getTempNoteId();
@@ -5205,10 +8204,9 @@ export default function GteWorkspace({
           tab,
           startTime: snapped.startTime,
           length: snapped.length,
-          snapToGrid: snapToGridEnabled,
+          snapToGrid: false,
         }),
     });
-    lastAddedNoteLengthRef.current = clampEventLength(snapped.length);
     setDraftNote(null);
     setDraftNoteAnchor(null);
   };
@@ -5238,8 +8236,10 @@ export default function GteWorkspace({
                 (tab) => [tab[0], tab[1]] as TabCoord
               );
               if (!nextTab) return;
-              note.tab = [nextTab[0], nextTab[1]];
-              note.midiNum = getTabMidi(draft, note.tab);
+              applyNoteFingeringUpdates(
+                draft,
+                getEffectAwareFingeringUpdates(draft, [{ noteId: note.id, tab: nextTab }])
+              );
             });
         },
         serverMode: "local-first",
@@ -5252,7 +8252,7 @@ export default function GteWorkspace({
     if (guardSingleTrackSelectionAction("Snap to key")) return;
     const selectedIds = Array.from(new Set(selectedNoteIds.map((id) => resolveNoteId(id))));
     const selectedIdSet = new Set(selectedIds);
-    const updates = snapshotRef.current.notes
+    const requestedUpdates = snapshotRef.current.notes
       .filter((note) => selectedIdSet.has(note.id))
       .map((note) => {
         const nextTab = snapTabToKey(snapshotRef.current, note.tab);
@@ -5260,27 +8260,29 @@ export default function GteWorkspace({
         return { id: note.id, tab: nextTab };
       })
       .filter((item): item is { id: number; tab: TabCoord } => Boolean(item));
-    if (!updates.length) {
+    if (!requestedUpdates.length) {
       setError("Selected notes are already in key.");
       return;
     }
-    playNotePreview(updates[0].tab);
+    const updates = getEffectAwareFingeringUpdates(
+      snapshotRef.current,
+      requestedUpdates.map((update) => ({ noteId: update.id, tab: update.tab }))
+    );
+    playNotePreview(requestedUpdates[0].tab);
     enqueueOptimisticMutation({
       label: "snap-selected-to-key",
       apply: (draft) => {
-        updates.forEach((update) => {
-          const note = draft.notes.find((item) => item.id === update.id);
-          if (!note) return;
-          note.tab = [update.tab[0], update.tab[1]];
-          note.midiNum = getTabMidi(draft, note.tab);
-        });
+        applyNoteFingeringUpdates(
+          draft,
+          updates.map((update) => ({ ...update, noteId: resolveNoteId(update.noteId) }))
+        );
         return draft;
       },
       commit: async () => {
         let last: { snapshot?: EditorSnapshot } | null = null;
         for (const update of updates) {
-          if (update.id < 0) continue;
-          last = await gteApi.assignNoteTab(editorId, update.id, update.tab);
+          if (update.noteId < 0) continue;
+          last = await gteApi.assignNoteTab(editorId, update.noteId, update.tab);
         }
         return last ?? {};
       },
@@ -5636,6 +8638,11 @@ export default function GteWorkspace({
       return;
     }
     const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [stringValue, fretValue]);
+    const fingeringUpdates = didChangeTab
+      ? getEffectAwareFingeringUpdates(snapshotRef.current, [
+          { noteId: resolveNoteId(selectedNote.id), tab: nextTab },
+        ])
+      : [];
     enqueueOptimisticMutation({
       label: "update-note",
       apply: (draft) => {
@@ -5643,8 +8650,13 @@ export default function GteWorkspace({
         const note = draft.notes.find((item) => item.id === noteId);
         if (!note) return draft;
         if (didChangeTab) {
-          note.tab = [nextTab[0], nextTab[1]];
-          note.midiNum = getTabMidi(draft, note.tab);
+          applyNoteFingeringUpdates(
+            draft,
+            fingeringUpdates.map((update) => ({
+              ...update,
+              noteId: resolveNoteId(update.noteId),
+            }))
+          );
         }
         if (didChangeStart) {
           note.startTime = snappedStartValue;
@@ -5658,7 +8670,13 @@ export default function GteWorkspace({
         let last: { snapshot?: EditorSnapshot } | null = null;
         const resolvedId = resolveNoteId(selectedNote.id);
         if (didChangeTab) {
-          last = await gteApi.assignNoteTab(editorId, resolvedId, nextTab);
+          for (const update of fingeringUpdates) {
+            last = await gteApi.assignNoteTab(
+              editorId,
+              resolveNoteId(update.noteId),
+              update.tab
+            );
+          }
           playNotePreview(nextTab);
         }
         if (didChangeStart) {
@@ -5694,35 +8712,43 @@ export default function GteWorkspace({
     (type: number) => {
       if (guardSingleTrackSelectionAction(getNoteEffectTypeName(type))) return;
       const noteIds = Array.from(new Set(selectedNoteIds));
-      if (noteIds.length !== 2 || activeChordIds.length > 0) return;
+      if (noteIds.length < 2 || activeChordIds.length > 0) return;
       const resolvedNoteIds = noteIds.map((id) => resolveNoteId(id));
-      const pairKey = `${Math.min(resolvedNoteIds[0], resolvedNoteIds[1])}:${Math.max(
-        resolvedNoteIds[0],
-        resolvedNoteIds[1]
-      )}`;
-      const existingEffect = (snapshotRef.current.noteEffects || []).find((effect) => {
-        const effectKey = `${Math.min(effect.startNoteId, effect.endNoteId)}:${Math.max(
-          effect.startNoteId,
-          effect.endNoteId
-        )}`;
-        return effectKey === pairKey;
-      });
+      const orderedNotes = orderNotesForEffect(snapshotRef.current, resolvedNoteIds);
+      if (orderedNotes.length < 2) return;
+      const pairKeys = new Set(getEffectPairKeys(orderedNotes));
+      const effectsByPair = new Map(
+        (snapshotRef.current.noteEffects || []).map((effect) => [noteEffectKey(effect), effect] as const)
+      );
+      const shouldRemove = [...pairKeys].every((key) => effectsByPair.get(key)?.type === type);
       const nextSnapshot = cloneSnapshot(snapshotRef.current);
-      if (existingEffect?.type === type) {
-        removeNoteEffectFromSnapshot(nextSnapshot, existingEffect.id);
+      if (shouldRemove) {
+        nextSnapshot.noteEffects = (nextSnapshot.noteEffects || []).filter(
+          (effect) => !(pairKeys.has(noteEffectKey(effect)) && effect.type === type)
+        );
       } else {
-        addNoteEffectToSnapshot(nextSnapshot, resolvedNoteIds, type);
+        const alignment = alignEffectNotesToFirstString(nextSnapshot, resolvedNoteIds);
+        if (!alignment.ok) {
+          const stringLabel =
+            alignment.targetString === null ? "the first note's string" : `string ${alignment.targetString + 1}`;
+          setError(`Could not keep every selected pitch on ${stringLabel} within the available fret range.`);
+          return;
+        }
+        addNoteEffectToSnapshot(nextSnapshot, alignment.noteIds, type);
       }
       enqueueOptimisticMutation({
         label:
-          existingEffect?.type === type
+          shouldRemove
             ? `remove-${getNoteEffectTypeName(type).toLowerCase().replace("/", "-").replace(/\s+/g, "-")}`
             : `add-${getNoteEffectTypeName(type).toLowerCase().replace("/", "-").replace(/\s+/g, "-")}`,
         apply: (draft) => {
-          if (existingEffect?.type === type) {
-            removeNoteEffectFromSnapshot(draft, existingEffect.id);
+          if (shouldRemove) {
+            draft.noteEffects = (draft.noteEffects || []).filter(
+              (effect) => !(pairKeys.has(noteEffectKey(effect)) && effect.type === type)
+            );
           } else {
-            addNoteEffectToSnapshot(draft, noteIds, type);
+            const alignment = alignEffectNotesToFirstString(draft, noteIds);
+            if (alignment.ok) addNoteEffectToSnapshot(draft, alignment.noteIds, type);
           }
           return draft;
         },
@@ -5740,6 +8766,60 @@ export default function GteWorkspace({
       selectedNoteIds,
     ]
   );
+
+  const pendingSelectionToolIsEffect =
+    pendingSelectionTool === "hammer-pull" ||
+    pendingSelectionTool === "slide" ||
+    pendingSelectionTool === "bend";
+  const pendingSelectionCount = pendingSelectionToolIsEffect
+    ? selectedNoteIds.length
+    : selectedNoteIds.length + selectedChordIds.length;
+  const canApplyPendingSelectionTool =
+    Boolean(pendingSelectionTool) &&
+    !selectionActionsLocked &&
+    (pendingSelectionToolIsEffect
+      ? selectedNoteIds.length >= 2 && activeChordIds.length === 0
+      : pendingSelectionCount > 0);
+  const pendingSelectionToolLabel =
+    pendingSelectionTool === "hammer-pull"
+      ? "Hammer/Pull"
+      : pendingSelectionTool
+      ? pendingSelectionTool.charAt(0).toUpperCase() + pendingSelectionTool.slice(1)
+      : "";
+  const directCanvasTool = sliceToolActive ? "Slice" : cutToolActive ? "Cut" : null;
+  const directCanvasToolHint = sliceToolActive
+    ? "Click directly where you want to split a note or chord."
+    : "Click the timeline where you want to add a playing-coordinate boundary.";
+
+  const applyPendingSelectionTool = useCallback(() => {
+    if (!pendingSelectionTool || !canApplyPendingSelectionTool) return;
+    const tool = pendingSelectionTool;
+    setPendingSelectionTool(null);
+    if (tool === "quantize") activateQuantizeTool();
+    if (tool === "scale") activateScaleTool();
+    if (tool === "move") activateMoveTool();
+    if (tool === "hammer-pull") handleAddNoteEffect(1);
+    if (tool === "slide") handleAddNoteEffect(2);
+    if (tool === "bend") handleAddNoteEffect(0);
+  }, [
+    activateMoveTool,
+    activateQuantizeTool,
+    activateScaleTool,
+    canApplyPendingSelectionTool,
+    handleAddNoteEffect,
+    pendingSelectionTool,
+  ]);
+
+  useEffect(() => {
+    if (!pendingSelectionTool) return;
+    const cancelPendingTool = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setPendingSelectionTool(null);
+    };
+    window.addEventListener("keydown", cancelPendingTool, true);
+    return () => window.removeEventListener("keydown", cancelPendingTool, true);
+  }, [pendingSelectionTool]);
 
   const handleDeleteNoteEffect = useCallback(() => {
     if (!selectedNoteEffect) return;
@@ -5897,7 +8977,7 @@ export default function GteWorkspace({
       setNoteMenuAnchor({ x, y });
     }
     setNoteMenuNoteId(noteId);
-    setNoteMenuDraft({ fret: String(fret), length: String(length) });
+    setNoteMenuDraft({ fret: String(fret), length: formatLengthFramesAsSeconds(length) });
   };
 
   const openChordMenu = (chordId: number, length: number, event: ReactMouseEvent) => {
@@ -5905,7 +8985,7 @@ export default function GteWorkspace({
     const { x, y } = getSideMenuAnchor(event, 240, 230);
     setChordMenuAnchor({ x, y });
     setChordMenuChordId(chordId);
-    setChordMenuDraft({ length: String(length) });
+    setChordMenuDraft({ length: formatLengthFramesAsSeconds(length) });
   };
 
   const openChordEdit = (chordId: number, event: ReactMouseEvent) => {
@@ -5941,7 +9021,7 @@ export default function GteWorkspace({
     const { x, y } = getSideMenuAnchor(event, 224, 210);
     setChordNoteMenuAnchor({ x, y });
     setChordNoteMenuIndex(tabIndex);
-    setChordNoteMenuDraft({ fret: String(fret), length: String(length) });
+    setChordNoteMenuDraft({ fret: String(fret), length: formatLengthFramesAsSeconds(length) });
   };
 
   const commitNoteMenuFretValue = useCallback(
@@ -5953,21 +9033,36 @@ export default function GteWorkspace({
       }
       if (selectedNote.tab[1] === fretValue) return;
       const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [selectedNote.tab[0], fretValue]);
+      const fingeringUpdates = getEffectAwareFingeringUpdates(snapshotRef.current, [
+        { noteId: resolveNoteId(selectedNote.id), tab: nextTab },
+      ]);
       playNotePreview(nextTab);
       enqueueOptimisticMutation({
         label: "note-menu-fret",
         apply: (draft) => {
-          const noteId = resolveNoteId(selectedNote.id);
-          const note = draft.notes.find((item) => item.id === noteId);
-          if (!note) return draft;
-          note.tab = [nextTab[0], nextTab[1]];
-          note.midiNum = getTabMidi(draft, note.tab);
+          applyNoteFingeringUpdates(
+            draft,
+            fingeringUpdates.map((update) => ({
+              ...update,
+              noteId: resolveNoteId(update.noteId),
+            }))
+          );
           return draft;
         },
-        commit: () => gteApi.assignNoteTab(editorId, resolveNoteId(selectedNote.id), nextTab),
+        commit: async () => {
+          let last: { snapshot?: EditorSnapshot } | null = null;
+          for (const update of fingeringUpdates) {
+            last = await gteApi.assignNoteTab(
+              editorId,
+              resolveNoteId(update.noteId),
+              update.tab
+            );
+          }
+          return last ?? {};
+        },
       });
     },
-    [editorId, enqueueOptimisticMutation, maxFret, selectedNote, snapTabToKeyIfEnabled]
+    [editorId, enqueueOptimisticMutation, maxFret, resolveNoteId, selectedNote, snapTabToKeyIfEnabled]
   );
 
   const clearPendingNoteFretArrowCommit = useCallback(() => {
@@ -6048,50 +9143,66 @@ export default function GteWorkspace({
 
   const commitNoteMenuLength = () => {
     if (!noteMenuDraft) return;
-    const rawLength = Number(noteMenuDraft.length);
-    if (!Number.isInteger(rawLength) || rawLength < 1) {
-      setError(`Invalid length. Use 1-${MAX_EVENT_LENGTH_FRAMES}.`);
+    const rawLength = parseLengthSecondsToFrames(noteMenuDraft.length);
+    if (rawLength === null) {
+      setError(`Invalid length. Use seconds greater than 0.`);
       return;
     }
     commitNoteMenuLengthValue(rawLength);
   };
 
-  const setMobileNoteFieldValue = useCallback(
-    (field: "fret" | "length", value: number) => {
-      setNoteMenuDraft((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          [field]: String(value),
-        };
-      });
+  const commitNoteMenuFractionLength = useCallback(
+    (rawDenominator: string | number) => {
+      const denominator = Number(rawDenominator);
+      if (!NOTE_LENGTH_FRACTION_DENOMINATORS.includes(denominator)) {
+        setError("Invalid note length.");
+        return;
+      }
+      const nextLength = noteFractionDenominatorToFrames(denominator);
+      setNoteMenuDraft((prev) =>
+        prev ? { ...prev, length: formatLengthFramesAsSeconds(nextLength) } : prev
+      );
+      commitNoteMenuLengthValue(nextLength);
     },
-    []
+    [commitNoteMenuLengthValue, formatLengthFramesAsSeconds, noteFractionDenominatorToFrames]
   );
 
   const adjustMobileNoteField = useCallback(
     (field: "fret" | "length", delta: number) => {
       const fallbackValue =
         field === "fret" ? selectedNote?.tab[1] ?? 0 : selectedNote?.length ?? lastAddedNoteLengthRef.current;
-      const currentValue = Number(noteMenuDraft?.[field] ?? fallbackValue);
-      const min = field === "fret" ? 0 : 1;
-      const max = field === "fret" ? maxFret : MAX_EVENT_LENGTH_FRAMES;
-      const nextValue = Math.max(min, Math.min(max, (Number.isFinite(currentValue) ? currentValue : fallbackValue) + delta));
-      setMobileNoteFieldValue(field, nextValue);
+      const currentValue = Number(noteMenuDraft?.[field] ?? (field === "fret" ? fallbackValue : formatLengthFramesAsSeconds(fallbackValue)));
+      const nextValue =
+        field === "fret"
+          ? Math.max(0, Math.min(maxFret, (Number.isFinite(currentValue) ? currentValue : fallbackValue) + delta))
+          : Math.max(
+              framesToDurationSeconds(1),
+              Math.min(
+                framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES),
+                (Number.isFinite(currentValue) ? currentValue : framesToDurationSeconds(fallbackValue)) + delta * 0.1
+              )
+            );
+      const nextDraftValue = field === "fret" ? String(nextValue) : formatDurationSeconds(nextValue);
+      setNoteMenuDraft((prev) => (prev ? { ...prev, [field]: nextDraftValue } : prev));
       if (field === "fret") {
         if (!selectedNote) return;
         scheduleNoteFretArrowCommit(selectedNote.id, nextValue);
       } else {
-        commitNoteMenuLengthValue(nextValue);
+        const nextLengthFrames = parseLengthSecondsToFrames(nextDraftValue);
+        if (nextLengthFrames !== null) {
+          commitNoteMenuLengthValue(nextLengthFrames);
+        }
       }
     },
     [
       commitNoteMenuLengthValue,
+      formatLengthFramesAsSeconds,
+      framesToDurationSeconds,
       maxFret,
       noteMenuDraft,
+      parseLengthSecondsToFrames,
       scheduleNoteFretArrowCommit,
       selectedNote,
-      setMobileNoteFieldValue,
     ]
   );
 
@@ -6110,9 +9221,9 @@ export default function GteWorkspace({
 
   const commitChordMenuLength = () => {
     if (!selectedChord || !chordMenuDraft) return;
-    const rawLength = Number(chordMenuDraft.length);
-    if (!Number.isInteger(rawLength) || rawLength < 1) {
-      setError(`Invalid length. Use 1-${MAX_EVENT_LENGTH_FRAMES}.`);
+    const rawLength = parseLengthSecondsToFrames(chordMenuDraft.length);
+    if (rawLength === null) {
+      setError(`Invalid length. Use seconds greater than 0.`);
       return;
     }
     const lengthValue = allowBackend ? clampEventLength(rawLength) : snapLengthToGrid(rawLength);
@@ -6159,9 +9270,9 @@ export default function GteWorkspace({
 
   const commitChordNoteLength = () => {
     if (!selectedChord || !chordNoteMenuDraft) return;
-    const rawLength = Number(chordNoteMenuDraft.length);
-    if (!Number.isInteger(rawLength) || rawLength < 1) {
-      setError(`Invalid length. Use 1-${MAX_EVENT_LENGTH_FRAMES}.`);
+    const rawLength = parseLengthSecondsToFrames(chordNoteMenuDraft.length);
+    if (rawLength === null) {
+      setError(`Invalid length. Use seconds greater than 0.`);
       return;
     }
     const lengthValue = allowBackend ? clampEventLength(rawLength) : snapLengthToGrid(rawLength);
@@ -6427,17 +9538,60 @@ export default function GteWorkspace({
       if (normalized === previousTimeSignature) {
         return true;
       }
-      void runMutation(() => gteApi.setTimeSignature(editorId, normalized), {
-        localApply: (draft) => {
-          if (keepNotesOnBeat) {
-            scaleEventsForTimeSignatureChangeInSnapshot(draft, previousTimeSignature, normalized);
-          }
-          setTimeSignatureInSnapshot(draft, normalized);
+      const currentBpm = secondsPerBarToBpm(secondsPerBar, previousTimeSignature);
+      const nextSecondsPerBar = keepNotesOnBeat
+        ? bpmToSecondsPerBar(currentBpm, normalized) ?? secondsPerBar
+        : secondsPerBar;
+      if (keepNotesOnBeat) {
+        setSecondsPerBar(nextSecondsPerBar);
+        setBpmInput(formatBpm(currentBpm));
+      }
+      void runMutation(
+        () => {
+          if (!keepNotesOnBeat) return gteApi.setTimeSignature(editorId, normalized);
+          const nextSnapshot = cloneSnapshot(snapshotRef.current);
+          scaleEventsForTimeSignatureChangeInSnapshot(nextSnapshot, previousTimeSignature, normalized);
+          setSecondsPerBarInSnapshot(nextSnapshot, nextSecondsPerBar);
+          setTimeSignatureInSnapshot(nextSnapshot, normalized);
+          return gteApi.applySnapshot(editorId, nextSnapshot);
         },
-      });
+        {
+          localApply: (draft) => {
+            if (keepNotesOnBeat) {
+              scaleEventsForTimeSignatureChangeInSnapshot(draft, previousTimeSignature, normalized);
+              setSecondsPerBarInSnapshot(draft, nextSecondsPerBar);
+            }
+            setTimeSignatureInSnapshot(draft, normalized);
+          },
+        }
+      );
       return true;
     },
-    [editorId, keepNotesOnBeat, runMutation, timeSignature]
+    [cloneSnapshot, editorId, keepNotesOnBeat, runMutation, secondsPerBar, timeSignature]
+  );
+
+  const commitTimeSignatureBottomValue = useCallback(
+    (rawValue: number | string) => {
+      const next = Number(rawValue);
+      if (!Number.isFinite(next) || next < 1 || next > 64) return false;
+      const normalized = Math.max(1, Math.min(64, Math.round(next)));
+      setTimeSignatureBottom(normalized);
+      if (normalized === timeSignatureBottom) return true;
+      void runMutation(
+        () => {
+          const nextSnapshot = cloneSnapshot(snapshotRef.current);
+          setTimeSignatureBottomInSnapshot(nextSnapshot, normalized);
+          return gteApi.applySnapshot(editorId, nextSnapshot);
+        },
+        {
+          localApply: (draft) => {
+            setTimeSignatureBottomInSnapshot(draft, normalized);
+          },
+        }
+      );
+      return true;
+    },
+    [cloneSnapshot, editorId, runMutation, timeSignatureBottom]
   );
 
   const handleBarSelection = useCallback(
@@ -6458,6 +9612,18 @@ export default function GteWorkspace({
       setChordMenuDraft(null);
       setContextMenu(null);
 
+      const rangeSelect = event.shiftKey && (isActive || practiceMode);
+      if (rangeSelect && barSelectionAnchor !== null) {
+        const start = Math.min(barSelectionAnchor, index);
+        const end = Math.max(barSelectionAnchor, index);
+        const nextRange = Array.from(
+          { length: end - start + 1 },
+          (_, offset) => start + offset
+        );
+        setSelectedBarIndices(nextRange);
+        return;
+      }
+
       if (mobileViewport) {
         const nextSelection = selectedBarIndexSet.has(index)
           ? selectedBarIndices.filter((value) => value !== index)
@@ -6468,14 +9634,6 @@ export default function GteWorkspace({
       }
 
       const additive = (event.ctrlKey || event.metaKey) && isActive;
-      const rangeSelect = event.shiftKey && isActive;
-      if (rangeSelect && barSelectionAnchor !== null) {
-        const start = Math.min(barSelectionAnchor, index);
-        const end = Math.max(barSelectionAnchor, index);
-        const nextRange = Array.from({ length: end - start + 1 }, (_, offset) => start + offset);
-        setSelectedBarIndices(nextRange);
-        return;
-      }
       if (additive) {
         setSelectedBarIndices((prev) => {
           if (prev.includes(index)) return prev;
@@ -6492,7 +9650,44 @@ export default function GteWorkspace({
       setSelectedBarIndices([index]);
       setBarSelectionAnchor(index);
     },
-    [barSelectionAnchor, isActive, mobileViewport, selectedBarIndexSet, selectedBarIndices]
+    [
+      barSelectionAnchor,
+      isActive,
+      mobileViewport,
+      practiceMode,
+      selectedBarIndexSet,
+      selectedBarIndices,
+    ]
+  );
+
+  const handlePracticeBarSegmentSelection = useCallback(
+    (
+      startBar: number,
+      endBar: number,
+      event: ReactMouseEvent<HTMLButtonElement>
+    ) => {
+      if (endBar <= startBar + 1) {
+        handleBarSelection(startBar, event);
+        return;
+      }
+      handleBarSelection(startBar, event);
+      const rangeStart =
+        event.shiftKey && barSelectionAnchor !== null
+          ? Math.min(barSelectionAnchor, startBar)
+          : startBar;
+      const rangeEnd =
+        event.shiftKey && barSelectionAnchor !== null
+          ? Math.max(barSelectionAnchor + 1, endBar)
+          : endBar;
+      setSelectedBarIndices(
+        Array.from(
+          { length: rangeEnd - rangeStart },
+          (_, offset) => rangeStart + offset
+        )
+      );
+      if (!event.shiftKey) setBarSelectionAnchor(startBar);
+    },
+    [barSelectionAnchor, handleBarSelection]
   );
 
   const handleBarContextMenu = useCallback(
@@ -6619,18 +9814,33 @@ export default function GteWorkspace({
       setError(`Tab must stay within strings 0-5 and frets 0-${maxFret}.`);
       return;
     }
+    const fingeringUpdates = getEffectAwareFingeringUpdates(snapshotRef.current, [
+      { noteId: resolveNoteId(selectedNote.id), tab },
+    ]);
     playNotePreview(tab);
     enqueueOptimisticMutation({
       label: "assign-alt",
       apply: (draft) => {
-        const noteId = resolveNoteId(selectedNote.id);
-        const note = draft.notes.find((item) => item.id === noteId);
-        if (!note) return draft;
-        note.tab = [tab[0], tab[1]];
-        note.midiNum = getTabMidi(draft, note.tab);
+        applyNoteFingeringUpdates(
+          draft,
+          fingeringUpdates.map((update) => ({
+            ...update,
+            noteId: resolveNoteId(update.noteId),
+          }))
+        );
         return draft;
       },
-      commit: () => gteApi.assignNoteTab(editorId, resolveNoteId(selectedNote.id), tab),
+      commit: async () => {
+        let last: { snapshot?: EditorSnapshot } | null = null;
+        for (const update of fingeringUpdates) {
+          last = await gteApi.assignNoteTab(
+            editorId,
+            resolveNoteId(update.noteId),
+            update.tab
+          );
+        }
+        return last ?? {};
+      },
     });
   };
 
@@ -6692,24 +9902,46 @@ export default function GteWorkspace({
     const midi = getMidiFromTab(tab, midiOverride);
     if (!Number.isFinite(midi) || midi <= 0) return;
 
-    const instrument = await prepareTrackInstrument(snapshot.instrumentId);
-    const { ctx, master } = ensurePreviewAudio();
-    void ctx.resume();
+    let preview: ReturnType<typeof ensurePreviewAudio> | null = null;
+    try {
+      // resume() must be invoked before the first await so Safari keeps the user gesture.
+      preview = ensurePreviewAudio();
+      const audioReady = resumeAudioContext(preview.ctx);
+      const [instrument] = await Promise.all([
+        prepareTrackInstrument(preview.ctx, snapshot.instrumentId),
+        audioReady,
+      ]);
+      if (
+        previewAudioRef.current !== preview.ctx ||
+        previewGainRef.current !== preview.master ||
+        preview.ctx.state !== "running"
+      ) {
+        return;
+      }
 
-    schedulePreparedTrackNote({
-      ctx,
-      destination: master,
-      instrument,
-      midi,
-      gain: 0.6,
-      startTime: ctx.currentTime + 0.005,
-      duration: 0.16,
-    });
+      schedulePreparedTrackNote({
+        ctx: preview.ctx,
+        destination: preview.master,
+        instrument,
+        midi,
+        gain: 0.6,
+        startTime: preview.ctx.currentTime + 0.005,
+        duration: 0.16,
+      });
+    } catch (error) {
+      if (preview && previewAudioRef.current !== preview.ctx) return;
+      if (preview && preview.ctx.state !== "running") {
+        closeAudioContext(preview.ctx);
+        previewAudioRef.current = null;
+        previewGainRef.current = null;
+      }
+      setError(error instanceof Error ? error.message : "Could not play the selected guitar sound.");
+    }
   }
 
   const stopAudio = () => {
     if (audioRef.current) {
-      void audioRef.current.close();
+      closeAudioContext(audioRef.current);
       audioRef.current = null;
     }
     masterGainRef.current = null;
@@ -6734,7 +9966,13 @@ export default function GteWorkspace({
     oscillator.stop(startTime + 0.06);
   };
 
-  const schedulePlayback = async (startFrame: number, speedOverride?: number) => {
+  const schedulePlayback = async (
+    ctx: AudioContext,
+    audioReady: Promise<void>,
+    isCurrentRequest: () => boolean,
+    startFrame: number,
+    speedOverride?: number
+  ) => {
     const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? effectivePlaybackSpeed);
     const playbackStartFrame =
       effectivePracticeLoopEnabled && effectivePracticeLoopRange
@@ -6756,11 +9994,6 @@ export default function GteWorkspace({
         bendSec: number;
         targetCents: number;
       }>;
-      slideSegments?: Array<{
-        holdSec: number;
-        slideSec: number;
-        targetCents: number;
-      }>;
     }> = [];
 
     const pushEvent = (
@@ -6772,11 +10005,6 @@ export default function GteWorkspace({
       bendSegments?: Array<{
         holdFrames: number;
         bendFrames: number;
-        targetCents: number;
-      }>,
-      slideSegments?: Array<{
-        holdFrames: number;
-        slideFrames: number;
         targetCents: number;
       }>
     ) => {
@@ -6812,34 +10040,21 @@ export default function GteWorkspace({
                 }))
                 .filter((segment) => Number.isFinite(segment.holdSec) && Number.isFinite(segment.bendSec))
             : undefined,
-        slideSegments:
-          Array.isArray(slideSegments) && slideSegments.length > 0
-            ? slideSegments
-                .map((segment) => ({
-                  holdSec: frameDeltaToSeconds(
-                    Math.max(0, eventStart + segment.holdFrames - trimmedStart),
-                    playbackFps,
-                    runPlaybackSpeed
-                  ),
-                  slideSec: frameDeltaToSeconds(
-                    Math.max(0, segment.slideFrames),
-                    playbackFps,
-                    runPlaybackSpeed
-                  ),
-                  targetCents: segment.targetCents,
-                }))
-                .filter((segment) => Number.isFinite(segment.holdSec) && Number.isFinite(segment.slideSec))
-            : undefined,
       });
     };
 
     const notesById = new Map(snapshot.notes.map((note) => [note.id, note] as const));
     const outgoingTransitions = new Map<number, NonNullable<EditorSnapshot["noteEffects"]>[number]>();
     const incomingTransitionNoteIds = new Set<number>();
+    const discreteSlideEffects: NoteEffect[] = [];
     (snapshot.noteEffects || []).forEach((effect) => {
-      if (effect.type !== 0 && effect.type !== 2) return;
       const canonical = getCanonicalNoteEffectForSnapshot(snapshot, effect);
       if (!canonical) return;
+      if (canonical.type === 2) {
+        discreteSlideEffects.push(canonical);
+        return;
+      }
+      if (canonical.type !== 0) return;
       if (outgoingTransitions.has(canonical.startNoteId)) return;
       outgoingTransitions.set(canonical.startNoteId, canonical);
       incomingTransitionNoteIds.add(canonical.endNoteId);
@@ -6881,7 +10096,6 @@ export default function GteWorkspace({
       const minimumBendFrames = 10;
       let previousBendEndFrames = 0;
       const bendSegments: Array<{ holdFrames: number; bendFrames: number; targetCents: number }> = [];
-      const slideSegments: Array<{ holdFrames: number; slideFrames: number; targetCents: number }> = [];
       chain.slice(1).forEach((item, chainIndex) => {
         const previous = chain[chainIndex];
         const transition = outgoingTransitions.get(previous.id);
@@ -6902,14 +10116,6 @@ export default function GteWorkspace({
         const bendFrames = Math.max(0, targetStartFrames - bendStartFrames);
         previousBendEndFrames = targetStartFrames;
         const targetCents = (targetMidi - baseMidi) * 100;
-        if (transition.type === 2) {
-          slideSegments.push({
-            holdFrames: bendStartFrames,
-            slideFrames: bendFrames,
-            targetCents,
-          });
-          return;
-        }
         bendSegments.push({
           holdFrames: bendStartFrames,
           bendFrames,
@@ -6922,9 +10128,35 @@ export default function GteWorkspace({
         baseMidi,
         gain,
         note.tab[0],
-        bendSegments.length > 0 ? bendSegments : undefined,
-        slideSegments.length > 0 ? slideSegments : undefined
+        bendSegments.length > 0 ? bendSegments : undefined
       );
+    });
+    discreteSlideEffects.forEach((effect) => {
+      const source = notesById.get(effect.startNoteId);
+      const target = notesById.get(effect.endNoteId);
+      if (!source || !target) return;
+      const sourceMidi =
+        Number.isFinite(source.midiNum) && source.midiNum > 0
+          ? source.midiNum
+          : getMidiFromTab(source.tab);
+      const targetMidi =
+        Number.isFinite(target.midiNum) && target.midiNum > 0
+          ? target.midiNum
+          : getMidiFromTab(target.tab);
+      const sourceStart = Math.round(source.startTime);
+      const targetStart = Math.round(target.startTime);
+      const sourceEnd = Math.round(source.startTime + source.length);
+      const slideStart = Math.max(sourceStart, Math.min(sourceEnd, targetStart - 10));
+      const key = `note-${source.id}`;
+      const gain = conflictInfo.conflictKeys.has(key) ? 0.25 : 0.55;
+      buildDiscreteSlideSteps({
+        sourceMidi,
+        targetMidi,
+        slideStartFrame: slideStart,
+        targetStartFrame: targetStart,
+      }).forEach((step) => {
+        pushEvent(step.startFrame, step.durationFrames, step.midi, gain, source.tab[0]);
+      });
     });
     snapshot.chords.forEach((chord) => {
       chord.currentTabs.forEach((tab, idx) => {
@@ -6935,9 +10167,13 @@ export default function GteWorkspace({
       });
     });
 
-    const instrument = await prepareTrackInstrument(snapshot.instrumentId);
-    const ctx = new AudioContext();
-    void ctx.resume();
+    const [instrument] = await Promise.all([
+      prepareTrackInstrument(ctx, snapshot.instrumentId),
+      audioReady,
+    ]);
+    if (!isCurrentRequest() || ctx.state !== "running") {
+      throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
+    }
     const latencySec =
       (Number.isFinite(ctx.baseLatency) ? ctx.baseLatency : 0) +
       (Number.isFinite((ctx as AudioContext).outputLatency)
@@ -6980,11 +10216,6 @@ export default function GteWorkspace({
         bendSec: number;
         targetCents: number;
       }>;
-      slideSegments?: Array<{
-        holdSec: number;
-        slideSec: number;
-        targetCents: number;
-      }>;
     }) => {
       if (!Number.isFinite(evt.midi) || evt.midi <= 0) return;
       schedulePreparedTrackNote({
@@ -6996,7 +10227,6 @@ export default function GteWorkspace({
         startTime: playBase + evt.start,
         duration: Math.max(0.05, evt.duration),
         bendSegments: evt.bendSegments,
-        slideSegments: evt.slideSegments,
       });
     };
 
@@ -7007,6 +10237,7 @@ export default function GteWorkspace({
   const stopPlayback = () => {
     playbackStartRequestRef.current += 1;
     playbackStartPendingRef.current = false;
+    setPlaybackPreparing(false);
     if (playheadRafRef.current !== null) {
       window.cancelAnimationFrame(playheadRafRef.current);
       playheadRafRef.current = null;
@@ -7021,6 +10252,7 @@ export default function GteWorkspace({
   const startPlayback = async (startFrameOverride?: number, speedOverride?: number) => {
     if (playheadRafRef.current !== null || playbackStartPendingRef.current) return;
     playbackStartPendingRef.current = true;
+    setPlaybackPreparing(true);
     const requestId = playbackStartRequestRef.current + 1;
     playbackStartRequestRef.current = requestId;
     const requestedStartFrame = clamp(
@@ -7034,16 +10266,45 @@ export default function GteWorkspace({
         : requestedStartFrame;
     stopAudio();
     const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? effectivePlaybackSpeed);
-    const scheduled = await schedulePlayback(startFrame, runPlaybackSpeed);
-    playbackStartPendingRef.current = false;
-    if (playbackStartRequestRef.current !== requestId) {
-      if (scheduled?.ctx) {
-        void scheduled.ctx.close();
+    let scheduled: Awaited<ReturnType<typeof schedulePlayback>>;
+    let playbackContext: AudioContext | null = null;
+    try {
+      // Creating and resuming the context here preserves the transient click/key activation.
+      playbackContext = new AudioContext();
+      audioRef.current = playbackContext;
+      const audioReady = resumeAudioContext(playbackContext);
+      scheduled = await schedulePlayback(
+        playbackContext,
+        audioReady,
+        () =>
+          playbackStartRequestRef.current === requestId &&
+          audioRef.current === playbackContext,
+        startFrame,
+        runPlaybackSpeed
+      );
+    } catch (error) {
+      if (playbackContext) {
+        closeAudioContext(playbackContext);
+        if (audioRef.current === playbackContext) {
+          audioRef.current = null;
+          masterGainRef.current = null;
+        }
+      }
+      if (playbackStartRequestRef.current === requestId) {
+        setError(error instanceof Error ? error.message : "Could not load the selected guitar sound.");
       }
       return;
+    } finally {
+      if (playbackStartRequestRef.current === requestId) {
+        playbackStartPendingRef.current = false;
+        setPlaybackPreparing(false);
+      }
     }
-    if (scheduled?.ctx) {
-      audioRef.current = scheduled.ctx;
+    if (playbackStartRequestRef.current !== requestId) {
+      if (scheduled?.ctx) {
+        closeAudioContext(scheduled.ctx);
+      }
+      return;
     }
     playheadAudioStartRef.current = scheduled?.startTimeSec ?? null;
     setEffectivePlayheadFrame(startFrame);
@@ -7164,31 +10425,26 @@ export default function GteWorkspace({
     (time: number, direction: -1 | 1) => {
       const maxTime = Math.max(0, timelineEnd - 1);
       const safeTime = clamp(Math.round(time), 0, maxTime);
-      const current = getBeatGridTime(safeTime, timeSignature, "round");
-      const nudge = direction > 0 ? current + 1 : current - 1;
-      return clamp(getBeatGridTime(nudge, timeSignature, direction > 0 ? "ceil" : "floor"), 0, maxTime);
+      const step = cursorSizeDenominatorToFrames(cursorSizeDenominator);
+      const current = Math.round(Math.round(safeTime / step) * step);
+      return clamp(current + direction * step, 0, maxTime);
     },
-    [clamp, timeSignature, timelineEnd]
+    [clamp, cursorSizeDenominator, cursorSizeDenominatorToFrames, timelineEnd]
   );
 
   const snapKeyboardCursorTimeToGrid = useCallback(
     (time: number) => {
       const maxTime = Math.max(0, timelineEnd - 1);
       const safeTime = clamp(Math.round(time), 0, maxTime);
-      return clamp(getBeatGridTime(safeTime, timeSignature, "round"), 0, maxTime);
+      const step = cursorSizeDenominatorToFrames(cursorSizeDenominator);
+      return clamp(Math.round(Math.round(safeTime / step) * step), 0, maxTime);
     },
-    [clamp, timeSignature, timelineEnd]
+    [clamp, cursorSizeDenominator, cursorSizeDenominatorToFrames, timelineEnd]
   );
 
   const getKeyboardGridCellWidthFrames = useCallback(
-    (time: number) => {
-      const current = snapKeyboardCursorTimeToGrid(time);
-      const next = getAdjacentKeyboardGridTime(current, 1);
-      if (next > current) return next - current;
-      const previous = getAdjacentKeyboardGridTime(current, -1);
-      return Math.max(1, current - previous);
-    },
-    [getAdjacentKeyboardGridTime, snapKeyboardCursorTimeToGrid]
+    (_time?: number) => cursorSizeDenominatorToFrames(cursorSizeDenominator),
+    [cursorSizeDenominator, cursorSizeDenominatorToFrames]
   );
 
   const getCenteredKeyboardCursor = useCallback((): KeyboardGridCursor => {
@@ -7365,19 +10621,31 @@ export default function GteWorkspace({
       if (options?.playPreview) {
         playNotePreview(nextTab);
       }
+      const fingeringUpdates = getEffectAwareFingeringUpdates(snapshotRef.current, [
+        { noteId: resolvedCurrentId, tab: nextTab },
+      ]);
       enqueueOptimisticMutation({
         label: "keyboard-fret",
         apply: (draft) => {
-          const noteId = resolveNoteId(rawNoteId);
-          const note = draft.notes.find((item) => item.id === noteId);
-          if (!note) return draft;
-          note.tab = [nextTab[0], nextTab[1]];
-          note.midiNum = getTabMidi(draft, note.tab);
+          applyNoteFingeringUpdates(
+            draft,
+            fingeringUpdates.map((update) => ({
+              ...update,
+              noteId: resolveNoteId(update.noteId),
+            }))
+          );
           return draft;
         },
-        commit: () => {
-          const noteId = resolveNoteId(rawNoteId);
-          return gteApi.assignNoteTab(editorId, noteId, nextTab);
+        commit: async () => {
+          let last: { snapshot?: EditorSnapshot } | null = null;
+          for (const update of fingeringUpdates) {
+            last = await gteApi.assignNoteTab(
+              editorId,
+              resolveNoteId(update.noteId),
+              update.tab
+            );
+          }
+          return last ?? {};
         },
       });
       return true;
@@ -7387,7 +10655,7 @@ export default function GteWorkspace({
 
   const assignSelectedNoteFretsByDelta = useCallback(
     (rawNoteIds: number[], delta: number, options?: { playPreview?: boolean }) => {
-      const updates = Array.from(new Set(rawNoteIds))
+      const requestedUpdates = Array.from(new Set(rawNoteIds))
         .map((rawId) => {
           const noteId = resolveNoteId(rawId);
           const current = snapshotRef.current.notes.find((note) => note.id === noteId);
@@ -7402,27 +10670,32 @@ export default function GteWorkspace({
         })
         .filter((item): item is { rawId: number; noteId: number; tab: TabCoord } => Boolean(item));
 
-      if (!updates.length) return false;
-      if (options?.playPreview && updates.length === 1) {
-        playNotePreview(updates[0].tab);
+      if (!requestedUpdates.length) return false;
+      const updates = getEffectAwareFingeringUpdates(
+        snapshotRef.current,
+        requestedUpdates.map((update) => ({ noteId: update.noteId, tab: update.tab }))
+      );
+      if (options?.playPreview && requestedUpdates.length === 1) {
+        playNotePreview(requestedUpdates[0].tab);
       }
 
       enqueueOptimisticMutation({
         label: "keyboard-fret-group",
         apply: (draft) => {
-          updates.forEach((update) => {
-            const noteId = resolveNoteId(update.rawId);
-            const note = draft.notes.find((item) => item.id === noteId);
-            if (!note) return;
-            note.tab = [update.tab[0], update.tab[1]];
-            note.midiNum = getTabMidi(draft, note.tab);
-          });
+          applyNoteFingeringUpdates(
+            draft,
+            updates.map((update) => ({ ...update, noteId: resolveNoteId(update.noteId) }))
+          );
           return draft;
         },
         commit: async () => {
           let last: { snapshot?: EditorSnapshot } | null = null;
           for (const update of updates) {
-            last = await gteApi.assignNoteTab(editorId, resolveNoteId(update.rawId), update.tab);
+            last = await gteApi.assignNoteTab(
+              editorId,
+              resolveNoteId(update.noteId),
+              update.tab
+            );
           }
           return last ?? {};
         },
@@ -7477,7 +10750,7 @@ export default function GteWorkspace({
       const fretValue = Number(fretDigit);
       if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) return;
       const rawLength = clampEventLength(lastAddedNoteLengthRef.current);
-      const snapped = snapNoteToGrid(cursor.time, rawLength);
+      const snapped = snapNewNoteToGrid(cursor.time, rawLength);
       const tab = snapTabToKeyIfEnabled(snapshotRef.current, [cursor.stringIndex, fretValue]);
       const tempId = getTempNoteId();
       enqueueOptimisticMutation({
@@ -7499,10 +10772,9 @@ export default function GteWorkspace({
             tab,
             startTime: snapped.startTime,
             length: snapped.length,
-            snapToGrid: snapToGridEnabled,
+            snapToGrid: false,
           }),
       });
-      lastAddedNoteLengthRef.current = clampEventLength(snapped.length);
       showKeyboardCursor({ time: snapped.startTime, stringIndex: cursor.stringIndex });
       setKeyboardAddMode({ noteId: tempId, fretText: String(fretValue) });
       setSelectedNoteIds([]);
@@ -7523,9 +10795,8 @@ export default function GteWorkspace({
       maxFret,
       noteSignature,
       showKeyboardCursor,
-      snapNoteToGrid,
+      snapNewNoteToGrid,
       snapTabToKeyIfEnabled,
-      snapToGridEnabled,
     ]
   );
 
@@ -7795,7 +11066,7 @@ export default function GteWorkspace({
         !event.ctrlKey &&
         !event.metaKey &&
         !event.altKey &&
-        (/^\d$/.test(event.key) || event.key === "." || event.key === "Backspace")
+        (/^\d$/.test(event.key) || event.key === "." || event.key === "-" || event.key === "Backspace")
       ) {
         event.preventDefault();
         const now = Date.now();
@@ -7809,6 +11080,9 @@ export default function GteWorkspace({
         } else if (event.key === ".") {
           if (buffer.includes(".")) return;
           buffer = buffer.length ? `${buffer}.` : "0.";
+        } else if (event.key === "-") {
+          if (buffer.length > 0) return;
+          buffer = "-";
         } else {
           buffer += event.key;
         }
@@ -8092,30 +11366,35 @@ export default function GteWorkspace({
           if ((event.ctrlKey || event.metaKey) && selectedNoteGroup.length > 1) {
             if (event.key === "ArrowUp" || event.key === "ArrowDown") {
               const deltaString = event.key === "ArrowUp" ? -1 : 1;
-              const updates = selectedNoteGroup
+              const requestedUpdates = selectedNoteGroup
                 .map((note) => {
                   const nextString = clamp(note.tab[0] + deltaString, 0, 5);
                   const tab = snapTabToKeyIfEnabled(snapshotRef.current, [nextString, note.tab[1]]);
                   return { id: note.id, tab };
                 })
                 .filter((item, index) => !isSameTabCoord(item.tab, selectedNoteGroup[index].tab));
-              if (!updates.length) return;
-              playNotePreview(updates[0].tab);
+              if (!requestedUpdates.length) return;
+              const updates = getEffectAwareFingeringUpdates(
+                snapshotRef.current,
+                requestedUpdates.map((update) => ({ noteId: update.id, tab: update.tab }))
+              );
+              playNotePreview(requestedUpdates[0].tab);
               enqueueOptimisticMutation({
                 label: "keyboard-shift-arrow-string-multi",
                 apply: (draft) => {
-                  updates.forEach((update) => {
-                    const note = draft.notes.find((item) => item.id === update.id);
-                    if (!note) return;
-                    note.tab = [update.tab[0], update.tab[1]];
-                    note.midiNum = getTabMidi(draft, note.tab);
-                  });
+                  applyNoteFingeringUpdates(
+                    draft,
+                    updates.map((update) => ({
+                      ...update,
+                      noteId: resolveNoteId(update.noteId),
+                    }))
+                  );
                   return draft;
                 },
                 commit: async () => {
                   let last: { snapshot?: EditorSnapshot } | null = null;
                   for (const update of updates) {
-                    last = await gteApi.assignNoteTab(editorId, update.id, update.tab);
+                    last = await gteApi.assignNoteTab(editorId, update.noteId, update.tab);
                   }
                   return last ?? {};
                 },
@@ -8182,17 +11461,29 @@ export default function GteWorkspace({
               if (nextString === selected.tab[0]) return;
               const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [nextString, selected.tab[1]]);
               if (isSameTabCoord(selected.tab, nextTab)) return;
+              const fingeringUpdates = getEffectAwareFingeringUpdates(snapshotRef.current, [
+                { noteId: resolvedId, tab: nextTab },
+              ]);
               playNotePreview(nextTab);
               enqueueOptimisticMutation({
                 label: "keyboard-shift-arrow-string",
                 apply: (draft) => {
-                  const note = draft.notes.find((item) => item.id === resolvedId);
-                  if (!note) return draft;
-                  note.tab = [nextTab[0], nextTab[1]];
-                  note.midiNum = getTabMidi(draft, note.tab);
+                  applyNoteFingeringUpdates(
+                    draft,
+                    fingeringUpdates.map((update) => ({
+                      ...update,
+                      noteId: resolveNoteId(update.noteId),
+                    }))
+                  );
                   return draft;
                 },
-                commit: () => gteApi.assignNoteTab(editorId, resolvedId, nextTab),
+                commit: async () => {
+                  let last: { snapshot?: EditorSnapshot } | null = null;
+                  for (const update of fingeringUpdates) {
+                    last = await gteApi.assignNoteTab(editorId, update.noteId, update.tab);
+                  }
+                  return last ?? {};
+                },
               });
               showKeyboardCursor({
                 time: snapKeyboardCursorTimeToGrid(selected.startTime),
@@ -8257,12 +11548,6 @@ export default function GteWorkspace({
           setChordMenuDraft(null);
           return;
         }
-      }
-      if (event.key === "t" || event.key === "T") {
-        if (isTyping) return;
-        event.preventDefault();
-        setToolbarOpen((prev) => !prev);
-        return;
       }
       if ((event.ctrlKey || event.metaKey) && (event.key === "c" || event.key === "C")) {
         if (isTyping) return;
@@ -8638,7 +11923,9 @@ export default function GteWorkspace({
   }, [setToolbarOpen, tabViewEnabled]);
 
   const workspaceClass = embedded
-    ? `relative w-full min-w-0 max-w-full border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${
+    ? practiceMode
+      ? "relative w-full min-w-0 max-w-full bg-white"
+      : `relative w-full min-w-0 max-w-full border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${
         isMobileEditMode
           ? "flex h-full min-h-0 flex-col p-1.5"
           : `${compactEmbeddedMobile ? "rounded-lg p-1.5" : "rounded-xl p-2"} space-y-2`
@@ -8772,7 +12059,6 @@ export default function GteWorkspace({
     isMobileEditMode &&
     isActive &&
     Boolean(selectedNote && noteMenuNoteId === selectedNote.id && noteMenuDraft && selectedNoteIds.length === 1);
-  const showMobileInlineToolbar = isMobileEditMode && isActive && showToolbarUi;
   const mobileNoteFingeringOptions = useMemo(
     () => [
       ...(noteAlternates?.possibleTabs || []).map((tab) => ({
@@ -8806,14 +12092,24 @@ export default function GteWorkspace({
   }, [snapshot.noteEffects, snapshot.notes]);
 
   const renderableNoteEffects = useMemo(() => {
+    const notesById = new Map(snapshot.notes.map((note) => [note.id, note] as const));
+    const { startFrame, endFrame } = timelineRenderWindow;
     return (snapshot.noteEffects || [])
       .map((effect) => {
-        const startNote = snapshot.notes.find((note) => note.id === effect.startNoteId);
-        const endNote = snapshot.notes.find((note) => note.id === effect.endNoteId);
+        const startNote = notesById.get(effect.startNoteId);
+        const endNote = notesById.get(effect.endNoteId);
         if (!startNote || !endNote) return null;
         const startEnd = startNote.startTime + Math.max(1, Math.round(startNote.length));
         const effectStart = Math.min(startEnd, endNote.startTime);
         const effectLength = Math.max(1, Math.round(endNote.startTime - effectStart));
+        const effectEnd = effectStart + effectLength;
+        if (
+          !visibleNoteIdSet.has(startNote.id) &&
+          !visibleNoteIdSet.has(endNote.id) &&
+          (effectEnd < startFrame || effectStart > endFrame)
+        ) {
+          return null;
+        }
         return {
           effect,
           startNote,
@@ -8831,30 +12127,37 @@ export default function GteWorkspace({
           connectorSegments: ReturnType<typeof getSpanSegments>;
         } => Boolean(item)
       );
-  }, [getSpanSegments, snapshot.noteEffects, snapshot.notes]);
+  }, [getSpanSegments, snapshot.noteEffects, snapshot.notes, timelineRenderWindow, visibleNoteIdSet]);
 
-  const renderToolbarPanel = (inlineMobile: boolean) => {
-    const panelClass = inlineMobile
-      ? "h-auto w-full min-w-0 overflow-visible rounded-2xl border border-slate-200 bg-white p-2 shadow-lg"
-      : "fixed right-4 top-1/2 z-[9998] max-h-[calc(100vh-6rem)] w-[min(18rem,calc(100vw-5rem))] -translate-y-1/2 overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-2.5 shadow-xl shadow-slate-900/10 backdrop-blur";
-
+  const renderEditMenuPanel = (inlineMobile = false, topMenu = true) => {
     const sectionClass =
-      "min-w-0 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm";
+      "min-w-0 border-b border-slate-200 py-1 last:border-b-0";
 
     const sectionTitleClass =
-      "mb-2 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400";
+      "px-2 pb-1 pt-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400";
 
     const textButtonClass =
-      "group relative flex h-8 w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-2 text-center text-[10px] font-semibold leading-none text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
+      "group relative flex h-7 w-full items-center justify-start gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[11px] font-normal leading-none text-slate-700 shadow-none transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-slate-400";
 
     const activeButtonClass =
-      "group relative flex h-8 w-full items-center justify-center rounded-lg px-2 text-center text-[10px] font-semibold leading-none text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none";
+      "group relative flex h-7 w-full items-center justify-start gap-2 rounded-md border-0 !bg-slate-100 px-2 text-left text-[11px] font-normal leading-none !text-slate-900 shadow-none transition hover:!bg-slate-200 disabled:cursor-not-allowed disabled:!bg-transparent disabled:!text-slate-400";
 
     const iconButtonClass =
-      "group relative flex h-8 w-full items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400";
+      "group relative flex h-7 w-full items-center justify-start gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[11px] font-normal text-slate-700 shadow-none transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-slate-400";
 
-    const tooltipClass =
-      "pointer-events-none absolute -top-7 rounded-md bg-slate-950 px-1.5 py-0.5 text-[9px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100";
+    const shortcutClass =
+      "order-last ml-auto shrink-0 text-[10px] font-medium opacity-60";
+
+    const renderToolHelp = (name: string) => {
+      if (!toolHelpOpen) return null;
+      const description = TOOL_HELP.get(name);
+      if (!description) return null;
+      return (
+        <p className="-mt-1 ml-2 mr-1 border-l-2 border-sky-200 py-0.5 pl-2 pr-1 text-[9px] leading-3.5 text-slate-400">
+          {description}
+        </p>
+      );
+    };
 
     return (
       <div
@@ -8862,40 +12165,72 @@ export default function GteWorkspace({
         data-gte-floating-ui="true"
         data-gte-editor-control="true"
         data-gte-toolbar-ui="true"
-        className={panelClass}
+        className="space-y-2"
+        onMouseEnter={onEditMenuPointerEnter}
+        onMouseLeave={onEditMenuPointerLeave}
         onMouseDown={(event) => event.stopPropagation()}
         onTouchStart={(event) => event.stopPropagation()}
       >
-        <div className="mb-2 flex items-start justify-between gap-2">
+        <div className="mb-1 flex items-start justify-between gap-2">
           <div>
-            <div className="text-[11px] font-bold text-slate-800">Toolbar</div>
-            {inlineMobile ? (
+            {!topMenu ? <div className="text-[11px] font-bold text-slate-800">Toolbar</div> : null}
+            {!topMenu && inlineMobile ? (
               <div className="text-[9px] text-slate-400">
                 Edit notes, chords and playing coordinates
               </div>
             ) : null}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setToolbarOpen(false)}
-            className="grid h-6 w-6 place-items-center rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setToolHelpOpen((open) => !open)}
+              aria-expanded={toolHelpOpen}
+              aria-label={toolHelpOpen ? "Hide tool explanations" : "Explain the editor tools"}
+              title="What do these tools do?"
+              className={`flex h-6 items-center justify-center rounded-full border text-[10px] font-semibold shadow-sm transition-all ${
+                toolHelpOpen
+                  ? "gap-1 border-sky-300 bg-sky-50 px-2 text-sky-700"
+                  : "w-6 border-slate-200 bg-white font-serif text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+              }`}
+            >
+              <span className="font-serif font-bold">i</span>
+              {toolHelpOpen ? <span>Help on</span> : null}
+            </button>
+            {!topMenu ? (
+              <button
+                type="button"
+                onClick={() => setToolbarOpen(false)}
+                aria-label="Close toolbar"
+                className="grid h-6 w-6 place-items-center rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
         </div>
 
-        <div
-          className={
-            mobileViewport
-              ? "grid grid-cols-1 gap-2"
-              : "grid grid-cols-1 gap-2"
-          }
+        {toolHelpOpen ? (
+          <div className="rounded-md border border-sky-100 bg-sky-50/70 px-2 py-1 text-[9px] leading-3.5 text-sky-700">
+            Help is on — short explanations now appear beneath every tool.
+          </div>
+        ) : null}
+
+        {pendingSelectionTool && (
+          <div className="rounded-md bg-sky-50 px-2 py-1.5 text-[10px] leading-4 text-sky-800">
+            {pendingSelectionToolLabel} is ready. Select everything you want to change, then choose Apply.
+          </div>
+        )}
+
+        <fieldset
+          disabled={editMenuDisabled}
+          className={`m-0 min-w-0 border-0 p-0 ${editMenuDisabled ? "opacity-50" : ""}`}
         >
+        <div className="grid grid-cols-1 gap-0">
           <div className={sectionClass}>
             <div className={sectionTitleClass}>Notes & chords</div>
 
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-1 gap-1.5">
               <button
                 type="button"
                 onClick={() => {
@@ -8913,9 +12248,10 @@ export default function GteWorkspace({
                     : textButtonClass
                 }
               >
-                <span className={tooltipClass}>C</span>
+                <span className={shortcutClass}>C</span>
                 Merge to Chord
               </button>
+              {renderToolHelp("Merge to Chord")}
 
               <button
                 type="button"
@@ -8948,9 +12284,10 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>Shift+L</span>
+                <span className={shortcutClass}>Shift+L</span>
                 Disband Chord
               </button>
+              {renderToolHelp("Disband Chord")}
 
               <button
                 type="button"
@@ -8965,9 +12302,10 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>O</span>
+                <span className={shortcutClass}>O</span>
                 Optimize Notes
               </button>
+              {renderToolHelp("Optimize Notes")}
 
               <button
                 type="button"
@@ -8980,29 +12318,39 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>No shortcut</span>
                 Snap to Key
               </button>
+              {renderToolHelp("Snap to Key")}
 
               <button
                 type="button"
                 data-gte-editor-control="true"
-                onClick={activateQuantizeTool}
-                disabled={selectedNoteIds.length + selectedChordIds.length === 0 || selectionActionsLocked}
+                onClick={() => {
+                  if (selectedNoteIds.length + selectedChordIds.length > 0) {
+                    setPendingSelectionTool(null);
+                    activateQuantizeTool();
+                  } else {
+                    setPendingSelectionTool((tool) => (tool === "quantize" ? null : "quantize"));
+                    setError(null);
+                  }
+                }}
+                disabled={selectionActionsLocked}
                 title={
                   selectionActionsLocked
                     ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Quantize selected notes/chords"
+                    : selectedNoteIds.length + selectedChordIds.length > 0
+                    ? "Quantize selected notes/chords"
+                    : "Choose Quantize, then select notes or chords"
                 }
                 className={
-                  quantizeDialogOpen
+                  quantizeDialogOpen || pendingSelectionTool === "quantize"
                     ? `${activeButtonClass} bg-sky-600`
                     : textButtonClass
                 }
               >
-                <span className={tooltipClass}>No shortcut</span>
                 Quantize
               </button>
+              {renderToolHelp("Quantize")}
 
               <button
                 type="button"
@@ -9017,69 +12365,12 @@ export default function GteWorkspace({
                 }
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>J</span>
+                <span className={shortcutClass}>J</span>
                 Merge Notes
               </button>
+              {renderToolHelp("Merge Notes")}
 
-              <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-1.5">
-                <div className="mb-1 px-1 text-[8px] font-bold uppercase tracking-[0.14em] text-slate-400">
-                  Effects
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleAddNoteEffect(1);
-                    }}
-                    disabled={!canCreateNoteEffect}
-                    title={
-                      selectionActionsLocked
-                        ? "Disabled while notes/chords are selected in multiple tracks"
-                        : "Connect two selected notes with hammer-on or pull-off - Shortcut: H"
-                    }
-                    className={textButtonClass}
-                  >
-                    <span className={tooltipClass}>H</span>
-                    Hammer/Pull
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleAddNoteEffect(2);
-                    }}
-                    disabled={!canCreateNoteEffect}
-                    title={
-                      selectionActionsLocked
-                        ? "Disabled while notes/chords are selected in multiple tracks"
-                        : "Connect two selected notes with a slide - Shortcut: L"
-                    }
-                    className={textButtonClass}
-                  >
-                    <span className={tooltipClass}>L</span>
-                    Slide
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleAddNoteEffect(0);
-                    }}
-                    disabled={!canCreateNoteEffect}
-                    title={
-                      selectionActionsLocked
-                        ? "Disabled while notes/chords are selected in multiple tracks"
-                        : "Connect two selected notes with a bend - Shortcut: B"
-                    }
-                    className={textButtonClass}
-                  >
-                    <span className={tooltipClass}>B</span>
-                    Bend
-                  </button>
-                </div>
-              </div>
-
-              <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_86px] gap-1.5">
+              <div className="grid grid-cols-1 gap-1.5">
                 <select
                   data-scale-mode-select="true"
                   value={scaleToolMode}
@@ -9095,8 +12386,9 @@ export default function GteWorkspace({
                         syncInput: false,
                       });
                     }
+                    event.currentTarget.blur();
                   }}
-                  className="h-8 min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 shadow-sm outline-none transition focus:border-slate-400"
+                  className="h-7 min-w-0 rounded-md border-0 bg-transparent px-2 text-[11px] font-normal text-slate-700 shadow-none outline-none transition hover:bg-slate-100 focus:bg-slate-100"
                   title="Scale mode - Shortcut: D"
                 >
                   <option value="length">Length scaling</option>
@@ -9106,24 +12398,33 @@ export default function GteWorkspace({
 
                 <button
                   type="button"
-                  onClick={toggleScaleTool}
-                  disabled={
-                    !scaleToolActive &&
-                    selectedNoteIds.length + selectedChordIds.length === 0
+                  onClick={() => {
+                    if (scaleToolActive) {
+                      toggleScaleTool();
+                    } else if (selectedNoteIds.length + selectedChordIds.length > 0) {
+                      setPendingSelectionTool(null);
+                      toggleScaleTool();
+                    } else {
+                      setPendingSelectionTool((tool) => (tool === "scale" ? null : "scale"));
+                      setError(null);
+                    }
+                  }}
+                  disabled={selectionActionsLocked}
+                  title={
+                    selectedNoteIds.length + selectedChordIds.length > 0
+                      ? "Scale selected notes/chords - Shortcut: S"
+                      : "Choose Scale, then select notes or chords - Shortcut: S"
                   }
-                  title="Scale - Shortcut: S"
                   className={
-                    scaleToolActive
+                    scaleToolActive || pendingSelectionTool === "scale"
                       ? `${activeButtonClass} bg-amber-500`
                       : iconButtonClass
                   }
                 >
-                  <span className={tooltipClass}>S</span>
+                  <span className={shortcutClass}>S</span>
                   <svg
                     viewBox="0 0 24 24"
-                    className={`h-3.5 w-3.5 ${
-                      scaleToolActive ? "fill-white" : "fill-current"
-                    }`}
+                    className="h-3.5 w-3.5 fill-current"
                     aria-hidden="true"
                   >
                     <path d="M3 10h18v4H3z" />
@@ -9132,6 +12433,7 @@ export default function GteWorkspace({
                   </svg>
                   Scale
                 </button>
+                {renderToolHelp("Scale")}
               </div>
 
               <button
@@ -9144,44 +12446,46 @@ export default function GteWorkspace({
                     : iconButtonClass
                 }
               >
-                <span className={tooltipClass}>Shift+S</span>
+                <span className={shortcutClass}>Shift+S</span>
                 <img
                   src={STREAMLINE_TOOLBAR_ICONS.slice}
                   alt=""
                   aria-hidden="true"
-                  className={`h-3.5 w-3.5 ${
-                    sliceToolActive ? "brightness-0 invert" : ""
-                  }`}
+                  className="h-3.5 w-3.5"
                 />
                 Slicing Tool
               </button>
+              {renderToolHelp("Slicing Tool")}
 
               <button
                 type="button"
                 onClick={() => {
                   if (moveToolActive) {
                     deactivateMoveTool();
-                  } else {
+                  } else if (selectedNoteIds.length + selectedChordIds.length > 0) {
+                    setPendingSelectionTool(null);
                     activateMoveTool();
+                  } else {
+                    setPendingSelectionTool((tool) => (tool === "move" ? null : "move"));
+                    setError(null);
                   }
                 }}
-                disabled={
-                  !moveToolActive &&
-                  selectedNoteIds.length + selectedChordIds.length === 0
+                disabled={selectionActionsLocked}
+                title={
+                  selectedNoteIds.length + selectedChordIds.length > 0
+                    ? "Move selected notes/chords with the mouse - Shortcut: M"
+                    : "Choose Move, then select notes or chords - Shortcut: M"
                 }
-                title="Move selected notes/chords with the mouse - Shortcut: M"
                 className={
-                  moveToolActive
+                  moveToolActive || pendingSelectionTool === "move"
                     ? `${activeButtonClass} bg-slate-700`
                     : iconButtonClass
                 }
               >
-                <span className={tooltipClass}>M</span>
+                <span className={shortcutClass}>M</span>
                 <svg
                   viewBox="0 0 24 24"
-                  className={`h-3.5 w-3.5 ${
-                    moveToolActive ? "fill-white" : "fill-current"
-                  }`}
+                  className="h-3.5 w-3.5 fill-current"
                   aria-hidden="true"
                 >
                   <path d="M11 3h2v5h4l-5 5-5-5h4V3z" />
@@ -9189,24 +12493,95 @@ export default function GteWorkspace({
                 </svg>
                 Move
               </button>
+              {renderToolHelp("Move")}
+            </div>
+          </div>
+
+          <div className={sectionClass}>
+            <div className={sectionTitleClass}>Effects</div>
+            <div className="grid grid-cols-1 gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  if (canCreateNoteEffect) {
+                    setPendingSelectionTool(null);
+                    handleAddNoteEffect(1);
+                  } else {
+                    setPendingSelectionTool((tool) =>
+                      tool === "hammer-pull" ? null : "hammer-pull"
+                    );
+                    setError(null);
+                  }
+                }}
+                disabled={selectionActionsLocked || activeChordIds.length > 0}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Connect selected notes with hammer-ons or pull-offs - Shortcut: H"
+                }
+                className={
+                  pendingSelectionTool === "hammer-pull" ? activeButtonClass : textButtonClass
+                }
+              >
+                <span className={shortcutClass}>H</span>
+                Hammer/Pull
+              </button>
+              {renderToolHelp("Hammer/Pull")}
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (canCreateNoteEffect) {
+                    setPendingSelectionTool(null);
+                    handleAddNoteEffect(2);
+                  } else {
+                    setPendingSelectionTool((tool) => (tool === "slide" ? null : "slide"));
+                    setError(null);
+                  }
+                }}
+                disabled={selectionActionsLocked || activeChordIds.length > 0}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Connect selected notes with slides - Shortcut: L"
+                }
+                className={pendingSelectionTool === "slide" ? activeButtonClass : textButtonClass}
+              >
+                <span className={shortcutClass}>L</span>
+                Slide
+              </button>
+              {renderToolHelp("Slide")}
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (canCreateNoteEffect) {
+                    setPendingSelectionTool(null);
+                    handleAddNoteEffect(0);
+                  } else {
+                    setPendingSelectionTool((tool) => (tool === "bend" ? null : "bend"));
+                    setError(null);
+                  }
+                }}
+                disabled={selectionActionsLocked || activeChordIds.length > 0}
+                title={
+                  selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Connect selected notes with bends - Shortcut: B"
+                }
+                className={pendingSelectionTool === "bend" ? activeButtonClass : textButtonClass}
+              >
+                <span className={shortcutClass}>B</span>
+                Bend
+              </button>
+              {renderToolHelp("Bend")}
             </div>
           </div>
 
           <div className={sectionClass}>
             <div className={sectionTitleClass}>Playing Coordinates</div>
 
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                data-gte-editor-control="true"
-                onClick={() => setShowGenerateCutsConfirm(true)}
-                title="Generate cuts"
-                className={textButtonClass}
-              >
-                <span className={tooltipClass}>No shortcut</span>
-                Generate Playing Coordinates 
-              </button>
-
+            <div className="grid grid-cols-1 gap-1.5">
               <button
                 type="button"
                 data-gte-editor-control="true"
@@ -9215,9 +12590,9 @@ export default function GteWorkspace({
                 title="Merges adjacent cut regions with the same coordinates"
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>No shortcut</span>
                 Clean Playing-Coordinates
               </button>
+              {renderToolHelp("Clean Playing-Coordinates")}
 
               <button
                 type="button"
@@ -9230,17 +12605,16 @@ export default function GteWorkspace({
                     : iconButtonClass
                 }
               >
-                <span className={tooltipClass}>K</span>
+                <span className={shortcutClass}>K</span>
                 <img
                   src={STREAMLINE_TOOLBAR_ICONS.cut}
                   alt=""
                   aria-hidden="true"
-                  className={`h-3.5 w-3.5 ${
-                    cutToolActive ? "brightness-0 invert" : ""
-                  }`}
+                  className="h-3.5 w-3.5"
                 />
                 Cut
               </button>
+              {renderToolHelp("Cut")}
 
               <button
                 type="button"
@@ -9250,15 +12624,74 @@ export default function GteWorkspace({
                 title="Merge/delete selected boundary"
                 className={textButtonClass}
               >
-                <span className={tooltipClass}>No shortcut</span>
                 Merge
               </button>
+              {renderToolHelp("Merge")}
             </div>
           </div>
         </div>
+        </fieldset>
       </div>
     );
   };
+
+  const releaseSizeSelectFocus = (select: HTMLSelectElement) => {
+    select.blur();
+    onFocusWorkspace?.();
+  };
+
+  const renderDefaultNoteLengthControl = (compact = false) => (
+    <label
+      className={`pointer-events-auto flex ${
+        compact ? "h-8" : "h-9"
+      } items-center gap-1 rounded-full border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500 shadow-sm backdrop-blur`}
+    >
+      <span className="whitespace-nowrap">add note size</span>
+      <select
+        value={defaultNoteLengthDenominator}
+        onChange={(event) => {
+          defaultNoteLengthUserChangedRef.current = true;
+          setDefaultNoteLengthDenominator(Number(event.target.value));
+          releaseSizeSelectFocus(event.currentTarget);
+        }}
+        className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
+        title="Add note size"
+        aria-label="Add note size"
+      >
+        {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+          <option key={denominator} value={denominator}>
+            {formatNoteLengthOption(denominator)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
+  const renderCursorSizeControl = (compact = false) => (
+    <label
+      className={`pointer-events-auto flex ${
+        compact ? "h-8" : "h-9"
+      } items-center gap-1 rounded-full border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500 shadow-sm backdrop-blur`}
+    >
+      <span className="whitespace-nowrap">cursor size</span>
+      <select
+        value={cursorSizeDenominator}
+        onChange={(event) => {
+          setCursorSizeDenominator(getNearestCursorSizeDenominator(Number(event.target.value)));
+          releaseSizeSelectFocus(event.currentTarget);
+        }}
+        className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
+        title="Cursor size"
+        aria-label="Cursor size"
+      >
+        {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
+          <option key={denominator} value={denominator}>
+            1/{denominator}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 
   return (
     <div
@@ -9274,14 +12707,107 @@ export default function GteWorkspace({
         onFocusWorkspace?.();
       }}
     >
-      {embedded && isActive && (
+      {embedded && isActive && !practiceMode && (
         <div
           className={`pointer-events-none absolute inset-0 z-10 border border-sky-300 ${
             isMobileEditMode ? "" : compactEmbeddedMobile ? "rounded-lg" : "rounded-xl"
           }`}
         />
       )}
-      {toolbarOpen && showPlaybackUi && showToolbarUi && !mobileViewport && renderToolbarPanel(false)}
+      {editMenuPortalTarget
+        ? createPortal(renderEditMenuPanel(), editMenuPortalTarget)
+        : null}
+      {pendingSelectionTool && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl border border-sky-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
+          role="toolbar"
+          aria-label={`${pendingSelectionToolLabel} selection`}
+        >
+          <span className="whitespace-nowrap text-xs text-slate-600">
+            <strong className="text-slate-900">{pendingSelectionToolLabel}</strong>
+            {" · "}
+            {pendingSelectionCount} selected
+          </span>
+          <button
+            type="button"
+            onClick={() => setPendingSelectionTool(null)}
+            className="rounded-md px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={applyPendingSelectionTool}
+            disabled={!canApplyPendingSelectionTool}
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+            title={
+              pendingSelectionToolIsEffect
+                ? "Select at least two notes"
+                : "Select at least one note or chord"
+            }
+          >
+            Apply
+          </button>
+        </div>
+      )}
+      {directCanvasTool && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-indigo-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
+          role="toolbar"
+          aria-label={`${directCanvasTool} tool`}
+        >
+          <span className="min-w-0 text-xs text-slate-600">
+            <strong className="text-slate-900">{directCanvasTool}</strong>
+            <span className="hidden sm:inline"> · {directCanvasToolHint}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              if (sliceToolActive) {
+                setSliceToolActive(false);
+                setSliceCursor(null);
+              }
+              if (cutToolActive) {
+                setCutToolActive(false);
+                setCutCursor(null);
+              }
+            }}
+            className="shrink-0 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
+            title="Return to normal editing (Escape)"
+          >
+            Done
+          </button>
+        </div>
+      )}
+      {sliceToolActive && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-indigo-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
+          role="toolbar"
+          aria-label="Slice mode"
+        >
+          <span className="whitespace-nowrap text-xs text-slate-600">
+            <strong className="text-slate-900">Slice mode</strong>
+            {" · "}
+            Click a note where you want to split it
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setSliceToolActive(false);
+              setSliceCursor(null);
+            }}
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
+          >
+            Done
+          </button>
+        </div>
+      )}
       {scaleToolActive && scaleHudPosition && (
         <div
           ref={scaleHudRef}
@@ -9324,13 +12850,18 @@ export default function GteWorkspace({
           data-gte-floating-ui="true"
           data-gte-editor-control="true"
           data-quantize-dialog="true"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gte-quantize-dialog-title"
           className="fixed left-1/2 top-1/2 z-[10000] w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-sky-200 bg-white p-3 shadow-xl shadow-slate-900/15"
           onMouseDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="m-0 text-sm font-semibold text-slate-900">Quantize notes</h2>
+              <h2 id="gte-quantize-dialog-title" className="m-0 text-sm font-semibold text-slate-900">
+                Quantize notes
+              </h2>
               <p className="mt-1 text-[11px] leading-4 text-slate-500">
                 Preview selected notes against beat subdivisions.
               </p>
@@ -9450,7 +12981,13 @@ export default function GteWorkspace({
       {contextMenu && (
         <div
           ref={contextMenuRef}
-          className="fixed z-[9999] w-36 rounded-md border border-slate-200 bg-white/95 py-1 text-xs shadow-lg backdrop-blur"
+          className={`fixed z-[9999] rounded-md border border-slate-200 bg-white/95 py-1 text-xs shadow-lg backdrop-blur ${
+            contextMenu.kind === "note"
+              ? "max-h-[calc(100vh-1.5rem)] w-64 overflow-y-auto"
+              : contextMenu.kind === "playingCoordinates"
+              ? "w-56"
+              : "w-36"
+          }`}
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onMouseDown={(event) => event.stopPropagation()}
         >
@@ -9490,6 +13027,55 @@ export default function GteWorkspace({
                 Delete bars
               </button>
             </>
+          ) : contextMenu.kind === "playingCoordinates" ? (
+            <>
+              <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                Playing Coordinates
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGenerateCutsConfirm(true);
+                  setContextMenu(null);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+              >
+                Generate Playing-Coordinates
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleMergeRedundantCutRegions();
+                  setContextMenu(null);
+                }}
+                disabled={!hasRedundantCutRegions}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+              >
+                Clean Playing-Coordinates
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  toggleCutTool();
+                  setContextMenu(null);
+                }}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100"
+              >
+                <span>Cut</span>
+                <span className="text-[10px] text-slate-400">K</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleMergeCutBoundary();
+                  setContextMenu(null);
+                }}
+                disabled={selectedCutBoundaryIndex === null}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+              >
+                Merge
+              </button>
+            </>
           ) : (
             <>
               <button
@@ -9513,6 +13099,195 @@ export default function GteWorkspace({
               >
                 Paste
               </button>
+              {contextMenu.kind === "note" && (
+                <>
+                  <div className="my-1 border-t border-slate-200" />
+                  <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    Notes &amp; chords
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleMakeChord();
+                      setContextMenu(null);
+                    }}
+                    disabled={chordizeCandidateCount < 2 || selectionActionsLocked}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Merge to Chord</span>
+                    <span className="text-[10px] text-slate-400">C</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (activeChordIds.length) {
+                        const chordIds = [...activeChordIds];
+                        void runMutation(
+                          async () => {
+                            const latestSnapshot = await disbandChordIds(chordIds);
+                            return latestSnapshot ? { snapshot: latestSnapshot } : {};
+                          },
+                          {
+                            localApply: (draft) => {
+                              chordIds.forEach((chordId) =>
+                                disbandChordInSnapshot(draft, chordId)
+                              );
+                            },
+                          }
+                        );
+                        setSelectedChordIds([]);
+                      }
+                      setContextMenu(null);
+                    }}
+                    disabled={activeChordIds.length === 0 || selectionActionsLocked}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Disband Chord</span>
+                    <span className="text-[10px] text-slate-400">Shift+L</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleAssignOptimals();
+                      setContextMenu(null);
+                    }}
+                    disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Optimize Notes</span>
+                    <span className="text-[10px] text-slate-400">O</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSnapSelectedNotesToKey();
+                      setContextMenu(null);
+                    }}
+                    disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    Snap to Key
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      activateQuantizeTool();
+                      setContextMenu(null);
+                    }}
+                    disabled={
+                      selectedNoteIds.length + selectedChordIds.length === 0 ||
+                      selectionActionsLocked
+                    }
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    Quantize
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleJoinSelectedNotes();
+                      setContextMenu(null);
+                    }}
+                    disabled={selectedNoteIds.length < 2 || selectionActionsLocked}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Merge Notes</span>
+                    <span className="text-[10px] text-slate-400">J</span>
+                  </button>
+                  <label className="flex items-center justify-between gap-3 px-3 py-1.5 text-slate-700">
+                    <span>Scale mode</span>
+                    <select
+                      data-scale-mode-select="true"
+                      value={scaleToolMode}
+                      onChange={(event) => {
+                        const nextMode = event.target.value;
+                        if (!isScaleToolMode(nextMode)) return;
+                        setScaleToolMode(nextMode);
+                        if (scaleToolActive) {
+                          applyScalePreview(scaleFactor, {
+                            mode: nextMode,
+                            syncInput: false,
+                          });
+                        }
+                      }}
+                      className="h-6 min-w-0 rounded border border-slate-200 bg-white px-1 text-[10px] text-slate-700"
+                    >
+                      <option value="length">Length</option>
+                      <option value="start">Start time</option>
+                      <option value="both">Start + length</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleScaleTool();
+                      setContextMenu(null);
+                    }}
+                    disabled={
+                      !scaleToolActive &&
+                      selectedNoteIds.length + selectedChordIds.length === 0
+                    }
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Scale</span>
+                    <span className="text-[10px] text-slate-400">S</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleSliceTool();
+                      setContextMenu(null);
+                    }}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100"
+                  >
+                    <span>Slicing Tool</span>
+                    <span className="text-[10px] text-slate-400">Shift+S</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (moveToolActive) {
+                        deactivateMoveTool();
+                      } else {
+                        activateMoveTool();
+                      }
+                      setContextMenu(null);
+                    }}
+                    disabled={
+                      !moveToolActive &&
+                      selectedNoteIds.length + selectedChordIds.length === 0
+                    }
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Move</span>
+                    <span className="text-[10px] text-slate-400">M</span>
+                  </button>
+
+                  <div className="my-1 border-t border-slate-200" />
+                  <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    Effects
+                  </div>
+                  {[
+                    ["Hammer/Pull", "H", 1],
+                    ["Slide", "L", 2],
+                    ["Bend", "B", 0],
+                  ].map(([label, shortcut, effectType]) => (
+                    <button
+                      key={`note-context-effect-${label}`}
+                      type="button"
+                      onClick={() => {
+                        handleAddNoteEffect(Number(effectType));
+                        setContextMenu(null);
+                      }}
+                      disabled={!canCreateNoteEffect}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                    >
+                      <span>{label}</span>
+                      <span className="text-[10px] text-slate-400">{shortcut}</span>
+                    </button>
+                  ))}
+                </>
+              )}
             </>
           )}
         </div>
@@ -9520,40 +13295,31 @@ export default function GteWorkspace({
       {showPlaybackUi && (
         <div
           data-gte-floating-ui="true"
-          className={`fixed left-1/2 z-[9997] -translate-x-1/2 px-2 pointer-events-none ${
-            mobileViewport ? "bottom-3 w-[min(calc(100vw-1.25rem),28rem)]" : "bottom-16 w-[min(calc(100vw-2rem),64rem)]"
-          }`}
+          className={
+            practiceMode
+              ? "fixed bottom-5 left-1/2 z-[9997] w-fit -translate-x-1/2 px-2 pointer-events-none"
+              : `fixed left-1/2 z-[9997] -translate-x-1/2 px-2 pointer-events-none ${
+                  mobileViewport
+                    ? "bottom-3 w-[min(calc(100vw-1.25rem),28rem)]"
+                    : "bottom-16 w-[min(calc(100vw-2rem),64rem)]"
+                }`
+          }
         >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
-            {!mobileViewport && (
-              <button
-                type="button"
-                data-gte-editor-control="true"
-                data-gte-toolbar-ui="true"
-                onClick={() => setToolbarOpen((prev) => !prev)}
-                aria-pressed={toolbarOpen}
-                title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
-                className={`pointer-events-auto flex h-10 items-center justify-center rounded-full border px-3 text-xs font-semibold shadow-md backdrop-blur transition ${
-                  mobileViewport ? "" : "md:absolute md:right-0"
-                } ${
-                  toolbarOpen
-                    ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
-                    : "border-sky-300 bg-sky-100/95 text-sky-900 hover:bg-sky-50"
-                }`}
-              >
-                Toolbar
-              </button>
-            )}
             {mobileViewport ? (
+              <div className="pointer-events-auto flex w-full items-center justify-center">
               <div
                 data-gte-floating-ui="true"
-                className="pointer-events-auto flex w-full items-center justify-between gap-1 rounded-2xl border border-slate-200 bg-white/96 px-2 py-2 text-slate-700 shadow-lg backdrop-blur"
+                className="flex w-full max-w-sm items-center justify-around gap-1 rounded-2xl border border-slate-200 bg-white/96 px-2 py-2 text-slate-700 shadow-lg backdrop-blur"
+                role="toolbar"
+                aria-label="Playback controls"
               >
                 <button
                   type="button"
                   onClick={skipToStart}
-                  className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Go to start"
+                  aria-label="Go to start"
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <rect x="4" y="5" width="2" height="14" />
@@ -9563,8 +13329,9 @@ export default function GteWorkspace({
                 <button
                   type="button"
                   onClick={skipBackwardBar}
-                  className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Previous bar"
+                  aria-label="Previous bar"
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="17,5 7,12 17,19" />
@@ -9575,10 +13342,15 @@ export default function GteWorkspace({
                   onClick={() => {
                     togglePlayback();
                   }}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
-                  title={effectiveIsPlaying ? "Pause" : "Play"}
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:cursor-wait disabled:bg-slate-700"
+                  title={effectivePlaybackPreparing ? "Loading guitar sound" : effectiveIsPlaying ? "Pause" : "Play"}
+                  aria-label={effectivePlaybackPreparing ? "Loading guitar sound" : effectiveIsPlaying ? "Pause" : "Play"}
+                  aria-busy={effectivePlaybackPreparing}
+                  disabled={effectivePlaybackPreparing}
                 >
-                  {effectiveIsPlaying ? (
+                  {effectivePlaybackPreparing ? (
+                    <span className="animate-pulse text-xs font-bold" aria-hidden="true">•••</span>
+                  ) : effectiveIsPlaying ? (
                     <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                       <rect x="6" y="5" width="4" height="14" />
                       <rect x="14" y="5" width="4" height="14" />
@@ -9592,14 +13364,15 @@ export default function GteWorkspace({
                 <button
                   type="button"
                   onClick={skipForwardBar}
-                  className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Next bar"
+                  aria-label="Next bar"
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="7,5 17,12 7,19" />
                   </svg>
                 </button>
-                <div className="flex min-w-0 flex-1 items-center gap-2 pl-1">
+                <div className="flex min-w-24 shrink-0 items-center gap-2 pl-1">
                   <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 fill-current text-slate-500" aria-hidden="true">
                     <path d="M4 10v4h4l5 4V6L8 10H4z" />
                     <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
@@ -9615,15 +13388,18 @@ export default function GteWorkspace({
                     title="Volume"
                   />
                 </div>
+                {practiceControlsVisible && (
+                  <>
                 <button
                   type="button"
                   onClick={() => setEffectivePracticeLoopEnabled(!effectivePracticeLoopEnabled)}
                   disabled={!effectivePracticeLoopRange}
                   aria-pressed={effectivePracticeLoopEnabled}
-                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
                     effectivePracticeLoopEnabled ? "bg-emerald-100 text-emerald-800" : "hover:bg-slate-100"
                   }`}
                   title="Loop selected bars"
+                  aria-label="Loop selected bars"
                 >
                   L
                 </button>
@@ -9631,10 +13407,11 @@ export default function GteWorkspace({
                   type="button"
                   onClick={() => setEffectiveMetronomeEnabled(!effectiveMetronomeEnabled)}
                   aria-pressed={effectiveMetronomeEnabled}
-                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold ${
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                     effectiveMetronomeEnabled ? "bg-sky-100 text-sky-800" : "hover:bg-slate-100"
                   }`}
                   title="Metronome"
+                  aria-label="Metronome"
                 >
                   M
                 </button>
@@ -9642,10 +13419,11 @@ export default function GteWorkspace({
                   type="button"
                   onClick={() => setEffectiveCountInEnabled(!effectiveCountInEnabled)}
                   aria-pressed={effectiveCountInEnabled}
-                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold ${
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                     effectiveCountInEnabled ? "bg-amber-100 text-amber-800" : "hover:bg-slate-100"
                   }`}
                   title="One-bar count-in"
+                  aria-label="One-bar count-in"
                 >
                   1
                 </button>
@@ -9654,17 +13432,18 @@ export default function GteWorkspace({
                   onClick={() => setEffectiveSpeedTrainerEnabled(!effectiveSpeedTrainerEnabled)}
                   disabled={!effectivePracticeLoopEnabled}
                   aria-pressed={effectiveSpeedTrainerEnabled}
-                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
                     effectiveSpeedTrainerEnabled ? "bg-violet-100 text-violet-800" : "hover:bg-slate-100"
                   }`}
                   title="Speed trainer"
+                  aria-label="Speed trainer"
                 >
                   T
                 </button>
                 <select
                   value={effectivePlaybackSpeed}
                   onChange={(event) => setEffectivePlaybackSpeed(Number(event.target.value))}
-                  className="h-9 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                  className="h-11 shrink-0 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
                   title="Playback speed"
                 >
                   {effectivePlaybackSpeedOptions.map((speed) => (
@@ -9701,55 +13480,19 @@ export default function GteWorkspace({
                     </select>
                   </>
                 )}
+                  </>
+                )}
+              </div>
               </div>
             ) : (
-              <div
-                data-gte-floating-ui="true"
-                className="pointer-events-auto flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur"
-              >
-                <button
-                  type="button"
-                  onClick={requestUndo}
-                  disabled={effectiveUndoCount === 0 || busy}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Undo (Ctrl/Cmd+Z)"
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                    <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  onClick={requestRedo}
-                  disabled={effectiveRedoCount === 0 || busy}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Redo (Ctrl/Cmd+Shift+Z)"
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                    <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
-                  </svg>
-                </button>
-                <span className="mx-1 whitespace-nowrap text-[10px] text-slate-500">
-                  {!allowBackend
-                    ? hasUnsavedChanges
-                      ? "Saving local draft..."
-                      : "Local draft saved"
-                    : isAutosaving
-                      ? "Saving..."
-                      : hasUnsavedChanges
-                        ? "Unsaved changes"
-                        : lastSavedAt
-                          ? `Saved ${new Date(lastSavedAt).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}`
-                          : "Saved"}
-                </span>
+              <div className="pointer-events-auto flex items-center gap-2">
+              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
                 <button
                   type="button"
                   onClick={skipToStart}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Go to start"
+                  aria-label="Go to start"
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <rect x="4" y="5" width="2" height="14" />
@@ -9759,8 +13502,9 @@ export default function GteWorkspace({
                 <button
                   type="button"
                   onClick={skipBackwardBar}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Previous bar"
+                  aria-label="Previous bar"
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="17,5 7,12 17,19" />
@@ -9771,10 +13515,15 @@ export default function GteWorkspace({
                   onClick={() => {
                     togglePlayback();
                   }}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
-                  title={effectiveIsPlaying ? "Pause" : "Play"}
+                  className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:cursor-wait disabled:bg-slate-700"
+                  title={effectivePlaybackPreparing ? "Loading guitar sound" : effectiveIsPlaying ? "Pause" : "Play"}
+                  aria-label={effectivePlaybackPreparing ? "Loading guitar sound" : effectiveIsPlaying ? "Pause" : "Play"}
+                  aria-busy={effectivePlaybackPreparing}
+                  disabled={effectivePlaybackPreparing}
                 >
-                  {effectiveIsPlaying ? (
+                  {effectivePlaybackPreparing ? (
+                    <span className="animate-pulse text-xs font-bold" aria-hidden="true">•••</span>
+                  ) : effectiveIsPlaying ? (
                     <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                       <rect x="6" y="5" width="4" height="14" />
                       <rect x="14" y="5" width="4" height="14" />
@@ -9788,14 +13537,16 @@ export default function GteWorkspace({
                 <button
                   type="button"
                   onClick={skipForwardBar}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Next bar"
+                  aria-label="Next bar"
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="7,5 17,12 7,19" />
                   </svg>
                 </button>
-                <div className="flex items-center gap-1 px-1">
+              </div>
+              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-slate-700 shadow-sm backdrop-blur">
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
                     <path d="M4 10v4h4l5 4V6L8 10H4z" />
                     <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
@@ -9810,93 +13561,7 @@ export default function GteWorkspace({
                     className="w-20 accent-slate-700"
                     title="Volume"
                   />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setEffectivePracticeLoopEnabled(!effectivePracticeLoopEnabled)}
-                  disabled={!effectivePracticeLoopRange}
-                  aria-pressed={effectivePracticeLoopEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
-                    effectivePracticeLoopEnabled ? "bg-emerald-100 text-emerald-800" : "hover:bg-slate-100"
-                  }`}
-                  title="Loop selected bars"
-                >
-                  Loop
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEffectiveMetronomeEnabled(!effectiveMetronomeEnabled)}
-                  aria-pressed={effectiveMetronomeEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold ${
-                    effectiveMetronomeEnabled ? "bg-sky-100 text-sky-800" : "hover:bg-slate-100"
-                  }`}
-                  title="Metronome"
-                >
-                  Met
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEffectiveCountInEnabled(!effectiveCountInEnabled)}
-                  aria-pressed={effectiveCountInEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold ${
-                    effectiveCountInEnabled ? "bg-amber-100 text-amber-800" : "hover:bg-slate-100"
-                  }`}
-                  title="One-bar count-in"
-                >
-                  Count
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEffectiveSpeedTrainerEnabled(!effectiveSpeedTrainerEnabled)}
-                  disabled={!effectivePracticeLoopEnabled}
-                  aria-pressed={effectiveSpeedTrainerEnabled}
-                  className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
-                    effectiveSpeedTrainerEnabled ? "bg-violet-100 text-violet-800" : "hover:bg-slate-100"
-                  }`}
-                  title="Speed trainer"
-                >
-                  Train
-                </button>
-                <select
-                  value={effectivePlaybackSpeed}
-                  onChange={(event) => setEffectivePlaybackSpeed(Number(event.target.value))}
-                  className="h-8 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
-                  title="Playback speed"
-                >
-                  {effectivePlaybackSpeedOptions.map((speed) => (
-                    <option key={speed} value={speed}>
-                      {Math.round(speed * 100)}%
-                    </option>
-                  ))}
-                </select>
-                {effectiveSpeedTrainerEnabled && (
-                  <>
-                    <select
-                      value={effectiveSpeedTrainerTarget}
-                      onChange={(event) => setEffectiveSpeedTrainerTarget(Number(event.target.value))}
-                      className="h-8 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
-                      title="Speed trainer target"
-                    >
-                      {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
-                        <option key={speed} value={speed}>
-                          to {Math.round(speed * 100)}%
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={effectiveSpeedTrainerStep}
-                      onChange={(event) => setEffectiveSpeedTrainerStep(Number(event.target.value))}
-                      className="h-8 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
-                      title="Speed trainer step"
-                    >
-                      {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
-                        <option key={step} value={step}>
-                          +{Math.round(step * 100)}%
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
+              </div>
               </div>
             )}
           </div>
@@ -9914,21 +13579,14 @@ export default function GteWorkspace({
             value={bpmInput}
             onChange={(e) => setBpmInput(e.target.value)}
             onKeyDown={(e) => {
+              if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                e.preventDefault();
+                e.currentTarget.blur();
+                return;
+              }
               if (e.key !== "Enter") return;
               e.preventDefault();
-              const next = bpmToSecondsPerBar(bpmInput, timeSignature);
-              const normalizedBpm = normalizeBpm(bpmInput);
-              if (next && normalizedBpm) {
-                setSecondsPerBar(next);
-                setBpmInput(formatBpm(normalizedBpm));
-                void runMutation(() => gteApi.setSecondsPerBar(editorId, next), {
-                  localApply: (draft) => {
-                    setSecondsPerBarInSnapshot(draft, next);
-                  },
-                });
-              } else {
-                setBpmInput(formatBpm(secondsPerBarToBpm(secondsPerBar, timeSignature)));
-              }
+              e.currentTarget.blur();
             }}
             onBlur={() => {
               const next = bpmToSecondsPerBar(bpmInput, timeSignature);
@@ -9952,65 +13610,43 @@ export default function GteWorkspace({
         {!embedded && (
           <div className="flex items-center gap-3 text-xs text-slate-600">
             <div className="flex items-center gap-2">
-              <span>Beats/bar</span>
+              <span>Time signature</span>
               <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min={1}
-                  max={64}
-                  step={1}
-                  inputMode="numeric"
-                  value={timeSignatureInput}
-                  onChange={(e) => setTimeSignatureInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Enter") return;
-                    e.preventDefault();
-                    commitTimeSignatureValue(timeSignatureInput);
+                <select
+                  value={timeSignature}
+                  onChange={(event) => {
+                    commitTimeSignatureValue(Number(event.target.value));
+                    event.currentTarget.blur();
                   }}
-                  onBlur={() => {
-                    commitTimeSignatureValue(timeSignatureInput);
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
+                  aria-label="Time signature top number"
+                  title="Top number"
+                >
+                  {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-slate-400">/</span>
+                <select
+                  value={timeSignatureBottom}
+                  onChange={(event) => {
+                    commitTimeSignatureBottomValue(Number(event.target.value));
+                    event.currentTarget.blur();
                   }}
-                  className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-                />
-                <div className="flex flex-col gap-0.5">
-                  <button
-                    type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                      commitTimeSignatureValue(timeSignature + 1);
-                    }}
-                    className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
-                    title="Increase beats per bar"
-                    aria-label="Increase beats per bar"
-                    disabled={timeSignature >= 64}
-                  >
-                    &#9650;
-                  </button>
-                  <button
-                    type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                      commitTimeSignatureValue(timeSignature - 1);
-                    }}
-                    className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
-                    title="Decrease beats per bar"
-                    aria-label="Decrease beats per bar"
-                    disabled={timeSignature <= 1}
-                  >
-                    &#9660;
-                  </button>
-                </div>
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
+                  aria-label="Time signature bottom number"
+                  title="Bottom number"
+                >
+                  {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
-            <label className="flex items-center gap-1.5 whitespace-nowrap">
-              <input
-                type="checkbox"
-                checked={keepNotesOnBeat}
-                onChange={(event) => setKeepNotesOnBeat(event.target.checked)}
-                className="h-3.5 w-3.5 rounded border-slate-300"
-              />
-              <span>Keep notes on beat</span>
-            </label>
           </div>
         )}
         {!embedded && (
@@ -10094,7 +13730,7 @@ export default function GteWorkspace({
         {!embedded && <div className="text-xs text-slate-600">Scale: {scale}px/frame (auto)</div>}
         {!embedded && (
           <div className="text-xs text-slate-500">
-              FPS: {fps} - Beats/bar: {timeSignature}
+              FPS: {fps} - Time signature: {timeSignature}/{timeSignatureBottom}
             </div>
         )}
       </div>
@@ -10118,7 +13754,11 @@ export default function GteWorkspace({
       )}
 
       {error && isActive && (
-        <div className="fixed bottom-4 right-4 z-[10050] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-rose-300 bg-rose-50/95 px-3 py-2 text-sm text-rose-800 shadow-lg backdrop-blur">
+        <div
+          className="fixed bottom-4 right-4 z-[10050] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-rose-300 bg-rose-50/95 px-3 py-2 text-sm text-rose-800 shadow-lg backdrop-blur"
+          role="alert"
+          aria-live="assertive"
+        >
           {error}
         </div>
       )}
@@ -10129,10 +13769,21 @@ export default function GteWorkspace({
           className="fixed inset-0 z-[10060] flex items-center justify-center bg-slate-900/35 px-4"
           onMouseDown={(event) => event.stopPropagation()}
           onTouchStart={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setShowGenerateCutsConfirm(false);
+          }}
         >
-          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
-            <h2 className="text-base font-semibold text-slate-900">Generate playing coordinates?</h2>
-            <p className="mt-2 text-sm text-slate-600">
+          <div
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="generate-coordinates-dialog-title"
+            aria-describedby="generate-coordinates-dialog-description"
+          >
+            <h2 id="generate-coordinates-dialog-title" className="text-base font-semibold text-slate-900">
+              Generate playing coordinates?
+            </h2>
+            <p id="generate-coordinates-dialog-description" className="mt-2 text-sm text-slate-600">
               This will replace the current playing coordinates on this track.
             </p>
             <div className="mt-4 flex justify-end gap-2">
@@ -10140,6 +13791,7 @@ export default function GteWorkspace({
                 type="button"
                 className="button-secondary button-small"
                 onClick={() => setShowGenerateCutsConfirm(false)}
+                autoFocus
               >
                 Cancel
               </button>
@@ -10168,10 +13820,299 @@ export default function GteWorkspace({
         }`}
       >
         {tabViewEnabled && (
+          practiceMode ? (
+          <div
+            ref={practiceScoreRef}
+            className="relative min-w-0 overflow-visible bg-white"
+            data-gte-tab-view="true"
+            data-gte-practice-score="true"
+            style={{ height: practiceRowCount * practiceRowHeight }}
+          >
+            {practiceRows.map(({ firstBar, lastBar, segments }, rowIndex) => {
+              const sourceLeft = editorTabView.barStartXs[firstBar] - 30;
+              const sourceRight = editorTabView.barStartXs[lastBar] - 30;
+              const rowContentWidth = sourceRight - sourceLeft;
+              const rowTop = rowIndex * practiceRowHeight;
+              return (
+                <div
+                  key={`practice-tab-row-${rowIndex}`}
+                  data-practice-row={rowIndex}
+                  className="absolute left-0 right-0"
+                  style={{
+                    top: rowTop,
+                    height: practiceRowHeight - practiceRowGap,
+                  }}
+                >
+                  {segments.map((segment) => {
+                    const barIndices = Array.from(
+                      { length: segment.endBar - segment.startBar },
+                      (_, offset) => segment.startBar + offset
+                    );
+                    const selected = barIndices.every((barIndex) =>
+                      selectedBarIndexSet.has(barIndex)
+                    );
+                    const partiallySelected =
+                      !selected &&
+                      barIndices.some((barIndex) => selectedBarIndexSet.has(barIndex));
+                    const label = segment.collapsed
+                      ? `Bar ${segment.startBar + 1}–${segment.endBar}`
+                      : `Bar ${segment.startBar + 1}`;
+                    return (
+                      <button
+                        key={`practice-bar-${segment.startBar}-${segment.endBar}`}
+                        type="button"
+                        data-bar-select="true"
+                        data-bar-select-editor={editorId}
+                        data-bar-index={segment.startBar}
+                        data-bar-end-index={segment.endBar - 1}
+                        onClick={(event) =>
+                          handlePracticeBarSegmentSelection(
+                            segment.startBar,
+                            segment.endBar,
+                            event
+                          )
+                        }
+                        className={`absolute top-0 z-20 flex items-center justify-center overflow-hidden whitespace-nowrap px-1.5 text-[9px] transition-colors ${
+                          selected
+                            ? "bg-emerald-50 text-emerald-800"
+                            : partiallySelected
+                            ? "bg-emerald-50/60 text-emerald-700"
+                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                        }`}
+                        style={{
+                          left:
+                            30 +
+                            editorTabView.barStartXs[segment.startBar] -
+                            editorTabView.barStartXs[firstBar],
+                          width: segment.width,
+                          height: TIMELINE_BAR_HEADER_HEIGHT,
+                        }}
+                        aria-label={`Select ${label}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                  {practiceChordOverlayItems
+                    .filter(
+                      (item) =>
+                        item.frame >= firstBar * framesPerMeasure &&
+                        item.frame < lastBar * framesPerMeasure
+                    )
+                    .map((item) => {
+                      const sourceX = getEditorTabViewCursorX(
+                        editorTabView.cursorAnchors,
+                        item.frame,
+                        Math.max(1, editorTabView.barCount * framesPerMeasure),
+                        editorTabView.width
+                      );
+                      return (
+                        <div
+                          key={`practice-chord-overlay-${rowIndex}-${item.chord.id}`}
+                          className="group absolute z-40 -translate-x-1/2"
+                          style={{
+                            left: sourceX - sourceLeft,
+                            top: TIMELINE_BAR_HEADER_HEIGHT + practiceTabHeight - 4,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="h-5 max-w-24 truncate rounded-md border border-slate-300 bg-slate-100 px-1.5 text-[10px] font-bold text-slate-800 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+                            aria-label={`${item.label} chord diagram`}
+                          >
+                            {item.label}
+                          </button>
+                          <div className="invisible absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 rounded-lg border border-slate-200 bg-white p-2 opacity-0 shadow-xl transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                            <div className="mb-1 text-center text-xs font-bold text-slate-800">
+                              {item.label}
+                            </div>
+                            {item.fingering ? (
+                              <ChordFingeringDiagram
+                                fingering={item.fingering}
+                                leftHanded={leftHandedChordDiagrams}
+                              />
+                            ) : (
+                              <div className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">
+                                No shape
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {[...segments.map((segment) => segment.startBar), lastBar].map((barIndex) => (
+                    <div
+                      key={`practice-bar-line-${rowIndex}-${barIndex}`}
+                      className="absolute w-px bg-slate-400"
+                      style={{
+                        left:
+                          30 +
+                          editorTabView.barStartXs[barIndex] -
+                          editorTabView.barStartXs[firstBar],
+                        top: TIMELINE_BAR_HEADER_HEIGHT,
+                        height: practiceTabHeight,
+                      }}
+                    />
+                  ))}
+                  {editorTabView.strings.map((line, stringIndex) => (
+                    <div key={`practice-string-${rowIndex}-${stringIndex}`}>
+                      <div
+                        className="absolute z-20 flex w-7 -translate-y-1/2 justify-end bg-white pr-1 text-[10px] font-semibold text-slate-500"
+                        style={{
+                          left: 0,
+                          top:
+                            TIMELINE_BAR_HEADER_HEIGHT +
+                            line.y * practiceVerticalScale,
+                        }}
+                      >
+                        {line.label}
+                      </div>
+                      <div
+                        className="absolute h-px bg-slate-500"
+                        style={{
+                          left: 30,
+                          width: rowContentWidth,
+                          top:
+                            TIMELINE_BAR_HEADER_HEIGHT +
+                            line.y * practiceVerticalScale,
+                        }}
+                      />
+                    </div>
+                  ))}
+                  {editorTabView.placements
+                    .filter((placement) => {
+                      const contentX = placement.x - 30;
+                      return contentX >= sourceLeft && contentX < sourceRight;
+                    })
+                    .map((placement) => {
+                      const y = editorTabView.strings[placement.stringIndex]?.y ?? 0;
+                      const rating = practiceRatingByPlacement.get(placement.key);
+                      const ratingClass =
+                        rating?.status === "correct"
+                          ? "rounded bg-emerald-500 text-white"
+                          : rating?.status === "timing"
+                          ? "rounded bg-amber-300 text-amber-950"
+                          : rating?.status === "missed"
+                          ? "rounded bg-rose-600 text-white"
+                          : "bg-white text-slate-900";
+                      const timingDetail =
+                        rating?.onsetErrorMs == null
+                          ? ""
+                          : Math.abs(rating.onsetErrorMs) < 1
+                          ? " · on time"
+                          : ` · ${Math.abs(Math.round(rating.onsetErrorMs))} ms ${
+                              rating.onsetErrorMs < 0 ? "early" : "late"
+                            }`;
+                      return (
+                        <button
+                          key={`practice-${rowIndex}-${placement.key}`}
+                          type="button"
+                          onClick={() => onPracticeNotePlay?.(placement.startTime)}
+                          className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer px-0.5 text-[11px] font-bold leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${ratingClass}`}
+                          style={{
+                            left: placement.x - sourceLeft,
+                            top:
+                              TIMELINE_BAR_HEADER_HEIGHT +
+                              y * practiceVerticalScale,
+                          }}
+                          title={
+                            rating
+                              ? rating.status === "missed"
+                                ? "Missed note"
+                                : `Timing ${Math.round(rating.timingAccuracy)}%${timingDetail}`
+                              : undefined
+                          }
+                          aria-label={`Play from fret ${placement.fret}`}
+                        >
+                          {placement.fret}
+                        </button>
+                      );
+                    })}
+                  {(practiceRatingReplay?.falseNotes || [])
+                    .filter(
+                      (falseNote) =>
+                        falseNote.barIndex >= firstBar && falseNote.barIndex < lastBar
+                    )
+                    .map((falseNote, falseIndex) => {
+                      const sourceX = getEditorTabViewCursorX(
+                        editorTabView.cursorAnchors,
+                        falseNote.frame,
+                        Math.max(1, editorTabView.barCount * framesPerMeasure),
+                        editorTabView.width
+                      );
+                      return (
+                        <span
+                          key={`practice-false-${rowIndex}-${falseIndex}-${falseNote.frame}`}
+                          className="pointer-events-none absolute z-30 -translate-x-1/2 text-sm font-black text-rose-600"
+                          style={{
+                            left: sourceX - sourceLeft,
+                            top: TIMELINE_BAR_HEADER_HEIGHT + 1,
+                          }}
+                          title={`Unexpected MIDI note ${falseNote.pitchMidi}`}
+                          aria-label="Unexpected note"
+                        >
+                          ?
+                        </span>
+                      );
+                    })}
+                  {editorTabView.effects
+                    .filter((effect) => {
+                      const contentX = effect.x - 30;
+                      return contentX >= sourceLeft && contentX < sourceRight;
+                    })
+                    .map((effect) => {
+                      const y = editorTabView.strings[effect.stringIndex]?.y ?? 0;
+                      const left = Math.max(30, Math.min(effect.x1, effect.x2) - sourceLeft);
+                      const right = Math.min(
+                        30 + rowContentWidth,
+                        Math.max(effect.x1, effect.x2) - sourceLeft
+                      );
+                      return (
+                        <div
+                          key={`practice-${rowIndex}-${effect.key}`}
+                          className="pointer-events-none absolute"
+                          style={{
+                            left,
+                            top:
+                              TIMELINE_BAR_HEADER_HEIGHT +
+                              y * practiceVerticalScale -
+                              13,
+                            width: Math.max(10, right - left),
+                          }}
+                        >
+                          <div className="absolute left-0 right-0 top-2 h-px bg-slate-600" />
+                          <span className="absolute top-0 bg-white px-0.5 text-[9px] font-bold text-slate-700">
+                            {effect.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+              );
+            })}
+            <div
+              ref={tabViewCursorRef}
+              className="pointer-events-none absolute z-30 w-[2px] rounded-full bg-rose-500"
+              style={{
+                left: 0,
+                top: TIMELINE_BAR_HEADER_HEIGHT + 3,
+                height: Math.max(20, practiceTabHeight - 6),
+                transform: (() => {
+                  const position = getPracticePosition(editorTabView.cursorX);
+                  return `translate3d(${position.x}px, ${position.y}px, 0) translateX(-1px)`;
+                })(),
+              }}
+            />
+          </div>
+          ) : (
           <div
             ref={tabViewScrollRef}
-            className={`min-w-0 rounded-xl border border-slate-200 bg-white ${
-              embedded && !mobileViewport ? "overflow-x-hidden" : "overflow-x-auto"
+            className={`min-w-0 bg-white ${
+              practiceMode ? "rounded-none border-0" : "rounded-xl border border-slate-200"
+            } ${
+              embedded && !mobileViewport
+                ? "hide-scrollbar overflow-x-auto"
+                : "overflow-x-auto"
             } ${
               isMobileEditMode ? "min-h-0 flex-1" : ""
             }`}
@@ -10206,10 +14147,18 @@ export default function GteWorkspace({
                         }
                         handleBarSelection(barIndex, event);
                       }}
-                      onContextMenu={(event) => handleBarContextMenu(barIndex, event)}
-                      draggable={selected && !mobileViewport}
-                      onDragStart={(event) => handleSelectedBarDragStart(barIndex, event)}
-                      onDragEnd={handleSelectedBarDragEnd}
+                      onContextMenu={(event) => {
+                        if (practiceMode) {
+                          event.preventDefault();
+                          return;
+                        }
+                        handleBarContextMenu(barIndex, event);
+                      }}
+                      draggable={!practiceMode && selected && !mobileViewport}
+                      onDragStart={(event) => {
+                        if (!practiceMode) handleSelectedBarDragStart(barIndex, event);
+                      }}
+                      onDragEnd={practiceMode ? undefined : handleSelectedBarDragEnd}
                       className={`absolute top-0 z-20 flex items-center px-2 text-[10px] ${
                         selected
                           ? "bg-slate-200/90 text-slate-800"
@@ -10234,7 +14183,7 @@ export default function GteWorkspace({
                   );
                   const isActiveDrop =
                     Boolean(activeBarDrag && onRequestBarDrop) && barDropIndex === insertIndex;
-                  const dragEnabled = Boolean(activeBarDrag && onRequestBarDrop);
+                  const dragEnabled = !practiceMode && Boolean(activeBarDrag && onRequestBarDrop);
                   return (
                     <button
                       key={`tab-view-bar-drop-${insertIndex}`}
@@ -10326,7 +14275,11 @@ export default function GteWorkspace({
               <div
                 ref={tabViewCursorRef}
                 className="pointer-events-none absolute bottom-3 top-3 z-10 w-[2px] -translate-x-px rounded-full bg-rose-500"
-                style={{ left: editorTabView.cursorX, top: TIMELINE_BAR_HEADER_HEIGHT + 3 }}
+                style={{
+                  left: 0,
+                  top: TIMELINE_BAR_HEADER_HEIGHT + 3,
+                  transform: `translate3d(${editorTabView.cursorX}px, 0, 0) translateX(-1px)`,
+                }}
               />
               <div
                 role="button"
@@ -10365,6 +14318,7 @@ export default function GteWorkspace({
               </div>
             </div>
           </div>
+          )
         )}
         <div
           className={`flex min-w-0 ${tabViewEnabled ? "hidden" : ""} ${
@@ -10698,6 +14652,7 @@ export default function GteWorkspace({
                   const height = rowBlockHeight;
                   return (
                     <button
+                      ref={timelinePlayheadRef}
                       type="button"
                       onMouseDown={(event) => {
                         event.preventDefault();
@@ -10708,7 +14663,14 @@ export default function GteWorkspace({
                         if (target) setEffectivePlayheadFrame(target.time);
                       }}
                       className={`absolute z-30 cursor-col-resize`}
-                      style={{ left, top, height, width: 2, transform: "translateX(-1px)" }}
+                      style={{
+                        left: 0,
+                        top: 0,
+                        height,
+                        width: 2,
+                        transform: `translate3d(${left}px, ${top}px, 0) translateX(-1px)`,
+                        willChange: effectiveIsPlaying ? "transform" : undefined,
+                      }}
                     >
                       <span
                         className={`absolute left-0 top-0 h-full w-[2px] rounded-full ${
@@ -10739,6 +14701,7 @@ export default function GteWorkspace({
                       data-gte-editor-control="true"
                       data-gte-playing-coordinate="true"
                       onMouseDown={(event) => {
+                        if (event.button !== 0) return;
                         event.preventDefault();
                         event.stopPropagation();
                         setSelectedCutBoundaryIndex(boundary.index);
@@ -10746,6 +14709,9 @@ export default function GteWorkspace({
                         setSelectedNoteIds([]);
                         setSelectedChordIds([]);
                       }}
+                      onContextMenu={(event) =>
+                        handlePlayingCoordinatesContextMenu(event, boundary.index)
+                      }
                       className="absolute z-40 cursor-pointer"
                       style={{ left, top, height, width: 18, transform: "translateX(-9px)" }}
                     >
@@ -10819,6 +14785,10 @@ export default function GteWorkspace({
                         title="Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below"
                         aria-label="Playing coordinates"
                         onMouseDown={(event) => {
+                          if (event.button !== 0) {
+                            event.stopPropagation();
+                            return;
+                          }
                           if (cutToolActive) {
                             event.preventDefault();
                             event.stopPropagation();
@@ -10827,6 +14797,9 @@ export default function GteWorkspace({
                           }
                           event.stopPropagation();
                         }}
+                        onContextMenu={(event) =>
+                          handlePlayingCoordinatesContextMenu(event)
+                        }
                       >
                         <button
                           type="button"
@@ -11014,7 +14987,7 @@ export default function GteWorkspace({
                   });
                 })}
 
-                {snapshot.notes.flatMap((note) => {
+                {visibleNotes.flatMap((note) => {
                   const noteEffectEdges = noteEffectEdgeMap.get(note.id) || { left: false, right: false };
                   const scalePreview = scaleToolActive ? scalePreviewNotes[note.id] : undefined;
                   const quantizePreview = quantizeDialogOpen ? quantizePreviewNotes[note.id] : undefined;
@@ -11051,6 +15024,7 @@ export default function GteWorkspace({
                         key={`note-${note.id}-seg-${segment.rowIndex}-${idx}`}
                         type="button"
                         onMouseDown={(event) => {
+                          if (event.button !== 0) return;
                           if (mobileViewport) {
                             event.preventDefault();
                             event.stopPropagation();
@@ -11082,6 +15056,7 @@ export default function GteWorkspace({
                         onTouchMove={cancelTouchHoldOnMove}
                         onTouchEnd={() => clearTouchHold()}
                         onTouchCancel={() => clearTouchHold()}
+                        onContextMenu={(event) => handleNoteContextMenu(note, event)}
                         onClick={(event) => {
                           if (touchHoldTriggeredRef.current) {
                             touchHoldTriggeredRef.current = false;
@@ -11175,7 +15150,7 @@ export default function GteWorkspace({
                   });
                 })}
 
-                {snapshot.chords.flatMap((chord) => {
+                {visibleChords.flatMap((chord) => {
                   const scalePreview = scaleToolActive ? scalePreviewChords[chord.id] : undefined;
                   const quantizePreview = quantizeDialogOpen ? quantizePreviewChords[chord.id] : undefined;
                   const movePreview = moveToolActive ? movePreviewChords[chord.id] : undefined;
@@ -11419,34 +15394,65 @@ export default function GteWorkspace({
                             </div>
                           </div>
                         </label>
-                        <label className="block text-[10px] text-slate-500">
-                          Length
-                          <input
-                            type="number"
-                            min={1}
-                            max={MAX_EVENT_LENGTH_FRAMES}
-                            className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                            value={noteMenuDraft.length}
-                            onChange={(event) =>
-                              setNoteMenuDraft((prev) =>
-                                prev ? { ...prev, length: event.target.value } : prev
-                              )
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                commitNoteMenuLength();
+                        <div className="grid grid-cols-[1fr_80px] gap-2">
+                          <label className="block text-[10px] text-slate-500">
+                            Length (sec)
+                            <input
+                              type="number"
+                              min={framesToDurationSeconds(1)}
+                              max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
+                              step={0.01}
+                              inputMode="decimal"
+                              className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                              value={noteMenuDraft.length}
+                              onChange={(event) =>
+                                setNoteMenuDraft((prev) =>
+                                  prev ? { ...prev, length: event.target.value } : prev
+                                )
                               }
-                              if (event.key === "Escape") {
-                                event.preventDefault();
-                                setNoteMenuAnchor(null);
-                                setNoteMenuNoteId(null);
-                                setNoteMenuDraft(null);
-                              }
-                            }}
-                            onBlur={() => commitNoteMenuLength()}
-                          />
-                        </label>
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  commitNoteMenuLength();
+                                }
+                                if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  setNoteMenuAnchor(null);
+                                  setNoteMenuNoteId(null);
+                                  setNoteMenuDraft(null);
+                                }
+                              }}
+                              onBlur={() => commitNoteMenuLength()}
+                            />
+                          </label>
+                          <label className="block text-[10px] text-slate-500">
+                            Length
+                            <select
+                              className="mt-1 h-[26px] w-full rounded border border-slate-200 bg-white px-1 text-xs"
+                              value={getNearestNoteFractionDenominator(selectedNote.length)}
+                              onChange={(event) => commitNoteMenuFractionLength(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  commitNoteMenuFractionLength(event.currentTarget.value);
+                                }
+                                if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  setNoteMenuAnchor(null);
+                                  setNoteMenuNoteId(null);
+                                  setNoteMenuDraft(null);
+                                }
+                              }}
+                              aria-label={`Musical note length ${formatLengthFramesAsFraction(selectedNote.length)}`}
+                            >
+                              {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+                                <option key={denominator} value={denominator}>
+                                  {formatNoteLengthOption(denominator)}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
                       </div>
                       {noteAlternates?.possibleTabs?.length ||
                       noteAlternates?.blockedTabs?.length ? (
@@ -11516,11 +15522,13 @@ export default function GteWorkspace({
                       </div>
                       <div className="mt-2 space-y-2">
                         <label className="block text-[10px] text-slate-500">
-                          Length
+                          Length (sec)
                           <input
                             type="number"
-                            min={1}
-                            max={MAX_EVENT_LENGTH_FRAMES}
+                            min={framesToDurationSeconds(1)}
+                            max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
+                            step={0.01}
+                            inputMode="decimal"
                             className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
                             value={chordMenuDraft.length}
                             onChange={(event) =>
@@ -11683,11 +15691,13 @@ export default function GteWorkspace({
                           />
                         </label>
                         <label className="block text-[10px] text-slate-500">
-                          Length
+                          Length (sec)
                           <input
                             type="number"
-                            min={1}
-                            max={MAX_EVENT_LENGTH_FRAMES}
+                            min={framesToDurationSeconds(1)}
+                            max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
+                            step={0.01}
+                            inputMode="decimal"
                             className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
                             value={chordNoteMenuDraft.length}
                             onChange={(event) =>
@@ -11837,16 +15847,18 @@ export default function GteWorkspace({
                       <div className="flex flex-col items-start gap-1">
                         <input
                           type="number"
-                          min={1}
-                          max={MAX_EVENT_LENGTH_FRAMES}
-                          value={draftNote.length ?? ""}
+                          min={framesToDurationSeconds(1)}
+                          max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
+                          step={0.01}
+                          inputMode="decimal"
+                          value={draftNote.length === null ? "" : formatLengthFramesAsSeconds(draftNote.length)}
                           onChange={(e) =>
                             setDraftNote((prev) => {
                               if (!prev) return prev;
-                              const parsed = parseOptionalNumber(e.target.value);
+                              const parsed = e.target.value === "" ? null : parseLengthSecondsToFrames(e.target.value);
                               return {
                                 ...prev,
-                                length: parsed === null ? null : clampEventLength(parsed),
+                                length: parsed,
                               };
                             })
                           }
@@ -11862,9 +15874,9 @@ export default function GteWorkspace({
                             }
                           }}
                           className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-                          placeholder="Length"
+                          placeholder="Sec"
                         />
-                        <span className="text-[10px] text-slate-500">Length</span>
+                        <span className="text-[10px] text-slate-500">Length sec</span>
                       </div>
                       <button
                         type="button"
@@ -11924,7 +15936,7 @@ export default function GteWorkspace({
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       {(["fret", "length"] as const).map((field) => {
-                        const label = field === "fret" ? "Fret" : "Length";
+                        const label = field === "fret" ? "Fret" : "Length sec";
                         const value = field === "fret" ? noteMenuDraft.fret : noteMenuDraft.length;
                         const commitField = field === "fret" ? commitNoteMenuFret : commitNoteMenuLength;
                         return (
@@ -11935,9 +15947,10 @@ export default function GteWorkspace({
                             <div className="mt-1 flex items-stretch gap-1.5">
                               <input
                                 type="number"
-                                min={field === "fret" ? 0 : 1}
-                                max={field === "fret" ? maxFret : MAX_EVENT_LENGTH_FRAMES}
-                                inputMode="numeric"
+                                min={field === "fret" ? 0 : framesToDurationSeconds(1)}
+                                max={field === "fret" ? maxFret : framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
+                                step={field === "fret" ? 1 : 0.01}
+                                inputMode={field === "fret" ? "numeric" : "decimal"}
                                 enterKeyHint="done"
                                 value={value}
                                 onChange={(event) =>
@@ -11978,6 +15991,28 @@ export default function GteWorkspace({
                           </div>
                         );
                       })}
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-1.5">
+                        <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                          Length
+                        </div>
+                        <select
+                          value={getNearestNoteFractionDenominator(selectedNote.length)}
+                          onChange={(event) => commitNoteMenuFractionLength(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter") return;
+                            event.preventDefault();
+                            commitNoteMenuFractionLength(event.currentTarget.value);
+                          }}
+                          className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-[13px] font-semibold text-slate-900 outline-none"
+                          aria-label={`Musical note length ${formatLengthFramesAsFraction(selectedNote.length)}`}
+                        >
+                          {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+                            <option key={denominator} value={denominator}>
+                              {formatNoteLengthOption(denominator)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <label className="mt-2 block text-[9px] font-semibold uppercase tracking-wide text-slate-500">
                       Fingering
@@ -12018,36 +16053,6 @@ export default function GteWorkspace({
                   </div>
                 )}
               </div>
-              {showMobileInlineToolbar && (
-                <div className={`${toolbarOpen ? "w-[min(10.5rem,42vw)]" : "w-[5.25rem]"} shrink-0 transition-[width] duration-150`}>
-                  <div className="flex h-full min-h-0 flex-col gap-2">
-                    <button
-                      type="button"
-                      data-gte-editor-control="true"
-                      data-gte-toolbar-ui="true"
-                      onClick={() => setToolbarOpen((prev) => !prev)}
-                      aria-pressed={toolbarOpen}
-                      title={toolbarOpen ? "Hide toolbar (T)" : "Show toolbar (T)"}
-                      className={`flex h-10 w-full items-center justify-center rounded-xl border px-2 text-xs font-semibold shadow-sm transition ${
-                        toolbarOpen
-                          ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      Toolbar
-                    </button>
-                    <div className="min-h-0 flex-1">
-                      {toolbarOpen ? (
-                        renderToolbarPanel(true)
-                      ) : (
-                        <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/75 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                          Hidden
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
