@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
   getPostHogIdentifiedUserId,
+  getPostHogAttributionProperties,
   identifyPostHogUser,
   isPostHogIdentityResetPending,
   resetPostHogIdentity,
@@ -44,6 +45,7 @@ export default function AnalyticsIdentityLinker() {
       identifyPostHogUser(session.user.id, {
         role: session.user.role,
         subscription: session.user.role === "PREMIUM" ? "premium" : "free",
+        ...getPostHogAttributionProperties(),
       });
       const oauthIntent = takeOAuthIntent();
       const createdAtMs = session.user.createdAt ? Date.parse(session.user.createdAt) : Number.NaN;

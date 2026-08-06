@@ -39,12 +39,18 @@ function installBrowserGlobals(consent: "granted" | "denied" | "missing" = "gran
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(() => true),
-    location: { protocol: "https:" },
+    location: {
+      protocol: "https:",
+      search: "?utm_source=newsletter&utm_medium=email&utm_campaign=launch",
+      hostname: "note2tabs.com",
+      pathname: "/transcribe",
+    },
   };
 
   const cookieJar = new Map<string, string>();
   if (consent !== "missing") cookieJar.set("analytics_consent", consent);
   const documentMock = {
+    referrer: "https://www.google.com/search?q=guitar+tabs",
     get cookie() {
       return Array.from(cookieJar, ([name, value]) => `${name}=${value}`).join("; ");
     },
@@ -165,7 +171,7 @@ describe("PostHog client identity lifecycle", () => {
     expect(analytics.isPostHogIdentityResetPending()).toBe(false);
   });
 
-  it("captures by default without persisting analytics state", async () => {
+  it("captures by default with a privacy-safe first-touch attribution", async () => {
     const { localStorage, sessionStorage } = installBrowserGlobals("missing");
     const posthog = createPostHogMock();
     vi.doMock("posthog-js", () => ({ default: posthog }));
@@ -188,10 +194,15 @@ describe("PostHog client identity lifecycle", () => {
         $session_id: expect.any(String),
         anon_id: expect.any(String),
         schema_version: 2,
+        traffic_source: "newsletter",
+        traffic_medium: "email",
+        traffic_campaign: "launch",
+        first_touch_source: "newsletter",
+        first_touch_landing_path: "/transcribe",
       })
     );
-    expect(localStorage.length).toBe(0);
-    expect(sessionStorage.length).toBe(0);
+    expect(localStorage.getItem("note2tabs:analytics-first-touch")).toContain("newsletter");
+    expect(sessionStorage.getItem("note2tabs:analytics-session-touch")).toContain("email");
   });
 
   it("preserves explicit insert ids for idempotent business events", async () => {
@@ -208,6 +219,26 @@ describe("PostHog client identity lifecycle", () => {
     expect(posthog.capture).toHaveBeenCalledWith(
       "subscription_started",
       expect.objectContaining({ $insert_id: "subscription-started:cs_123" })
+    );
+  });
+
+  it("classifies untagged Google referrals as organic acquisition", async () => {
+    const { windowMock } = installBrowserGlobals("granted");
+    windowMock.location.search = "";
+    const posthog = createPostHogMock();
+    vi.doMock("posthog-js", () => ({ default: posthog }));
+    const analytics = await import("../../lib/posthogClient");
+
+    analytics.capturePostHogEvent("$pageview");
+    await analytics.initPostHog();
+
+    expect(posthog.capture).toHaveBeenCalledWith(
+      "$pageview",
+      expect.objectContaining({
+        traffic_source: "google",
+        traffic_medium: "organic",
+        referrer_domain: "www.google.com",
+      })
     );
   });
 

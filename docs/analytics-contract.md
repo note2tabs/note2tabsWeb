@@ -14,6 +14,11 @@ current product decisions. `/admin/analytics` links administrators to PostHog.
   after 30 minutes of inactivity.
 - `anon_id` is the stable first-party anonymous identifier. After login it is
   aliased to the account ID. An explicit analytics opt-out clears both IDs.
+- Every browser event carries normalized session attribution (`traffic_source`,
+  `traffic_medium`, optional `traffic_campaign`, `referrer_domain`, and
+  `landing_path`) plus matching `first_touch_*` properties. First touch is
+  retained for 90 days and copied to the identified user at login; session
+  attribution resets with the 30-minute analytics session.
 - `schema_version = 2` is the current envelope. Older rows without it are
   historical data and should not be used to judge envelope completeness.
 - Never send email addresses, names, auth/reset tokens, raw error messages,
@@ -64,3 +69,8 @@ ID and deterministic `$insert_id`; they do not require an anonymous ID.
 When adding or renaming an event, add it to `ANALYTICS_EVENTS` or
 `GTE_ANALYTICS_EVENTS`, update this document if its meaning affects a funnel,
 and add an endpoint or unit test before deployment.
+
+The pinned PostHog dashboard **Note2Tabs — Reliable product & growth
+analytics** is the canonical visualization layer. Its data-quality panel should
+be checked after every analytics release before conversion or retention results
+are trusted.

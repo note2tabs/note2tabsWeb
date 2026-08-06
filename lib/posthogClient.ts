@@ -14,6 +14,16 @@ const MAX_PENDING_OPERATIONS = 100;
 const IDLE_LOAD_DELAY_MS = 1_800;
 const SESSION_MAX_AGE_SEC = 30 * 60;
 const ANON_MAX_AGE_SEC = 90 * 24 * 60 * 60;
+const FIRST_TOUCH_STORAGE_KEY = "note2tabs:analytics-first-touch";
+const SESSION_TOUCH_STORAGE_KEY = "note2tabs:analytics-session-touch";
+
+type Attribution = {
+  traffic_source: string;
+  traffic_medium: string;
+  traffic_campaign?: string;
+  referrer_domain?: string;
+  landing_path: string;
+};
 
 let client: PostHogClient | null = null;
 let initPromise: Promise<PostHogClient | null> | null = null;
@@ -48,13 +58,110 @@ function setCookie(name: string, value: string, maxAgeSec: number) {
 function ensureAnalyticsIds() {
   let sessionId = getCookie(ANALYTICS_SESSION_COOKIE);
   let anonId = getCookie(ANALYTICS_ANON_COOKIE);
+  const isNewSession = !sessionId;
   if (!sessionId) sessionId = randomId();
   if (!anonId) anonId = randomId();
   // Refresh the session on activity so it represents 30 minutes of inactivity,
   // rather than an arbitrary 24-hour window beginning at the first page load.
   setCookie(ANALYTICS_SESSION_COOKIE, sessionId, SESSION_MAX_AGE_SEC);
   setCookie(ANALYTICS_ANON_COOKIE, anonId, ANON_MAX_AGE_SEC);
-  return { sessionId, anonId };
+  return { sessionId, anonId, isNewSession };
+}
+
+function readAttribution(storage: Storage, key: string): Attribution | null {
+  try {
+    const value = JSON.parse(storage.getItem(key) || "null") as Attribution | null;
+    return value?.traffic_source && value?.traffic_medium && value?.landing_path
+      ? value
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function currentAttribution(): Attribution {
+  const params = new URLSearchParams(window.location.search);
+  let referrerDomain: string | undefined;
+  try {
+    const hostname = document.referrer ? new URL(document.referrer).hostname.toLowerCase() : "";
+    if (hostname && hostname !== window.location.hostname.toLowerCase()) referrerDomain = hostname;
+  } catch {
+    // Invalid referrers are treated as direct traffic.
+  }
+
+  const utmSource = params.get("utm_source")?.slice(0, 160);
+  const utmMedium = params.get("utm_medium")?.slice(0, 160);
+  const campaign = params.get("utm_campaign")?.slice(0, 160);
+  const hasGoogleClickId = params.has("gclid");
+  const hasMetaClickId = params.has("fbclid");
+  const hasMicrosoftClickId = params.has("msclkid");
+  const searchEngine = referrerDomain?.match(/(^|\.)(google|bing|yahoo|duckduckgo)\./)?.[2];
+  const socialSource = referrerDomain?.match(
+    /(^|\.)(facebook|instagram|tiktok|youtube|linkedin|reddit|x|twitter)\./
+  )?.[2];
+
+  const trafficSource =
+    utmSource ||
+    (hasGoogleClickId ? "google" : undefined) ||
+    (hasMetaClickId ? "meta" : undefined) ||
+    (hasMicrosoftClickId ? "bing" : undefined) ||
+    searchEngine ||
+    socialSource ||
+    referrerDomain ||
+    "direct";
+  const trafficMedium =
+    utmMedium ||
+    (hasGoogleClickId || hasMetaClickId || hasMicrosoftClickId
+      ? "paid"
+      : searchEngine
+        ? "organic"
+        : socialSource
+          ? "social"
+          : referrerDomain
+            ? "referral"
+            : "none");
+
+  return {
+    traffic_source: trafficSource.toLowerCase(),
+    traffic_medium: trafficMedium.toLowerCase(),
+    ...(campaign ? { traffic_campaign: campaign } : {}),
+    ...(referrerDomain ? { referrer_domain: referrerDomain } : {}),
+    landing_path: window.location.pathname,
+  };
+}
+
+export function getPostHogAttributionProperties(isNewSession = false) {
+  if (typeof window === "undefined" || trackingIsDisabled()) return {};
+  try {
+    let sessionTouch = readAttribution(window.sessionStorage, SESSION_TOUCH_STORAGE_KEY);
+    if (!sessionTouch || isNewSession) {
+      sessionTouch = currentAttribution();
+      window.sessionStorage.setItem(SESSION_TOUCH_STORAGE_KEY, JSON.stringify(sessionTouch));
+    }
+    let firstTouch = readAttribution(window.localStorage, FIRST_TOUCH_STORAGE_KEY);
+    if (!firstTouch) {
+      firstTouch = sessionTouch;
+      window.localStorage.setItem(FIRST_TOUCH_STORAGE_KEY, JSON.stringify(firstTouch));
+    }
+    return {
+      ...sessionTouch,
+      first_touch_source: firstTouch.traffic_source,
+      first_touch_medium: firstTouch.traffic_medium,
+      first_touch_campaign: firstTouch.traffic_campaign,
+      first_touch_referrer_domain: firstTouch.referrer_domain,
+      first_touch_landing_path: firstTouch.landing_path,
+    };
+  } catch {
+    const touch = currentAttribution();
+    return {
+      ...touch,
+      first_touch_source: touch.traffic_source,
+      first_touch_medium: touch.traffic_medium,
+      first_touch_campaign: touch.traffic_campaign,
+      first_touch_referrer_domain: touch.referrer_domain,
+      first_touch_landing_path: touch.landing_path,
+    };
+  }
 }
 
 function trackingIsDisabled() {
@@ -96,6 +203,11 @@ function completeIdentityReset(posthog?: PostHogClient) {
     // identifier aligned so a later server-side alias links the same person.
     setCookie(ANALYTICS_ANON_COOKIE, posthog.get_distinct_id(), ANON_MAX_AGE_SEC);
     setCookie(ANALYTICS_SESSION_COOKIE, randomId(), SESSION_MAX_AGE_SEC);
+    try {
+      window.sessionStorage.removeItem(SESSION_TOUCH_STORAGE_KEY);
+    } catch {
+      // Storage can be unavailable in hardened browser contexts.
+    }
   }
 }
 
@@ -190,11 +302,13 @@ function enqueue(operation: PendingOperation) {
 
 export function capturePostHogEvent(event: string, properties?: PostHogProperties) {
   if (trackingIsDisabled()) return;
-  const { sessionId, anonId } = ensureAnalyticsIds();
+  const { sessionId, anonId, isNewSession } = ensureAnalyticsIds();
+  const attribution = getPostHogAttributionProperties(isNewSession);
   const sanitizedProperties = properties
     ? sanitizeAnalyticsProperties(properties)
     : {};
   enqueue((posthog) => posthog.capture(event, {
+    ...attribution,
     ...sanitizedProperties,
     $insert_id:
       typeof sanitizedProperties.$insert_id === "string" && sanitizedProperties.$insert_id
@@ -302,6 +416,12 @@ export async function setPostHogConsent(state: "granted" | "denied") {
     posthog.reset();
     posthog.opt_out_capturing();
     completeIdentityReset();
+  }
+  try {
+    window.localStorage.removeItem(FIRST_TOUCH_STORAGE_KEY);
+    window.sessionStorage.removeItem(SESSION_TOUCH_STORAGE_KEY);
+  } catch {
+    // Storage can be unavailable in hardened browser contexts.
   }
   window.dispatchEvent(new CustomEvent("note2tabs:analytics-consent-changed", { detail: state }));
 }
