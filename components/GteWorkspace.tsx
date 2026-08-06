@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type TouchEvent as ReactTouchEvent,
   type UIEvent as ReactUiEvent,
@@ -386,6 +387,26 @@ const parseScaleFactorInput = (value: string) => {
     return denominator > 0 ? 1 / denominator : null;
   }
   return parsed;
+};
+
+// The size selects sit next to the score, so a focused one would otherwise
+// turn the arrow keys into size shortcuts. These pickers are mouse-only.
+const SIZE_SELECT_BLOCKED_KEYS = new Set([
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+]);
+
+const blockSizeSelectKeyboardChange = (event: ReactKeyboardEvent<HTMLSelectElement>) => {
+  if (!SIZE_SELECT_BLOCKED_KEYS.has(event.key)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.currentTarget.blur();
 };
 
 const getNearestCursorSizeDenominator = (value: number) => {
@@ -12953,6 +12974,7 @@ export default function GteWorkspace({
           setDefaultNoteLengthDenominator(Number(event.target.value));
           releaseSizeSelectFocus(event.currentTarget);
         }}
+        onKeyDown={blockSizeSelectKeyboardChange}
         className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
         title="Add note size"
         aria-label="Add note size"
@@ -12979,6 +13001,7 @@ export default function GteWorkspace({
           setCursorSizeDenominator(getNearestCursorSizeDenominator(Number(event.target.value)));
           releaseSizeSelectFocus(event.currentTarget);
         }}
+        onKeyDown={blockSizeSelectKeyboardChange}
         className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
         title="Cursor size"
         aria-label="Cursor size"

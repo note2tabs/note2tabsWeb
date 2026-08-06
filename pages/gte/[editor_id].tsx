@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type UIEvent as ReactUiEvent,
 } from "react";
@@ -261,6 +262,26 @@ const normalizeKeyBase = (value: unknown) =>
 
 const normalizeKeyType = (value: unknown) =>
   Math.max(0, Math.min(KEY_TYPE_OPTIONS.length - 1, Math.round(toNumber(value, 0))));
+
+// Cursor and note size pickers are mouse-only: a focused select would
+// otherwise turn the arrow keys into size shortcuts.
+const SIZE_SELECT_BLOCKED_KEYS = new Set([
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+]);
+
+const blockSizeSelectKeyboardChange = (event: ReactKeyboardEvent<HTMLSelectElement>) => {
+  if (!SIZE_SELECT_BLOCKED_KEYS.has(event.key)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.currentTarget.blur();
+};
 
 const getNearestCursorSizeDenominator = (value: unknown) => {
   const numeric = Number(value);
@@ -5940,6 +5961,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         Add note size
                         <select
                           value={chordOnlyDefaultNoteLengthDenominator}
+                          onKeyDown={blockSizeSelectKeyboardChange}
                           onChange={(event) =>
                             setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))
                           }
@@ -5956,6 +5978,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         Cursor size
                         <select
                           value={chordOnlyCursorSizeDenominator}
+                          onKeyDown={blockSizeSelectKeyboardChange}
                           onChange={(event) =>
                             setChordOnlyCursorSizeDenominator(
                               getNearestCursorSizeDenominator(event.target.value)
@@ -6053,6 +6076,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   <span>Add note size</span>
                   <select
                     value={chordOnlyDefaultNoteLengthDenominator}
+                    onKeyDown={blockSizeSelectKeyboardChange}
                     onChange={(event) =>
                       setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))
                     }
@@ -6070,6 +6094,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   <span>Cursor size</span>
                   <select
                     value={chordOnlyCursorSizeDenominator}
+                    onKeyDown={blockSizeSelectKeyboardChange}
                     onChange={(event) =>
                       setChordOnlyCursorSizeDenominator(
                         getNearestCursorSizeDenominator(event.target.value)
@@ -6495,6 +6520,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <span>Add note size</span>
                         <select
                           value={chordOnlyDefaultNoteLengthDenominator}
+                          onKeyDown={blockSizeSelectKeyboardChange}
                           onChange={(event) =>
                             setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))
                           }
@@ -6513,6 +6539,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <span>Cursor size</span>
                         <select
                           value={chordOnlyCursorSizeDenominator}
+                          onKeyDown={blockSizeSelectKeyboardChange}
                           onChange={(event) =>
                             setChordOnlyCursorSizeDenominator(
                               getNearestCursorSizeDenominator(event.target.value)
@@ -6963,6 +6990,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       Add note size
                       <select
                         value={chordOnlyDefaultNoteLengthDenominator}
+                        onKeyDown={blockSizeSelectKeyboardChange}
                         onChange={(event) =>
                           setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))
                         }
@@ -6979,6 +7007,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       Cursor size
                       <select
                         value={chordOnlyCursorSizeDenominator}
+                        onKeyDown={blockSizeSelectKeyboardChange}
                         onChange={(event) =>
                           setChordOnlyCursorSizeDenominator(
                             getNearestCursorSizeDenominator(event.target.value)
