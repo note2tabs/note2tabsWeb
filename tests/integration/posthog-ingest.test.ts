@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createResponse } from "node-mocks-http";
 
-const { capture, flushPostHogServerClientInBackground } = vi.hoisted(() => ({
+const { capture, flushPostHogServerClient } = vi.hoisted(() => ({
   capture: vi.fn(),
-  flushPostHogServerClientInBackground: vi.fn(),
+  flushPostHogServerClient: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../../lib/posthogServer", () => ({
@@ -10,7 +11,7 @@ vi.mock("../../lib/posthogServer", () => ({
   createPostHogServerClient: vi.fn(() => ({
     capture,
   })),
-  flushPostHogServerClientInBackground,
+  flushPostHogServerClient,
 }));
 
 import { ingestAnalyticsEvents } from "../../lib/analyticsV2/ingest";
@@ -18,7 +19,7 @@ import { ingestAnalyticsEvents } from "../../lib/analyticsV2/ingest";
 describe("PostHog analytics ingestion", () => {
   beforeEach(() => {
     capture.mockClear();
-    flushPostHogServerClientInBackground.mockClear();
+    flushPostHogServerClient.mockClear();
   });
 
   it("normalizes and captures legacy events", async () => {
@@ -51,7 +52,7 @@ describe("PostHog analytics ingestion", () => {
         }),
       })
     );
-    expect(flushPostHogServerClientInBackground).toHaveBeenCalledOnce();
+    expect(flushPostHogServerClient).toHaveBeenCalledOnce();
   });
 
   it("maps canonical page views to PostHog page views", async () => {
@@ -97,7 +98,9 @@ describe("PostHog analytics ingestion", () => {
   });
 
   it("captures events by default when the user has not opted out", async () => {
+    const res = createResponse();
     const result = await ingestAnalyticsEvents({
+      res: res as any,
       cookies: {},
       body: {
         event_id: "blocked_missing_123",
@@ -107,6 +110,11 @@ describe("PostHog analytics ingestion", () => {
 
     expect(result).toMatchObject({ written: 1, blocked: 0 });
     expect(capture).toHaveBeenCalledOnce();
+    const setCookies = res.getHeader("Set-Cookie") as string[];
+    expect(setCookies.join("\n")).toContain("analytics_session=");
+    expect(setCookies.join("\n")).toContain("Max-Age=1800");
+    expect(setCookies.join("\n")).toContain("analytics_anon=");
+    expect(capture.mock.calls[0]?.[0]?.distinctId).toEqual(expect.any(String));
   });
 
   it("sanitizes URLs, private routes, PII, and raw errors server-side", async () => {

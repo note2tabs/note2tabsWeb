@@ -2086,12 +2086,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     try {
       const file = buildGteExportFile(lane, format);
       downloadGteExportFile(file);
+      void fetch("/api/gte/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "gte_editor_exported",
+          editorId,
+          sessionId: telemetrySessionRef.current || undefined,
+          format,
+          path: window.location.pathname,
+        }),
+        keepalive: true,
+      }).catch(() => {});
     } catch (err: any) {
       setError(err?.message || "Could not export this track.");
     } finally {
       setExportingTrack(false);
     }
-  }, [exportingTrack, getExportLane]);
+  }, [editorId, exportingTrack, getExportLane]);
 
   const requestDeleteTrack = useCallback(
     (laneId: string) => {
@@ -3883,6 +3895,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     );
     syncGlobalPlaybackFrame(startFrame, { forceReact: true });
     setGlobalPlaybackIsPlaying(true);
+    void fetch("/api/gte/telemetry", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "gte_playback_started",
+        editorId,
+        sessionId: telemetrySessionRef.current,
+        mode: editorMode,
+        playbackSpeed: runPlaybackSpeed,
+        path: window.location.pathname,
+      }),
+      keepalive: true,
+    }).catch(() => {});
 
     const tick = (now: number) => {
       if (globalPlaybackStartTimeRef.current === null) return;
@@ -3940,6 +3965,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [
     canvas,
     canvasTimelineEnd,
+    editorId,
+    editorMode,
     globalPracticeLoopRange,
     globalPlaybackFps,
     normalizedPlaybackSpeed,

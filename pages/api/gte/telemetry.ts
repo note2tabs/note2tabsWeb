@@ -11,6 +11,8 @@ type TelemetryBody = {
   activeDurationSec?: number;
   heartbeatSequence?: number;
   mode?: string;
+  format?: string;
+  playbackSpeed?: number;
   path?: string;
 };
 
@@ -21,6 +23,8 @@ const ALLOWED_EVENTS = new Set<GteAnalyticsEvent>([
   "gte_editor_session_end",
   "gte_editor_session_heartbeat",
   "gte_practice_started",
+  "gte_playback_started",
+  "gte_editor_exported",
 ]);
 
 function parseBody(req: NextApiRequest): TelemetryBody {
@@ -74,7 +78,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     Number.isFinite(rawHeartbeatSequence) && rawHeartbeatSequence >= 0
       ? Math.min(24 * 60, Math.floor(rawHeartbeatSequence))
       : undefined;
-  const mode = body.mode === "practice" ? "practice" : undefined;
+  const mode = ["canvas", "tab", "practice"].includes(body.mode || "")
+    ? body.mode
+    : undefined;
+  const format = ["json", "txt", "musicxml", "midi"].includes(body.format || "")
+    ? body.format
+    : undefined;
+  const rawPlaybackSpeed = Number(body.playbackSpeed);
+  const playbackSpeed =
+    Number.isFinite(rawPlaybackSpeed) && rawPlaybackSpeed >= 0.25 && rawPlaybackSpeed <= 2
+      ? Math.round(rawPlaybackSpeed * 100) / 100
+      : undefined;
   const path =
     typeof body.path === "string" && body.path.trim() ? body.path.trim() : `/gte/${editorId}`;
 
@@ -90,6 +104,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ...(activeDurationSec !== undefined ? { activeDurationSec } : {}),
       ...(heartbeatSequence !== undefined ? { heartbeatSequence } : {}),
       ...(mode ? { mode } : {}),
+      ...(format ? { format } : {}),
+      ...(playbackSpeed !== undefined ? { playbackSpeed } : {}),
     },
     req,
     res,

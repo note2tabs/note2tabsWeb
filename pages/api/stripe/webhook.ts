@@ -18,7 +18,7 @@ import {
 } from "../../../lib/stripePremium";
 import {
   createPostHogServerClient,
-  flushPostHogServerClientInBackground,
+  flushPostHogServerClient,
 } from "../../../lib/posthogServer";
 
 export const config = {
@@ -172,7 +172,7 @@ async function setPremiumForIdentifier(identifier: UserIdentifier) {
   return user.id;
 }
 
-function trackSubscriptionStarted(userId: string, checkoutSessionId: string) {
+async function trackSubscriptionStarted(userId: string, checkoutSessionId: string) {
   const client = createPostHogServerClient();
   if (!client) return;
   client.capture({
@@ -181,10 +181,12 @@ function trackSubscriptionStarted(userId: string, checkoutSessionId: string) {
     properties: {
       plan: "premium_monthly",
       source: "stripe_webhook",
+      schema_version: 2,
+      environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
       $insert_id: `subscription-started:${checkoutSessionId}`,
     },
   });
-  flushPostHogServerClientInBackground(client);
+  await flushPostHogServerClient(client);
 }
 
 type RenewalInvoiceDetails = {
@@ -366,7 +368,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const identifier = await resolveUserIdentifierFromCheckoutSession(checkoutSession);
       if (identifier) {
         const userId = await setPremiumForIdentifier(identifier);
-        if (userId) trackSubscriptionStarted(userId, checkoutSession.id);
+        if (userId) await trackSubscriptionStarted(userId, checkoutSession.id);
       }
     }
 

@@ -25,6 +25,8 @@ describe("gte telemetry endpoint", () => {
     "gte_editor_session_end",
     "gte_editor_session_heartbeat",
     "gte_practice_started",
+    "gte_playback_started",
+    "gte_editor_exported",
   ] as const)("accepts %s events", async (eventName) => {
     sessionMock.mockResolvedValue({ user: { id: "user_1" } });
     logMock.mockResolvedValue(undefined);
@@ -40,6 +42,8 @@ describe("gte telemetry endpoint", () => {
         activeDurationSec: 9,
         heartbeatSequence: 2,
         mode: "practice",
+        format: "musicxml",
+        playbackSpeed: 0.75,
         path: "/gte/ed_123",
       },
     });
@@ -56,6 +60,8 @@ describe("gte telemetry endpoint", () => {
         activeDurationSec: 9,
         heartbeatSequence: 2,
         mode: "practice",
+        format: "musicxml",
+        playbackSpeed: 0.75,
       }),
     });
   });

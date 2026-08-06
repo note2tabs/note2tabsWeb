@@ -701,10 +701,6 @@ export default function JobPage() {
       durationSec: durationHintSeconds || undefined,
       model: modelHint || undefined,
     };
-    sendEvent(ANALYTICS_EVENTS.jobCompleted, {
-      ...properties,
-      $insert_id: `job-completed:${job_id}`,
-    });
     sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
       ...properties,
       $insert_id: `transcription-succeeded:${job_id}`,

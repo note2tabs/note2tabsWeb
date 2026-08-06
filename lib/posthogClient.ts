@@ -8,8 +8,12 @@ import {
 } from "./analyticsPrivacy";
 
 const CONSENT_COOKIE = "analytics_consent";
+const ANALYTICS_SESSION_COOKIE = "analytics_session";
+const ANALYTICS_ANON_COOKIE = "analytics_anon";
 const MAX_PENDING_OPERATIONS = 100;
 const IDLE_LOAD_DELAY_MS = 1_800;
+const SESSION_MAX_AGE_SEC = 30 * 60;
+const ANON_MAX_AGE_SEC = 90 * 24 * 60 * 60;
 
 let client: PostHogClient | null = null;
 let initPromise: Promise<PostHogClient | null> | null = null;
@@ -25,6 +29,32 @@ function getCookie(name: string) {
   if (typeof document === "undefined") return undefined;
   const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
   return match ? decodeURIComponent(match[1]) : undefined;
+}
+
+function randomId() {
+  try {
+    return globalThis.crypto.randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 14)}`;
+  }
+}
+
+function setCookie(name: string, value: string, maxAgeSec: number) {
+  if (typeof document === "undefined") return;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${name}=${encodeURIComponent(value)}; Max-Age=${maxAgeSec}; path=/; SameSite=Lax${secure}`;
+}
+
+function ensureAnalyticsIds() {
+  let sessionId = getCookie(ANALYTICS_SESSION_COOKIE);
+  let anonId = getCookie(ANALYTICS_ANON_COOKIE);
+  if (!sessionId) sessionId = randomId();
+  if (!anonId) anonId = randomId();
+  // Refresh the session on activity so it represents 30 minutes of inactivity,
+  // rather than an arbitrary 24-hour window beginning at the first page load.
+  setCookie(ANALYTICS_SESSION_COOKIE, sessionId, SESSION_MAX_AGE_SEC);
+  setCookie(ANALYTICS_ANON_COOKIE, anonId, ANON_MAX_AGE_SEC);
+  return { sessionId, anonId };
 }
 
 function trackingIsDisabled() {
@@ -51,10 +81,6 @@ function clearLegacyAnalyticsPersistence() {
     // Storage can be unavailable in hardened browser contexts.
   }
 
-  const secure = window.location?.protocol === "https:" ? "; Secure" : "";
-  for (const cookieName of ["analytics_session", "analytics_anon"]) {
-    document.cookie = `${cookieName}=; Max-Age=0; expires=${new Date(0).toUTCString()}; path=/; SameSite=Lax${secure}`;
-  }
 }
 
 function markIdentityResetPending() {
@@ -62,15 +88,21 @@ function markIdentityResetPending() {
   identifiedUserId = null;
 }
 
-function completeIdentityReset() {
+function completeIdentityReset(posthog?: PostHogClient) {
   identityResetPending = false;
   identifiedUserId = null;
+  if (posthog) {
+    // PostHog creates a fresh anonymous identity on reset. Keep our first-party
+    // identifier aligned so a later server-side alias links the same person.
+    setCookie(ANALYTICS_ANON_COOKIE, posthog.get_distinct_id(), ANON_MAX_AGE_SEC);
+    setCookie(ANALYTICS_SESSION_COOKIE, randomId(), SESSION_MAX_AGE_SEC);
+  }
 }
 
 function resetPendingIdentity(posthog: PostHogClient) {
   if (!identityResetPending) return;
   posthog.reset();
-  completeIdentityReset();
+  completeIdentityReset(posthog);
 }
 
 export function getPostHogIdentifiedUserId() {
@@ -108,6 +140,7 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
   if (!token || (trackingIsDisabled() && !options.ignoreDeniedConsent)) return null;
   if (initPromise) return initPromise;
   clearLegacyAnalyticsPersistence();
+  const { anonId } = ensureAnalyticsIds();
 
   initPromise = import("posthog-js")
     .then(({ default: posthog }) => {
@@ -126,6 +159,7 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
         disable_session_recording:
           process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING !== "true",
         opt_out_capturing_by_default: trackingIsDisabled(),
+        bootstrap: { distinctID: anonId },
       });
 
       resetPendingIdentity(posthog);
@@ -155,10 +189,22 @@ function enqueue(operation: PendingOperation) {
 }
 
 export function capturePostHogEvent(event: string, properties?: PostHogProperties) {
+  if (trackingIsDisabled()) return;
+  const { sessionId, anonId } = ensureAnalyticsIds();
   const sanitizedProperties = properties
     ? sanitizeAnalyticsProperties(properties)
-    : undefined;
-  enqueue((posthog) => posthog.capture(event, sanitizedProperties));
+    : {};
+  enqueue((posthog) => posthog.capture(event, {
+    ...sanitizedProperties,
+    $insert_id:
+      typeof sanitizedProperties.$insert_id === "string" && sanitizedProperties.$insert_id
+        ? sanitizedProperties.$insert_id
+        : randomId(),
+    $session_id: sessionId,
+    anon_id: anonId,
+    schema_version: 2,
+    environment: process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.NODE_ENV || "development",
+  }));
   schedulePostHogInit();
 }
 
@@ -186,14 +232,14 @@ export function resetPostHogIdentity() {
 
     if (client) {
       client.reset();
-      completeIdentityReset();
+      completeIdentityReset(client);
       return;
     }
 
     const posthog = await initPostHog();
     if (!posthog) return;
     posthog.reset();
-    completeIdentityReset();
+    completeIdentityReset(posthog);
   })()
     .catch(() => {
       // The persistent marker makes a later initialization retry the reset.

@@ -112,29 +112,27 @@ export function ensureTrackingCookies(
   let sessionId = cookies[ANALYTICS_SESSION_COOKIE];
   let anonId = cookies[ANALYTICS_ANON_COOKIE];
 
-  if (!sessionId) {
-    sessionId = generateId();
-    appendSetCookie(
-      res,
-      serializeCookie(ANALYTICS_SESSION_COOKIE, sessionId, {
-        maxAgeSec: 24 * 60 * 60,
-        path: "/",
-        sameSite: "Lax",
-      })
-    );
-  }
+  if (!sessionId) sessionId = generateId();
+  // Refresh on every tracked request: a session ends after 30 minutes of
+  // inactivity, not 30 minutes after the first event.
+  appendSetCookie(
+    res,
+    serializeCookie(ANALYTICS_SESSION_COOKIE, sessionId, {
+      maxAgeSec: 30 * 60,
+      path: "/",
+      sameSite: "Lax",
+    })
+  );
 
-  if (!anonId) {
-    anonId = generateId();
-    appendSetCookie(
-      res,
-      serializeCookie(ANALYTICS_ANON_COOKIE, anonId, {
-        maxAgeSec: 90 * 24 * 60 * 60,
-        path: "/",
-        sameSite: "Lax",
-      })
-    );
-  }
+  if (!anonId) anonId = generateId();
+  appendSetCookie(
+    res,
+    serializeCookie(ANALYTICS_ANON_COOKIE, anonId, {
+      maxAgeSec: 90 * 24 * 60 * 60,
+      path: "/",
+      sameSite: "Lax",
+    })
+  );
 
   return { sessionId, anonId };
 }

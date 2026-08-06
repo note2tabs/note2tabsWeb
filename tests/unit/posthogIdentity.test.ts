@@ -4,7 +4,7 @@ const {
   alias,
   identify,
   createPostHogServerClient,
-  flushPostHogServerClientInBackground,
+  flushPostHogServerClient,
 } = vi.hoisted(() => {
   const alias = vi.fn();
   const identify = vi.fn();
@@ -12,13 +12,13 @@ const {
     alias,
     identify,
     createPostHogServerClient: vi.fn(() => ({ alias, identify })),
-    flushPostHogServerClientInBackground: vi.fn(),
+    flushPostHogServerClient: vi.fn().mockResolvedValue(undefined),
   };
 });
 
 vi.mock("../../lib/posthogServer", () => ({
   createPostHogServerClient,
-  flushPostHogServerClientInBackground,
+  flushPostHogServerClient,
 }));
 
 import { linkIdentityToUser } from "../../lib/analyticsV2/identity";
@@ -28,7 +28,7 @@ describe("server PostHog identity consent", () => {
     alias.mockClear();
     identify.mockClear();
     createPostHogServerClient.mockClear();
-    flushPostHogServerClientInBackground.mockClear();
+    flushPostHogServerClient.mockClear();
   });
 
   it("does not identify after an explicit opt-out", async () => {
@@ -44,7 +44,7 @@ describe("server PostHog identity consent", () => {
     expect(createPostHogServerClient).not.toHaveBeenCalled();
     expect(alias).not.toHaveBeenCalled();
     expect(identify).not.toHaveBeenCalled();
-    expect(flushPostHogServerClientInBackground).not.toHaveBeenCalled();
+    expect(flushPostHogServerClient).not.toHaveBeenCalled();
   });
 
   it.each([undefined, "granted", "invalid"])(
@@ -63,7 +63,7 @@ describe("server PostHog identity consent", () => {
         distinctId: "user-1",
         properties: { last_identity_source: "signup" },
       });
-      expect(flushPostHogServerClientInBackground).toHaveBeenCalledOnce();
+      expect(flushPostHogServerClient).toHaveBeenCalledOnce();
     }
   );
 });

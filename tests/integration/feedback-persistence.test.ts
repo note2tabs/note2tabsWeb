@@ -28,6 +28,7 @@ vi.mock("../../lib/posthogServer", () => ({
   isPostHogConfigured: vi.fn(() => true),
   createPostHogServerClient: vi.fn(() => ({ capture })),
   flushPostHogServerClientInBackground: flushPostHog,
+  flushPostHogServerClient: flushPostHog,
 }));
 
 import handler from "../../pages/api/feedback";

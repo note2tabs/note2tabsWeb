@@ -648,10 +648,19 @@ export default function TranscriberPage() {
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
     selectAudioFile(file);
+    if (file) {
+      sendEvent(ANALYTICS_EVENTS.uploadSelected, {
+        mode: "FILE",
+        size: file.size,
+        type: file.type || "unknown",
+        surface: "transcriber",
+      });
+    }
     setMode("FILE");
     setError(null);
     setImportError(null);
     setTabsResult(null);
+    setShowInstrumentPrompt(false);
   };
 
   const onDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
@@ -675,10 +684,17 @@ export default function TranscriberPage() {
     const file = event.dataTransfer.files?.[0];
     if (file) {
       selectAudioFile(file);
+      sendEvent(ANALYTICS_EVENTS.uploadDropped, {
+        mode: "FILE",
+        size: file.size,
+        type: file.type || "unknown",
+        surface: "transcriber",
+      });
       setMode("FILE");
       setError(null);
       setImportError(null);
       setTabsResult(null);
+      setShowInstrumentPrompt(false);
     }
   };
 
@@ -758,16 +774,19 @@ export default function TranscriberPage() {
     }
     if (transcriberSession && !canUseUnverifiedTranscription) {
       setError("Please verify your email to continue using the transcriber.");
+      sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "email_unverified", mode });
       return;
     }
 
     if (mode === "FILE" && !selectedFile) {
       setError("Please select an audio file to transcribe.");
+      sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "missing_file", mode });
       return;
     }
 
     if (mode === "YOUTUBE" && !youtubeValid) {
       setError("Please paste a valid YouTube link.");
+      sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "invalid_youtube_url", mode });
       return;
     }
     if (mode === "YOUTUBE" && (ytStartTime === null || ytEndTime === null)) {
@@ -794,6 +813,12 @@ export default function TranscriberPage() {
         : MAX_FREE_BYTES;
       if (selectedFile.size > maxBytes) {
         setError(`File is too large. Max size is ${formatMb(maxBytes)} for your plan.`);
+        sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, {
+          reason: "file_too_large",
+          mode,
+          size: selectedFile.size,
+          maxBytes,
+        });
         return;
       }
     }
@@ -839,7 +864,13 @@ export default function TranscriberPage() {
     setLoading(true);
     sendTranscriptionStartedEvents(transcriptionModel, {
       mode,
-      input_source: mode === "YOUTUBE" ? "youtube" : "local_file",
+      sourceType: mode,
+      separateGuitar,
+      multipleGuitars,
+      fileSize: selectedFile?.size,
+      durationSec: mode === "YOUTUBE" ? resolvedYtDuration : resolvedFileDuration,
+      hasAppendEditorId: Boolean(appendEditorId),
+      surface: "transcriber",
     });
 
     try {
@@ -866,6 +897,7 @@ export default function TranscriberPage() {
           response = await postFileDirectly();
         } else {
           const uploadStorageError = "Could not upload file to storage. Please try again.";
+          sendEvent(ANALYTICS_EVENTS.uploadPresignStarted, { mode, size: selectedFile.size, surface: "transcriber" });
           const presignRes = await fetch("/api/uploads/presign", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -877,6 +909,13 @@ export default function TranscriberPage() {
           });
           const presignData = await presignRes.json().catch(() => ({}));
           if (!presignRes.ok || !presignData?.url || !presignData?.key) {
+            sendEvent(ANALYTICS_EVENTS.uploadStorageFailed, {
+              mode,
+              step: "presign",
+              error_code: categorizeAnalyticsError(presignData?.error, "presign_rejected"),
+              http_status_class: analyticsHttpStatusClass(presignRes.status),
+              surface: "transcriber",
+            });
             throw new Error(presignData?.error || uploadStorageError);
           } else {
             try {
@@ -888,7 +927,14 @@ export default function TranscriberPage() {
               if (!uploadRes.ok) {
                 throw new Error(uploadStorageError);
               }
+              sendEvent(ANALYTICS_EVENTS.uploadStorageSucceeded, {
+                mode,
+                size: selectedFile.size,
+                type: selectedFile.type || "unknown",
+                surface: "transcriber",
+              });
             } catch {
+              sendEvent(ANALYTICS_EVENTS.uploadStorageFailed, { mode, step: "storage_put", surface: "transcriber" });
               throw new Error(uploadStorageError);
             }
             setStatus(transcribingStatusLabel);
@@ -940,7 +986,7 @@ export default function TranscriberPage() {
           await updateSession().catch(() => null);
         }
         setStatus("Opening progress screen...");
-        sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
+        sendEvent(ANALYTICS_EVENTS.tabGenerationQueued, { mode, jobId: data.jobId, status: data.status || "queued", surface: "transcriber" });
         const jobParams = new URLSearchParams();
         jobParams.set("mode", mode);
         jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
@@ -973,7 +1019,7 @@ export default function TranscriberPage() {
           return;
         }
         setError(data?.error || "Transcription failed. Please try again.");
-        sendEvent("transcribe_error", {
+        sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
           mode,
           error_code: categorizeAnalyticsError(data?.error, "transcription_failed"),
           http_status_class: analyticsHttpStatusClass(response.status),
@@ -982,7 +1028,7 @@ export default function TranscriberPage() {
       }
       if (!data.tabs || !Array.isArray(data.tabs)) {
         setError("No tabs returned from server.");
-        sendEvent("transcribe_error", { mode, error_code: "no_tabs" });
+        sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, { mode, error_code: "no_tabs", surface: "transcriber" });
         return;
       }
       const nextTabs = data.tabs;
@@ -995,7 +1041,13 @@ export default function TranscriberPage() {
         setLocalUnverifiedTranscriptionUsed(true);
         await updateSession().catch(() => null);
       }
-      sendEvent("transcribe_success", { mode, jobId: data.jobId });
+      sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
+        mode,
+        jobId: data.jobId,
+        tabJobId: data.tabJobId,
+        segmentGroups: Array.isArray(data.transcriberSegments) ? data.transcriberSegments.length : undefined,
+        surface: "transcriber",
+      });
       if (transcriberSession && data.tabJobId) {
         setStatus("Tabs ready. Opening transcription...");
         await router.push(
@@ -1020,7 +1072,7 @@ export default function TranscriberPage() {
       return;
     } catch (err: any) {
       setError(err?.message || "Something went wrong. Please try again.");
-      sendEvent("transcribe_error", {
+      sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
         mode,
         error_code: categorizeAnalyticsError(err, "transcription_failed"),
       });

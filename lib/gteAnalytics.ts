@@ -1,17 +1,21 @@
 import { ingestAnalyticsEvents } from "./analyticsV2/ingest";
 import type { NextApiRequest, NextApiResponse } from "next";
 
-export type GteAnalyticsEvent =
-  | "gte_editor_created"
-  | "gte_editor_imported"
-  | "gte_editor_saved"
-  | "gte_editor_exported"
-  | "gte_editor_action"
-  | "gte_editor_session_heartbeat"
-  | "gte_practice_started"
-  | "gte_editor_visit"
-  | "gte_editor_session_start"
-  | "gte_editor_session_end";
+export const GTE_ANALYTICS_EVENTS = [
+  "gte_editor_created",
+  "gte_editor_imported",
+  "gte_editor_saved",
+  "gte_editor_exported",
+  "gte_editor_action",
+  "gte_editor_session_heartbeat",
+  "gte_practice_started",
+  "gte_playback_started",
+  "gte_editor_visit",
+  "gte_editor_session_start",
+  "gte_editor_session_end",
+] as const;
+
+export type GteAnalyticsEvent = (typeof GTE_ANALYTICS_EVENTS)[number];
 
 type LogGteAnalyticsInput = {
   userId?: string | null;

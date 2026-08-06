@@ -72,14 +72,12 @@ function shouldTrack() {
 function ensureIds() {
   let sessionId = getCookie(ANALYTICS_SESSION_COOKIE);
   let anonId = getCookie(ANALYTICS_ANON_COOKIE);
-  if (!sessionId) {
-    sessionId = randomId();
-    setCookie(ANALYTICS_SESSION_COOKIE, sessionId, 24 * 60 * 60);
-  }
+  if (!sessionId) sessionId = randomId();
+  setCookie(ANALYTICS_SESSION_COOKIE, sessionId, 30 * 60);
   if (!anonId) {
     anonId = randomId();
-    setCookie(ANALYTICS_ANON_COOKIE, anonId, 90 * 24 * 60 * 60);
   }
+  setCookie(ANALYTICS_ANON_COOKIE, anonId, 90 * 24 * 60 * 60);
   return { sessionId, anonId };
 }
 

@@ -39,12 +39,27 @@ function installBrowserGlobals(consent: "granted" | "denied" | "missing" = "gran
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(() => true),
+    location: { protocol: "https:" },
+  };
+
+  const cookieJar = new Map<string, string>();
+  if (consent !== "missing") cookieJar.set("analytics_consent", consent);
+  const documentMock = {
+    get cookie() {
+      return Array.from(cookieJar, ([name, value]) => `${name}=${value}`).join("; ");
+    },
+    set cookie(serialized: string) {
+      const [pair] = serialized.split(";");
+      const separator = pair.indexOf("=");
+      const name = pair.slice(0, separator);
+      const value = pair.slice(separator + 1);
+      if (/Max-Age=0/i.test(serialized)) cookieJar.delete(name);
+      else cookieJar.set(name, value);
+    },
   };
 
   vi.stubGlobal("window", windowMock);
-  vi.stubGlobal("document", {
-    cookie: consent === "missing" ? "" : `analytics_consent=${consent}`,
-  });
+  vi.stubGlobal("document", documentMock);
   vi.stubGlobal(
     "CustomEvent",
     class CustomEventMock {
@@ -63,6 +78,7 @@ function createPostHogMock() {
     reset: vi.fn(),
     opt_in_capturing: vi.fn(),
     opt_out_capturing: vi.fn(),
+    get_distinct_id: vi.fn(() => "anon-after-reset"),
   };
 }
 
@@ -164,11 +180,35 @@ describe("PostHog client identity lifecycle", () => {
       "phc_test",
       expect.objectContaining({ disable_persistence: true, opt_out_capturing_by_default: false })
     );
-    expect(posthog.capture).toHaveBeenCalledWith("pre_consent_event", {
-      $current_url: "https://note2tabs.com/auth/verify-email",
-    });
+    expect(posthog.capture).toHaveBeenCalledWith(
+      "pre_consent_event",
+      expect.objectContaining({
+        $current_url: "https://note2tabs.com/auth/verify-email",
+        $insert_id: expect.any(String),
+        $session_id: expect.any(String),
+        anon_id: expect.any(String),
+        schema_version: 2,
+      })
+    );
     expect(localStorage.length).toBe(0);
     expect(sessionStorage.length).toBe(0);
+  });
+
+  it("preserves explicit insert ids for idempotent business events", async () => {
+    installBrowserGlobals("granted");
+    const posthog = createPostHogMock();
+    vi.doMock("posthog-js", () => ({ default: posthog }));
+    const analytics = await import("../../lib/posthogClient");
+
+    analytics.capturePostHogEvent("subscription_started", {
+      $insert_id: "subscription-started:cs_123",
+    });
+    await analytics.initPostHog();
+
+    expect(posthog.capture).toHaveBeenCalledWith(
+      "subscription_started",
+      expect.objectContaining({ $insert_id: "subscription-started:cs_123" })
+    );
   });
 
   it("installs a final URL and PII scrubber in PostHog", async () => {

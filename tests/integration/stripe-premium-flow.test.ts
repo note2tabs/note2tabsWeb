@@ -78,6 +78,7 @@ vi.mock("../../lib/prisma", () => ({
 vi.mock("../../lib/posthogServer", () => ({
   createPostHogServerClient: vi.fn(() => posthogMock),
   flushPostHogServerClientInBackground: vi.fn(),
+  flushPostHogServerClient: vi.fn((client: { flush: () => Promise<void> }) => client.flush()),
 }));
 
 function buildWebhookReq(signature = "sig_test", body = "{}") {

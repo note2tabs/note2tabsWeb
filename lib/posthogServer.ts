@@ -43,3 +43,7 @@ export function flushPostHogServerClientInBackground(
     // Product requests must not fail or wait because analytics is unavailable.
   });
 }
+
+export async function flushPostHogServerClient(client: Pick<PostHog, "flush">) {
+  await client.flush();
+}

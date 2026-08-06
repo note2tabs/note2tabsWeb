@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
   createPostHogServerClient,
-  flushPostHogServerClientInBackground,
+  flushPostHogServerClient,
 } from "../posthogServer";
 import {
   ANALYTICS_ANON_COOKIE,
@@ -66,7 +66,7 @@ export async function linkIdentityToUser(input: LinkIdentityInput) {
       last_identity_source: input.source,
     },
   });
-  flushPostHogServerClientInBackground(client);
+  await flushPostHogServerClient(client);
 
   return {
     ok: true,

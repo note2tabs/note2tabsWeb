@@ -9,7 +9,10 @@ import {
   stripeSubscriptionMatchesPremium,
 } from "../../../lib/stripePremium";
 import { getFreshUserRole } from "../../../lib/serverAuth";
-import { createPostHogServerClient } from "../../../lib/posthogServer";
+import {
+  createPostHogServerClient,
+  flushPostHogServerClient,
+} from "../../../lib/posthogServer";
 
 const PREMIUM_TRIAL_DAYS = 7;
 const PREMIUM_ACCESS_ROLES = new Set(["PREMIUM", "ADMIN", "MODERATOR", "MOD"]);
@@ -39,11 +42,19 @@ async function trackCheckoutEvent(
 ) {
   const client = createPostHogServerClient();
   if (!client) return;
-  client.capture({ distinctId, event, properties });
+  client.capture({
+    distinctId,
+    event,
+    properties: {
+      schema_version: 2,
+      environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
+      ...properties,
+    },
+  });
   try {
     // Checkout is a low-volume, business-critical funnel. Awaiting this flush
     // prevents Vercel from ending the invocation before PostHog receives it.
-    await client.flush();
+    await flushPostHogServerClient(client);
   } catch {
     // Analytics must never prevent a customer from reaching Stripe.
   }
@@ -117,6 +128,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     plan: "premium_monthly",
     source,
     request_id: requestId,
+    $insert_id: `checkout-requested:${requestId}`,
   });
 
   try {
@@ -233,6 +245,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       source,
       request_id: requestId,
       failure_stage: "stripe_session_creation",
+      $insert_id: `checkout-failed:${requestId}`,
     });
     console.error(JSON.stringify({
       level: "error",

@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
   createPostHogServerClient,
-  flushPostHogServerClientInBackground,
+  flushPostHogServerClient,
   isPostHogConfigured,
 } from "../posthogServer";
 import {
@@ -13,6 +13,7 @@ import {
 import {
   ANALYTICS_ANON_COOKIE,
   ANALYTICS_SESSION_COOKIE,
+  ensureTrackingCookies,
   getConsentFromCookies,
   parseRequestCookies,
 } from "./cookies";
@@ -93,8 +94,14 @@ export async function ingestAnalyticsEvents(
     throw new Error("PostHog is not configured.");
   }
 
-  const cookieAnonId = cookies[ANALYTICS_ANON_COOKIE];
-  const cookieSessionId = cookies[ANALYTICS_SESSION_COOKIE];
+  const trackingCookies = context.res
+    ? ensureTrackingCookies(context.res, cookies)
+    : {
+        anonId: cookies[ANALYTICS_ANON_COOKIE],
+        sessionId: cookies[ANALYTICS_SESSION_COOKIE],
+      };
+  const cookieAnonId = trackingCookies.anonId;
+  const cookieSessionId = trackingCookies.sessionId;
   const environment =
     process.env.VERCEL_ENV || process.env.NODE_ENV || "development";
   const host = header(context.req, "host");
@@ -122,6 +129,7 @@ export async function ingestAnalyticsEvents(
     client.capture({
       distinctId,
       event: event.name === "page_viewed" ? "$pageview" : event.name,
+      timestamp: event.ts,
       properties: sanitizeAnalyticsProperties({
         ...event.props,
         $insert_id: event.eventId,
@@ -147,7 +155,8 @@ export async function ingestAnalyticsEvents(
       }),
     });
   }
-  flushPostHogServerClientInBackground(client);
+  // Only report events as written after PostHog has accepted the batch.
+  await flushPostHogServerClient(client);
 
   return {
     ok: true,
