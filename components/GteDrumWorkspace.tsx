@@ -35,6 +35,7 @@ const LABEL_WIDTH = 30;
 // Seven compact drum rows occupy roughly the same height as the six tab strings.
 const ROW_HEIGHT = 20;
 const RULER_HEIGHT = 20;
+const TIME_RULER_HEIGHT = 18;
 const DRAG_THRESHOLD_PX = 4;
 const DRUM_SUBDIVISIONS_PER_BEAT = 4;
 
@@ -128,6 +129,13 @@ type GteDrumWorkspaceProps = {
   playbackUiVisible?: boolean;
   onGlobalPlaybackToggle?: () => void;
   onGlobalPlaybackVolumeChange?: (volume: number) => void;
+  onGlobalPlaybackFrameChange?: (frame: number) => void;
+};
+
+const formatTimelineSecondLabel = (seconds: number) => {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  return `${minutes}:${String(safeSeconds % 60).padStart(2, "0")}`;
 };
 
 const symbolForVoice = (voiceId: string) => {
@@ -189,6 +197,7 @@ export default function GteDrumWorkspace({
   playbackUiVisible = false,
   onGlobalPlaybackToggle,
   onGlobalPlaybackVolumeChange,
+  onGlobalPlaybackFrameChange,
 }: GteDrumWorkspaceProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const playheadRef = useRef<HTMLDivElement | null>(null);
@@ -295,6 +304,18 @@ export default function GteDrumWorkspace({
     () => new Set(selectedBarIndices),
     [selectedBarIndices]
   );
+  const playbackFps = Math.max(
+    1,
+    Math.round(FRAMES_PER_BAR / Math.max(0.1, Number(snapshot.secondsPerBar) || 2))
+  );
+  const timelineSecondMarks = useMemo(() => {
+    const totalSeconds = Math.floor(totalFrames / playbackFps);
+    return Array.from({ length: totalSeconds + 1 }, (_, second) => ({
+      second,
+      left: LABEL_WIDTH + second * playbackFps * pxPerFrame,
+      isLabel: second % 5 === 0,
+    }));
+  }, [playbackFps, pxPerFrame, totalFrames]);
   const selectedNoteBarIndices = useMemo(
     () =>
       Array.from(
@@ -1827,7 +1848,10 @@ export default function GteDrumWorkspace({
       <div
         ref={scrollRef}
         className="hide-scrollbar overflow-x-auto overflow-y-hidden"
-        style={{ height: RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length }}
+        style={{
+          height:
+            RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length + TIME_RULER_HEIGHT,
+        }}
         onContextMenu={handleTrackContextMenu}
         onScroll={(event) => {
           if (syncingScrollRef.current) return;
@@ -1842,6 +1866,7 @@ export default function GteDrumWorkspace({
           const target = event.target as Element;
           if (target.closest("[data-bar-select='true']")) return;
           if (target.closest("[data-drum-hit='true']")) return;
+          if (target.closest("[data-drum-time-ruler='true']")) return;
           const point = pointerContentPoint(event.clientX, event.clientY);
           if (
             !point ||
@@ -1875,7 +1900,8 @@ export default function GteDrumWorkspace({
           className="relative select-none"
           style={{
             width: timelineWidth,
-            height: RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length,
+            height:
+              RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length + TIME_RULER_HEIGHT,
           }}
         >
           <div
@@ -2184,9 +2210,70 @@ export default function GteDrumWorkspace({
           })}
 
           <div
+            data-drum-time-ruler="true"
+            role="button"
+            tabIndex={0}
+            className="absolute left-0 z-40 cursor-pointer border-t border-slate-300 bg-slate-50/90 text-[8px] text-slate-500"
+            style={{
+              top: RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length,
+              width: timelineWidth,
+              height: TIME_RULER_HEIGHT,
+            }}
+            title="Click to jump playback"
+            aria-label="Timeline seconds ruler"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const container = scrollRef.current;
+              if (!container) return;
+              const rect = container.getBoundingClientRect();
+              const frame = Math.max(
+                0,
+                Math.min(
+                  totalFrames,
+                  Math.round(
+                    (event.clientX - rect.left + container.scrollLeft - LABEL_WIDTH) /
+                      pxPerFrame
+                  )
+                )
+              );
+              onGlobalPlaybackFrameChange?.(frame);
+              onFocusWorkspace?.();
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              onGlobalPlaybackFrameChange?.(
+                Math.max(0, Math.min(totalFrames, getGlobalPlaybackFrame?.() ?? globalPlaybackFrame))
+              );
+            }}
+          >
+            <div
+              className="sticky left-0 z-50 h-full border-r border-slate-200 bg-slate-100"
+              style={{ width: LABEL_WIDTH }}
+            />
+            {timelineSecondMarks.map(({ second, left, isLabel }) => (
+              <div
+                key={`drum-timeline-second-${second}`}
+                className="absolute bottom-0 border-l border-slate-300"
+                style={{ left, height: isLabel ? TIME_RULER_HEIGHT : 6 }}
+              >
+                {isLabel ? (
+                  <span className="absolute left-1 top-0.5 whitespace-nowrap font-medium leading-none text-slate-500">
+                    {formatTimelineSecondLabel(second)}
+                  </span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+
+          <div
             ref={playheadRef}
             className="pointer-events-none absolute left-0 top-0 z-20 w-px bg-rose-500"
-            style={{ height: RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length }}
+            style={{
+              height:
+                RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length + TIME_RULER_HEIGHT,
+            }}
           />
         </div>
       </div>

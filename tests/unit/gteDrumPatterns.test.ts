@@ -5,26 +5,46 @@ import { buildDrumNote, getDrumVoiceForNote } from "../../lib/gteDrums";
 describe("drum beat patterns", () => {
   it("provides a useful selection of named beats", () => {
     expect(DRUM_BEAT_PATTERNS.map((pattern) => pattern.label)).toEqual([
-      "Slow Ballad",
+      "Bare Half-Time",
+      "Minimal Half-Time",
       "Slow Rock",
-      "Four on the Floor",
-      "Half-Time",
-      "Funk (Busy)",
-      "Disco",
-      "Punk (Fast)",
+      "Slow Blues",
+      "Driving Rock",
+      "Funk Pocket",
     ]);
   });
 
-  it("keeps the slow ballad sparse enough for high-tempo songs", () => {
+  it("adds moderately faster grooves without using subdivisions shorter than a sixteenth note", () => {
+    for (const patternId of ["driving-rock", "funk-pocket"] as const) {
+      const notes = applyDrumBeatPattern({
+        notes: [],
+        barIndices: [0],
+        patternId,
+        beatsPerBar: 4,
+        framesPerBar: 480,
+      });
+      const distinctTimes = [...new Set(notes.map((note) => note.startTime))].sort(
+        (left, right) => left - right
+      );
+      const smallestGap = Math.min(
+        ...distinctTimes.slice(1).map((time, index) => time - distinctTimes[index])
+      );
+
+      expect(notes.length).toBeGreaterThan(10);
+      expect(smallestGap).toBeGreaterThanOrEqual(30);
+    }
+  });
+
+  it("keeps bare half-time sparse enough for high-tempo songs", () => {
     const notes = applyDrumBeatPattern({
       notes: [],
       barIndices: [0],
-      patternId: "slow-ballad",
+      patternId: "bare-half-time",
       beatsPerBar: 4,
       framesPerBar: 480,
     });
 
-    expect(notes).toHaveLength(5);
+    expect(notes).toHaveLength(2);
     expect([...new Set(notes.map((note) => note.startTime))]).toEqual([0, 240]);
   });
 
@@ -34,7 +54,7 @@ describe("drum beat patterns", () => {
     const notes = applyDrumBeatPattern({
       notes: [untouched, replaced],
       barIndices: [0, 1],
-      patternId: "classic-rock",
+      patternId: "slow-rock",
       beatsPerBar: 4,
       framesPerBar: 480,
     });
@@ -49,13 +69,13 @@ describe("drum beat patterns", () => {
     const notes = applyDrumBeatPattern({
       notes: [],
       barIndices: [0],
-      patternId: "four-on-the-floor",
+      patternId: "slow-rock",
       beatsPerBar: 8,
       framesPerBar: 480,
     });
     const kicks = notes.filter((note) => getDrumVoiceForNote(note).id === "kick");
 
-    expect(kicks).toHaveLength(4);
-    expect(kicks.map((note) => note.startTime)).toEqual([0, 120, 240, 360]);
+    expect(kicks).toHaveLength(2);
+    expect(kicks.map((note) => note.startTime)).toEqual([0, 240]);
   });
 });

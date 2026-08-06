@@ -61,6 +61,7 @@ export default function GteTrackWorkspace(props: Props) {
       playbackUiVisible={props.playbackUiVisible}
       onGlobalPlaybackToggle={props.onGlobalPlaybackToggle}
       onGlobalPlaybackVolumeChange={props.onGlobalPlaybackVolumeChange}
+      onGlobalPlaybackFrameChange={props.onGlobalPlaybackFrameChange}
     />
   );
 }

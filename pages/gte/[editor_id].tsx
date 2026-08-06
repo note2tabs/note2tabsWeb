@@ -56,6 +56,7 @@ import {
 } from "../../lib/gteDrumLoops";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import { getChordEditorMidiNotes } from "../../lib/gteChordEditor";
+import { buildChordPlaybackWindows } from "../../lib/gteChordPlayback";
 import GteFileImportButton from "../../components/GteFileImportButton";
 import { EditorLoadingState } from "../../components/EditorLoadingState";
 import {
@@ -3409,19 +3410,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           lane.chords.forEach((chord) => {
             const midiNotes = getChordEditorMidiNotes(chord);
             if (!midiNotes.length) return;
-            const strums =
-              Array.isArray(chord.strums) && chord.strums.length
-                ? chord.strums
-                : [{ time: 0, direction: "down" as const }];
-            strums.forEach((strum) => {
+            buildChordPlaybackWindows({
+              chordStart: chord.startTime,
+              chordLength: chord.length,
+              strums: chord.strums,
+              maxRingFrames: FIXED_FRAMES_PER_BAR,
+            }).forEach((strum) => {
               if (strum.direction === "mute") return;
               const direction = strum.direction === "up" ? "up" : "down";
               const orderedNotes = direction === "up" ? [...midiNotes].reverse() : midiNotes;
-              const strumStart = Math.max(0, Math.round(chord.startTime + (Number(strum.time) || 0)));
               orderedNotes.forEach((midi, noteIndex) => {
+                const noteStart = strum.startFrame + noteIndex * 4;
+                if (noteStart >= strum.endFrame) return;
                 pushEvent(
-                  strumStart + noteIndex * 4,
-                  Math.max(24, Math.min(chord.length, FIXED_FRAMES_PER_BAR / 3)),
+                  noteStart,
+                  strum.endFrame - noteStart,
                   midi,
                   0.42 * laneVolume,
                   instrumentId,
@@ -3434,9 +3437,28 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         }
 
         lane.chords.forEach((chord) => {
-          chord.currentTabs.forEach((tab, tabIndex) => {
-            const midi = getMidiFromTab(lane, tab, chord.originalMidi?.[tabIndex]);
-            pushEvent(chord.startTime, chord.length, midi, 0.48 * laneVolume, instrumentId, lanePan);
+          buildChordPlaybackWindows({
+            chordStart: chord.startTime,
+            chordLength: chord.length,
+            strums: chord.strums,
+            maxRingFrames: FIXED_FRAMES_PER_BAR,
+          }).forEach((strum) => {
+            if (strum.direction === "mute") return;
+            const notes = chord.currentTabs.map((tab, tabIndex) => ({ tab, tabIndex }));
+            const orderedNotes = strum.direction === "up" ? notes.reverse() : notes;
+            orderedNotes.forEach(({ tab, tabIndex }, noteIndex) => {
+              const noteStart = strum.startFrame + noteIndex * 4;
+              if (noteStart >= strum.endFrame) return;
+              const midi = getMidiFromTab(lane, tab, chord.originalMidi?.[tabIndex]);
+              pushEvent(
+                noteStart,
+                strum.endFrame - noteStart,
+                midi,
+                0.48 * laneVolume,
+                instrumentId,
+                lanePan
+              );
+            });
           });
         });
       });
