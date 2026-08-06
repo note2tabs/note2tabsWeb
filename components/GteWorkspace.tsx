@@ -4027,6 +4027,10 @@ export default function GteWorkspace({
   const defaultNoteLengthUserChangedRef = useRef(false);
   const previousTimeSignatureRef = useRef(8);
   const previousTimeSignatureBottomRef = useRef(4);
+  // Only a time signature the user committed here should rescale the cursor
+  // size. Hydrating the signature from the snapshot, or receiving it as the
+  // shared signature after another lane changed it, must leave it alone.
+  const timeSignatureUserChangedRef = useRef(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosaveInFlightRef = useRef(false);
   const autosaveQueuedRef = useRef(false);
@@ -4150,6 +4154,9 @@ export default function GteWorkspace({
     previousTimeSignatureRef.current = nextTop;
     previousTimeSignatureBottomRef.current = nextBottom;
     if (previousTop === nextTop && previousBottom === nextBottom) return;
+    const userChanged = timeSignatureUserChangedRef.current;
+    timeSignatureUserChangedRef.current = false;
+    if (!userChanged) return;
     setCursorSizeDenominator((prev) =>
       getNearestCursorSizeDenominator((Math.max(1, prev) * nextBottom * previousTop) / (previousBottom * nextTop))
     );
@@ -9816,6 +9823,7 @@ export default function GteWorkspace({
       if (normalized === previousTimeSignature) {
         return true;
       }
+      timeSignatureUserChangedRef.current = true;
       const currentBpm = secondsPerBarToBpm(secondsPerBar, previousTimeSignature);
       const nextSecondsPerBar = keepNotesOnBeat
         ? bpmToSecondsPerBar(currentBpm, normalized) ?? secondsPerBar
@@ -9855,6 +9863,7 @@ export default function GteWorkspace({
       const normalized = Math.max(1, Math.min(64, Math.round(next)));
       setTimeSignatureBottom(normalized);
       if (normalized === timeSignatureBottom) return true;
+      timeSignatureUserChangedRef.current = true;
       void runMutation(
         () => {
           const nextSnapshot = cloneSnapshot(snapshotRef.current);
