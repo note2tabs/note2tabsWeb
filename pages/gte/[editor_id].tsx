@@ -1188,6 +1188,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [countInEveryLoop, setCountInEveryLoop] = useState(false);
   const [practiceFocusEnabled, setPracticeFocusEnabled] = useState(false);
   const [practiceChordOverlayLaneId, setPracticeChordOverlayLaneId] = useState<string | null>(null);
+  const [practiceChordFingeringsVisible, setPracticeChordFingeringsVisible] = useState(false);
   const [practiceFullscreen, setPracticeFullscreen] = useState(false);
   const [speedTrainerEnabled, setSpeedTrainerEnabled] = useState(false);
   const [speedTrainerSessionActive, setSpeedTrainerSessionActive] = useState(false);
@@ -2903,6 +2904,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (typeof saved.countInEnabled === "boolean") setCountInEnabled(saved.countInEnabled);
       if (typeof saved.speedTrainerEnabled === "boolean") setSpeedTrainerEnabled(saved.speedTrainerEnabled);
       if (typeof saved.practiceFocusEnabled === "boolean") setPracticeFocusEnabled(saved.practiceFocusEnabled);
+      if (typeof saved.chordFingeringsVisible === "boolean") {
+        setPracticeChordFingeringsVisible(saved.chordFingeringsVisible);
+      }
       if (typeof saved.chordOverlayLaneId === "string") {
         setPracticeChordOverlayLaneId(saved.chordOverlayLaneId);
       } else {
@@ -2956,6 +2960,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           speedTrainerStep,
           practiceFocusEnabled,
           chordOverlayLaneId: practiceChordOverlayLaneId,
+          chordFingeringsVisible: practiceChordFingeringsVisible,
           barLaneId: barSelection?.laneId ?? null,
           barIndices: barSelection?.barIndices ?? [],
         })
@@ -2974,6 +2979,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     metronomeVolume,
     normalizedPlaybackSpeed,
     practiceFocusEnabled,
+    practiceChordFingeringsVisible,
     practiceChordOverlayLaneId,
     practiceLoopEnabled,
     practiceSettingsStorageKey,
@@ -4726,6 +4732,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     practiceSoundLane && practiceSoundLaneIndex >= 0
       ? practiceSoundLane.id || `ed-${practiceSoundLaneIndex + 1}`
       : null;
+  const practiceViewedLaneIsChord = practiceSoundLane ? isChordLane(practiceSoundLane) : false;
   const practiceInstrumentValue = practiceSoundLane
     ? normalizeTrackInstrumentId(practiceSoundLane.instrumentId)
     : DEFAULT_TRACK_INSTRUMENT_ID;
@@ -5262,6 +5269,20 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           >
             Focus {practiceFocusEnabled ? "on" : "selection"}
           </button>
+          {practiceViewedLaneIsChord && (
+            <button
+              type="button"
+              onClick={() => setPracticeChordFingeringsVisible((visible) => !visible)}
+              aria-pressed={practiceChordFingeringsVisible}
+              className={`h-9 rounded-lg border px-2.5 text-xs font-semibold transition ${
+                practiceChordFingeringsVisible
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-400"
+              }`}
+            >
+              Fingerings {practiceChordFingeringsVisible ? "on" : "off"}
+            </button>
+          )}
           {practiceSoundLaneId && (
             <details className="group relative">
               <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
@@ -8784,6 +8805,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onPracticeNotePlay={
                             practiceModeEnabled ? playPracticeFromFrame : undefined
                           }
+                          practiceFingeringsVisible={practiceChordFingeringsVisible}
                           practiceFocusBarRange={
                             practiceFocusEnabled && barSelection?.laneId === laneId && barSelection.barIndices.length
                               ? {

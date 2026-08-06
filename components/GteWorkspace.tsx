@@ -197,6 +197,7 @@ type Props = {
   practiceMode?: boolean;
   onPracticeNotePlay?: (frame: number) => void;
   practiceChordOverlay?: EditorSnapshot | null;
+  practiceFingeringsVisible?: boolean;
   practiceFocusBarRange?: { startBar: number; endBar: number } | null;
   practiceRatingReplay?: PracticeRatingReplay | null;
   practiceControlsVisible?: boolean;
@@ -1667,9 +1668,19 @@ function ChordLaneWorkspace({
   globalPlaybackFrame,
   getGlobalPlaybackFrame,
   globalPlaybackIsPlaying,
+  globalPlaybackIsPreparing,
   globalPlaybackVolume,
   globalPlaybackTimelineEnd,
+  onGlobalPlaybackToggle,
   onGlobalPlaybackFrameChange,
+  onGlobalPlaybackVolumeChange,
+  onGlobalPlaybackSkipToStart,
+  onGlobalPlaybackSkipBackwardBar,
+  onGlobalPlaybackSkipForwardBar,
+  practiceMode = false,
+  onPracticeNotePlay,
+  practiceFingeringsVisible = false,
+  playbackUiVisible,
   selectionClearEpoch,
   selectionClearExemptEditorId,
   barSelectionClearEpoch,
@@ -1714,6 +1725,9 @@ function ChordLaneWorkspace({
   const [fingeringOptionsByChordKey, setFingeringOptionsByChordKey] = useState<Record<string, ChordFingering[]>>({});
   const [dragRevision, setDragRevision] = useState(0);
   const isMobileCanvasMode = mobileViewport && mobileMode === "canvas";
+  // Practice mode drives fingering visibility from the shared practice panel so
+  // the toggle applies to whichever chord track is being practised.
+  const chordFingeringsVisible = practiceMode ? practiceFingeringsVisible : fingeringsVisible;
   const snapToKeyEnabled = Boolean(globalSnapToKeyEnabled);
   const normalizedTimelineZoomFactor =
     timelineZoomFactor !== undefined && Number.isFinite(timelineZoomFactor)
@@ -1756,10 +1770,10 @@ function ChordLaneWorkspace({
   const effectivePlayheadFrame = Math.max(0, Math.min(totalFrames, readExternalPlaybackFrame()));
   const playheadLeft = timelineContentOffset + effectivePlayheadFrame * pxPerFrame;
   const fingeringRowTop = CHORD_EDITOR_ROW_HEIGHT;
-  const strumEditorTop = CHORD_EDITOR_ROW_HEIGHT + (fingeringsVisible ? CHORD_FINGERING_ROW_HEIGHT : 0);
+  const strumEditorTop = CHORD_EDITOR_ROW_HEIGHT + (chordFingeringsVisible ? CHORD_FINGERING_ROW_HEIGHT : 0);
   const timelineRowHeight =
     CHORD_EDITOR_ROW_HEIGHT +
-    (fingeringsVisible ? CHORD_FINGERING_ROW_HEIGHT : 0) +
+    (chordFingeringsVisible ? CHORD_FINGERING_ROW_HEIGHT : 0) +
     (strumEditor ? CHORD_STRUM_EDITOR_HEIGHT + 12 : 0);
   const chordPlaybackFps = fpsFromSecondsPerBar(
     Math.max(0.1, Number(snapshot.secondsPerBar) || DEFAULT_SECONDS_PER_BAR)
@@ -2218,7 +2232,7 @@ function ChordLaneWorkspace({
   );
 
   useEffect(() => {
-    if (!fingeringsVisible) return;
+    if (!chordFingeringsVisible) return;
     const lookups = snapshot.chords.map((chord) => getChordFingeringLookup(chord));
     const missing = Array.from(new Map(lookups.map((lookup) => [lookup.key, lookup])).values()).filter(
       (lookup) => fingeringOptionsByChordKey[lookup.key] === undefined
@@ -2243,7 +2257,43 @@ function ChordLaneWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [fingeringOptionsByChordKey, fingeringsVisible, getChordFingeringLookup, snapshot.chords]);
+  }, [chordFingeringsVisible, fingeringOptionsByChordKey, getChordFingeringLookup, snapshot.chords]);
+
+  const practiceChordItems = useMemo(
+    () =>
+      snapshot.chords
+        .map((chord) => {
+          const start = Math.max(0, Math.round(Number(chord.startTime) || 0));
+          const lookup = getChordFingeringLookup(chord);
+          return {
+            chord,
+            start,
+            end: start + clampEventLength(chord.length),
+            bar: Math.floor(start / FIXED_FRAMES_PER_BAR) + 1,
+            label: getPracticeChordLabel(chord),
+            fingering: getPracticeChordFingering(chord, fingeringOptionsByChordKey[lookup.key]),
+          };
+        })
+        .sort((left, right) => left.start - right.start || left.chord.id - right.chord.id),
+    [fingeringOptionsByChordKey, getChordFingeringLookup, snapshot.chords]
+  );
+  const [activePracticeChordId, setActivePracticeChordId] = useState<number | null>(null);
+  useEffect(() => {
+    if (!practiceMode) return;
+    const syncActiveChord = () => {
+      const frame = readExternalPlaybackFrame();
+      const active = practiceChordItems.find((item) => frame >= item.start && frame < item.end);
+      const nextId = active?.chord.id ?? null;
+      setActivePracticeChordId((previous) => (previous === nextId ? previous : nextId));
+    };
+    syncActiveChord();
+    if (!globalPlaybackIsPlaying) return;
+    let rafId = window.requestAnimationFrame(function tick() {
+      syncActiveChord();
+      rafId = window.requestAnimationFrame(tick);
+    });
+    return () => window.cancelAnimationFrame(rafId);
+  }, [globalPlaybackIsPlaying, practiceChordItems, practiceMode, readExternalPlaybackFrame]);
 
   useEffect(() => {
     if (barSelectionClearEpoch === undefined || barSelectionClearExemptEditorId === editorId) return;
@@ -2594,6 +2644,166 @@ function ChordLaneWorkspace({
     const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
     onSharedTimelineScrollRatioChange?.(maxScroll > 0 ? element.scrollLeft / maxScroll : 0);
   };
+
+  if (practiceMode) {
+    const showChordPlaybackUi = playbackUiVisible ?? isActive;
+    const seekToChord = (frame: number) => {
+      if (onPracticeNotePlay) onPracticeNotePlay(frame);
+      else onGlobalPlaybackFrameChange?.(frame);
+    };
+    return (
+      <div className="w-full" onMouseDown={onFocusWorkspace}>
+        <div className="flex flex-wrap content-start gap-x-1.5 gap-y-2 bg-white px-3 py-3">
+          {practiceChordItems.length ? (
+            practiceChordItems.map((item, index) => {
+              const active = activePracticeChordId === item.chord.id;
+              const startsBar = index === 0 || practiceChordItems[index - 1].bar !== item.bar;
+              return (
+                <button
+                  key={`practice-chord-${item.chord.id}`}
+                  type="button"
+                  onClick={() => seekToChord(item.start)}
+                  aria-current={active ? "true" : undefined}
+                  aria-label={`Play from ${item.label} in bar ${item.bar}`}
+                  className={`relative flex flex-col items-center rounded-md border px-1.5 py-1 transition ${
+                    chordFingeringsVisible ? "w-[92px]" : "min-w-[52px]"
+                  } ${
+                    active
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-900 shadow-sm"
+                      : "border-slate-200 bg-white text-slate-800 hover:border-sky-300 hover:bg-sky-50"
+                  }`}
+                >
+                  {startsBar ? (
+                    <span className="absolute -top-2 left-1 rounded bg-slate-100 px-1 text-[8px] font-bold leading-tight text-slate-500">
+                      {item.bar}
+                    </span>
+                  ) : null}
+                  <span className="max-w-full truncate text-xs font-bold leading-tight">
+                    {item.label}
+                  </span>
+                  {chordFingeringsVisible ? (
+                    item.fingering ? (
+                      <ChordFingeringDiagram
+                        fingering={item.fingering}
+                        leftHanded={leftHandedChordDiagrams}
+                      />
+                    ) : (
+                      <div className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">
+                        No shape
+                      </div>
+                    )
+                  ) : null}
+                </button>
+              );
+            })
+          ) : (
+            <div className="px-1 py-6 text-xs font-semibold text-slate-400">
+              This chord track has no chords yet.
+            </div>
+          )}
+        </div>
+        {showChordPlaybackUi && (
+          <div
+            data-gte-floating-ui="true"
+            className="pointer-events-none fixed bottom-5 left-1/2 z-[9997] w-fit -translate-x-1/2 px-2"
+          >
+            <div className="pointer-events-auto flex items-center gap-2">
+              <div
+                className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur"
+                role="toolbar"
+                aria-label="Playback controls"
+              >
+                <button
+                  type="button"
+                  onClick={() => onGlobalPlaybackSkipToStart?.()}
+                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Go to start"
+                  aria-label="Go to start"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <rect x="4" y="5" width="2" height="14" />
+                    <polygon points="18,5 8,12 18,19" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onGlobalPlaybackSkipBackwardBar?.()}
+                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Previous bar"
+                  aria-label="Previous bar"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <polygon points="17,5 7,12 17,19" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onGlobalPlaybackToggle?.()}
+                  className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:cursor-wait disabled:bg-slate-700"
+                  title={
+                    globalPlaybackIsPreparing
+                      ? "Loading guitar sound"
+                      : globalPlaybackIsPlaying
+                      ? "Pause"
+                      : "Play"
+                  }
+                  aria-label={
+                    globalPlaybackIsPreparing
+                      ? "Loading guitar sound"
+                      : globalPlaybackIsPlaying
+                      ? "Pause"
+                      : "Play"
+                  }
+                  aria-busy={globalPlaybackIsPreparing}
+                  disabled={globalPlaybackIsPreparing}
+                >
+                  {globalPlaybackIsPreparing ? (
+                    <span className="animate-pulse text-xs font-bold" aria-hidden="true">•••</span>
+                  ) : globalPlaybackIsPlaying ? (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                      <rect x="6" y="5" width="4" height="14" />
+                      <rect x="14" y="5" width="4" height="14" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                      <polygon points="8,5 19,12 8,19" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onGlobalPlaybackSkipForwardBar?.()}
+                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
+                  title="Next bar"
+                  aria-label="Next bar"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <polygon points="7,5 17,12 7,19" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-slate-700 shadow-sm backdrop-blur">
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
+                  <path d="M4 10v4h4l5 4V6L8 10H4z" />
+                  <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
+                </svg>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={globalPlaybackVolume ?? 1}
+                  onChange={(event) => onGlobalPlaybackVolumeChange?.(Number(event.target.value))}
+                  className="w-20 accent-slate-700"
+                  title="Volume"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -3000,7 +3210,7 @@ function ChordLaneWorkspace({
                   <span className="pointer-events-none absolute left-0 top-full mt-1 w-full truncate text-center text-[11px] font-semibold leading-none text-slate-700">
                     {chordLabel}
                   </span>
-                  {fingeringsVisible ? (
+                  {chordFingeringsVisible ? (
                     <div
                       data-track-reorder-block="true"
                       className="absolute left-1/2 z-30 flex w-[122px] -translate-x-1/2 flex-col items-center rounded-md border border-slate-200 bg-white px-1.5 py-1 shadow-sm"
@@ -3460,6 +3670,7 @@ export default function GteWorkspace({
   practiceMode = false,
   onPracticeNotePlay,
   practiceChordOverlay,
+  practiceFingeringsVisible = false,
   practiceFocusBarRange,
   practiceRatingReplay,
   practiceControlsVisible = false,
@@ -3519,6 +3730,7 @@ export default function GteWorkspace({
         globalPlaybackFrame={globalPlaybackFrame}
         getGlobalPlaybackFrame={getGlobalPlaybackFrame}
         globalPlaybackIsPlaying={globalPlaybackIsPlaying}
+        globalPlaybackIsPreparing={globalPlaybackIsPreparing}
         globalPlaybackVolume={globalPlaybackVolume}
         globalPlaybackTimelineEnd={globalPlaybackTimelineEnd}
         onGlobalPlaybackToggle={onGlobalPlaybackToggle}
@@ -3542,6 +3754,9 @@ export default function GteWorkspace({
         onSpeedTrainerStepChange={onSpeedTrainerStepChange}
         playbackSpeed={playbackSpeed}
         onPlaybackSpeedChange={onPlaybackSpeedChange}
+        practiceMode={practiceMode}
+        onPracticeNotePlay={onPracticeNotePlay}
+        practiceFingeringsVisible={practiceFingeringsVisible}
         playbackUiVisible={playbackUiVisible}
         showToolbarWhenInactive={showToolbarWhenInactive}
         toolbarOpen={controlledToolbarOpen}
