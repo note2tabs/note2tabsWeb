@@ -117,7 +117,7 @@ export default function TermsPage() {
           <p>These Terms are governed by the laws of Sweden.</p>
 
           <h2>13. Contact</h2>
-          <p>note2tabs@gmail.com</p>
+          <p>support@note2tabs.com</p>
           </section>
         </div>
       </main>

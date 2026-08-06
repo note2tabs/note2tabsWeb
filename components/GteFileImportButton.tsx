@@ -100,6 +100,48 @@ export default function GteFileImportButton({
     let createdEditorId: string | null = null;
     const addedLaneIds: string[] = [];
     try {
+      if (/\.json$/i.test(file.name)) {
+        if (file.size > 10 * 1024 * 1024) {
+          throw new Error("This Note2Tabs JSON file is too large to import safely.");
+        }
+        const payload = JSON.parse(await file.text()) as {
+          format?: unknown;
+          editor?: unknown;
+        };
+        const importedEditor =
+          payload?.editor && typeof payload.editor === "object"
+            ? (payload.editor as EditorSnapshot)
+            : null;
+        if (!importedEditor || !Array.isArray(importedEditor.notes)) {
+          throw new Error("This is not a valid Note2Tabs editor JSON file.");
+        }
+        const rawTrackType =
+          importedEditor.trackType || importedEditor.editorType || importedEditor.type;
+        const trackType =
+          rawTrackType === "drums" || rawTrackType === "chords" ? rawTrackType : "tab";
+        let targetEditorId = editorId;
+        let laneId: string | undefined;
+        if (targetEditorId) {
+          const added = await gteApi.addCanvasEditor(
+            targetEditorId,
+            importedEditor.name,
+            { editorType: trackType, trackType, type: trackType }
+          );
+          laneId = added.editor.id;
+          addedLaneIds.push(laneId);
+        } else {
+          const created = await createEditor?.(importedEditor.name || "Imported track");
+          targetEditorId = created?.editorId;
+          laneId = created?.laneId;
+          createdEditorId = targetEditorId || null;
+        }
+        if (!targetEditorId || !laneId) {
+          throw new Error("Could not create an editor for this Note2Tabs JSON file.");
+        }
+        await gteApi.importEditorJson(targetEditorId, laneId, payload);
+        await onImported(targetEditorId);
+        return;
+      }
       const parsed = await parseTabImportFile(file);
       const importTracks: ImportTrack[] =
         parsed.tracks && parsed.tracks.length > 0

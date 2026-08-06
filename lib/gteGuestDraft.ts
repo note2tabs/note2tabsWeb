@@ -4,6 +4,7 @@ import {
   DEFAULT_TRACK_INSTRUMENT_ID,
   normalizeTrackInstrumentId,
 } from "./gteInstrumentManifest";
+import { normalizeDrumLoops } from "./gteDrumLoops";
 import { getTuningPreset, normalizeCapo } from "./gteTuning";
 
 export const GTE_GUEST_EDITOR_ID = "local";
@@ -179,6 +180,7 @@ const normalizeNoteEffects = (value: unknown): NonNullable<EditorSnapshot["noteE
 
 const normalizeEditorType = (value: unknown) => {
   const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (raw === "drum" || raw === "drums" || raw === "percussion") return "drums";
   if (raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor") return "chords";
   return "tab";
 };
@@ -225,6 +227,7 @@ export const createGuestSnapshot = (editorId: string = GTE_GUEST_EDITOR_ID): Edi
     notes: [],
     chords: [],
     noteEffects: [],
+    drumLoops: [],
     cutPositionsWithCoords: buildDefaultCutPositions(DEFAULT_TOTAL_FRAMES),
     optimalsByTime: {},
     tabRef: buildDefaultTabRef(DEFAULT_MAX_FRET),
@@ -324,6 +327,21 @@ export const normalizeGuestSnapshot = (
     : [];
 
   const noteEffects = normalizeNoteEffects(raw.noteEffects);
+  const drumLoops = normalizeDrumLoops(
+    Array.isArray(raw.drumLoops)
+      ? raw.drumLoops.map((entry) => {
+          if (!entry || typeof entry !== "object") return entry;
+          const loop = entry as Record<string, unknown>;
+          return {
+            ...loop,
+            sourceStart: scaleFrame(loop.sourceStart, frameRatio, 0),
+            sourceEnd: scaleFrame(loop.sourceEnd, frameRatio, 1),
+            loopEnd: scaleFrame(loop.loopEnd, frameRatio, 1),
+          };
+        })
+      : [],
+    totalFrames
+  );
 
   const cutPositionsWithCoords = normalizeCutPositions(raw.cutPositionsWithCoords, frameRatio);
   const tabRef = buildNormalizedTabRef(raw.tabRef);
@@ -354,6 +372,7 @@ export const normalizeGuestSnapshot = (
     notes,
     chords,
     noteEffects,
+    drumLoops,
     cutPositionsWithCoords: cutPositionsWithCoords.length
       ? cutPositionsWithCoords
       : buildDefaultCutPositions(totalFrames),

@@ -30,6 +30,7 @@ import {
   warmTrackInstrument,
 } from "../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../lib/gteSlidePlayback";
+import { buildChordPlaybackWindows } from "../lib/gteChordPlayback";
 import { getOpenStringMidiFromSnapshot, getStringLabelsForSnapshot } from "../lib/gteTuning";
 import {
   alignEffectNotesToFirstString,
@@ -273,6 +274,7 @@ const DEFAULT_SECONDS_PER_BAR = 2;
 const CHORD_EDITOR_ROW_HEIGHT = 70;
 const CHORD_EDITOR_MIN_BLOCK_WIDTH = 24;
 const CHORD_EDITOR_LABEL_GUTTER_WIDTH = 30;
+const CHORD_TIME_RULER_HEIGHT = 18;
 const CHORD_STRUM_EDITOR_HEIGHT = 78;
 const CHORD_FINGERING_ROW_HEIGHT = 126;
 const CHORD_EDITOR_SNAP_DENOMINATORS = [1, 2, 4, 8, 16, 32] as const;
@@ -1759,6 +1761,17 @@ function ChordLaneWorkspace({
     CHORD_EDITOR_ROW_HEIGHT +
     (fingeringsVisible ? CHORD_FINGERING_ROW_HEIGHT : 0) +
     (strumEditor ? CHORD_STRUM_EDITOR_HEIGHT + 12 : 0);
+  const chordPlaybackFps = fpsFromSecondsPerBar(
+    Math.max(0.1, Number(snapshot.secondsPerBar) || DEFAULT_SECONDS_PER_BAR)
+  );
+  const chordTimelineSecondMarks = useMemo(() => {
+    const totalSeconds = Math.floor(totalFrames / chordPlaybackFps);
+    return Array.from({ length: totalSeconds + 1 }, (_, second) => ({
+      second,
+      left: timelineContentOffset + second * chordPlaybackFps * pxPerFrame,
+      isLabel: second % 5 === 0,
+    }));
+  }, [chordPlaybackFps, pxPerFrame, timelineContentOffset, totalFrames]);
 
   const applyChordLanePlayheadDomFrame = useCallback(
     (frame: number) => {
@@ -2720,7 +2733,7 @@ function ChordLaneWorkspace({
       </div>
       <div
         ref={timelineRef}
-        className="relative overflow-x-auto bg-white"
+        className="hide-scrollbar relative overflow-x-auto bg-white"
         onScroll={handleTimelineScroll}
         onDragOver={(event) => event.preventDefault()}
         onDrop={handleTimelineDrop}
@@ -2730,7 +2743,14 @@ function ChordLaneWorkspace({
           setChordContextMenu(null);
         }}
       >
-        <div className="relative" style={{ width: timelineWidth, minHeight: TIMELINE_BAR_HEADER_HEIGHT + timelineRowHeight + 18 }}>
+        <div
+          className="relative"
+          style={{
+            width: timelineWidth,
+            minHeight:
+              TIMELINE_BAR_HEADER_HEIGHT + timelineRowHeight + CHORD_TIME_RULER_HEIGHT,
+          }}
+        >
           <div className="sticky top-0 z-10 flex h-5 bg-slate-100" style={{ paddingLeft: timelineContentOffset }}>
             {Array.from({ length: barCount }, (_, barIndex) => {
               const selected = selectedBarIndices.includes(barIndex);
@@ -3193,6 +3213,49 @@ function ChordLaneWorkspace({
                 </div>
               );
             })}
+            <div
+              role="button"
+              tabIndex={0}
+              className="absolute left-0 z-40 cursor-pointer border-t border-slate-300 bg-slate-50/90 text-[8px] text-slate-500"
+              style={{
+                top: timelineRowHeight,
+                width: timelineWidth,
+                height: CHORD_TIME_RULER_HEIGHT,
+              }}
+              title="Click to jump playback"
+              aria-label="Timeline seconds ruler"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onGlobalPlaybackFrameChange?.(
+                  Math.max(0, Math.min(totalFrames, getFrameFromClientX(event.clientX)))
+                );
+                onFocusWorkspace?.();
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                onGlobalPlaybackFrameChange?.(effectivePlayheadFrame);
+              }}
+            >
+              <div
+                className="sticky left-0 z-50 h-full border-r border-slate-200 bg-slate-100"
+                style={{ width: timelineContentOffset }}
+              />
+              {chordTimelineSecondMarks.map(({ second, left, isLabel }) => (
+                <div
+                  key={`chord-timeline-second-${second}`}
+                  className="absolute bottom-0 border-l border-slate-300"
+                  style={{ left, height: isLabel ? CHORD_TIME_RULER_HEIGHT : 6 }}
+                >
+                  {isLabel ? (
+                    <span className="absolute left-1 top-0.5 whitespace-nowrap font-medium leading-none text-slate-500">
+                      {formatTimelineSecondLabel(second)}
+                    </span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -10159,11 +10222,23 @@ export default function GteWorkspace({
       });
     });
     snapshot.chords.forEach((chord) => {
-      chord.currentTabs.forEach((tab, idx) => {
-        const key = `chord-${chord.id}-${idx}`;
-        const gain = conflictInfo.conflictKeys.has(key) ? 0.25 : 0.5;
-        const midi = getMidiFromTab(tab, chord.originalMidi[idx]);
-        pushEvent(chord.startTime, chord.length, midi, gain, tab[0]);
+      buildChordPlaybackWindows({
+        chordStart: chord.startTime,
+        chordLength: chord.length,
+        strums: chord.strums,
+        maxRingFrames: FIXED_FRAMES_PER_BAR,
+      }).forEach((strum) => {
+        if (strum.direction === "mute") return;
+        const notes = chord.currentTabs.map((tab, idx) => ({ tab, idx }));
+        const orderedNotes = strum.direction === "up" ? notes.reverse() : notes;
+        orderedNotes.forEach(({ tab, idx }, noteIndex) => {
+          const noteStart = strum.startFrame + noteIndex * 4;
+          if (noteStart >= strum.endFrame) return;
+          const key = `chord-${chord.id}-${idx}`;
+          const gain = conflictInfo.conflictKeys.has(key) ? 0.25 : 0.5;
+          const midi = getMidiFromTab(tab, chord.originalMidi[idx]);
+          pushEvent(noteStart, strum.endFrame - noteStart, midi, gain, tab[0]);
+        });
       });
     });
 
@@ -13298,10 +13373,10 @@ export default function GteWorkspace({
           className={
             practiceMode
               ? "fixed bottom-5 left-1/2 z-[9997] w-fit -translate-x-1/2 px-2 pointer-events-none"
-              : `fixed left-1/2 z-[9997] -translate-x-1/2 px-2 pointer-events-none ${
+              : `fixed bottom-10 left-1/2 z-[9997] -translate-x-1/2 px-2 pointer-events-none ${
                   mobileViewport
-                    ? "bottom-3 w-[min(calc(100vw-1.25rem),28rem)]"
-                    : "bottom-16 w-[min(calc(100vw-2rem),64rem)]"
+                    ? "w-[min(calc(100vw-1.25rem),28rem)]"
+                    : "w-[min(calc(100vw-2rem),64rem)]"
                 }`
           }
         >
