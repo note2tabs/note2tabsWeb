@@ -9,6 +9,7 @@ import {
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { takeOAuthIntent } from "../lib/oauthAnalytics";
 import { categorizeAnalyticsDestination } from "../lib/analyticsPrivacy";
+import { getAcquisitionProperties } from "../lib/acquisitionAttribution";
 
 export default function AnalyticsIdentityLinker() {
   const { data: session, status } = useSession();
@@ -44,6 +45,7 @@ export default function AnalyticsIdentityLinker() {
       identifyPostHogUser(session.user.id, {
         role: session.user.role,
         subscription: session.user.role === "PREMIUM" ? "premium" : "free",
+        ...getAcquisitionProperties(),
       });
       const oauthIntent = takeOAuthIntent();
       const createdAtMs = session.user.createdAt ? Date.parse(session.user.createdAt) : Number.NaN;

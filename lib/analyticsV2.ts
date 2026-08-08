@@ -4,6 +4,7 @@ import {
   sanitizeAnalyticsProperties,
   sanitizeAnalyticsReferrer,
 } from "./analyticsPrivacy";
+import { ANALYTICS_ATTRIBUTION_COOKIE, getAcquisitionProperties } from "./acquisitionAttribution";
 
 export const ANALYTICS_CONSENT_COOKIE = "analytics_consent";
 export const ANALYTICS_SESSION_COOKIE = "analytics_session";
@@ -140,13 +141,17 @@ export async function track(name: string, props: EventProps = {}) {
 
   const { sessionId, anonId } = ensureIds();
   const fingerprintId = await getFingerprintId();
+  const eventProps = sanitizeAnalyticsProperties({
+    ...getAcquisitionProperties(),
+    ...props,
+  });
 
   const event: CanonicalEvent = {
     event_id: randomId(),
     schema_version: 2,
     name,
     ts: new Date().toISOString(),
-    props: sanitizeAnalyticsProperties(props),
+    props: eventProps,
     path: sanitizeAnalyticsPathname(window.location.pathname),
     referrer: document.referrer
       ? sanitizeAnalyticsReferrer(document.referrer)
@@ -201,6 +206,7 @@ export function setAnalyticsConsent(state: "granted" | "denied") {
   if (state === "denied") {
     deleteCookie(ANALYTICS_ANON_COOKIE);
     deleteCookie(ANALYTICS_SESSION_COOKIE);
+    deleteCookie(ANALYTICS_ATTRIBUTION_COOKIE);
   } else {
     ensureIds();
   }

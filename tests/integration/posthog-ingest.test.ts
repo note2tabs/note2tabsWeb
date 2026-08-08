@@ -47,7 +47,7 @@ describe("PostHog analytics ingestion", () => {
         properties: expect.objectContaining({
           mode: "file",
           $insert_id: "event_123",
-          source: "test",
+          ingest_source: "test",
         }),
       })
     );
@@ -74,6 +74,46 @@ describe("PostHog analytics ingestion", () => {
         properties: expect.objectContaining({
           $pathname: "/pricing",
           $process_person_profile: false,
+        }),
+      })
+    );
+  });
+
+  it("preserves classified first-touch attribution supplied by the client", async () => {
+    await ingestAnalyticsEvents({
+      cookies: {
+        analytics_consent: "granted",
+        analytics_anon: "anon_attributed",
+      },
+      body: {
+        event_id: "attributed_page_123",
+        name: "page_viewed",
+        path: "/editor",
+        props: {
+          first_touch_source: "instagram",
+          first_touch_medium: "social",
+          first_touch_referring_domain: "l.instagram.com",
+          first_touch_landing_path: "/editor",
+          first_touch_campaign: "bio",
+          traffic_source: "instagram",
+          traffic_medium: "social",
+          utm_source: "instagram",
+        },
+      },
+    });
+
+    expect(capture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        distinctId: "anon_attributed",
+        event: "$pageview",
+        properties: expect.objectContaining({
+          first_touch_source: "instagram",
+          first_touch_medium: "social",
+          first_touch_referring_domain: "l.instagram.com",
+          first_touch_landing_path: "/editor",
+          first_touch_campaign: "bio",
+          traffic_source: "instagram",
+          utm_source: "instagram",
         }),
       })
     );

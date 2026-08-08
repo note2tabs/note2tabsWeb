@@ -66,4 +66,38 @@ describe("server PostHog identity consent", () => {
       expect(flushPostHogServerClientInBackground).toHaveBeenCalledOnce();
     }
   );
+
+  it("copies first-touch attribution onto the account during identity linking", async () => {
+    const attribution = encodeURIComponent(
+      JSON.stringify({
+        first_touch_source: "instagram",
+        first_touch_medium: "social",
+        first_touch_referring_domain: "l.instagram.com",
+        first_touch_landing_path: "/editor",
+        first_touch_campaign: "bio",
+      })
+    );
+
+    await linkIdentityToUser({
+      userId: "user-attributed",
+      source: "signup",
+      req: {
+        headers: {
+          cookie: `analytics_consent=granted; analytics_anon=anon-attributed; analytics_first_touch=${attribution}`,
+        },
+      } as any,
+    });
+
+    expect(identify).toHaveBeenCalledWith({
+      distinctId: "user-attributed",
+      properties: expect.objectContaining({
+        last_identity_source: "signup",
+        first_touch_source: "instagram",
+        first_touch_medium: "social",
+        traffic_source: "instagram",
+        traffic_medium: "social",
+        landing_path: "/editor",
+      }),
+    });
+  });
 });

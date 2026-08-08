@@ -10,6 +10,10 @@ import {
   getConsentFromCookies,
   parseRequestCookies,
 } from "./cookies";
+import {
+  ANALYTICS_ATTRIBUTION_COOKIE,
+  parseAcquisitionAttribution,
+} from "../acquisitionAttribution";
 
 type IdentitySource = "signup" | "login";
 
@@ -28,6 +32,7 @@ export async function linkIdentityToUser(input: LinkIdentityInput) {
   const cookies = input.req ? parseRequestCookies(input.req) : {};
   const anonId = input.anonId || cookies[ANALYTICS_ANON_COOKIE];
   const sessionId = input.sessionId || cookies[ANALYTICS_SESSION_COOKIE];
+  const attribution = parseAcquisitionAttribution(cookies[ANALYTICS_ATTRIBUTION_COOKIE]);
   const consentCookies = input.consent
     ? { ...cookies, [ANALYTICS_CONSENT_COOKIE]: input.consent }
     : cookies;
@@ -64,6 +69,14 @@ export async function linkIdentityToUser(input: LinkIdentityInput) {
     distinctId: input.userId,
     properties: {
       last_identity_source: input.source,
+      ...(attribution || {}),
+      ...(attribution
+        ? {
+            traffic_source: attribution.first_touch_source,
+            traffic_medium: attribution.first_touch_medium,
+            landing_path: attribution.first_touch_landing_path,
+          }
+        : {}),
     },
   });
   flushPostHogServerClientInBackground(client);

@@ -1,4 +1,4 @@
-import { capturePostHogEvent } from "./posthogClient";
+import { track as trackAnalyticsV2 } from "./analyticsV2";
 import { publishTranscriptionCompletedForPremiumPrompt } from "./premiumPromptSignals";
 import type { TranscriptionModelChoice } from "./transcriptionModels";
 import {
@@ -80,8 +80,6 @@ export function sendEvent(event: string, payload?: EventPayload) {
     publishTranscriptionCompletedForPremiumPrompt();
   }
   if (process.env.NODE_ENV !== "production") return;
-  if (!process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) return;
-
   const properties = {
     ...getUtmParams(),
     ...(payload || {}),
@@ -90,16 +88,16 @@ export function sendEvent(event: string, payload?: EventPayload) {
 
   if (normalizedEvent === "$pageview") {
     const pathname = sanitizeAnalyticsPathname(window.location.pathname);
-    capturePostHogEvent(normalizedEvent, {
-      $current_url: sanitizeAnalyticsUrl(`${window.location.origin}${pathname}`),
-      $pathname: pathname,
+    void trackAnalyticsV2("page_viewed", {
+      current_url: sanitizeAnalyticsUrl(`${window.location.origin}${pathname}`),
+      pathname,
       $referrer: sanitizeAnalyticsReferrer(document.referrer),
       ...sanitizedProperties,
     });
     return;
   }
 
-  capturePostHogEvent(normalizedEvent, sanitizedProperties);
+  void trackAnalyticsV2(normalizedEvent, sanitizedProperties);
 }
 
 export function getTranscriptionStartedModelEvent(
