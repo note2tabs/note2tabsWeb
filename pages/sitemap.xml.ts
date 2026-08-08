@@ -12,6 +12,7 @@ type SitemapEntry = {
 const staticPaths = [
   "/",
   "/editor",
+  "/online-guitar-tab-editor",
   "/transcribe",
   "/pricing",
   "/blog",
@@ -30,6 +31,7 @@ const staticPaths = [
 
 const recentlyUpdatedSeoPaths = new Set([
   "/editor",
+  "/online-guitar-tab-editor",
   "/audio-to-guitar-tab-converter",
   "/mp3-to-guitar-tabs",
   "/ai-guitar-tab-generator",
@@ -58,25 +60,13 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const baseUrl = getBaseUrl();
   const publishedWhere = getPublishedWhere();
 
-  const [posts, categories, tags, clusters] = await withPrismaReadRetry(() =>
-    prisma.$transaction([
-      prisma.post.findMany({
+  // Keep submissions focused on canonical product pages and individual articles.
+  // Taxonomy archives remain discoverable through the blog's internal links.
+  const posts = await withPrismaReadRetry(() =>
+    prisma.post.findMany({
       where: publishedWhere,
       select: { slug: true, updatedAt: true, publishedAt: true, publishAt: true },
-      }),
-      prisma.category.findMany({
-      where: { posts: { some: { post: publishedWhere } } },
-      select: { slug: true, updatedAt: true },
-      }),
-      prisma.tag.findMany({
-      where: { posts: { some: { post: publishedWhere } } },
-      select: { slug: true, updatedAt: true },
-      }),
-      prisma.topicCluster.findMany({
-      where: { posts: { some: { post: publishedWhere } } },
-      select: { slug: true, updatedAt: true },
-      }),
-    ])
+    })
   );
 
   const entries: SitemapEntry[] = staticPaths.map((path) => ({
@@ -94,27 +84,6 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     entries.push({
       loc: buildUrl(baseUrl, `/blog/${post.slug}`),
       lastmod: post.updatedAt.toISOString(),
-    });
-  });
-
-  categories.forEach((category) => {
-    entries.push({
-      loc: buildUrl(baseUrl, `/blog/category/${category.slug}`),
-      lastmod: category.updatedAt.toISOString(),
-    });
-  });
-
-  tags.forEach((tag) => {
-    entries.push({
-      loc: buildUrl(baseUrl, `/blog/tag/${tag.slug}`),
-      lastmod: tag.updatedAt.toISOString(),
-    });
-  });
-
-  clusters.forEach((cluster) => {
-    entries.push({
-      loc: buildUrl(baseUrl, `/blog/cluster/${cluster.slug}`),
-      lastmod: cluster.updatedAt.toISOString(),
     });
   });
 
