@@ -85,7 +85,7 @@ export default function ProductHome({
           const rightTime = right.updatedAt ? new Date(right.updatedAt).getTime() : 0;
           return rightTime - leftTime;
         })
-        .slice(0, 4),
+        .slice(0, 3),
     [editors]
   );
   const latestEditor = recentEditors[0] || null;
@@ -153,16 +153,18 @@ export default function ProductHome({
     <>
       <NoIndexHead title="Home | Note2Tabs" canonicalPath="/home" />
       <main className="product-home">
+        <div className="product-home__wash" aria-hidden="true">
+          <span className="product-home__wash-note product-home__wash-note--one" />
+          <span className="product-home__wash-note product-home__wash-note--two" />
+        </div>
         <div className="container product-home__shell">
           <header className="product-home__header">
             <div>
-              <p className="product-home__eyebrow">Your workspace</p>
-              <h1>Welcome back{firstName ? `, ${firstName}` : ""}.</h1>
-              <p>Pick up where you left off or start something new.</p>
+              <p>Welcome back{firstName ? `, ${firstName}` : ""}</p>
             </div>
             <div className="product-home__account" role="status" aria-label="Account usage">
               <div className="product-home__account-heading">
-                <span>{isPremium ? "Premium" : "Monthly credits"}</span>
+                <span>{isPremium ? "Premium plan" : "Monthly credits"}</span>
                 <strong>
                   {creditsUnlimited
                     ? "Unlimited"
@@ -181,147 +183,135 @@ export default function ProductHome({
             </div>
           </header>
 
-          {loading && !latestEditor ? (
-            <section className="product-home__loading" aria-live="polite" aria-busy="true">
-              <span className="product-home__loading-line product-home__loading-line--wide" />
-              <span className="product-home__loading-line" />
-              <span className="product-home__loading-line product-home__loading-line--button" />
-              <span className="sr-only">Loading your workspace</span>
-            </section>
-          ) : latestEditor ? (
-            <section className="product-home__continue">
-              <div className="product-home__continue-copy">
-                <p className="product-home__label">Continue editing</p>
-                <h2>{editorName(latestEditor)}</h2>
-                <p>
-                  {editorActivity(latestEditor)} <span aria-hidden="true">·</span>{" "}
-                  {relativeUpdatedAt(latestEditor.updatedAt)}
-                </p>
-                <Link
-                  href={`/gte/${latestEditor.id}`}
-                  className="button-primary"
-                  onPointerDown={() => void gteApi.prefetchEditor(latestEditor.id).catch(() => {})}
-                  onClick={() => trackHomeCta("product_home_continue_editor")}
-                >
-                  Continue
-                </Link>
-              </div>
-              <div className="product-home__tab-preview" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
-                <i className="product-home__preview-note product-home__preview-note--one" />
-                <i className="product-home__preview-note product-home__preview-note--two" />
-                <i className="product-home__preview-note product-home__preview-note--three" />
-              </div>
-            </section>
-          ) : (
-            <section className="product-home__activation">
-              <div>
-                <p className="product-home__label">Create your first tab</p>
-                <h2>Turn a recording into something you can play.</h2>
-                <p>Start with audio, or open a blank tab and build it yourself.</p>
-              </div>
-              <div className="product-home__activation-actions">
-                <Link
-                  href="/transcribe"
-                  className="button-primary"
-                  onClick={() => trackHomeCta("product_home_first_transcription")}
-                >
-                  Transcribe audio
-                </Link>
-                <button className="button-secondary" type="button" onClick={handleCreate} disabled={creating}>
-                  {creating ? "Creating…" : "Start a blank tab"}
-                </button>
-              </div>
-            </section>
-          )}
+          <section className="product-home__hero" aria-labelledby="product-home-title">
+            <div className="product-home__hero-copy">
+              <p className="product-home__eyebrow">Your music, ready when you are</p>
+              <h1 id="product-home-title">What will you play next?</h1>
+              <p>Transcribe a recording or shape an idea into a tab.</p>
+            </div>
 
-          {loadError && (
+            <div className="product-home__launcher">
+              <Link
+                href="/transcribe"
+                className="product-home__launch-option product-home__launch-option--transcribe"
+                onClick={() => trackHomeCta("product_home_transcribe")}
+              >
+                <span className="product-home__launch-art product-home__launch-art--wave" aria-hidden="true">
+                  <i /><i /><i /><i /><i /><i /><i />
+                </span>
+                <span className="product-home__launch-copy">
+                  <strong>Transcribe audio</strong>
+                  <small>Audio file or YouTube</small>
+                </span>
+                <span className="product-home__launch-arrow" aria-hidden="true">→</span>
+              </Link>
+              <button
+                className="product-home__launch-option"
+                type="button"
+                onClick={handleCreate}
+                disabled={creating}
+              >
+                <span className="product-home__launch-art product-home__launch-art--tab" aria-hidden="true">
+                  <i /><i /><i /><i /><i /><i />
+                </span>
+                <span className="product-home__launch-copy">
+                  <strong>{creating ? "Creating your tab…" : "Start a blank tab"}</strong>
+                  <small>Write, arrange, and practice</small>
+                </span>
+                <span className="product-home__launch-arrow" aria-hidden="true">→</span>
+              </button>
+            </div>
+
+            <div className="product-home__hero-links">
+              <Link href="/gte" onClick={() => trackHomeCta("product_home_editor_library")}>
+                Open editor library
+              </Link>
+              {!isPremium && (
+                <Link href="/pricing?source=product_home" onClick={() => trackHomeCta("product_home_premium_hero")}>
+                  See what Premium unlocks
+                </Link>
+              )}
+            </div>
+          </section>
+
+          {loadError && recentEditors.length === 0 && (
             <div className="product-home__error" role="alert">
               <span>{loadError}</span>
               <button type="button" onClick={() => void loadEditors(true)}>Try again</button>
             </div>
           )}
 
-          <section className="product-home__section" aria-labelledby="start-heading">
+          <section className="product-home__section product-home__recents" aria-labelledby="recent-heading">
             <div className="product-home__section-heading">
               <div>
-                <p className="product-home__label">Start</p>
-                <h2 id="start-heading">What would you like to make?</h2>
+                <h2 id="recent-heading">Recent tabs</h2>
+                <p>Continue from where you left off.</p>
               </div>
-            </div>
-            <div className="product-home__actions-grid">
-              <Link
-                href="/transcribe"
-                className="product-home__action product-home__action--primary"
-                onClick={() => trackHomeCta("product_home_transcribe")}
-              >
-                <span>Transcribe audio</span>
-                <p>Turn a recording or YouTube clip into an editable tab.</p>
-                <strong>Open transcriber</strong>
-              </Link>
-              <button className="product-home__action" type="button" onClick={handleCreate} disabled={creating}>
-                <span>Create a tab</span>
-                <p>Write from scratch with notes, chords, playback, and practice tools.</p>
-                <strong>{creating ? "Creating…" : "Open a blank editor"}</strong>
-              </button>
-              <Link
-                href="/gte"
-                className="product-home__action"
-                onClick={() => trackHomeCta("product_home_editor_library")}
-              >
-                <span>Open your library</span>
-                <p>Find every saved tab or import a tab file.</p>
-                <strong>View all editors</strong>
-              </Link>
-            </div>
-          </section>
-
-          {recentEditors.length > 1 && (
-            <section className="product-home__section" aria-labelledby="recent-heading">
-              <div className="product-home__section-heading">
-                <div>
-                  <p className="product-home__label">Recent work</p>
-                  <h2 id="recent-heading">Your tabs</h2>
-                </div>
+              {recentEditors.length > 0 && (
                 <Link href="/gte" onClick={() => trackHomeCta("product_home_view_all_editors")}>View all</Link>
+              )}
+            </div>
+            {loading && !latestEditor ? (
+              <div className="product-home__recent-grid" aria-live="polite" aria-busy="true">
+                {[0, 1, 2].map((item) => (
+                  <div className="product-home__recent-skeleton" key={item} aria-hidden="true" />
+                ))}
+                <span className="sr-only">Loading your recent tabs</span>
               </div>
-              <div className="product-home__recent-list">
-                {recentEditors.map((editor) => (
+            ) : recentEditors.length > 0 ? (
+              <div className="product-home__recent-grid">
+                {recentEditors.map((editor, index) => (
                   <Link
                     key={editor.id}
                     href={`/gte/${editor.id}`}
+                    className={index === 0 ? "product-home__recent-card product-home__recent-card--latest" : "product-home__recent-card"}
                     onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})}
-                    onClick={() => trackHomeCta("product_home_recent_editor")}
+                    onClick={() => trackHomeCta(index === 0 ? "product_home_continue_editor" : "product_home_recent_editor")}
                   >
-                    <span className="product-home__recent-mark" aria-hidden="true" />
-                    <span className="product-home__recent-copy">
+                    <span className="product-home__recent-paper" aria-hidden="true">
+                      <span className="product-home__paper-title" />
+                      <i /><i /><i /><i /><i /><i />
+                      <b className="product-home__paper-note product-home__paper-note--one" />
+                      <b className="product-home__paper-note product-home__paper-note--two" />
+                      <b className="product-home__paper-note product-home__paper-note--three" />
+                    </span>
+                    <span className="product-home__recent-details">
                       <strong>{editorName(editor)}</strong>
                       <small>{editorActivity(editor)}</small>
+                      <span>{relativeUpdatedAt(editor.updatedAt)}</span>
                     </span>
-                    <span className="product-home__recent-time">{relativeUpdatedAt(editor.updatedAt)}</span>
                   </Link>
                 ))}
+                <button className="product-home__recent-card product-home__recent-card--new" type="button" onClick={handleCreate} disabled={creating}>
+                  <span className="product-home__new-mark" aria-hidden="true" />
+                  <span>
+                    <strong>{creating ? "Creating…" : "New tab"}</strong>
+                    <small>Start with a clean canvas</small>
+                  </span>
+                </button>
               </div>
-            </section>
-          )}
+            ) : (
+              <div className="product-home__empty-recents">
+                <span className="product-home__empty-paper" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span>
+                <div>
+                  <h3>Your tabs will live here.</h3>
+                  <p>Anything you transcribe or create is saved to your library.</p>
+                </div>
+              </div>
+            )}
+          </section>
 
           {!isPremium && recentEditors.length > 0 && (
             <aside className="product-home__premium" aria-label="Premium plan">
               <div>
-                <p className="product-home__label">Note2Tabs Premium</p>
-                <h2>More room for the recordings that need it.</h2>
-                <p>Get 100 monthly credits, use Heavy more often, and transcribe full-length audio files.</p>
+                <span>Note2Tabs Premium</span>
+                <p>100 monthly credits, more room for Heavy, and full-length audio files.</p>
               </div>
               <Link
                 href="/pricing?source=product_home"
-                className="button-secondary"
                 onClick={() => trackHomeCta("product_home_premium")}
               >
-                Explore Premium
+                Explore Premium <span aria-hidden="true">→</span>
               </Link>
             </aside>
           )}
