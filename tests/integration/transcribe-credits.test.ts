@@ -73,7 +73,11 @@ function makeRes() {
   return res as unknown as NextApiResponse & typeof res;
 }
 
-async function callTranscribe(role: string, multipleGuitars = false) {
+async function callTranscribe(
+  role: string,
+  multipleGuitars = false,
+  transcriptionModel: "light" | "heavy" | null = "heavy"
+) {
   const handler = (await import("../../pages/api/transcribe")).default;
   mocks.session.mockResolvedValue({ user: { id: "user_1" } });
   mocks.prisma.user.findUnique.mockResolvedValue({
@@ -100,7 +104,7 @@ async function callTranscribe(role: string, multipleGuitars = false) {
     youtubeUrl: "https://www.youtube.com/watch?v=test",
     startTime: 0,
     duration: 30,
-    transcriptionModel: "heavy",
+    ...(transcriptionModel ? { transcriptionModel } : {}),
     separateGuitar: false,
     multipleGuitars,
   });
@@ -149,6 +153,26 @@ describe("transcribe credits", () => {
       data: { tokensRemaining: 7 },
     });
     expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(7);
+  });
+
+  it("defaults premium requests without a model choice to the heavy model", async () => {
+    const res = await callTranscribe("PREMIUM", false, null);
+
+    expect(res.statusCode).toBe(202);
+    expect(res.body).toMatchObject({ transcriptionModel: "heavy" });
+    const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
+    const body = requestInit.body as FormData;
+    expect(body.get("transcription_method")).toBe("yourmt3");
+  });
+
+  it("keeps light as the fallback for free requests without a model choice", async () => {
+    const res = await callTranscribe("FREE", false, null);
+
+    expect(res.statusCode).toBe(202);
+    expect(res.body).toMatchObject({ transcriptionModel: "light" });
+    const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
+    const body = requestInit.body as FormData;
+    expect(body.get("transcription_method")).toBe("basic_pitch");
   });
 
   it("forwards the multiple-guitar choice to the backend transcription job", async () => {

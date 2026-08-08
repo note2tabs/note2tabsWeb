@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateTranscriptionCredits,
+  getDefaultTranscriptionModel,
   normalizeTranscriptionModel,
   transcriptionModelToBackendMethod,
 } from "../../lib/transcriptionModels";
@@ -8,6 +9,11 @@ import {
 describe("transcription models", () => {
   it("defaults missing values to the light model", () => {
     expect(normalizeTranscriptionModel(undefined)).toBe("light");
+  });
+
+  it("defaults premium users to heavy without changing the free default", () => {
+    expect(getDefaultTranscriptionModel(true)).toBe("heavy");
+    expect(getDefaultTranscriptionModel(false)).toBe("light");
   });
 
   it("keeps legacy backend values on the light model", () => {
