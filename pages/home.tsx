@@ -97,6 +97,19 @@ export default function ProductHome({
     creditsLimit && creditsRemaining !== null
       ? Math.max(0, Math.min(100, (creditsRemaining / creditsLimit) * 100))
       : null;
+  const hasCreditBalance = creditsRemaining !== null;
+  const accountLabel = hasCreditBalance
+    ? "Monthly credits"
+    : isPremium
+      ? "Premium plan"
+      : "Free plan";
+  const accountValue = creditsUnlimited
+    ? "Unlimited"
+    : hasCreditBalance
+      ? `${creditsRemaining} left`
+      : isPremium
+        ? "Active"
+        : "10 credits monthly";
 
   const loadEditors = useCallback(
     async (showLoading = true) => {
@@ -169,16 +182,8 @@ export default function ProductHome({
             </div>
             <div className="product-home__account" role="status" aria-label="Account usage">
               <div className="product-home__account-heading">
-                <span>{isPremium ? "Premium plan" : "Monthly credits"}</span>
-                <strong>
-                  {creditsUnlimited
-                    ? "Unlimited"
-                    : creditsRemaining !== null
-                      ? `${creditsRemaining} left`
-                      : isPremium
-                        ? "Active"
-                        : "Free"}
-                </strong>
+                <span>{accountLabel}</span>
+                <strong>{accountValue}</strong>
               </div>
               {creditPercent !== null && (
                 <div className="product-home__credit-track" aria-hidden="true">
