@@ -185,9 +185,7 @@ export default function ProductHome({
 
           <section className="product-home__hero" aria-labelledby="product-home-title">
             <div className="product-home__hero-copy">
-              <p className="product-home__eyebrow">Your music, ready when you are</p>
-              <h1 id="product-home-title">What will you play next?</h1>
-              <p>Transcribe a recording or shape an idea into a tab.</p>
+              <h1 id="product-home-title">Start something new</h1>
             </div>
 
             <div className="product-home__launcher">
@@ -201,7 +199,7 @@ export default function ProductHome({
                 </span>
                 <span className="product-home__launch-copy">
                   <strong>Transcribe audio</strong>
-                  <small>Audio file or YouTube</small>
+                  <small>Turn audio or YouTube into an editable tab</small>
                 </span>
                 <span className="product-home__launch-arrow" aria-hidden="true">→</span>
               </Link>
@@ -216,7 +214,7 @@ export default function ProductHome({
                 </span>
                 <span className="product-home__launch-copy">
                   <strong>{creating ? "Creating your tab…" : "Start a blank tab"}</strong>
-                  <small>Write, arrange, and practice</small>
+                  <small>Write, arrange, play, and practice</small>
                 </span>
                 <span className="product-home__launch-arrow" aria-hidden="true">→</span>
               </button>
@@ -224,7 +222,7 @@ export default function ProductHome({
 
             <div className="product-home__hero-links">
               <Link href="/gte" onClick={() => trackHomeCta("product_home_editor_library")}>
-                Open editor library
+                Browse all tabs
               </Link>
               {!isPremium && (
                 <Link href="/pricing?source=product_home" onClick={() => trackHomeCta("product_home_premium_hero")}>
@@ -245,7 +243,6 @@ export default function ProductHome({
             <div className="product-home__section-heading">
               <div>
                 <h2 id="recent-heading">Recent tabs</h2>
-                <p>Continue from where you left off.</p>
               </div>
               {recentEditors.length > 0 && (
                 <Link href="/gte" onClick={() => trackHomeCta("product_home_view_all_editors")}>View all</Link>
