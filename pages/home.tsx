@@ -1,5 +1,4 @@
 import type { GetServerSideProps } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { getServerSession } from "next-auth/next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -63,6 +62,35 @@ const relativeUpdatedAt = (value?: string) => {
     day: "numeric",
   }).format(new Date(timestamp))}`;
 };
+
+function ProductMark({ product, large = false }: { product: "transcriber" | "editor"; large?: boolean }) {
+  if (product === "transcriber") {
+    return (
+      <span className={`product-home__product-mark product-home__product-mark--transcriber${large ? " product-home__product-mark--large" : ""}`} aria-hidden="true">
+        <svg viewBox="0 0 64 64" focusable="false">
+          <path className="mark-wave" d="M10 34v-7M16 39V22M22 43V18M28 38V23" />
+          <path className="mark-flow" d="M33 22c5 0 7 3 10 7s5 6 11 6" />
+          <path className="mark-strings" d="M37 25h17M39 30h15M41 35h13M42 40h12" />
+          <circle cx="46" cy="30" r="2.5" />
+          <circle cx="51" cy="40" r="2.5" />
+        </svg>
+      </span>
+    );
+  }
+
+  return (
+    <span className={`product-home__product-mark product-home__product-mark--editor${large ? " product-home__product-mark--large" : ""}`} aria-hidden="true">
+      <svg viewBox="0 0 64 64" focusable="false">
+        <path className="mark-strings" d="M10 19h44M10 25h44M10 31h44M10 37h44M10 43h44M10 49h44" />
+        <rect x="17" y="22" width="13" height="6" rx="3" />
+        <rect x="34" y="34" width="15" height="6" rx="3" />
+        <rect className="mark-selected" x="23" y="43" width="11" height="6" rx="3" />
+        <circle className="mark-handle" cx="23" cy="46" r="1.6" />
+        <circle className="mark-handle" cx="34" cy="46" r="1.6" />
+      </svg>
+    </span>
+  );
+}
 
 export default function ProductHome({
   userId,
@@ -206,15 +234,7 @@ export default function ProductHome({
                   <small>{editorActivity(latestEditor)} · {relativeUpdatedAt(latestEditor.updatedAt)}</small>
                   <span className="product-home__current-action">Open tab <i aria-hidden="true">→</i></span>
                 </span>
-                <span className="product-home__current-preview" aria-hidden="true">
-                  <Image
-                    src="/images/product-home/editor-command.webp"
-                    alt=""
-                    fill
-                    sizes="240px"
-                    priority
-                  />
-                </span>
+                <ProductMark product="editor" large />
               </Link>
             )}
 
@@ -229,9 +249,7 @@ export default function ProductHome({
                 className="product-home__launch-option product-home__launch-option--transcribe"
                 onClick={() => trackHomeCta("product_home_transcribe")}
               >
-                <span className="product-home__launch-preview product-home__launch-preview--transcriber" aria-hidden="true">
-                  <Image src="/images/product-home/transcriber-command.webp" alt="" fill sizes="92px" />
-                </span>
+                <ProductMark product="transcriber" />
                 <span className="product-home__launch-copy">
                   <span>Transcriber</span>
                   <strong>Transcribe audio</strong>
@@ -245,9 +263,7 @@ export default function ProductHome({
                 onClick={handleCreate}
                 disabled={creating}
               >
-                <span className="product-home__launch-preview" aria-hidden="true">
-                  <Image src="/images/product-home/editor-command.webp" alt="" fill sizes="92px" />
-                </span>
+                <ProductMark product="editor" />
                 <span className="product-home__launch-copy">
                   <span>Editor</span>
                   <strong>{creating ? "Creating your tab…" : "Start a blank tab"}</strong>
