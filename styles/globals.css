@@ -995,7 +995,7 @@ input[type="number"] {
 
 .product-home__current {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 205px;
+  grid-template-columns: minmax(0, 1fr) auto;
   min-height: 270px;
   overflow: hidden;
   border: 1px solid rgba(6, 17, 13, 0.12);
@@ -1020,6 +1020,17 @@ input[type="number"] {
   justify-content: center;
   min-width: 0;
   padding: 30px;
+}
+
+.product-home__current-status {
+  align-self: start;
+  margin: 24px 24px 0 0;
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.62rem;
+  font-weight: 620;
 }
 
 .product-home__current-label {
@@ -1127,13 +1138,57 @@ input[type="number"] {
 }
 
 .product-home__toolbox .product-home__launch-option {
+  grid-template-columns: minmax(0, 1fr) auto;
   min-height: 78px;
-  padding: 10px;
+  padding: 13px 15px;
 }
 
 .product-home__toolbox .product-home__launch-art {
   width: 50px;
   height: 50px;
+}
+
+.product-home__launch-copy > span {
+  color: rgba(6, 17, 13, 0.54);
+  font-size: 0.61rem;
+  font-weight: 720;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.product-home__recent-card {
+  position: relative;
+  min-height: 154px;
+  justify-content: space-between;
+  padding: 22px;
+}
+
+.product-home__recent-details {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+  padding: 0;
+}
+
+.product-home__recent-details strong {
+  font-size: 0.94rem;
+}
+
+.product-home__recent-details > span {
+  grid-column: 1;
+  grid-row: auto;
+  margin-top: 8px;
+}
+
+.product-home__recent-open {
+  color: rgba(6, 17, 13, 0.54);
+  font-size: 0.68rem;
+  font-weight: 670;
+}
+
+.product-home__recent-card--new {
+  min-height: 154px;
+  padding: 20px;
 }
 
 .product-home__toolbox-premium {
@@ -1159,11 +1214,12 @@ input[type="number"] {
   .product-home__header > div:first-child > p { display: none; }
   .product-home__account { width: 190px; }
   .product-home__command { padding: 22px 0 30px; }
-  .product-home__current { grid-template-columns: minmax(0, 1fr) 118px; min-height: 220px; }
+  .product-home__current { grid-template-columns: minmax(0, 1fr) auto; min-height: 210px; }
   .product-home__current-copy { padding: 24px 20px; }
-  .product-home__current-sheet { width: 168px; height: 170px; margin-right: -55px; }
+  .product-home__current-status { margin: 18px 16px 0 0; }
   .product-home__toolbox { padding: 15px; }
   .product-home__toolbox .product-home__launcher { grid-template-columns: 1fr; }
+  .product-home__recent-card { min-height: 132px; }
 }
 
 .page-tight {

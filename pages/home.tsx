@@ -171,10 +171,6 @@ export default function ProductHome({
     <>
       <NoIndexHead title="Home | Note2Tabs" canonicalPath="/home" />
       <main className="product-home">
-        <div className="product-home__wash" aria-hidden="true">
-          <span className="product-home__wash-note product-home__wash-note--one" />
-          <span className="product-home__wash-note product-home__wash-note--two" />
-        </div>
         <div className="container product-home__shell">
           <header className="product-home__header">
             <div>
@@ -209,12 +205,7 @@ export default function ProductHome({
                   <small>{editorActivity(latestEditor)} · {relativeUpdatedAt(latestEditor.updatedAt)}</small>
                   <span className="product-home__current-action">Open tab <i aria-hidden="true">→</i></span>
                 </span>
-                <span className="product-home__current-sheet" aria-hidden="true">
-                  <i /><i /><i /><i /><i /><i />
-                  <b className="product-home__paper-note product-home__paper-note--one" />
-                  <b className="product-home__paper-note product-home__paper-note--two" />
-                  <b className="product-home__paper-note product-home__paper-note--three" />
-                </span>
+                <span className="product-home__current-status" aria-hidden="true">Last opened</span>
               </Link>
             )}
 
@@ -229,10 +220,8 @@ export default function ProductHome({
                 className="product-home__launch-option product-home__launch-option--transcribe"
                 onClick={() => trackHomeCta("product_home_transcribe")}
               >
-                <span className="product-home__launch-art product-home__launch-art--wave" aria-hidden="true">
-                  <i /><i /><i /><i /><i /><i /><i />
-                </span>
                 <span className="product-home__launch-copy">
+                  <span>Transcriber</span>
                   <strong>Transcribe audio</strong>
                   <small>Turn audio or YouTube into an editable tab</small>
                 </span>
@@ -244,10 +233,8 @@ export default function ProductHome({
                 onClick={handleCreate}
                 disabled={creating}
               >
-                <span className="product-home__launch-art product-home__launch-art--tab" aria-hidden="true">
-                  <i /><i /><i /><i /><i /><i />
-                </span>
                 <span className="product-home__launch-copy">
+                  <span>Editor</span>
                   <strong>{creating ? "Creating your tab…" : "Start a blank tab"}</strong>
                   <small>Write, arrange, play, and practice</small>
                 </span>
@@ -295,18 +282,12 @@ export default function ProductHome({
                     onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})}
                     onClick={() => trackHomeCta(index === 0 ? "product_home_continue_editor" : "product_home_recent_editor")}
                   >
-                    <span className="product-home__recent-paper" aria-hidden="true">
-                      <span className="product-home__paper-title" />
-                      <i /><i /><i /><i /><i /><i />
-                      <b className="product-home__paper-note product-home__paper-note--one" />
-                      <b className="product-home__paper-note product-home__paper-note--two" />
-                      <b className="product-home__paper-note product-home__paper-note--three" />
-                    </span>
                     <span className="product-home__recent-details">
                       <strong>{editorName(editor)}</strong>
                       <small>{editorActivity(editor)}</small>
                       <span>{relativeUpdatedAt(editor.updatedAt)}</span>
                     </span>
+                    <span className="product-home__recent-open" aria-hidden="true">Open →</span>
                   </Link>
                 ))}
                 <button className="product-home__recent-card product-home__recent-card--new" type="button" onClick={handleCreate} disabled={creating}>
