@@ -1033,6 +1033,25 @@ input[type="number"] {
   font-weight: 620;
 }
 
+.product-home__current-preview {
+  position: relative;
+  width: 230px;
+  height: 222px;
+  align-self: end;
+  margin: 0 -26px -18px 0;
+  overflow: hidden;
+  border: 7px solid rgba(255, 255, 255, 0.92);
+  border-radius: 12px 0 0;
+  background: #fffdf8;
+  box-shadow: -16px -12px 40px rgba(0, 0, 0, 0.25);
+  transform: rotate(-2deg);
+}
+
+.product-home__current-preview img {
+  object-fit: cover;
+  object-position: 22% center;
+}
+
 .product-home__current-label {
   margin-bottom: 14px;
   color: #9ed7c3;
@@ -1138,9 +1157,29 @@ input[type="number"] {
 }
 
 .product-home__toolbox .product-home__launch-option {
-  grid-template-columns: minmax(0, 1fr) auto;
-  min-height: 78px;
-  padding: 13px 15px;
+  grid-template-columns: 118px minmax(0, 1fr) auto;
+  min-height: 92px;
+  padding: 11px;
+}
+
+.product-home__launch-preview {
+  position: relative;
+  display: block;
+  width: 118px;
+  height: 68px;
+  overflow: hidden;
+  border: 1px solid rgba(6, 17, 13, 0.1);
+  border-radius: 9px;
+  background: #fff;
+}
+
+.product-home__launch-preview img {
+  object-fit: cover;
+  object-position: center;
+}
+
+.product-home__launch-preview--transcriber img {
+  object-position: center;
 }
 
 .product-home__toolbox .product-home__launch-art {
@@ -1216,9 +1255,11 @@ input[type="number"] {
   .product-home__command { padding: 22px 0 30px; }
   .product-home__current { grid-template-columns: minmax(0, 1fr) auto; min-height: 210px; }
   .product-home__current-copy { padding: 24px 20px; }
-  .product-home__current-status { margin: 18px 16px 0 0; }
+  .product-home__current-preview { width: 142px; height: 160px; margin-right: -50px; }
   .product-home__toolbox { padding: 15px; }
   .product-home__toolbox .product-home__launcher { grid-template-columns: 1fr; }
+  .product-home__toolbox .product-home__launch-option { grid-template-columns: 88px minmax(0, 1fr) auto; }
+  .product-home__launch-preview { width: 88px; height: 58px; }
   .product-home__recent-card { min-height: 132px; }
 }
 

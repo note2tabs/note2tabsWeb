@@ -1,4 +1,5 @@
 import type { GetServerSideProps } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { getServerSession } from "next-auth/next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -205,7 +206,15 @@ export default function ProductHome({
                   <small>{editorActivity(latestEditor)} · {relativeUpdatedAt(latestEditor.updatedAt)}</small>
                   <span className="product-home__current-action">Open tab <i aria-hidden="true">→</i></span>
                 </span>
-                <span className="product-home__current-status" aria-hidden="true">Last opened</span>
+                <span className="product-home__current-preview" aria-hidden="true">
+                  <Image
+                    src="/images/product-home/editor-command.webp"
+                    alt=""
+                    fill
+                    sizes="240px"
+                    priority
+                  />
+                </span>
               </Link>
             )}
 
@@ -220,6 +229,9 @@ export default function ProductHome({
                 className="product-home__launch-option product-home__launch-option--transcribe"
                 onClick={() => trackHomeCta("product_home_transcribe")}
               >
+                <span className="product-home__launch-preview product-home__launch-preview--transcriber" aria-hidden="true">
+                  <Image src="/images/product-home/transcriber-command.webp" alt="" fill sizes="92px" />
+                </span>
                 <span className="product-home__launch-copy">
                   <span>Transcriber</span>
                   <strong>Transcribe audio</strong>
@@ -233,6 +245,9 @@ export default function ProductHome({
                 onClick={handleCreate}
                 disabled={creating}
               >
+                <span className="product-home__launch-preview" aria-hidden="true">
+                  <Image src="/images/product-home/editor-command.webp" alt="" fill sizes="92px" />
+                </span>
                 <span className="product-home__launch-copy">
                   <span>Editor</span>
                   <strong>{creating ? "Creating your tab…" : "Start a blank tab"}</strong>
