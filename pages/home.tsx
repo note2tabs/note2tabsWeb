@@ -63,31 +63,42 @@ const relativeUpdatedAt = (value?: string) => {
   }).format(new Date(timestamp))}`;
 };
 
-function ProductMark({ product, large = false }: { product: "transcriber" | "editor"; large?: boolean }) {
+function ProductMark({ product }: { product: "transcriber" | "editor" }) {
   if (product === "transcriber") {
     return (
-      <span className={`product-home__product-mark product-home__product-mark--transcriber${large ? " product-home__product-mark--large" : ""}`} aria-hidden="true">
-        <svg viewBox="0 0 64 64" focusable="false">
-          <path className="mark-wave" d="M10 34v-7M16 39V22M22 43V18M28 38V23" />
-          <path className="mark-flow" d="M33 22c5 0 7 3 10 7s5 6 11 6" />
-          <path className="mark-strings" d="M37 25h17M39 30h15M41 35h13M42 40h12" />
-          <circle cx="46" cy="30" r="2.5" />
-          <circle cx="51" cy="40" r="2.5" />
+      <span className="product-home__product-mark product-home__product-mark--transcriber" aria-hidden="true">
+        <svg viewBox="0 0 48 48" focusable="false">
+          <path className="mark-wave" d="M11 27v-6M16 31V17M21 34V14M26 30V18M31 27v-6" />
+          <path className="mark-accent" d="M36 17v14" />
+          <circle cx="36" cy="17" r="2.25" />
+          <circle cx="36" cy="31" r="2.25" />
         </svg>
       </span>
     );
   }
 
   return (
-    <span className={`product-home__product-mark product-home__product-mark--editor${large ? " product-home__product-mark--large" : ""}`} aria-hidden="true">
-      <svg viewBox="0 0 64 64" focusable="false">
-        <path className="mark-strings" d="M10 19h44M10 25h44M10 31h44M10 37h44M10 43h44M10 49h44" />
-        <rect x="17" y="22" width="13" height="6" rx="3" />
-        <rect x="34" y="34" width="15" height="6" rx="3" />
-        <rect className="mark-selected" x="23" y="43" width="11" height="6" rx="3" />
-        <circle className="mark-handle" cx="23" cy="46" r="1.6" />
-        <circle className="mark-handle" cx="34" cy="46" r="1.6" />
+    <span className="product-home__product-mark product-home__product-mark--editor" aria-hidden="true">
+      <svg viewBox="0 0 48 48" focusable="false">
+        <path className="mark-strings" d="M10 15h28M10 21h28M10 27h28M10 33h28" />
+        <circle cx="18" cy="21" r="3.25" />
+        <circle cx="30" cy="27" r="3.25" />
       </svg>
+    </span>
+  );
+}
+
+function CurrentTabArtwork() {
+  return (
+    <span className="product-home__tab-art" aria-hidden="true">
+      <span className="product-home__tab-art-title" />
+      <span className="product-home__tab-art-staff">
+        <i /><i /><i /><i /><i /><i />
+        <b className="product-home__tab-note product-home__tab-note--one" />
+        <b className="product-home__tab-note product-home__tab-note--two" />
+        <b className="product-home__tab-note product-home__tab-note--three" />
+      </span>
+      <span className="product-home__tab-art-footer">TAB</span>
     </span>
   );
 }
@@ -234,7 +245,7 @@ export default function ProductHome({
                   <small>{editorActivity(latestEditor)} · {relativeUpdatedAt(latestEditor.updatedAt)}</small>
                   <span className="product-home__current-action">Open tab <i aria-hidden="true">→</i></span>
                 </span>
-                <ProductMark product="editor" large />
+                <CurrentTabArtwork />
               </Link>
             )}
 
