@@ -22,6 +22,8 @@ type ProductHomeProps = {
   creditsRemaining: number | null;
   creditsLimit: number | null;
   creditsUnlimited: boolean;
+  localPreview?: boolean;
+  initialEditors?: EditorListItem[];
 };
 
 const editorName = (editor: EditorListItem) => editor.name?.trim() || "Untitled tab";
@@ -68,10 +70,12 @@ export default function ProductHome({
   creditsRemaining,
   creditsLimit,
   creditsUnlimited,
+  localPreview = false,
+  initialEditors = [],
 }: ProductHomeProps) {
   const router = useRouter();
-  const [editors, setEditors] = useState<EditorListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [editors, setEditors] = useState<EditorListItem[]>(initialEditors);
+  const [loading, setLoading] = useState(!localPreview);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const viewTrackedRef = useRef(false);
@@ -113,6 +117,7 @@ export default function ProductHome({
   );
 
   useEffect(() => {
+    if (localPreview) return;
     const cached = readEditorListCache(window.sessionStorage, userId);
     const hasCache = Boolean(cached.editors);
     if (cached.editors) {
@@ -120,7 +125,7 @@ export default function ProductHome({
       setLoading(false);
     }
     if (!cached.isFresh) void loadEditors(!hasCache);
-  }, [loadEditors, userId]);
+  }, [loadEditors, localPreview, userId]);
 
   useEffect(() => {
     if (loading || viewTrackedRef.current) return;
@@ -319,6 +324,42 @@ export default function ProductHome({
 }
 
 export const getServerSideProps: GetServerSideProps<ProductHomeProps> = async (ctx) => {
+  if (process.env.NODE_ENV === "development") {
+    const now = Date.now();
+    return {
+      props: {
+        userId: "local-home-preview",
+        firstName: "Alex",
+        role: "USER",
+        creditsRemaining: 7,
+        creditsLimit: 10,
+        creditsUnlimited: false,
+        localPreview: true,
+        initialEditors: [
+          {
+            id: "local-preview-1",
+            name: "Midnight practice",
+            updatedAt: new Date(now - 55 * 60_000).toISOString(),
+            noteCount: 84,
+            chordCount: 12,
+          },
+          {
+            id: "local-preview-2",
+            name: "New idea",
+            updatedAt: new Date(now - 24 * 60 * 60_000).toISOString(),
+            noteCount: 28,
+          },
+          {
+            id: "local-preview-3",
+            name: "Acoustic arrangement",
+            updatedAt: new Date(now - 2 * 24 * 60 * 60_000).toISOString(),
+            chordCount: 18,
+          },
+        ],
+      },
+    };
+  }
+
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   if (!session?.user?.id) {
     return {
