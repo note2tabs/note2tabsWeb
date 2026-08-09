@@ -34,6 +34,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const editorAtPageTopRef = useRef(true);
   const isReadingArticle = router.pathname === "/blog/[slug]";
   const isHome = router.pathname === "/";
+  const isProductHome = router.pathname === "/home";
   const role = session?.user?.role || "";
   const isAdmin = role === "ADMIN";
   const editorHref = sessionStatus === "authenticated" ? "/gte" : "/editor";
@@ -146,6 +147,15 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
           className={`nav-links ${menuOpen ? "open" : ""}${isReadingArticle ? " nav-links--reading" : ""}`}
           aria-label="Primary navigation"
         >
+          {(sessionStatus === "authenticated" || isProductHome) && (
+            <Link
+              href="/home"
+              className={`nav-pill${isProductHome ? " nav-pill--active" : ""}`}
+              aria-current={isProductHome ? "page" : undefined}
+            >
+              Home
+            </Link>
+          )}
           <Link href={editorHref} className="nav-pill">
             Editor
           </Link>

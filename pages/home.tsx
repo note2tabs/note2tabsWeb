@@ -178,6 +178,7 @@ export default function ProductHome({
         <div className="container product-home__shell">
           <header className="product-home__header">
             <div>
+              <h1>Home</h1>
               <p>Welcome back{firstName ? `, ${firstName}` : ""}</p>
             </div>
             <div className="product-home__account" role="status" aria-label="Account usage">
@@ -193,12 +194,36 @@ export default function ProductHome({
             </div>
           </header>
 
-          <section className="product-home__hero" aria-labelledby="product-home-title">
-            <div className="product-home__hero-copy">
-              <h1 id="product-home-title">Start something new</h1>
-            </div>
+          <section className="product-home__command" aria-labelledby="product-home-command-title">
+            <h2 id="product-home-command-title" className="sr-only">Your Note2Tabs command center</h2>
+            {latestEditor && (
+              <Link
+                href={`/gte/${latestEditor.id}`}
+                className="product-home__current"
+                onPointerDown={() => void gteApi.prefetchEditor(latestEditor.id).catch(() => {})}
+                onClick={() => trackHomeCta("product_home_continue_editor")}
+              >
+                <span className="product-home__current-copy">
+                  <span className="product-home__current-label">Continue working</span>
+                  <strong>{editorName(latestEditor)}</strong>
+                  <small>{editorActivity(latestEditor)} · {relativeUpdatedAt(latestEditor.updatedAt)}</small>
+                  <span className="product-home__current-action">Open tab <i aria-hidden="true">→</i></span>
+                </span>
+                <span className="product-home__current-sheet" aria-hidden="true">
+                  <i /><i /><i /><i /><i /><i />
+                  <b className="product-home__paper-note product-home__paper-note--one" />
+                  <b className="product-home__paper-note product-home__paper-note--two" />
+                  <b className="product-home__paper-note product-home__paper-note--three" />
+                </span>
+              </Link>
+            )}
 
-            <div className="product-home__launcher">
+            <div className={`product-home__toolbox${latestEditor ? "" : " product-home__toolbox--wide"}`}>
+              <div className="product-home__toolbox-heading">
+                <span>Start something new</span>
+                <Link href="/gte" onClick={() => trackHomeCta("product_home_editor_library")}>All tabs</Link>
+              </div>
+              <div className="product-home__launcher">
               <Link
                 href="/transcribe"
                 className="product-home__launch-option product-home__launch-option--transcribe"
@@ -228,15 +253,10 @@ export default function ProductHome({
                 </span>
                 <span className="product-home__launch-arrow" aria-hidden="true">→</span>
               </button>
-            </div>
-
-            <div className="product-home__hero-links">
-              <Link href="/gte" onClick={() => trackHomeCta("product_home_editor_library")}>
-                Browse all tabs
-              </Link>
+              </div>
               {!isPremium && (
-                <Link href="/pricing?source=product_home" onClick={() => trackHomeCta("product_home_premium_hero")}>
-                  See what Premium unlocks
+                <Link className="product-home__toolbox-premium" href="/pricing?source=product_home" onClick={() => trackHomeCta("product_home_premium_hero")}>
+                  Get more credits with Premium <span aria-hidden="true">→</span>
                 </Link>
               )}
             </div>
@@ -308,20 +328,6 @@ export default function ProductHome({
             )}
           </section>
 
-          {!isPremium && recentEditors.length > 0 && (
-            <aside className="product-home__premium" aria-label="Premium plan">
-              <div>
-                <span>Note2Tabs Premium</span>
-                <p>100 monthly credits, more room for Heavy, and full-length audio files.</p>
-              </div>
-              <Link
-                href="/pricing?source=product_home"
-                onClick={() => trackHomeCta("product_home_premium")}
-              >
-                Explore Premium <span aria-hidden="true">→</span>
-              </Link>
-            </aside>
-          )}
         </div>
       </main>
     </>
