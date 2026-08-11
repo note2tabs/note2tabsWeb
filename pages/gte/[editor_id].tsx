@@ -15,7 +15,7 @@ import { useSession } from "next-auth/react";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
-import { buildLaneEditorRef, gteApi } from "../../lib/gteApi";
+import { buildLaneEditorRef, gteApi, normalizeEditorName } from "../../lib/gteApi";
 import {
   PLAYBACK_SPEED_OPTIONS,
   SPEED_TRAINER_START_OPTIONS,
@@ -2135,6 +2135,40 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setAddingLane(false);
     }
   };
+
+  const handleLaneNameCommit = useCallback(
+    async (laneId: string, rawName: string) => {
+      if (!canvas) return;
+      const lane = canvas.editors.find((entry) => entry.id === laneId);
+      if (!lane) return;
+      const normalizedName = normalizeEditorName(rawName);
+      if (!normalizedName || normalizedName === lane.name) return;
+      setSaveError(null);
+      try {
+        const response = await gteApi.setEditorName(
+          buildLaneEditorRef(editorId, laneId),
+          normalizedName
+        );
+        let nextCanvas = normalizeCanvas(
+          response.canvas || {
+            ...canvas,
+            editors: canvas.editors.map((entry) =>
+              entry.id === laneId ? { ...entry, name: normalizedName } : entry
+            ),
+          },
+          editorId
+        );
+        if (!isGuestMode) {
+          const committed = await gteApi.commitEditor(editorId);
+          nextCanvas = normalizeCanvas(committed.snapshot, editorId);
+        }
+        applyCanvasUpdate(nextCanvas, { markDirty: isGuestMode });
+      } catch (err: any) {
+        setSaveError(err?.message || "Could not rename track.");
+      }
+    },
+    [applyCanvasUpdate, canvas, editorId, isGuestMode]
+  );
 
   const getExportLane = useCallback(() => {
     if (!canvas?.editors.length) return null;
@@ -8053,7 +8087,23 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           >
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
-                                <div className="truncate text-sm font-semibold text-slate-800">Track {index + 1}</div>
+                                <input
+                                  key={`${laneId}:${lane.name || ""}`}
+                                  defaultValue={lane.name || `Track ${index + 1}`}
+                                  maxLength={80}
+                                  aria-label={`Track ${index + 1} name`}
+                                  title="Rename track"
+                                  onClick={(event) => event.stopPropagation()}
+                                  onBlur={(event) => void handleLaneNameCommit(laneId, event.currentTarget.value)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") event.currentTarget.blur();
+                                    if (event.key === "Escape") {
+                                      event.currentTarget.value = lane.name || `Track ${index + 1}`;
+                                      event.currentTarget.blur();
+                                    }
+                                  }}
+                                  className="min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-sm font-semibold text-slate-800 outline-none focus:ring-0"
+                                />
                                 {mobileSelectedBars.length > 0 && (
                                   <div
                                     className="relative shrink-0"
@@ -8354,9 +8404,23 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         data-track-reorder-block="true"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-semibold text-slate-700">
-                            Track {index + 1}
-                          </span>
+                          <input
+                            key={`${laneId}:${lane.name || ""}`}
+                            defaultValue={lane.name || `Track ${index + 1}`}
+                            maxLength={80}
+                            aria-label={`Track ${index + 1} name`}
+                            title="Rename track"
+                            onClick={(event) => event.stopPropagation()}
+                            onBlur={(event) => void handleLaneNameCommit(laneId, event.currentTarget.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") event.currentTarget.blur();
+                              if (event.key === "Escape") {
+                                event.currentTarget.value = lane.name || `Track ${index + 1}`;
+                                event.currentTarget.blur();
+                              }
+                            }}
+                            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs font-semibold text-slate-700 outline-none focus:ring-0"
+                          />
                           <span className="text-[10px] font-medium text-slate-500">
                             {laneTypeLabel} · {laneBarCount} bars
                           </span>

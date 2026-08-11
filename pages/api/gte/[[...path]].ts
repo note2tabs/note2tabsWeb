@@ -280,7 +280,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const importEditorId = isTranscriberImport ? getRequestedImportEditorId(req) : undefined;
     const shouldUniquifyName =
       (method === "POST" && path === "editors") ||
-      Boolean(renameEditorId) ||
+      Boolean(renameEditorId && !renameEditorId.includes("__ed__")) ||
       (isTranscriberImport && !importEditorId && (!importTarget || importTarget === "new"));
 
     if (shouldUniquifyName) {
