@@ -5,6 +5,7 @@ import { prisma } from "../../../lib/prisma";
 import { buildUniqueTabJobLabel, deriveTabJobBaseLabel } from "../../../lib/tabJobNames";
 import {
   parseStoredTabPayload,
+  normalizeTranscriberTracks,
   serializeStoredTabPayload,
   type StoredArtifactReference,
   type StoredReviewState,
@@ -21,6 +22,7 @@ const LARGE_JOB_FIELDS = [
   "tab_text",
   "tabText",
   "transcriberSegments",
+  "transcriberTracks",
   "segmentGroups",
   "segments",
   "noteEventGroups",
@@ -108,6 +110,7 @@ function trimPayloadToBudget(payload: Record<string, unknown>, maxBytes = MAX_JO
 
   const removableFields = [
     "transcriberSegments",
+    "transcriberTracks",
     "noteEventGroups",
     "segmentGroups",
     "segments",
@@ -357,7 +360,8 @@ function hasPersistableJobResult(payload: Record<string, unknown>) {
     normalizeTabs(getFirstJobValue(payload, ["tabs"])).length > 0 ||
     normalizeTranscriberSegments(
       getFirstJobValue(payload, ["transcriberSegments", "noteEventGroups", "segmentGroups", "segments"])
-    ).length > 0
+    ).length > 0 ||
+    normalizeTranscriberTracks(getFirstJobValue(payload, ["transcriberTracks", "instrumentTracks"])).length > 0
   );
 }
 
@@ -366,7 +370,10 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
   const transcriberSegments = normalizeTranscriberSegments(
     getFirstJobValue(payload, ["transcriberSegments", "noteEventGroups", "segmentGroups", "segments"])
   );
-  if (tabs.length === 0 && transcriberSegments.length === 0) {
+  const transcriberTracks = normalizeTranscriberTracks(
+    getFirstJobValue(payload, ["transcriberTracks", "instrumentTracks"])
+  );
+  if (tabs.length === 0 && transcriberSegments.length === 0 && transcriberTracks.length === 0) {
     const existing = await prisma.tabJob.findFirst({
       where: {
         userId: sessionUserId,
@@ -440,6 +447,7 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
   const serializedPayload = serializeStoredTabPayload({
     tabs,
     transcriberSegments,
+    transcriberTracks,
     backendJobId: jobId,
     ...(multipleGuitars !== null ? { multipleGuitars } : {}),
     review,
@@ -643,6 +651,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (transcriberSegments.length > 0) {
           responsePayload.transcriberSegments = transcriberSegments;
         }
+        const transcriberTracks = normalizeTranscriberTracks(
+          getFirstJobValue(payload, ["transcriberTracks", "instrumentTracks"])
+        );
+        if (transcriberTracks.length > 0) responsePayload.transcriberTracks = transcriberTracks;
         const multipleGuitarsValue = getFirstJobValue(payload, ["multipleGuitars", "multiple_guitars"]);
         if (typeof multipleGuitarsValue === "boolean") {
           responsePayload.multipleGuitars = multipleGuitarsValue;

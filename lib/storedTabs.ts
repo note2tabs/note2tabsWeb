@@ -11,6 +11,12 @@ export type StoredTranscriberSegment = {
 };
 
 export type StoredTranscriberSegmentGroup = StoredTranscriberSegment[];
+export type StoredTranscriberTrack = {
+  name: string;
+  trackType: "tab" | "drums";
+  instrumentId: string;
+  segments: StoredTranscriberSegmentGroup;
+};
 
 export type StoredArtifactReference = {
   storage?: string | null;
@@ -43,6 +49,7 @@ export type StoredReviewState = {
 export type StoredTabPayload = {
   tabs: string[][];
   transcriberSegments: StoredTranscriberSegmentGroup[];
+  transcriberTracks?: StoredTranscriberTrack[];
   backendJobId?: string | null;
   multipleGuitars?: boolean | null;
   review?: StoredReviewState | null;
@@ -129,6 +136,24 @@ function normalizeTranscriberSegments(value: unknown): StoredTranscriberSegmentG
     .filter((group) => group.length > 0);
 }
 
+export function normalizeTranscriberTracks(value: unknown): StoredTranscriberTrack[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry, index) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const record = entry as Record<string, unknown>;
+    const groups = normalizeTranscriberSegments([record.segments]);
+    if (!groups.length) return [];
+    const trackType = record.trackType === "drums" || record.type === "drums" ? "drums" : "tab";
+    const name = typeof record.name === "string" && record.name.trim()
+      ? record.name.trim().slice(0, 80)
+      : trackType === "drums" ? "Drums" : `Instrument ${index + 1}`;
+    const instrumentId = typeof record.instrumentId === "string" && record.instrumentId.trim()
+      ? record.instrumentId.trim().slice(0, 80)
+      : trackType === "drums" ? "drum1" : "jazz";
+    return [{ name, trackType, instrumentId, segments: groups[0] }];
+  });
+}
+
 function normalizeArtifactReference(value: unknown): StoredArtifactReference | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
@@ -198,6 +223,7 @@ export function normalizeStoredTabPayload(value: unknown): StoredTabPayload {
     return {
       tabs: [],
       transcriberSegments: [],
+      transcriberTracks: [],
       backendJobId: null,
       multipleGuitars: null,
       review: null,
@@ -225,6 +251,7 @@ export function normalizeStoredTabPayload(value: unknown): StoredTabPayload {
     transcriberSegments: normalizeTranscriberSegments(
       record.transcriberSegments ?? record.noteEventGroups ?? record.segmentGroups ?? record.segments
     ),
+    transcriberTracks: normalizeTranscriberTracks(record.transcriberTracks ?? record.instrumentTracks),
     backendJobId: typeof record.backendJobId === "string" && record.backendJobId.trim() ? record.backendJobId : null,
     ...(multipleGuitars !== null ? { multipleGuitars } : {}),
     review: normalizeReviewState(record.review),
@@ -236,6 +263,7 @@ export function parseStoredTabPayload(resultJson?: string | null): StoredTabPayl
     return {
       tabs: [],
       transcriberSegments: [],
+      transcriberTracks: [],
       backendJobId: null,
       multipleGuitars: null,
       review: null,
@@ -247,6 +275,7 @@ export function parseStoredTabPayload(resultJson?: string | null): StoredTabPayl
     return {
       tabs: [],
       transcriberSegments: [],
+      transcriberTracks: [],
       backendJobId: null,
       multipleGuitars: null,
       review: null,
@@ -259,6 +288,7 @@ export function serializeStoredTabPayload(payload: StoredTabPayload): string {
   return JSON.stringify({
     tabs: normalizeTabSegments(payload.tabs),
     ...(payload.transcriberSegments.length > 0 ? { transcriberSegments: payload.transcriberSegments } : {}),
+    ...(payload.transcriberTracks?.length ? { transcriberTracks: payload.transcriberTracks } : {}),
     ...(payload.backendJobId ? { backendJobId: payload.backendJobId } : {}),
     ...(typeof payload.multipleGuitars === "boolean" ? { multipleGuitars: payload.multipleGuitars } : {}),
     ...(normalizedReview ? { review: normalizedReview } : {}),
