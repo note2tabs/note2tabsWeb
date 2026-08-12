@@ -381,6 +381,102 @@ function hasPersistableJobResult(payload: Record<string, unknown>) {
   );
 }
 
+const persistedTabJobSelect = {
+  id: true,
+  userId: true,
+  backendJobId: true,
+  sourceLabel: true,
+  sourceType: true,
+  durationSec: true,
+  resultJson: true,
+} as const;
+
+function isUniqueConstraintFailure(error: unknown) {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code?: unknown }).code === "P2002"
+  );
+}
+
+async function findPersistedTabJob(jobId: string, sessionUserId: string) {
+  const indexed = await prisma.tabJob.findUnique({
+    where: { backendJobId: jobId },
+    select: persistedTabJobSelect,
+  });
+  if (indexed) {
+    if (indexed.userId !== sessionUserId) {
+      throw new Error("Backend job result ownership conflict");
+    }
+    return indexed;
+  }
+
+  // Compatibility path for rows written before backendJobId became an indexed
+  // column. Each successful read upgrades the row so future polling is O(1).
+  const legacy = await prisma.tabJob.findFirst({
+    where: {
+      userId: sessionUserId,
+      resultJson: {
+        contains: `"backendJobId":"${jobId}"`,
+      },
+    },
+    select: persistedTabJobSelect,
+  });
+  if (!legacy) return null;
+
+  try {
+    await prisma.tabJob.update({
+      where: { id: legacy.id },
+      data: { backendJobId: jobId },
+    });
+    return { ...legacy, backendJobId: jobId };
+  } catch (error) {
+    if (!isUniqueConstraintFailure(error)) throw error;
+    const raced = await prisma.tabJob.findUnique({
+      where: { backendJobId: jobId },
+      select: persistedTabJobSelect,
+    });
+    if (!raced || raced.userId !== sessionUserId) {
+      throw new Error("Backend job result ownership conflict");
+    }
+    return raced;
+  }
+}
+
+async function markBackendJobPersisted(jobId: string, sessionUserId: string, tabJobId: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2500);
+  try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-User-Id": sessionUserId,
+    };
+    if (BACKEND_SECRET) headers["X-Backend-Secret"] = BACKEND_SECRET;
+    const response = await fetch(
+      `${API_BASE}/api/v1/jobs/${encodeURIComponent(jobId)}/persisted`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ durableResultId: tabJobId }),
+        signal: controller.signal,
+      }
+    );
+    if (!response.ok) {
+      console.warn("Backend job durability acknowledgement failed", {
+        jobId,
+        status: response.status,
+      });
+    }
+  } catch (error) {
+    // The persisted TabJob remains the source of truth. A later final-status
+    // poll retries this idempotent acknowledgement before compaction can occur.
+    console.warn("Backend job durability acknowledgement failed", { jobId, error });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function persistCompletedJob(jobId: string, sessionUserId: string, payload: Record<string, unknown>) {
   const tabs = normalizeTabs(getFirstJobValue(payload, ["tabs"]));
   const transcriberSegments = normalizeTranscriberSegments(
@@ -390,27 +486,11 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
     getFirstJobValue(payload, ["transcriberTracks", "instrumentTracks"])
   );
   if (tabs.length === 0 && transcriberSegments.length === 0 && transcriberTracks.length === 0) {
-    const existing = await prisma.tabJob.findFirst({
-      where: {
-        userId: sessionUserId,
-        resultJson: {
-          contains: `"backendJobId":"${jobId}"`,
-        },
-      },
-      select: { id: true },
-    });
+    const existing = await findPersistedTabJob(jobId, sessionUserId);
     return existing?.id ?? null;
   }
 
-  const existing = await prisma.tabJob.findFirst({
-    where: {
-      userId: sessionUserId,
-      resultJson: {
-        contains: `"backendJobId":"${jobId}"`,
-      },
-    },
-    select: { id: true, sourceLabel: true, sourceType: true, durationSec: true, resultJson: true },
-  });
+  const existing = await findPersistedTabJob(jobId, sessionUserId);
   const explicitLabel =
     typeof getFirstJobValue(payload, ["sourceLabel", "source_label", "fileName", "filename", "title"]) === "string"
       ? (getFirstJobValue(payload, ["sourceLabel", "source_label", "fileName", "filename", "title"]) as string)
@@ -480,6 +560,7 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
       await prisma.tabJob.update({
         where: { id: existing.id },
         data: {
+          backendJobId: jobId,
           sourceType,
           sourceLabel,
           durationSec: normalizedDuration,
@@ -490,17 +571,24 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
     return existing.id;
   }
 
-  const created = await prisma.tabJob.create({
-    data: {
+  const created = await prisma.tabJob.upsert({
+    where: { backendJobId: jobId },
+    create: {
       userId: sessionUserId,
+      backendJobId: jobId,
       sourceType,
       sourceLabel,
       durationSec: normalizedDuration,
       resultJson: serializedPayload,
     },
-    select: { id: true },
+    // A concurrent final poll may have created the row after our lookup. Do
+    // not overwrite it until ownership has been checked below.
+    update: {},
+    select: { id: true, userId: true },
   });
-
+  if (created.userId !== sessionUserId) {
+    throw new Error("Backend job result ownership conflict");
+  }
   return created.id;
 }
 
@@ -585,6 +673,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         if (tabJobId) {
           persistedTab = true;
+          await markBackendJobPersisted(jobId, session.user.id, tabJobId);
           resolvedTabJobId = tabJobId;
           payload.tab_job_id = tabJobId;
           payload.tabJobId = tabJobId;

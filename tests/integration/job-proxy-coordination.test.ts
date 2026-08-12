@@ -6,10 +6,12 @@ const { sessionMock, fetchMock, prismaMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
   prismaMock: {
     tabJob: {
+      findUnique: vi.fn(),
       findFirst: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      upsert: vi.fn(),
     },
   },
 }));
@@ -32,6 +34,10 @@ describe("job proxy backend coordination", () => {
     sessionMock.mockReset();
     fetchMock.mockReset();
     sessionMock.mockResolvedValue({ user: { id: "user_1" } });
+    for (const method of Object.values(prismaMock.tabJob)) method.mockReset();
+    prismaMock.tabJob.findUnique.mockResolvedValue(null);
+    prismaMock.tabJob.findFirst.mockResolvedValue(null);
+    prismaMock.tabJob.findMany.mockResolvedValue([]);
     vi.stubGlobal("fetch", fetchMock);
     vi.stubEnv("BACKEND_API_BASE_URL", "https://backend.test");
     vi.stubEnv("BACKEND_SHARED_SECRET", "secret_test");
@@ -166,5 +172,61 @@ describe("job proxy backend coordination", () => {
       status: "processing",
       workflowState: "processing",
     });
+  });
+
+  it("persists a completed result by indexed backend id and acknowledges durability", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            job_id: "job_123",
+            status: "succeeded",
+            sourceLabel: "Completed song",
+            tabs: [["e|--0--"]],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+    prismaMock.tabJob.upsert.mockResolvedValue({ id: "tab_123", userId: "user_1" });
+
+    const handler = (await import("../../pages/api/jobs/[job_id]")).default;
+    const { req, res } = createMocks({
+      method: "GET",
+      query: { job_id: "job_123" },
+    });
+
+    await handler(req as any, res as any);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(prismaMock.tabJob.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { backendJobId: "job_123" },
+        create: expect.objectContaining({
+          backendJobId: "job_123",
+          userId: "user_1",
+        }),
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://backend.test/api/v1/jobs/job_123/persisted",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "X-Backend-Secret": "secret_test",
+          "X-User-Id": "user_1",
+        }),
+        body: JSON.stringify({ durableResultId: "tab_123" }),
+      })
+    );
+    expect(JSON.parse(res._getData())).toEqual(
+      expect.objectContaining({ tabJobId: "tab_123", tab_job_id: "tab_123" })
+    );
   });
 });
