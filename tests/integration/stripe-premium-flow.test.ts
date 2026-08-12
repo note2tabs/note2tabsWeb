@@ -179,6 +179,7 @@ describe("stripe premium flow", () => {
           source: "pricing_page",
           reason: "plan_comparison",
           funnelId: "funnel_test_123",
+          offerVariant: "value_framing",
         },
         headers: {
           host: "note2tabs.test",
@@ -194,6 +195,7 @@ describe("stripe premium flow", () => {
         checkoutAttemptId: "local",
         funnelId: "funnel_test_123",
         trialIncluded: true,
+        offerVariant: "value_framing",
       });
       expect(posthogMock.capture).toHaveBeenCalledWith({
         distinctId: "user_1",
@@ -203,6 +205,8 @@ describe("stripe premium flow", () => {
           source: "pricing_page",
           reason: "plan_comparison",
           funnel_id: "funnel_test_123",
+          offer_variant: "value_framing",
+          device_type: "desktop",
           $insert_id: "checkout-started:cs_test_123",
         }),
       });
@@ -220,6 +224,7 @@ describe("stripe premium flow", () => {
               premiumFunnelId: "funnel_test_123",
               premiumFunnelSource: "pricing_page",
               premiumFunnelReason: "plan_comparison",
+              premiumOfferVariant: "value_framing",
             }),
           }),
           metadata: expect.objectContaining({
@@ -229,6 +234,7 @@ describe("stripe premium flow", () => {
             premiumFunnelId: "funnel_test_123",
             premiumFunnelSource: "pricing_page",
             premiumFunnelReason: "plan_comparison",
+            premiumOfferVariant: "value_framing",
           }),
           success_url:
             "https://note2tabs.test/settings?upgrade=success&session_id={CHECKOUT_SESSION_ID}",
@@ -755,6 +761,8 @@ describe("stripe premium flow", () => {
               premiumFunnelId: "funnel_webhook_123",
               premiumFunnelSource: "signed_home",
               premiumFunnelReason: "signed_home_value",
+              premiumOfferVariant: "value_framing",
+              premiumFunnelModel: "heavy",
               premiumTrialIncluded: "true",
             },
             subscription: premiumSubscription(),
@@ -791,6 +799,8 @@ describe("stripe premium flow", () => {
           reason: "signed_home_value",
           funnel_id: "funnel_webhook_123",
           trial_included: true,
+          offer_variant: "value_framing",
+          model: "heavy",
           event_source: "stripe_webhook",
           $insert_id: "subscription-started:cs_premium",
         }),

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { PremiumOfferVariant } from "./premiumOfferExperiment";
 
 export type PremiumOfferEligibility = "unknown" | "eligible" | "ineligible";
 
@@ -38,13 +39,24 @@ export function usePremiumOfferEligibility(enabled: boolean): PremiumOfferEligib
 
 export function premiumOfferCtaLabel(
   eligibility: PremiumOfferEligibility,
-  fallback = "Get Premium"
+  fallback = "Get Premium",
+  variant: PremiumOfferVariant = "control"
 ) {
-  return eligibility === "eligible" ? "Start 7-day trial" : fallback;
+  if (eligibility !== "eligible") return fallback;
+  return variant === "value_framing"
+    ? "Try Premium free for 7 days"
+    : "Start 7-day trial";
 }
 
-export function premiumOfferReassurance(eligibility: PremiumOfferEligibility) {
-  if (eligibility === "eligible") return "$5.99/month after trial · Cancel anytime";
+export function premiumOfferReassurance(
+  eligibility: PremiumOfferEligibility,
+  variant: PremiumOfferVariant = "control"
+) {
+  if (eligibility === "eligible") {
+    return variant === "value_framing"
+      ? "7 days free, then $5.99/month · Cancel anytime"
+      : "$5.99/month after trial · Cancel anytime";
+  }
   if (eligibility === "ineligible") return "$5.99/month · Cancel anytime";
   return "7-day trial for eligible new subscribers · Cancel anytime";
 }

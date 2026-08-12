@@ -17,6 +17,8 @@ import {
   premiumOfferReassurance,
   usePremiumOfferEligibility,
 } from "../lib/usePremiumOfferEligibility";
+import { premiumOfferExperimentProperties } from "../lib/premiumOfferExperiment";
+import { usePremiumOfferExperiment } from "../lib/usePremiumOfferExperiment";
 
 const pricingFaqs = [
   {
@@ -53,6 +55,8 @@ export default function PricingPage() {
   const hasPaidPremium = currentRole === "PREMIUM";
   const hasStaffAccess = ["ADMIN", "MODERATOR", "MOD"].includes(currentRole);
   const hasPremiumAccess = hasPaidPremium || hasStaffAccess;
+  const { variant: offerVariant, resolved: offerVariantResolved } =
+    usePremiumOfferExperiment(!hasPremiumAccess);
   const offerEligibility = usePremiumOfferEligibility(
     sessionStatus === "authenticated" && !hasPremiumAccess
   );
@@ -116,14 +120,15 @@ export default function PricingPage() {
   }, [entryReason, entrySource, router.query.funnel_id]);
 
   useEffect(() => {
-    if (!router.isReady || pricingViewTrackedRef.current) return;
+    if (!router.isReady || !offerVariantResolved || pricingViewTrackedRef.current) return;
     pricingViewTrackedRef.current = true;
     const funnel = getFunnelContext();
     sendEvent(ANALYTICS_EVENTS.pricingViewed, {
       path: "/pricing",
       ...premiumFunnelProperties(funnel),
+      ...premiumOfferExperimentProperties(offerVariant),
     });
-  }, [getFunnelContext, router.isReady]);
+  }, [getFunnelContext, offerVariant, offerVariantResolved, router.isReady]);
 
   const startCheckout = useCallback(async () => {
     if (checkoutBusy) return;
@@ -133,6 +138,7 @@ export default function PricingPage() {
       signedIn: Boolean(session),
       path: "/pricing",
       ...premiumFunnelProperties(funnel),
+      ...premiumOfferExperimentProperties(offerVariant),
     });
     if (!session) {
       const callbackUrl = `${premiumPricingHref(funnel)}&checkout=1`;
@@ -154,6 +160,7 @@ export default function PricingPage() {
           source: funnel.source,
           reason: funnel.reason,
           funnelId: funnel.funnelId,
+          offerVariant,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -164,26 +171,28 @@ export default function PricingPage() {
         plan: "premium_monthly",
         checkout_attempt_id: payload.checkoutAttemptId,
         ...premiumFunnelProperties(funnel),
+        ...premiumOfferExperimentProperties(offerVariant),
       });
       window.location.assign(payload.url);
     } catch (error) {
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
         plan: "premium_monthly",
         ...premiumFunnelProperties(funnel),
+        ...premiumOfferExperimentProperties(offerVariant),
       });
       setCheckoutError(error instanceof Error ? error.message : "Could not start checkout.");
       setCheckoutBusy(false);
     }
-  }, [checkoutBusy, getFunnelContext, hasPaidPremium, hasPremiumAccess, router, session]);
+  }, [checkoutBusy, getFunnelContext, hasPaidPremium, hasPremiumAccess, offerVariant, router, session]);
 
   useEffect(() => {
     if (!router.isReady || router.query.checkout !== "1") return;
-    if (sessionStatus !== "authenticated" || resumedCheckoutRef.current) return;
+    if (!offerVariantResolved || sessionStatus !== "authenticated" || resumedCheckoutRef.current) return;
     resumedCheckoutRef.current = true;
     const funnel = getFunnelContext();
     void router.replace(premiumPricingHref(funnel), undefined, { shallow: true });
     void startCheckout();
-  }, [getFunnelContext, router.isReady, router.query.checkout, sessionStatus, startCheckout]);
+  }, [getFunnelContext, offerVariantResolved, router.isReady, router.query.checkout, sessionStatus, startCheckout]);
 
   return (
     <>
@@ -236,7 +245,11 @@ export default function PricingPage() {
 
               <article className="pricing-plan pricing-plan--premium">
                 <div className="pricing-plan__badge">
-                  {offerEligibility === "eligible" ? "Most popular · 7-day trial" : "Most popular"}
+                  {offerEligibility === "eligible"
+                    ? offerVariant === "value_framing"
+                      ? "Most popular · 7 days free"
+                      : "Most popular · 7-day trial"
+                    : "Most popular"}
                 </div>
                 <div className="pricing-plan__top">
                   <h2>Premium</h2>
@@ -261,11 +274,11 @@ export default function PricingPage() {
                   >
                     {checkoutBusy
                       ? "Opening checkout…"
-                      : premiumOfferCtaLabel(offerEligibility)}
+                      : premiumOfferCtaLabel(offerEligibility, "Get Premium", offerVariant)}
                   </button>
                 )}
                 <p className="pricing-plan__reassurance">
-                  {premiumOfferReassurance(offerEligibility)}
+                  {premiumOfferReassurance(offerEligibility, offerVariant)}
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">

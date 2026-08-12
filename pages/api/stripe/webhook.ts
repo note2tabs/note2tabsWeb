@@ -25,6 +25,7 @@ import {
   normalizePremiumFunnelReason,
   normalizePremiumFunnelSource,
 } from "../../../lib/premiumFunnel";
+import { normalizePremiumOfferVariant } from "../../../lib/premiumOfferExperiment";
 
 export const config = {
   api: {
@@ -183,6 +184,11 @@ function trackSubscriptionStarted(userId: string, session: Stripe.Checkout.Sessi
   const funnelId =
     normalizePremiumFunnelId(session.metadata?.premiumFunnelId) ||
     normalizePremiumFunnelId(session.client_reference_id);
+  const model = session.metadata?.premiumFunnelModel === "heavy"
+    ? "heavy"
+    : session.metadata?.premiumFunnelModel === "light"
+      ? "light"
+      : "unknown";
   client.capture({
     distinctId: userId,
     event: "subscription_started",
@@ -192,6 +198,8 @@ function trackSubscriptionStarted(userId: string, session: Stripe.Checkout.Sessi
       reason: normalizePremiumFunnelReason(session.metadata?.premiumFunnelReason),
       funnel_id: funnelId || undefined,
       trial_included: session.metadata?.premiumTrialIncluded === "true",
+      offer_variant: normalizePremiumOfferVariant(session.metadata?.premiumOfferVariant),
+      model,
       event_source: "stripe_webhook",
       $insert_id: `subscription-started:${session.id}`,
     },

@@ -39,15 +39,35 @@ export async function inspectPremiumCustomerState(input: {
   const incompleteSubscriptionIds: string[] = [];
   const subscriptionState: string[] = [];
 
-  for (const customer of existingCustomers) {
-    const subscriptions = await input.stripe.subscriptions.list({
-      customer: customer.id,
-      status: "all",
-      limit: 100,
-    });
-    const premiumSubscriptions = subscriptions.data.filter((subscription) =>
-      stripeSubscriptionMatchesPremium(subscription, input.config)
+  const customerSubscriptionStates: Array<{
+    customer: Stripe.Customer;
+    premiumSubscriptions: Stripe.Subscription[];
+  }> = [];
+  // Same-email duplicates are uncommon, but Stripe can return many historical
+  // customers. Resolve small batches in parallel so checkout is not a linear
+  // network waterfall while avoiding an unbounded API burst.
+  for (let offset = 0; offset < existingCustomers.length; offset += 5) {
+    const batch = existingCustomers.slice(offset, offset + 5);
+    customerSubscriptionStates.push(
+      ...(await Promise.all(
+        batch.map(async (customer) => {
+          const subscriptions = await input.stripe.subscriptions.list({
+            customer: customer.id,
+            status: "all",
+            limit: 100,
+          });
+          return {
+            customer,
+            premiumSubscriptions: subscriptions.data.filter((subscription) =>
+              stripeSubscriptionMatchesPremium(subscription, input.config)
+            ),
+          };
+        })
+      ))
     );
+  }
+
+  for (const { customer, premiumSubscriptions } of customerSubscriptionStates) {
     if (premiumSubscriptions.length && !premiumCustomer) premiumCustomer = customer;
     if (premiumSubscriptions.length > 0) hasPremiumHistory = true;
     if (

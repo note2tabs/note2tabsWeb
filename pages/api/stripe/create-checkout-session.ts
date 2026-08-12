@@ -15,6 +15,8 @@ import {
   normalizePremiumFunnelReason,
   normalizePremiumFunnelSource,
 } from "../../../lib/premiumFunnel";
+import { normalizePremiumOfferVariant } from "../../../lib/premiumOfferExperiment";
+import { parseUserAgent } from "../../../lib/analyticsV2/ua";
 
 const PREMIUM_TRIAL_DAYS = 7;
 const PREMIUM_ACCESS_ROLES = new Set(["PREMIUM", "ADMIN", "MODERATOR", "MOD"]);
@@ -93,6 +95,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const source = normalizePremiumFunnelSource(req.body?.source);
   const reason = normalizePremiumFunnelReason(req.body?.reason);
+  const offerVariant = normalizePremiumOfferVariant(req.body?.offerVariant);
+  const requestedModel = String(req.body?.model || "").toLowerCase();
+  const model = source === "heavy_model" || reason.includes("heavy")
+    ? "heavy"
+    : requestedModel === "light" || requestedModel === "heavy"
+      ? requestedModel
+      : "unknown";
+  const deviceType = parseUserAgent(req.headers["user-agent"]).deviceType;
   const funnelId =
     normalizePremiumFunnelId(req.body?.funnelId) ||
     createHash("sha256")
@@ -107,12 +117,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     source,
     reason,
     funnelId,
+    offerVariant,
+    model,
+    deviceType,
   }));
   await trackCheckoutEvent(session.user.id, "checkout_session_requested", {
     plan: "premium_monthly",
     source,
     reason,
     funnel_id: funnelId,
+    offer_variant: offerVariant,
+    model,
+    device_type: deviceType,
     request_id: requestId,
   });
 
@@ -161,6 +177,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       premiumFunnelId: funnelId,
       premiumFunnelSource: source,
       premiumFunnelReason: reason,
+      premiumOfferVariant: offerVariant,
+      premiumFunnelModel: model,
       premiumTrialIncluded: customerState.trialEligible ? "true" : "false",
     };
     const checkout = await stripeClient.checkout.sessions.create(
@@ -194,6 +212,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       reason,
       funnel_id: funnelId,
       trial_included: customerState.trialEligible,
+      offer_variant: offerVariant,
+      model,
+      device_type: deviceType,
       request_id: requestId,
       $insert_id: `checkout-started:${checkout.id}`,
     });
@@ -212,6 +233,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       checkoutAttemptId: requestId,
       funnelId,
       trialIncluded: customerState.trialEligible,
+      offerVariant,
     });
   } catch (error) {
     await trackCheckoutEvent(session.user.id, "checkout_failed", {
@@ -219,6 +241,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       source,
       reason,
       funnel_id: funnelId,
+      offer_variant: offerVariant,
+      model,
+      device_type: deviceType,
       request_id: requestId,
       failure_stage: "stripe_session_creation",
     });
