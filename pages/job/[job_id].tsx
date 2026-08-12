@@ -16,8 +16,11 @@ import { getAppBaseUrl } from "../../lib/urls";
 import type { EditorListItem } from "../../types/gte";
 import NoIndexHead from "../../components/NoIndexHead";
 import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
+import {
+  DEFAULT_JOB_POLL_DELAY_MS,
+  requestJobStatus,
+} from "../../lib/jobPolling";
 
-const POLL_INTERVAL = 3000;
 const FINALIZE_IMPORT_TIMEOUT_MS = 60_000;
 const FINALIZE_IMPORT_POLL_MS = 1200;
 const PRIMIS_CHANNEL_ID = "YOUR_PRIMIS_CHANNEL_ID";
@@ -609,8 +612,11 @@ export default function JobPage() {
   const router = useRouter();
   const { job_id } = router.query;
   const [job, setJob] = useState<JobResponse | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollingInFlightRef = useRef(false);
+  const pollingJobIdRef = useRef<string | null>(null);
+  const jobEtagRef = useRef<string | null>(null);
+  const pollDelayRef = useRef(DEFAULT_JOB_POLL_DELAY_MS);
   const [hasWatchedAd, setHasWatchedAd] = useState(false);
   const [showFallbackVideo, setShowFallbackVideo] = useState(true);
   const [adContainerKey, setAdContainerKey] = useState(0);
@@ -803,18 +809,26 @@ export default function JobPage() {
     };
   }, [localReviewTabPreviewText, showReviewUi, tabJobId]);
 
-  const fetchJob = async (id: string, options?: { includeOutput?: boolean }): Promise<JobResponse | null> => {
+  const fetchJob = async (
+    id: string,
+    options?: { includeOutput?: boolean; conditional?: boolean }
+  ): Promise<JobResponse | null> => {
     try {
-      const response = await fetch(`/api/jobs/${id}${options?.includeOutput ? "?include_output=1" : ""}`, {
-        cache: "no-store",
+      const result = await requestJobStatus<JobResponse>(id, {
+        includeOutput: options?.includeOutput,
+        etag: options?.conditional ? jobEtagRef.current : null,
       });
-      if (!response.ok) throw new Error("Failed to fetch");
-      const data: JobResponse = await response.json();
+      pollDelayRef.current = result.retryAfterMs;
+      if (!options?.includeOutput) jobEtagRef.current = result.etag;
+      if (result.notModified) return null;
+
+      const data = result.job;
+      if (!data) return null;
       setJob(data);
       if (data.status === "error") {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
+        if (pollTimeoutRef.current) {
+          clearTimeout(pollTimeoutRef.current);
+          pollTimeoutRef.current = null;
         }
       }
       return data;
@@ -826,9 +840,9 @@ export default function JobPage() {
         error_message: "Could not fetch job status.",
       };
       setJob(fallback);
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current);
+        pollTimeoutRef.current = null;
       }
       return fallback;
     }
@@ -869,42 +883,66 @@ export default function JobPage() {
 
   useEffect(() => {
     if (!job_id || typeof job_id !== "string") return;
-    const pollFetchJob = async () => {
-      if (pollingInFlightRef.current) return;
-      pollingInFlightRef.current = true;
-      try {
-        await fetchJob(job_id);
-      } finally {
-        pollingInFlightRef.current = false;
-      }
-    };
+    if (pollingJobIdRef.current !== job_id) {
+      pollingJobIdRef.current = job_id;
+      jobEtagRef.current = null;
+      pollDelayRef.current = DEFAULT_JOB_POLL_DELAY_MS;
+    }
 
-    void pollFetchJob();
     const shouldPoll = !showReviewUi && !isFinalizedJob;
     if (!shouldPoll) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current);
+        pollTimeoutRef.current = null;
       }
       return;
     }
-    const pollVisibleJob = () => {
-      if (typeof document !== "undefined" && document.hidden) return;
-      void pollFetchJob();
+
+    let cancelled = false;
+    const scheduleNextPoll = () => {
+      if (cancelled) return;
+      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = setTimeout(() => {
+        pollTimeoutRef.current = null;
+        if (typeof document !== "undefined" && document.hidden) {
+          scheduleNextPoll();
+          return;
+        }
+        void pollFetchJob(true);
+      }, pollDelayRef.current);
     };
-    const handleVisibilityChange = () => {
-      if (typeof document !== "undefined" && !document.hidden) {
-        void pollFetchJob();
+    const pollFetchJob = async (conditional: boolean) => {
+      if (pollingInFlightRef.current) {
+        scheduleNextPoll();
+        return;
+      }
+      pollingInFlightRef.current = true;
+      try {
+        await fetchJob(job_id, { conditional });
+      } finally {
+        pollingInFlightRef.current = false;
+        scheduleNextPoll();
       }
     };
-    intervalRef.current = setInterval(pollVisibleJob, POLL_INTERVAL);
+
+    void pollFetchJob(Boolean(jobEtagRef.current));
+    const handleVisibilityChange = () => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        if (pollTimeoutRef.current) {
+          clearTimeout(pollTimeoutRef.current);
+          pollTimeoutRef.current = null;
+        }
+        void pollFetchJob(true);
+      }
+    };
     if (typeof document !== "undefined") {
       document.addEventListener("visibilitychange", handleVisibilityChange);
     }
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      cancelled = true;
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current);
+        pollTimeoutRef.current = null;
       }
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", handleVisibilityChange);

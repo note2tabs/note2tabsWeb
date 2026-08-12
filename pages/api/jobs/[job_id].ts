@@ -245,7 +245,9 @@ async function fetchBackendJob(jobId: string, headers: Record<string, string>, i
   const startedAt = Date.now();
   const baseUrl = `${API_BASE}/api/v1/jobs/${encodeURIComponent(jobId)}`;
   const url = includeOutput ? appendQueryParam(baseUrl, "include_output", "true") : baseUrl;
-  const upstream = await fetch(url, { headers });
+  const requestHeaders = { ...headers };
+  if (includeOutput) delete requestHeaders["If-None-Match"];
+  const upstream = await fetch(url, { headers: requestHeaders });
   const text = await upstream.text();
   return {
     upstream,
@@ -254,6 +256,20 @@ async function fetchBackendJob(jobId: string, headers: Record<string, string>, i
     bytes: Buffer.byteLength(text, "utf-8"),
     durationMs: Date.now() - startedAt,
   };
+}
+
+function forwardPollingHeaders(res: NextApiResponse, upstream: Response) {
+  const etag = upstream.headers.get("etag");
+  const retryAfter = upstream.headers.get("retry-after");
+  if (etag) res.setHeader("ETag", etag);
+  if (retryAfter) res.setHeader("Retry-After", retryAfter);
+  res.setHeader("Vary", "Cookie");
+}
+
+function setJobCacheHeaders(res: NextApiResponse) {
+  res.setHeader("Cache-Control", "private, no-cache, max-age=0, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
 }
 
 function addPreviewUrl(payload: Record<string, unknown>, jobId: string) {
@@ -511,6 +527,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const headers: Record<string, string> = {};
   if (BACKEND_SECRET) headers["X-Backend-Secret"] = BACKEND_SECRET;
   headers["X-User-Id"] = session.user.id;
+  const ifNoneMatchRaw = req.headers["if-none-match"];
+  const ifNoneMatch = Array.isArray(ifNoneMatchRaw) ? ifNoneMatchRaw[0] : ifNoneMatchRaw;
+  if (!clientRequestedFullOutput && ifNoneMatch) headers["If-None-Match"] = ifNoneMatch;
 
   const requestStartedAt = Date.now();
   let fetched;
@@ -520,12 +539,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(502).json({ error: "Unable to reach transcription backend." });
   }
   let upstream = fetched.upstream;
+  const pollingHeadersSource = fetched.upstream;
   const text = fetched.text;
   const contentType = fetched.contentType;
   let upstreamBytes = fetched.bytes;
   let fetchedFullOutput = clientRequestedFullOutput;
   let persistedTab = false;
   if (!text) {
+    forwardPollingHeaders(res, pollingHeadersSource);
+    setJobCacheHeaders(res);
     res.status(upstream.status);
     return res.end();
   }
@@ -664,9 +686,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const safeResponsePayload = trimPayloadToBudget(responsePayload);
       res.status(upstream.status);
       res.setHeader("Content-Type", "application/json");
-      res.setHeader("Cache-Control", "no-store, max-age=0, must-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
+      forwardPollingHeaders(res, pollingHeadersSource);
+      setJobCacheHeaders(res);
       logJobTransferMetric({
         upstreamStatus: upstream.status,
         upstreamBytes,
@@ -684,9 +705,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const textSnippet = text.slice(0, MAX_UPSTREAM_TEXT_BYTES);
   res.status(upstream.ok ? 502 : upstream.status);
   res.setHeader("Content-Type", "application/json");
-  res.setHeader("Cache-Control", "no-store, max-age=0, must-revalidate");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
+  forwardPollingHeaders(res, pollingHeadersSource);
+  setJobCacheHeaders(res);
   return res.json({
     error: upstream.ok
       ? "Invalid response from backend job endpoint."
