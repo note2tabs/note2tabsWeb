@@ -51,6 +51,19 @@ describe("gte editor tab view", () => {
     });
   });
 
+  it("keeps the score compact while preserving evenly spaced string rows", () => {
+    const view = buildEditorTabView(baseSnapshot(), {
+      framesPerBar: 480,
+      beatsPerBar: 4,
+      scale: 1,
+      playheadFrame: 0,
+      minBarCount: 4,
+    });
+
+    expect(view.height).toBe(152);
+    expect(view.strings.map((line) => line.y)).toEqual([16, 40, 64, 88, 112, 136]);
+  });
+
   it("collapses empty practice bars and uses shared readable widths for populated bars", () => {
     const view = buildEditorTabView(baseSnapshot(), {
       framesPerBar: 480,

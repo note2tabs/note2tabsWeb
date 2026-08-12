@@ -14498,12 +14498,13 @@ export default function GteWorkspace({
                 : "overflow-x-auto"
             } ${
               isMobileEditMode ? "min-h-0 flex-1" : ""
-            }`}
+            } shadow-[0_1px_2px_rgba(15,23,42,0.035)] max-sm:rounded-lg`}
             data-gte-tab-view="true"
+            data-gte-tab-score="true"
             onScroll={handleTimelineOuterScroll}
           >
             <div
-              className="relative min-w-full"
+              className="relative isolate min-w-full bg-white"
               style={{
                 width: editorTabView.width,
                 height:
@@ -14514,7 +14515,7 @@ export default function GteWorkspace({
             >
               {framesPerMeasure > 0 &&
                 Array.from({ length: editorTabView.barCount }).map((_, barIndex) => {
-                  const left = 30 + barIndex * editorTabView.barWidth;
+                  const left = editorTabView.barStartXs[barIndex];
                   const selected = selectedBarIndexSet.has(barIndex);
                   return (
                     <button
@@ -14545,12 +14546,16 @@ export default function GteWorkspace({
                         if (!practiceMode) handleSelectedBarDragStart(barIndex, event);
                       }}
                       onDragEnd={practiceMode ? undefined : handleSelectedBarDragEnd}
-                      className={`absolute top-0 z-20 flex items-center px-2 text-[10px] ${
+                      className={`absolute top-0 z-20 flex items-center border-b px-2 text-[10px] font-medium tracking-[0.01em] transition-colors duration-150 ${
                         selected
-                          ? "bg-slate-200/90 text-slate-800"
-                          : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-800"
+                          ? "border-sky-200 bg-sky-50 text-sky-900"
+                          : "border-slate-200 bg-slate-50/80 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                       }`}
-                      style={{ left, width: editorTabView.barWidth, height: TIMELINE_BAR_HEADER_HEIGHT }}
+                      style={{
+                        left,
+                        width: editorTabView.barWidths[barIndex],
+                        height: TIMELINE_BAR_HEADER_HEIGHT,
+                      }}
                       title={`Select Bar ${barIndex + 1}`}
                       aria-label={`Select Bar ${barIndex + 1}`}
                     >
@@ -14602,26 +14607,70 @@ export default function GteWorkspace({
                     />
                   );
                 })}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute z-0 bg-white"
+                style={{
+                  left: editorTabView.barStartXs[0],
+                  top: TIMELINE_BAR_HEADER_HEIGHT,
+                  width:
+                    editorTabView.barStartXs[editorTabView.barCount] -
+                    editorTabView.barStartXs[0],
+                  height: editorTabView.height,
+                  backgroundImage:
+                    "linear-gradient(to right, transparent 0, transparent calc(100% - 1px), rgba(226, 232, 240, 0.55) calc(100% - 1px), rgba(226, 232, 240, 0.55) 100%), linear-gradient(to right, transparent 0, transparent 50%, rgba(248, 250, 252, 0.72) 50%, rgba(248, 250, 252, 0.72) 100%)",
+                  backgroundSize: `${editorTabView.barWidth / Math.max(1, timeSignature)}px 100%, ${
+                    editorTabView.barWidth * 2
+                  }px 100%`,
+                }}
+              />
+              {selectedBarIndices
+                .filter((barIndex) => barIndex >= 0 && barIndex < editorTabView.barCount)
+                .map((barIndex) => (
+                  <div
+                    key={`tab-view-selected-bar-surface-${barIndex}`}
+                    aria-hidden="true"
+                    className="pointer-events-none absolute z-[1] bg-sky-50/70"
+                    style={{
+                      left: editorTabView.barStartXs[barIndex],
+                      top: TIMELINE_BAR_HEADER_HEIGHT,
+                      width: editorTabView.barWidths[barIndex],
+                      height: editorTabView.height,
+                    }}
+                  />
+                ))}
               {editorTabView.barLines.map((barLine) => (
                 <div
                   key={barLine.key}
-                  className="absolute top-0 bottom-0 w-[2px] bg-slate-400"
+                  className="pointer-events-none absolute z-[2] top-0 bottom-0 w-px bg-slate-400"
                   style={{ left: barLine.x, top: TIMELINE_BAR_HEADER_HEIGHT }}
                 />
               ))}
+              <div className="pointer-events-none sticky left-0 top-0 z-20 h-0 w-[30px]">
+                <div
+                  role="group"
+                  aria-label="String tuning"
+                  className="absolute left-0 w-[30px] border-r border-slate-200 bg-gradient-to-r from-white via-white to-white/90"
+                  style={{
+                    top: TIMELINE_BAR_HEADER_HEIGHT,
+                    height: editorTabView.height,
+                  }}
+                >
+                  {editorTabView.strings.map((line, stringIndex) => (
+                    <div
+                      key={`tab-string-label-${stringIndex}`}
+                      className="absolute left-0 flex w-7 -translate-y-1/2 justify-end pr-1 text-[11px] font-medium tabular-nums text-slate-500"
+                      style={{ top: line.y }}
+                    >
+                      {line.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
               {editorTabView.strings.map((line, stringIndex) => (
                 <div key={`tab-string-${stringIndex}`}>
                   <div
-                    className="absolute z-30 flex w-7 -translate-y-1/2 justify-end bg-white pr-1 text-[12px] font-semibold text-slate-600"
-                    style={{
-                      left: tabViewEnabled ? timelineViewport.scrollLeft : 0,
-                      top: TIMELINE_BAR_HEADER_HEIGHT + line.y,
-                    }}
-                  >
-                    {line.label}
-                  </div>
-                  <div
-                    className="absolute h-[2px] bg-slate-500"
+                    className="pointer-events-none absolute z-[3] h-px bg-slate-400"
                     style={{ left: 30, right: 16, top: TIMELINE_BAR_HEADER_HEIGHT + line.y }}
                   />
                 </div>
@@ -14633,12 +14682,12 @@ export default function GteWorkspace({
                 return (
                   <div
                     key={effect.key}
-                    className="pointer-events-none absolute"
+                    className="pointer-events-none absolute z-[5]"
                     style={{ left, top: TIMELINE_BAR_HEADER_HEIGHT + y - 15, width }}
                   >
-                    <div className="absolute left-0 right-0 top-2 h-[2px] bg-slate-600" />
+                    <div className="absolute left-0 right-0 top-2 h-px bg-slate-500" />
                     <span
-                      className="absolute top-0 -translate-x-1/2 bg-white px-1 text-[11px] font-bold text-slate-700"
+                      className="absolute top-0 -translate-x-1/2 rounded-sm bg-white px-1 text-[10px] font-semibold text-slate-600"
                       style={{ left: effect.x - left }}
                     >
                       {effect.label}
@@ -14651,7 +14700,7 @@ export default function GteWorkspace({
                 return (
                   <div
                     key={placement.key}
-                    className="absolute z-10 -translate-x-1/2 -translate-y-1/2 bg-white px-1 text-[13px] font-bold leading-none text-slate-900"
+                    className="absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-sm bg-white px-1.5 py-0.5 text-[12px] font-semibold leading-none tabular-nums text-slate-900"
                     style={{ left: placement.x, top: TIMELINE_BAR_HEADER_HEIGHT + y }}
                   >
                     {placement.fret}
@@ -14660,7 +14709,7 @@ export default function GteWorkspace({
               })}
               <div
                 ref={tabViewCursorRef}
-                className="pointer-events-none absolute bottom-3 top-3 z-10 w-[2px] -translate-x-px rounded-full bg-rose-500"
+                className="pointer-events-none absolute bottom-3 top-3 z-20 w-[2px] -translate-x-px rounded-full bg-rose-500 shadow-[0_0_0_1px_rgba(255,255,255,0.75)]"
                 style={{
                   left: 0,
                   top: TIMELINE_BAR_HEADER_HEIGHT + 3,
@@ -14670,7 +14719,7 @@ export default function GteWorkspace({
               {showTimeRuler && <div
                 role="button"
                 tabIndex={0}
-                className="absolute left-0 z-20 cursor-pointer border-t border-slate-300 bg-slate-50/80 text-[8px] text-slate-500"
+                className="absolute left-0 z-20 cursor-pointer border-t border-slate-200 bg-slate-50/90 text-[8px] tabular-nums text-slate-500"
                 style={{
                   top: TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height,
                   width: editorTabView.width,

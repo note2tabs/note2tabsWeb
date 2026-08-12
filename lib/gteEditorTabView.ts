@@ -73,8 +73,8 @@ const DEFAULT_LABELS = ["E", "B", "G", "D", "A", "E"];
 const STRING_COUNT = 6;
 const LEFT_LABEL_WIDTH = 30;
 const RIGHT_PADDING = 32;
-const TOP_PADDING = 18;
-const STRING_GAP = 28;
+const TOP_PADDING = 16;
+const STRING_GAP = 24;
 const NUMBER_WIDTH = 18;
 const COLLAPSED_EMPTY_BAR_RUN_WIDTH = 72;
 
