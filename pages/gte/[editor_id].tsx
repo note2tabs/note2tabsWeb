@@ -1221,9 +1221,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [addTrackMenuOpen, setAddTrackMenuOpen] = useState(false);
   const [deletingLaneId, setDeletingLaneId] = useState<string | null>(null);
   const [confirmDeleteTrackId, setConfirmDeleteTrackId] = useState<string | null>(null);
-  const [mergeTracksDialogOpen, setMergeTracksDialogOpen] = useState(false);
-  const [mergeTrackIds, setMergeTrackIds] = useState<string[]>([]);
-  const [mergeTracksBusy, setMergeTracksBusy] = useState(false);
   const [openTrackMenuId, setOpenTrackMenuId] = useState<string | null>(null);
   const [shiftingLaneId, setShiftingLaneId] = useState<string | null>(null);
   const [openMobileBarMenuLaneId, setOpenMobileBarMenuLaneId] = useState<string | null>(null);
@@ -2389,33 +2386,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setShiftingLaneId(null);
     }
   }, [applyCanvasUpdate, canvas, editorId, isGuestMode, shiftingLaneId]);
-
-  const openTrackMerge = useCallback(() => {
-    if (!canvas || canvas.editors.length < 2 || isGuestMode) return;
-    setMergeTrackIds(canvas.editors.slice(0, 2).map((lane) => lane.id));
-    setMergeTracksDialogOpen(true);
-    setOpenTopMenu(null);
-  }, [canvas, isGuestMode]);
-
-  const commitTrackMerge = useCallback(async () => {
-    if (!canvas || mergeTracksBusy || mergeTrackIds.length < 2) return;
-    setMergeTracksBusy(true);
-    setError(null);
-    try {
-      const response = await gteApi.mergeTracks(editorId, {
-        laneIds: mergeTrackIds,
-        name: "Merged track",
-        keepOriginals: true,
-      });
-      applyCanvasUpdate(normalizeCanvas(response.canvas, editorId), { markDirty: false });
-      setActiveLaneId(response.mergedLaneId);
-      setMergeTracksDialogOpen(false);
-    } catch (err: any) {
-      setError(err?.message || "Could not merge these tracks.");
-    } finally {
-      setMergeTracksBusy(false);
-    }
-  }, [applyCanvasUpdate, canvas, editorId, mergeTrackIds, mergeTracksBusy]);
 
   const requestDeleteTrack = useCallback(
     (laneId: string) => {
@@ -6668,15 +6638,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         </button>
                         <button
                           type="button"
-                          onClick={openTrackMerge}
-                          disabled={isGuestMode || (canvas?.editors.length || 0) < 2}
-                          className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-                          title={isGuestMode ? "Save this draft before merging tracks" : "Combine notes and chords into a new optimized track"}
-                        >
-                          Merge tracks…
-                        </button>
-                        <button
-                          type="button"
                           onClick={() => {
                             setGeneratePlayingCoordinatesRequest((request) => request + 1);
                             setOpenTopMenu(null);
@@ -9693,81 +9654,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 disabled={timingSaving}
               >
                 {timingSaving ? "Saving…" : "Set tempo"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {mergeTracksDialogOpen && canvas && (
-        <div
-          className="dialog-scrim"
-          onMouseDown={() => !mergeTracksBusy && setMergeTracksDialogOpen(false)}
-        >
-          <div
-            className="dialog-card max-w-lg"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="merge-tracks-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="stack-tight">
-              <h2 id="merge-tracks-title" className="page-title" style={{ fontSize: "1.25rem" }}>Merge tracks</h2>
-              <p className="muted text-small">
-                Notes and chords are combined into a new optimized track. Your original tracks stay unchanged.
-              </p>
-            </div>
-            <div className="mt-4 grid max-h-72 gap-2 overflow-y-auto">
-              {canvas.editors.map((lane) => {
-                const checked = mergeTrackIds.includes(lane.id);
-                return (
-                  <label
-                    key={`merge-track-${lane.id}`}
-                    className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 ${
-                      checked ? "border-sky-300 bg-sky-50" : "border-slate-200 bg-white"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(event) =>
-                        setMergeTrackIds((current) =>
-                          event.target.checked
-                            ? [...current, lane.id]
-                            : current.filter((laneId) => laneId !== lane.id)
-                        )
-                      }
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-slate-800">
-                        {lane.name || "Untitled track"}
-                      </span>
-                      <span className="block text-xs text-slate-500">
-                        {isDrumLane(lane) ? "Drums" : `${lane.notes.length} notes · ${lane.chords.length} chords`}
-                      </span>
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-            <p className="mt-3 text-xs text-slate-500">
-              Drum tracks can only be merged with other drum tracks. The first selected track supplies the tuning.
-            </p>
-            <div className="button-row mt-5" style={{ justifyContent: "flex-end" }}>
-              <button
-                type="button"
-                className="button-secondary button-small"
-                onClick={() => setMergeTracksDialogOpen(false)}
-                disabled={mergeTracksBusy}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="button-primary button-small"
-                onClick={() => void commitTrackMerge()}
-                disabled={mergeTracksBusy || mergeTrackIds.length < 2}
-              >
-                {mergeTracksBusy ? "Merging…" : "Create merged track"}
               </button>
             </div>
           </div>
