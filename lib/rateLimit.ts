@@ -12,6 +12,19 @@ type RateEntry = {
 };
 
 const store = new Map<string, RateEntry>();
+const MAX_RATE_LIMIT_ENTRIES = 10_000;
+
+const pruneRateLimitStore = (now: number) => {
+  if (store.size < MAX_RATE_LIMIT_ENTRIES) return;
+  for (const [key, entry] of store) {
+    if (entry.resetAt <= now) store.delete(key);
+  }
+  while (store.size >= MAX_RATE_LIMIT_ENTRIES) {
+    const oldestKey = store.keys().next().value;
+    if (!oldestKey) break;
+    store.delete(oldestKey);
+  }
+};
 
 const getClientId = (req: NextApiRequest) => {
   const forwarded = req.headers["x-forwarded-for"];
@@ -25,6 +38,7 @@ export const rateLimit = (
   options: RateLimitOptions
 ) => {
   const now = Date.now();
+  pruneRateLimitStore(now);
   const key = `${options.id || "global"}:${getClientId(req)}`;
   const entry = store.get(key);
   if (!entry || entry.resetAt <= now) {
@@ -39,6 +53,7 @@ export const rateLimit = (
   res.setHeader("X-RateLimit-Reset", String(Math.ceil(current.resetAt / 1000)));
 
   if (current.count > options.limit) {
+    res.setHeader("Retry-After", String(Math.max(1, Math.ceil((current.resetAt - now) / 1000))));
     res.status(429).json({ error: "Too many requests. Try again shortly." });
     return false;
   }

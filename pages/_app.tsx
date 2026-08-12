@@ -18,8 +18,10 @@ const AnalyticsIdentityLinker = dynamic(() => import("../components/AnalyticsIde
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   const router = useRouter();
   const isGteEditorPage = router.pathname === "/gte/[editor_id]";
+  const isEmbedPage = router.pathname.startsWith("/embed/");
 
   useEffect(() => {
+    if (isEmbedPage) return;
     const trackPageView = (url?: string) => {
       const rawPath = url ?? window.location.pathname;
       const path = sanitizeAnalyticsPathname(rawPath);
@@ -36,7 +38,18 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
     return () => {
       router.events.off("routeChangeComplete", trackPageView);
     };
-  }, [router.events]);
+  }, [isEmbedPage, router.events]);
+
+  if (isEmbedPage) {
+    return (
+      <>
+        <Head>
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+        </Head>
+        <Component {...pageProps} />
+      </>
+    );
+  }
 
   return (
     <SessionProvider session={session} refetchInterval={0} refetchOnWindowFocus={false}>

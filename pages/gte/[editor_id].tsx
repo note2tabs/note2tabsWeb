@@ -5757,6 +5757,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             ))}
                           </div>
                         )}
+                        {!isGuestMode && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileNavOpen(false);
+                              void router.push(`/gte/${encodeURIComponent(editorId)}/embed`);
+                            }}
+                            className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm text-slate-700"
+                          >
+                            Embed on a website
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => void commitCanvasToBackend({ force: true })}
@@ -6332,6 +6344,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           ))}
                         </div>
                       </details>
+                      {!isGuestMode && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpenTopMenu(null);
+                            void router.push(`/gte/${encodeURIComponent(editorId)}/embed`);
+                          }}
+                          className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                        >
+                          Embed on a website
+                        </button>
+                      )}
                     </div>
                   </details>
 

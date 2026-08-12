@@ -32,6 +32,21 @@ const FLUSH_MS = 1200;
 let queue: CanonicalEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let fingerprintPromise: Promise<string | undefined> | null = null;
+let lifecycleListenersInstalled = false;
+
+function installLifecycleListeners() {
+  if (typeof window === "undefined" || lifecycleListenersInstalled) return;
+  lifecycleListenersInstalled = true;
+  const flushOnHide = () => {
+    void flush("pagehide");
+  };
+  window.addEventListener("pagehide", flushOnHide);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      flushOnHide();
+    }
+  });
+}
 
 function getCookie(name: string): string | undefined {
   if (typeof document === "undefined") return undefined;
@@ -138,6 +153,7 @@ export async function track(name: string, props: EventProps = {}) {
   if (typeof window === "undefined") return;
   if (process.env.NODE_ENV !== "production") return;
   if (!shouldTrack()) return;
+  installLifecycleListeners();
 
   const { sessionId, anonId } = ensureIds();
   const fingerprintId = await getFingerprintId();
@@ -210,16 +226,4 @@ export function setAnalyticsConsent(state: "granted" | "denied") {
   } else {
     ensureIds();
   }
-}
-
-if (typeof window !== "undefined") {
-  const flushOnHide = () => {
-    void flush("pagehide");
-  };
-  window.addEventListener("pagehide", flushOnHide);
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") {
-      flushOnHide();
-    }
-  });
 }

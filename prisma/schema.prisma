@@ -63,6 +63,7 @@ model User {
   posts                       Post[]
   sessions                    Session[]
   stripeRenewalInvoices       StripeRenewalInvoice[]
+  tabEmbedShares              TabEmbedShare[]
   tabs                        TabJob[]
 }
 
@@ -107,6 +108,19 @@ model TabJob {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model TabEmbedShare {
+  id               String    @id @default(cuid())
+  userId           String
+  editorId         String
+  tokenHash        String    @unique
+  tokenFingerprint String
+  createdAt        DateTime  @default(now())
+  revokedAt        DateTime?
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, editorId, revokedAt])
 }
 
 model AnalyticsEvent {
