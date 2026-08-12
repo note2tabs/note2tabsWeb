@@ -41,6 +41,7 @@ const clampEventLength = (value: number) => clamp(Math.round(toNumber(value, 1))
 const getStoreKey = (sessionId: string, canvasId: string) => `${sessionId}:${canvasId}`;
 const normalizeEditorType = (value: unknown) => {
   const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (raw === "drum" || raw === "drums" || raw === "percussion") return "drums";
   if (raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor") return "chords";
   return "tab";
 };

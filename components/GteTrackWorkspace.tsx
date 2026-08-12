@@ -52,6 +52,9 @@ export default function GteTrackWorkspace(props: Props) {
       sharedTimelineBaseScale={props.sharedTimelineBaseScale}
       timelineZoomFactor={props.timelineZoomFactor}
       snapSubdivisionsPerBeat={props.snapSubdivisionsPerBeat}
+      showBarNumbers={props.showBarNumbers}
+      showTimeRuler={props.showTimeRuler}
+      showPlaybackCounter={props.showPlaybackCounter}
       globalSnapToGridEnabled={props.globalSnapToGridEnabled}
       globalPlaybackFrame={props.globalPlaybackFrame}
       getGlobalPlaybackFrame={props.getGlobalPlaybackFrame}

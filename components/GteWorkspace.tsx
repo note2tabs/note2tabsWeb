@@ -134,7 +134,10 @@ function closeAudioContext(ctx: AudioContext) {
 type Props = {
   editorId: string;
   snapshot: EditorSnapshot;
-  onSnapshotChange: (snapshot: EditorSnapshot, options?: { recordHistory?: boolean }) => void;
+  onSnapshotChange: (
+    snapshot: EditorSnapshot,
+    options?: { recordHistory?: boolean; markDirty?: boolean }
+  ) => void;
   allowBackend?: boolean;
   embedded?: boolean;
   isActive?: boolean;
@@ -143,6 +146,9 @@ type Props = {
   globalSnapToGridEnabled?: boolean;
   onGlobalSnapToGridEnabledChange?: (enabled: boolean) => void;
   snapSubdivisionsPerBeat?: number;
+  showBarNumbers?: boolean;
+  showTimeRuler?: boolean;
+  showPlaybackCounter?: boolean;
   globalSnapToKeyEnabled?: boolean;
   onGlobalSnapToKeyEnabledChange?: (enabled: boolean) => void;
   generatePlayingCoordinatesRequest?: number;
@@ -162,7 +168,7 @@ type Props = {
   sharedViewportBarCount?: number;
   sharedTimelineBaseScale?: number;
   sharedTimelineScrollRatio?: number;
-  onSharedTimelineScrollRatioChange?: (next: number) => void;
+  onSharedTimelineScrollRatioChange?: (next: number, scrollLeft?: number) => void;
   timelineZoomFactor?: number;
   historyUndoCount?: number;
   historyRedoCount?: number;
@@ -438,7 +444,7 @@ const formatScaleFactorInputDraft = (value: string) => {
 };
 
 const formatTimelineSecondLabel = (seconds: number) => {
-  const safeSeconds = Math.max(0, Math.round(seconds));
+  const safeSeconds = Math.max(0, Math.floor(seconds));
   const minutes = Math.floor(safeSeconds / 60);
   const remainder = safeSeconds % 60;
   return `${minutes}:${String(remainder).padStart(2, "0")}`;
@@ -1679,6 +1685,9 @@ function ChordLaneWorkspace({
   embedded = false,
   isActive = true,
   onFocusWorkspace,
+  showBarNumbers = true,
+  showTimeRuler = true,
+  showPlaybackCounter = true,
   sharedViewportBarCount,
   sharedTimelineBaseScale,
   sharedTimelineScrollRatio,
@@ -2456,18 +2465,18 @@ function ChordLaneWorkspace({
 
   useEffect(() => {
     const element = timelineRef.current;
-    if (!element || sharedTimelineScrollRatio === undefined) return;
+    if (!element || sharedTimelineScrollRatio === undefined || onSharedTimelineScrollRatioChange) return;
     if (globalPlaybackIsPlaying) return;
     const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
     element.scrollLeft = maxScroll * Math.max(0, Math.min(1, sharedTimelineScrollRatio));
-  }, [globalPlaybackIsPlaying, sharedTimelineScrollRatio, timelineWidth]);
+  }, [globalPlaybackIsPlaying, onSharedTimelineScrollRatioChange, sharedTimelineScrollRatio, timelineWidth]);
 
   useEffect(() => {
     if (playbackScrollRafRef.current !== null) {
       window.cancelAnimationFrame(playbackScrollRafRef.current);
       playbackScrollRafRef.current = null;
     }
-    if (mobileViewport || !globalPlaybackIsPlaying) return;
+    if (mobileViewport || !globalPlaybackIsPlaying || onSharedTimelineScrollRatioChange) return;
     const container = timelineRef.current;
     if (!container) return;
 
@@ -2513,7 +2522,14 @@ function ChordLaneWorkspace({
         playbackScrollRafRef.current = null;
       }
     };
-  }, [globalPlaybackIsPlaying, mobileViewport, pxPerFrame, readExternalPlaybackFrame, timelineContentOffset]);
+  }, [
+    globalPlaybackIsPlaying,
+    mobileViewport,
+    onSharedTimelineScrollRatioChange,
+    pxPerFrame,
+    readExternalPlaybackFrame,
+    timelineContentOffset,
+  ]);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
@@ -2663,7 +2679,10 @@ function ChordLaneWorkspace({
   const handleTimelineScroll = (event: ReactUiEvent<HTMLDivElement>) => {
     const element = event.currentTarget;
     const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
-    onSharedTimelineScrollRatioChange?.(maxScroll > 0 ? element.scrollLeft / maxScroll : 0);
+    onSharedTimelineScrollRatioChange?.(
+      maxScroll > 0 ? element.scrollLeft / maxScroll : 0,
+      element.scrollLeft
+    );
   };
 
   if (practiceMode) {
@@ -2729,6 +2748,15 @@ function ChordLaneWorkspace({
             className="pointer-events-none fixed bottom-5 left-1/2 z-[9997] w-fit -translate-x-1/2 px-2"
           >
             <div className="pointer-events-auto flex items-center gap-2">
+              {showPlaybackCounter && (
+                <span
+                  className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600 shadow-sm"
+                  role="timer"
+                  aria-label="Playback time"
+                >
+                  {formatTimelineSecondLabel(effectivePlayheadFrame / chordPlaybackFps)} / {formatTimelineSecondLabel(totalFrames / chordPlaybackFps)}
+                </span>
+              )}
               <div
                 className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur"
                 role="toolbar"
@@ -2964,6 +2992,7 @@ function ChordLaneWorkspace({
       </div>
       <div
         ref={timelineRef}
+        data-gte-shared-timeline="true"
         className="hide-scrollbar relative overflow-x-auto bg-white"
         onScroll={handleTimelineScroll}
         onDragOver={(event) => event.preventDefault()}
@@ -2979,7 +3008,9 @@ function ChordLaneWorkspace({
           style={{
             width: timelineWidth,
             minHeight:
-              TIMELINE_BAR_HEADER_HEIGHT + timelineRowHeight + CHORD_TIME_RULER_HEIGHT,
+              TIMELINE_BAR_HEADER_HEIGHT +
+              timelineRowHeight +
+              (showTimeRuler ? CHORD_TIME_RULER_HEIGHT : 0),
           }}
         >
           <div className="sticky top-0 z-10 flex h-5 bg-slate-100" style={{ paddingLeft: timelineContentOffset }}>
@@ -3011,8 +3042,9 @@ function ChordLaneWorkspace({
                     selected ? "bg-sky-500 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                   }`}
                   style={{ width: FIXED_FRAMES_PER_BAR * pxPerFrame }}
+                  aria-label={`Select bar ${barIndex + 1}`}
                 >
-                  {barIndex + 1}
+                  {showBarNumbers ? barIndex + 1 : null}
                 </button>
               );
             })}
@@ -3444,7 +3476,7 @@ function ChordLaneWorkspace({
                 </div>
               );
             })}
-            <div
+            {showTimeRuler && <div
               role="button"
               tabIndex={0}
               className="absolute left-0 z-40 cursor-pointer border-t border-slate-300 bg-slate-50/90 text-[8px] text-slate-500"
@@ -3486,7 +3518,7 @@ function ChordLaneWorkspace({
                   ) : null}
                 </div>
               ))}
-            </div>
+            </div>}
           </div>
         </div>
       </div>
@@ -3636,6 +3668,9 @@ export default function GteWorkspace({
   globalSnapToGridEnabled,
   onGlobalSnapToGridEnabledChange,
   snapSubdivisionsPerBeat = 4,
+  showBarNumbers = true,
+  showTimeRuler = true,
+  showPlaybackCounter = true,
   globalSnapToKeyEnabled,
   onGlobalSnapToKeyEnabledChange,
   generatePlayingCoordinatesRequest,
@@ -3732,6 +3767,9 @@ export default function GteWorkspace({
         tabViewEnabled={tabViewEnabled}
         globalSnapToGridEnabled={globalSnapToGridEnabled}
         onGlobalSnapToGridEnabledChange={onGlobalSnapToGridEnabledChange}
+        showBarNumbers={showBarNumbers}
+        showTimeRuler={showTimeRuler}
+        showPlaybackCounter={showPlaybackCounter}
         globalSnapToKeyEnabled={globalSnapToKeyEnabled}
         onGlobalSnapToKeyEnabledChange={onGlobalSnapToKeyEnabledChange}
         leftHandedChordDiagrams={leftHandedChordDiagrams}
@@ -5262,7 +5300,7 @@ export default function GteWorkspace({
 
   useEffect(() => {
     const container = tabViewEnabled ? tabViewScrollRef.current : timelineOuterRef.current;
-    if (!container) return;
+    if (!container || onSharedTimelineScrollRatioChange) return;
     if (effectiveIsPlaying) return;
     if (sharedTimelineScrollRatio === undefined || !Number.isFinite(sharedTimelineScrollRatio)) return;
     const ratio = Math.max(0, Math.min(1, sharedTimelineScrollRatio));
@@ -5274,7 +5312,14 @@ export default function GteWorkspace({
     window.requestAnimationFrame(() => {
       applyingSharedScrollRef.current = false;
     });
-  }, [effectiveIsPlaying, editorTabView.barCount, sharedTimelineScrollRatio, tabViewEnabled, viewportTimelineWidth]);
+  }, [
+    effectiveIsPlaying,
+    editorTabView.barCount,
+    onSharedTimelineScrollRatioChange,
+    sharedTimelineScrollRatio,
+    tabViewEnabled,
+    viewportTimelineWidth,
+  ]);
 
   const handleTimelineOuterScroll = useCallback(
     (event: ReactUiEvent<HTMLDivElement>) => {
@@ -5294,7 +5339,7 @@ export default function GteWorkspace({
       if (!onSharedTimelineScrollRatioChange || applyingSharedScrollRef.current) return;
       const maxScroll = Math.max(0, target.scrollWidth - nextClientWidth);
       if (maxScroll <= 0) return;
-      onSharedTimelineScrollRatioChange(nextScrollLeft / maxScroll);
+      onSharedTimelineScrollRatioChange(nextScrollLeft / maxScroll, nextScrollLeft);
     },
     [onSharedTimelineScrollRatioChange]
   );
@@ -12310,7 +12355,12 @@ export default function GteWorkspace({
       window.cancelAnimationFrame(playbackScrollRafRef.current);
       playbackScrollRafRef.current = null;
     }
-    if (mobileViewport || !effectiveIsPlaying || (!isActive && !useExternalPlayback)) return;
+    if (
+      mobileViewport ||
+      !effectiveIsPlaying ||
+      (!isActive && !useExternalPlayback) ||
+      onSharedTimelineScrollRatioChange
+    ) return;
     const container = tabViewEnabled ? tabViewScrollRef.current : timelineOuterRef.current;
     if (!container) return;
 
@@ -12369,6 +12419,7 @@ export default function GteWorkspace({
     framesPerMeasure,
     isActive,
     mobileViewport,
+    onSharedTimelineScrollRatioChange,
     scale,
     tabViewEnabled,
     useExternalPlayback,
@@ -13628,6 +13679,15 @@ export default function GteWorkspace({
           }
         >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
+            {showPlaybackCounter && (
+              <span
+                className="pointer-events-auto absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600 shadow-sm backdrop-blur"
+                role="timer"
+                aria-label="Playback time"
+              >
+                {formatTimelineSecondLabel(effectivePlayheadFrame / playbackFps)} / {formatTimelineSecondLabel(timelineEnd / playbackFps)}
+              </span>
+            )}
             {mobileViewport ? (
               <div className="pointer-events-auto flex w-full items-center justify-center">
               <div
@@ -14429,6 +14489,7 @@ export default function GteWorkspace({
           ) : (
           <div
             ref={tabViewScrollRef}
+            data-gte-shared-timeline="true"
             className={`min-w-0 bg-white ${
               practiceMode ? "rounded-none border-0" : "rounded-xl border border-slate-200"
             } ${
@@ -14445,7 +14506,10 @@ export default function GteWorkspace({
               className="relative min-w-full"
               style={{
                 width: editorTabView.width,
-                height: editorTabView.height + TIMELINE_BAR_HEADER_HEIGHT + CUT_SEGMENT_OFFSET,
+                height:
+                  editorTabView.height +
+                  TIMELINE_BAR_HEADER_HEIGHT +
+                  (showTimeRuler ? CUT_SEGMENT_OFFSET : 0),
               }}
             >
               {framesPerMeasure > 0 &&
@@ -14490,7 +14554,7 @@ export default function GteWorkspace({
                       title={`Select Bar ${barIndex + 1}`}
                       aria-label={`Select Bar ${barIndex + 1}`}
                     >
-                      <span className="truncate">Bar {barIndex + 1}</span>
+                      {showBarNumbers ? <span className="truncate">Bar {barIndex + 1}</span> : null}
                     </button>
                   );
                 })}
@@ -14603,7 +14667,7 @@ export default function GteWorkspace({
                   transform: `translate3d(${editorTabView.cursorX}px, 0, 0) translateX(-1px)`,
                 }}
               />
-              <div
+              {showTimeRuler && <div
                 role="button"
                 tabIndex={0}
                 className="absolute left-0 z-20 cursor-pointer border-t border-slate-300 bg-slate-50/80 text-[8px] text-slate-500"
@@ -14637,7 +14701,7 @@ export default function GteWorkspace({
                     ) : null}
                   </div>
                 ))}
-              </div>
+              </div>}
             </div>
           </div>
           )
@@ -14674,6 +14738,7 @@ export default function GteWorkspace({
           <div className={`min-w-0 flex-1 ${isMobileEditMode ? "min-h-0 overflow-hidden" : "overflow-y-visible"}`}>
             <div
               ref={timelineOuterRef}
+              data-gte-shared-timeline="true"
               className="hide-scrollbar min-w-0 overflow-x-auto overflow-y-hidden"
               onScroll={handleTimelineOuterScroll}
             >
@@ -14713,7 +14778,7 @@ export default function GteWorkspace({
                         title={`Select Bar ${barIndex + 1}`}
                         aria-label={`Select Bar ${barIndex + 1}`}
                       >
-                        <span className="truncate">Bar {barIndex + 1}</span>
+                        {showBarNumbers ? <span className="truncate">Bar {barIndex + 1}</span> : null}
                       </button>
                     );
                   })}
@@ -14886,7 +14951,7 @@ export default function GteWorkspace({
                   );
                 })}
 
-                {showPlayingCoordinates && (
+                {showPlayingCoordinates && showTimeRuler && (
                   <div
                     role="button"
                     tabIndex={0}
@@ -14975,7 +15040,10 @@ export default function GteWorkspace({
                   return (
                     <button
                       ref={timelinePlayheadRef}
+                      data-gte-playhead="timeline"
                       type="button"
+                      aria-label="Playback position. Drag to seek."
+                      title="Drag playback position"
                       onMouseDown={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
@@ -15102,6 +15170,7 @@ export default function GteWorkspace({
                         key={`cut-${segIndex}-row-${rowIdx}`}
                         data-gte-editor-control="true"
                         data-gte-playing-coordinate="true"
+                        role="group"
                         className="absolute rounded-md border border-sky-300 bg-sky-200/60 px-2 py-1 text-[10px] text-slate-700"
                         style={{ top, left, width, height: CUT_SEGMENT_HEIGHT }}
                         title="Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below"

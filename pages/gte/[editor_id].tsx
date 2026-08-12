@@ -80,7 +80,17 @@ import {
   downloadGteExportFile,
   type GteExportFormat,
 } from "../../lib/gteTabExport";
-import { detectGteScale } from "../../lib/gteScaleDetection";
+import {
+  detectGteScale,
+  getRelativeScaleMatches,
+  type RelativeScaleMatch,
+} from "../../lib/gteScaleDetection";
+import {
+  DEFAULT_GTE_DISPLAY_PREFERENCES,
+  readGteDisplayPreferences,
+  writeGteDisplayPreferences,
+  type GteDisplayPreferences,
+} from "../../lib/gteDisplayPreferences";
 import {
   GTE_GUEST_EDITOR_ID,
   createGuestSnapshot,
@@ -517,6 +527,12 @@ const scaleLaneEventsForTimeSignatureChange = (
 const formatBpm = (value: number) => {
   const rounded = Math.round(value * 100) / 100;
   return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+};
+
+const formatPlaybackTime = (seconds: number) => {
+  const safeSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
+  const minutes = Math.floor(safeSeconds / 60);
+  return `${minutes}:${String(safeSeconds % 60).padStart(2, "0")}`;
 };
 
 const normalizeTrackVolume = (value: unknown) => {
@@ -1193,9 +1209,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [chordOnlyDefaultNoteLengthDenominator, setChordOnlyDefaultNoteLengthDenominator] = useState(4);
   const [chordOnlyCursorSizeDenominator, setChordOnlyCursorSizeDenominator] = useState(4);
   const [findKeyDialogOpen, setFindKeyDialogOpen] = useState(false);
+  const [selectedKeyCandidate, setSelectedKeyCandidate] = useState("");
+  const [displayPreferences, setDisplayPreferences] = useState<GteDisplayPreferences>(
+    DEFAULT_GTE_DISPLAY_PREFERENCES
+  );
   const [generatePlayingCoordinatesRequest, setGeneratePlayingCoordinatesRequest] = useState(0);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
-  const [sharedTimelineScrollRatio, setSharedTimelineScrollRatio] = useState(0);
   const [globalPlaybackFrame, setGlobalPlaybackFrame] = useState(0);
   const [globalPlaybackFrameRevision, setGlobalPlaybackFrameRevision] = useState(0);
   const [globalPlaybackIsPlaying, setGlobalPlaybackIsPlaying] = useState(false);
@@ -1271,8 +1290,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const globalTimelineScrollbarRef = useRef<HTMLDivElement | null>(null);
   const sharedTimelineMeasureRef = useRef<HTMLDivElement | null>(null);
   const applyingGlobalTimelineScrollbarRef = useRef(false);
+  const applyingSharedTimelineDomRef = useRef(false);
+  const sharedTimelineScrollRatioRef = useRef(0);
   const globalPlaybackAudioRef = useRef<AudioContext | null>(null);
   const globalPlaybackMasterGainRef = useRef<GainNode | null>(null);
+  const globalPlaybackTrackGainByIdRef = useRef<Map<string, GainNode>>(new Map());
+  const pendingTrackVolumeByIdRef = useRef<Record<string, number>>({});
   const practiceReplayAudioRef = useRef<HTMLAudioElement | null>(null);
   const practiceReplayAudioUrlRef = useRef<string | null>(null);
   const practiceReplayAudioCacheRef = useRef<Map<string, Blob>>(new Map());
@@ -1292,6 +1315,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const canvasRedoRef = useRef<CanvasSnapshot[]>([]);
   const trackSectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const [sharedTimelineBaseScale, setSharedTimelineBaseScale] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    setDisplayPreferences(readGteDisplayPreferences(window.localStorage));
+  }, []);
+
+  const updateDisplayPreference = useCallback(
+    (key: keyof GteDisplayPreferences, value: boolean) => {
+      const next = { ...displayPreferences, [key]: value };
+      setDisplayPreferences(next);
+      writeGteDisplayPreferences(window.localStorage, next);
+    },
+    [displayPreferences]
+  );
   const resetSpeedTrainerSession = useCallback(() => {
     const originalSpeed = speedTrainerOriginalSpeedRef.current;
     speedTrainerOriginalSpeedRef.current = null;
@@ -1428,7 +1464,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   useEffect(() => {
     if (!editorId) return;
-    setSharedTimelineScrollRatio(0);
+    sharedTimelineScrollRatioRef.current = 0;
     if (isGuestMode) {
       const loadGuestEditor = async () => {
         setLoading(true);
@@ -1864,21 +1900,31 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [applyCanvasUpdate, canvas, editorId, syncCanvasDraftToBackend]
   );
 
-  const handleContinueFindKey = useCallback(() => {
-    if (!canvas) {
-      setFindKeyDialogOpen(false);
-      return;
-    }
-
+  const keyDetectionMatches = useMemo<RelativeScaleMatch[]>(() => {
+    if (!findKeyDialogOpen || !canvas) return [];
     const detected = detectGteScale(canvas);
-    if (detected) {
-      const detectedKeyBase = normalizeKeyBase(detected.rootKey - 1);
-      const detectedKeyTypeIndex = KEY_TYPE_OPTIONS.findIndex((label) => label === detected.scaleType);
+    return detected ? getRelativeScaleMatches(detected, 5) : [];
+  }, [canvas, findKeyDialogOpen]);
+
+  useEffect(() => {
+    if (!findKeyDialogOpen) return;
+    const first = keyDetectionMatches[0];
+    setSelectedKeyCandidate(first ? `${first.rootKey}:${first.scaleType}` : "");
+  }, [findKeyDialogOpen, keyDetectionMatches]);
+
+  const handleContinueFindKey = useCallback(() => {
+    const selected = keyDetectionMatches.find(
+      (candidate) => `${candidate.rootKey}:${candidate.scaleType}` === selectedKeyCandidate
+    );
+    if (selected) {
+      const detectedKeyBase = normalizeKeyBase(selected.rootKey - 1);
+      const detectedKeyTypeIndex = KEY_TYPE_OPTIONS.findIndex(
+        (label) => label === selected.scaleType
+      );
       commitCanvasKey(detectedKeyBase, detectedKeyTypeIndex >= 0 ? detectedKeyTypeIndex : 0);
     }
-
     setFindKeyDialogOpen(false);
-  }, [canvas, commitCanvasKey]);
+  }, [commitCanvasKey, keyDetectionMatches, selectedKeyCandidate]);
 
   const commitName = async (rawValue: string = nameDraft, options?: { exitEdit?: boolean }) => {
     if (!canvas) return;
@@ -2269,7 +2315,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const handleLaneSnapshotChange = (
     laneId: string,
     nextLaneSnapshot: EditorSnapshot,
-    options?: { recordHistory?: boolean }
+    options?: { recordHistory?: boolean; markDirty?: boolean }
   ) => {
     setCanvas((prev) => {
       if (!prev) return prev;
@@ -2315,7 +2361,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       }
       return nextCanvas;
     });
-    if (options?.recordHistory !== false) {
+    if (options?.markDirty ?? options?.recordHistory !== false) {
       setHasPendingCommit(true);
     }
   };
@@ -2783,10 +2829,47 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     return () => observer.disconnect();
   }, [canvas, isMobileViewport]);
 
-  const handleSharedTimelineScrollRatioChange = useCallback((next: number) => {
+  const synchronizeSharedTimelineScroll = useCallback((next: number, scrollLeft?: number) => {
     const clamped = Math.max(0, Math.min(1, next));
-    setSharedTimelineScrollRatio((prev) => (Math.abs(prev - clamped) < 0.001 ? prev : clamped));
+    const requestedScrollLeft = Number.isFinite(scrollLeft)
+      ? Math.max(0, Number(scrollLeft))
+      : null;
+    sharedTimelineScrollRatioRef.current = clamped;
+
+    applyingSharedTimelineDomRef.current = true;
+    document.querySelectorAll<HTMLElement>("[data-gte-shared-timeline='true']").forEach((element) => {
+      const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
+      const targetScroll = requestedScrollLeft === null
+        ? maxScroll * clamped
+        : Math.min(maxScroll, requestedScrollLeft);
+      if (Math.abs(element.scrollLeft - targetScroll) >= 0.5) {
+        element.scrollLeft = targetScroll;
+      }
+    });
+    const scrollbar = globalTimelineScrollbarRef.current;
+    if (scrollbar) {
+      const maxScroll = Math.max(0, scrollbar.scrollWidth - scrollbar.clientWidth);
+      const targetScroll = requestedScrollLeft === null
+        ? maxScroll * clamped
+        : Math.min(maxScroll, requestedScrollLeft);
+      if (Math.abs(scrollbar.scrollLeft - targetScroll) >= 0.5) {
+        applyingGlobalTimelineScrollbarRef.current = true;
+        scrollbar.scrollLeft = targetScroll;
+      }
+    }
+    window.requestAnimationFrame(() => {
+      applyingSharedTimelineDomRef.current = false;
+      applyingGlobalTimelineScrollbarRef.current = false;
+    });
   }, []);
+
+  const handleSharedTimelineScrollRatioChange = useCallback(
+    (next: number, scrollLeft?: number) => {
+      if (applyingSharedTimelineDomRef.current) return;
+      synchronizeSharedTimelineScroll(next, scrollLeft);
+    },
+    [synchronizeSharedTimelineScroll]
+  );
 
   const globalTimelineTrackWidth = useMemo(
     () =>
@@ -2848,18 +2931,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   );
 
   useEffect(() => {
-    const scrollbar = globalTimelineScrollbarRef.current;
-    if (!scrollbar) return;
-    const ratio = Math.max(0, Math.min(1, sharedTimelineScrollRatio));
-    const maxScroll = Math.max(0, scrollbar.scrollWidth - scrollbar.clientWidth);
-    const targetScroll = Math.round(maxScroll * ratio);
-    if (Math.abs(scrollbar.scrollLeft - targetScroll) < 1) return;
-    applyingGlobalTimelineScrollbarRef.current = true;
-    scrollbar.scrollLeft = targetScroll;
-    window.requestAnimationFrame(() => {
-      applyingGlobalTimelineScrollbarRef.current = false;
-    });
-  }, [sharedTimelineScrollRatio, globalTimelineTrackWidth]);
+    synchronizeSharedTimelineScroll(sharedTimelineScrollRatioRef.current);
+  }, [canvas?.editors.length, editorId, globalTimelineTrackWidth, synchronizeSharedTimelineScroll, tabViewEnabled]);
 
   const handleGlobalTimelineScrollbarScroll = useCallback(
     (event: ReactUiEvent<HTMLDivElement>) => {
@@ -2869,7 +2942,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         event.currentTarget.scrollWidth - event.currentTarget.clientWidth
       );
       if (maxScroll <= 0) return;
-      handleSharedTimelineScrollRatioChange(event.currentTarget.scrollLeft / maxScroll);
+      handleSharedTimelineScrollRatioChange(
+        event.currentTarget.scrollLeft / maxScroll,
+        event.currentTarget.scrollLeft
+      );
     },
     [handleSharedTimelineScrollRatioChange]
   );
@@ -3425,6 +3501,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       closeAudioContext(globalPlaybackAudioRef.current);
       globalPlaybackAudioRef.current = null;
     }
+    globalPlaybackTrackGainByIdRef.current.clear();
     globalPlaybackMasterGainRef.current = null;
   }, []);
 
@@ -3528,6 +3605,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
       let endFrame = Math.max(playbackStartFrame, playbackEndFrame);
       const events: Array<{
+        trackId: string;
         start: number;
         duration: number;
         midi: number;
@@ -3549,6 +3627,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         gain: number,
         instrumentId: string,
         pan: number,
+        trackId: string,
         bendSegments?: Array<{
           holdFrames: number;
           bendFrames: number;
@@ -3564,6 +3643,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         if (durationFrames <= 0) return;
         endFrame = Math.max(endFrame, trimmedEnd);
         events.push({
+          trackId,
           start: frameDeltaToSeconds(trimmedStart - playbackStartFrame, globalPlaybackFps, runPlaybackSpeed),
           duration: frameDeltaToSeconds(durationFrames, globalPlaybackFps, runPlaybackSpeed),
           midi,
@@ -3597,9 +3677,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         const laneId = lane.id || `ed-${index + 1}`;
         if (isolatedTrackId && laneId !== isolatedTrackId) return;
         if (trackMuteById[laneId]) return;
-        const laneVolume = normalizeTrackVolume(trackVolumeById[laneId] ?? 1);
         const lanePan = normalizeTrackPan(trackPanById[laneId] ?? 0);
-        if (laneVolume <= 0) return;
         const instrumentId = normalizeTrackInstrumentId(lane.instrumentId);
         if (isDrumLane(lane)) {
           materializeDrumLoopNotes(
@@ -3616,6 +3694,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             }
             endFrame = Math.max(endFrame, roundedStart + 1);
             events.push({
+              trackId: laneId,
               start: frameDeltaToSeconds(
                 roundedStart - playbackStartFrame,
                 globalPlaybackFps,
@@ -3623,7 +3702,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               ),
               duration: 0.2,
               midi: note.midiNum,
-              gain: 0.72 * laneVolume,
+              gain: 0.72,
               instrumentId: "drum1",
               pan: lanePan,
               drumVoiceId: getDrumVoiceForNote(note).id,
@@ -3683,9 +3762,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
           const baseMidi =
             Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(lane, note.tab);
-          const noteGain = 0.55 * laneVolume;
+          const noteGain = 0.55;
           if (!outgoingTransitions.has(note.id)) {
-            pushEvent(note.startTime, note.length, baseMidi, noteGain, instrumentId, lanePan);
+            pushEvent(note.startTime, note.length, baseMidi, noteGain, instrumentId, lanePan, laneId);
             return;
           }
 
@@ -3748,6 +3827,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             noteGain,
             instrumentId,
             lanePan,
+            laneId,
             bendSegments.length > 0 ? bendSegments : undefined
           );
         });
@@ -3778,9 +3858,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               step.startFrame,
               step.durationFrames,
               step.midi,
-              0.55 * laneVolume,
+              0.55,
               instrumentId,
-              lanePan
+              lanePan,
+              laneId
             );
           });
         });
@@ -3805,9 +3886,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   noteStart,
                   strum.endFrame - noteStart,
                   midi,
-                  0.42 * laneVolume,
+                  0.42,
                   instrumentId,
-                  lanePan
+                  lanePan,
+                  laneId
                 );
               });
             });
@@ -3833,9 +3915,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 noteStart,
                 strum.endFrame - noteStart,
                 midi,
-                0.48 * laneVolume,
+                0.48,
                 instrumentId,
-                lanePan
+                lanePan,
+                laneId
               );
             });
           });
@@ -3879,6 +3962,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       master.gain.value = globalPlaybackVolume;
       master.connect(ctx.destination);
       globalPlaybackMasterGainRef.current = master;
+      const trackGainById = new Map<string, GainNode>();
+      if (!muteOutput) {
+        new Set(events.map((event) => event.trackId)).forEach((trackId) => {
+          const trackGain = ctx.createGain();
+          trackGain.gain.value = normalizeTrackVolume(trackVolumeById[trackId] ?? 1);
+          trackGain.connect(master);
+          trackGainById.set(trackId, trackGain);
+        });
+      }
+      globalPlaybackTrackGainByIdRef.current = trackGainById;
       const shouldCountIn = !oneShotRange && countInEnabled && (!isLoopRestart || countInEveryLoop);
       const countInSec = shouldCountIn
         ? frameDeltaToSeconds(FIXED_FRAMES_PER_BAR * countInBars, globalPlaybackFps, runPlaybackSpeed)
@@ -3902,11 +3995,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
       if (!muteOutput) {
         events.forEach((evt) => {
+          const trackDestination = trackGainById.get(evt.trackId) ?? master;
           const destination = (() => {
             if (typeof ctx.createStereoPanner === "function") {
               const panner = ctx.createStereoPanner();
               panner.pan.value = normalizeTrackPan(evt.pan);
-              panner.connect(master);
+              panner.connect(trackDestination);
               return panner;
             }
             const merger = ctx.createChannelMerger(2);
@@ -3917,7 +4011,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             right.gain.value = gains.rightGain;
             left.connect(merger, 0, 0);
             right.connect(merger, 0, 1);
-            merger.connect(master);
+            merger.connect(trackDestination);
             const splitter = ctx.createGain();
             splitter.connect(left);
             splitter.connect(right);
@@ -4493,15 +4587,29 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     });
   }, [canvas, persistTrackPlaybackCanvas, trackMuteById]);
 
-  const handleTrackVolumeChange = useCallback((trackId: string, nextVolume: number) => {
-    if (!canvas) return;
+  const handleTrackVolumePreview = useCallback((trackId: string, nextVolume: number) => {
     const volume = normalizeTrackVolume(nextVolume);
+    pendingTrackVolumeByIdRef.current[trackId] = volume;
     setTrackVolumeById((prev) => ({ ...prev, [trackId]: volume }));
+    const audioContext = globalPlaybackAudioRef.current;
+    const trackGain = globalPlaybackTrackGainByIdRef.current.get(trackId);
+    if (audioContext && trackGain) {
+      const now = audioContext.currentTime;
+      trackGain.gain.cancelScheduledValues(now);
+      trackGain.gain.setTargetAtTime(volume, now, 0.015);
+    }
+  }, []);
+
+  const commitTrackVolume = useCallback((trackId: string) => {
+    if (!canvas) return;
+    const pendingVolume = pendingTrackVolumeByIdRef.current[trackId];
+    if (pendingVolume === undefined) return;
+    delete pendingTrackVolumeByIdRef.current[trackId];
     persistTrackPlaybackCanvas({
       ...canvas,
       updatedAt: new Date().toISOString(),
       editors: canvas.editors.map((lane) =>
-        lane.id === trackId ? { ...lane, playbackVolume: volume } : lane
+        lane.id === trackId ? { ...lane, playbackVolume: pendingVolume } : lane
       ),
     });
   }, [canvas, persistTrackPlaybackCanvas]);
@@ -4540,8 +4648,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       ...canvas.editors.map((lane, index) => {
         const laneId = lane.id || `ed-${index + 1}`;
         return `${laneId}:${trackMuteById[laneId] ? 1 : 0}:${Math.round(
-          normalizeTrackVolume(trackVolumeById[laneId] ?? 1) * 1000
-        )}:${Math.round(normalizeTrackPan(trackPanById[laneId] ?? 0) * 1000)}`;
+          normalizeTrackPan(trackPanById[laneId] ?? 0) * 1000
+        )}`;
       }),
     ].join("|");
   }, [
@@ -4556,7 +4664,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     speedTrainerEnabled,
     trackMuteById,
     trackPanById,
-    trackVolumeById,
   ]);
 
   useEffect(() => {
@@ -4655,7 +4762,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           0,
           Math.min(1, globalPlaybackFrameRef.current / Math.max(1, canvasTimelineEnd))
         );
-        const playheadX = progress * maxScroll;
+        const playheadX = progress * scrollbar.scrollWidth;
         const left = scrollbar.scrollLeft;
         const right = left + scrollbar.clientWidth;
         const padding = Math.min(180, scrollbar.clientWidth * 0.25);
@@ -4665,11 +4772,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             Math.min(maxScroll, playheadX - scrollbar.clientWidth * 0.35)
           );
           if (Math.abs(scrollbar.scrollLeft - target) >= 0.5) {
-            applyingGlobalTimelineScrollbarRef.current = true;
-            scrollbar.scrollLeft = target;
-            window.requestAnimationFrame(() => {
-              applyingGlobalTimelineScrollbarRef.current = false;
-            });
+            synchronizeSharedTimelineScroll(target / maxScroll, target);
           }
         }
       }
@@ -4679,7 +4782,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     return () => {
       if (rafId !== null) window.cancelAnimationFrame(rafId);
     };
-  }, [canvasTimelineEnd, globalPlaybackIsPlaying]);
+  }, [canvasTimelineEnd, globalPlaybackIsPlaying, synchronizeSharedTimelineScroll]);
 
   const mobileHistoryBusy = Boolean(deletingLaneId || addingLane || savingCanvas);
   const renderMobileHistoryControls = () => (
@@ -4735,7 +4838,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           onClick={() => setEditorMode("canvas")}
           aria-pressed={editorMode === "canvas"}
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
-            editorMode === "canvas" ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
+            editorMode === "canvas" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
           }`}
         >
           Canvas
@@ -4745,7 +4848,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           onClick={() => setEditorMode("tab")}
           aria-pressed={editorMode === "tab"}
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
-            editorMode === "tab" ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
+            editorMode === "tab" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
           }`}
         >
           Tab view
@@ -4755,7 +4858,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           onClick={() => setEditorMode("practice")}
           aria-pressed={practiceModeEnabled}
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${
-            practiceModeEnabled ? "text-emerald-800" : "text-slate-500 hover:text-slate-700"
+            practiceModeEnabled ? "text-emerald-800" : "text-slate-600 hover:text-slate-800"
           }`}
         >
           Practice
@@ -5399,9 +5502,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     step={0.01}
                     value={normalizeTrackVolume(trackVolumeById[practiceSoundLaneId] ?? 1)}
                     onChange={(event) =>
-                      handleTrackVolumeChange(practiceSoundLaneId, Number(event.target.value))
+                      handleTrackVolumePreview(practiceSoundLaneId, Number(event.target.value))
                     }
+                    onPointerUp={() => commitTrackVolume(practiceSoundLaneId)}
+                    onPointerCancel={() => commitTrackVolume(practiceSoundLaneId)}
+                    onBlur={() => commitTrackVolume(practiceSoundLaneId)}
                     className="mt-1.5 w-full accent-slate-700"
+                    aria-label="Practice track volume"
                   />
                 </label>
                 <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -5766,11 +5873,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           {savingCanvas ? "Saving..." : "Save"}
                         </button>
                       </div>
-                      <div className="mt-3 text-xs text-slate-500" role="status" aria-live="polite">
+                      <div className="mt-3 text-xs text-slate-600" role="status" aria-live="polite">
                         {saveStatus}
                       </div>
                       {isGuestMode && (
-                        <div className="mt-2 text-xs text-slate-500">
+                        <div className="mt-2 text-xs text-slate-600">
                           This draft stays in this browser until you save it to your account.
                         </div>
                       )}
@@ -6047,8 +6154,36 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </button>
                     </div>
                   </details>
+                  <details className="rounded-xl border border-slate-200 bg-slate-50">
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-slate-700">
+                      Display
+                      <span className="text-xs font-normal text-slate-500">
+                        Timeline labels & counter
+                      </span>
+                    </summary>
+                    <div className="grid gap-1 border-t border-slate-200 p-2">
+                      {([
+                        ["showBarNumbers", "Bar numbers"],
+                        ["showTimeRuler", "Time ruler"],
+                        ["showPlaybackCounter", "Playback counter"],
+                      ] as const).map(([key, label]) => (
+                        <button
+                          key={`mobile-display-${key}`}
+                          type="button"
+                          onClick={() => updateDisplayPreference(key, !displayPreferences[key])}
+                          aria-pressed={displayPreferences[key]}
+                          className="flex min-h-11 items-center justify-between rounded-lg bg-white px-3 text-left text-sm text-slate-700"
+                        >
+                          <span>{label}</span>
+                          <span className="text-xs text-slate-500">
+                            {displayPreferences[key] ? "On" : "Off"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </details>
                   <div className="flex min-h-[1.25rem] flex-wrap items-center gap-3 text-xs">
-                    <span className="muted" role="status" aria-live="polite">{saveStatus}</span>
+                    <span className="text-slate-600" role="status" aria-live="polite">{saveStatus}</span>
                     {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
                     {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
                     {(timeSignatureSaving || timeSignatureError) && (
@@ -6168,21 +6303,39 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
                 View · {timelineZoomPercent}%
               </summary>
-              <label className="absolute right-0 top-[calc(100%+4px)] z-[10000] grid w-64 gap-2 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700 shadow-xl">
-                <span className="flex justify-between">
-                  <span>Timeline zoom</span>
-                  <span>{timelineZoomPercent}%</span>
-                </span>
-                <input
-                  type="range"
-                  min={TIMELINE_ZOOM_MIN}
-                  max={TIMELINE_ZOOM_MAX}
-                  step={1}
-                  value={timelineZoomPercent}
-                  onChange={(event) => setTimelineZoomPercent(Number(event.target.value))}
-                  aria-label="Timeline zoom"
-                />
-              </label>
+              <div className="absolute right-0 top-[calc(100%+4px)] z-[10000] grid w-64 gap-1 rounded-lg border border-slate-200 bg-white p-2 text-sm text-slate-700 shadow-xl">
+                {([
+                  ["showBarNumbers", "Bar numbers"],
+                  ["showTimeRuler", "Time ruler"],
+                  ["showPlaybackCounter", "Playback counter"],
+                ] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => updateDisplayPreference(key, !displayPreferences[key])}
+                    aria-pressed={displayPreferences[key]}
+                    className="flex min-h-10 items-center justify-between rounded-md px-2 text-left hover:bg-slate-100"
+                  >
+                    <span>{label}</span>
+                    <span className="text-xs">{displayPreferences[key] ? "On" : "Off"}</span>
+                  </button>
+                ))}
+                <label className="mt-1 grid gap-2 border-t border-slate-100 px-2 pt-2">
+                  <span className="flex justify-between">
+                    <span>Timeline zoom</span>
+                    <span>{timelineZoomPercent}%</span>
+                  </span>
+                  <input
+                    type="range"
+                    min={TIMELINE_ZOOM_MIN}
+                    max={TIMELINE_ZOOM_MAX}
+                    step={1}
+                    value={timelineZoomPercent}
+                    onChange={(event) => setTimelineZoomPercent(Number(event.target.value))}
+                    aria-label="Timeline zoom"
+                  />
+                </label>
+              </div>
             </details>
           </div>
         )}
@@ -6497,6 +6650,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           {leftHandedChordDiagrams ? "Left-handed" : "Right-handed"}
                         </span>
                       </button>
+                      {([
+                        ["showBarNumbers", "Bar numbers"],
+                        ["showTimeRuler", "Time ruler"],
+                        ["showPlaybackCounter", "Playback counter"],
+                      ] as const).map(([key, label]) => (
+                        <button
+                          key={`view-${key}`}
+                          type="button"
+                          onClick={() => updateDisplayPreference(key, !displayPreferences[key])}
+                          aria-pressed={displayPreferences[key]}
+                          className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                        >
+                          <span>{label}</span>
+                          <span className="text-xs">{displayPreferences[key] ? "On" : "Off"}</span>
+                        </button>
+                      ))}
                       <button
                         type="button"
                         onClick={() => void router.push(`/gte/${editorId}/tabs`)}
@@ -6832,7 +7001,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
                       </svg>
                     </button>
-                    <span className="text-xs text-slate-500" role="status" aria-live="polite">
+                    <span className="text-xs text-slate-600" role="status" aria-live="polite">
                       {saveStatus}
                     </span>
                     {isGuestMode ? (
@@ -7396,7 +7565,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               className="text-small"
               style={{ minHeight: "1.25rem", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}
             >
-              <span className="muted">{saveStatus}</span>
+              <span className="text-slate-600">{saveStatus}</span>
               {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
               {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
               {(timeSignatureSaving || timeSignatureError) && (
@@ -7606,7 +7775,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </div>
                 )}
                 <div className="mt-3 flex min-h-[1.25rem] flex-wrap items-center gap-3 text-xs">
-                  <span className="muted">{saveStatus}</span>
+                  <span className="text-slate-600">{saveStatus}</span>
                   {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
                   {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
                   {(timeSignatureSaving || timeSignatureError) && (
@@ -7977,6 +8146,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               globalSnapToGridEnabled={globalSnapToGridEnabled}
                               onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
                               snapSubdivisionsPerBeat={globalSnapSubdivisionsPerBeat}
+                              showBarNumbers={displayPreferences.showBarNumbers}
+                              showTimeRuler={displayPreferences.showTimeRuler}
+                              showPlaybackCounter={displayPreferences.showPlaybackCounter}
                               globalSnapToKeyEnabled={globalSnapToKeyEnabled}
                               onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
                               generatePlayingCoordinatesRequest={generatePlayingCoordinatesRequest}
@@ -7998,7 +8170,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                               sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                               sharedViewportBarCount={sharedViewportBarCount}
-                              sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
                                 practiceModeEnabled
@@ -8254,8 +8425,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                         max={1}
                                         step={0.01}
                                         value={trackVolume}
-                                        onChange={(event) => handleTrackVolumeChange(laneId, Number(event.target.value))}
+                                        onChange={(event) => handleTrackVolumePreview(laneId, Number(event.target.value))}
+                                        onPointerUp={() => commitTrackVolume(laneId)}
+                                        onPointerCancel={() => commitTrackVolume(laneId)}
+                                        onBlur={() => commitTrackVolume(laneId)}
                                         className="flex-1 accent-slate-700"
+                                        aria-label={`Volume for ${lane.name || `Track ${index + 1}`}`}
                                       />
                                       <span className="w-10 text-right text-xs text-slate-500">
                                         {Math.round(trackVolume * 100)}%
@@ -8295,6 +8470,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               globalSnapToGridEnabled={globalSnapToGridEnabled}
                               onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
                               snapSubdivisionsPerBeat={globalSnapSubdivisionsPerBeat}
+                              showBarNumbers={displayPreferences.showBarNumbers}
+                              showTimeRuler={displayPreferences.showTimeRuler}
+                              showPlaybackCounter={displayPreferences.showPlaybackCounter}
                               globalSnapToKeyEnabled={globalSnapToKeyEnabled}
                               onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
                               generatePlayingCoordinatesRequest={generatePlayingCoordinatesRequest}
@@ -8316,7 +8494,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                               sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                               sharedViewportBarCount={sharedViewportBarCount}
-                              sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
                                 practiceModeEnabled
@@ -8504,7 +8681,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               max={1}
                               step={0.01}
                               value={trackVolume}
-                              onChange={(event) => handleTrackVolumeChange(laneId, Number(event.target.value))}
+                              onChange={(event) => handleTrackVolumePreview(laneId, Number(event.target.value))}
+                              onPointerUp={() => commitTrackVolume(laneId)}
+                              onPointerCancel={() => commitTrackVolume(laneId)}
+                              onBlur={() => commitTrackVolume(laneId)}
                               onClick={(event) => event.stopPropagation()}
                               className="h-2 min-w-0 flex-1 accent-slate-700"
                               title="Track volume"
@@ -8764,8 +8944,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                             step={0.01}
                                             value={candidateVolume}
                                             onChange={(event) =>
-                                              handleTrackVolumeChange(candidateId, Number(event.target.value))
+                                              handleTrackVolumePreview(candidateId, Number(event.target.value))
                                             }
+                                            onPointerUp={() => commitTrackVolume(candidateId)}
+                                            onPointerCancel={() => commitTrackVolume(candidateId)}
+                                            onBlur={() => commitTrackVolume(candidateId)}
                                             className="w-12 shrink-0 accent-slate-700"
                                             title={`Volume ${Math.round(candidateVolume * 100)}%`}
                                             aria-label={`Volume for ${candidate.name || `Track ${candidateIndex + 1}`}`}
@@ -8831,6 +9014,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           globalSnapToGridEnabled={globalSnapToGridEnabled}
                           onGlobalSnapToGridEnabledChange={setGlobalSnapToGridEnabled}
                           snapSubdivisionsPerBeat={globalSnapSubdivisionsPerBeat}
+                          showBarNumbers={displayPreferences.showBarNumbers}
+                          showTimeRuler={displayPreferences.showTimeRuler}
+                          showPlaybackCounter={displayPreferences.showPlaybackCounter}
                           globalSnapToKeyEnabled={globalSnapToKeyEnabled}
                           onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
                           generatePlayingCoordinatesRequest={generatePlayingCoordinatesRequest}
@@ -8851,7 +9037,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                           sharedViewportBarCount={sharedViewportBarCount}
                           sharedTimelineBaseScale={sharedTimelineBaseScale}
-                          sharedTimelineScrollRatio={sharedTimelineScrollRatio}
                           onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                           timelineZoomFactor={
                             practiceModeEnabled
@@ -9129,9 +9314,48 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               if (event.key === "Escape") setFindKeyDialogOpen(false);
             }}
           >
-            <div id="find-key-dialog-title" className="text-sm font-semibold text-slate-900">
-              This action will find the best fitting key and assign it to the editor. 
-              Are you sure you want to continue?
+            <h2 id="find-key-dialog-title" className="text-base font-semibold text-slate-900">
+              Choose a likely key
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Note2Tabs compares the notes and chords in this project. Relative match scores rank these choices only; they are not probabilities.
+            </p>
+            <div className="mt-4 grid gap-2" role="radiogroup" aria-label="Likely song keys">
+              {keyDetectionMatches.length ? (
+                keyDetectionMatches.map((candidate, index) => {
+                  const value = `${candidate.rootKey}:${candidate.scaleType}`;
+                  const selected = selectedKeyCandidate === value;
+                  return (
+                    <label
+                      key={value}
+                      className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition ${
+                        selected
+                          ? "border-sky-400 bg-sky-50"
+                          : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="detected-key"
+                        value={value}
+                        checked={selected}
+                        onChange={() => setSelectedKeyCandidate(value)}
+                        className="accent-sky-600"
+                      />
+                      <span className="min-w-0 flex-1 text-sm font-semibold text-slate-800">
+                        {candidate.root} {candidate.scaleType}
+                      </span>
+                      <span className="text-right text-[10px] font-medium text-slate-500">
+                        {index === 0 ? "Closest match" : `Relative match ${candidate.relativeMatch}/100`}
+                      </span>
+                    </label>
+                  );
+                })
+              ) : (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-600">
+                  Add some notes or chords before detecting the key.
+                </div>
+              )}
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -9145,9 +9369,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               <button
                 type="button"
                 onClick={handleContinueFindKey}
-                className="rounded-md border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                disabled={!selectedKeyCandidate}
+                className="rounded-md border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Continue
+                Apply key
               </button>
             </div>
           </div>
@@ -9159,6 +9384,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           className="pointer-events-none fixed bottom-16 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2"
         >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
+            {displayPreferences.showPlaybackCounter && (
+              <span
+                className="pointer-events-auto absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600 shadow-sm"
+                role="timer"
+                aria-label="Playback time"
+              >
+                {formatPlaybackTime(globalPlaybackFrame / globalPlaybackFps)} / {formatPlaybackTime(canvasTimelineEnd / globalPlaybackFps)}
+              </span>
+            )}
             <div className="pointer-events-auto flex items-center gap-2">
               <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
                 <button
@@ -9252,6 +9486,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               <div
                 ref={globalTimelineScrollbarRef}
                 data-gte-timeline-control="true"
+                role="region"
                 className="h-5 min-w-0 flex-1 overflow-x-scroll overflow-y-hidden"
                 onScroll={handleGlobalTimelineScrollbarScroll}
                 tabIndex={0}
