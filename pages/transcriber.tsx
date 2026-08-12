@@ -17,6 +17,7 @@ import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
 import {
   DEFAULT_TRANSCRIPTION_MODEL,
+  getDefaultTranscriptionModel,
   type TranscriptionModelChoice,
 } from "../lib/transcriptionModels";
 import {
@@ -189,6 +190,7 @@ export default function TranscriberPage() {
   const [multipleGuitars, setMultipleGuitars] = useState<boolean | null>(null);
   const [transcriptionModel, setTranscriptionModel] =
     useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
+  const transcriptionModelTouchedRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -215,6 +217,10 @@ export default function TranscriberPage() {
   const transcriberSession = session ?? null;
   const isSignedIn = Boolean(transcriberSession);
   const isPremiumUser = isPremiumRole(transcriberSession?.user?.role);
+  const selectTranscriptionModel = (model: TranscriptionModelChoice) => {
+    transcriptionModelTouchedRef.current = true;
+    setTranscriptionModel(model);
+  };
   const needsPremiumForSelectedFile = Boolean(
     transcriberSession && !isPremiumUser && selectedFile && selectedFile.size > MAX_FREE_BYTES
   );
@@ -269,6 +275,11 @@ export default function TranscriberPage() {
     return isFileClipRangeValid(fileStartTime, fileEndTime, fileDuration, isPremiumUser);
   }, [fileDuration, fileEndTime, fileStartTime, isPremiumUser, selectedFile]);
   const shouldDeferEditorSync = Boolean(appendEditorId);
+
+  useEffect(() => {
+    if (sessionStatus === "loading" || transcriptionModelTouchedRef.current) return;
+    setTranscriptionModel(getDefaultTranscriptionModel(isPremiumUser));
+  }, [isPremiumUser, sessionStatus]);
 
   useEffect(() => {
     setLocalUnverifiedTranscriptionUsed(Boolean(session?.user?.unverifiedTranscriptionUsed));
@@ -1286,7 +1297,7 @@ export default function TranscriberPage() {
                       <TranscriptionModelDropdown
                         id="transcriber-transcription-model"
                         value={transcriptionModel}
-                        onChange={setTranscriptionModel}
+                        onChange={selectTranscriptionModel}
                         disabled={loading || authHandoffBusy}
                       />
                     </div>
@@ -1305,7 +1316,7 @@ export default function TranscriberPage() {
                   model={transcriptionModel}
                   isPremium={isPremiumUser}
                   onSelectHeavy={() => {
-                    setTranscriptionModel("heavy");
+                    selectTranscriptionModel("heavy");
                     trackCtaClick("try_heavy_model", { surface: "transcriber_funnel" });
                   }}
                   surface="transcriber_funnel"

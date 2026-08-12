@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from "crypto";
 export const ANALYTICS_CONSENT_COOKIE = "analytics_consent";
 export const ANALYTICS_SESSION_COOKIE = "analytics_session";
 export const ANALYTICS_ANON_COOKIE = "analytics_anon";
+export const ANALYTICS_ATTRIBUTION_COOKIE = "analytics_first_touch";
 
 export type ConsentCookieState = "granted" | "denied";
 
@@ -75,6 +76,14 @@ export function setConsentCookie(res: NextApiResponse, value: ConsentCookieState
     res,
     serializeCookie(ANALYTICS_CONSENT_COOKIE, value, {
       maxAgeSec: 365 * 24 * 60 * 60,
+      path: "/",
+      sameSite: "Lax",
+    })
+  );
+  appendSetCookie(
+    res,
+    serializeCookie(ANALYTICS_ATTRIBUTION_COOKIE, "", {
+      maxAgeSec: 0,
       path: "/",
       sameSite: "Lax",
     })

@@ -51,10 +51,6 @@ function clearLegacyAnalyticsPersistence() {
     // Storage can be unavailable in hardened browser contexts.
   }
 
-  const secure = window.location?.protocol === "https:" ? "; Secure" : "";
-  for (const cookieName of ["analytics_session", "analytics_anon"]) {
-    document.cookie = `${cookieName}=; Max-Age=0; expires=${new Date(0).toUTCString()}; path=/; SameSite=Lax${secure}`;
-  }
 }
 
 function markIdentityResetPending() {

@@ -45,6 +45,12 @@ export type TranscriberSegment = {
   MidiNumLine?: number[];
 };
 export type TranscriberSegmentGroup = TranscriberSegment[];
+export type TranscriberTrack = {
+  name: string;
+  trackType: "tab" | "drums";
+  instrumentId: string;
+  segments: TranscriberSegmentGroup;
+};
 export type TranscriberImportResponse = {
   ok: true;
   target?: string;
@@ -61,6 +67,7 @@ export type TranscriberImportResponse = {
 
 type ImportTranscriberToSavedPayload = {
   segmentGroups: TranscriberSegmentGroup[];
+  tracks?: TranscriberTrack[];
   target?: "new" | "existing";
   editorId?: string;
   name?: string;
@@ -210,10 +217,12 @@ type TranscriberChunkImportResult = {
 async function postTranscriberImportChunk(
   editorId: string,
   segmentGroups: TranscriberSegmentGroup[],
+  tracks?: TranscriberTrack[],
   quantize?: boolean
 ): Promise<TranscriberImportResponse> {
   return postTranscriberImportSaved({
     segmentGroups,
+    tracks,
     target: "existing",
     editorId,
     quantize,
@@ -223,11 +232,12 @@ async function postTranscriberImportChunk(
 async function importTranscriberChunkWithRetry(
   editorId: string,
   segmentGroups: TranscriberSegmentGroup[],
+  tracks?: TranscriberTrack[],
   quantize?: boolean,
   depth: number = 0
 ): Promise<TranscriberChunkImportResult> {
   try {
-    const response = await postTranscriberImportChunk(editorId, segmentGroups, quantize);
+    const response = await postTranscriberImportChunk(editorId, segmentGroups, tracks, quantize);
     return {
       editorId: response.editorId || editorId,
       importedEditorIds: Array.isArray(response.importedEditorIds) ? response.importedEditorIds : [],
@@ -241,8 +251,21 @@ async function importTranscriberChunkWithRetry(
     const left = segmentGroups.slice(0, middle);
     const right = segmentGroups.slice(middle);
 
-    const leftResult = await importTranscriberChunkWithRetry(editorId, left, quantize, depth + 1);
-    const rightResult = await importTranscriberChunkWithRetry(leftResult.editorId, right, quantize, depth + 1);
+    const splitTracks = tracks?.length === segmentGroups.length ? tracks : undefined;
+    const leftResult = await importTranscriberChunkWithRetry(
+      editorId,
+      left,
+      splitTracks?.slice(0, middle),
+      quantize,
+      depth + 1
+    );
+    const rightResult = await importTranscriberChunkWithRetry(
+      leftResult.editorId,
+      right,
+      splitTracks?.slice(middle),
+      quantize,
+      depth + 1
+    );
     return {
       editorId: rightResult.editorId,
       importedEditorIds: [...leftResult.importedEditorIds, ...rightResult.importedEditorIds],
@@ -276,11 +299,22 @@ async function importTranscriberToSaved(
   }
 
   const chunks = chunkTranscriberSegmentGroups(groups);
+  const trackBySegments = Array.isArray(payload.tracks) && payload.tracks.length === groups.length
+    ? payload.tracks
+    : undefined;
+  let groupOffset = 0;
   let lastResponse: TranscriberImportResponse | null = null;
   const importedEditorIds: string[] = [];
 
   for (let index = 0; index < chunks.length; index += 1) {
-    const result = await importTranscriberChunkWithRetry(currentEditorId, chunks[index], payload.quantize && index === 0);
+    const chunkTracks = trackBySegments?.slice(groupOffset, groupOffset + chunks[index].length);
+    const result = await importTranscriberChunkWithRetry(
+      currentEditorId,
+      chunks[index],
+      chunkTracks,
+      payload.quantize && index === 0
+    );
+    groupOffset += chunks[index].length;
     currentEditorId = result.editorId || currentEditorId;
     lastResponse = result.response;
     if (result.importedEditorIds.length > 0) {
@@ -313,6 +347,7 @@ export const gteApi = {
     importTranscriberToSaved(payload),
   importTranscriberToGuest: (payload: {
     segmentGroups: TranscriberSegmentGroup[];
+    tracks?: TranscriberTrack[];
     editorId?: string;
     name?: string;
     quantize?: boolean;
@@ -363,9 +398,9 @@ export const gteApi = {
     editorId: string,
     name?: string,
     options?: {
-      editorType?: "tab" | "chords" | string;
-      trackType?: "tab" | "chords" | string;
-      type?: "tab" | "chords" | string;
+      editorType?: "tab" | "chords" | "drums" | string;
+      trackType?: "tab" | "chords" | "drums" | string;
+      type?: "tab" | "chords" | "drums" | string;
       chordEditor?: Record<string, unknown>;
     }
   ) =>
@@ -377,6 +412,59 @@ export const gteApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, ...options }),
       }
+    ),
+  importEditorJson: (canvasId: string, laneId: string, payload: unknown) =>
+    requestForEditor<{ ok: true; snapshot: EditorSnapshot; canvas: CanvasSnapshot }>(
+      canvasId,
+      `/editors/${canvasId}__ed__${laneId}/import_json`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    ),
+  saveDrumNote: (
+    canvasId: string,
+    laneId: string,
+    note: { id: number; startTime: number; length: number; tab: [number, number] }
+  ) =>
+    requestForEditor<{ ok: true; note: EditorSnapshot["notes"][number]; canvas: CanvasSnapshot }>(
+      canvasId,
+      `/editors/${canvasId}__ed__${laneId}/drum_hits`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(note),
+      }
+    ),
+  saveDrumNotes: (
+    canvasId: string,
+    laneId: string,
+    notes: Array<{
+      id: number;
+      startTime: number;
+      length: number;
+      tab: [number, number];
+    }>
+  ) =>
+    requestForEditor<{
+      ok: true;
+      notes: EditorSnapshot["notes"];
+      canvas: CanvasSnapshot;
+    }>(
+      canvasId,
+      `/editors/${canvasId}__ed__${laneId}/drum_hits/batch`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes }),
+      }
+    ),
+  deleteDrumNote: (canvasId: string, laneId: string, noteId: number) =>
+    requestForEditor<{ ok: true; canvas: CanvasSnapshot }>(
+      canvasId,
+      `/editors/${canvasId}__ed__${laneId}/drum_hits/${noteId}`,
+      { method: "DELETE" }
     ),
   deleteCanvasEditor: (editorId: string, laneId: string) =>
     requestForEditor<{ ok: true; canvas: CanvasSnapshot; removedEditorId: string }>(

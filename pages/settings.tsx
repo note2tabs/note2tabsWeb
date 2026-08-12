@@ -20,6 +20,7 @@ import { prisma } from "../lib/prisma";
 import { resetPostHogIdentity, setPostHogConsent } from "../lib/posthogClient";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { clearPendingTranscription } from "../lib/pendingTranscription";
+import { ANALYTICS_ATTRIBUTION_COOKIE } from "../lib/acquisitionAttribution";
 import {
   clearRecoverableCheckoutSessionId,
   confirmPremiumCheckout,
@@ -356,7 +357,11 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         document.cookie = `analytics_consent=denied; expires=${expires}; Max-Age=${
           365 * 24 * 60 * 60
         }; path=/; SameSite=Lax${secure}`;
-        for (const cookieName of ["analytics_session", "analytics_anon"]) {
+        for (const cookieName of [
+          "analytics_session",
+          "analytics_anon",
+          ANALYTICS_ATTRIBUTION_COOKIE,
+        ]) {
           document.cookie = `${cookieName}=; Max-Age=0; expires=${new Date(
             0
           ).toUTCString()}; path=/; SameSite=Lax${secure}`;

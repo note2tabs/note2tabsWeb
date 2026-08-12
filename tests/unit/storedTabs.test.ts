@@ -14,4 +14,30 @@ describe("stored tab payloads", () => {
 
     expect(parsed.multipleGuitars).toBe(false);
   });
+
+  it("preserves named instrument tracks and drum metadata", () => {
+    const resultJson = serializeStoredTabPayload({
+      tabs: [],
+      transcriberSegments: [],
+      transcriberTracks: [
+        {
+          name: "Lead Synth",
+          trackType: "tab",
+          instrumentId: "jazz",
+          segments: [{ start_time_s: 0, end_time_s: 0.5, pitch_midi: 64 }],
+        },
+        {
+          name: "Drums",
+          trackType: "drums",
+          instrumentId: "drum1",
+          segments: [{ start_time_s: 0, end_time_s: 0.1, pitch_midi: 38 }],
+        },
+      ],
+    });
+
+    expect(parseStoredTabPayload(resultJson).transcriberTracks).toEqual([
+      expect.objectContaining({ name: "Lead Synth", instrumentId: "jazz", trackType: "tab" }),
+      expect.objectContaining({ name: "Drums", instrumentId: "drum1", trackType: "drums" }),
+    ]);
+  });
 });

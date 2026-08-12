@@ -10,6 +10,10 @@ import {
   hydrateTrackPlaybackFromStore,
   persistTrackPlaybackFromSnapshot,
 } from "../../../lib/gteTrackPlaybackStore";
+import {
+  hydrateDrumLoopsFromStore,
+  persistDrumLoopsFromSnapshot,
+} from "../../../lib/gteDrumLoopStore";
 import type { GteAnalyticsEvent } from "../../../lib/gteAnalytics";
 import { parseTextTabImport } from "../../../lib/gteTabImport";
 
@@ -276,7 +280,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const importEditorId = isTranscriberImport ? getRequestedImportEditorId(req) : undefined;
     const shouldUniquifyName =
       (method === "POST" && path === "editors") ||
-      Boolean(renameEditorId) ||
+      Boolean(renameEditorId && !renameEditorId.includes("__ed__")) ||
       (isTranscriberImport && !importEditorId && (!importTarget || importTarget === "new"));
 
     if (shouldUniquifyName) {
@@ -382,6 +386,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await Promise.all([
       persistTrackInstrumentsFromSnapshot(session.user.id, editorRef, snapshot),
       persistTrackPlaybackFromSnapshot(session.user.id, editorRef, snapshot),
+      persistDrumLoopsFromSnapshot(session.user.id, editorRef, snapshot),
     ]);
   }
 
@@ -393,6 +398,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await Promise.all([
         hydrateTrackInstrumentsFromStore(session.user.id, editorRef, parsed),
         hydrateTrackPlaybackFromStore(session.user.id, editorRef, parsed),
+        hydrateDrumLoopsFromStore(session.user.id, editorRef, parsed),
       ]);
       preferenceHydrationDurationMs = Date.now() - preferenceHydrationStartedAt;
       responseText = JSON.stringify(parsed);

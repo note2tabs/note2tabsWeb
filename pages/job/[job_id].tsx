@@ -7,7 +7,7 @@ import JobStatusLayout, {
   type PendingJobPresentation,
 } from "../../components/JobStatusLayout";
 import { isLocalNoDbClientMode } from "../../lib/clientDevMode";
-import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../../lib/gteApi";
+import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup, type TranscriberTrack } from "../../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../../lib/gteGuestDraft";
 import { saveJobToHistory } from "../../lib/history";
 import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
@@ -42,6 +42,7 @@ type StoredTabPayloadResponse = {
   createdAt: string;
   tabs: string[][];
   transcriberSegments: TranscriberSegmentGroup[];
+  transcriberTracks: TranscriberTrack[];
   backendJobId?: string | null;
 };
 
@@ -377,6 +378,33 @@ function getJobTranscriberGroups(job: JobResponse | null): TranscriberSegmentGro
     .filter((group) => group.length > 0);
 }
 
+function getJobTranscriberTracks(job: JobResponse | null): TranscriberTrack[] {
+  const value = getFirstJobValue(job, ["transcriberTracks", "instrumentTracks"]);
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry, index) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const record = entry as Record<string, unknown>;
+    const segments = Array.isArray(record.segments)
+      ? (record.segments.filter(
+          (segment): segment is TranscriberTrack["segments"][number] =>
+            Boolean(segment) && typeof segment === "object" && !Array.isArray(segment)
+        ) as TranscriberTrack["segments"])
+      : [];
+    if (!segments.length) return [];
+    const trackType = record.trackType === "drums" || record.type === "drums" ? "drums" : "tab";
+    return [{
+      name: typeof record.name === "string" && record.name.trim()
+        ? record.name.trim().slice(0, 80)
+        : trackType === "drums" ? "Drums" : `Instrument ${index + 1}`,
+      trackType,
+      instrumentId: typeof record.instrumentId === "string" && record.instrumentId.trim()
+        ? record.instrumentId.trim()
+        : trackType === "drums" ? "drum1" : "jazz",
+      segments,
+    }];
+  });
+}
+
 function getJobSources(job: JobResponse | null) {
   if (!job) return [] as Record<string, unknown>[];
   const direct = job as unknown as Record<string, unknown>;
@@ -516,7 +544,7 @@ async function fetchStoredTabPayload(tabId: string): Promise<StoredTabPayloadRes
 async function resolveImportableJob(job: JobResponse | null): Promise<JobResponse | null> {
   const normalized = normalizeJobForDisplay(job);
   if (!normalized) return null;
-  if (getJobTranscriberGroups(normalized).length > 0 || getJobTabSegments(normalized).length > 0) {
+  if (getJobTranscriberTracks(normalized).length > 0 || getJobTranscriberGroups(normalized).length > 0 || getJobTabSegments(normalized).length > 0) {
     return normalized;
   }
 
@@ -525,7 +553,7 @@ async function resolveImportableJob(job: JobResponse | null): Promise<JobRespons
 
   try {
     const storedTab = await fetchStoredTabPayload(tabJobId);
-    if (storedTab.transcriberSegments.length === 0 && storedTab.tabs.length === 0) return null;
+    if (storedTab.transcriberTracks.length === 0 && storedTab.transcriberSegments.length === 0 && storedTab.tabs.length === 0) return null;
     return normalizeJobForDisplay({
       ...(normalized as Record<string, unknown>),
       tab_job_id: tabJobId,
@@ -533,6 +561,7 @@ async function resolveImportableJob(job: JobResponse | null): Promise<JobRespons
       tab_id: tabJobId,
       tabId: tabJobId,
       tabs: storedTab.tabs,
+      transcriberTracks: storedTab.transcriberTracks,
       transcriberSegments: storedTab.transcriberSegments,
       song_title: normalized.song_title || storedTab.sourceLabel,
     } as unknown as JobResponse);
@@ -977,16 +1006,22 @@ export default function JobPage() {
 
     let importSourceLabel = jobToImport.song_title || "Imported transcription";
     let resolvedTranscriberGroups = getJobTranscriberGroups(jobToImport);
+    let resolvedTranscriberTracks = getJobTranscriberTracks(jobToImport);
     let resolvedTabSegments = getJobTabSegments(jobToImport);
     const tabJobId = getJobTabJobId(jobToImport);
     if ((resolvedTranscriberGroups.length === 0 || resolvedTabSegments.length === 0) && tabJobId) {
       const storedTab = await fetchStoredTabPayload(tabJobId);
       resolvedTranscriberGroups =
         resolvedTranscriberGroups.length > 0 ? resolvedTranscriberGroups : storedTab.transcriberSegments;
+      resolvedTranscriberTracks =
+        resolvedTranscriberTracks.length > 0 ? resolvedTranscriberTracks : storedTab.transcriberTracks;
       resolvedTabSegments = resolvedTabSegments.length > 0 ? resolvedTabSegments : storedTab.tabs;
       if (storedTab.sourceLabel) {
         importSourceLabel = storedTab.sourceLabel;
       }
+    }
+    if (resolvedTranscriberTracks.length > 0) {
+      resolvedTranscriberGroups = resolvedTranscriberTracks.map((track) => track.segments);
     }
     if (resolvedTranscriberGroups.length === 0 && resolvedTabSegments.length === 0) {
       throw new Error("No importable tab groups are available for this transcription.");
@@ -999,6 +1034,7 @@ export default function JobPage() {
           editorId: GTE_GUEST_EDITOR_ID,
           name: importSourceLabel,
           segmentGroups: resolvedTranscriberGroups,
+          tracks: resolvedTranscriberTracks,
           quantize,
         });
         return {
@@ -1040,6 +1076,7 @@ export default function JobPage() {
         editorId: targetEditorId ?? undefined,
         name: importSourceLabel,
         segmentGroups: resolvedTranscriberGroups,
+        tracks: resolvedTranscriberTracks,
         quantize,
       });
       return {

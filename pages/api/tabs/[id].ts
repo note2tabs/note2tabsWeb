@@ -42,6 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       createdAt: tabJob.createdAt.toISOString(),
       tabs: parsed.tabs,
       transcriberSegments: parsed.transcriberSegments,
+      transcriberTracks: parsed.transcriberTracks || [],
       backendJobId: parsed.backendJobId || null,
       multipleGuitars: parsed.multipleGuitars ?? null,
       review: parsed.review || null,

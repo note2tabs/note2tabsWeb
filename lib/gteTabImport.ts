@@ -16,6 +16,7 @@ export const TAB_IMPORT_MAX_GENERATED_COLUMNS = 240_000;
 export const TAB_IMPORT_MAX_FILENAME_LENGTH = 120;
 
 export const TAB_IMPORT_ACCEPT = [
+    ".json",
   ".txt",
   ".text",
   ".tab",

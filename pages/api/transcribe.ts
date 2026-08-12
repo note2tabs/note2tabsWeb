@@ -16,6 +16,7 @@ import {
 } from "../../lib/credits";
 import {
   DEFAULT_TRANSCRIPTION_MODEL,
+  getDefaultTranscriptionModel,
   calculateTranscriptionCredits,
   normalizeTranscriptionModel,
   transcriptionModelToBackendMethod,
@@ -633,11 +634,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       skipAutoEditorSync = parseBooleanLike((body as { skipAutoEditorSync?: unknown })?.skipAutoEditorSync);
     }
-    transcriptionModel = normalizeTranscriptionModel(
+    const requestedTranscriptionModel =
       mode === "YOUTUBE"
         ? youtubePayload?.transcriptionModel ?? youtubePayload?.transcriptionMethod ?? youtubePayload?.transcription_method
-        : filePayload?.transcriptionModel ?? filePayload?.transcriptionMethod ?? filePayload?.transcription_method
-    );
+        : filePayload?.transcriptionModel ?? filePayload?.transcriptionMethod ?? filePayload?.transcription_method;
+    transcriptionModel =
+      typeof requestedTranscriptionModel === "string" && requestedTranscriptionModel.trim()
+        ? normalizeTranscriptionModel(requestedTranscriptionModel)
+        : getDefaultTranscriptionModel(isPremium);
     const backendTranscriptionMethod = transcriptionModelToBackendMethod(transcriptionModel);
 
     if (mode !== "FILE" && mode !== "YOUTUBE") {
