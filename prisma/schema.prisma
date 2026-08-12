@@ -96,15 +96,16 @@ model StripeRenewalInvoice {
 }
 
 model TabJob {
-  id          String   @id @default(cuid())
-  userId      String
-  sourceType  String
-  sourceLabel String?
-  durationSec Int?
-  resultJson  String
-  createdAt   DateTime @default(now())
-  gteEditorId String?
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  userId       String
+  backendJobId String?  @unique
+  sourceType   String
+  sourceLabel  String?
+  durationSec  Int?
+  resultJson   String
+  createdAt    DateTime @default(now())
+  gteEditorId  String?
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
 }
