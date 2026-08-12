@@ -16,12 +16,14 @@ import {
 } from "../../../lib/gteDrumLoopStore";
 import type { GteAnalyticsEvent } from "../../../lib/gteAnalytics";
 import { parseTextTabImport } from "../../../lib/gteTabImport";
+import { prisma } from "../../../lib/prisma";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
   process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 const SNAPSHOT_SAVE_CACHE_TTL_MS = 4000;
 const SNAPSHOT_SAVE_CACHE_MAX = 200;
+const REAL_AUDIO_SYNC_ENABLED = process.env.NEXT_PUBLIC_REAL_AUDIO_SYNC_ENABLED === "true";
 
 type SnapshotSaveCacheEntry = {
   body: string;
@@ -475,6 +477,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           req,
           res,
         });
+      }
+      const sourceJobId =
+        typeof req.body?.sourceJobId === "string" ? req.body.sourceJobId.trim() : "";
+      if (REAL_AUDIO_SYNC_ENABLED && editorId && sourceJobId) {
+        try {
+          const sourceResponse = await fetch(
+            `${API_BASE}/api/v1/jobs/${encodeURIComponent(sourceJobId)}/source-audio`,
+            { headers, cache: "no-store" }
+          );
+          if (sourceResponse.ok) {
+            const timelineOffsetFrames = Math.max(
+              0,
+              Math.min(100_000_000, Math.round(Number(parsed.alignment?.appendFrame) || 0))
+            );
+            await prisma.gteAudioAttachment.upsert({
+              where: { userId_editorId: { userId: session.user.id, editorId } },
+              create: {
+                userId: session.user.id,
+                editorId,
+                sourceJobId,
+                timelineOffsetFrames,
+                clipOffsetSeconds: 0,
+              },
+              update: { sourceJobId, timelineOffsetFrames, clipOffsetSeconds: 0 },
+            });
+          }
+        } catch (error) {
+          // Audio is optional and disabled in production. Importing the tab
+          // must remain successful even if attachment storage is unavailable.
+          console.warn("gte source audio attachment failed", {
+            editorId,
+            error: error instanceof Error ? error.name : "unknown",
+          });
+        }
       }
       if (editorId) {
         await maybeLogGteAnalyticsEvent({

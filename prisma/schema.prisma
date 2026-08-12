@@ -43,23 +43,24 @@ model VerificationToken {
 }
 
 model User {
-  id                          String               @id @default(cuid())
+  id                          String                    @id @default(cuid())
   name                        String?
-  email                       String               @unique
+  email                       String                    @unique
   emailVerified               DateTime?
   image                       String?
   passwordHash                String?
-  role                        String               @default("FREE")
-  tokensRemaining             Int                  @default(120)
-  createdAt                   DateTime             @default(now())
-  updatedAt                   DateTime             @updatedAt
-  emailVerifiedBool           Boolean              @default(false)
-  unverifiedTranscriptionUsed Boolean              @default(false)
+  role                        String                    @default("FREE")
+  tokensRemaining             Int                       @default(120)
+  createdAt                   DateTime                  @default(now())
+  updatedAt                   DateTime                  @updatedAt
+  emailVerifiedBool           Boolean                   @default(false)
+  unverifiedTranscriptionUsed Boolean                   @default(false)
   accounts                    Account[]
   feedbackSubmissions         FeedbackSubmission[]
   gteTrackInstruments         GteTrackInstrument[]
   gteTrackPlaybackSettings    GteTrackPlaybackSetting[]
   gteDrumLoopStates           GteDrumLoopState[]
+  gteAudioAttachments         GteAudioAttachment[]
   posts                       Post[]
   sessions                    Session[]
   stripeRenewalInvoices       StripeRenewalInvoice[]
@@ -284,6 +285,21 @@ model GteDrumLoopState {
   @@unique([userId, editorId, laneId])
   @@index([editorId, laneId])
   @@index([userId, updatedAt])
+}
+
+model GteAudioAttachment {
+  id                   String   @id @default(cuid())
+  userId               String
+  editorId             String
+  sourceJobId          String
+  timelineOffsetFrames Int      @default(0)
+  clipOffsetSeconds    Float    @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, editorId])
+  @@index([userId, sourceJobId])
 }
 
 model AnalyticsDailyKpi {

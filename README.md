@@ -33,6 +33,19 @@ It is not an audio stem separator.
 
 For this to work in a deployed environment, the backend worker must be configured with the new track-separator model path and related env vars documented in the backend repo README.
 
+## Experimental original-audio sync
+
+The editor source-audio controls and attachment APIs are disabled unless
+`NEXT_PUBLIC_REAL_AUDIO_SYNC_ENABLED=true`. They require the matching backend
+`REAL_AUDIO_SYNC_ENABLED=true` flag and the
+`20260812223000_add_gte_audio_attachments` migration. Playback uses an
+owner-checked same-origin endpoint that redirects to a fresh signed range URL;
+the URL is never persisted in editor state or the database.
+
+Do not enable this in production until the provider/legal review, quota policy,
+authenticated preview playback, seek/speed/loop sync, expiry, and YouTube
+reattachment gates have passed.
+
 ## PostHog analytics
 
 Web analytics are sent to PostHog. Prisma/Neon remains responsible for product

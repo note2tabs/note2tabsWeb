@@ -105,6 +105,16 @@ import {
   recordGtePerfMeasure,
   useGteRenderInstrumentation,
 } from "../../lib/gtePerformanceDiagnostics";
+import {
+  attachYoutubeSourceAudio,
+  frameForSourceAudioSeconds,
+  getGteSourceAudio,
+  reattachGteSourceAudio,
+  sourceAudioSecondsForFrame,
+  type GteSourceAudioResponse,
+} from "../../lib/gteSourceAudio";
+
+const REAL_AUDIO_SYNC_ENABLED = process.env.NEXT_PUBLIC_REAL_AUDIO_SYNC_ENABLED === "true";
 
 const GteWorkspace = dynamic(() => import("../../components/GteTrackWorkspace"), {
   loading: () => (
@@ -1243,6 +1253,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [globalPlaybackIsPlaying, setGlobalPlaybackIsPlaying] = useState(false);
   const [globalPlaybackIsPreparing, setGlobalPlaybackIsPreparing] = useState(false);
   const [globalPlaybackVolume, setGlobalPlaybackVolume] = useState(0.6);
+  const [sourceAudio, setSourceAudio] = useState<GteSourceAudioResponse | null>(null);
+  const [sourceAudioEnabled, setSourceAudioEnabled] = useState(true);
+  const [sourceAudioVolume, setSourceAudioVolume] = useState(0.72);
+  const [sourceAudioLoading, setSourceAudioLoading] = useState(false);
+  const [sourceAudioAttaching, setSourceAudioAttaching] = useState(false);
+  const [sourceAudioRestoring, setSourceAudioRestoring] = useState(false);
+  const [sourceAudioError, setSourceAudioError] = useState<string | null>(null);
+  const [sourceAudioUrl, setSourceAudioUrl] = useState("");
   const [practiceLoopEnabled, setPracticeLoopEnabled] = useState(false);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [metronomeVolume, setMetronomeVolume] = useState(0.7);
@@ -1317,6 +1335,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const globalPlaybackMasterGainRef = useRef<GainNode | null>(null);
   const practiceReplayAudioRef = useRef<HTMLAudioElement | null>(null);
   const practiceReplayAudioUrlRef = useRef<string | null>(null);
+  const sourceAudioElementRef = useRef<HTMLAudioElement | null>(null);
+  const sourceAudioPlayTimerRef = useRef<number | null>(null);
+  const sourceAudioRequestRef = useRef(0);
   const practiceReplayAudioCacheRef = useRef<Map<string, Blob>>(new Map());
   const globalPlaybackRafRef = useRef<number | null>(null);
   const globalPlaybackStartRequestRef = useRef(0);
@@ -1528,6 +1549,75 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!isGuestMode || !canvas) return;
     writeGuestCanvasDraft(canvas);
   }, [canvas, isGuestMode]);
+
+  useEffect(() => {
+    sourceAudioRequestRef.current += 1;
+    const requestId = sourceAudioRequestRef.current;
+    setSourceAudio(null);
+    setSourceAudioError(null);
+    if (!REAL_AUDIO_SYNC_ENABLED || isGuestMode || !editorId) return;
+    setSourceAudioLoading(true);
+    void getGteSourceAudio(editorId)
+      .then((result) => {
+        if (sourceAudioRequestRef.current !== requestId) return;
+        setSourceAudio(result);
+      })
+      .catch((sourceError: unknown) => {
+        if (sourceAudioRequestRef.current !== requestId) return;
+        const status = Number((sourceError as { status?: number })?.status);
+        if (status !== 404) {
+          setSourceAudioError(
+            sourceError instanceof Error ? sourceError.message : "Source audio is unavailable."
+          );
+        }
+      })
+      .finally(() => {
+        if (sourceAudioRequestRef.current === requestId) setSourceAudioLoading(false);
+      });
+    return () => {
+      sourceAudioRequestRef.current += 1;
+    };
+  }, [editorId, isGuestMode]);
+
+  useEffect(() => {
+    const jobStatus = sourceAudio?.source?.jobStatus;
+    if (!sourceAudio?.attachment || !["queued", "running"].includes(String(jobStatus))) return;
+    const timer = window.setTimeout(() => {
+      void getGteSourceAudio(editorId)
+        .then(setSourceAudio)
+        .catch(() => undefined);
+    }, 2_000);
+    return () => window.clearTimeout(timer);
+  }, [editorId, sourceAudio]);
+
+  useEffect(() => {
+    if (sourceAudioPlayTimerRef.current !== null) {
+      window.clearTimeout(sourceAudioPlayTimerRef.current);
+      sourceAudioPlayTimerRef.current = null;
+    }
+    const audio = sourceAudioElementRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+      sourceAudioElementRef.current = null;
+    }
+  }, [editorId, sourceAudio?.attachment?.sourceJobId]);
+
+  useEffect(
+    () => () => {
+      if (sourceAudioPlayTimerRef.current !== null) {
+        window.clearTimeout(sourceAudioPlayTimerRef.current);
+      }
+      const audio = sourceAudioElementRef.current;
+      if (audio) {
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (!editorId) return;
@@ -3116,8 +3206,142 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [canvasTimelineEnd, selectedPracticePlaybackRange]
   );
   const normalizedPlaybackSpeed = normalizePlaybackSpeed(playbackSpeed);
+  const sourceAudioAvailable = Boolean(
+    REAL_AUDIO_SYNC_ENABLED &&
+      sourceAudio?.attachment &&
+      sourceAudio.source?.available
+  );
   const practiceSettingsStorageKey = `note2tabs:practice:${editorId}:v1`;
   const practiceRatingsStorageKey = `note2tabs:practice-ratings:${editorId}:v1`;
+
+  const pauseSourceAudio = useCallback(() => {
+    if (sourceAudioPlayTimerRef.current !== null) {
+      window.clearTimeout(sourceAudioPlayTimerRef.current);
+      sourceAudioPlayTimerRef.current = null;
+    }
+    sourceAudioElementRef.current?.pause();
+  }, []);
+
+  const ensureSourceAudioElement = useCallback(async () => {
+    if (!sourceAudioAvailable || !sourceAudioEnabled) return null;
+    if (sourceAudioElementRef.current) return sourceAudioElementRef.current;
+    const audio = new Audio();
+    audio.preload = "metadata";
+    audio.volume = Math.max(0, Math.min(1, sourceAudioVolume));
+    audio.src = `/api/gte/source-audio/${encodeURIComponent(editorId)}/stream`;
+    sourceAudioElementRef.current = audio;
+    await new Promise<void>((resolve, reject) => {
+      if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+        resolve();
+        return;
+      }
+      const timeout = window.setTimeout(
+        () => reject(new Error("Source audio took too long to load.")),
+        10_000
+      );
+      const finish = (callback: () => void) => {
+        window.clearTimeout(timeout);
+        audio.removeEventListener("loadedmetadata", onLoaded);
+        audio.removeEventListener("error", onError);
+        callback();
+      };
+      const onLoaded = () => finish(resolve);
+      const onError = () => finish(() => reject(new Error("Source audio is unavailable.")));
+      audio.addEventListener("loadedmetadata", onLoaded, { once: true });
+      audio.addEventListener("error", onError, { once: true });
+      audio.load();
+    });
+    return audio;
+  }, [editorId, sourceAudioAvailable, sourceAudioEnabled, sourceAudioVolume]);
+
+  const scheduleSourceAudio = useCallback(
+    async (options: {
+      requestId: number;
+      startFrame: number;
+      endFrame: number;
+      playbackSpeed: number;
+      delaySeconds: number;
+    }) => {
+      if (
+        !practiceModeEnabled ||
+        !sourceAudioAvailable ||
+        !sourceAudioEnabled ||
+        !sourceAudio?.attachment
+      ) return;
+      const anchorFrame = Math.max(0, sourceAudio.attachment.timelineOffsetFrames || 0);
+      const sourceStartFrame = Math.max(options.startFrame, anchorFrame);
+      if (options.endFrame <= sourceStartFrame) return;
+      const requestedAt = performance.now();
+      try {
+        const audio = await ensureSourceAudioElement();
+        if (!audio || globalPlaybackStartRequestRef.current !== options.requestId) return;
+        const initialSourceTime = sourceAudioSecondsForFrame(
+          globalTimingMap,
+          sourceStartFrame,
+          sourceAudio.attachment.timelineOffsetFrames,
+          sourceAudio.attachment.clipOffsetSeconds
+        );
+        const sourceDelaySeconds =
+          options.delaySeconds +
+          frameDurationSeconds(globalTimingMap, options.startFrame, sourceStartFrame) /
+            normalizePlaybackSpeed(options.playbackSpeed);
+        const elapsedLoadingSeconds = Math.max(0, (performance.now() - requestedAt) / 1_000);
+        const lateSeconds = Math.max(0, elapsedLoadingSeconds - sourceDelaySeconds);
+        const startAt =
+          initialSourceTime + lateSeconds * normalizePlaybackSpeed(options.playbackSpeed);
+        if (Number.isFinite(audio.duration) && startAt >= Math.max(0, audio.duration - 0.001)) {
+          return;
+        }
+        audio.currentTime = Math.min(
+          Number.isFinite(audio.duration) ? Math.max(0, audio.duration - 0.001) : startAt,
+          startAt
+        );
+        audio.playbackRate = normalizePlaybackSpeed(options.playbackSpeed);
+        audio.preservesPitch = true;
+        audio.volume = Math.max(0, Math.min(1, sourceAudioVolume));
+        const play = () => {
+          sourceAudioPlayTimerRef.current = null;
+          if (globalPlaybackStartRequestRef.current !== options.requestId) return;
+          void audio.play().catch(() => {
+            setSourceAudioError("Your browser blocked source audio. Press Play again to retry.");
+          });
+        };
+        const delayMs = Math.max(
+          0,
+          Math.round((sourceDelaySeconds - elapsedLoadingSeconds) * 1_000)
+        );
+        if (delayMs > 4) {
+          sourceAudioPlayTimerRef.current = window.setTimeout(play, delayMs);
+        } else {
+          play();
+        }
+      } catch (sourceError) {
+        if (globalPlaybackStartRequestRef.current !== options.requestId) return;
+        setSourceAudioError(
+          sourceError instanceof Error ? sourceError.message : "Source audio is unavailable."
+        );
+      }
+    },
+    [
+      ensureSourceAudioElement,
+      globalTimingMap,
+      practiceModeEnabled,
+      sourceAudio?.attachment,
+      sourceAudioAvailable,
+      sourceAudioEnabled,
+      sourceAudioVolume,
+    ]
+  );
+
+  useEffect(() => {
+    if (sourceAudioElementRef.current) {
+      sourceAudioElementRef.current.volume = Math.max(0, Math.min(1, sourceAudioVolume));
+    }
+  }, [sourceAudioVolume]);
+
+  useEffect(() => {
+    if (!sourceAudioEnabled || !practiceModeEnabled) pauseSourceAudio();
+  }, [pauseSourceAudio, practiceModeEnabled, sourceAudioEnabled]);
 
   useEffect(() => {
     practiceSettingsHydratedRef.current = false;
@@ -3161,6 +3385,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (typeof saved.practiceLoopEnabled === "boolean") setPracticeLoopEnabled(saved.practiceLoopEnabled);
       if (typeof saved.metronomeEnabled === "boolean") setMetronomeEnabled(saved.metronomeEnabled);
       if (typeof saved.countInEnabled === "boolean") setCountInEnabled(saved.countInEnabled);
+      if (typeof saved.sourceAudioEnabled === "boolean") {
+        setSourceAudioEnabled(saved.sourceAudioEnabled);
+      }
+      const savedSourceAudioVolume = Number(saved.sourceAudioVolume);
+      if (Number.isFinite(savedSourceAudioVolume)) {
+        setSourceAudioVolume(Math.max(0, Math.min(1, savedSourceAudioVolume)));
+      }
       if (typeof saved.speedTrainerEnabled === "boolean") setSpeedTrainerEnabled(saved.speedTrainerEnabled);
       if (typeof saved.practiceFocusEnabled === "boolean") setPracticeFocusEnabled(saved.practiceFocusEnabled);
       if (typeof saved.chordFingeringsVisible === "boolean") {
@@ -3213,6 +3444,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           countInEnabled,
           countInBars,
           countInEveryLoop,
+          sourceAudioEnabled,
+          sourceAudioVolume,
           speedTrainerEnabled,
           speedTrainerStart,
           speedTrainerTarget,
@@ -3242,6 +3475,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     practiceChordOverlayLaneId,
     practiceLoopEnabled,
     practiceSettingsStorageKey,
+    sourceAudioEnabled,
+    sourceAudioVolume,
     speedTrainerEnabled,
     speedTrainerStart,
     speedTrainerStep,
@@ -3614,6 +3849,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   );
 
   const stopGlobalPlaybackAudio = useCallback(() => {
+    pauseSourceAudio();
     setPracticeReplayPlayingId(null);
     if (practiceReplayAudioRef.current) {
       practiceReplayAudioRef.current.pause();
@@ -3630,7 +3866,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       globalPlaybackAudioRef.current = null;
     }
     globalPlaybackMasterGainRef.current = null;
-  }, []);
+  }, [pauseSourceAudio]);
 
   const scheduleMetronomeClick = useCallback(
     (ctx: AudioContext, destination: AudioNode, startTime: number, accent: boolean) => {
@@ -4274,13 +4510,32 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
 
     globalPlaybackAudioStartRef.current = scheduled.startTimeSec ?? null;
-    globalPlaybackEndFrameRef.current = Math.max(startFrame, Math.round(scheduled.endFrame ?? startFrame));
-    globalPlaybackStartFrameRef.current = Math.round(scheduled.startFrame ?? startFrame);
-    globalPlaybackStartTimeRef.current = performance.now();
-    options?.onScheduled?.(
-      Math.max(0, (scheduled.startTimeSec ?? scheduled.ctx.currentTime) - scheduled.ctx.currentTime)
+    const scheduledStartFrame = Math.round(scheduled.startFrame ?? startFrame);
+    globalPlaybackEndFrameRef.current = Math.max(
+      scheduledStartFrame,
+      Math.round(scheduled.endFrame ?? scheduledStartFrame)
     );
-    syncGlobalPlaybackFrame(startFrame, { forceReact: true });
+    globalPlaybackStartFrameRef.current = scheduledStartFrame;
+    globalPlaybackStartTimeRef.current = performance.now();
+    const scheduledDelaySeconds = Math.max(
+      0,
+      (scheduled.startTimeSec ?? scheduled.ctx.currentTime) - scheduled.ctx.currentTime
+    );
+    options?.onScheduled?.(scheduledDelaySeconds);
+    if (options?.muteOutput) {
+      // Pitch-rating recordings deliberately mute every generated/reference
+      // source so the microphone only hears the musician being assessed.
+      pauseSourceAudio();
+    } else {
+      void scheduleSourceAudio({
+        requestId,
+        startFrame: scheduledStartFrame,
+        endFrame: Math.round(scheduled.endFrame ?? scheduledStartFrame),
+        playbackSpeed: runPlaybackSpeed,
+        delaySeconds: scheduledDelaySeconds,
+      });
+    }
+    syncGlobalPlaybackFrame(scheduledStartFrame, { forceReact: true });
     setGlobalPlaybackIsPlaying(true);
 
     const tick = (now: number) => {
@@ -4290,7 +4545,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         elapsed = globalPlaybackAudioRef.current.currentTime - globalPlaybackAudioStartRef.current;
       }
       if (elapsed < 0) elapsed = 0;
+      const sourceElement = sourceAudioElementRef.current;
+      const sourceFrame =
+        !options?.muteOutput &&
+        practiceModeEnabled &&
+        sourceAudioAvailable &&
+        sourceAudioEnabled &&
+        sourceAudio?.attachment &&
+        sourceElement &&
+        !sourceElement.paused
+          ? frameForSourceAudioSeconds(
+              globalTimingMap,
+              sourceElement.currentTime,
+              sourceAudio.attachment.timelineOffsetFrames,
+              sourceAudio.attachment.clipOffsetSeconds
+            )
+          : null;
       const nextFrame =
+        sourceFrame ??
         secondsToFrame(
           globalTimingMap,
           frameToSeconds(globalTimingMap, globalPlaybackStartFrameRef.current) +
@@ -4346,8 +4618,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     globalPracticeLoopRange,
     globalTimingMap,
     normalizedPlaybackSpeed,
+    pauseSourceAudio,
+    practiceModeEnabled,
     scheduleGlobalPlayback,
+    scheduleSourceAudio,
     selectedPracticePlaybackRange,
+    sourceAudio?.attachment,
+    sourceAudioAvailable,
+    sourceAudioEnabled,
     speedTrainerStep,
     speedTrainerTarget,
     stopGlobalPlayback,
@@ -4605,8 +4883,23 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         stopGlobalPlayback();
       }
       syncGlobalPlaybackFrame(clamped, { forceReact: true });
+      if (sourceAudioElementRef.current && sourceAudio?.attachment) {
+        sourceAudioElementRef.current.currentTime = sourceAudioSecondsForFrame(
+          globalTimingMap,
+          clamped,
+          sourceAudio.attachment.timelineOffsetFrames,
+          sourceAudio.attachment.clipOffsetSeconds
+        );
+      }
     },
-    [canvasTimelineEnd, globalPlaybackIsPlaying, stopGlobalPlayback, syncGlobalPlaybackFrame]
+    [
+      canvasTimelineEnd,
+      globalPlaybackIsPlaying,
+      globalTimingMap,
+      sourceAudio?.attachment,
+      stopGlobalPlayback,
+      syncGlobalPlaybackFrame,
+    ]
   );
 
   const skipGlobalPlaybackToStart = useCallback(() => {
@@ -5269,6 +5562,45 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
   };
 
+  const restoreSourceAudio = useCallback(async () => {
+    if (!sourceAudio?.source?.reattachable || sourceAudioRestoring) return;
+    setSourceAudioRestoring(true);
+    setSourceAudioError(null);
+    try {
+      const restored = await reattachGteSourceAudio(editorId);
+      setSourceAudio(restored);
+      setSourceAudioEnabled(true);
+    } catch (restoreError) {
+      setSourceAudioError(
+        restoreError instanceof Error ? restoreError.message : "Source audio could not be restored."
+      );
+    } finally {
+      setSourceAudioRestoring(false);
+    }
+  }, [editorId, sourceAudio?.source?.reattachable, sourceAudioRestoring]);
+
+  const attachSourceAudioFromYoutube = useCallback(async () => {
+    const youtubeUrl = sourceAudioUrl.trim();
+    if (!youtubeUrl || sourceAudioAttaching) return;
+    setSourceAudioAttaching(true);
+    setSourceAudioError(null);
+    try {
+      const attached = await attachYoutubeSourceAudio(editorId, {
+        youtubeUrl,
+        timelineOffsetFrames: globalPlaybackFrameRef.current,
+      });
+      setSourceAudio(attached);
+      setSourceAudioEnabled(true);
+      setSourceAudioUrl("");
+    } catch (attachError) {
+      setSourceAudioError(
+        attachError instanceof Error ? attachError.message : "Source audio could not be prepared."
+      );
+    } finally {
+      setSourceAudioAttaching(false);
+    }
+  }, [editorId, sourceAudioAttaching, sourceAudioUrl]);
+
   const renderPracticeControls = () => (
     <section
       className="mx-auto w-full max-w-[900px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm min-[1400px]:fixed min-[1400px]:left-[max(1rem,calc(50vw-700px))] min-[1400px]:top-28 min-[1400px]:z-40 min-[1400px]:w-56 min-[1400px]:max-w-none min-[1400px]:p-3"
@@ -5288,6 +5620,100 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           role="group"
           aria-label="Practice controls"
         >
+          {REAL_AUDIO_SYNC_ENABLED && (
+            <div className="order-0 w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                    Original audio
+                  </p>
+                  <p className="mt-0.5 truncate text-[10px] leading-4 text-slate-500">
+                    {sourceAudioLoading
+                      ? "Checking the attached recording…"
+                      : !sourceAudio?.attachment
+                        ? "Practice with the original recording"
+                      : sourceAudio?.source?.status === "processing"
+                        ? "Preparing the requested clip…"
+                      : sourceAudio?.source?.available
+                        ? "Follows the playhead, seeking, loops, and speed"
+                        : sourceAudio?.source?.status === "expired"
+                          ? "The temporary source has expired"
+                          : "The attached source is unavailable"}
+                  </p>
+                </div>
+                {sourceAudio?.source?.available ? (
+                  <button
+                    type="button"
+                    onClick={() => setSourceAudioEnabled((enabled) => !enabled)}
+                    aria-pressed={sourceAudioEnabled}
+                    className={`h-8 shrink-0 rounded-lg border px-2.5 text-[10px] font-semibold transition ${
+                      sourceAudioEnabled
+                        ? "border-slate-800 bg-slate-900 text-white"
+                        : "border-slate-300 bg-white text-slate-600"
+                    }`}
+                  >
+                    {sourceAudioEnabled ? "Audio on" : "Audio off"}
+                  </button>
+                ) : sourceAudio?.source?.reattachable ? (
+                  <button
+                    type="button"
+                    onClick={() => void restoreSourceAudio()}
+                    disabled={sourceAudioRestoring}
+                    className="h-8 shrink-0 rounded-lg border border-slate-300 bg-white px-2.5 text-[10px] font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+                  >
+                    {sourceAudioRestoring ? "Restoring…" : "Restore"}
+                  </button>
+                ) : null}
+              </div>
+              <form
+                className="mt-2 flex gap-1.5"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void attachSourceAudioFromYoutube();
+                }}
+              >
+                <input
+                  type="url"
+                  inputMode="url"
+                  value={sourceAudioUrl}
+                  onChange={(event) => setSourceAudioUrl(event.target.value)}
+                  placeholder="Paste a YouTube link"
+                  aria-label="YouTube link for original audio"
+                  className="h-8 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 text-[10px] text-slate-700 outline-none transition focus:border-slate-500"
+                />
+                <button
+                  type="submit"
+                  disabled={!sourceAudioUrl.trim() || sourceAudioAttaching}
+                  className="h-8 shrink-0 rounded-lg bg-slate-900 px-2.5 text-[10px] font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  {sourceAudioAttaching ? "Adding…" : sourceAudio?.attachment ? "Replace" : "Add"}
+                </button>
+              </form>
+              <p className="mt-1 text-[9px] leading-3 text-slate-400">
+                The clip starts at the current playhead and is available in Practice.
+              </p>
+              {sourceAudio?.source?.available && sourceAudioEnabled && (
+                <label className="mt-2 flex items-center gap-2 text-[10px] font-medium text-slate-500">
+                  <span>Audio mix</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={sourceAudioVolume}
+                    onChange={(event) => setSourceAudioVolume(Number(event.target.value))}
+                    className="min-w-0 flex-1 accent-slate-700"
+                    aria-label="Original audio volume"
+                  />
+                </label>
+              )}
+              {sourceAudioError && (
+                <p className="mt-1.5 text-[10px] leading-4 text-rose-700" role="status">
+                  {sourceAudioError}
+                </p>
+              )}
+            </div>
+          )}
           {PRACTICE_RATING_UI_ENABLED && practiceRatingReplaysForLane.length > 0 && (
             <div className="order-[1] w-full rounded-lg border border-slate-200 bg-slate-50 p-2">
               <button
