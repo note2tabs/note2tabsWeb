@@ -85,10 +85,18 @@ const buildLane = (laneIndex: number, bars: number, notesPerLane: number): Edito
   };
 };
 
-export const buildGtePerformanceFixture = (): CanvasSnapshot => {
-  const trackCount = 5;
-  const bars = 120;
-  const notesPerLane = 900;
+type GtePerformanceFixtureOptions = {
+  trackCount?: number;
+  bars?: number;
+  notesPerLane?: number;
+};
+
+export const buildGtePerformanceFixture = (
+  options: GtePerformanceFixtureOptions = {}
+): CanvasSnapshot => {
+  const trackCount = Math.max(1, Math.round(options.trackCount ?? 5));
+  const bars = Math.max(1, Math.round(options.bars ?? 120));
+  const notesPerLane = Math.max(1, Math.round(options.notesPerLane ?? 900));
   const editors = Array.from({ length: trackCount }, (_, laneIndex) =>
     buildLane(laneIndex, bars, notesPerLane)
   );
@@ -101,3 +109,11 @@ export const buildGtePerformanceFixture = (): CanvasSnapshot => {
     editors,
   };
 };
+
+/** The rollout gate from the editor performance plan: 10 lanes × 10,000 notes. */
+export const buildGteStressFixture = (): CanvasSnapshot =>
+  buildGtePerformanceFixture({
+    trackCount: 10,
+    bars: 1_700,
+    notesPerLane: 10_000,
+  });

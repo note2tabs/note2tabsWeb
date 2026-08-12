@@ -99,6 +99,7 @@ import {
   recordGtePerfMeasure,
   useGteRenderInstrumentation,
 } from "../../lib/gtePerformanceDiagnostics";
+import { appendBoundedHistory, replaceCanvasLane } from "../../lib/gteEditorPerformance";
 
 const GteWorkspace = dynamic(() => import("../../components/GteTrackWorkspace"), {
   loading: () => (
@@ -1379,10 +1380,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     return JSON.parse(JSON.stringify(value)) as CanvasSnapshot;
   }, []);
 
-  const canvasSnapshotsEqual = useCallback((left: CanvasSnapshot, right: CanvasSnapshot) => {
-    return JSON.stringify(left) === JSON.stringify(right);
-  }, []);
-
   const resetCanvasHistory = useCallback(() => {
     canvasUndoRef.current = [];
     canvasRedoRef.current = [];
@@ -1392,17 +1389,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const recordCanvasHistory = useCallback(
     (previous: CanvasSnapshot, next: CanvasSnapshot) => {
-      if (canvasSnapshotsEqual(previous, next)) return;
-      const nextUndo = [...canvasUndoRef.current, cloneCanvas(previous)];
-      if (nextUndo.length > MAX_CANVAS_HISTORY) {
-        nextUndo.splice(0, nextUndo.length - MAX_CANVAS_HISTORY);
-      }
+      if (previous === next) return;
+      const nextUndo = appendBoundedHistory(
+        canvasUndoRef.current,
+        previous,
+        MAX_CANVAS_HISTORY
+      );
       canvasUndoRef.current = nextUndo;
       canvasRedoRef.current = [];
       setCanvasUndoCount(nextUndo.length);
       setCanvasRedoCount(0);
     },
-    [canvasSnapshotsEqual, cloneCanvas]
+    []
   );
 
   const loadEditor = async () => {
@@ -2279,36 +2277,30 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       );
       const sharedTimeSignature = normalizeTimeSignature(prev.editors[0]?.timeSignature) ?? 8;
       const sharedTimeSignatureBottom = normalizeTimeSignatureBottom(prev.editors[0]?.timeSignatureBottom) ?? 4;
-      const nextEditors = prev.editors.map((lane, index) =>
-        lane.id === laneId
-          ? normalizeLane(
-              {
-                ...nextLaneSnapshot,
-                secondsPerBar,
-                timeSignature: sharedTimeSignature,
-                timeSignatureBottom: sharedTimeSignatureBottom,
-                instrumentId:
-                  normalizeTrackInstrumentId(nextLaneSnapshot.instrumentId) !== DEFAULT_TRACK_INSTRUMENT_ID ||
-                  normalizeTrackInstrumentId(lane.instrumentId) === DEFAULT_TRACK_INSTRUMENT_ID
-                    ? nextLaneSnapshot.instrumentId
-                    : lane.instrumentId,
-              },
-              laneId,
-              secondsPerBar,
-              index
-            )
-          : normalizeLane(
-              { ...lane, secondsPerBar, timeSignature: sharedTimeSignature, timeSignatureBottom: sharedTimeSignatureBottom },
-              lane.id || `ed-${index + 1}`,
-              secondsPerBar,
-              index
-            )
+      const laneIndex = prev.editors.findIndex((lane) => lane.id === laneId);
+      if (laneIndex < 0) return prev;
+      const previousLane = prev.editors[laneIndex];
+      const normalizedLane = normalizeLane(
+        {
+          ...nextLaneSnapshot,
+          secondsPerBar,
+          timeSignature: sharedTimeSignature,
+          timeSignatureBottom: sharedTimeSignatureBottom,
+          instrumentId:
+            normalizeTrackInstrumentId(nextLaneSnapshot.instrumentId) !== DEFAULT_TRACK_INSTRUMENT_ID ||
+            normalizeTrackInstrumentId(previousLane.instrumentId) === DEFAULT_TRACK_INSTRUMENT_ID
+              ? nextLaneSnapshot.instrumentId
+              : previousLane.instrumentId,
+        },
+        laneId,
+        secondsPerBar,
+        laneIndex
       );
+      const replacedCanvas = replaceCanvasLane(prev, laneId, normalizedLane);
       const nextCanvas = {
-        ...prev,
+        ...replacedCanvas,
         updatedAt: new Date().toISOString(),
         secondsPerBar,
-        editors: nextEditors,
       };
       if (options?.recordHistory !== false) {
         recordCanvasHistory(prev, nextCanvas);
@@ -2655,22 +2647,23 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (!current) return current;
       const previous = undoList[undoList.length - 1];
       const nextUndo = undoList.slice(0, -1);
-      const nextRedo = [...canvasRedoRef.current, cloneCanvas(current)];
-      if (nextRedo.length > MAX_CANVAS_HISTORY) {
-        nextRedo.splice(0, nextRedo.length - MAX_CANVAS_HISTORY);
-      }
+      const nextRedo = appendBoundedHistory(
+        canvasRedoRef.current,
+        current,
+        MAX_CANVAS_HISTORY
+      );
       canvasUndoRef.current = nextUndo;
       canvasRedoRef.current = nextRedo;
       setCanvasUndoCount(nextUndo.length);
       setCanvasRedoCount(nextRedo.length);
-      nextCanvasSnapshot = cloneCanvas(previous);
+      nextCanvasSnapshot = previous;
       return nextCanvasSnapshot;
     });
     setHasPendingCommit(true);
     if (nextCanvasSnapshot) {
       void syncCanvasDraftToBackend(nextCanvasSnapshot, { silent: true });
     }
-  }, [addingLane, canvas, cloneCanvas, deletingLaneId, savingCanvas, syncCanvasDraftToBackend]);
+  }, [addingLane, canvas, deletingLaneId, savingCanvas, syncCanvasDraftToBackend]);
 
   const handleCanvasRedo = useCallback(() => {
     if (!canvas) return;
@@ -2682,22 +2675,23 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (!current) return current;
       const next = redoList[redoList.length - 1];
       const nextRedo = redoList.slice(0, -1);
-      const nextUndo = [...canvasUndoRef.current, cloneCanvas(current)];
-      if (nextUndo.length > MAX_CANVAS_HISTORY) {
-        nextUndo.splice(0, nextUndo.length - MAX_CANVAS_HISTORY);
-      }
+      const nextUndo = appendBoundedHistory(
+        canvasUndoRef.current,
+        current,
+        MAX_CANVAS_HISTORY
+      );
       canvasUndoRef.current = nextUndo;
       canvasRedoRef.current = nextRedo;
       setCanvasUndoCount(nextUndo.length);
       setCanvasRedoCount(nextRedo.length);
-      nextCanvasSnapshot = cloneCanvas(next);
+      nextCanvasSnapshot = next;
       return nextCanvasSnapshot;
     });
     setHasPendingCommit(true);
     if (nextCanvasSnapshot) {
       void syncCanvasDraftToBackend(nextCanvasSnapshot, { silent: true });
     }
-  }, [addingLane, canvas, cloneCanvas, deletingLaneId, savingCanvas, syncCanvasDraftToBackend]);
+  }, [addingLane, canvas, deletingLaneId, savingCanvas, syncCanvasDraftToBackend]);
 
   useEffect(() => {
     const handleSaveShortcut = (event: KeyboardEvent) => {
@@ -7799,6 +7793,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     data-gte-track="true"
                     data-gte-track-lane-id={laneId}
                     className={`relative w-full min-w-0 max-w-full ${
+                      !isActive && !isMobileViewport && !practiceModeEnabled
+                        ? "gte-editor-track--deferred "
+                        : ""
+                    }${
                       isMobileEditMode
                         ? "flex min-h-0 flex-1 flex-col"
                         : isMobileViewport

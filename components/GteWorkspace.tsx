@@ -61,6 +61,8 @@ import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
 import { buildEditorTabView, getEditorTabViewCursorX } from "../lib/gteEditorTabView";
 import { useGteRenderInstrumentation } from "../lib/gtePerformanceDiagnostics";
+import { RevisionedAutosaveQueue } from "../lib/gteAutosaveQueue";
+import { windowTimelineEvents } from "../lib/gteEditorPerformance";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
   buildGteExportFile,
@@ -1732,6 +1734,10 @@ function ChordLaneWorkspace({
   const chordPreviewAudioRef = useRef<AudioContext | null>(null);
   const chordPreviewGainRef = useRef<GainNode | null>(null);
   const chordContextMenuRef = useRef<HTMLDivElement | null>(null);
+  const chordAutosaveQueueRef = useRef<RevisionedAutosaveQueue<
+    EditorSnapshot,
+    Awaited<ReturnType<typeof gteApi.applySnapshot>>
+  > | null>(null);
   const [autoBaseScale, setAutoBaseScale] = useState(4);
   const [selectedChordIds, setSelectedChordIds] = useState<number[]>([]);
   const [selectedBarIndices, setSelectedBarIndices] = useState<number[]>([]);
@@ -1854,6 +1860,46 @@ function ChordLaneWorkspace({
     [snapDenominator]
   );
 
+  if (!chordAutosaveQueueRef.current) {
+    chordAutosaveQueueRef.current = new RevisionedAutosaveQueue({
+      save: async (payload) => gteApi.applySnapshot(editorId, payload),
+      debounceMs: AUTOSAVE_DEBOUNCE_MS,
+    });
+  }
+  const chordAutosaveQueue = chordAutosaveQueueRef.current;
+  chordAutosaveQueue.configure({
+    save: async (payload) => gteApi.applySnapshot(editorId, payload),
+    isOnline: () => typeof navigator === "undefined" || navigator.onLine !== false,
+  });
+
+  useEffect(() => {
+    chordAutosaveQueue.reset();
+  }, [chordAutosaveQueue, editorId]);
+
+  useEffect(() => {
+    const handleOnline = () => chordAutosaveQueue.notifyOnline();
+    const flush = () => {
+      if (chordAutosaveQueue.getState().pending) {
+        void chordAutosaveQueue.flushLatest({ reason: "lifecycle" });
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("blur", flush);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("blur", flush);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (chordAutosaveQueue.getState().pending) {
+        void chordAutosaveQueue.flushLatest({ reason: "unmount" });
+      }
+      chordAutosaveQueue.dispose();
+    };
+  }, [chordAutosaveQueue]);
+
   const commitSnapshot = useCallback(
     (nextSnapshot: EditorSnapshot, options?: { recordHistory?: boolean; persist?: boolean }) => {
       const updated = {
@@ -1869,10 +1915,10 @@ function ChordLaneWorkspace({
       };
       onSnapshotChange(updated, { recordHistory: options?.recordHistory ?? true });
       if (allowBackend && options?.persist !== false) {
-        void gteApi.applySnapshot(editorId, updated).catch(() => undefined);
+        chordAutosaveQueue.enqueue(updated, "change");
       }
     },
-    [allowBackend, editorId, onSnapshotChange, snapDenominator]
+    [allowBackend, chordAutosaveQueue, onSnapshotChange, snapDenominator]
   );
 
   const updateChord = useCallback(
@@ -4052,11 +4098,10 @@ export default function GteWorkspace({
   // size. Hydrating the signature from the snapshot, or receiving it as the
   // shared signature after another lane changed it, must leave it alone.
   const timeSignatureUserChangedRef = useRef(false);
-  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autosaveInFlightRef = useRef(false);
-  const autosaveQueuedRef = useRef(false);
-  const localRevisionRef = useRef(0);
-  const savedRevisionRef = useRef(0);
+  const autosaveQueueRef = useRef<RevisionedAutosaveQueue<
+    EditorSnapshot,
+    Awaited<ReturnType<typeof gteApi.applySnapshot>>
+  > | null>(null);
   const lastAddedNoteLengthRef = useRef(DEFAULT_NOTE_LENGTH);
   const applyingSharedScrollRef = useRef(false);
   const scaleSessionRef = useRef<ScaleSession | null>(null);
@@ -4551,31 +4596,27 @@ export default function GteWorkspace({
   }, [framesPerMeasure, scale, timelineEnd, timelineViewport.clientWidth, timelineViewport.scrollLeft, viewportTimelineWidth]);
   const selectedNoteIdSet = useMemo(() => new Set(selectedNoteIds), [selectedNoteIds]);
   const selectedChordIdSet = useMemo(() => new Set(selectedChordIds), [selectedChordIds]);
+  const pinnedVisibleNoteIds = useMemo(() => {
+    const ids = new Set(selectedNoteIdSet);
+    if (resizingNote) ids.add(resizingNote.id);
+    if (dragging?.type === "note") ids.add(dragging.id);
+    if (noteMenuNoteId !== null) ids.add(noteMenuNoteId);
+    return ids;
+  }, [dragging, noteMenuNoteId, resizingNote, selectedNoteIdSet]);
+  const pinnedVisibleChordIds = useMemo(() => {
+    const ids = new Set(selectedChordIdSet);
+    if (resizingChord) ids.add(resizingChord.id);
+    if (dragging?.type === "chord") ids.add(dragging.id);
+    if (editingChordId !== null) ids.add(editingChordId);
+    if (chordMenuChordId !== null) ids.add(chordMenuChordId);
+    return ids;
+  }, [chordMenuChordId, dragging, editingChordId, resizingChord, selectedChordIdSet]);
   const visibleNotes = useMemo(() => {
-    const { startFrame, endFrame } = timelineRenderWindow;
-    return snapshot.notes.filter((note) => {
-      if (selectedNoteIdSet.has(note.id)) return true;
-      if (resizingNote?.id === note.id) return true;
-      if (dragging?.type === "note" && dragging.id === note.id) return true;
-      if (noteMenuNoteId === note.id) return true;
-      const start = Math.round(note.startTime);
-      const end = start + Math.max(1, Math.round(note.length));
-      return end >= startFrame && start <= endFrame;
-    });
-  }, [dragging, noteMenuNoteId, resizingNote, selectedNoteIdSet, snapshot.notes, timelineRenderWindow]);
+    return windowTimelineEvents(snapshot.notes, timelineRenderWindow, pinnedVisibleNoteIds);
+  }, [pinnedVisibleNoteIds, snapshot.notes, timelineRenderWindow]);
   const visibleChords = useMemo(() => {
-    const { startFrame, endFrame } = timelineRenderWindow;
-    return snapshot.chords.filter((chord) => {
-      if (selectedChordIdSet.has(chord.id)) return true;
-      if (resizingChord?.id === chord.id) return true;
-      if (dragging?.type === "chord" && dragging.id === chord.id) return true;
-      if (editingChordId === chord.id) return true;
-      if (chordMenuChordId === chord.id) return true;
-      const start = Math.round(chord.startTime);
-      const end = start + Math.max(1, Math.round(chord.length));
-      return end >= startFrame && start <= endFrame;
-    });
-  }, [chordMenuChordId, dragging, editingChordId, resizingChord, selectedChordIdSet, snapshot.chords, timelineRenderWindow]);
+    return windowTimelineEvents(snapshot.chords, timelineRenderWindow, pinnedVisibleChordIds);
+  }, [pinnedVisibleChordIds, snapshot.chords, timelineRenderWindow]);
   const visibleNoteIdSet = useMemo(() => new Set(visibleNotes.map((note) => note.id)), [visibleNotes]);
   const setEffectivePracticeLoopEnabled = useCallback(
     (enabled: boolean) => {
@@ -4837,10 +4878,7 @@ export default function GteWorkspace({
   }, [snapshot.updatedAt, hasUnsavedChanges]);
 
   useEffect(() => {
-    if (autosaveTimerRef.current) {
-      clearTimeout(autosaveTimerRef.current);
-      autosaveTimerRef.current = null;
-    }
+    autosaveQueueRef.current?.reset();
     undoRef.current = [];
     redoRef.current = [];
     pendingMutationsRef.current = [];
@@ -4849,10 +4887,6 @@ export default function GteWorkspace({
     chordIdMapRef.current = new Map();
     tempNoteIdRef.current = 1;
     tempChordIdRef.current = 1;
-    autosaveInFlightRef.current = false;
-    autosaveQueuedRef.current = false;
-    localRevisionRef.current = 0;
-    savedRevisionRef.current = 0;
     setUndoCount(0);
     setRedoCount(0);
     setHasUnsavedChanges(false);
@@ -4887,10 +4921,6 @@ export default function GteWorkspace({
 
   useEffect(() => {
     return () => {
-      if (autosaveTimerRef.current) {
-        clearTimeout(autosaveTimerRef.current);
-        autosaveTimerRef.current = null;
-      }
       if (previewAudioRef.current) {
         closeAudioContext(previewAudioRef.current);
         previewAudioRef.current = null;
@@ -5522,101 +5552,71 @@ export default function GteWorkspace({
     [cloneSnapshot, onSnapshotChange, snapshotsEqual, useExternalHistory]
   );
 
-  const syncSavedRevision = useCallback((revision: number) => {
-    savedRevisionRef.current = Math.max(savedRevisionRef.current, revision);
-    setHasUnsavedChanges(localRevisionRef.current > savedRevisionRef.current);
-  }, []);
+  if (!autosaveQueueRef.current) {
+    autosaveQueueRef.current = new RevisionedAutosaveQueue({
+      save: async (payload) => gteApi.applySnapshot(editorId, payload),
+      debounceMs: AUTOSAVE_DEBOUNCE_MS,
+    });
+  }
+  const autosaveQueue = autosaveQueueRef.current;
+  autosaveQueue.configure({
+    save: async (payload) => {
+      if (!allowBackend) {
+        return { ok: true as const, snapshot: payload };
+      }
+      return gteApi.applySnapshot(editorId, payload);
+    },
+    isOnline: () => typeof navigator === "undefined" || navigator.onLine !== false,
+    onStateChange: (state) => {
+      setHasUnsavedChanges(state.pending);
+      setIsAutosaving(state.saving);
+    },
+    onSaved: (res, context) => {
+      if (context.isLatest && allowBackend && res.snapshot) {
+        applySnapshot(res.snapshot as EditorSnapshot, {
+          recordUndo: false,
+          recordHistory: false,
+        });
+      }
+      const updatedAt = (res.snapshot as EditorSnapshot | undefined)?.updatedAt;
+      setLastSavedAt(updatedAt || new Date().toISOString());
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : "Autosave failed.";
+      setError(`${message} Changes are still local and will retry automatically.`);
+    },
+  });
 
   const persistSnapshotToBackend = useCallback(
     async (reason: string, options?: { force?: boolean }) => {
-      if (!allowBackend) {
-        syncSavedRevision(localRevisionRef.current);
-        setLastSavedAt(new Date().toISOString());
-        setIsAutosaving(false);
-        return;
-      }
-      const needsSave = localRevisionRef.current > savedRevisionRef.current;
-      if (!options?.force && !needsSave) return;
-      if (autosaveInFlightRef.current) {
-        autosaveQueuedRef.current = true;
-        return;
-      }
-      autosaveInFlightRef.current = true;
-      setIsAutosaving(true);
-      const revisionToSave = localRevisionRef.current;
-      const payload = cloneSnapshot(snapshotRef.current);
-      payload.id = editorId;
-      try {
-        const res = await gteApi.applySnapshot(editorId, payload);
-        if (localRevisionRef.current === revisionToSave) {
-          applySnapshot(res.snapshot, { recordUndo: false, recordHistory: false });
-        }
-        syncSavedRevision(revisionToSave);
-        setLastSavedAt(res.snapshot.updatedAt || new Date().toISOString());
-      } catch (err: any) {
-        if (reason === "pre-server-mutation") {
-          throw err;
-        }
-        setError(err?.message || "Autosave failed. Changes are still local.");
-        autosaveQueuedRef.current = true;
-      } finally {
-        autosaveInFlightRef.current = false;
-        setIsAutosaving(false);
-        const shouldRetry =
-          autosaveQueuedRef.current || localRevisionRef.current > savedRevisionRef.current;
-        autosaveQueuedRef.current = false;
-        if (shouldRetry) {
-          setTimeout(() => {
-            void persistSnapshotToBackend("queued", { force: true });
-          }, 200);
-        }
-      }
+      const state = autosaveQueue.getState();
+      if (!state.pending && !options?.force) return;
+      if (!state.pending) return;
+      await autosaveQueue.flushLatest({
+        reason,
+        throwOnError: reason === "pre-server-mutation",
+      });
     },
-    [allowBackend, applySnapshot, cloneSnapshot, editorId, syncSavedRevision]
+    [autosaveQueue]
   );
 
-  const scheduleAutosave = useCallback(() => {
-    if (autosaveTimerRef.current) {
-      clearTimeout(autosaveTimerRef.current);
-    }
-    autosaveTimerRef.current = setTimeout(() => {
-      autosaveTimerRef.current = null;
-      void persistSnapshotToBackend("debounce");
-    }, AUTOSAVE_DEBOUNCE_MS);
-  }, [persistSnapshotToBackend]);
-
   const markLocalSnapshotDirty = useCallback(() => {
-    localRevisionRef.current += 1;
-    setHasUnsavedChanges(true);
-    scheduleAutosave();
-  }, [scheduleAutosave]);
+    const payload = { ...snapshotRef.current, id: editorId };
+    autosaveQueue.enqueue(payload, "change");
+  }, [autosaveQueue, editorId]);
 
   const markServerSnapshotSynced = useCallback((nextSnapshot?: EditorSnapshot) => {
-    localRevisionRef.current += 1;
-    savedRevisionRef.current = localRevisionRef.current;
-    setHasUnsavedChanges(false);
-    if (nextSnapshot?.updatedAt) {
-      setLastSavedAt(nextSnapshot.updatedAt);
-    } else {
-      setLastSavedAt(new Date().toISOString());
-    }
-  }, []);
+    autosaveQueue.markSynced();
+    setLastSavedAt(nextSnapshot?.updatedAt || new Date().toISOString());
+  }, [autosaveQueue]);
 
   const flushLocalChangesBeforeServerMutation = useCallback(async () => {
-    if (!allowBackend) return;
-    if (autosaveTimerRef.current) {
-      clearTimeout(autosaveTimerRef.current);
-      autosaveTimerRef.current = null;
-    }
-    if (localRevisionRef.current <= savedRevisionRef.current) return;
-    await persistSnapshotToBackend("pre-server-mutation", { force: true });
-    while (autosaveInFlightRef.current) {
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    if (localRevisionRef.current > savedRevisionRef.current) {
-      await persistSnapshotToBackend("pre-server-mutation", { force: true });
-    }
-  }, [allowBackend, persistSnapshotToBackend]);
+    if (!allowBackend || !autosaveQueue.getState().pending) return;
+    await autosaveQueue.flushThroughLatest({
+      reason: "pre-server-mutation",
+      throwOnError: true,
+    });
+  }, [allowBackend, autosaveQueue]);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -5628,11 +5628,7 @@ export default function GteWorkspace({
 
   useEffect(() => {
     const flushNow = () => {
-      if (localRevisionRef.current <= savedRevisionRef.current) return;
-      if (autosaveTimerRef.current) {
-        clearTimeout(autosaveTimerRef.current);
-        autosaveTimerRef.current = null;
-      }
+      if (!autosaveQueue.getState().pending) return;
       void persistSnapshotToBackend("lifecycle", { force: true });
     };
     const handleVisibilityChange = () => {
@@ -5642,15 +5638,22 @@ export default function GteWorkspace({
     };
     const handleBlur = () => flushNow();
     const handleBeforeUnload = () => flushNow();
+    const handleOnline = () => autosaveQueue.notifyOnline();
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("blur", handleBlur);
     window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("online", handleOnline);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("online", handleOnline);
+      if (autosaveQueue.getState().pending) {
+        void autosaveQueue.flushLatest({ reason: "unmount" });
+      }
+      autosaveQueue.dispose();
     };
-  }, [persistSnapshotToBackend]);
+  }, [autosaveQueue, persistSnapshotToBackend]);
 
   const runMutation = async <T extends { snapshot?: EditorSnapshot }>(
     fn: () => Promise<T>,

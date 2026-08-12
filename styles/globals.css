@@ -733,6 +733,17 @@ input[type="number"] {
   animation: gte-workspace-loading 1.2s ease-in-out infinite;
 }
 
+/* Let the browser skip layout and paint for inactive tracks below the fold.
+   `auto` remembers the measured height after first reveal, avoiding jumps when
+   users scroll back through a long editor. Mobile and the active track remain
+   fully rendered so editing and touch hit targets are unchanged. */
+@supports (content-visibility: auto) {
+  .gte-editor-track--deferred {
+    content-visibility: auto;
+    contain-intrinsic-block-size: auto 360px;
+  }
+}
+
 @keyframes gte-workspace-loading {
   from {
     background-position: 100% 0;
