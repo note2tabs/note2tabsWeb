@@ -64,4 +64,12 @@ describe("large editor update boundaries", () => {
     expect(history[0]).toBe(second);
     expect(history[1]).toBe(third);
   });
+
+  it("handles zero- and one-entry history limits without retaining older snapshots", () => {
+    const older = { revision: 1 };
+    const newest = { revision: 2 };
+
+    expect(appendBoundedHistory([older], newest, 0)).toEqual([]);
+    expect(appendBoundedHistory([older], newest, 1)).toEqual([newest]);
+  });
 });

@@ -113,6 +113,8 @@ export type CanvasSnapshot = {
   schemaVersion?: number;
   canvasSchemaVersion?: number;
   version?: number;
+  /** Durable draft revision used for opt-in optimistic concurrency. */
+  draftRevision?: number;
   updatedAt?: string;
   keyBase?: number;
   keyType?: number;

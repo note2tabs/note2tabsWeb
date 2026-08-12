@@ -42,6 +42,9 @@ export const replaceCanvasLane = (
 };
 
 export const appendBoundedHistory = <T>(history: readonly T[], snapshot: T, maximum: number): T[] => {
-  const keep = Math.max(0, Math.round(maximum) - 1);
+  const limit = Math.max(0, Math.round(maximum));
+  if (limit === 0) return [];
+  const keep = limit - 1;
+  if (keep === 0) return [snapshot];
   return [...history.slice(-keep), snapshot];
 };

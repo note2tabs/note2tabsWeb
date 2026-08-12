@@ -367,11 +367,15 @@ export const gteApi = {
     requestForEditor<{ ok: true }>(editorId, `/editors/${editorId}`, {
       method: "DELETE",
     }),
-  applySnapshot: (editorId: string, snapshot: EditorOrCanvasSnapshot | Record<string, any>) =>
+  applySnapshot: (
+    editorId: string,
+    snapshot: EditorOrCanvasSnapshot | Record<string, any>,
+    concurrency?: { expectedVersion?: number; expectedDraftRevision?: number }
+  ) =>
     requestForEditor<{ ok: true; snapshot: any; canvas?: CanvasSnapshot }>(editorId, `/editors/${editorId}/snapshot`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ snapshot }),
+      body: JSON.stringify({ snapshot, ...concurrency }),
     }),
   setTrackInstrument: (editorId: string, laneId: string, instrumentId: string) =>
     request<{ ok: true }>("/track-instrument", {
