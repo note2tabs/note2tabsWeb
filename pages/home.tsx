@@ -67,11 +67,10 @@ function ProductMark({ product }: { product: "transcriber" | "editor" }) {
   if (product === "transcriber") {
     return (
       <span className="product-home__product-mark product-home__product-mark--transcriber" aria-hidden="true">
-        <svg viewBox="0 0 48 48" focusable="false">
-          <path className="mark-wave" d="M11 27v-6M16 31V17M21 34V14M26 30V18M31 27v-6" />
-          <path className="mark-accent" d="M36 17v14" />
-          <circle cx="36" cy="17" r="2.25" />
-          <circle cx="36" cy="31" r="2.25" />
+        <svg viewBox="0 0 56 56" focusable="false">
+          <path className="mark-guide" d="M11 18.5h34M11 28h34M11 37.5h34" />
+          <path className="mark-wave" d="M13 30v-4M18 34V22M23 38V18M28 33V23M33 30v-4" />
+          <path className="mark-route" d="M37 28h7m-3.5-3.5L44 28l-3.5 3.5" />
         </svg>
       </span>
     );
@@ -79,10 +78,12 @@ function ProductMark({ product }: { product: "transcriber" | "editor" }) {
 
   return (
     <span className="product-home__product-mark product-home__product-mark--editor" aria-hidden="true">
-      <svg viewBox="0 0 48 48" focusable="false">
-        <path className="mark-strings" d="M10 15h28M10 21h28M10 27h28M10 33h28" />
-        <circle cx="18" cy="21" r="3.25" />
-        <circle cx="30" cy="27" r="3.25" />
+      <svg viewBox="0 0 56 56" focusable="false">
+        <path className="mark-strings" d="M11 16h34M11 21h34M11 26h34M11 31h34M11 36h34M11 41h34" />
+        <path className="mark-frets" d="M20 14v29M31 14v29M42 14v29" />
+        <circle cx="25.5" cy="21" r="3" />
+        <circle cx="36.5" cy="31" r="3" />
+        <path className="mark-caret" d="M14 34.5v7" />
       </svg>
     </span>
   );
