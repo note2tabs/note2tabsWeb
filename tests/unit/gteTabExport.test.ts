@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildMidiFromSnapshot, buildMusicXmlFromSnapshot, buildGteExportFile, sanitizeExportFilename } from "../../lib/gteTabExport";
 import { buildTabRefForTuning } from "../../lib/gteTuning";
-import type { EditorSnapshot } from "../../types/gte";
+import type { EditorSnapshot, TimingMapV2 } from "../../types/gte";
 
 const snapshot = (): EditorSnapshot => ({
   id: "ed-1",
@@ -38,6 +38,40 @@ const snapshot = (): EditorSnapshot => ({
 });
 
 describe("gteTabExport", () => {
+  const variableTimingMap: TimingMapV2 = {
+    version: 2,
+    framesPerBar: 480,
+    audioOffsetSeconds: 0,
+    bars: [
+      {
+        id: "bar-1",
+        index: 0,
+        startFrame: 0,
+        endFrame: 480,
+        startSeconds: 0,
+        endSeconds: 2,
+        quarterNoteBpm: 120,
+        timeSignature: { numerator: 4, denominator: 4 },
+        anchors: [],
+        confidence: 1,
+        source: "manual",
+      },
+      {
+        id: "bar-2",
+        index: 1,
+        startFrame: 480,
+        endFrame: 960,
+        startSeconds: 2,
+        endSeconds: 5,
+        quarterNoteBpm: 70,
+        timeSignature: { numerator: 7, denominator: 8 },
+        anchors: [],
+        confidence: 1,
+        source: "manual",
+      },
+    ],
+  };
+
   it("sanitizes exported filenames", () => {
     expect(sanitizeExportFilename("My Song!.gp5")).toBe("My-Song");
     expect(sanitizeExportFilename("   ")).toBe("note2tabs");
@@ -61,6 +95,25 @@ describe("gteTabExport", () => {
     expect(header).toBe("MThd");
     expect(trackHeader).toBe("MTrk");
     expect(midi.length).toBeGreaterThan(30);
+  });
+
+  it("exports every tempo and meter change to MusicXML and MIDI", () => {
+    const xml = buildMusicXmlFromSnapshot(snapshot(), variableTimingMap);
+    expect(xml).toContain('<sound tempo="120"/>');
+    expect(xml).toContain('<sound tempo="70"/>');
+    expect(xml).toContain("<time><beats>7</beats><beat-type>8</beat-type></time>");
+
+    const midi = Array.from(buildMidiFromSnapshot(snapshot(), variableTimingMap));
+    const tempoEvents = midi.reduce(
+      (count, byte, index) => count + (byte === 0xff && midi[index + 1] === 0x51 ? 1 : 0),
+      0
+    );
+    const meterEvents = midi.reduce(
+      (count, byte, index) => count + (byte === 0xff && midi[index + 1] === 0x58 ? 1 : 0),
+      0
+    );
+    expect(tempoEvents).toBe(2);
+    expect(meterEvents).toBe(2);
   });
 
   it("builds file payloads for supported export formats", () => {

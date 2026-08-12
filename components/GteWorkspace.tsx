@@ -56,7 +56,7 @@ import {
   getChordEditorMidiNotes,
   inferChordEditorMetadataFromMidi,
 } from "../lib/gteChordEditor";
-import type { Chord, ChordFingering, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
+import type { Chord, ChordFingering, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord, TimingMapV2 } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
 import { buildEditorTabView, getEditorTabViewCursorX } from "../lib/gteEditorTabView";
@@ -134,6 +134,7 @@ function closeAudioContext(ctx: AudioContext) {
 type Props = {
   editorId: string;
   snapshot: EditorSnapshot;
+  timingMap?: TimingMapV2;
   onSnapshotChange: (snapshot: EditorSnapshot, options?: { recordHistory?: boolean }) => void;
   allowBackend?: boolean;
   embedded?: boolean;
@@ -3627,6 +3628,7 @@ function ChordLaneWorkspace({
 export default function GteWorkspace({
   editorId,
   snapshot,
+  timingMap,
   onSnapshotChange,
   allowBackend = true,
   embedded = false,
@@ -8407,7 +8409,7 @@ export default function GteWorkspace({
         const data = await gteApi.exportTab(editorId);
         setIoPayload(JSON.stringify(data, null, 2));
       }
-      const file = buildGteExportFile(snapshot, exportFormat);
+      const file = buildGteExportFile(snapshot, exportFormat, timingMap);
       downloadGteExportFile(file);
       setIoMessage(`Exported ${file.filename}.`);
     } catch (err: any) {

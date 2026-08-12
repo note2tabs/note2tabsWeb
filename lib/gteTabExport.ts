@@ -1,5 +1,6 @@
 import { buildTabTextFromSnapshot } from "./gteTabText";
-import type { EditorSnapshot, TabCoord } from "../types/gte";
+import type { EditorSnapshot, TabCoord, TimingMapV2 } from "../types/gte";
+import { normalizeTimingMap } from "./gteTiming";
 
 export type GteExportFormat = "json" | "txt" | "musicxml" | "midi";
 
@@ -18,7 +19,6 @@ export const GTE_EXPORT_FORMAT_OPTIONS: Array<{ value: GteExportFormat; label: s
 
 const DEFAULT_FILENAME = "note2tabs";
 const DEFAULT_FRAMES_PER_BAR = 480;
-const DEFAULT_FPS = 240;
 const MIDI_TICKS_PER_QUARTER = 480;
 
 const toSafeInt = (value: unknown, fallback: number) => {
@@ -49,8 +49,6 @@ export const sanitizeExportFilename = (name?: string | null) => {
 
 const getFramesPerBar = (snapshot: EditorSnapshot) =>
   Math.max(1, toSafeInt(snapshot.framesPerMessure, DEFAULT_FRAMES_PER_BAR));
-
-const getFps = (snapshot: EditorSnapshot) => Math.max(1, toSafeInt(snapshot.fps, DEFAULT_FPS));
 
 const getMidiFromTab = (snapshot: EditorSnapshot, tab: TabCoord, fallback?: number) => {
   const direct = snapshot.tabRef?.[tab[0]]?.[tab[1]];
@@ -115,12 +113,12 @@ export const buildNote2TabsExportJson = (snapshot: EditorSnapshot) =>
     2
   );
 
-export const buildMusicXmlFromSnapshot = (snapshot: EditorSnapshot) => {
+export const buildMusicXmlFromSnapshot = (
+  snapshot: EditorSnapshot,
+  suppliedTimingMap?: TimingMapV2
+) => {
   const title = snapshot.name || "Note2Tabs export";
   const framesPerBar = getFramesPerBar(snapshot);
-  const beatsPerBar = Math.max(1, toSafeInt(snapshot.timeSignature, 4));
-  const beatType = Math.max(1, toSafeInt(snapshot.timeSignatureBottom, 4));
-  const divisions = Math.max(1, Math.round((framesPerBar * beatType) / (beatsPerBar * 4)));
   const events = collectNoteEvents(snapshot);
   const totalFrames = Math.max(
     framesPerBar,
@@ -128,6 +126,12 @@ export const buildMusicXmlFromSnapshot = (snapshot: EditorSnapshot) => {
     ...events.map((event) => event.startFrame + event.lengthFrames)
   );
   const totalBars = Math.max(1, Math.ceil(totalFrames / framesPerBar));
+  const timingMap = normalizeTimingMap(suppliedTimingMap, {
+    secondsPerBar: snapshot.secondsPerBar,
+    totalFrames,
+    numerator: snapshot.timeSignature,
+    denominator: snapshot.timeSignatureBottom,
+  });
   const measures = Array.from({ length: totalBars }, (_, index) =>
     events.filter((event) => Math.floor(event.startFrame / framesPerBar) === index)
   );
@@ -144,17 +148,32 @@ export const buildMusicXmlFromSnapshot = (snapshot: EditorSnapshot) => {
   ];
 
   measures.forEach((measureEvents, measureIndex) => {
+    const timingBar = timingMap.bars[Math.min(measureIndex, timingMap.bars.length - 1)];
+    const beatsPerBar = Math.max(1, toSafeInt(timingBar.timeSignature.numerator, 4));
+    const beatType = Math.max(1, toSafeInt(timingBar.timeSignature.denominator, 4));
+    const quarterNotesPerBar = beatsPerBar * (4 / beatType);
+    const divisions = 960;
+    const measureDurationUnits = Math.max(1, Math.round(quarterNotesPerBar * divisions));
+    const frameLengthToDivisions = (frameLength: number) =>
+      Math.max(1, Math.round((Math.max(0, frameLength) / framesPerBar) * measureDurationUnits));
     const sorted = [...measureEvents].sort((a, b) => a.startFrame - b.startFrame || a.midi - b.midi);
     let cursor = measureIndex * framesPerBar;
     lines.push(`    <measure number="${measureIndex + 1}">`);
+    lines.push("      <attributes>");
+    lines.push(`        <divisions>${divisions}</divisions>`);
     if (measureIndex === 0) {
-      lines.push("      <attributes>");
-      lines.push(`        <divisions>${divisions}</divisions>`);
       lines.push("        <key><fifths>0</fifths></key>");
-      lines.push(`        <time><beats>${beatsPerBar}</beats><beat-type>${beatType}</beat-type></time>`);
       lines.push("        <clef><sign>TAB</sign><line>5</line></clef>");
-      lines.push("      </attributes>");
     }
+    lines.push(`        <time><beats>${beatsPerBar}</beats><beat-type>${beatType}</beat-type></time>`);
+    lines.push("      </attributes>");
+    const displayTempo = Math.round(timingBar.quarterNoteBpm * 100) / 100;
+    lines.push("      <direction placement=\"above\">");
+    lines.push(
+      `        <direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${displayTempo}</per-minute></metronome></direction-type>`
+    );
+    lines.push(`        <sound tempo="${displayTempo}"/>`);
+    lines.push("      </direction>");
     for (let index = 0; index < sorted.length; ) {
       const groupStart = sorted[index].startFrame;
       const group: ExportNoteEvent[] = [];
@@ -165,7 +184,7 @@ export const buildMusicXmlFromSnapshot = (snapshot: EditorSnapshot) => {
       if (groupStart > cursor) {
         lines.push("      <note>");
         lines.push("        <rest/>");
-        lines.push(`        <duration>${groupStart - cursor}</duration>`);
+        lines.push(`        <duration>${frameLengthToDivisions(groupStart - cursor)}</duration>`);
         lines.push("        <type>quarter</type>");
         lines.push("      </note>");
       }
@@ -181,7 +200,7 @@ export const buildMusicXmlFromSnapshot = (snapshot: EditorSnapshot) => {
         if (pitch.alter) lines.push(`          <alter>${pitch.alter}</alter>`);
         lines.push(`          <octave>${pitch.octave}</octave>`);
         lines.push("        </pitch>");
-        lines.push(`        <duration>${event.lengthFrames}</duration>`);
+        lines.push(`        <duration>${frameLengthToDivisions(event.lengthFrames)}</duration>`);
         lines.push("        <type>quarter</type>");
         lines.push("        <notations>");
         lines.push("          <technical>");
@@ -197,7 +216,7 @@ export const buildMusicXmlFromSnapshot = (snapshot: EditorSnapshot) => {
     if (cursor < measureEnd) {
       lines.push("      <note>");
       lines.push("        <rest/>");
-      lines.push(`        <duration>${measureEnd - cursor}</duration>`);
+      lines.push(`        <duration>${frameLengthToDivisions(measureEnd - cursor)}</duration>`);
       lines.push("        <type>quarter</type>");
       lines.push("      </note>");
     }
@@ -234,17 +253,85 @@ const writeVariableLength = (value: number) => {
   return bytes;
 };
 
-export const buildMidiFromSnapshot = (snapshot: EditorSnapshot) => {
+export const buildMidiFromSnapshot = (
+  snapshot: EditorSnapshot,
+  suppliedTimingMap?: TimingMapV2
+) => {
   const framesPerBar = getFramesPerBar(snapshot);
-  const fps = getFps(snapshot);
-  const beatsPerBar = Math.max(1, toSafeInt(snapshot.timeSignature, 4));
-  const tempoMicroseconds = Math.max(1, Math.round((60 * 1_000_000 * beatsPerBar * fps) / framesPerBar));
-  const frameToTick = (frame: number) => Math.max(0, Math.round((frame / framesPerBar) * beatsPerBar * MIDI_TICKS_PER_QUARTER));
-  const events: Array<{ tick: number; bytes: number[]; order: number }> = [
-    { tick: 0, bytes: [0xff, 0x51, 0x03, (tempoMicroseconds >> 16) & 0xff, (tempoMicroseconds >> 8) & 0xff, tempoMicroseconds & 0xff], order: 0 },
-    { tick: 0, bytes: [0xff, 0x58, 0x04, beatsPerBar & 0xff, 0x02, 0x18, 0x08], order: 1 },
-  ];
-  collectNoteEvents(snapshot).forEach((event) => {
+  const noteEvents = collectNoteEvents(snapshot);
+  const totalFrames = Math.max(
+    framesPerBar,
+    toSafeInt(snapshot.totalFrames, framesPerBar),
+    ...noteEvents.map((event) => event.startFrame + event.lengthFrames)
+  );
+  const timingMap = normalizeTimingMap(suppliedTimingMap, {
+    secondsPerBar: snapshot.secondsPerBar,
+    totalFrames,
+    numerator: snapshot.timeSignature,
+    denominator: snapshot.timeSignatureBottom,
+  });
+  const barStartTicks: number[] = [];
+  let tickCursor = 0;
+  timingMap.bars.forEach((bar) => {
+    barStartTicks.push(tickCursor);
+    const quarterNotes = bar.timeSignature.numerator * (4 / bar.timeSignature.denominator);
+    tickCursor += Math.max(1, Math.round(quarterNotes * MIDI_TICKS_PER_QUARTER));
+  });
+  const frameToTick = (frame: number) => {
+    const safeFrame = Math.max(0, frame);
+    const barIndex = Math.min(
+      timingMap.bars.length - 1,
+      Math.max(0, Math.floor(safeFrame / framesPerBar))
+    );
+    const bar = timingMap.bars[barIndex];
+    const quarterNotes = bar.timeSignature.numerator * (4 / bar.timeSignature.denominator);
+    const ticksPerBar = Math.max(1, Math.round(quarterNotes * MIDI_TICKS_PER_QUARTER));
+    return Math.max(
+      0,
+      Math.round(
+        barStartTicks[barIndex] + ((safeFrame - bar.startFrame) / framesPerBar) * ticksPerBar
+      )
+    );
+  };
+  const events: Array<{ tick: number; bytes: number[]; order: number }> = [];
+  timingMap.bars.forEach((bar, index) => {
+    if (bar.startFrame > totalFrames) return;
+    const tick = barStartTicks[index];
+    const tempoMicroseconds = Math.max(
+      1,
+      Math.round(60_000_000 / Math.max(1, bar.quarterNoteBpm))
+    );
+    const denominatorExponent = Math.max(
+      0,
+      Math.min(7, Math.round(Math.log2(Math.max(1, bar.timeSignature.denominator))))
+    );
+    events.push({
+      tick,
+      bytes: [
+        0xff,
+        0x51,
+        0x03,
+        (tempoMicroseconds >> 16) & 0xff,
+        (tempoMicroseconds >> 8) & 0xff,
+        tempoMicroseconds & 0xff,
+      ],
+      order: 0,
+    });
+    events.push({
+      tick,
+      bytes: [
+        0xff,
+        0x58,
+        0x04,
+        Math.max(1, toSafeInt(bar.timeSignature.numerator, 4)) & 0xff,
+        denominatorExponent,
+        0x18,
+        0x08,
+      ],
+      order: 1,
+    });
+  });
+  noteEvents.forEach((event) => {
     const startTick = frameToTick(event.startFrame);
     const endTick = Math.max(startTick + 1, frameToTick(event.startFrame + event.lengthFrames));
     const midi = clamp(toSafeInt(event.midi, 60), 0, 127);
@@ -273,7 +360,11 @@ export const buildMidiFromSnapshot = (snapshot: EditorSnapshot) => {
   ]);
 };
 
-export function buildGteExportFile(snapshot: EditorSnapshot, format: GteExportFormat): GteExportFile {
+export function buildGteExportFile(
+  snapshot: EditorSnapshot,
+  format: GteExportFormat,
+  timingMap?: TimingMapV2
+): GteExportFile {
   const baseName = sanitizeExportFilename(snapshot.name);
   if (format === "json") {
     return {
@@ -286,14 +377,14 @@ export function buildGteExportFile(snapshot: EditorSnapshot, format: GteExportFo
     return {
       filename: `${baseName}.musicxml`,
       mimeType: "application/vnd.recordare.musicxml+xml",
-      content: buildMusicXmlFromSnapshot(snapshot),
+      content: buildMusicXmlFromSnapshot(snapshot, timingMap),
     };
   }
   if (format === "midi") {
     return {
       filename: `${baseName}.mid`,
       mimeType: "audio/midi",
-      content: buildMidiFromSnapshot(snapshot),
+      content: buildMidiFromSnapshot(snapshot, timingMap),
     };
   }
   return {

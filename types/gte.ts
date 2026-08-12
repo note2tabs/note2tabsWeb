@@ -11,6 +11,35 @@ export type Note = {
 
 export type GteTrackType = "tab" | "chords" | "drums";
 
+export type TimingAnchor = {
+  tick: number;
+  seconds: number;
+};
+
+export type TimingBar = {
+  id: string;
+  index: number;
+  startFrame: number;
+  endFrame: number;
+  startSeconds: number;
+  endSeconds: number;
+  quarterNoteBpm: number;
+  timeSignature: {
+    numerator: number;
+    denominator: number;
+  };
+  anchors: TimingAnchor[];
+  confidence: number;
+  source: "audio" | "onset_consensus" | "manual" | "legacy" | "fallback" | string;
+};
+
+export type TimingMapV2 = {
+  version: 2;
+  framesPerBar: 480;
+  audioOffsetSeconds: number;
+  bars: TimingBar[];
+};
+
 export type DrumLoopRegion = {
   id: string;
   sourceStart: number;
@@ -72,6 +101,8 @@ export type EditorSnapshot = {
   playbackVolume?: number;
   playbackMuted?: boolean;
   playbackIsolated?: boolean;
+  timelineOffsetFrames?: number;
+  importGroupId?: string;
   tuning?: {
     presetId?: string;
     label?: string;
@@ -117,5 +148,7 @@ export type CanvasSnapshot = {
   keyBase?: number;
   keyType?: number;
   secondsPerBar?: number;
+  timingVersion?: number;
+  timingMap?: TimingMapV2;
   editors: EditorSnapshot[];
 };

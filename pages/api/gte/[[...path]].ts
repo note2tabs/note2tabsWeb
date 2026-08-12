@@ -68,6 +68,15 @@ type UpstreamImportBody = {
     framesPerBeat?: number;
     secondsPerBeat?: number;
   };
+  alignment?: {
+    applied?: boolean;
+    mode?: string;
+    source?: string;
+    confidence?: number;
+    appendFrame?: number;
+    importGroupId?: string;
+    warnings?: string[];
+  };
 };
 
 type GteEditorListItem = {
@@ -348,32 +357,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   }
   const upstreamDurationMs = Date.now() - upstreamStartedAt;
-  if (isTranscriberImport && upstream.ok) {
-    const requestedEditorId = getRequestedImportEditorId(req);
-    if (requestedEditorId) {
-      const target = getRequestedImportTarget(req) || "existing";
-      try {
-        await upstream.body?.cancel?.();
-      } catch {
-        // noop
-      }
-      res.status(upstream.status);
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
-      const responseText = JSON.stringify({
-        ok: true,
-        target,
-        editorId: requestedEditorId,
-      } satisfies UpstreamImportBody);
-      logGteTransferMetric({
-        method,
-        path,
-        upstreamStatus: upstream.status,
-        responseBytes: Buffer.byteLength(responseText, "utf-8"),
-        durationMs: Date.now() - requestStartedAt,
-      });
-      return res.send(responseText);
-    }
-  }
   const text = await upstream.text();
   let responseText = text;
   res.status(upstream.status);
@@ -510,6 +493,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           editorId,
           importedEditorIds: Array.isArray(parsed.importedEditorIds) ? parsed.importedEditorIds : undefined,
           quantization: parsed.quantization,
+          alignment: parsed.alignment,
         } satisfies UpstreamImportBody);
         res.setHeader("Content-Type", "application/json; charset=utf-8");
       }

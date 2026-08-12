@@ -21,15 +21,21 @@ import {
   SPEED_TRAINER_START_OPTIONS,
   SPEED_TRAINER_STEP_OPTIONS,
   SPEED_TRAINER_TARGET_OPTIONS,
-  buildMetronomeClicks,
   equalPowerPanGains,
-  frameDeltaToSeconds,
   nextSpeedTrainerValue,
   normalizePlaybackSpeed,
   normalizeTrackPan,
   resolvePracticePlaybackStart,
   resolvePracticeLoopRange,
 } from "../../lib/gtePractice";
+import {
+  buildTimingMapMetronomeClicks,
+  frameDurationSeconds,
+  frameToSeconds,
+  normalizeTimingMap,
+  secondsToFrame,
+  timingMapForCanvas,
+} from "../../lib/gteTiming";
 import {
   buildPracticeRatingBars,
   encodeMonoWav,
@@ -338,6 +344,11 @@ const normalizeLane = (
     playbackVolume: normalizeTrackVolume(lane.playbackVolume ?? 1),
     playbackMuted: lane.playbackMuted === true,
     playbackIsolated: lane.playbackIsolated === true,
+    timelineOffsetFrames: Math.max(0, Math.round(toNumber(lane.timelineOffsetFrames, 0))),
+    importGroupId:
+      typeof lane.importGroupId === "string" && lane.importGroupId.trim()
+        ? lane.importGroupId.trim()
+        : undefined,
     framesPerMessure: FIXED_FRAMES_PER_BAR,
     secondsPerBar: safeSeconds,
     fps: fpsFromSecondsPerBar(safeSeconds),
@@ -372,6 +383,11 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
     const normalizedEditors = (raw.editors || []).map((lane, index) =>
       normalizeLane(lane, lane.id || `ed-${index + 1}`, safeSeconds, index)
     );
+    const firstEditor = normalizedEditors[0];
+    const totalFrames = Math.max(
+      FIXED_FRAMES_PER_BAR,
+      ...normalizedEditors.map((lane) => getLaneTimelineEnd(lane))
+    );
     return {
       id: raw.id || fallbackCanvasId,
       name: raw.name || "Untitled",
@@ -382,6 +398,13 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
       keyBase: normalizeKeyBase(raw.keyBase),
       keyType: normalizeKeyType(raw.keyType),
       secondsPerBar: safeSeconds,
+      timingVersion: 2,
+      timingMap: normalizeTimingMap(raw.timingMap, {
+        secondsPerBar: safeSeconds,
+        totalFrames,
+        numerator: firstEditor?.timeSignature,
+        denominator: firstEditor?.timeSignatureBottom,
+      }),
       editors: normalizedEditors.length
         ? normalizedEditors
         : [normalizeLane(createGuestSnapshot("ed-1"), "ed-1", safeSeconds, 0)],
@@ -404,6 +427,13 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
     keyBase: 0,
     keyType: 0,
     secondsPerBar: lane.secondsPerBar || DEFAULT_SECONDS_PER_BAR,
+    timingVersion: 2,
+    timingMap: normalizeTimingMap(undefined, {
+      secondsPerBar: lane.secondsPerBar,
+      totalFrames: getLaneTimelineEnd(lane),
+      numerator: lane.timeSignature,
+      denominator: lane.timeSignatureBottom,
+    }),
     editors: [lane],
   };
 };
@@ -477,40 +507,44 @@ const bpmToSecondsPerBar = (bpm: unknown, beatsPerBar: unknown) => {
   return Math.max(0.1, (60 / normalizedBpm) * beats);
 };
 
-const scaleLaneEventsForTimeSignatureChange = (
+const adjustLaneEventsWithinBars = (
   lane: EditorSnapshot,
-  previousTimeSignature: number,
-  nextTimeSignature: number
+  ratiosByBar: Map<number, number>
 ): EditorSnapshot => {
-  const previous = normalizeTimeSignature(previousTimeSignature) ?? 8;
-  const next = normalizeTimeSignature(nextTimeSignature) ?? 8;
-  if (previous === next) return lane;
-  const ratio = previous / next;
-  const scaleFrame = (value: number) => Math.max(0, Math.round(Math.max(0, toNumber(value, 0)) * ratio));
-  const scaleLength = (value: number) => Math.max(1, scaleFrame(toNumber(value, 1)));
-  const notes = (Array.isArray(lane.notes) ? lane.notes : []).map((note) => ({
-    ...note,
-    startTime: scaleFrame(note.startTime),
-    length: scaleLength(note.length),
-  }));
-  const chords = (Array.isArray(lane.chords) ? lane.chords : []).map((chord) => ({
-    ...chord,
-    startTime: scaleFrame(chord.startTime),
-    length: scaleLength(chord.length),
-  }));
-  const maxEventEnd = Math.max(
-    0,
-    ...notes.map((note) => note.startTime + Math.max(1, Math.round(toNumber(note.length, 1)))),
-    ...chords.map((chord) => chord.startTime + Math.max(1, Math.round(toNumber(chord.length, 1))))
-  );
+  const scaleFrame = (value: number) => {
+    const frame = Math.max(0, Math.round(toNumber(value, 0)));
+    const barIndex = Math.floor(frame / FIXED_FRAMES_PER_BAR);
+    const ratio = ratiosByBar.get(barIndex);
+    if (!ratio) return frame;
+    const barStart = barIndex * FIXED_FRAMES_PER_BAR;
+    return barStart + Math.max(0, Math.round((frame - barStart) * ratio));
+  };
+  const scaleLength = (start: number, length: number) => {
+    const barIndex = Math.floor(Math.max(0, start) / FIXED_FRAMES_PER_BAR);
+    return Math.max(1, Math.round(Math.max(1, length) * (ratiosByBar.get(barIndex) || 1)));
+  };
   return {
     ...lane,
-    notes,
-    chords,
-    totalFrames: Math.max(
-      FIXED_FRAMES_PER_BAR,
-      Math.round(Math.max(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR), maxEventEnd))
-    ),
+    notes: lane.notes.map((note) => ({
+      ...note,
+      startTime: scaleFrame(note.startTime),
+      length: scaleLength(note.startTime, note.length),
+    })),
+    chords: lane.chords.map((chord) => ({
+      ...chord,
+      startTime: scaleFrame(chord.startTime),
+      length: scaleLength(chord.startTime, chord.length),
+    })),
+    cutPositionsWithCoords: lane.cutPositionsWithCoords.map((cut) => [
+      [scaleFrame(cut[0][0]), Math.max(scaleFrame(cut[0][0]) + 1, scaleFrame(cut[0][1]))],
+      [...cut[1]] as [number, number],
+    ]),
+    drumLoops: (lane.drumLoops || []).map((loop) => ({
+      ...loop,
+      sourceStart: scaleFrame(loop.sourceStart),
+      sourceEnd: scaleFrame(loop.sourceEnd),
+      loopEnd: scaleFrame(loop.loopEnd),
+    })),
   };
 };
 
@@ -1147,9 +1181,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [bpmError, setBpmError] = useState<string | null>(null);
   const [timeSignatureDraft, setTimeSignatureDraft] = useState("8");
   const [timeSignatureBottomDraft, setTimeSignatureBottomDraft] = useState("4");
-  const [keepNotesOnBeat, setKeepNotesOnBeat] = useState(false);
   const [timeSignatureSaving, setTimeSignatureSaving] = useState(false);
   const [timeSignatureError, setTimeSignatureError] = useState<string | null>(null);
+  const [pendingMeterChange, setPendingMeterChange] = useState<{
+    numerator: number;
+    denominator: number;
+  } | null>(null);
+  const [timingDialogOpen, setTimingDialogOpen] = useState(false);
+  const [timingBpmDraft, setTimingBpmDraft] = useState("120");
+  const [timingApplyToAll, setTimingApplyToAll] = useState(false);
+  const [timingSaving, setTimingSaving] = useState(false);
   const [activeLaneId, setActiveLaneId] = useState<string | null>(null);
   const [mobileEditLaneId, setMobileEditLaneId] = useState<string | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
@@ -1180,7 +1221,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [addTrackMenuOpen, setAddTrackMenuOpen] = useState(false);
   const [deletingLaneId, setDeletingLaneId] = useState<string | null>(null);
   const [confirmDeleteTrackId, setConfirmDeleteTrackId] = useState<string | null>(null);
+  const [mergeTracksDialogOpen, setMergeTracksDialogOpen] = useState(false);
+  const [mergeTrackIds, setMergeTrackIds] = useState<string[]>([]);
+  const [mergeTracksBusy, setMergeTracksBusy] = useState(false);
   const [openTrackMenuId, setOpenTrackMenuId] = useState<string | null>(null);
+  const [shiftingLaneId, setShiftingLaneId] = useState<string | null>(null);
   const [openMobileBarMenuLaneId, setOpenMobileBarMenuLaneId] = useState<string | null>(null);
   const [editMenuPortalTarget, setEditMenuPortalTarget] = useState<HTMLDivElement | null>(null);
   const [editorMode, setEditorMode] = useState<"canvas" | "tab" | "practice">("canvas");
@@ -1978,51 +2023,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       return;
     }
     setTimeSignatureDraft(String(normalized));
-    const current = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
-    const allTracksMatch = canvas.editors.every((lane) => (normalizeTimeSignature(lane.timeSignature) ?? 8) === normalized);
-    const currentSecondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
-    const currentBpm = secondsPerBarToBpm(currentSecondsPerBar, current);
-    const secondsPerBar = keepNotesOnBeat
-      ? bpmToSecondsPerBar(currentBpm, normalized) ?? currentSecondsPerBar
-      : currentSecondsPerBar;
-    setBpmDraft(formatBpm(keepNotesOnBeat ? currentBpm : secondsPerBarToBpm(secondsPerBar, normalized)));
-    if (normalized === current && allTracksMatch) return;
-
-    setTimeSignatureSaving(true);
-    setTimeSignatureError(null);
-    try {
-      const nextCanvas = normalizeCanvas(
-        {
-          ...canvas,
-          updatedAt: new Date().toISOString(),
-          secondsPerBar,
-          editors: canvas.editors.map((lane, index) => {
-            const adjustedLane = keepNotesOnBeat
-              ? scaleLaneEventsForTimeSignatureChange(lane, current, normalized)
-              : lane;
-            return normalizeLane(
-              {
-                ...adjustedLane,
-                secondsPerBar,
-                timeSignature: normalized,
-              },
-              lane.id || `ed-${index + 1}`,
-              secondsPerBar,
-              index
-            );
-          }),
-        },
-        editorId
-      );
-      const res = await gteApi.applySnapshot(editorId, nextCanvas);
-      applyCanvasUpdate(normalizeCanvas((res as any).canvas ?? (res as any).snapshot ?? nextCanvas, editorId), {
-        markDirty: !isGuestMode,
-      });
-    } catch (err: any) {
-      setTimeSignatureError(err?.message || "Could not update time signature.");
-    } finally {
-      setTimeSignatureSaving(false);
-    }
+    const denominator = normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4;
+    const timingMap = timingMapForCanvas(canvas);
+    const selectedBarIndex = barSelection?.barIndices[0] ?? 0;
+    const currentBar = timingMap.bars[selectedBarIndex] || timingMap.bars[0];
+    if (
+      currentBar?.timeSignature.numerator === normalized &&
+      currentBar?.timeSignature.denominator === denominator
+    ) return;
+    setPendingMeterChange({ numerator: normalized, denominator });
   };
 
   const scheduleTimeSignatureCommit = (rawValue: string | number) => {
@@ -2044,42 +2053,108 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       return;
     }
     setTimeSignatureBottomDraft(String(normalized));
-    const allTracksMatch = canvas.editors.every(
-      (lane) => (normalizeTimeSignatureBottom(lane.timeSignatureBottom) ?? 4) === normalized
-    );
-    if (allTracksMatch) return;
+    const numerator = normalizeTimeSignature(timeSignatureDraft) ?? 4;
+    const timingMap = timingMapForCanvas(canvas);
+    const selectedBarIndex = barSelection?.barIndices[0] ?? 0;
+    const currentBar = timingMap.bars[selectedBarIndex] || timingMap.bars[0];
+    if (
+      currentBar?.timeSignature.numerator === numerator &&
+      currentBar?.timeSignature.denominator === normalized
+    ) return;
+    setPendingMeterChange({ numerator, denominator: normalized });
+  };
+
+  const cancelMeterChange = useCallback(() => {
+    if (canvas) {
+      const timingMap = timingMapForCanvas(canvas);
+      const selectedBarIndex = barSelection?.barIndices[0] ?? 0;
+      const currentBar = timingMap.bars[selectedBarIndex] || timingMap.bars[0];
+      setTimeSignatureDraft(String(currentBar?.timeSignature.numerator || 4));
+      setTimeSignatureBottomDraft(String(currentBar?.timeSignature.denominator || 4));
+    }
+    setPendingMeterChange(null);
+  }, [barSelection?.barIndices, canvas]);
+
+  const resolveMeterChange = useCallback(async (behavior: "adjust" | "keep") => {
+    if (!canvas || !pendingMeterChange || timeSignatureSaving) return;
+    const timingMap = timingMapForCanvas(canvas);
+    const selectedBarIndexes = Array.from(new Set(barSelection?.barIndices || [])).sort((left, right) => left - right);
+    const applyToAll = selectedBarIndexes.length === 0;
+    const targetIndexes = applyToAll ? timingMap.bars.map((bar) => bar.index) : selectedBarIndexes;
+    const targetSet = new Set(targetIndexes);
     setTimeSignatureSaving(true);
     setTimeSignatureError(null);
     try {
-      const secondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
-      const nextCanvas = normalizeCanvas(
-        {
-          ...canvas,
-          updatedAt: new Date().toISOString(),
-          editors: canvas.editors.map((lane, index) =>
-            normalizeLane(
-              {
-                ...lane,
-                timeSignatureBottom: normalized,
-              },
-              lane.id || `ed-${index + 1}`,
-              secondsPerBar,
-              index
-            )
+      if (isGuestMode) {
+        const nextQuarterNotes = pendingMeterChange.numerator * (4 / pendingMeterChange.denominator);
+        const ratiosByBar = new Map<number, number>();
+        timingMap.bars.forEach((bar) => {
+          if (!targetSet.has(bar.index)) return;
+          const previousQuarterNotes =
+            bar.timeSignature.numerator * (4 / bar.timeSignature.denominator);
+          ratiosByBar.set(bar.index, nextQuarterNotes / Math.max(0.25, previousQuarterNotes));
+        });
+        let cursorSeconds = 0;
+        timingMap.bars = timingMap.bars.map((bar) => {
+          const selected = targetSet.has(bar.index);
+          const bpm = Math.max(1, bar.quarterNoteBpm);
+          const meter = selected
+            ? { numerator: pendingMeterChange.numerator, denominator: pendingMeterChange.denominator }
+            : bar.timeSignature;
+          const quarterNotes = meter.numerator * (4 / meter.denominator);
+          const duration = selected
+            ? (60 * quarterNotes) / bpm
+            : Math.max(0.1, bar.endSeconds - bar.startSeconds);
+          const next = {
+            ...bar,
+            timeSignature: meter,
+            startSeconds: cursorSeconds,
+            endSeconds: cursorSeconds + duration,
+            source: selected ? "manual" : bar.source,
+            confidence: selected ? 1 : bar.confidence,
+            anchors: Array.from({ length: meter.numerator + 1 }, (_, beat) => ({
+              tick: Math.round((beat * FIXED_FRAMES_PER_BAR) / meter.numerator),
+              seconds: cursorSeconds + (beat * duration) / meter.numerator,
+            })),
+          };
+          cursorSeconds = next.endSeconds;
+          return next;
+        });
+        const editors = canvas.editors.map((lane) => {
+          const adjusted = behavior === "adjust" ? adjustLaneEventsWithinBars(lane, ratiosByBar) : lane;
+          return applyToAll
+            ? {
+                ...adjusted,
+                timeSignature: pendingMeterChange.numerator,
+                timeSignatureBottom: pendingMeterChange.denominator,
+              }
+            : adjusted;
+        });
+        applyCanvasUpdate(
+          normalizeCanvas(
+            { ...canvas, timingVersion: 2, timingMap, editors, updatedAt: new Date().toISOString() },
+            editorId
           ),
-        },
-        editorId
-      );
-      const res = await gteApi.applySnapshot(editorId, nextCanvas);
-      applyCanvasUpdate(normalizeCanvas((res as any).canvas ?? (res as any).snapshot ?? nextCanvas, editorId), {
-        markDirty: !isGuestMode,
-      });
+          { markDirty: true }
+        );
+      } else {
+        const response = await gteApi.setTimeSignatureMap(editorId, {
+          expectedVersion: Math.max(1, Number(canvas.version) || 1),
+          timeSignature: pendingMeterChange.numerator,
+          timeSignatureBottom: pendingMeterChange.denominator,
+          barIndexes: selectedBarIndexes,
+          applyToAll,
+          behavior,
+        });
+        applyCanvasUpdate(normalizeCanvas(response.canvas, editorId), { markDirty: true });
+      }
+      setPendingMeterChange(null);
     } catch (err: any) {
       setTimeSignatureError(err?.message || "Could not update time signature.");
     } finally {
       setTimeSignatureSaving(false);
     }
-  };
+  }, [applyCanvasUpdate, barSelection?.barIndices, canvas, editorId, isGuestMode, pendingMeterChange, timeSignatureSaving]);
 
   const handleAddLane = async (kind: "tab" | "chords" | "drums" = "tab") => {
     if (!canvas || addingLane) return;
@@ -2183,14 +2258,164 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setExportMenuOpen(false);
     setError(null);
     try {
-      const file = buildGteExportFile(lane, format);
+      const file = buildGteExportFile(lane, format, canvas?.timingMap);
       downloadGteExportFile(file);
     } catch (err: any) {
       setError(err?.message || "Could not export this track.");
     } finally {
       setExportingTrack(false);
     }
-  }, [exportingTrack, getExportLane]);
+  }, [canvas?.timingMap, exportingTrack, getExportLane]);
+
+  const openTimingEditor = useCallback(() => {
+    if (!canvas) return;
+    const timingMap = timingMapForCanvas(canvas);
+    const selectedBar =
+      barSelection?.barIndices.length && barSelection.barIndices.length === 1
+        ? timingMap.bars[barSelection.barIndices[0]]
+        : null;
+    setTimingBpmDraft(formatBpm(selectedBar?.quarterNoteBpm ?? timingMap.bars[0]?.quarterNoteBpm ?? 120));
+    setTimingApplyToAll(!barSelection?.barIndices.length);
+    setTimingDialogOpen(true);
+    setOpenTopMenu(null);
+  }, [barSelection?.barIndices, canvas]);
+
+  const commitTimingBpm = useCallback(async () => {
+    if (!canvas || timingSaving) return;
+    const bpm = normalizeBpm(timingBpmDraft);
+    if (!bpm) {
+      setError("Enter a valid BPM.");
+      return;
+    }
+    const barIndexes = Array.from(new Set(barSelection?.barIndices || [])).sort((left, right) => left - right);
+    if (!timingApplyToAll && barIndexes.length === 0) {
+      setError("Select one or more bars, or choose All bars.");
+      return;
+    }
+    setTimingSaving(true);
+    setError(null);
+    try {
+      if (isGuestMode) {
+        const timingMap = timingMapForCanvas(canvas);
+        const targets = timingApplyToAll ? timingMap.bars.map((bar) => bar.index) : barIndexes;
+        const targetSet = new Set(targets);
+        let cursorSeconds = 0;
+        timingMap.bars = timingMap.bars.map((bar) => {
+          const selected = targetSet.has(bar.index);
+          const numerator = Math.max(1, bar.timeSignature.numerator);
+          const denominator = Math.max(1, bar.timeSignature.denominator);
+          const duration = selected
+            ? (60 * numerator * (4 / denominator)) / bpm
+            : Math.max(0.1, bar.endSeconds - bar.startSeconds);
+          const next = {
+            ...bar,
+            startSeconds: cursorSeconds,
+            endSeconds: cursorSeconds + duration,
+            quarterNoteBpm: selected ? bpm : bar.quarterNoteBpm,
+            source: selected ? "manual" : bar.source,
+            confidence: selected ? 1 : bar.confidence,
+            anchors: Array.from({ length: numerator + 1 }, (_, beat) => ({
+              tick: Math.round((beat * FIXED_FRAMES_PER_BAR) / numerator),
+              seconds: cursorSeconds + (beat * duration) / numerator,
+            })),
+          };
+          cursorSeconds = next.endSeconds;
+          return next;
+        });
+        applyCanvasUpdate(
+          normalizeCanvas({ ...canvas, timingVersion: 2, timingMap, updatedAt: new Date().toISOString() }, editorId),
+          { markDirty: true }
+        );
+      } else {
+        const response = await gteApi.setBarTempo(editorId, {
+          expectedVersion: Math.max(1, Number(canvas.version) || 1),
+          barIndexes,
+          bpm,
+          applyToAll: timingApplyToAll,
+        });
+        applyCanvasUpdate(normalizeCanvas(response.canvas, editorId), { markDirty: true });
+      }
+      setTimingDialogOpen(false);
+    } catch (err: any) {
+      setError(err?.message || "Could not update bar tempo.");
+    } finally {
+      setTimingSaving(false);
+    }
+  }, [applyCanvasUpdate, barSelection?.barIndices, canvas, editorId, isGuestMode, timingApplyToAll, timingBpmDraft, timingSaving]);
+
+  const handleShiftTrack = useCallback(async (laneId: string, deltaBars: number) => {
+    if (!canvas || shiftingLaneId) return;
+    const lane = canvas.editors.find((item) => item.id === laneId);
+    if (!lane) return;
+    const currentOffset = Math.max(0, Math.round(toNumber(lane.timelineOffsetFrames, 0)));
+    const nextOffset = Math.max(0, currentOffset + deltaBars * FIXED_FRAMES_PER_BAR);
+    if (nextOffset === currentOffset) return;
+    const delta = nextOffset - currentOffset;
+    setShiftingLaneId(laneId);
+    setError(null);
+    try {
+      if (isGuestMode) {
+        const groupId = lane.importGroupId;
+        const shifted = canvas.editors.map((item) => {
+          const shouldShift = groupId ? item.importGroupId === groupId : item.id === laneId;
+          if (!shouldShift) return item;
+          const shiftStart = (value: number) => Math.max(0, Math.round(toNumber(value, 0)) + delta);
+          return {
+            ...item,
+            timelineOffsetFrames: nextOffset,
+            notes: item.notes.map((note) => ({ ...note, startTime: shiftStart(note.startTime) })),
+            chords: item.chords.map((chord) => ({ ...chord, startTime: shiftStart(chord.startTime) })),
+            drumLoops: (item.drumLoops || []).map((loop) => ({
+              ...loop,
+              sourceStart: shiftStart(loop.sourceStart),
+              sourceEnd: shiftStart(loop.sourceEnd),
+              loopEnd: shiftStart(loop.loopEnd),
+            })),
+          };
+        });
+        applyCanvasUpdate(normalizeCanvas({ ...canvas, editors: shifted }, editorId), { markDirty: true });
+      } else {
+        const response = await gteApi.setLaneTimelineOffset(editorId, laneId, {
+          expectedVersion: Math.max(1, Number(canvas.version) || 1),
+          timelineOffsetFrames: nextOffset,
+          applyToImportGroup: Boolean(lane.importGroupId),
+        });
+        applyCanvasUpdate(normalizeCanvas(response.canvas, editorId), { markDirty: true });
+      }
+      setOpenTrackMenuId(null);
+    } catch (err: any) {
+      setError(err?.message || "Could not move this track.");
+    } finally {
+      setShiftingLaneId(null);
+    }
+  }, [applyCanvasUpdate, canvas, editorId, isGuestMode, shiftingLaneId]);
+
+  const openTrackMerge = useCallback(() => {
+    if (!canvas || canvas.editors.length < 2 || isGuestMode) return;
+    setMergeTrackIds(canvas.editors.slice(0, 2).map((lane) => lane.id));
+    setMergeTracksDialogOpen(true);
+    setOpenTopMenu(null);
+  }, [canvas, isGuestMode]);
+
+  const commitTrackMerge = useCallback(async () => {
+    if (!canvas || mergeTracksBusy || mergeTrackIds.length < 2) return;
+    setMergeTracksBusy(true);
+    setError(null);
+    try {
+      const response = await gteApi.mergeTracks(editorId, {
+        laneIds: mergeTrackIds,
+        name: "Merged track",
+        keepOriginals: true,
+      });
+      applyCanvasUpdate(normalizeCanvas(response.canvas, editorId), { markDirty: false });
+      setActiveLaneId(response.mergedLaneId);
+      setMergeTracksDialogOpen(false);
+    } catch (err: any) {
+      setError(err?.message || "Could not merge these tracks.");
+    } finally {
+      setMergeTracksBusy(false);
+    }
+  }, [applyCanvasUpdate, canvas, editorId, mergeTrackIds, mergeTracksBusy]);
 
   const requestDeleteTrack = useCallback(
     (laneId: string) => {
@@ -2887,6 +3112,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     () => fpsFromSecondsPerBar(Math.max(0.1, toNumber(canvas?.secondsPerBar, DEFAULT_SECONDS_PER_BAR))),
     [canvas?.secondsPerBar]
   );
+  const globalTimingMap = useMemo(
+    () =>
+      canvas
+        ? timingMapForCanvas(canvas)
+        : normalizeTimingMap(undefined, {
+            secondsPerBar: DEFAULT_SECONDS_PER_BAR,
+            totalFrames: FIXED_FRAMES_PER_BAR,
+          }),
+    [canvas]
+  );
   const selectedPracticePlaybackRange = useMemo(
     () =>
       practiceModeEnabled && barSelection?.laneId === globalControlsLaneId
@@ -2911,7 +3146,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [canvasTimelineEnd, selectedPracticePlaybackRange]
   );
   const normalizedPlaybackSpeed = normalizePlaybackSpeed(playbackSpeed);
-  const globalMetronomeBeatsPerBar = normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8;
   const practiceSettingsStorageKey = `note2tabs:practice:${editorId}:v1`;
   const practiceRatingsStorageKey = `note2tabs:practice-ratings:${editorId}:v1`;
 
@@ -3509,6 +3743,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           (practiceLoopEnabled && globalPracticeLoopRange
             ? globalPracticeLoopRange.endFrame
             : canvasTimelineEnd));
+      const playbackSecondsBetween = (fromFrame: number, toFrame: number) =>
+        frameDurationSeconds(globalTimingMap, fromFrame, toFrame) / runPlaybackSpeed;
 
       const getMidiFromTab = (lane: EditorSnapshot, tab: [number, number], fallback?: number) => {
         const fromRef = lane.tabRef?.[tab[0]]?.[tab[1]];
@@ -3564,8 +3800,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         if (durationFrames <= 0) return;
         endFrame = Math.max(endFrame, trimmedEnd);
         events.push({
-          start: frameDeltaToSeconds(trimmedStart - playbackStartFrame, globalPlaybackFps, runPlaybackSpeed),
-          duration: frameDeltaToSeconds(durationFrames, globalPlaybackFps, runPlaybackSpeed),
+          start: playbackSecondsBetween(playbackStartFrame, trimmedStart),
+          duration: playbackSecondsBetween(trimmedStart, trimmedEnd),
           midi,
           gain,
           instrumentId,
@@ -3574,15 +3810,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             Array.isArray(bendSegments) && bendSegments.length > 0
               ? bendSegments
                   .map((segment) => ({
-                    holdSec: frameDeltaToSeconds(
-                      Math.max(0, roundedStart + segment.holdFrames - trimmedStart),
-                      globalPlaybackFps,
-                      runPlaybackSpeed
+                    holdSec: playbackSecondsBetween(
+                      trimmedStart,
+                      Math.max(trimmedStart, roundedStart + segment.holdFrames)
                     ),
-                    bendSec: frameDeltaToSeconds(
-                      Math.max(0, segment.bendFrames),
-                      globalPlaybackFps,
-                      runPlaybackSpeed
+                    bendSec: playbackSecondsBetween(
+                      Math.max(trimmedStart, roundedStart + segment.holdFrames),
+                      Math.max(trimmedStart, roundedStart + segment.holdFrames + segment.bendFrames)
                     ),
                     targetCents: segment.targetCents,
                   }))
@@ -3616,11 +3850,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             }
             endFrame = Math.max(endFrame, roundedStart + 1);
             events.push({
-              start: frameDeltaToSeconds(
-                roundedStart - playbackStartFrame,
-                globalPlaybackFps,
-                runPlaybackSpeed
-              ),
+              start: playbackSecondsBetween(playbackStartFrame, roundedStart),
               duration: 0.2,
               midi: note.midiNum,
               gain: 0.72 * laneVolume,
@@ -3880,22 +4110,25 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       master.connect(ctx.destination);
       globalPlaybackMasterGainRef.current = master;
       const shouldCountIn = !oneShotRange && countInEnabled && (!isLoopRestart || countInEveryLoop);
+      const playbackStartBar = Math.max(0, Math.floor(playbackStartFrame / FIXED_FRAMES_PER_BAR));
+      const playbackStartBarFrame = playbackStartBar * FIXED_FRAMES_PER_BAR;
       const countInSec = shouldCountIn
-        ? frameDeltaToSeconds(FIXED_FRAMES_PER_BAR * countInBars, globalPlaybackFps, runPlaybackSpeed)
+        ? playbackSecondsBetween(
+            playbackStartBarFrame,
+            playbackStartBarFrame + FIXED_FRAMES_PER_BAR
+          ) * countInBars
         : 0;
       const playBase = base + countInSec;
 
       if (!muteOutput && (metronomeEnabled || shouldCountIn)) {
-        buildMetronomeClicks({
+        buildTimingMapMetronomeClicks({
+          timingMap: globalTimingMap,
           startFrame: playbackStartFrame,
           endFrame,
-          framesPerBar: FIXED_FRAMES_PER_BAR,
-          beatsPerBar: globalMetronomeBeatsPerBar,
-          fps: globalPlaybackFps,
           playbackSpeed: runPlaybackSpeed,
           countInBars: shouldCountIn ? countInBars : 0,
         }).forEach((click) => {
-          if (!metronomeEnabled && click.timeSec >= 0) return;
+          if (!metronomeEnabled && !click.countIn) return;
           scheduleMetronomeClick(ctx, master, playBase + click.timeSec, click.accent);
         });
       }
@@ -3964,8 +4197,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       countInEnabled,
       countInBars,
       countInEveryLoop,
-      globalMetronomeBeatsPerBar,
-      globalPlaybackFps,
+      globalTimingMap,
       globalPlaybackVolume,
       globalPracticeLoopRange,
       isolatedTrackId,
@@ -4089,7 +4321,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       }
       if (elapsed < 0) elapsed = 0;
       const nextFrame =
-        globalPlaybackStartFrameRef.current + elapsed * globalPlaybackFps * runPlaybackSpeed;
+        secondsToFrame(
+          globalTimingMap,
+          frameToSeconds(globalTimingMap, globalPlaybackStartFrameRef.current) +
+            elapsed * runPlaybackSpeed
+        );
       const endFrame = globalPlaybackEndFrameRef.current ?? canvasTimelineEnd;
       if (nextFrame >= endFrame) {
         const trainerSessionActive = speedTrainerSessionActiveRef.current;
@@ -4138,7 +4374,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     canvas,
     canvasTimelineEnd,
     globalPracticeLoopRange,
-    globalPlaybackFps,
+    globalTimingMap,
     normalizedPlaybackSpeed,
     scheduleGlobalPlayback,
     selectedPracticePlaybackRange,
@@ -4200,7 +4436,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         const replaySpeed = normalizePlaybackSpeed(replay.playbackSpeed);
         const audioOffsetSeconds = Math.max(
           0,
-          (startFrame - replay.startFrame) / (globalPlaybackFps * replaySpeed)
+          frameDurationSeconds(globalTimingMap, replay.startFrame, startFrame) / replaySpeed
         );
         audio.currentTime = Math.min(audio.duration || audioOffsetSeconds, audioOffsetSeconds);
         await audio.play();
@@ -4218,7 +4454,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           }
           const nextFrame = Math.min(
             replay.endFrame,
-            replay.startFrame + audio.currentTime * globalPlaybackFps * replaySpeed
+            secondsToFrame(
+              globalTimingMap,
+              frameToSeconds(globalTimingMap, replay.startFrame) +
+                audio.currentTime * replaySpeed
+            )
           );
           if (audio.ended || nextFrame >= replay.endFrame) {
             syncGlobalPlaybackFrame(replay.endFrame, { forceReact: true });
@@ -4249,7 +4489,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       }
     },
     [
-      globalPlaybackFps,
+      globalTimingMap,
       globalPlaybackVolume,
       stopGlobalPlayback,
       stopGlobalPlaybackAudio,
@@ -4912,8 +5152,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       const recordingStartedAt = performance.now();
       let playbackLeadSeconds = 0;
       const playbackDurationSeconds =
-        (globalPracticeLoopRange.endFrame - globalPracticeLoopRange.startFrame) /
-        (globalPlaybackFps * normalizedPlaybackSpeed);
+        frameDurationSeconds(
+          globalTimingMap,
+          globalPracticeLoopRange.startFrame,
+          globalPracticeLoopRange.endFrame
+        ) / normalizedPlaybackSpeed;
       await Promise.race([
         new Promise<void>((resolve, reject) => {
           void startGlobalPlayback(
@@ -4970,6 +5213,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         fps: globalPlaybackFps,
         playbackSpeed: normalizedPlaybackSpeed,
         recordingLeadSeconds: playbackLeadSeconds,
+        timingMap: globalTimingMap,
       });
       const ratingAudio = encodeMonoWav(samples, sampleRate);
       const replaySamples = trimPracticeRecordingSamples(
@@ -5000,6 +5244,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         fps: globalPlaybackFps,
         recordingLeadSeconds: playbackLeadSeconds,
         framesPerBar: FIXED_FRAMES_PER_BAR,
+        timingMap: globalTimingMap,
       });
       const replay: PracticeRatingReplay = {
         ...ratedReplay,
@@ -6412,6 +6657,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         )}
                       </div>
                       <div className="mt-1 border-t border-slate-200 pt-1">
+                        <button
+                          type="button"
+                          onClick={openTimingEditor}
+                          disabled={!canvas?.editors.length}
+                          className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                          title="Edit BPM for selected bars or the full song"
+                        >
+                          Bar tempo…
+                        </button>
+                        <button
+                          type="button"
+                          onClick={openTrackMerge}
+                          disabled={isGuestMode || (canvas?.editors.length || 0) < 2}
+                          className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                          title={isGuestMode ? "Save this draft before merging tracks" : "Combine notes and chords into a new optimized track"}
+                        >
+                          Merge tracks…
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
@@ -7963,6 +8226,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             <GteWorkspace
                               editorId={laneEditorRef}
                               snapshot={lane}
+                              timingMap={canvas.timingMap}
                               onSnapshotChange={(nextSnapshot, options) =>
                                 handleLaneSnapshotChange(laneId, nextSnapshot, options)
                               }
@@ -8262,6 +8526,34 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                       </span>
                                     </div>
                                   </label>
+                                  <div className="mt-3 border-t border-slate-100 pt-3">
+                                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                      Timeline position
+                                    </div>
+                                    <div className="mt-2 grid grid-cols-2 gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleShiftTrack(laneId, -1)}
+                                        disabled={shiftingLaneId === laneId || Math.max(0, Number(lane.timelineOffsetFrames) || 0) === 0}
+                                        className="rounded-md border border-slate-200 px-2 py-2 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:text-slate-300"
+                                      >
+                                        Move 1 bar left
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleShiftTrack(laneId, 1)}
+                                        disabled={shiftingLaneId === laneId}
+                                        className="rounded-md border border-slate-200 px-2 py-2 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:text-slate-300"
+                                      >
+                                        Move 1 bar right
+                                      </button>
+                                    </div>
+                                    <p className="mt-2 text-[10px] leading-4 text-slate-400">
+                                      {lane.importGroupId
+                                        ? "Tracks from the same import move together."
+                                        : `Starts at bar ${Math.floor(Math.max(0, Number(lane.timelineOffsetFrames) || 0) / FIXED_FRAMES_PER_BAR) + 1}.`}
+                                    </p>
+                                  </div>
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -8281,6 +8573,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             <GteWorkspace
                               editorId={laneEditorRef}
                               snapshot={lane}
+                              timingMap={canvas.timingMap}
                               onSnapshotChange={(nextSnapshot, options) =>
                                 handleLaneSnapshotChange(laneId, nextSnapshot, options)
                               }
@@ -8816,6 +9109,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <GteWorkspace
                           editorId={laneEditorRef}
                           snapshot={lane}
+                          timingMap={canvas.timingMap}
                           onSnapshotChange={(nextSnapshot, options) =>
                             handleLaneSnapshotChange(laneId, nextSnapshot, options)
                           }
@@ -9259,6 +9553,222 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               >
                 <div style={{ width: globalTimelineTrackWidth, height: 1 }} />
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {pendingMeterChange && canvas && (
+        <div className="dialog-scrim" onMouseDown={() => !timeSignatureSaving && cancelMeterChange()}>
+          <div
+            className="dialog-card max-w-md"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="meter-change-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="stack-tight">
+              <h2 id="meter-change-title" className="page-title" style={{ fontSize: "1.25rem" }}>
+                Change to {pendingMeterChange.numerator}/{pendingMeterChange.denominator}?
+              </h2>
+              <p className="muted text-small">
+                {barSelection?.barIndices.length
+                  ? `This applies to ${barSelection.barIndices.length} selected bar${barSelection.barIndices.length === 1 ? "" : "s"}.`
+                  : "This applies to every bar."}
+              </p>
+            </div>
+            <div className="mt-4 grid gap-2">
+              <button
+                type="button"
+                onClick={() => void resolveMeterChange("adjust")}
+                disabled={timeSignatureSaving}
+                className="rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-left text-sm text-sky-950"
+              >
+                <span className="block font-semibold">Adjust musical content</span>
+                <span className="mt-1 block text-xs leading-5 text-sky-800">
+                  Scale notes, chords, cuts, and drum loops inside the affected bars so their beat positions follow the new meter.
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void resolveMeterChange("keep")}
+                disabled={timeSignatureSaving}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm text-slate-800"
+              >
+                <span className="block font-semibold">Keep content in place</span>
+                <span className="mt-1 block text-xs leading-5 text-slate-500">
+                  Change the meter and timing anchors without moving notes or chords.
+                </span>
+              </button>
+            </div>
+            <div className="button-row mt-5" style={{ justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={cancelMeterChange}
+                disabled={timeSignatureSaving}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {timingDialogOpen && canvas && (
+        <div
+          className="dialog-scrim"
+          onMouseDown={() => !timingSaving && setTimingDialogOpen(false)}
+        >
+          <div
+            className="dialog-card max-w-md"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bar-tempo-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="stack-tight">
+              <h2 id="bar-tempo-title" className="page-title" style={{ fontSize: "1.25rem" }}>Bar tempo</h2>
+              <p className="muted text-small">
+                Set a precise tempo without moving any notes. Playback, seeking, the metronome, MIDI, and MusicXML use the same timing map.
+              </p>
+            </div>
+            <label className="mt-4 block text-sm font-medium text-slate-700">
+              BPM
+              <input
+                type="number"
+                min={40}
+                max={240}
+                step={0.1}
+                value={timingBpmDraft}
+                onChange={(event) => setTimingBpmDraft(event.target.value)}
+                className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800"
+                autoFocus
+              />
+            </label>
+            <div className="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tempo range">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={!timingApplyToAll}
+                onClick={() => setTimingApplyToAll(false)}
+                disabled={!barSelection?.barIndices.length}
+                className={`rounded-xl border px-3 py-3 text-left text-sm ${
+                  !timingApplyToAll
+                    ? "border-sky-400 bg-sky-50 text-sky-900"
+                    : "border-slate-200 text-slate-600"
+                } disabled:cursor-not-allowed disabled:opacity-40`}
+              >
+                <span className="block font-semibold">Selected bars</span>
+                <span className="mt-1 block text-xs opacity-70">
+                  {barSelection?.barIndices.length || 0} selected
+                </span>
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={timingApplyToAll}
+                onClick={() => setTimingApplyToAll(true)}
+                className={`rounded-xl border px-3 py-3 text-left text-sm ${
+                  timingApplyToAll
+                    ? "border-sky-400 bg-sky-50 text-sky-900"
+                    : "border-slate-200 text-slate-600"
+                }`}
+              >
+                <span className="block font-semibold">All bars</span>
+                <span className="mt-1 block text-xs opacity-70">Entire song</span>
+              </button>
+            </div>
+            <div className="button-row mt-5" style={{ justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={() => setTimingDialogOpen(false)}
+                disabled={timingSaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button-primary button-small"
+                onClick={() => void commitTimingBpm()}
+                disabled={timingSaving}
+              >
+                {timingSaving ? "Saving…" : "Set tempo"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {mergeTracksDialogOpen && canvas && (
+        <div
+          className="dialog-scrim"
+          onMouseDown={() => !mergeTracksBusy && setMergeTracksDialogOpen(false)}
+        >
+          <div
+            className="dialog-card max-w-lg"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="merge-tracks-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="stack-tight">
+              <h2 id="merge-tracks-title" className="page-title" style={{ fontSize: "1.25rem" }}>Merge tracks</h2>
+              <p className="muted text-small">
+                Notes and chords are combined into a new optimized track. Your original tracks stay unchanged.
+              </p>
+            </div>
+            <div className="mt-4 grid max-h-72 gap-2 overflow-y-auto">
+              {canvas.editors.map((lane) => {
+                const checked = mergeTrackIds.includes(lane.id);
+                return (
+                  <label
+                    key={`merge-track-${lane.id}`}
+                    className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 ${
+                      checked ? "border-sky-300 bg-sky-50" : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(event) =>
+                        setMergeTrackIds((current) =>
+                          event.target.checked
+                            ? [...current, lane.id]
+                            : current.filter((laneId) => laneId !== lane.id)
+                        )
+                      }
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-slate-800">
+                        {lane.name || "Untitled track"}
+                      </span>
+                      <span className="block text-xs text-slate-500">
+                        {isDrumLane(lane) ? "Drums" : `${lane.notes.length} notes · ${lane.chords.length} chords`}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              Drum tracks can only be merged with other drum tracks. The first selected track supplies the tuning.
+            </p>
+            <div className="button-row mt-5" style={{ justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="button-secondary button-small"
+                onClick={() => setMergeTracksDialogOpen(false)}
+                disabled={mergeTracksBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button-primary button-small"
+                onClick={() => void commitTrackMerge()}
+                disabled={mergeTracksBusy || mergeTrackIds.length < 2}
+              >
+                {mergeTracksBusy ? "Merging…" : "Create merged track"}
+              </button>
             </div>
           </div>
         </div>
