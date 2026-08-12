@@ -2403,6 +2403,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setError(null);
     try {
       const response = await gteApi.mergeTracks(editorId, {
+        expectedVersion: Math.max(1, Number(canvas.version) || 1),
         laneIds: mergeTrackIds,
         name: "Merged track",
         keepOriginals: true,

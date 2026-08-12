@@ -546,7 +546,7 @@ export const gteApi = {
     ),
   mergeTracks: (
     editorId: string,
-    payload: { laneIds: string[]; name?: string; keepOriginals?: boolean }
+    payload: { expectedVersion: number; laneIds: string[]; name?: string; keepOriginals?: boolean }
   ) =>
     requestForEditor<{
       ok: true;
