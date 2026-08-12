@@ -36,6 +36,8 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const isHome = router.pathname === "/";
   const role = session?.user?.role || "";
   const isAdmin = role === "ADMIN";
+  const hasPremiumAccess = ["PREMIUM", "ADMIN", "MODERATOR", "MOD"].includes(role);
+  const premiumHref = "/pricing?source=navigation&reason=nav_premium";
   const editorHref = sessionStatus === "authenticated" ? "/gte" : "/editor";
 
   useEffect(() => {
@@ -151,7 +153,12 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
           <Link href="/transcribe" className="nav-pill">
             Transcriber
           </Link>
-          <Link href="/pricing">Pricing</Link>
+          <Link
+            href={session && !hasPremiumAccess ? premiumHref : "/pricing"}
+            className={session && !hasPremiumAccess ? "nav-premium-link" : undefined}
+          >
+            {session && !hasPremiumAccess ? "Premium" : "Pricing"}
+          </Link>
           <div
             className={`nav-auth-slot${
               sessionStatus === "loading"
@@ -201,6 +208,16 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                   className={`nav-profile-menu${profileMenuOpen ? " open" : ""}`}
                   role="menu"
                 >
+                  {!hasPremiumAccess && (
+                    <Link
+                      href={premiumHref}
+                      className="nav-profile-menu__premium"
+                      role="menuitem"
+                      onClick={() => setProfileMenuOpen(false)}
+                    >
+                      Explore Premium
+                    </Link>
+                  )}
                   <Link href="/settings" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
                     Settings
                   </Link>

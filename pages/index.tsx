@@ -41,6 +41,8 @@ import TranscriptionModelValueNote from "../components/TranscriptionModelValueNo
 import PremiumConversionCard from "../components/PremiumConversionCard";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
+import TranscriptionRecordingDetails from "../components/TranscriptionRecordingDetails";
+import PremiumHomeCallout from "../components/PremiumHomeCallout";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
 import {
   clearPendingTranscription,
@@ -59,6 +61,17 @@ import {
   categorizeAnalyticsError,
 } from "../lib/analyticsErrors";
 import { formatCreditResetDate } from "../lib/formatCreditResetDate";
+import {
+  getOrCreatePremiumFunnelContext,
+  premiumFunnelProperties,
+  premiumPricingHref,
+  type PremiumFunnelSource,
+} from "../lib/premiumFunnel";
+import {
+  premiumOfferCtaLabel,
+  premiumOfferReassurance,
+  usePremiumOfferEligibility,
+} from "../lib/usePremiumOfferEligibility";
 
 type TabsResponse = {
   tabs: string[][];
@@ -218,12 +231,11 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const [pricingBusy, setPricingBusy] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [authHandoffBusy, setAuthHandoffBusy] = useState(false);
-  const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
-  const [includesOtherInstruments, setIncludesOtherInstruments] = useState<boolean | null>(null);
+  const [includesOtherInstruments, setIncludesOtherInstruments] = useState(false);
   const [transcriptionModel, setTranscriptionModel] =
     useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
   const transcriptionModelTouchedRef = useRef(false);
-  const [multipleGuitars, setMultipleGuitars] = useState<boolean | null>(null);
+  const [multipleGuitars, setMultipleGuitars] = useState(false);
   const [localUnverifiedTranscriptionUsed, setLocalUnverifiedTranscriptionUsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
@@ -239,6 +251,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     setTranscriptionModel(model);
   };
   const isStaffUser = ["ADMIN", "MODERATOR", "MOD"].includes(transcriberSession?.user?.role || "");
+  const offerEligibility = usePremiumOfferEligibility(
+    sessionStatus === "authenticated" && !isPremiumUser
+  );
   const needsPremiumForSelectedFile = Boolean(
     transcriberSession && !isPremiumUser && selectedFile && selectedFile.size > MAX_FREE_BYTES
   );
@@ -458,7 +473,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       }
 
       setError(null);
-      setShowInstrumentPrompt(false);
       if (pending.mode === "FILE") {
         setMode("FILE");
         setSelectedFile(pending.file);
@@ -488,8 +502,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         setError("Please verify your email to continue using the transcriber.");
         setStatus("Your upload is restored and will remain available after verification.");
       } else {
-        setShowInstrumentPrompt(true);
-        setStatus("Welcome back — your transcription is ready to continue.");
+        setStatus("Welcome back — your recording is ready to transcribe.");
       }
 
       sendEvent(ANALYTICS_EVENTS.authHandoffResumed, { mode: pending.mode, path: "/" });
@@ -678,7 +691,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     setError(null);
     setImportError(null);
     setTabsResult(null);
-    setShowInstrumentPrompt(false);
   };
 
   const onDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
@@ -711,7 +723,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setError(null);
       setImportError(null);
       setTabsResult(null);
-      setShowInstrumentPrompt(false);
     }
   };
 
@@ -821,13 +832,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     return true;
   };
 
-  const startConvert = async (separateGuitar: boolean) => {
+  const startConvert = async () => {
     if (convertInFlightRef.current || loading) return;
+    const separateGuitar = includesOtherInstruments;
     const transcribingStatusLabel = buildTranscribingStatusLabel(separateGuitar);
     const youtubeTranscribingStatusLabel = buildYoutubeTranscribingStatusLabel(separateGuitar);
 
     convertInFlightRef.current = true;
-    setShowInstrumentPrompt(false);
     setError(null);
     setImportError(null);
     setTabsResult(null);
@@ -1112,9 +1123,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     }
     if (!validateConvertInputs()) return;
     setError(null);
-    setIncludesOtherInstruments(null);
-    setMultipleGuitars(null);
-    setShowInstrumentPrompt(true);
+    void startConvert();
   };
 
   const handleHeroPrimaryAction = () => {
@@ -1125,17 +1134,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     }
     trackCtaClick("convert_to_tabs", { surface: "hero_funnel", mode });
     void handleConvert();
-  };
-
-  const instrumentPromptComplete = includesOtherInstruments !== null && multipleGuitars !== null;
-
-  const handleInstrumentPromptStart = () => {
-    if (includesOtherInstruments === null || multipleGuitars === null) return;
-    if (!validateConvertInputs()) {
-      setShowInstrumentPrompt(false);
-      return;
-    }
-    void startConvert(includesOtherInstruments);
   };
 
   const handleImportToEditor = async () => {
@@ -1300,15 +1298,20 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     }
   };
 
-  const handlePricingClick = async () => {
+  const handlePricingClick = async (
+    source: PremiumFunnelSource = "home_pricing",
+    reason = "homepage_pricing_card"
+  ) => {
     if (pricingBusy) return;
+    const funnel = getOrCreatePremiumFunnelContext({ source, reason });
     sendEvent(ANALYTICS_EVENTS.pricingCtaClicked, {
       cta: "premium_card",
       signedIn: Boolean(session),
       path: "/",
+      ...premiumFunnelProperties(funnel),
     });
     if (!session) {
-      signIn(undefined, { callbackUrl: "/pricing?checkout=1" });
+      signIn(undefined, { callbackUrl: `${premiumPricingHref(funnel)}&checkout=1` });
       return;
     }
     if (isPremiumUser) {
@@ -1321,27 +1324,31 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       const res = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: "home_pricing" }),
+        body: JSON.stringify({
+          source: funnel.source,
+          reason: funnel.reason,
+          funnelId: funnel.funnelId,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data?.url) {
         sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-          source: "home_pricing",
           plan: "premium_monthly",
+          ...premiumFunnelProperties(funnel),
         });
         setPricingError(data?.error || "Could not start checkout.");
         return;
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
-        source: "home_pricing",
         plan: "premium_monthly",
         checkout_attempt_id: data.checkoutAttemptId,
+        ...premiumFunnelProperties(funnel),
       });
       window.location.href = data.url;
     } catch (err: any) {
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-        source: "home_pricing",
         plan: "premium_monthly",
+        ...premiumFunnelProperties(funnel),
       });
       setPricingError(err?.message || "Could not start checkout.");
     } finally {
@@ -1351,6 +1358,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   const handlePreservedUploadUpgrade = async () => {
     if (!selectedFile || pricingBusy) return;
+    const funnel = getOrCreatePremiumFunnelContext({
+      source: "large_upload_gate",
+      reason: "file_size_limit",
+    });
     setPricingBusy(true);
     setPricingError(null);
     try {
@@ -1366,7 +1377,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           returnTo: "/?resumeTranscription=1",
-          source: "large_upload_gate",
+          source: funnel.source,
+          reason: funnel.reason,
+          funnelId: funnel.funnelId,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -1374,15 +1387,15 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         throw new Error(payload?.error || "Could not start checkout.");
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
-        source: "large_upload_gate",
         plan: "premium_monthly",
         checkout_attempt_id: payload.checkoutAttemptId,
+        ...premiumFunnelProperties(funnel),
       });
       window.location.assign(payload.url);
     } catch (upgradeError) {
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-        source: "large_upload_gate",
         plan: "premium_monthly",
+        ...premiumFunnelProperties(funnel),
       });
       setPricingError(
         upgradeError instanceof Error ? upgradeError.message : "Could not start checkout."
@@ -1457,29 +1470,16 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 handleHeroPrimaryAction();
               }}
             >
-              <div
-                className={`prompt-meta-row ${
-                  !showInstrumentPrompt || mode === "YOUTUBE" || (isSignedIn && displayedCredits)
-                    ? ""
-                    : "is-empty"
-                }`}
-                aria-hidden={
-                  !showInstrumentPrompt || mode === "YOUTUBE" || (isSignedIn && displayedCredits)
-                    ? undefined
-                    : "true"
-                }
-              >
+              <div className="prompt-meta-row">
                 <div className="prompt-meta-left">
-                  {!showInstrumentPrompt && (
-                    <div className="model-choice model-choice--meta">
-                      <TranscriptionModelDropdown
-                        id="home-transcription-model"
-                        value={transcriptionModel}
-                        onChange={selectTranscriptionModel}
-                        disabled={loading || authHandoffBusy}
-                      />
-                    </div>
-                  )}
+                  <div className="model-choice model-choice--meta">
+                    <TranscriptionModelDropdown
+                      id="home-transcription-model"
+                      value={transcriptionModel}
+                      onChange={selectTranscriptionModel}
+                      disabled={loading || authHandoffBusy}
+                    />
+                  </div>
                 </div>
                 {isSignedIn && displayedCredits && (
                   <p className="hero-credits-inline">
@@ -1496,85 +1496,17 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   </p>
                 )}
               </div>
-              {!showInstrumentPrompt && (
-                <TranscriptionModelValueNote
-                  model={transcriptionModel}
-                  isPremium={isPremiumUser}
-                  onSelectHeavy={() => {
-                    selectTranscriptionModel("heavy");
-                    trackCtaClick("try_heavy_model", { surface: "hero_funnel" });
-                  }}
-                  surface="hero_funnel"
-                />
-              )}
+              <TranscriptionModelValueNote
+                model={transcriptionModel}
+                isPremium={isPremiumUser}
+                onSelectHeavy={() => {
+                  selectTranscriptionModel("heavy");
+                  trackCtaClick("try_heavy_model", { surface: "hero_funnel" });
+                }}
+                surface="hero_funnel"
+              />
 
-              {showInstrumentPrompt ? (
-                <div className="instrument-prompt">
-                  <div className="instrument-choice-group">
-                    <p className="instrument-question">Does your audio include other instruments?</p>
-                    <div className="button-row instrument-choice-row">
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${
-                          includesOtherInstruments === true ? "active" : ""
-                        }`}
-                        onClick={() => setIncludesOtherInstruments(true)}
-                        aria-pressed={includesOtherInstruments === true}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${
-                          includesOtherInstruments === false ? "active" : ""
-                        }`}
-                        onClick={() => setIncludesOtherInstruments(false)}
-                        aria-pressed={includesOtherInstruments === false}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        No
-                      </button>
-                    </div>
-                  </div>
-                  <div className="instrument-choice-group">
-                    <p className="instrument-question">Are there multiple guitars?</p>
-                    <div className="button-row instrument-choice-row">
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${
-                          multipleGuitars === true ? "active" : ""
-                        }`}
-                        onClick={() => setMultipleGuitars(true)}
-                        aria-pressed={multipleGuitars === true}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${
-                          multipleGuitars === false ? "active" : ""
-                        }`}
-                        onClick={() => setMultipleGuitars(false)}
-                        aria-pressed={multipleGuitars === false}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        No
-                      </button>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="button-primary instrument-start-button"
-                    onClick={handleInstrumentPromptStart}
-                    disabled={loading || !instrumentPromptComplete}
-                  >
-                    Start transcription
-                  </button>
-                </div>
-              ) : (
-                <>
+              <>
                   <div className="funnel-panel">
                     <div className="funnel-row">
                       <div
@@ -1648,7 +1580,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                           aria-pressed={mode === "FILE"}
                           onClick={() => {
                             setMode("FILE");
-                            setShowInstrumentPrompt(false);
                             trackCtaClick("mode_file", { surface: "hero_funnel" });
                           }}
                         >
@@ -1660,7 +1591,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                           aria-pressed={mode === "YOUTUBE"}
                           onClick={() => {
                             setMode("YOUTUBE");
-                            setShowInstrumentPrompt(false);
                             trackCtaClick("mode_youtube", { surface: "hero_funnel" });
                           }}
                         >
@@ -1758,8 +1688,14 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                       </div>
                     </div>
                   )}
-                </>
-              )}
+                  <TranscriptionRecordingDetails
+                    includesOtherInstruments={includesOtherInstruments}
+                    multipleGuitars={multipleGuitars}
+                    onIncludesOtherInstrumentsChange={setIncludesOtherInstruments}
+                    onMultipleGuitarsChange={setMultipleGuitars}
+                    disabled={loading || authHandoffBusy}
+                  />
+              </>
 
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
               {error && <div className="error" role="alert">{error}</div>}
@@ -1791,9 +1727,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 ) : (
                   <PremiumConversionCard
                     title="Keep transcribing today"
-                    description="Premium includes 100 monthly credits, rollover, faster processing, and full-song uploads."
+                    description="Premium includes 100 monthly credits, rollover, and full-song audio uploads."
                     actionLabel="Get Premium"
-                    onAction={() => void handlePricingClick()}
+                    onAction={() => void handlePricingClick("low_credits", "credits_low")}
                     busy={pricingBusy}
                     resetMessage={`Free credits reset ${creditsResetLabel}`}
                   />
@@ -1809,6 +1745,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
           </div>
         </section>
+
+        <PremiumHomeCallout />
 
         {tabsResult && (
           <section className="results" id="results">
@@ -2065,7 +2003,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 className="pricing-plan pricing-plan--premium"
                 data-reveal
               >
-                <div className="pricing-plan__badge">Most popular · 7-day trial</div>
+                <div className="pricing-plan__badge">
+                  {offerEligibility === "eligible" ? "Most popular · 7-day trial" : "Most popular"}
+                </div>
                 <div className="pricing-plan__top">
                   <h3>Premium</h3>
                   <div className="pricing-plan__price">
@@ -2085,10 +2025,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                       ? isStaffUser
                         ? "Premium access included"
                         : "Manage current plan"
-                      : "Start 7-day trial"}
+                      : premiumOfferCtaLabel(offerEligibility)}
                 </button>
                 <p className="pricing-plan__reassurance">
-                  $5.99/month after trial · Cancel anytime
+                  {premiumOfferReassurance(offerEligibility)}
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
@@ -2096,7 +2036,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <li>Heavy model for complex recordings</li>
                   <li>Unused credits roll over, up to 200</li>
                   <li>Full-length audio-file transcription</li>
-                  <li>Faster processing and 200 MB uploads</li>
+                  <li>Uploads up to 200 MB</li>
                 </ul>
               </article>
             </div>

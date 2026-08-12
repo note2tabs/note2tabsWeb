@@ -45,7 +45,7 @@ export default function PremiumConversionCard({
           </button>
         )}
         <small>
-          7-day trial · $5.99/month · Cancel anytime
+          Eligible new subscribers get a 7-day trial · $5.99/month · Cancel anytime
           {resetMessage ? ` · ${resetMessage}` : ""}
         </small>
       </div>

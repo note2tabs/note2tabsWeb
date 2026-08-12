@@ -34,6 +34,7 @@ import TranscriptionModelValueNote from "../components/TranscriptionModelValueNo
 import PremiumConversionCard from "../components/PremiumConversionCard";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
+import TranscriptionRecordingDetails from "../components/TranscriptionRecordingDetails";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
 import {
   clearPendingTranscription,
@@ -52,6 +53,11 @@ import {
   categorizeAnalyticsError,
 } from "../lib/analyticsErrors";
 import { formatCreditResetDate } from "../lib/formatCreditResetDate";
+import {
+  getOrCreatePremiumFunnelContext,
+  premiumFunnelProperties,
+  premiumPricingHref,
+} from "../lib/premiumFunnel";
 
 type TabsResponse = {
   tabs: string[][];
@@ -185,9 +191,8 @@ export default function TranscriberPage() {
   const [fileEndTime, setFileEndTime] = useState<number | null>(DEFAULT_FILE_SNIPPET_SEC);
   const [fileStartInput, setFileStartInput] = useState("0:00");
   const [fileEndInput, setFileEndInput] = useState(formatTimestamp(DEFAULT_FILE_SNIPPET_SEC));
-  const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
-  const [separateGuitar, setSeparateGuitar] = useState<boolean | null>(null);
-  const [multipleGuitars, setMultipleGuitars] = useState<boolean | null>(null);
+  const [separateGuitar, setSeparateGuitar] = useState(false);
+  const [multipleGuitars, setMultipleGuitars] = useState(false);
   const [transcriptionModel, setTranscriptionModel] =
     useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
   const transcriptionModelTouchedRef = useRef(false);
@@ -716,7 +721,7 @@ export default function TranscriberPage() {
     return groups.length > 0 ? groups : null;
   };
 
-  const handleConvert = async (startTranscription = false) => {
+  const handleConvert = async () => {
     if (convertInFlightRef.current || authHandoffInFlightRef.current || loading) return;
     if (sessionStatus === "loading") {
       setStatus("Checking your account…");
@@ -832,16 +837,7 @@ export default function TranscriberPage() {
       }
     }
 
-    if (!startTranscription) {
-      setError(null);
-      setSeparateGuitar(null);
-      setMultipleGuitars(null);
-      setShowInstrumentPrompt(true);
-      return;
-    }
-
     convertInFlightRef.current = true;
-    setShowInstrumentPrompt(false);
     setError(null);
     setImportError(null);
     setTabsResult(null);
@@ -1051,15 +1047,12 @@ export default function TranscriberPage() {
     void handleConvert();
   };
 
-  const instrumentPromptComplete = separateGuitar !== null && multipleGuitars !== null;
-
-  const handleInstrumentPromptStart = () => {
-    if (!instrumentPromptComplete) return;
-    void handleConvert(true);
-  };
-
   const handlePreservedUploadUpgrade = async () => {
     if (!selectedFile || upgradeBusy) return;
+    const funnel = getOrCreatePremiumFunnelContext({
+      source: "large_upload_gate",
+      reason: "file_size_limit",
+    });
     setUpgradeBusy(true);
     setError(null);
     try {
@@ -1075,7 +1068,9 @@ export default function TranscriberPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           returnTo: "/transcribe?resumeTranscription=1",
-          source: "large_upload_gate",
+          source: funnel.source,
+          reason: funnel.reason,
+          funnelId: funnel.funnelId,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -1083,15 +1078,15 @@ export default function TranscriberPage() {
         throw new Error(payload?.error || "Could not start checkout.");
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
-        source: "large_upload_gate",
         plan: "premium_monthly",
         checkout_attempt_id: payload.checkoutAttemptId,
+        ...premiumFunnelProperties(funnel),
       });
       window.location.assign(payload.url);
     } catch (upgradeError) {
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-        source: "large_upload_gate",
         plan: "premium_monthly",
+        ...premiumFunnelProperties(funnel),
       });
       setError(upgradeError instanceof Error ? upgradeError.message : "Could not start checkout.");
       setUpgradeBusy(false);
@@ -1292,16 +1287,14 @@ export default function TranscriberPage() {
             >
               <div className="prompt-meta-row">
                 <div className="prompt-meta-left">
-                  {!showInstrumentPrompt && (
-                    <div className="model-choice model-choice--meta">
-                      <TranscriptionModelDropdown
-                        id="transcriber-transcription-model"
-                        value={transcriptionModel}
-                        onChange={selectTranscriptionModel}
-                        disabled={loading || authHandoffBusy}
-                      />
-                    </div>
-                  )}
+                  <div className="model-choice model-choice--meta">
+                    <TranscriptionModelDropdown
+                      id="transcriber-transcription-model"
+                      value={transcriptionModel}
+                      onChange={selectTranscriptionModel}
+                      disabled={loading || authHandoffBusy}
+                    />
+                  </div>
                 </div>
                 {isSignedIn && displayedCredits && (
                   <p className="hero-credits-inline">
@@ -1311,77 +1304,17 @@ export default function TranscriberPage() {
                 )}
               </div>
 
-              {!showInstrumentPrompt && (
-                <TranscriptionModelValueNote
-                  model={transcriptionModel}
-                  isPremium={isPremiumUser}
-                  onSelectHeavy={() => {
-                    selectTranscriptionModel("heavy");
-                    trackCtaClick("try_heavy_model", { surface: "transcriber_funnel" });
-                  }}
-                  surface="transcriber_funnel"
-                />
-              )}
+              <TranscriptionModelValueNote
+                model={transcriptionModel}
+                isPremium={isPremiumUser}
+                onSelectHeavy={() => {
+                  selectTranscriptionModel("heavy");
+                  trackCtaClick("try_heavy_model", { surface: "transcriber_funnel" });
+                }}
+                surface="transcriber_funnel"
+              />
 
-              {showInstrumentPrompt ? (
-                <div className="instrument-prompt">
-                  <div className="instrument-choice-group">
-                    <p className="instrument-question">Does your audio include other instruments?</p>
-                    <div className="button-row instrument-choice-row">
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${separateGuitar === true ? "active" : ""}`}
-                        onClick={() => setSeparateGuitar(true)}
-                        aria-pressed={separateGuitar === true}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${separateGuitar === false ? "active" : ""}`}
-                        onClick={() => setSeparateGuitar(false)}
-                        aria-pressed={separateGuitar === false}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        No
-                      </button>
-                    </div>
-                  </div>
-                  <div className="instrument-choice-group">
-                    <p className="instrument-question">Does your audio include more than one guitar?</p>
-                    <div className="button-row instrument-choice-row">
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${multipleGuitars === true ? "active" : ""}`}
-                        onClick={() => setMultipleGuitars(true)}
-                        aria-pressed={multipleGuitars === true}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${multipleGuitars === false ? "active" : ""}`}
-                        onClick={() => setMultipleGuitars(false)}
-                        aria-pressed={multipleGuitars === false}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        No
-                      </button>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="button-primary instrument-start-button"
-                    onClick={handleInstrumentPromptStart}
-                    disabled={loading || !instrumentPromptComplete}
-                  >
-                    Start transcription
-                  </button>
-                </div>
-              ) : (
-                <>
+              <>
                   <div className="funnel-panel">
                     <div className="funnel-row">
                       <div
@@ -1443,7 +1376,7 @@ export default function TranscriberPage() {
                           type="button"
                           className={mode === "FILE" ? "active" : ""}
                           aria-pressed={mode === "FILE"}
-                          onClick={() => { setMode("FILE"); setShowInstrumentPrompt(false); }}
+                          onClick={() => setMode("FILE")}
                         >
                           Audio file
                         </button>
@@ -1451,7 +1384,7 @@ export default function TranscriberPage() {
                           type="button"
                           className={mode === "YOUTUBE" ? "active" : ""}
                           aria-pressed={mode === "YOUTUBE"}
-                          onClick={() => { setMode("YOUTUBE"); setShowInstrumentPrompt(false); }}
+                          onClick={() => setMode("YOUTUBE")}
                         >
                           YouTube link
                         </button>
@@ -1484,8 +1417,14 @@ export default function TranscriberPage() {
                       </div>
                     </div>
                   )}
-                </>
-              )}
+                  <TranscriptionRecordingDetails
+                    includesOtherInstruments={separateGuitar}
+                    multipleGuitars={multipleGuitars}
+                    onIncludesOtherInstrumentsChange={setSeparateGuitar}
+                    onMultipleGuitarsChange={setMultipleGuitars}
+                    disabled={loading || authHandoffBusy}
+                  />
+              </>
 
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
               {error && <div className="error" role="alert">{error}</div>}
@@ -1514,9 +1453,9 @@ export default function TranscriberPage() {
                 ) : (
                   <PremiumConversionCard
                     title="Keep transcribing today"
-                    description="Premium includes 100 monthly credits, rollover, faster processing, and full-song uploads."
+                    description="Premium includes 100 monthly credits, rollover, and full-song audio uploads."
                     actionLabel="See Premium"
-                    href="/pricing"
+                    href={premiumPricingHref({ source: "low_credits", reason: "credits_low" })}
                     resetMessage={`Free credits reset ${creditsResetLabel}`}
                   />
                 )
