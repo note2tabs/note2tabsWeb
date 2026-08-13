@@ -61,6 +61,9 @@ import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
 import { buildEditorTabView, getEditorTabViewCursorX } from "../lib/gteEditorTabView";
 import { useGteRenderInstrumentation } from "../lib/gtePerformanceDiagnostics";
+import { RevisionedAutosaveQueue } from "../lib/gteAutosaveQueue";
+import { windowTimelineEvents } from "../lib/gteEditorPerformance";
+import { getPlaybackScrollTarget } from "../lib/gtePlaybackScroll";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
   buildGteExportFile,
@@ -1742,11 +1745,14 @@ function ChordLaneWorkspace({
   const dragHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressChordClickRef = useRef(false);
   const chordMouseDownSelectionRef = useRef<{ chordId: number; wasSelected: boolean; shiftKey: boolean } | null>(null);
-  const playbackScrollRafRef = useRef<number | null>(null);
   const chordLanePlayheadRef = useRef<HTMLDivElement | null>(null);
   const chordPreviewAudioRef = useRef<AudioContext | null>(null);
   const chordPreviewGainRef = useRef<GainNode | null>(null);
   const chordContextMenuRef = useRef<HTMLDivElement | null>(null);
+  const chordAutosaveQueueRef = useRef<RevisionedAutosaveQueue<
+    EditorSnapshot,
+    Awaited<ReturnType<typeof gteApi.applySnapshot>>
+  > | null>(null);
   const [autoBaseScale, setAutoBaseScale] = useState(4);
   const [selectedChordIds, setSelectedChordIds] = useState<number[]>([]);
   const [selectedBarIndices, setSelectedBarIndices] = useState<number[]>([]);
@@ -1872,6 +1878,46 @@ function ChordLaneWorkspace({
     [snapDenominator]
   );
 
+  if (!chordAutosaveQueueRef.current) {
+    chordAutosaveQueueRef.current = new RevisionedAutosaveQueue({
+      save: async (payload) => gteApi.applySnapshot(editorId, payload),
+      debounceMs: AUTOSAVE_DEBOUNCE_MS,
+    });
+  }
+  const chordAutosaveQueue = chordAutosaveQueueRef.current;
+  chordAutosaveQueue.configure({
+    save: async (payload) => gteApi.applySnapshot(editorId, payload),
+    isOnline: () => typeof navigator === "undefined" || navigator.onLine !== false,
+  });
+
+  useEffect(() => {
+    chordAutosaveQueue.reset();
+  }, [chordAutosaveQueue, editorId]);
+
+  useEffect(() => {
+    const handleOnline = () => chordAutosaveQueue.notifyOnline();
+    const flush = () => {
+      if (chordAutosaveQueue.getState().pending) {
+        void chordAutosaveQueue.flushLatest({ reason: "lifecycle" });
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("blur", flush);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("blur", flush);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (chordAutosaveQueue.getState().pending) {
+        void chordAutosaveQueue.flushLatest({ reason: "unmount" });
+      }
+      chordAutosaveQueue.dispose();
+    };
+  }, [chordAutosaveQueue]);
+
   const commitSnapshot = useCallback(
     (nextSnapshot: EditorSnapshot, options?: { recordHistory?: boolean; persist?: boolean }) => {
       const updated = {
@@ -1887,10 +1933,10 @@ function ChordLaneWorkspace({
       };
       onSnapshotChange(updated, { recordHistory: options?.recordHistory ?? true });
       if (allowBackend && options?.persist !== false) {
-        void gteApi.applySnapshot(editorId, updated).catch(() => undefined);
+        chordAutosaveQueue.enqueue(updated, "change");
       }
     },
-    [allowBackend, editorId, onSnapshotChange, snapDenominator]
+    [allowBackend, chordAutosaveQueue, onSnapshotChange, snapDenominator]
   );
 
   const updateChord = useCallback(
@@ -2479,66 +2525,6 @@ function ChordLaneWorkspace({
     const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
     element.scrollLeft = maxScroll * Math.max(0, Math.min(1, sharedTimelineScrollRatio));
   }, [globalPlaybackIsPlaying, onSharedTimelineScrollRatioChange, sharedTimelineScrollRatio, timelineWidth]);
-
-  useEffect(() => {
-    if (playbackScrollRafRef.current !== null) {
-      window.cancelAnimationFrame(playbackScrollRafRef.current);
-      playbackScrollRafRef.current = null;
-    }
-    if (mobileViewport || !globalPlaybackIsPlaying || onSharedTimelineScrollRatioChange) return;
-    const container = timelineRef.current;
-    if (!container) return;
-
-    const tick = () => {
-      const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
-      if (maxScroll <= 0) {
-        playbackScrollRafRef.current = window.requestAnimationFrame(tick);
-        return;
-      }
-
-      const rect = container.getBoundingClientRect();
-      const visibleLeft = Math.max(rect.left, 0);
-      const visibleRight = Math.min(rect.right, window.innerWidth);
-      const visibleWidth = Math.max(1, visibleRight - visibleLeft);
-      const visibleStartInContainer = Math.max(0, visibleLeft - rect.left);
-      const minPlayheadOffset =
-        visibleStartInContainer + Math.max(48, Math.min(120, visibleWidth * 0.18));
-      const followPlayheadOffset = visibleStartInContainer + visibleWidth * 0.45;
-      const maxPlayheadOffset = visibleStartInContainer + visibleWidth * (2 / 3);
-      const currentPlayheadLeft = timelineContentOffset + readExternalPlaybackFrame() * pxPerFrame;
-      const playheadViewportX = currentPlayheadLeft - container.scrollLeft;
-
-      let nextScrollLeft = container.scrollLeft;
-      if (playheadViewportX < minPlayheadOffset) {
-        nextScrollLeft = Math.max(0, currentPlayheadLeft - minPlayheadOffset);
-      } else if (playheadViewportX > followPlayheadOffset) {
-        const targetScrollLeft = Math.max(0, Math.min(maxScroll, currentPlayheadLeft - followPlayheadOffset));
-        const hardLimitScrollLeft = Math.max(0, Math.min(maxScroll, currentPlayheadLeft - maxPlayheadOffset));
-        const easedScrollLeft = container.scrollLeft + (targetScrollLeft - container.scrollLeft) * 0.22;
-        nextScrollLeft = Math.max(hardLimitScrollLeft, Math.min(maxScroll, easedScrollLeft));
-      }
-
-      if (Math.abs(nextScrollLeft - container.scrollLeft) >= 0.5) {
-        container.scrollLeft = nextScrollLeft;
-      }
-      playbackScrollRafRef.current = window.requestAnimationFrame(tick);
-    };
-
-    playbackScrollRafRef.current = window.requestAnimationFrame(tick);
-    return () => {
-      if (playbackScrollRafRef.current !== null) {
-        window.cancelAnimationFrame(playbackScrollRafRef.current);
-        playbackScrollRafRef.current = null;
-      }
-    };
-  }, [
-    globalPlaybackIsPlaying,
-    mobileViewport,
-    onSharedTimelineScrollRatioChange,
-    pxPerFrame,
-    readExternalPlaybackFrame,
-    timelineContentOffset,
-  ]);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
@@ -4064,6 +4050,8 @@ export default function GteWorkspace({
   const playheadAudioStartRef = useRef<number | null>(null);
   const playheadRafRef = useRef<number | null>(null);
   const playbackScrollRafRef = useRef<number | null>(null);
+  const timelineViewportRafRef = useRef<number | null>(null);
+  const pendingTimelineViewportRef = useRef<{ scrollLeft: number; clientWidth: number } | null>(null);
   const clipboardRef = useRef<{
     anchor: number;
     notes: Array<{ start: number; length: number; tab: TabCoord }>;
@@ -4130,11 +4118,10 @@ export default function GteWorkspace({
   // size. Hydrating the signature from the snapshot, or receiving it as the
   // shared signature after another lane changed it, must leave it alone.
   const timeSignatureUserChangedRef = useRef(false);
-  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autosaveInFlightRef = useRef(false);
-  const autosaveQueuedRef = useRef(false);
-  const localRevisionRef = useRef(0);
-  const savedRevisionRef = useRef(0);
+  const autosaveQueueRef = useRef<RevisionedAutosaveQueue<
+    EditorSnapshot,
+    Awaited<ReturnType<typeof gteApi.applySnapshot>>
+  > | null>(null);
   const lastAddedNoteLengthRef = useRef(DEFAULT_NOTE_LENGTH);
   const applyingSharedScrollRef = useRef(false);
   const scaleSessionRef = useRef<ScaleSession | null>(null);
@@ -4651,31 +4638,43 @@ export default function GteWorkspace({
   }, [framesPerMeasure, scale, timelineEnd, timelineViewport.clientWidth, timelineViewport.scrollLeft, viewportTimelineWidth]);
   const selectedNoteIdSet = useMemo(() => new Set(selectedNoteIds), [selectedNoteIds]);
   const selectedChordIdSet = useMemo(() => new Set(selectedChordIds), [selectedChordIds]);
+  const pinnedVisibleNoteIds = useMemo(() => {
+    const ids = new Set(selectedNoteIdSet);
+    if (resizingNote) ids.add(resizingNote.id);
+    if (dragging?.type === "note") ids.add(dragging.id);
+    if (noteMenuNoteId !== null) ids.add(noteMenuNoteId);
+    return ids;
+  }, [dragging, noteMenuNoteId, resizingNote, selectedNoteIdSet]);
+  const pinnedVisibleChordIds = useMemo(() => {
+    const ids = new Set(selectedChordIdSet);
+    if (resizingChord) ids.add(resizingChord.id);
+    if (dragging?.type === "chord") ids.add(dragging.id);
+    if (editingChordId !== null) ids.add(editingChordId);
+    if (chordMenuChordId !== null) ids.add(chordMenuChordId);
+    return ids;
+  }, [chordMenuChordId, dragging, editingChordId, resizingChord, selectedChordIdSet]);
   const visibleNotes = useMemo(() => {
-    const { startFrame, endFrame } = timelineRenderWindow;
-    return snapshot.notes.filter((note) => {
-      if (selectedNoteIdSet.has(note.id)) return true;
-      if (resizingNote?.id === note.id) return true;
-      if (dragging?.type === "note" && dragging.id === note.id) return true;
-      if (noteMenuNoteId === note.id) return true;
-      const start = Math.round(note.startTime);
-      const end = start + Math.max(1, Math.round(note.length));
-      return end >= startFrame && start <= endFrame;
-    });
-  }, [dragging, noteMenuNoteId, resizingNote, selectedNoteIdSet, snapshot.notes, timelineRenderWindow]);
+    return windowTimelineEvents(snapshot.notes, timelineRenderWindow, pinnedVisibleNoteIds);
+  }, [pinnedVisibleNoteIds, snapshot.notes, timelineRenderWindow]);
   const visibleChords = useMemo(() => {
-    const { startFrame, endFrame } = timelineRenderWindow;
-    return snapshot.chords.filter((chord) => {
-      if (selectedChordIdSet.has(chord.id)) return true;
-      if (resizingChord?.id === chord.id) return true;
-      if (dragging?.type === "chord" && dragging.id === chord.id) return true;
-      if (editingChordId === chord.id) return true;
-      if (chordMenuChordId === chord.id) return true;
-      const start = Math.round(chord.startTime);
-      const end = start + Math.max(1, Math.round(chord.length));
-      return end >= startFrame && start <= endFrame;
+    return windowTimelineEvents(snapshot.chords, timelineRenderWindow, pinnedVisibleChordIds);
+  }, [pinnedVisibleChordIds, snapshot.chords, timelineRenderWindow]);
+  const visibleCanvasBarIndices = useMemo(() => {
+    const first = Math.max(0, Math.floor(timelineRenderWindow.startFrame / framesPerMeasure));
+    const last = Math.min(barCount - 1, Math.floor(timelineRenderWindow.endFrame / framesPerMeasure));
+    const indexes = new Set(
+      Array.from({ length: Math.max(0, last - first + 1) }, (_, offset) => first + offset)
+    );
+    selectedBarIndices.forEach((index) => {
+      if (index >= 0 && index < barCount) indexes.add(index);
     });
-  }, [chordMenuChordId, dragging, editingChordId, resizingChord, selectedChordIdSet, snapshot.chords, timelineRenderWindow]);
+    return [...indexes].sort((left, right) => left - right);
+  }, [barCount, framesPerMeasure, selectedBarIndices, timelineRenderWindow]);
+  const visibleCanvasBarDropIndices = useMemo(() => {
+    const first = Math.max(0, Math.floor(timelineRenderWindow.startFrame / framesPerMeasure));
+    const last = Math.min(barCount, Math.ceil(timelineRenderWindow.endFrame / framesPerMeasure));
+    return Array.from({ length: Math.max(0, last - first + 1) }, (_, offset) => first + offset);
+  }, [barCount, framesPerMeasure, timelineRenderWindow]);
   const visibleNoteIdSet = useMemo(() => new Set(visibleNotes.map((note) => note.id)), [visibleNotes]);
   const setEffectivePracticeLoopEnabled = useCallback(
     (enabled: boolean) => {
@@ -4937,10 +4936,7 @@ export default function GteWorkspace({
   }, [snapshot.updatedAt, hasUnsavedChanges]);
 
   useEffect(() => {
-    if (autosaveTimerRef.current) {
-      clearTimeout(autosaveTimerRef.current);
-      autosaveTimerRef.current = null;
-    }
+    autosaveQueueRef.current?.reset();
     undoRef.current = [];
     redoRef.current = [];
     pendingMutationsRef.current = [];
@@ -4949,10 +4945,6 @@ export default function GteWorkspace({
     chordIdMapRef.current = new Map();
     tempNoteIdRef.current = 1;
     tempChordIdRef.current = 1;
-    autosaveInFlightRef.current = false;
-    autosaveQueuedRef.current = false;
-    localRevisionRef.current = 0;
-    savedRevisionRef.current = 0;
     setUndoCount(0);
     setRedoCount(0);
     setHasUnsavedChanges(false);
@@ -4987,10 +4979,6 @@ export default function GteWorkspace({
 
   useEffect(() => {
     return () => {
-      if (autosaveTimerRef.current) {
-        clearTimeout(autosaveTimerRef.current);
-        autosaveTimerRef.current = null;
-      }
       if (previewAudioRef.current) {
         closeAudioContext(previewAudioRef.current);
         previewAudioRef.current = null;
@@ -5383,27 +5371,43 @@ export default function GteWorkspace({
     viewportTimelineWidth,
   ]);
 
+  const queueTimelineViewportUpdate = useCallback((scrollLeft: number, clientWidth: number) => {
+    pendingTimelineViewportRef.current = { scrollLeft, clientWidth };
+    if (timelineViewportRafRef.current !== null) return;
+    timelineViewportRafRef.current = window.requestAnimationFrame(() => {
+      timelineViewportRafRef.current = null;
+      const next = pendingTimelineViewportRef.current;
+      pendingTimelineViewportRef.current = null;
+      if (!next) return;
+      setTimelineViewport((previous) =>
+        Math.abs(previous.scrollLeft - next.scrollLeft) < 1 &&
+        Math.abs(previous.clientWidth - next.clientWidth) < 1
+          ? previous
+          : next
+      );
+    });
+  }, []);
+
+  useEffect(() => () => {
+    if (timelineViewportRafRef.current !== null) {
+      window.cancelAnimationFrame(timelineViewportRafRef.current);
+      timelineViewportRafRef.current = null;
+    }
+  }, []);
+
   const handleTimelineOuterScroll = useCallback(
     (event: ReactUiEvent<HTMLDivElement>) => {
       const target = event.currentTarget;
       if (!target) return;
       const nextScrollLeft = target.scrollLeft;
       const nextClientWidth = target.clientWidth;
-      setTimelineViewport((prev) => {
-        if (
-          Math.abs(prev.scrollLeft - nextScrollLeft) < 1 &&
-          Math.abs(prev.clientWidth - nextClientWidth) < 1
-        ) {
-          return prev;
-        }
-        return { scrollLeft: nextScrollLeft, clientWidth: nextClientWidth };
-      });
+      queueTimelineViewportUpdate(nextScrollLeft, nextClientWidth);
       if (!onSharedTimelineScrollRatioChange || applyingSharedScrollRef.current) return;
       const maxScroll = Math.max(0, target.scrollWidth - nextClientWidth);
       if (maxScroll <= 0) return;
       onSharedTimelineScrollRatioChange(nextScrollLeft / maxScroll, nextScrollLeft);
     },
-    [onSharedTimelineScrollRatioChange]
+    [onSharedTimelineScrollRatioChange, queueTimelineViewportUpdate]
   );
 
   useEffect(() => {
@@ -5629,101 +5633,71 @@ export default function GteWorkspace({
     [cloneSnapshot, onSnapshotChange, snapshotsEqual, useExternalHistory]
   );
 
-  const syncSavedRevision = useCallback((revision: number) => {
-    savedRevisionRef.current = Math.max(savedRevisionRef.current, revision);
-    setHasUnsavedChanges(localRevisionRef.current > savedRevisionRef.current);
-  }, []);
+  if (!autosaveQueueRef.current) {
+    autosaveQueueRef.current = new RevisionedAutosaveQueue({
+      save: async (payload) => gteApi.applySnapshot(editorId, payload),
+      debounceMs: AUTOSAVE_DEBOUNCE_MS,
+    });
+  }
+  const autosaveQueue = autosaveQueueRef.current;
+  autosaveQueue.configure({
+    save: async (payload) => {
+      if (!allowBackend) {
+        return { ok: true as const, snapshot: payload };
+      }
+      return gteApi.applySnapshot(editorId, payload);
+    },
+    isOnline: () => typeof navigator === "undefined" || navigator.onLine !== false,
+    onStateChange: (state) => {
+      setHasUnsavedChanges(state.pending);
+      setIsAutosaving(state.saving);
+    },
+    onSaved: (res, context) => {
+      if (context.isLatest && allowBackend && res.snapshot) {
+        applySnapshot(res.snapshot as EditorSnapshot, {
+          recordUndo: false,
+          recordHistory: false,
+        });
+      }
+      const updatedAt = (res.snapshot as EditorSnapshot | undefined)?.updatedAt;
+      setLastSavedAt(updatedAt || new Date().toISOString());
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : "Autosave failed.";
+      setError(`${message} Changes are still local and will retry automatically.`);
+    },
+  });
 
   const persistSnapshotToBackend = useCallback(
     async (reason: string, options?: { force?: boolean }) => {
-      if (!allowBackend) {
-        syncSavedRevision(localRevisionRef.current);
-        setLastSavedAt(new Date().toISOString());
-        setIsAutosaving(false);
-        return;
-      }
-      const needsSave = localRevisionRef.current > savedRevisionRef.current;
-      if (!options?.force && !needsSave) return;
-      if (autosaveInFlightRef.current) {
-        autosaveQueuedRef.current = true;
-        return;
-      }
-      autosaveInFlightRef.current = true;
-      setIsAutosaving(true);
-      const revisionToSave = localRevisionRef.current;
-      const payload = cloneSnapshot(snapshotRef.current);
-      payload.id = editorId;
-      try {
-        const res = await gteApi.applySnapshot(editorId, payload);
-        if (localRevisionRef.current === revisionToSave) {
-          applySnapshot(res.snapshot, { recordUndo: false, recordHistory: false });
-        }
-        syncSavedRevision(revisionToSave);
-        setLastSavedAt(res.snapshot.updatedAt || new Date().toISOString());
-      } catch (err: any) {
-        if (reason === "pre-server-mutation") {
-          throw err;
-        }
-        setError(err?.message || "Autosave failed. Changes are still local.");
-        autosaveQueuedRef.current = true;
-      } finally {
-        autosaveInFlightRef.current = false;
-        setIsAutosaving(false);
-        const shouldRetry =
-          autosaveQueuedRef.current || localRevisionRef.current > savedRevisionRef.current;
-        autosaveQueuedRef.current = false;
-        if (shouldRetry) {
-          setTimeout(() => {
-            void persistSnapshotToBackend("queued", { force: true });
-          }, 200);
-        }
-      }
+      const state = autosaveQueue.getState();
+      if (!state.pending && !options?.force) return;
+      if (!state.pending) return;
+      await autosaveQueue.flushLatest({
+        reason,
+        throwOnError: reason === "pre-server-mutation",
+      });
     },
-    [allowBackend, applySnapshot, cloneSnapshot, editorId, syncSavedRevision]
+    [autosaveQueue]
   );
 
-  const scheduleAutosave = useCallback(() => {
-    if (autosaveTimerRef.current) {
-      clearTimeout(autosaveTimerRef.current);
-    }
-    autosaveTimerRef.current = setTimeout(() => {
-      autosaveTimerRef.current = null;
-      void persistSnapshotToBackend("debounce");
-    }, AUTOSAVE_DEBOUNCE_MS);
-  }, [persistSnapshotToBackend]);
-
   const markLocalSnapshotDirty = useCallback(() => {
-    localRevisionRef.current += 1;
-    setHasUnsavedChanges(true);
-    scheduleAutosave();
-  }, [scheduleAutosave]);
+    const payload = { ...snapshotRef.current, id: editorId };
+    autosaveQueue.enqueue(payload, "change");
+  }, [autosaveQueue, editorId]);
 
   const markServerSnapshotSynced = useCallback((nextSnapshot?: EditorSnapshot) => {
-    localRevisionRef.current += 1;
-    savedRevisionRef.current = localRevisionRef.current;
-    setHasUnsavedChanges(false);
-    if (nextSnapshot?.updatedAt) {
-      setLastSavedAt(nextSnapshot.updatedAt);
-    } else {
-      setLastSavedAt(new Date().toISOString());
-    }
-  }, []);
+    autosaveQueue.markSynced();
+    setLastSavedAt(nextSnapshot?.updatedAt || new Date().toISOString());
+  }, [autosaveQueue]);
 
   const flushLocalChangesBeforeServerMutation = useCallback(async () => {
-    if (!allowBackend) return;
-    if (autosaveTimerRef.current) {
-      clearTimeout(autosaveTimerRef.current);
-      autosaveTimerRef.current = null;
-    }
-    if (localRevisionRef.current <= savedRevisionRef.current) return;
-    await persistSnapshotToBackend("pre-server-mutation", { force: true });
-    while (autosaveInFlightRef.current) {
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    if (localRevisionRef.current > savedRevisionRef.current) {
-      await persistSnapshotToBackend("pre-server-mutation", { force: true });
-    }
-  }, [allowBackend, persistSnapshotToBackend]);
+    if (!allowBackend || !autosaveQueue.getState().pending) return;
+    await autosaveQueue.flushThroughLatest({
+      reason: "pre-server-mutation",
+      throwOnError: true,
+    });
+  }, [allowBackend, autosaveQueue]);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -5735,11 +5709,7 @@ export default function GteWorkspace({
 
   useEffect(() => {
     const flushNow = () => {
-      if (localRevisionRef.current <= savedRevisionRef.current) return;
-      if (autosaveTimerRef.current) {
-        clearTimeout(autosaveTimerRef.current);
-        autosaveTimerRef.current = null;
-      }
+      if (!autosaveQueue.getState().pending) return;
       void persistSnapshotToBackend("lifecycle", { force: true });
     };
     const handleVisibilityChange = () => {
@@ -5749,15 +5719,22 @@ export default function GteWorkspace({
     };
     const handleBlur = () => flushNow();
     const handleBeforeUnload = () => flushNow();
+    const handleOnline = () => autosaveQueue.notifyOnline();
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("blur", handleBlur);
     window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("online", handleOnline);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("online", handleOnline);
+      if (autosaveQueue.getState().pending) {
+        void autosaveQueue.flushLatest({ reason: "unmount" });
+      }
+      autosaveQueue.dispose();
     };
-  }, [persistSnapshotToBackend]);
+  }, [autosaveQueue, persistSnapshotToBackend]);
 
   const runMutation = async <T extends { snapshot?: EditorSnapshot }>(
     fn: () => Promise<T>,
@@ -12423,31 +12400,29 @@ export default function GteWorkspace({
       window.cancelAnimationFrame(playbackScrollRafRef.current);
       playbackScrollRafRef.current = null;
     }
+    // Only the selected track may drive the shared playback viewport. Allowing every
+    // externally-played track to follow its own playhead creates competing scroll targets.
+    // The canvas owns external playback scrolling so track remounts or selection
+    // changes cannot interrupt the camera. Keep this loop only for standalone use.
     if (
       mobileViewport ||
       !effectiveIsPlaying ||
-      (!isActive && !useExternalPlayback) ||
+      !isActive ||
+      useExternalPlayback ||
       onSharedTimelineScrollRatioChange
     ) return;
     const container = tabViewEnabled ? tabViewScrollRef.current : timelineOuterRef.current;
     if (!container) return;
 
-    const tick = () => {
+    const alignToPlayhead = () => {
       const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
-      if (maxScroll <= 0) {
-        playbackScrollRafRef.current = window.requestAnimationFrame(tick);
-        return;
-      }
+      if (maxScroll <= 0) return;
 
       const rect = container.getBoundingClientRect();
       const visibleLeft = Math.max(rect.left, 0);
       const visibleRight = Math.min(rect.right, window.innerWidth);
       const visibleWidth = Math.max(1, visibleRight - visibleLeft);
       const visibleStartInContainer = Math.max(0, visibleLeft - rect.left);
-      const minPlayheadOffset =
-        visibleStartInContainer + Math.max(48, Math.min(120, visibleWidth * 0.18));
-      const followPlayheadOffset = visibleStartInContainer + visibleWidth * 0.45;
-      const maxPlayheadOffset = visibleStartInContainer + visibleWidth * (2 / 3);
       const playheadLeft =
         tabViewEnabled
           ? 30 +
@@ -12455,21 +12430,23 @@ export default function GteWorkspace({
               Math.max(1, editorTabView.barCount * framesPerMeasure)) *
               (editorTabView.barCount * editorTabView.barWidth)
           : playheadFrameRef.current * scale;
-      const playheadViewportX = playheadLeft - container.scrollLeft;
-
-      let nextScrollLeft = container.scrollLeft;
-      if (playheadViewportX < minPlayheadOffset) {
-        nextScrollLeft = Math.max(0, playheadLeft - minPlayheadOffset);
-      } else if (playheadViewportX > followPlayheadOffset) {
-        const targetScrollLeft = Math.max(0, Math.min(maxScroll, playheadLeft - followPlayheadOffset));
-        const hardLimitScrollLeft = Math.max(0, Math.min(maxScroll, playheadLeft - maxPlayheadOffset));
-        const easedScrollLeft = container.scrollLeft + (targetScrollLeft - container.scrollLeft) * 0.22;
-        nextScrollLeft = Math.max(hardLimitScrollLeft, Math.min(maxScroll, easedScrollLeft));
-      }
+      const nextScrollLeft = getPlaybackScrollTarget({
+        playheadLeft,
+        maxScroll,
+        visibleStartInContainer,
+        visibleWidth,
+      });
 
       if (Math.abs(nextScrollLeft - container.scrollLeft) >= 0.5) {
         container.scrollLeft = nextScrollLeft;
       }
+    };
+
+    // Align immediately on Play, then keep the playhead at one stable viewport
+    // anchor. This removes the eased transition that could fight shared scrolling.
+    alignToPlayhead();
+    const tick = () => {
+      alignToPlayhead();
       playbackScrollRafRef.current = window.requestAnimationFrame(tick);
     };
 
@@ -13757,7 +13734,7 @@ export default function GteWorkspace({
           )}
         </div>
       )}
-      {showPlaybackUi && (
+      {showPlaybackUi && typeof document !== "undefined" && createPortal(
         <div
           data-gte-floating-ui="true"
           className={
@@ -14039,7 +14016,8 @@ export default function GteWorkspace({
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       <div className={`flex flex-wrap items-center ${embedded ? "gap-2" : "gap-3"}`}>
         {!embedded && (
@@ -14927,8 +14905,7 @@ export default function GteWorkspace({
             >
               <div className="relative" style={{ width: timelineChromeWidth, paddingTop: TIMELINE_BAR_HEADER_HEIGHT }}>
                 {framesPerMeasure > 0 &&
-                  Array.from({ length: barCount }).map((_, barIndex) => {
-                    if (barIndex < trackOffsetBarCount) return null;
+                  visibleCanvasBarIndices.filter((barIndex) => barIndex >= trackOffsetBarCount).map((barIndex) => {
                     const left = barIndex * framesPerMeasure * scale;
                     const width = Math.max(1, framesPerMeasure * scale);
                     const selected = selectedBarIndexSet.has(barIndex);
@@ -14969,8 +14946,7 @@ export default function GteWorkspace({
                     );
                   })}
                 {framesPerMeasure > 0 &&
-                  Array.from({ length: barCount + 1 }).map((_, insertIndex) => {
-                    if (insertIndex < trackOffsetBarCount) return null;
+                  visibleCanvasBarDropIndices.filter((insertIndex) => insertIndex >= trackOffsetBarCount).map((insertIndex) => {
                     const left = Math.max(
                       0,
                       Math.min(
@@ -15124,20 +15100,21 @@ export default function GteWorkspace({
                       {framesPerMeasure > 0 &&
                         rowBarCount > 0 &&
                         beatsPerBar > 1 &&
-                        [...Array(rowBarCount * beatsPerBar - 1)].map((_, beatIdx) => {
-                          const beat = beatIdx + 1;
-                          if (beat % beatsPerBar === 0) return null;
-                          const left = beat * beatWidth;
-                          return (
-                            <div
-                              key={`row-${rowIdx}-beat-${beat}`}
-                              className={`absolute top-0 h-full w-px pointer-events-none bg-slate-200/70`}
-                              style={{ left, height: rowHeight }}
-                            />
-                          );
-                        })}
+                        visibleCanvasBarIndices.flatMap((barIndex) =>
+                          Array.from({ length: beatsPerBar - 1 }, (_, beatOffset) => {
+                            const beat = barIndex * beatsPerBar + beatOffset + 1;
+                            const left = beat * beatWidth;
+                            return (
+                              <div
+                                key={`row-${rowIdx}-beat-${beat}`}
+                                className="absolute top-0 h-full w-px pointer-events-none bg-slate-200/70"
+                                style={{ left, height: rowHeight }}
+                              />
+                            );
+                          })
+                        )}
                       {framesPerMeasure > 0 &&
-                        [...Array(rowBarCount + 1)].map((_, edgeIdx) => {
+                        [...new Set(visibleCanvasBarIndices.flatMap((barIndex) => [barIndex, barIndex + 1]))].map((edgeIdx) => {
                           const rawDividerX = edgeIdx * framesPerMeasure * scale;
                           const dividerX =
                             edgeIdx === rowBarCount ? Math.max(0, rowWidth - 2) : rawDividerX;

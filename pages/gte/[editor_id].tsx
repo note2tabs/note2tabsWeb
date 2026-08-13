@@ -120,6 +120,9 @@ import {
   normalizeTrackOffsetFrames,
   offsetTrackToFrame,
 } from "../../lib/gteTrackOffset";
+import { appendBoundedHistory, replaceCanvasLane } from "../../lib/gteEditorPerformance";
+import { createPlaybackLookaheadScheduler } from "../../lib/gtePlaybackLookahead";
+import { getPlaybackScrollTarget } from "../../lib/gtePlaybackScroll";
 
 const GteWorkspace = dynamic(() => import("../../components/GteTrackWorkspace"), {
   loading: () => (
@@ -151,6 +154,7 @@ type TopMenuId =
   | "help";
 
 const FIXED_FRAMES_PER_BAR = 480;
+const GLOBAL_PLAYBACK_LOOKAHEAD_SECONDS = 4;
 const DEFAULT_SECONDS_PER_BAR = 2;
 const CANVAS_AUTOSAVE_MS = 20000;
 const MAX_CANVAS_HISTORY = 64;
@@ -417,6 +421,7 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
       schemaVersion: raw.schemaVersion,
       canvasSchemaVersion: raw.canvasSchemaVersion,
       version: raw.version,
+      draftRevision: raw.draftRevision,
       updatedAt: raw.updatedAt,
       keyBase: normalizeKeyBase(raw.keyBase),
       keyType: normalizeKeyType(raw.keyType),
@@ -446,6 +451,7 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
     schemaVersion: 1,
     canvasSchemaVersion: 1,
     version: lane.version || 1,
+    draftRevision: undefined,
     updatedAt: lane.updatedAt,
     keyBase: 0,
     keyType: 0,
@@ -1485,10 +1491,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     return JSON.parse(JSON.stringify(value)) as CanvasSnapshot;
   }, []);
 
-  const canvasSnapshotsEqual = useCallback((left: CanvasSnapshot, right: CanvasSnapshot) => {
-    return JSON.stringify(left) === JSON.stringify(right);
-  }, []);
-
   const resetCanvasHistory = useCallback(() => {
     canvasUndoRef.current = [];
     canvasRedoRef.current = [];
@@ -1498,17 +1500,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const recordCanvasHistory = useCallback(
     (previous: CanvasSnapshot, next: CanvasSnapshot) => {
-      if (canvasSnapshotsEqual(previous, next)) return;
-      const nextUndo = [...canvasUndoRef.current, cloneCanvas(previous)];
-      if (nextUndo.length > MAX_CANVAS_HISTORY) {
-        nextUndo.splice(0, nextUndo.length - MAX_CANVAS_HISTORY);
-      }
+      if (previous === next) return;
+      const nextUndo = appendBoundedHistory(
+        canvasUndoRef.current,
+        previous,
+        MAX_CANVAS_HISTORY
+      );
       canvasUndoRef.current = nextUndo;
       canvasRedoRef.current = [];
       setCanvasUndoCount(nextUndo.length);
       setCanvasRedoCount(0);
     },
-    [canvasSnapshotsEqual, cloneCanvas]
+    []
   );
 
   const loadEditor = async () => {
@@ -2632,36 +2635,30 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       );
       const sharedTimeSignature = normalizeTimeSignature(prev.editors[0]?.timeSignature) ?? 8;
       const sharedTimeSignatureBottom = normalizeTimeSignatureBottom(prev.editors[0]?.timeSignatureBottom) ?? 4;
-      const nextEditors = prev.editors.map((lane, index) =>
-        lane.id === laneId
-          ? normalizeLane(
-              {
-                ...nextLaneSnapshot,
-                secondsPerBar,
-                timeSignature: sharedTimeSignature,
-                timeSignatureBottom: sharedTimeSignatureBottom,
-                instrumentId:
-                  normalizeTrackInstrumentId(nextLaneSnapshot.instrumentId) !== DEFAULT_TRACK_INSTRUMENT_ID ||
-                  normalizeTrackInstrumentId(lane.instrumentId) === DEFAULT_TRACK_INSTRUMENT_ID
-                    ? nextLaneSnapshot.instrumentId
-                    : lane.instrumentId,
-              },
-              laneId,
-              secondsPerBar,
-              index
-            )
-          : normalizeLane(
-              { ...lane, secondsPerBar, timeSignature: sharedTimeSignature, timeSignatureBottom: sharedTimeSignatureBottom },
-              lane.id || `ed-${index + 1}`,
-              secondsPerBar,
-              index
-            )
+      const laneIndex = prev.editors.findIndex((lane) => lane.id === laneId);
+      if (laneIndex < 0) return prev;
+      const previousLane = prev.editors[laneIndex];
+      const normalizedLane = normalizeLane(
+        {
+          ...nextLaneSnapshot,
+          secondsPerBar,
+          timeSignature: sharedTimeSignature,
+          timeSignatureBottom: sharedTimeSignatureBottom,
+          instrumentId:
+            normalizeTrackInstrumentId(nextLaneSnapshot.instrumentId) !== DEFAULT_TRACK_INSTRUMENT_ID ||
+            normalizeTrackInstrumentId(previousLane.instrumentId) === DEFAULT_TRACK_INSTRUMENT_ID
+              ? nextLaneSnapshot.instrumentId
+              : previousLane.instrumentId,
+        },
+        laneId,
+        secondsPerBar,
+        laneIndex
       );
+      const replacedCanvas = replaceCanvasLane(prev, laneId, normalizedLane);
       const nextCanvas = {
-        ...prev,
+        ...replacedCanvas,
         updatedAt: new Date().toISOString(),
         secondsPerBar,
-        editors: nextEditors,
       };
       if (options?.recordHistory !== false) {
         recordCanvasHistory(prev, nextCanvas);
@@ -3008,22 +3005,23 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (!current) return current;
       const previous = undoList[undoList.length - 1];
       const nextUndo = undoList.slice(0, -1);
-      const nextRedo = [...canvasRedoRef.current, cloneCanvas(current)];
-      if (nextRedo.length > MAX_CANVAS_HISTORY) {
-        nextRedo.splice(0, nextRedo.length - MAX_CANVAS_HISTORY);
-      }
+      const nextRedo = appendBoundedHistory(
+        canvasRedoRef.current,
+        current,
+        MAX_CANVAS_HISTORY
+      );
       canvasUndoRef.current = nextUndo;
       canvasRedoRef.current = nextRedo;
       setCanvasUndoCount(nextUndo.length);
       setCanvasRedoCount(nextRedo.length);
-      nextCanvasSnapshot = cloneCanvas(previous);
+      nextCanvasSnapshot = previous;
       return nextCanvasSnapshot;
     });
     setHasPendingCommit(true);
     if (nextCanvasSnapshot) {
       void syncCanvasDraftToBackend(nextCanvasSnapshot, { silent: true });
     }
-  }, [addingLane, canvas, cloneCanvas, deletingLaneId, savingCanvas, syncCanvasDraftToBackend]);
+  }, [addingLane, canvas, deletingLaneId, savingCanvas, syncCanvasDraftToBackend]);
 
   const handleCanvasRedo = useCallback(() => {
     if (!canvas) return;
@@ -3035,22 +3033,23 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (!current) return current;
       const next = redoList[redoList.length - 1];
       const nextRedo = redoList.slice(0, -1);
-      const nextUndo = [...canvasUndoRef.current, cloneCanvas(current)];
-      if (nextUndo.length > MAX_CANVAS_HISTORY) {
-        nextUndo.splice(0, nextUndo.length - MAX_CANVAS_HISTORY);
-      }
+      const nextUndo = appendBoundedHistory(
+        canvasUndoRef.current,
+        current,
+        MAX_CANVAS_HISTORY
+      );
       canvasUndoRef.current = nextUndo;
       canvasRedoRef.current = nextRedo;
       setCanvasUndoCount(nextUndo.length);
       setCanvasRedoCount(nextRedo.length);
-      nextCanvasSnapshot = cloneCanvas(next);
+      nextCanvasSnapshot = next;
       return nextCanvasSnapshot;
     });
     setHasPendingCommit(true);
     if (nextCanvasSnapshot) {
       void syncCanvasDraftToBackend(nextCanvasSnapshot, { silent: true });
     }
-  }, [addingLane, canvas, cloneCanvas, deletingLaneId, savingCanvas, syncCanvasDraftToBackend]);
+  }, [addingLane, canvas, deletingLaneId, savingCanvas, syncCanvasDraftToBackend]);
 
   useEffect(() => {
     const handleSaveShortcut = (event: KeyboardEvent) => {
@@ -4386,30 +4385,42 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         });
       }
 
+      const destinationByTrackId = new Map<string, AudioNode>();
       if (!muteOutput) {
-        events.forEach((evt) => {
-          const trackDestination = trackGainById.get(evt.trackId) ?? master;
-          const destination = (() => {
-            if (typeof ctx.createStereoPanner === "function") {
-              const panner = ctx.createStereoPanner();
-              panner.pan.value = normalizeTrackPan(evt.pan);
-              panner.connect(trackDestination);
-              return panner;
-            }
-            const merger = ctx.createChannelMerger(2);
-            const left = ctx.createGain();
-            const right = ctx.createGain();
-            const gains = equalPowerPanGains(evt.pan);
-            left.gain.value = gains.leftGain;
-            right.gain.value = gains.rightGain;
-            left.connect(merger, 0, 0);
-            right.connect(merger, 0, 1);
-            merger.connect(trackDestination);
-            const splitter = ctx.createGain();
-            splitter.connect(left);
-            splitter.connect(right);
-            return splitter;
-          })();
+        const panByTrackId = new Map<string, number>();
+        events.forEach((event) => {
+          if (!panByTrackId.has(event.trackId)) panByTrackId.set(event.trackId, event.pan);
+        });
+        panByTrackId.forEach((pan, trackId) => {
+          const trackDestination = trackGainById.get(trackId) ?? master;
+          if (typeof ctx.createStereoPanner === "function") {
+            const panner = ctx.createStereoPanner();
+            panner.pan.value = normalizeTrackPan(pan);
+            panner.connect(trackDestination);
+            destinationByTrackId.set(trackId, panner);
+            return;
+          }
+          const merger = ctx.createChannelMerger(2);
+          const left = ctx.createGain();
+          const right = ctx.createGain();
+          const gains = equalPowerPanGains(pan);
+          left.gain.value = gains.leftGain;
+          right.gain.value = gains.rightGain;
+          left.connect(merger, 0, 0);
+          right.connect(merger, 0, 1);
+          merger.connect(trackDestination);
+          const splitter = ctx.createGain();
+          splitter.connect(left);
+          splitter.connect(right);
+          destinationByTrackId.set(trackId, splitter);
+        });
+      }
+
+      const scheduleAhead = createPlaybackLookaheadScheduler(
+        events,
+        (evt) => {
+          if (muteOutput) return;
+          const destination = destinationByTrackId.get(evt.trackId) ?? master;
           if (evt.drumVoiceId) {
             if (!preparedDrumKit) return;
             schedulePreparedDrumHit({
@@ -4435,15 +4446,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             duration: Math.max(0.05, evt.duration),
             bendSegments: evt.bendSegments,
           });
-        });
-      }
+        },
+        GLOBAL_PLAYBACK_LOOKAHEAD_SECONDS
+      );
+      scheduleAhead(0);
 
       recordGtePerfMeasure("global-playback-schedule", (typeof performance !== "undefined" ? performance.now() : Date.now()) - scheduleStartedAt, {
         eventCount: events.length,
         trackCount: canvas.editors.length,
       });
 
-      return { ctx, endFrame, startFrame: playbackStartFrame, startTimeSec: playBase };
+      return { ctx, endFrame, startFrame: playbackStartFrame, startTimeSec: playBase, scheduleAhead };
     },
     [
       canvas,
@@ -4574,6 +4587,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         elapsed = globalPlaybackAudioRef.current.currentTime - globalPlaybackAudioStartRef.current;
       }
       if (elapsed < 0) elapsed = 0;
+      scheduled.scheduleAhead(elapsed);
       const nextFrame =
         secondsToFrame(
           globalTimingMap,
@@ -5168,32 +5182,33 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   useEffect(() => {
     if (!globalPlaybackIsPlaying) return;
-    const scrollbar = globalTimelineScrollbarRef.current;
-    if (!scrollbar) return;
     let rafId: number | null = null;
-    const tick = () => {
+    const alignToPlayback = () => {
+      const scrollbar = globalTimelineScrollbarRef.current;
+      if (!scrollbar) return;
       const maxScroll = Math.max(0, scrollbar.scrollWidth - scrollbar.clientWidth);
       if (maxScroll > 0) {
         const progress = Math.max(
           0,
           Math.min(1, globalPlaybackFrameRef.current / Math.max(1, canvasTimelineEnd))
         );
-        const playheadX = progress * scrollbar.scrollWidth;
-        const left = scrollbar.scrollLeft;
-        const right = left + scrollbar.clientWidth;
-        const padding = Math.min(180, scrollbar.clientWidth * 0.25);
-        if (playheadX < left + padding || playheadX > right - padding) {
-          const target = Math.max(
-            0,
-            Math.min(maxScroll, playheadX - scrollbar.clientWidth * 0.35)
-          );
-          if (Math.abs(scrollbar.scrollLeft - target) >= 0.5) {
-            synchronizeSharedTimelineScroll(target / maxScroll, target);
-          }
+        const target = getPlaybackScrollTarget({
+          playheadLeft: progress * scrollbar.scrollWidth,
+          maxScroll,
+          visibleStartInContainer: 0,
+          visibleWidth: scrollbar.clientWidth,
+        });
+        if (Math.abs(scrollbar.scrollLeft - target) >= 0.5) {
+          synchronizeSharedTimelineScroll(target / maxScroll, target);
         }
       }
+    };
+    const tick = () => {
+      alignToPlayback();
       rafId = window.requestAnimationFrame(tick);
     };
+    // Align immediately, then retain canvas-level ownership until playback stops.
+    alignToPlayback();
     rafId = window.requestAnimationFrame(tick);
     return () => {
       if (rafId !== null) window.cancelAnimationFrame(rafId);
@@ -8398,6 +8413,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     data-gte-track="true"
                     data-gte-track-lane-id={laneId}
                     className={`relative w-full min-w-0 max-w-full ${
+                      !isActive && !isMobileViewport && !practiceModeEnabled
+                        ? "gte-editor-track--deferred "
+                        : ""
+                    }${
                       isMobileEditMode
                         ? "flex min-h-0 flex-1 flex-col"
                         : isMobileViewport

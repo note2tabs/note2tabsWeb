@@ -209,13 +209,24 @@ function validateAsciiTabText(text: string) {
 }
 
 export function parseMusicXmlTabImport(xml: string): ParsedTabImport {
-  const notes = extractMusicXmlNotes(xml);
-  if (!notes.length) {
+  const tracks = extractMusicXmlTracks(xml);
+  if (!tracks.length) {
     throw new Error("No guitar notes were found in this MusicXML file.");
   }
-  return buildParsedImportFromPositions(notes, undefined, {
+  const parsedTracks = tracks.map((track, index) =>
+    buildParsedImportFromPositions(track.positions, undefined, {
+      warning: "Imported MusicXML timing is approximated for the editor grid.",
+      name: track.name || `MusicXML part ${index + 1}`,
+    })
+  );
+  const combined = buildParsedImportFromPositions(tracks.flatMap((track) => track.positions), undefined, {
     warning: "Imported MusicXML timing is approximated for the editor grid.",
   });
+  return {
+    ...combined,
+    tracks: parsedTracks,
+    warning: "Imported MusicXML timing is approximated for the editor grid.",
+  };
 }
 
 export function parseCompressedMusicXmlTabImport(buffer: ArrayBuffer): ParsedTabImport {
@@ -367,12 +378,8 @@ function midiToTab(midi: number): { stringIndex: number; fret: number } | null {
   return best;
 }
 
-function extractMusicXmlNotes(xml: string): TabPosition[] {
+function extractMusicXmlTrackNotes(partXml: string): TabPosition[] {
   const positions: TabPosition[] = [];
-  const parts = getTagBlocks(xml, "part");
-  const sources = parts.length ? parts : [xml];
-
-  sources.forEach((partXml) => {
     const state = { divisions: 1, beats: 4, beatType: 4 };
     const measures = getTagBlocks(partXml, "measure");
     const measureSources = measures.length ? measures : [partXml];
@@ -425,11 +432,30 @@ function extractMusicXmlNotes(xml: string): TabPosition[] {
 
       measureStartFrame += FIXED_FRAMES_PER_BAR;
     });
-  });
 
   return limitTabPositions(
     positions.sort((left, right) => left.column - right.column || left.stringIndex - right.stringIndex || left.fret - right.fret)
   );
+}
+
+function extractMusicXmlTracks(xml: string): Array<{ name?: string; positions: TabPosition[] }> {
+  const namesByPartId = new Map<string, string>();
+  getTagBlocks(xml, "score-part").forEach((scorePart) => {
+    const id = scorePart.match(/<score-part\b[^>]*\bid=(["'])(.*?)\1/i)?.[2] || "";
+    const name = getTagText(scorePart, "part-name");
+    if (id && name) namesByPartId.set(decodeXmlEntities(id), name);
+  });
+  const parts = getTagBlocks(xml, "part");
+  const sources = parts.length ? parts : [xml];
+  return sources.flatMap((partXml, index) => {
+    const id = partXml.match(/<part\b[^>]*\bid=(["'])(.*?)\1/i)?.[2] || "";
+    const positions = extractMusicXmlTrackNotes(partXml);
+    if (!positions.length) return [];
+    return [{
+      name: namesByPartId.get(decodeXmlEntities(id)) || `MusicXML part ${index + 1}`,
+      positions,
+    }];
+  });
 }
 
 function extractAlphaTabNotes(score: any): TabPosition[] {
