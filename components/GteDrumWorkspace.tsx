@@ -15,6 +15,7 @@ import {
   buildDrumNote,
   DRUM_VOICES,
   getDrumVoiceForNote,
+  snapDrumFrameToGrid,
 } from "../lib/gteDrums";
 import { previewDrumVoice } from "../lib/gteDrumPlayback";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
@@ -35,14 +36,11 @@ import {
 } from "../lib/gteTiming";
 
 const FRAMES_PER_BAR = 480;
-// Match the compact gutter used by chord and tab timelines.
-const LABEL_WIDTH = 30;
-// Seven compact drum rows occupy roughly the same height as the six tab strings.
-const ROW_HEIGHT = 20;
+const LABEL_WIDTH = 58;
+const ROW_HEIGHT = 28;
 const RULER_HEIGHT = 20;
 const TIME_RULER_HEIGHT = 18;
 const DRAG_THRESHOLD_PX = 4;
-const DRUM_SUBDIVISIONS_PER_BEAT = 4;
 
 type SelectionBox = {
   left: number;
@@ -95,7 +93,7 @@ type GteDrumWorkspaceProps = {
   timingMap?: TimingMapV2;
   onSnapshotChange: (
     snapshot: EditorSnapshot,
-    options?: { recordHistory?: boolean }
+    options?: { recordHistory?: boolean; markDirty?: boolean }
   ) => void;
   isActive: boolean;
   mobileViewport?: boolean;
@@ -122,10 +120,13 @@ type GteDrumWorkspaceProps = {
   onRequestBarDrop?: (insertIndex: number) => void | Promise<void>;
   sharedViewportBarCount?: number;
   sharedTimelineScrollRatio?: number;
-  onSharedTimelineScrollRatioChange?: (ratio: number) => void;
+  onSharedTimelineScrollRatioChange?: (ratio: number, scrollLeft?: number) => void;
   sharedTimelineBaseScale?: number;
   timelineZoomFactor?: number;
   snapSubdivisionsPerBeat?: number;
+  showBarNumbers?: boolean;
+  showTimeRuler?: boolean;
+  showPlaybackCounter?: boolean;
   globalSnapToGridEnabled?: boolean;
   globalPlaybackFrame?: number;
   getGlobalPlaybackFrame?: () => number;
@@ -139,7 +140,7 @@ type GteDrumWorkspaceProps = {
 };
 
 const formatTimelineSecondLabel = (seconds: number) => {
-  const safeSeconds = Math.max(0, Math.round(seconds));
+  const safeSeconds = Math.max(0, Math.floor(seconds));
   const minutes = Math.floor(safeSeconds / 60);
   return `${minutes}:${String(safeSeconds % 60).padStart(2, "0")}`;
 };
@@ -154,13 +155,13 @@ const symbolForVoice = (voiceId: string) => {
 };
 
 const shortLabelForVoice = (voiceId: string) => {
-  if (voiceId === "cymbal") return "Cy";
-  if (voiceId === "closed_hi_hat") return "CH";
-  if (voiceId === "open_hi_hat") return "OH";
-  if (voiceId === "bass") return "Ba";
-  if (voiceId === "kick") return "Ki";
-  if (voiceId === "snare") return "Sn";
-  return "St";
+  if (voiceId === "cymbal") return "Cymbal";
+  if (voiceId === "closed_hi_hat") return "Closed HH";
+  if (voiceId === "open_hi_hat") return "Open HH";
+  if (voiceId === "bass") return "Bass";
+  if (voiceId === "kick") return "Kick";
+  if (voiceId === "snare") return "Snare";
+  return "Drum";
 };
 
 const loopRangesOverlap = (left: DrumLoopRegion, right: DrumLoopRegion) =>
@@ -195,6 +196,10 @@ export default function GteDrumWorkspace({
   onSharedTimelineScrollRatioChange,
   sharedTimelineBaseScale,
   timelineZoomFactor = 1,
+  snapSubdivisionsPerBeat = 4,
+  showBarNumbers = true,
+  showTimeRuler = true,
+  showPlaybackCounter = true,
   globalSnapToGridEnabled = true,
   globalPlaybackFrame = 0,
   getGlobalPlaybackFrame,
@@ -278,6 +283,12 @@ export default function GteDrumWorkspace({
     () => buildTimingBpmSegments(timingMap, selectedBarIndices, fallbackBarBpm),
     [fallbackBarBpm, selectedBarIndices, timingMap]
   );
+  const subdivisionsPerBeat = Math.max(
+    1,
+    Math.min(64, Math.round(Number(snapSubdivisionsPerBeat) || 4))
+  );
+  const subdivisionsPerBar = beatsPerBar * subdivisionsPerBeat;
+  const visibleTimeRulerHeight = showTimeRuler ? TIME_RULER_HEIGHT : 0;
   const barCount = Math.max(
     1,
     sharedViewportBarCount ?? 1,
@@ -306,13 +317,11 @@ export default function GteDrumWorkspace({
     )
   );
   const timelineWidth = LABEL_WIDTH + totalFrames * pxPerFrame;
-  const gridStep = Math.max(
-    1,
-    Math.round(
-      FRAMES_PER_BAR /
-        (beatsPerBar * DRUM_SUBDIVISIONS_PER_BEAT)
-    )
-  );
+  const gridStep = Math.max(1, FRAMES_PER_BAR / subdivisionsPerBar);
+
+  useEffect(() => {
+    if (!quantizeDialogOpen) setQuantizeSubdivision(subdivisionsPerBeat);
+  }, [quantizeDialogOpen, subdivisionsPerBeat]);
 
   useEffect(() => {
     snapshotNotesRef.current = snapshot.notes;
@@ -333,6 +342,14 @@ export default function GteDrumWorkspace({
     selectedNoteIdsRef.current = next;
     setSelectedNoteIds(next);
   }, []);
+
+  useEffect(() => {
+    const validIds = new Set(snapshot.notes.map((note) => note.id));
+    const current = selectedNoteIdsRef.current;
+    const next = new Set([...current].filter((id) => validIds.has(id)));
+    if (next.size === current.size) return;
+    replaceSelection(next);
+  }, [replaceSelection, snapshot.notes]);
 
   const selectTrackOnly = useCallback(() => {
     replaceSelection(new Set());
@@ -626,13 +643,16 @@ export default function GteDrumWorkspace({
         notes: cleanedNotes,
         updatedAt: new Date().toISOString(),
       };
-      onSnapshotChange(nextSnapshot, { recordHistory: true });
+      onSnapshotChange(nextSnapshot, {
+        recordHistory: true,
+        markDirty: !tableBacked,
+      });
       setSaveError(null);
       if (!tableBacked) return;
       try {
         await gteApi.applySnapshot(editorId, nextSnapshot);
       } catch (error: any) {
-        onSnapshotChange(snapshot, { recordHistory: false });
+        onSnapshotChange(snapshot, { recordHistory: false, markDirty: false });
         setSaveError(error?.message || errorMessage);
       }
     },
@@ -904,15 +924,29 @@ export default function GteDrumWorkspace({
   const snapTime = useCallback(
     (time: number) => {
       const clamped = Math.max(trackOffsetFrames, Math.min(totalFrames - 1, time));
-      return globalSnapToGridEnabled
-        ? Math.round(clamped / gridStep) * gridStep
-        : Math.round(clamped);
+      if (!globalSnapToGridEnabled) return Math.round(clamped);
+      const snapped = snapDrumFrameToGrid(
+        clamped,
+        beatsPerBar,
+        subdivisionsPerBeat,
+        FRAMES_PER_BAR
+      );
+      if (snapped < totalFrames) return snapped;
+      return snapDrumFrameToGrid(
+        Math.max(trackOffsetFrames, totalFrames - gridStep),
+        beatsPerBar,
+        subdivisionsPerBeat,
+        FRAMES_PER_BAR
+      );
     },
-    [globalSnapToGridEnabled, gridStep, totalFrames, trackOffsetFrames]
+    [beatsPerBar, globalSnapToGridEnabled, gridStep, subdivisionsPerBeat, totalFrames, trackOffsetFrames]
   );
 
   const updateSnapshotNotes = useCallback(
-    (notes: Note[]) => {
+    (
+      notes: Note[],
+      options?: { recordHistory?: boolean; markDirty?: boolean }
+    ) => {
       const cleanedNotes = removeNotesCoveredByLoopRepeats(notes, drumLoops);
       onSnapshotChange(
         {
@@ -934,7 +968,10 @@ export default function GteDrumWorkspace({
           noteEffects: [],
           updatedAt: new Date().toISOString(),
         },
-        { recordHistory: !tableBacked }
+        {
+          recordHistory: options?.recordHistory ?? true,
+          markDirty: options?.markDirty ?? !tableBacked,
+        }
       );
     },
     [drumLoops, onSnapshotChange, snapshot, tableBacked]
@@ -970,7 +1007,7 @@ export default function GteDrumWorkspace({
       try {
         await gteApi.saveDrumNote(canvasId, laneId, note);
       } catch (error: any) {
-        updateSnapshotNotes(previousNotes);
+        updateSnapshotNotes(previousNotes, { recordHistory: false, markDirty: false });
         setSaveError(error?.message || "Could not save drum hit.");
       }
     },
@@ -1004,7 +1041,7 @@ export default function GteDrumWorkspace({
           )
         );
       } catch (error: any) {
-        updateSnapshotNotes(previousNotes);
+        updateSnapshotNotes(previousNotes, { recordHistory: false, markDirty: false });
         replaceSelection(ids);
         setSaveError(error?.message || "Could not remove drum hit.");
       }
@@ -1072,7 +1109,7 @@ export default function GteDrumWorkspace({
           nextNotes.filter((note) => movedIds.has(note.id))
         );
       } catch (error: any) {
-        updateSnapshotNotes(previousNotes);
+        updateSnapshotNotes(previousNotes, { recordHistory: false, markDirty: false });
         setSaveError(error?.message || "Could not move drum hits.");
       }
     },
@@ -1455,7 +1492,7 @@ export default function GteDrumWorkspace({
 
   useEffect(() => {
     const container = scrollRef.current;
-    if (!container || sharedTimelineScrollRatio === undefined) return;
+    if (!container || sharedTimelineScrollRatio === undefined || onSharedTimelineScrollRatioChange) return;
     const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
     const next = maxScroll * Math.max(0, Math.min(1, sharedTimelineScrollRatio));
     if (Math.abs(container.scrollLeft - next) < 1) return;
@@ -1464,7 +1501,7 @@ export default function GteDrumWorkspace({
     requestAnimationFrame(() => {
       syncingScrollRef.current = false;
     });
-  }, [sharedTimelineScrollRatio, timelineWidth]);
+  }, [onSharedTimelineScrollRatioChange, sharedTimelineScrollRatio, timelineWidth]);
 
   useEffect(() => {
     const applyFrame = () => {
@@ -1648,8 +1685,6 @@ export default function GteDrumWorkspace({
       frame: number;
       kind: "subdivision" | "beat" | "bar";
     }> = [];
-    const subdivisionsPerBar =
-      beatsPerBar * DRUM_SUBDIVISIONS_PER_BEAT;
     for (let barIndex = 0; barIndex < barCount; barIndex += 1) {
       for (
         let subdivisionIndex = 0;
@@ -1663,7 +1698,7 @@ export default function GteDrumWorkspace({
           kind:
             subdivisionIndex === 0
               ? "bar"
-              : subdivisionIndex % DRUM_SUBDIVISIONS_PER_BEAT === 0
+              : subdivisionIndex % subdivisionsPerBeat === 0
                 ? "beat"
                 : "subdivision",
         });
@@ -1671,7 +1706,7 @@ export default function GteDrumWorkspace({
     }
     lines.push({ frame: totalFrames, kind: "bar" });
     return lines;
-  }, [barCount, beatsPerBar, totalFrames]);
+  }, [barCount, subdivisionsPerBar, subdivisionsPerBeat, totalFrames]);
 
   const visualLoops = useMemo(() => {
     if (!loopPreview) return drumLoops;
@@ -1900,25 +1935,44 @@ export default function GteDrumWorkspace({
           </div>
         );
       })()}
-      <button
-        type="button"
-        data-drum-track-selector="true"
-        aria-label="Select drum track for editing"
-        title="Select drum track for editing"
-        onMouseDown={(event) => event.stopPropagation()}
-        onClick={selectTrackOnly}
-        className={`block h-3.5 w-full border-b transition-colors ${
-          isActive
-            ? "border-sky-200 bg-sky-50 hover:bg-sky-100"
-            : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+      <div
+        className={`flex h-8 items-center border-b px-2 transition-colors ${
+          isActive ? "border-sky-200 bg-sky-50" : "border-slate-200 bg-slate-50"
         }`}
-      />
+      >
+        <button
+          type="button"
+          data-drum-track-selector="true"
+          aria-label="Select drum track for editing"
+          title="Select drum track for editing"
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={selectTrackOnly}
+          className="min-w-0 flex-1 text-left text-[10px] font-semibold text-slate-600"
+        >
+          Drum editor
+        </button>
+        {selectedNoteIds.size > 0 && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              void deleteHits(selectedNoteIds);
+            }}
+            className="rounded-md px-2 py-1 text-[10px] font-semibold text-rose-700 hover:bg-rose-50"
+            aria-label={`Delete ${selectedNoteIds.size} selected drum ${selectedNoteIds.size === 1 ? "hit" : "hits"}`}
+            title="Delete selected drum hits (Delete)"
+          >
+            Delete {selectedNoteIds.size}
+          </button>
+        )}
+      </div>
       <div
         ref={scrollRef}
+        data-gte-shared-timeline="true"
         className="hide-scrollbar overflow-x-auto overflow-y-hidden"
         style={{
           height:
-            RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length + TIME_RULER_HEIGHT,
+            RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length + visibleTimeRulerHeight,
         }}
         onContextMenu={handleTrackContextMenu}
         onScroll={(event) => {
@@ -1927,7 +1981,8 @@ export default function GteDrumWorkspace({
           if (syncingScrollRef.current) return;
           const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
           onSharedTimelineScrollRatioChange?.(
-            maxScroll > 0 ? element.scrollLeft / maxScroll : 0
+            maxScroll > 0 ? element.scrollLeft / maxScroll : 0,
+            element.scrollLeft
           );
         }}
         onPointerDown={(event) => {
@@ -1970,7 +2025,7 @@ export default function GteDrumWorkspace({
           style={{
             width: timelineWidth,
             height:
-              RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length + TIME_RULER_HEIGHT,
+              RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length + visibleTimeRulerHeight,
           }}
         >
           {trackOffsetWidth > 0 && (
@@ -2043,7 +2098,7 @@ export default function GteDrumWorkspace({
                     getTimingBarBpm(timingMap, index, fallbackBarBpm)
                   )} BPM`}
                 >
-                  <span className="truncate">Bar {index + 1}</span>
+                  {showBarNumbers ? <span className="truncate">Bar {index + 1}</span> : null}
                 </button>
               );
             })}
@@ -2102,7 +2157,7 @@ export default function GteDrumWorkspace({
               }}
             >
               <div
-                className="sticky left-0 z-50 flex h-full items-center justify-center border-r border-slate-200 bg-slate-100 px-0.5 text-[9px] font-semibold text-slate-700"
+                className="sticky left-0 z-50 flex h-full items-center border-r border-slate-200 bg-slate-100 px-1.5 text-[9px] font-semibold text-slate-700"
                 style={{ width: LABEL_WIDTH }}
                 title={`${voice.label} · key ${voice.key}`}
               >
@@ -2117,6 +2172,7 @@ export default function GteDrumWorkspace({
             return (
               <div
                 key={`drum-grid-${index}-${frame}`}
+                data-drum-grid-kind={kind}
                 className={`pointer-events-none absolute ${
                   isBar
                     ? "bg-slate-700"
@@ -2232,7 +2288,7 @@ export default function GteDrumWorkspace({
                 type="button"
                 data-drum-hit={virtual ? undefined : "true"}
                 tabIndex={virtual ? -1 : 0}
-                className={`absolute z-20 flex h-3.5 w-3.5 cursor-grab touch-none items-center justify-center rounded border text-[9px] font-bold shadow-sm active:cursor-grabbing ${
+                className={`absolute z-20 flex h-6 w-6 cursor-grab touch-none items-center justify-center rounded-md border text-[10px] font-bold shadow-sm active:cursor-grabbing ${
                   virtual
                     ? "pointer-events-none border-sky-400/70 bg-sky-100/80 text-sky-700 opacity-75"
                     : selected
@@ -2243,10 +2299,10 @@ export default function GteDrumWorkspace({
                   left:
                     LABEL_WIDTH +
                     (note.startTime + gridStep / 2) * pxPerFrame -
-                    7,
-                  top: RULER_HEIGHT + voiceIndex * ROW_HEIGHT + 3,
+                    12,
+                  top: RULER_HEIGHT + voiceIndex * ROW_HEIGHT + 2,
                 }}
-                title={`${virtual ? "Virtual " : ""}${voice.label} at frame ${note.startTime}`}
+                title={`${virtual ? "Virtual " : ""}${voice.label} at frame ${note.startTime}. Select, drag, or press Delete to remove.`}
                 aria-label={`${virtual ? "Virtual " : ""}${voice.label} drum hit`}
                 onPointerDown={(event) => {
                   if (virtual) return;
@@ -2310,7 +2366,7 @@ export default function GteDrumWorkspace({
             );
           })}
 
-          <div
+          {showTimeRuler && <div
             data-drum-time-ruler="true"
             role="button"
             tabIndex={0}
@@ -2366,14 +2422,15 @@ export default function GteDrumWorkspace({
                 ) : null}
               </div>
             ))}
-          </div>
+          </div>}
 
           <div
             ref={playheadRef}
+            data-gte-playhead="drum"
             className="pointer-events-none absolute left-0 top-0 z-20 w-px bg-rose-500"
             style={{
               height:
-                RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length + TIME_RULER_HEIGHT,
+                RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length + visibleTimeRulerHeight,
             }}
           />
         </div>
@@ -2554,6 +2611,15 @@ export default function GteDrumWorkspace({
           data-gte-floating-ui="true"
           className="pointer-events-none fixed bottom-10 left-1/2 z-[9997] flex -translate-x-1/2 items-center gap-2 px-2"
         >
+          {showPlaybackCounter && (
+            <span
+              className="pointer-events-auto absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600 shadow-sm"
+              role="timer"
+              aria-label="Playback time"
+            >
+              {formatTimelineSecondLabel((getGlobalPlaybackFrame?.() ?? globalPlaybackFrame) / playbackFps)} / {formatTimelineSecondLabel(totalFrames / playbackFps)}
+            </span>
+          )}
           <div className="pointer-events-auto flex items-center rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 shadow-sm backdrop-blur">
             <button
               type="button"

@@ -91,7 +91,8 @@ describe("editor practice mode", () => {
     expect(editorPage).toContain('aria-label="Practice instrument"');
     expect(editorPage).toContain("toggleTrackMute(practiceSoundLaneId)");
     expect(editorPage).toContain("toggleTrackIsolation(practiceSoundLaneId)");
-    expect(editorPage).toContain("handleTrackVolumeChange(practiceSoundLaneId");
+    expect(editorPage).toContain("handleTrackVolumePreview(practiceSoundLaneId");
+    expect(editorPage).toContain("commitTrackVolume(practiceSoundLaneId)");
     expect(editorPage).toContain("handleTrackPanChange(practiceSoundLaneId");
   });
 
@@ -127,7 +128,8 @@ describe("editor practice mode", () => {
     expect(editorPage).toContain("Sound controls for");
     expect(editorPage).toContain("toggleTrackMute(candidateId)");
     expect(editorPage).toContain("toggleTrackIsolation(candidateId)");
-    expect(editorPage).toContain("handleTrackVolumeChange(candidateId");
+    expect(editorPage).toContain("handleTrackVolumePreview(candidateId");
+    expect(editorPage).toContain("commitTrackVolume(candidateId)");
     expect(editorPage).toContain('className="w-12 shrink-0 accent-slate-700"');
     expect(editorPage).not.toContain('aria-label={`Pan for ${candidate.name');
   });

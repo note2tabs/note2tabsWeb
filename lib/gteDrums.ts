@@ -94,3 +94,22 @@ export const isDrumTrackType = (value: unknown) => {
   const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
   return normalized === "drum" || normalized === "drums" || normalized === "percussion";
 };
+
+export const snapDrumFrameToGrid = (
+  frame: number,
+  beatsPerBar: number,
+  subdivisionsPerBeat: number,
+  framesPerBar = 480
+) => {
+  const safeFramesPerBar = Math.max(1, Math.round(Number(framesPerBar) || 480));
+  const safeBeats = Math.max(1, Math.round(Number(beatsPerBar) || 1));
+  const safeSubdivisions = Math.max(1, Math.round(Number(subdivisionsPerBeat) || 1));
+  const unitsPerBar = safeBeats * safeSubdivisions;
+  const safeFrame = Math.max(0, Number(frame) || 0);
+  const barIndex = Math.floor(safeFrame / safeFramesPerBar);
+  const barStart = barIndex * safeFramesPerBar;
+  const unitIndex = Math.round(
+    ((safeFrame - barStart) / safeFramesPerBar) * unitsPerBar
+  );
+  return barStart + Math.round((unitIndex * safeFramesPerBar) / unitsPerBar);
+};
