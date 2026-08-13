@@ -164,7 +164,7 @@ type Props = {
   sharedViewportBarCount?: number;
   sharedTimelineBaseScale?: number;
   sharedTimelineScrollRatio?: number;
-  onSharedTimelineScrollRatioChange?: (next: number) => void;
+  onSharedTimelineScrollRatioChange?: (next: number, scrollLeft?: number) => void;
   timelineZoomFactor?: number;
   historyUndoCount?: number;
   historyRedoCount?: number;
@@ -2709,7 +2709,10 @@ function ChordLaneWorkspace({
   const handleTimelineScroll = (event: ReactUiEvent<HTMLDivElement>) => {
     const element = event.currentTarget;
     const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
-    onSharedTimelineScrollRatioChange?.(maxScroll > 0 ? element.scrollLeft / maxScroll : 0);
+    onSharedTimelineScrollRatioChange?.(
+      maxScroll > 0 ? element.scrollLeft / maxScroll : 0,
+      element.scrollLeft
+    );
   };
 
   if (practiceMode) {
@@ -3010,6 +3013,7 @@ function ChordLaneWorkspace({
       </div>
       <div
         ref={timelineRef}
+        data-gte-shared-timeline="true"
         className="hide-scrollbar relative overflow-x-auto bg-white"
         onScroll={handleTimelineScroll}
         onDragOver={(event) => event.preventDefault()}
@@ -4032,6 +4036,8 @@ export default function GteWorkspace({
   const playheadAudioStartRef = useRef<number | null>(null);
   const playheadRafRef = useRef<number | null>(null);
   const playbackScrollRafRef = useRef<number | null>(null);
+  const timelineViewportRafRef = useRef<number | null>(null);
+  const pendingTimelineViewportRef = useRef<{ scrollLeft: number; clientWidth: number } | null>(null);
   const clipboardRef = useRef<{
     anchor: number;
     notes: Array<{ start: number; length: number; tab: TabCoord }>;
@@ -4617,6 +4623,22 @@ export default function GteWorkspace({
   const visibleChords = useMemo(() => {
     return windowTimelineEvents(snapshot.chords, timelineRenderWindow, pinnedVisibleChordIds);
   }, [pinnedVisibleChordIds, snapshot.chords, timelineRenderWindow]);
+  const visibleCanvasBarIndices = useMemo(() => {
+    const first = Math.max(0, Math.floor(timelineRenderWindow.startFrame / framesPerMeasure));
+    const last = Math.min(barCount - 1, Math.floor(timelineRenderWindow.endFrame / framesPerMeasure));
+    const indexes = new Set(
+      Array.from({ length: Math.max(0, last - first + 1) }, (_, offset) => first + offset)
+    );
+    selectedBarIndices.forEach((index) => {
+      if (index >= 0 && index < barCount) indexes.add(index);
+    });
+    return [...indexes].sort((left, right) => left - right);
+  }, [barCount, framesPerMeasure, selectedBarIndices, timelineRenderWindow]);
+  const visibleCanvasBarDropIndices = useMemo(() => {
+    const first = Math.max(0, Math.floor(timelineRenderWindow.startFrame / framesPerMeasure));
+    const last = Math.min(barCount, Math.ceil(timelineRenderWindow.endFrame / framesPerMeasure));
+    return Array.from({ length: Math.max(0, last - first + 1) }, (_, offset) => first + offset);
+  }, [barCount, framesPerMeasure, timelineRenderWindow]);
   const visibleNoteIdSet = useMemo(() => new Set(visibleNotes.map((note) => note.id)), [visibleNotes]);
   const setEffectivePracticeLoopEnabled = useCallback(
     (enabled: boolean) => {
@@ -5306,27 +5328,43 @@ export default function GteWorkspace({
     });
   }, [effectiveIsPlaying, editorTabView.barCount, sharedTimelineScrollRatio, tabViewEnabled, viewportTimelineWidth]);
 
+  const queueTimelineViewportUpdate = useCallback((scrollLeft: number, clientWidth: number) => {
+    pendingTimelineViewportRef.current = { scrollLeft, clientWidth };
+    if (timelineViewportRafRef.current !== null) return;
+    timelineViewportRafRef.current = window.requestAnimationFrame(() => {
+      timelineViewportRafRef.current = null;
+      const next = pendingTimelineViewportRef.current;
+      pendingTimelineViewportRef.current = null;
+      if (!next) return;
+      setTimelineViewport((previous) =>
+        Math.abs(previous.scrollLeft - next.scrollLeft) < 1 &&
+        Math.abs(previous.clientWidth - next.clientWidth) < 1
+          ? previous
+          : next
+      );
+    });
+  }, []);
+
+  useEffect(() => () => {
+    if (timelineViewportRafRef.current !== null) {
+      window.cancelAnimationFrame(timelineViewportRafRef.current);
+      timelineViewportRafRef.current = null;
+    }
+  }, []);
+
   const handleTimelineOuterScroll = useCallback(
     (event: ReactUiEvent<HTMLDivElement>) => {
       const target = event.currentTarget;
       if (!target) return;
       const nextScrollLeft = target.scrollLeft;
       const nextClientWidth = target.clientWidth;
-      setTimelineViewport((prev) => {
-        if (
-          Math.abs(prev.scrollLeft - nextScrollLeft) < 1 &&
-          Math.abs(prev.clientWidth - nextClientWidth) < 1
-        ) {
-          return prev;
-        }
-        return { scrollLeft: nextScrollLeft, clientWidth: nextClientWidth };
-      });
+      queueTimelineViewportUpdate(nextScrollLeft, nextClientWidth);
       if (!onSharedTimelineScrollRatioChange || applyingSharedScrollRef.current) return;
       const maxScroll = Math.max(0, target.scrollWidth - nextClientWidth);
       if (maxScroll <= 0) return;
-      onSharedTimelineScrollRatioChange(nextScrollLeft / maxScroll);
+      onSharedTimelineScrollRatioChange(nextScrollLeft / maxScroll, nextScrollLeft);
     },
-    [onSharedTimelineScrollRatioChange]
+    [onSharedTimelineScrollRatioChange, queueTimelineViewportUpdate]
   );
 
   useEffect(() => {
@@ -12313,7 +12351,9 @@ export default function GteWorkspace({
       window.cancelAnimationFrame(playbackScrollRafRef.current);
       playbackScrollRafRef.current = null;
     }
-    if (mobileViewport || !effectiveIsPlaying || (!isActive && !useExternalPlayback)) return;
+    // Only the selected track may drive the shared playback viewport. Allowing every
+    // externally-played track to follow its own playhead creates competing scroll targets.
+    if (mobileViewport || !effectiveIsPlaying || !isActive) return;
     const container = tabViewEnabled ? tabViewScrollRef.current : timelineOuterRef.current;
     if (!container) return;
 
@@ -12374,7 +12414,6 @@ export default function GteWorkspace({
     mobileViewport,
     scale,
     tabViewEnabled,
-    useExternalPlayback,
   ]);
 
   const showMobileEditRail = isMobileEditMode && isActive && !tabViewEnabled;
@@ -13617,7 +13656,7 @@ export default function GteWorkspace({
           )}
         </div>
       )}
-      {showPlaybackUi && (
+      {showPlaybackUi && typeof document !== "undefined" && createPortal(
         <div
           data-gte-floating-ui="true"
           className={
@@ -13890,7 +13929,8 @@ export default function GteWorkspace({
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       <div className={`flex flex-wrap items-center ${embedded ? "gap-2" : "gap-3"}`}>
         {!embedded && (
@@ -14432,6 +14472,7 @@ export default function GteWorkspace({
           ) : (
           <div
             ref={tabViewScrollRef}
+            data-gte-shared-timeline="true"
             className={`min-w-0 bg-white ${
               practiceMode ? "rounded-none border-0" : "rounded-xl border border-slate-200"
             } ${
@@ -14677,12 +14718,13 @@ export default function GteWorkspace({
           <div className={`min-w-0 flex-1 ${isMobileEditMode ? "min-h-0 overflow-hidden" : "overflow-y-visible"}`}>
             <div
               ref={timelineOuterRef}
+              data-gte-shared-timeline="true"
               className="hide-scrollbar min-w-0 overflow-x-auto overflow-y-hidden"
               onScroll={handleTimelineOuterScroll}
             >
               <div className="relative" style={{ width: timelineChromeWidth, paddingTop: TIMELINE_BAR_HEADER_HEIGHT }}>
                 {framesPerMeasure > 0 &&
-                  Array.from({ length: barCount }).map((_, barIndex) => {
+                  visibleCanvasBarIndices.map((barIndex) => {
                     const left = barIndex * framesPerMeasure * scale;
                     const width = Math.max(1, framesPerMeasure * scale);
                     const selected = selectedBarIndexSet.has(barIndex);
@@ -14721,7 +14763,7 @@ export default function GteWorkspace({
                     );
                   })}
                 {framesPerMeasure > 0 &&
-                  Array.from({ length: barCount + 1 }).map((_, insertIndex) => {
+                  visibleCanvasBarDropIndices.map((insertIndex) => {
                     const left = Math.max(
                       0,
                       Math.min(
@@ -14853,20 +14895,21 @@ export default function GteWorkspace({
                       {framesPerMeasure > 0 &&
                         rowBarCount > 0 &&
                         beatsPerBar > 1 &&
-                        [...Array(rowBarCount * beatsPerBar - 1)].map((_, beatIdx) => {
-                          const beat = beatIdx + 1;
-                          if (beat % beatsPerBar === 0) return null;
-                          const left = beat * beatWidth;
-                          return (
-                            <div
-                              key={`row-${rowIdx}-beat-${beat}`}
-                              className={`absolute top-0 h-full w-px pointer-events-none bg-slate-200/70`}
-                              style={{ left, height: rowHeight }}
-                            />
-                          );
-                        })}
+                        visibleCanvasBarIndices.flatMap((barIndex) =>
+                          Array.from({ length: beatsPerBar - 1 }, (_, beatOffset) => {
+                            const beat = barIndex * beatsPerBar + beatOffset + 1;
+                            const left = beat * beatWidth;
+                            return (
+                              <div
+                                key={`row-${rowIdx}-beat-${beat}`}
+                                className="absolute top-0 h-full w-px pointer-events-none bg-slate-200/70"
+                                style={{ left, height: rowHeight }}
+                              />
+                            );
+                          })
+                        )}
                       {framesPerMeasure > 0 &&
-                        [...Array(rowBarCount + 1)].map((_, edgeIdx) => {
+                        [...new Set(visibleCanvasBarIndices.flatMap((barIndex) => [barIndex, barIndex + 1]))].map((edgeIdx) => {
                           const rawDividerX = edgeIdx * framesPerMeasure * scale;
                           const dividerX =
                             edgeIdx === rowBarCount ? Math.max(0, rowWidth - 2) : rawDividerX;

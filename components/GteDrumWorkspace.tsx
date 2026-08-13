@@ -118,7 +118,7 @@ type GteDrumWorkspaceProps = {
   onRequestBarDrop?: (insertIndex: number) => void | Promise<void>;
   sharedViewportBarCount?: number;
   sharedTimelineScrollRatio?: number;
-  onSharedTimelineScrollRatioChange?: (ratio: number) => void;
+  onSharedTimelineScrollRatioChange?: (ratio: number, scrollLeft?: number) => void;
   sharedTimelineBaseScale?: number;
   timelineZoomFactor?: number;
   snapSubdivisionsPerBeat?: number;
@@ -204,6 +204,8 @@ export default function GteDrumWorkspace({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const playheadRef = useRef<HTMLDivElement | null>(null);
   const syncingScrollRef = useRef(false);
+  const timelineViewportRafRef = useRef<number | null>(null);
+  const pendingTimelineViewportRef = useRef<{ scrollLeft: number; clientWidth: number } | null>(null);
   const interactionRef = useRef<PointerInteraction | null>(null);
   const selectedNoteIdsRef = useRef<Set<number>>(new Set());
   const snapshotNotesRef = useRef(snapshot.notes);
@@ -256,6 +258,30 @@ export default function GteDrumWorkspace({
     scrollLeft: 0,
     clientWidth: 0,
   });
+
+  const queueTimelineViewportUpdate = useCallback((scrollLeft: number, clientWidth: number) => {
+    pendingTimelineViewportRef.current = { scrollLeft, clientWidth };
+    if (timelineViewportRafRef.current !== null) return;
+    timelineViewportRafRef.current = requestAnimationFrame(() => {
+      timelineViewportRafRef.current = null;
+      const next = pendingTimelineViewportRef.current;
+      pendingTimelineViewportRef.current = null;
+      if (!next) return;
+      setTimelineViewport((previous) =>
+        Math.abs(previous.scrollLeft - next.scrollLeft) < 1 &&
+        Math.abs(previous.clientWidth - next.clientWidth) < 1
+          ? previous
+          : next
+      );
+    });
+  }, []);
+
+  useEffect(() => () => {
+    if (timelineViewportRafRef.current !== null) {
+      cancelAnimationFrame(timelineViewportRafRef.current);
+      timelineViewportRafRef.current = null;
+    }
+  }, []);
   const tableBacked = canvasId !== GTE_GUEST_EDITOR_ID;
   const editorId = `${canvasId}__ed__${laneId}`;
 
@@ -1938,6 +1964,7 @@ export default function GteDrumWorkspace({
       />
       <div
         ref={scrollRef}
+        data-gte-shared-timeline="true"
         className="hide-scrollbar overflow-x-auto overflow-y-hidden"
         style={{
           height:
@@ -1946,17 +1973,12 @@ export default function GteDrumWorkspace({
         onContextMenu={handleTrackContextMenu}
         onScroll={(event) => {
           const element = event.currentTarget;
-          setTimelineViewport((previous) => {
-            const next = { scrollLeft: element.scrollLeft, clientWidth: element.clientWidth };
-            return Math.abs(previous.scrollLeft - next.scrollLeft) < 1 &&
-              Math.abs(previous.clientWidth - next.clientWidth) < 1
-              ? previous
-              : next;
-          });
+          queueTimelineViewportUpdate(element.scrollLeft, element.clientWidth);
           if (syncingScrollRef.current) return;
           const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
           onSharedTimelineScrollRatioChange?.(
-            maxScroll > 0 ? element.scrollLeft / maxScroll : 0
+            maxScroll > 0 ? element.scrollLeft / maxScroll : 0,
+            element.scrollLeft
           );
         }}
         onPointerDown={(event) => {
@@ -2546,7 +2568,7 @@ export default function GteDrumWorkspace({
           </div>
         </div>
       )}
-      {playbackUiVisible && (
+      {playbackUiVisible && typeof document !== "undefined" && createPortal(
         <div
           data-gte-floating-ui="true"
           className="pointer-events-none fixed bottom-10 left-1/2 z-[9997] flex -translate-x-1/2 items-center gap-2 px-2"
@@ -2605,7 +2627,8 @@ export default function GteDrumWorkspace({
               aria-label="Playback volume"
             />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
