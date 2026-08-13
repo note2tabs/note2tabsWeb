@@ -52,7 +52,7 @@ export default function PremiumHomeCallout() {
   if (!visible || !funnel) return null;
 
   return (
-    <div className="container premium-home-callout-wrap">
+    <div className="premium-home-callout-wrap">
       <aside className="premium-home-callout" aria-label="Note2Tabs Premium">
         <div>
           <span>Note2Tabs Premium</span>

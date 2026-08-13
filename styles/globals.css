@@ -6432,7 +6432,8 @@ input[type="number"] {
 }
 
 .premium-home-callout-wrap {
-  margin-top: 18px;
+  width: 100%;
+  margin-top: -4px;
 }
 
 .premium-home-callout {
@@ -6500,8 +6501,8 @@ input[type="number"] {
 
 @media (max-width: 680px) {
   .premium-home-callout-wrap {
-    width: min(100% - 24px, 1120px);
-    margin-top: 12px;
+    width: 100%;
+    margin-top: 0;
   }
 
   .premium-home-callout {
@@ -6613,90 +6614,40 @@ input[type="number"] {
   margin-top: 22px;
 }
 
-.recording-details {
+.recording-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
   margin: 10px 2px 0;
-  border-top: 1px solid rgba(37, 50, 68, 0.1);
 }
 
-.recording-details summary {
+.recording-option {
   display: flex;
-  min-height: 38px;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  color: rgba(37, 50, 68, 0.76);
-  font-size: 0.75rem;
-  font-weight: 650;
-  cursor: pointer;
-  list-style-position: inside;
-}
-
-.recording-details summary small {
-  margin-left: auto;
-  color: rgba(37, 50, 68, 0.5);
-  font-size: 0.67rem;
-  font-weight: 450;
-  text-align: right;
-}
-
-.recording-details__options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 2px 0 8px;
-}
-
-.recording-details__option {
-  display: flex;
-  min-width: 0;
-  min-height: 58px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid rgba(37, 50, 68, 0.1);
-  border-radius: 11px;
-  background: rgba(248, 248, 245, 0.72);
-  color: #253244;
+  gap: 7px;
   cursor: pointer;
 }
 
-.recording-details__option > span {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.recording-details__option strong {
+.recording-option span {
+  color: rgba(37, 50, 68, 0.64);
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.35;
 }
 
-.recording-details__option small {
-  color: rgba(37, 50, 68, 0.55);
-  font-size: 0.64rem;
-  line-height: 1.35;
-}
-
-.recording-details__option input {
-  width: 17px;
-  height: 17px;
+.recording-option input {
+  width: 16px;
+  height: 16px;
   flex: 0 0 auto;
+  margin: 0;
   accent-color: #172019;
 }
 
 @media (max-width: 600px) {
-  .recording-details summary {
-    min-height: 36px;
-  }
-
-  .recording-details summary small {
-    max-width: 150px;
-  }
-
-  .recording-details__options {
-    grid-template-columns: 1fr;
+  .recording-options {
+    display: grid;
+    gap: 8px;
   }
 }
 

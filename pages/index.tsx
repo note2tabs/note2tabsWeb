@@ -1461,6 +1461,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 Turn recordings into guitar tab you can edit, practice, and export.
               </p>
             </div>
+            <PremiumHomeCallout />
             <form
               id="transcriber-start"
               className="prompt-shell prompt-shell--funnel"
@@ -1745,8 +1746,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
           </div>
         </section>
-
-        <PremiumHomeCallout />
 
         {tabsResult && (
           <section className="results" id="results">
