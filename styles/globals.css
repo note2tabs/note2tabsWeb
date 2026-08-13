@@ -1602,13 +1602,13 @@ input[type="number"] {
 
 .product-home--studio {
   overflow: hidden;
-  padding: 30px 0 78px;
+  padding: 0;
   background: var(--bg);
 }
 
-.product-studio-layout { display: grid; grid-template-columns: 218px minmax(0, 1fr); gap: 26px; max-width: 1280px; }
-.product-studio { min-width: 0; }
-.product-studio-sidebar { position: sticky; top: 88px; align-self: start; display: flex; min-height: calc(100vh - 126px); flex-direction: column; padding: 12px; border: 1px solid rgba(6, 17, 13, 0.075); border-radius: 15px; background: #f0eee8; }
+.product-studio-layout.container { display: grid; grid-template-columns: 268px minmax(0, 1fr); gap: 0; width: 100%; max-width: none; padding: 0; }
+.product-studio { width: 100%; max-width: 1120px; min-width: 0; margin: 0 auto; padding: 30px 32px 78px; }
+.product-studio-sidebar { position: sticky; top: 0; align-self: start; display: flex; min-height: calc(100vh - 72px); flex-direction: column; padding: 24px 18px 18px; border: 0; border-right: 1px solid rgba(6, 17, 13, 0.08); border-radius: 0; background: #f0eee8; }
 .product-studio-sidebar nav { display: grid; gap: 3px; }
 .product-studio-sidebar nav a { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: center; gap: 9px; min-height: 41px; padding: 0 11px; border-radius: 9px; color: rgba(6, 17, 13, 0.72); font-size: 0.73rem; font-weight: 620; }
 .product-studio-sidebar nav a:hover { background: rgba(255, 255, 255, 0.58); color: #06110d; }
@@ -1687,7 +1687,8 @@ input[type="number"] {
 .product-studio__premium i { color: #0d5d49; font-size: 0.7rem; font-style: normal; font-weight: 680; }
 
 @media (max-width: 900px) {
-  .product-studio-layout { grid-template-columns: 1fr; gap: 20px; }
+  .product-studio-layout.container { grid-template-columns: 1fr; gap: 20px; }
+  .product-studio { padding: 0 18px 54px; }
   .product-studio-sidebar { position: static; min-height: 0; padding: 0 0 14px; border: 0; border-bottom: 1px solid rgba(6, 17, 13, 0.09); border-radius: 0; background: transparent; }
   .product-studio-sidebar nav { display: flex; gap: 4px; overflow-x: auto; }
   .product-studio-sidebar nav a { flex: 0 0 auto; grid-template-columns: 18px auto; min-height: 36px; }
@@ -1696,7 +1697,7 @@ input[type="number"] {
 }
 
 @media (max-width: 760px) {
-  .product-home--studio { padding: 20px 0 54px; }
+  .product-home--studio { padding: 20px 0 0; }
   .product-studio__welcome { align-items: flex-start; }
   .product-studio__welcome h1 { font-size: 1.15rem; }
   .product-studio__credits { width: 170px; }
