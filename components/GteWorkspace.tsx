@@ -59,11 +59,21 @@ import {
 import type { Chord, ChordFingering, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord, TimingMapV2 } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
-import { buildEditorTabView, getEditorTabViewCursorX } from "../lib/gteEditorTabView";
+import {
+  buildEditorTabView,
+  EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
+  getEditorTabViewCursorX,
+} from "../lib/gteEditorTabView";
 import { useGteRenderInstrumentation } from "../lib/gtePerformanceDiagnostics";
 import { RevisionedAutosaveQueue } from "../lib/gteAutosaveQueue";
 import { windowTimelineEvents } from "../lib/gteEditorPerformance";
 import { getPlaybackScrollTarget } from "../lib/gtePlaybackScroll";
+import {
+  GTE_TIMELINE_COLUMN_GAP,
+  GTE_TIMELINE_END_PADDING,
+  GTE_TIMELINE_GUTTER_WIDTH,
+  GTE_TIMELINE_LABEL_COLUMN_WIDTH,
+} from "../lib/gteTimelineGeometry";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
   buildGteExportFile,
@@ -290,7 +300,7 @@ const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
 const CHORD_EDITOR_ROW_HEIGHT = 70;
 const CHORD_EDITOR_MIN_BLOCK_WIDTH = 24;
-const CHORD_EDITOR_LABEL_GUTTER_WIDTH = 30;
+const CHORD_EDITOR_LABEL_GUTTER_WIDTH = GTE_TIMELINE_GUTTER_WIDTH;
 const CHORD_TIME_RULER_HEIGHT = 18;
 const CHORD_STRUM_EDITOR_HEIGHT = 78;
 const CHORD_FINGERING_ROW_HEIGHT = 126;
@@ -1811,7 +1821,12 @@ function ChordLaneWorkspace({
   const trackOffsetWidth = trackOffsetFrames * pxPerFrame;
   const timelineWidth = tabViewEnabled
     ? editorTabView.width
-    : Math.max(320, Math.round(timelineContentOffset + totalFrames * pxPerFrame));
+    : Math.max(
+        320,
+        Math.round(
+          timelineContentOffset + totalFrames * pxPerFrame + GTE_TIMELINE_END_PADDING
+        )
+      );
   const effectivePlayheadFrame = Math.max(0, Math.min(totalFrames, readExternalPlaybackFrame()));
   const playheadLeft = timelineContentOffset + effectivePlayheadFrame * pxPerFrame;
   const fingeringRowTop = CHORD_EDITOR_ROW_HEIGHT;
@@ -4506,7 +4521,10 @@ export default function GteWorkspace({
       const rowFirstBar = practiceRows[rowIndex]?.firstBar ?? practiceDisplayStartBar;
       return {
         rowIndex,
-        x: 30 + clampedSourceX - editorTabView.barStartXs[rowFirstBar],
+        x:
+          EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
+          clampedSourceX -
+          editorTabView.barStartXs[rowFirstBar],
         y: rowIndex * practiceRowHeight,
       };
     },
@@ -4618,7 +4636,9 @@ export default function GteWorkspace({
     const totalSeconds = Math.floor(totalFrames / playbackFps);
     return Array.from({ length: totalSeconds + 1 }, (_, second) => ({
       second,
-      left: 30 + (second * playbackFps / Math.max(1, totalFrames)) * tabContentWidth,
+      left:
+        EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
+        (second * playbackFps / Math.max(1, totalFrames)) * tabContentWidth,
       isLabel: second % 5 === 0,
     }));
   }, [editorTabView.barCount, editorTabView.barWidth, framesPerMeasure, playbackFps]);
@@ -4791,8 +4811,15 @@ export default function GteWorkspace({
       const rect = event.currentTarget.getBoundingClientRect();
       const totalFrames = Math.max(1, editorTabView.barCount * framesPerMeasure);
       const tabContentWidth = Math.max(1, editorTabView.barCount * editorTabView.barWidth);
-      const localX = Math.max(30, Math.min(30 + tabContentWidth, event.clientX - rect.left));
-      const progress = (localX - 30) / tabContentWidth;
+      const localX = Math.max(
+        EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
+        Math.min(
+          EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + tabContentWidth,
+          event.clientX - rect.left
+        )
+      );
+      const progress =
+        (localX - EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH) / tabContentWidth;
       setEffectivePlayheadFrame(Math.round(progress * totalFrames));
     },
     [editorTabView.barCount, editorTabView.barWidth, framesPerMeasure, setEffectivePlayheadFrame]
@@ -12425,7 +12452,7 @@ export default function GteWorkspace({
       const visibleStartInContainer = Math.max(0, visibleLeft - rect.left);
       const playheadLeft =
         tabViewEnabled
-          ? 30 +
+          ? EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
             (Math.max(0, playheadFrameRef.current) /
               Math.max(1, editorTabView.barCount * framesPerMeasure)) *
               (editorTabView.barCount * editorTabView.barWidth)
@@ -14281,8 +14308,10 @@ export default function GteWorkspace({
             style={{ height: practiceRowCount * practiceRowHeight }}
           >
             {practiceRows.map(({ firstBar, lastBar, segments }, rowIndex) => {
-              const sourceLeft = editorTabView.barStartXs[firstBar] - 30;
-              const sourceRight = editorTabView.barStartXs[lastBar] - 30;
+              const sourceLeft =
+                editorTabView.barStartXs[firstBar] - EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
+              const sourceRight =
+                editorTabView.barStartXs[lastBar] - EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
               const rowContentWidth = sourceRight - sourceLeft;
               const rowTop = rowIndex * practiceRowHeight;
               return (
@@ -14334,7 +14363,7 @@ export default function GteWorkspace({
                         }`}
                         style={{
                           left:
-                            30 +
+                            EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
                             editorTabView.barStartXs[segment.startBar] -
                             editorTabView.barStartXs[firstBar],
                           width: segment.width,
@@ -14412,7 +14441,7 @@ export default function GteWorkspace({
                       className="absolute w-px bg-slate-400"
                       style={{
                         left:
-                          30 +
+                          EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
                           editorTabView.barStartXs[barIndex] -
                           editorTabView.barStartXs[firstBar],
                         top: TIMELINE_BAR_HEADER_HEIGHT,
@@ -14436,7 +14465,7 @@ export default function GteWorkspace({
                       <div
                         className="absolute h-px bg-slate-500"
                         style={{
-                          left: 30,
+                          left: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
                           width: rowContentWidth,
                           top:
                             TIMELINE_BAR_HEADER_HEIGHT +
@@ -14447,7 +14476,8 @@ export default function GteWorkspace({
                   ))}
                   {editorTabView.placements
                     .filter((placement) => {
-                      const contentX = placement.x - 30;
+                      const contentX =
+                        placement.x - EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
                       return contentX >= sourceLeft && contentX < sourceRight;
                     })
                     .map((placement) => {
@@ -14523,14 +14553,17 @@ export default function GteWorkspace({
                     })}
                   {editorTabView.effects
                     .filter((effect) => {
-                      const contentX = effect.x - 30;
+                      const contentX = effect.x - EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
                       return contentX >= sourceLeft && contentX < sourceRight;
                     })
                     .map((effect) => {
                       const y = editorTabView.strings[effect.stringIndex]?.y ?? 0;
-                      const left = Math.max(30, Math.min(effect.x1, effect.x2) - sourceLeft);
+                      const left = Math.max(
+                        EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
+                        Math.min(effect.x1, effect.x2) - sourceLeft
+                      );
                       const right = Math.min(
-                        30 + rowContentWidth,
+                        EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + rowContentWidth,
                         Math.max(effect.x1, effect.x2) - sourceLeft
                       );
                       return (
@@ -14758,14 +14791,18 @@ export default function GteWorkspace({
                   style={{ left: barLine.x, top: TIMELINE_BAR_HEADER_HEIGHT }}
                 />
               ))}
-              <div className="pointer-events-none sticky left-0 top-0 z-20 h-0 w-[30px]">
+              <div
+                className="pointer-events-none sticky left-0 top-0 z-20 h-0"
+                style={{ width: GTE_TIMELINE_LABEL_COLUMN_WIDTH }}
+              >
                 <div
                   role="group"
                   aria-label="String tuning"
-                  className="absolute left-0 w-[30px] border-r border-slate-200 bg-gradient-to-r from-white via-white to-white/90"
+                  className="absolute left-0 border-r border-slate-200 bg-gradient-to-r from-white via-white to-white/90"
                   style={{
                     top: TIMELINE_BAR_HEADER_HEIGHT,
                     height: editorTabView.height,
+                    width: GTE_TIMELINE_LABEL_COLUMN_WIDTH,
                   }}
                 >
                   {editorTabView.strings.map((line, stringIndex) => (
@@ -14783,7 +14820,11 @@ export default function GteWorkspace({
                 <div key={`tab-string-${stringIndex}`}>
                   <div
                     className="pointer-events-none absolute z-[3] h-px bg-slate-400"
-                    style={{ left: 30, right: 16, top: TIMELINE_BAR_HEADER_HEIGHT + line.y }}
+                    style={{
+                      left: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
+                      right: GTE_TIMELINE_END_PADDING,
+                      top: TIMELINE_BAR_HEADER_HEIGHT + line.y,
+                    }}
                   />
                 </div>
               ))}
@@ -14870,13 +14911,18 @@ export default function GteWorkspace({
         <div
           className={`flex min-w-0 ${tabViewEnabled ? "hidden" : ""} ${
             isMobileEditMode ? "min-h-0 flex-1 items-center" : "items-start"
-          } ${compactEmbeddedMobile ? "gap-1.5" : embedded ? "gap-2" : "gap-4"}`}
+          }`}
+          style={{ columnGap: GTE_TIMELINE_COLUMN_GAP }}
         >
           <div
             className={`flex flex-col gap-0 ${
               isMobileEditMode ? "text-[10px]" : compactEmbeddedMobile ? "text-[10px]" : "text-xs"
             } text-slate-600`}
-            style={{ paddingTop: TIMELINE_BAR_HEADER_HEIGHT }}
+            style={{
+              paddingTop: TIMELINE_BAR_HEADER_HEIGHT,
+              width: GTE_TIMELINE_LABEL_COLUMN_WIDTH,
+              flex: `0 0 ${GTE_TIMELINE_LABEL_COLUMN_WIDTH}px`,
+            }}
           >
             {Array.from({ length: rows }).map((_, rowIdx) => (
               <div

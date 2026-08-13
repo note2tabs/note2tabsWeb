@@ -20,6 +20,7 @@ import {
 import { previewDrumVoice } from "../lib/gteDrumPlayback";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import {
+  getDrumLoopTimelineFrames,
   materializeDrumLoopNotes,
   normalizeDrumLoops,
   removeNotesCoveredByLoopRepeats,
@@ -35,9 +36,16 @@ import {
   getTimingBarBpm,
 } from "../lib/gteTiming";
 import { windowTimelineEvents } from "../lib/gteEditorPerformance";
+import {
+  GTE_TIMELINE_END_PADDING,
+  GTE_TIMELINE_GUTTER_WIDTH,
+  GTE_TIMELINE_LABEL_COLUMN_WIDTH,
+  getScaledDrumHitSize,
+} from "../lib/gteTimelineGeometry";
 
 const FRAMES_PER_BAR = 480;
-const LABEL_WIDTH = 58;
+const LABEL_WIDTH = GTE_TIMELINE_GUTTER_WIDTH;
+const VISIBLE_LABEL_WIDTH = GTE_TIMELINE_LABEL_COLUMN_WIDTH;
 const ROW_HEIGHT = 28;
 const RULER_HEIGHT = 20;
 const TIME_RULER_HEIGHT = 18;
@@ -320,11 +328,15 @@ export default function GteDrumWorkspace({
   );
   const subdivisionsPerBar = beatsPerBar * subdivisionsPerBeat;
   const visibleTimeRulerHeight = showTimeRuler ? TIME_RULER_HEIGHT : 0;
-  const barCount = Math.max(
+  const baseBarCount = Math.max(
     1,
     sharedViewportBarCount ?? 1,
     Math.ceil(Math.max(FRAMES_PER_BAR, snapshot.totalFrames) / FRAMES_PER_BAR)
   );
+  const previewBarCount = loopPreview
+    ? Math.ceil(loopPreview.loop.loopEnd / FRAMES_PER_BAR)
+    : 1;
+  const barCount = Math.max(baseBarCount, previewBarCount);
   const totalFrames = barCount * FRAMES_PER_BAR;
   const drumLoops = useMemo(
     () => normalizeDrumLoops(snapshot.drumLoops, totalFrames),
@@ -347,7 +359,8 @@ export default function GteDrumWorkspace({
       timelineViewport.scrollLeft + LABEL_WIDTH + Math.max(14, Math.min(48, timelineViewport.clientWidth * 0.08))
     )
   );
-  const timelineWidth = LABEL_WIDTH + totalFrames * pxPerFrame;
+  const timelineWidth =
+    LABEL_WIDTH + totalFrames * pxPerFrame + GTE_TIMELINE_END_PADDING;
   const timelineRenderWindow = useMemo(() => {
     const viewportWidth = timelineViewport.clientWidth || Math.min(timelineWidth, barWidth * 4);
     const leftPx = Math.max(
@@ -364,6 +377,7 @@ export default function GteDrumWorkspace({
     };
   }, [barWidth, pxPerFrame, timelineViewport.clientWidth, timelineViewport.scrollLeft, timelineWidth, totalFrames]);
   const gridStep = Math.max(1, FRAMES_PER_BAR / subdivisionsPerBar);
+  const drumHitSize = getScaledDrumHitSize(gridStep * pxPerFrame, ROW_HEIGHT);
 
   useEffect(() => {
     if (!quantizeDialogOpen) setQuantizeSubdivision(subdivisionsPerBeat);
@@ -697,12 +711,18 @@ export default function GteDrumWorkspace({
 
   const commitLoopSnapshot = useCallback(
     async (nextLoops: DrumLoopRegion[], nextNotes: Note[], errorMessage: string) => {
-      const normalizedLoops = normalizeDrumLoops(nextLoops, totalFrames);
+      const nextTotalFrames = getDrumLoopTimelineFrames(
+        nextLoops,
+        Math.max(snapshot.totalFrames, totalFrames),
+        FRAMES_PER_BAR
+      );
+      const normalizedLoops = normalizeDrumLoops(nextLoops, nextTotalFrames);
       const cleanedNotes = removeNotesCoveredByLoopRepeats(nextNotes, normalizedLoops);
       const nextSnapshot: EditorSnapshot = {
         ...snapshot,
         drumLoops: normalizedLoops,
         notes: cleanedNotes,
+        totalFrames: nextTotalFrames,
         updatedAt: new Date().toISOString(),
       };
       onSnapshotChange(nextSnapshot, {
@@ -1361,7 +1381,7 @@ export default function GteDrumWorkspace({
         } else if (interaction.mode === "resize-loop") {
           nextLoop.loopEnd = Math.max(
             nextLoop.sourceEnd,
-            Math.min(totalFrames, snapBoundary(interaction.originalLoop.loopEnd + rawDelta))
+            snapBoundary(interaction.originalLoop.loopEnd + rawDelta)
           );
         } else if (interaction.mode === "resize-source-start") {
           nextLoop.sourceStart = Math.max(
@@ -1837,7 +1857,7 @@ export default function GteDrumWorkspace({
     <div
       data-gte-track="true"
       data-gte-timeline-control="true"
-      className={`relative overflow-hidden rounded-xl border bg-white ${
+      className={`relative space-y-2 overflow-hidden rounded-xl border bg-white p-2 ${
         isActive ? "border-sky-300 ring-1 ring-sky-100" : "border-slate-200"
       }`}
       onMouseDown={onFocusWorkspace}
@@ -2163,7 +2183,7 @@ export default function GteDrumWorkspace({
           )}
           <div
             className="sticky left-0 top-0 z-50 border-b border-r border-slate-200 bg-slate-100"
-            style={{ width: LABEL_WIDTH, height: RULER_HEIGHT }}
+            style={{ width: VISIBLE_LABEL_WIDTH, height: RULER_HEIGHT }}
           />
           <div
             className="absolute top-0 border-b border-slate-200 bg-slate-50"
@@ -2261,7 +2281,7 @@ export default function GteDrumWorkspace({
             >
               <div
                 className="sticky left-0 z-50 flex h-full items-center border-r border-slate-200 bg-slate-100 px-1.5 text-[9px] font-semibold text-slate-700"
-                style={{ width: LABEL_WIDTH }}
+                style={{ width: VISIBLE_LABEL_WIDTH }}
                 title={`${voice.label} · key ${voice.key}`}
               >
                 <span>{shortLabelForVoice(voice.id)}</span>
@@ -2391,7 +2411,9 @@ export default function GteDrumWorkspace({
                 type="button"
                 data-drum-hit={virtual ? undefined : "true"}
                 tabIndex={virtual ? -1 : 0}
-                className={`absolute z-20 flex h-6 w-6 cursor-grab touch-none items-center justify-center rounded-md border text-[10px] font-bold shadow-sm active:cursor-grabbing ${
+                className={`absolute z-20 flex cursor-grab touch-none items-center justify-center border font-bold leading-none active:cursor-grabbing ${
+                  drumHitSize >= 12 ? "shadow-sm" : ""
+                } ${
                   virtual
                     ? "pointer-events-none border-sky-400/70 bg-sky-100/80 text-sky-700 opacity-75"
                     : selected
@@ -2402,8 +2424,15 @@ export default function GteDrumWorkspace({
                   left:
                     LABEL_WIDTH +
                     (note.startTime + gridStep / 2) * pxPerFrame -
-                    12,
-                  top: RULER_HEIGHT + voiceIndex * ROW_HEIGHT + 2,
+                    drumHitSize / 2,
+                  top:
+                    RULER_HEIGHT +
+                    voiceIndex * ROW_HEIGHT +
+                    (ROW_HEIGHT - drumHitSize) / 2,
+                  width: drumHitSize,
+                  height: drumHitSize,
+                  borderRadius: Math.min(6, drumHitSize / 4),
+                  fontSize: drumHitSize >= 8 ? Math.min(10, drumHitSize * 0.45) : 0,
                 }}
                 title={`${virtual ? "Virtual " : ""}${voice.label} at frame ${note.startTime}. Select, drag, or press Delete to remove.`}
                 aria-label={`${virtual ? "Virtual " : ""}${voice.label} drum hit`}
@@ -2464,7 +2493,7 @@ export default function GteDrumWorkspace({
                   handleNoteContextMenu(note, event);
                 }}
               >
-                {symbolForVoice(voice.id)}
+                {drumHitSize >= 8 ? symbolForVoice(voice.id) : null}
               </button>
             );
           })}
@@ -2510,7 +2539,7 @@ export default function GteDrumWorkspace({
           >
             <div
               className="sticky left-0 z-50 h-full border-r border-slate-200 bg-slate-100"
-              style={{ width: LABEL_WIDTH }}
+              style={{ width: VISIBLE_LABEL_WIDTH }}
             />
             {timelineSecondMarks.map(({ second, left, isLabel }) => (
               <div

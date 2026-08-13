@@ -133,7 +133,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   return (
     <header
       data-nosnippet
-      className={`nav-shell${isReadingArticle ? " nav-shell--reading" : ""}${isHome ? " nav-shell--home" : ""}${isHome && !isScrolled ? " nav-shell--blend" : ""}${editorRevealMode ? " nav-shell--editor-reveal" : ""}${editorRevealMode && (editorRevealVisible || menuOpen || profileMenuOpen) ? " nav-shell--editor-visible" : ""}`}
+      className={`nav-shell${isReadingArticle ? " nav-shell--reading" : ""}${isHome ? " nav-shell--home" : ""}${isHome && !isScrolled ? " nav-shell--blend" : ""}${editorRevealMode ? " nav-shell--editor-reveal" : ""}${editorRevealMode && (editorRevealVisible || menuOpen || profileMenuOpen) ? " nav-shell--editor-visible" : ""}${profileMenuOpen ? " nav-shell--profile-open" : ""}`}
     >
       <div className="container nav">
         <Link href="/" className="logo">

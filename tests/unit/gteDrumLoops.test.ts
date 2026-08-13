@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getDrumLoopTimelineFrames,
   materializeDrumLoopNotes,
   normalizeDrumLoops,
   preserveDrumLoopsAcrossCanvasUpdate,
@@ -17,6 +18,16 @@ const note = (id: number, startTime: number, voice = 4): Note => ({
 });
 
 describe("drum loop regions", () => {
+  it("grows the timeline by whole bars when a loop is dragged past its end", () => {
+    expect(
+      getDrumLoopTimelineFrames(
+        [{ id: "loop-a", sourceStart: 0, sourceEnd: 480, loopEnd: 1500 }],
+        960,
+        480
+      )
+    ).toBe(1920);
+  });
+
   it("normalizes persistent loop boundaries", () => {
     expect(
       normalizeDrumLoops(

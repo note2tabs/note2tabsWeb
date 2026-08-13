@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildEditorTabView } from "../../lib/gteEditorTabView";
+import {
+  buildEditorTabView,
+  EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
+} from "../../lib/gteEditorTabView";
 import type { EditorSnapshot } from "../../types/gte";
 
 const baseSnapshot = (): EditorSnapshot => ({
@@ -40,11 +43,11 @@ describe("gte editor tab view", () => {
 
     expect(view.barWidth).toBe(framesPerBar * scale);
     const expectedBarLines = [
-      30,
-      30 + view.barWidth,
-      30 + view.barWidth * 2,
-      30 + view.barWidth * 3,
-      30 + view.barWidth * 4,
+      EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
+      EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + view.barWidth,
+      EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + view.barWidth * 2,
+      EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + view.barWidth * 3,
+      EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + view.barWidth * 4,
     ];
     view.barLines.forEach((line, index) => {
       expect(line.x).toBeCloseTo(expectedBarLines[index], 8);
@@ -75,7 +78,13 @@ describe("gte editor tab view", () => {
     });
 
     expect(view.barWidths).toEqual([112, 112, 112, 42]);
-    expect(view.barStartXs).toEqual([30, 142, 254, 366, 408]);
+    expect(view.barStartXs).toEqual([
+      EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
+      EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + 112,
+      EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + 224,
+      EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + 336,
+      EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + 378,
+    ]);
     expect(view.cursorX).toBe(view.placements.find((placement) => placement.startTime === 0)?.x);
   });
 
