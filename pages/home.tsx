@@ -254,8 +254,7 @@ export default function ProductHome({
             <span className="product-hub__doodle product-hub__doodle--guitar" aria-hidden="true" />
             <span className="product-hub__doodle product-hub__doodle--notes" aria-hidden="true" />
             <div className="product-studio__start-copy">
-              <p>Start creating</p>
-              <h2 id="studio-start-title">What would you like to make?</h2>
+              <h2 id="studio-start-title">What would you like to play next?</h2>
               <span>Transcribe a recording or begin with a blank tab.</span>
               <div className="product-studio__actions" aria-label="Start creating">
                 <Link href="/transcribe" onClick={() => trackHomeCta("product_home_transcribe")}>
