@@ -1216,6 +1216,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [generatePlayingCoordinatesRequest, setGeneratePlayingCoordinatesRequest] = useState(0);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
   const [globalPlaybackFrame, setGlobalPlaybackFrame] = useState(0);
+  const [globalPlaybackCounterFrame, setGlobalPlaybackCounterFrame] = useState(0);
   const [globalPlaybackFrameRevision, setGlobalPlaybackFrameRevision] = useState(0);
   const [globalPlaybackIsPlaying, setGlobalPlaybackIsPlaying] = useState(false);
   const [globalPlaybackIsPreparing, setGlobalPlaybackIsPreparing] = useState(false);
@@ -1278,6 +1279,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const practiceRootRef = useRef<HTMLElement | null>(null);
   const practiceSettingsHydratedRef = useRef(false);
   const globalPlaybackFrameRef = useRef(0);
+  const globalPlaybackCounterSecondRef = useRef(0);
   const bpmCommitTimerRef = useRef<number | null>(null);
   const queuedBpmValueRef = useRef<string | number | null>(null);
   const timeSignatureCommitTimerRef = useRef<number | null>(null);
@@ -3143,16 +3145,25 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   useEffect(() => {
     globalPlaybackFrameRef.current = globalPlaybackFrame;
-  }, [globalPlaybackFrame]);
+    setGlobalPlaybackCounterFrame(globalPlaybackFrame);
+    globalPlaybackCounterSecondRef.current = Math.floor(
+      globalPlaybackFrame / Math.max(1, globalPlaybackFps)
+    );
+  }, [globalPlaybackFps, globalPlaybackFrame]);
 
   const syncGlobalPlaybackFrame = useCallback((nextFrame: number, options?: { forceReact?: boolean }) => {
     const normalized = Math.max(0, Math.min(canvasTimelineEnd, Math.round(nextFrame)));
     globalPlaybackFrameRef.current = normalized;
+    const counterSecond = Math.floor(normalized / Math.max(1, globalPlaybackFps));
+    if (options?.forceReact || counterSecond !== globalPlaybackCounterSecondRef.current) {
+      globalPlaybackCounterSecondRef.current = counterSecond;
+      setGlobalPlaybackCounterFrame(normalized);
+    }
     if (options?.forceReact) {
       setGlobalPlaybackFrame(normalized);
       setGlobalPlaybackFrameRevision((revision) => revision + 1);
     }
-  }, [canvasTimelineEnd]);
+  }, [canvasTimelineEnd, globalPlaybackFps]);
 
   const getGlobalPlaybackFrame = useCallback(
     () => globalPlaybackFrameRef.current,
@@ -8180,7 +8191,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               historyRedoCount={canvasRedoCount}
                               onRequestUndo={handleCanvasUndo}
                               onRequestRedo={handleCanvasRedo}
-                              globalPlaybackFrame={globalPlaybackFrame}
+                              globalPlaybackFrame={globalPlaybackCounterFrame}
                               getGlobalPlaybackFrame={getGlobalPlaybackFrame}
                               globalPlaybackIsPlaying={globalPlaybackIsPlaying}
                               globalPlaybackIsPreparing={globalPlaybackIsPreparing}
@@ -8504,7 +8515,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               historyRedoCount={canvasRedoCount}
                               onRequestUndo={handleCanvasUndo}
                               onRequestRedo={handleCanvasRedo}
-                              globalPlaybackFrame={globalPlaybackFrame}
+                              globalPlaybackFrame={globalPlaybackCounterFrame}
                               getGlobalPlaybackFrame={getGlobalPlaybackFrame}
                               globalPlaybackIsPlaying={globalPlaybackIsPlaying}
                               globalPlaybackIsPreparing={globalPlaybackIsPreparing}
@@ -9047,7 +9058,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           historyRedoCount={canvasRedoCount}
                           onRequestUndo={handleCanvasUndo}
                           onRequestRedo={handleCanvasRedo}
-                          globalPlaybackFrame={globalPlaybackFrame}
+                          globalPlaybackFrame={globalPlaybackCounterFrame}
                           getGlobalPlaybackFrame={getGlobalPlaybackFrame}
                           globalPlaybackIsPlaying={globalPlaybackIsPlaying}
                           globalPlaybackIsPreparing={globalPlaybackIsPreparing}
@@ -9390,7 +9401,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 role="timer"
                 aria-label="Playback time"
               >
-                {formatPlaybackTime(globalPlaybackFrame / globalPlaybackFps)} / {formatPlaybackTime(canvasTimelineEnd / globalPlaybackFps)}
+                {formatPlaybackTime(globalPlaybackCounterFrame / globalPlaybackFps)} / {formatPlaybackTime(canvasTimelineEnd / globalPlaybackFps)}
               </span>
             )}
             <div className="pointer-events-auto flex items-center gap-2">
