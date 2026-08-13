@@ -138,9 +138,99 @@ export default function GteFileImportButton({
   const [busy, setBusy] = useState(false);
   const [loadingLabel, setLoadingLabel] = useState("Importing tab file");
   const [pendingTrackSelection, setPendingTrackSelection] = useState<PendingTrackSelection | null>(null);
+  const [previewTrackIndex, setPreviewTrackIndex] = useState<number | null>(null);
+  const [previewLoadingIndex, setPreviewLoadingIndex] = useState<number | null>(null);
+  const activeTrackPreviewRef = useRef<ActiveTrackPreview | null>(null);
+  const previewRequestRef = useRef(0);
+
+  const stopTrackPreview = useCallback((updateState = true) => {
+    previewRequestRef.current += 1;
+    const active = activeTrackPreviewRef.current;
+    activeTrackPreviewRef.current = null;
+    if (active?.animationFrame !== null && active?.animationFrame !== undefined) {
+      cancelAnimationFrame(active.animationFrame);
+    }
+    if (active && active.ctx.state !== "closed") void active.ctx.close().catch(() => {});
+    if (updateState) {
+      setPreviewTrackIndex(null);
+      setPreviewLoadingIndex(null);
+    }
+  }, []);
+
+  useEffect(() => () => stopTrackPreview(false), [stopTrackPreview]);
+
+  const playTrackPreview = async (track: ImportTrack, trackIndex: number) => {
+    if (previewTrackIndex === trackIndex || previewLoadingIndex === trackIndex) {
+      stopTrackPreview();
+      return;
+    }
+    stopTrackPreview();
+    const events = buildImportTrackPreviewEvents(track.stamps, track.fps);
+    if (!events.length) return;
+
+    const requestId = previewRequestRef.current;
+    const ctx = new AudioContext();
+    const master = ctx.createGain();
+    master.gain.value = 0.65;
+    master.connect(ctx.destination);
+    activeTrackPreviewRef.current = { ctx, animationFrame: null, trackIndex };
+    setPreviewLoadingIndex(trackIndex);
+
+    try {
+      // Resume synchronously from the click so browser audio policies permit playback.
+      const resumePromise = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
+      const [instrument] = await Promise.all([
+        prepareTrackInstrument(ctx, DEFAULT_TRACK_INSTRUMENT_ID),
+        resumePromise,
+      ]);
+      if (previewRequestRef.current !== requestId || activeTrackPreviewRef.current?.ctx !== ctx) return;
+
+      const playbackStart = ctx.currentTime + 0.04;
+      const scheduleAhead = createPlaybackLookaheadScheduler(
+        events,
+        (event) => schedulePreparedTrackNote({
+          ctx,
+          destination: master,
+          instrument,
+          midi: event.midi,
+          gain: 0.7,
+          startTime: playbackStart + event.start,
+          duration: event.duration,
+        }),
+        4
+      );
+      const playbackEnd = Math.max(...events.map((event) => event.start + event.duration));
+      setPreviewLoadingIndex(null);
+      setPreviewTrackIndex(trackIndex);
+      scheduleAhead(0);
+
+      const tick = () => {
+        if (previewRequestRef.current !== requestId || activeTrackPreviewRef.current?.ctx !== ctx) return;
+        const elapsed = Math.max(0, ctx.currentTime - playbackStart);
+        scheduleAhead(elapsed);
+        if (elapsed >= playbackEnd + 0.12) {
+          stopTrackPreview();
+          return;
+        }
+        const animationFrame = requestAnimationFrame(tick);
+        if (activeTrackPreviewRef.current?.ctx === ctx) {
+          activeTrackPreviewRef.current.animationFrame = animationFrame;
+        }
+      };
+      const animationFrame = requestAnimationFrame(tick);
+      if (activeTrackPreviewRef.current?.ctx === ctx) {
+        activeTrackPreviewRef.current.animationFrame = animationFrame;
+      }
+    } catch (error) {
+      if (previewRequestRef.current !== requestId) return;
+      stopTrackPreview();
+      onError(error instanceof Error ? error.message : "Could not preview this track.");
+    }
+  };
 
   const handleFile = async (file: File | null, preparedSelection?: PendingTrackSelection) => {
     if ((!file && !preparedSelection) || busy) return;
+    stopTrackPreview();
     setBusy(true);
     setLoadingLabel(`Importing ${preparedSelection?.format || getImportFormatLabel(file?.name || "")}`);
     onError("");
@@ -285,6 +375,7 @@ export default function GteFileImportButton({
   };
 
   const cancelTrackSelection = () => {
+    stopTrackPreview();
     setPendingTrackSelection(null);
     if (inputRef.current) inputRef.current.value = "";
   };
@@ -292,6 +383,7 @@ export default function GteFileImportButton({
   const confirmTrackSelection = () => {
     const selection = pendingTrackSelection;
     if (!selection || selection.selectedIndexes.size === 0) return;
+    stopTrackPreview();
     setPendingTrackSelection(null);
     void handleFile(null, selection);
   };
@@ -353,23 +445,46 @@ export default function GteFileImportButton({
             <p className="mt-1 text-sm text-slate-500">{pendingTrackSelection.parsed.fileName}</p>
             <div className="mt-4 max-h-72 space-y-1 overflow-y-auto pr-1">
               {pendingTrackSelection.tracks.map((track, index) => (
-                <label
+                <div
                   key={`${track.name || "track"}-${index}`}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50"
+                  className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-slate-50"
                 >
-                  <input
-                    type="checkbox"
-                    checked={pendingTrackSelection.selectedIndexes.has(index)}
-                    onChange={() => toggleTrack(index)}
-                    className="h-4 w-4 accent-slate-900"
-                  />
-                  <span className="min-w-0 flex-1 truncate text-sm text-slate-800">
-                    {track.name || `Track ${index + 1}`}
-                  </span>
+                  <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={pendingTrackSelection.selectedIndexes.has(index)}
+                      onChange={() => toggleTrack(index)}
+                      className="h-4 w-4 accent-slate-900"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-sm text-slate-800">
+                      {track.name || `Track ${index + 1}`}
+                    </span>
+                  </label>
                   <span className="shrink-0 text-xs text-slate-400">
                     {track.stamps.length} {track.stamps.length === 1 ? "note" : "notes"}
                   </span>
-                </label>
+                  <button
+                    type="button"
+                    onClick={() => void playTrackPreview(track, index)}
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition ${
+                      previewTrackIndex === index
+                        ? "border-slate-900 bg-slate-900 text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                    }`}
+                    aria-label={previewTrackIndex === index ? `Stop ${track.name || `track ${index + 1}`}` : `Preview ${track.name || `track ${index + 1}`}`}
+                    title={previewTrackIndex === index ? "Stop preview" : "Preview track from its first note"}
+                  >
+                    {previewLoadingIndex === index ? (
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" aria-hidden="true" />
+                    ) : previewTrackIndex === index ? (
+                      <span className="h-2.5 w-2.5 rounded-[1px] bg-current" aria-hidden="true" />
+                    ) : (
+                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
+                        <polygon points="8,5 19,12 8,19" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               ))}
             </div>
             <div className="mt-5 flex items-center justify-between gap-3">
