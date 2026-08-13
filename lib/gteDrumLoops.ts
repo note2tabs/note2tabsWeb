@@ -47,6 +47,22 @@ export const removeNotesCoveredByLoopRepeats = (
   loops: DrumLoopRegion[]
 ) => notes.filter((note) => !loops.some((loop) => isFrameInLoopRepeat(note.startTime, loop)));
 
+export const getDrumLoopTimelineFrames = (
+  loops: DrumLoopRegion[],
+  currentTotalFrames: number,
+  framesPerBar = 480
+) => {
+  const barLength = Math.max(1, Math.round(framesPerBar));
+  const loopEnd = loops.reduce(
+    (max, loop) => Math.max(max, finiteFrame(loop.loopEnd, 0)),
+    0
+  );
+  return Math.max(
+    barLength,
+    Math.ceil(Math.max(currentTotalFrames, loopEnd) / barLength) * barLength
+  );
+};
+
 export const preserveDrumLoopsAcrossCanvasUpdate = (
   next: CanvasSnapshot,
   current: CanvasSnapshot

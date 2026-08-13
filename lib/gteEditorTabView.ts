@@ -1,5 +1,9 @@
 import type { EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
 import { getStringLabelsForSnapshot } from "./gteTuning";
+import {
+  GTE_TIMELINE_END_PADDING,
+  GTE_TIMELINE_GUTTER_WIDTH,
+} from "./gteTimelineGeometry";
 
 export type EditorTabViewString = {
   label: string;
@@ -71,8 +75,9 @@ type CanonicalNoteEffect = {
 
 const DEFAULT_LABELS = ["E", "B", "G", "D", "A", "E"];
 const STRING_COUNT = 6;
-const LEFT_LABEL_WIDTH = 30;
-const RIGHT_PADDING = 32;
+export const EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH = GTE_TIMELINE_GUTTER_WIDTH;
+const LEFT_LABEL_WIDTH = EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
+const RIGHT_PADDING = GTE_TIMELINE_END_PADDING;
 const TOP_PADDING = 18;
 const STRING_GAP = 28;
 const NUMBER_WIDTH = 18;

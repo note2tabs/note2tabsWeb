@@ -109,6 +109,10 @@ import {
   recordGtePerfMeasure,
   useGteRenderInstrumentation,
 } from "../../lib/gtePerformanceDiagnostics";
+import {
+  GTE_TIMELINE_END_PADDING,
+  GTE_TIMELINE_GUTTER_WIDTH,
+} from "../../lib/gteTimelineGeometry";
 
 const GteWorkspace = dynamic(() => import("../../components/GteTrackWorkspace"), {
   loading: () => (
@@ -2875,11 +2879,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     () =>
       Math.max(
         1,
-        30 +
+        GTE_TIMELINE_GUTTER_WIDTH +
           sharedViewportBarCount *
             FIXED_FRAMES_PER_BAR *
             (sharedTimelineBaseScale ?? 0.5) *
-            (timelineZoomPercent / 100)
+            (timelineZoomPercent / 100) +
+          GTE_TIMELINE_END_PADDING
       ),
     [
       sharedTimelineBaseScale,
