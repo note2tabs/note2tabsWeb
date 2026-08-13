@@ -8196,6 +8196,62 @@ input[type="number"] {
   margin-top: 22px;
 }
 
+.instrument-prompt {
+  display: grid;
+  justify-items: center;
+  gap: 24px;
+  padding: 4px 4px 14px;
+  margin-top: -10px;
+}
+
+.instrument-question {
+  margin: 0;
+  font-size: 1.18rem;
+  line-height: 1.5;
+  color: #1f2937;
+  text-align: center;
+}
+
+.instrument-choice-group {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.instrument-choice-row {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.instrument-choice-button {
+  min-height: 38px;
+  padding: 0 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  background: #f8fafc;
+  color: #334155;
+}
+
+.instrument-choice-button:hover {
+  background: #f1f5f9;
+  border-color: rgba(15, 23, 42, 0.28);
+  color: #1f2937;
+}
+
+.instrument-choice-button.active {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+
+.instrument-start-button {
+  margin-top: 2px;
+}
+
 @media (max-width: 860px) {
   .nav-shell--home .nav-links {
     top: 56px;
