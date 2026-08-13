@@ -17,7 +17,6 @@ import { authOptions } from "./api/auth/[...nextauth]";
 
 type ProductHomeProps = {
   userId: string;
-  firstName: string;
   role: string;
   creditsRemaining: number | null;
   creditsLimit: number | null;
@@ -116,7 +115,6 @@ function CurrentTabArtwork() {
 
 export default function ProductHome({
   userId,
-  firstName,
   role,
   creditsRemaining,
   creditsLimit,
@@ -240,9 +238,6 @@ export default function ProductHome({
           </aside>
           <div className="product-studio">
           <header className="product-studio__welcome">
-            <div>
-              <h1>Welcome back{firstName ? `, ${firstName}` : ""}</h1>
-            </div>
             <div className="product-studio__credits" role="status" aria-label="Account usage">
               <span>{accountLabel}</span>
               <strong>{accountValue}</strong>
@@ -310,7 +305,6 @@ export const getServerSideProps: GetServerSideProps<ProductHomeProps> = async (c
     return {
       props: {
         userId: "local-home-preview",
-        firstName: "Alex",
         role: "USER",
         creditsRemaining: 7,
         creditsLimit: 10,
@@ -351,12 +345,9 @@ export const getServerSideProps: GetServerSideProps<ProductHomeProps> = async (c
     };
   }
 
-  const rawName = session.user.name?.trim() || "";
-  const firstName = rawName.split(/\s+/)[0]?.slice(0, 40) || "";
   return {
     props: {
       userId: session.user.id,
-      firstName,
       role: session.user.role || "USER",
       creditsRemaining: session.user.monthlyCreditsRemaining ?? null,
       creditsLimit: session.user.monthlyCreditsLimit ?? null,

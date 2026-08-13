@@ -1625,7 +1625,7 @@ input[type="number"] {
 .product-studio-sidebar__premium strong { font-size: 0.7rem; }
 .product-studio-sidebar__premium span { color: rgba(6, 17, 13, 0.66); font-size: 0.62rem; line-height: 1.45; }
 .product-studio-sidebar__premium i { margin-top: 4px; color: #0d5d49; font-size: 0.61rem; font-style: normal; font-weight: 680; }
-.product-studio__welcome { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 26px; }
+.product-studio__welcome { display: flex; align-items: center; justify-content: flex-end; gap: 24px; margin-bottom: 26px; }
 .product-studio__welcome p,
 .product-studio__start-copy > p,
 .product-studio__library header p { margin: 0 0 5px; color: rgba(6, 17, 13, 0.48); font-size: 0.62rem; font-weight: 750; letter-spacing: 0.12em; text-transform: uppercase; }
