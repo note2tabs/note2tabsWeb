@@ -56,7 +56,7 @@ import {
   getChordEditorMidiNotes,
   inferChordEditorMetadataFromMidi,
 } from "../lib/gteChordEditor";
-import type { Chord, ChordFingering, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
+import type { Chord, ChordFingering, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord, TimingMapV2 } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
 import { buildEditorTabView, getEditorTabViewCursorX } from "../lib/gteEditorTabView";
@@ -67,6 +67,11 @@ import {
   downloadGteExportFile,
   type GteExportFormat,
 } from "../lib/gteTabExport";
+import {
+  buildTimingBpmSegments,
+  formatTimingBpm,
+  getTimingBarBpm,
+} from "../lib/gteTiming";
 
 const AUDIO_CONTEXT_RESUME_ERROR =
   "Your browser blocked audio playback. Tap Play again to allow sound.";
@@ -134,6 +139,7 @@ function closeAudioContext(ctx: AudioContext) {
 type Props = {
   editorId: string;
   snapshot: EditorSnapshot;
+  timingMap?: TimingMapV2;
   onSnapshotChange: (snapshot: EditorSnapshot, options?: { recordHistory?: boolean }) => void;
   allowBackend?: boolean;
   embedded?: boolean;
@@ -1785,6 +1791,9 @@ function ChordLaneWorkspace({
     ? editorTabView.barWidth / FIXED_FRAMES_PER_BAR
     : scale;
   const timelineContentOffset = CHORD_EDITOR_LABEL_GUTTER_WIDTH;
+  const trackOffsetFrames = Math.max(0, Math.round(Number(snapshot.timelineOffsetFrames) || 0));
+  const trackOffsetBarCount = Math.floor(trackOffsetFrames / FIXED_FRAMES_PER_BAR);
+  const trackOffsetWidth = trackOffsetFrames * pxPerFrame;
   const timelineWidth = tabViewEnabled
     ? editorTabView.width
     : Math.max(320, Math.round(timelineContentOffset + totalFrames * pxPerFrame));
@@ -1839,11 +1848,11 @@ function ChordLaneWorkspace({
   const snapFrame = useCallback(
     (frame: number, mode: "floor" | "round" | "ceil" = "round") => {
       const unit = FIXED_FRAMES_PER_BAR / snapDenominator;
-      const raw = Math.max(0, Number(frame) || 0) / unit;
+      const raw = Math.max(trackOffsetFrames, Number(frame) || 0) / unit;
       const snapped = mode === "floor" ? Math.floor(raw) : mode === "ceil" ? Math.ceil(raw) : Math.round(raw);
-      return Math.max(0, Math.round(snapped * unit));
+      return Math.max(trackOffsetFrames, Math.round(snapped * unit));
     },
-    [snapDenominator]
+    [snapDenominator, trackOffsetFrames]
   );
 
   const snapLength = useCallback(
@@ -2983,7 +2992,19 @@ function ChordLaneWorkspace({
           }}
         >
           <div className="sticky top-0 z-10 flex h-5 bg-slate-100" style={{ paddingLeft: timelineContentOffset }}>
+            {trackOffsetWidth > 0 && (
+              <div
+                data-track-offset-blank="true"
+                className="h-5 shrink-0 border-r border-slate-200 bg-white"
+                style={{ width: trackOffsetWidth }}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+              />
+            )}
             {Array.from({ length: barCount }, (_, barIndex) => {
+              if (barIndex < trackOffsetBarCount) return null;
               const selected = selectedBarIndices.includes(barIndex);
               const draggingOver = activeBarDrag && activeBarDrag.sourceLaneId !== editorId;
               return (
@@ -3026,6 +3047,24 @@ function ChordLaneWorkspace({
               onGlobalPlaybackFrameChange?.(snapFrame(getFrameFromClientX(event.clientX)));
             }}
           >
+            {trackOffsetWidth > 0 && (
+              <div
+                data-track-offset-blank="true"
+                className="absolute top-0 z-[60] h-full cursor-default overflow-hidden border-r border-slate-200 bg-white"
+                style={{ left: timelineContentOffset, width: trackOffsetWidth }}
+                title={`Track begins at bar ${trackOffsetFrames / FIXED_FRAMES_PER_BAR + 1}`}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onClick={(event) => event.stopPropagation()}
+                onDoubleClick={(event) => event.stopPropagation()}
+              >
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-sky-600 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
+                  â†’
+                </span>
+              </div>
+            )}
             {Array.from({ length: barCount + 1 }, (_, index) => (
               <div
                 key={`bar-line-${index}`}
@@ -3627,6 +3666,7 @@ function ChordLaneWorkspace({
 export default function GteWorkspace({
   editorId,
   snapshot,
+  timingMap,
   onSnapshotChange,
   allowBackend = true,
   embedded = false,
@@ -4085,6 +4125,18 @@ export default function GteWorkspace({
     return labels.length === 6 ? labels : DEFAULT_STRING_LABELS;
   }, [snapshot]);
   const barCount = Math.max(1, Math.ceil(Math.max(1, effectiveTotalFrames) / framesPerMeasure));
+  const fallbackBarBpm = secondsPerBarToBpm(secondsPerBar, timeSignature);
+  const barBpmTitle = useCallback(
+    (barIndex: number) =>
+      `Bar ${barIndex + 1} · ${formatTimingBpm(
+        getTimingBarBpm(timingMap, barIndex, fallbackBarBpm)
+      )} BPM`,
+    [fallbackBarBpm, timingMap]
+  );
+  const selectedBarBpmSegments = useMemo(
+    () => buildTimingBpmSegments(timingMap, selectedBarIndices, fallbackBarBpm),
+    [fallbackBarBpm, selectedBarIndices, timingMap]
+  );
   const normalizedSharedViewportBars =
     sharedViewportBarCount !== undefined && Number.isFinite(sharedViewportBarCount)
       ? Math.max(1, Math.round(sharedViewportBarCount))
@@ -4103,6 +4155,16 @@ export default function GteWorkspace({
       ? Math.max(MIN_TIMELINE_ZOOM, Math.min(MAX_TIMELINE_ZOOM, timelineZoomFactor))
       : 1;
   const scale = (sharedTimelineBaseScale ?? autoBaseScale) * normalizedTimelineZoomFactor;
+  const trackOffsetFrames = Math.max(0, Math.round(Number(snapshot.timelineOffsetFrames) || 0));
+  const trackOffsetBarCount = Math.floor(trackOffsetFrames / FIXED_FRAMES_PER_BAR);
+  const trackOffsetWidth = trackOffsetFrames * scale;
+  const trackOffsetArrowLeft = Math.max(
+    10,
+    Math.min(
+      Math.max(10, trackOffsetWidth - 34),
+      timelineViewport.scrollLeft + Math.max(14, Math.min(48, timelineViewport.clientWidth * 0.08))
+    )
+  );
   const timelineWidth = Math.max(1, computedTotalFrames) * scale;
   const viewportTimelineWidth = Math.max(1, viewportTotalFrames) * scale;
   const timelineChromeWidth = viewportTimelineWidth + 40;
@@ -5938,34 +6000,40 @@ export default function GteWorkspace({
 
   const snapStartTimeToGrid = useCallback(
     (startTime: number) => {
-      const safeStart = Math.max(0, Math.round(startTime));
+      const safeStart = Math.max(trackOffsetFrames, Math.round(startTime));
       if (!snapToGridEnabled) {
         return safeStart;
       }
-      return getBeatSubdivisionGridTime(
-        safeStart,
-        timeSignature,
-        normalizedSnapSubdivisionsPerBeat,
-        "floor"
+      return Math.max(
+        trackOffsetFrames,
+        getBeatSubdivisionGridTime(
+          safeStart,
+          timeSignature,
+          normalizedSnapSubdivisionsPerBeat,
+          "floor"
+        )
       );
     },
-    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature, trackOffsetFrames]
   );
 
   const snapMoveStartTimeToGrid = useCallback(
     (startTime: number) => {
-      const safeStart = Math.max(0, Math.round(startTime));
+      const safeStart = Math.max(trackOffsetFrames, Math.round(startTime));
       if (!snapToGridEnabled) {
         return safeStart;
       }
-      return getBeatSubdivisionGridTime(
-        safeStart,
-        timeSignature,
-        normalizedSnapSubdivisionsPerBeat,
-        "floor"
+      return Math.max(
+        trackOffsetFrames,
+        getBeatSubdivisionGridTime(
+          safeStart,
+          timeSignature,
+          normalizedSnapSubdivisionsPerBeat,
+          "floor"
+        )
       );
     },
-    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature, trackOffsetFrames]
   );
 
   const snapNoteToGrid = useCallback(
@@ -5973,7 +6041,7 @@ export default function GteWorkspace({
       const safeLength = clampEventLength(length);
       if (!snapToGridEnabled) {
         return {
-          startTime: Math.max(0, Math.round(startTime)),
+          startTime: Math.max(trackOffsetFrames, Math.round(startTime)),
           length: safeLength,
         };
       }
@@ -5988,7 +6056,7 @@ export default function GteWorkspace({
         ),
       };
     },
-    [normalizedSnapSubdivisionsPerBeat, snapStartTimeToGrid, snapToGridEnabled, timeSignature]
+    [normalizedSnapSubdivisionsPerBeat, snapStartTimeToGrid, snapToGridEnabled, timeSignature, trackOffsetFrames]
   );
 
   const snapNewNoteToGrid = useCallback(
@@ -6546,20 +6614,20 @@ export default function GteWorkspace({
             "round"
           )
         : Math.round(session.anchorStart + rawDelta);
-      const delta = Math.max(0, targetAnchor) - session.anchorStart;
+      const delta = Math.max(trackOffsetFrames, targetAnchor) - session.anchorStart;
       const notes: Record<number, QuantizePreviewEntity> = {};
       const chords: Record<number, QuantizePreviewEntity> = {};
       let maxEnd = 0;
 
       session.notes.forEach((note) => {
-        const startTime = Math.max(0, Math.round(note.startTime + delta));
+        const startTime = Math.max(trackOffsetFrames, Math.round(note.startTime + delta));
         const length = Math.max(1, Math.round(note.length));
         notes[note.id] = { startTime, length };
         maxEnd = Math.max(maxEnd, startTime + length);
       });
 
       session.chords.forEach((chord) => {
-        const startTime = Math.max(0, Math.round(chord.startTime + delta));
+        const startTime = Math.max(trackOffsetFrames, Math.round(chord.startTime + delta));
         const length = Math.max(1, Math.round(chord.length));
         chords[chord.id] = { startTime, length };
         maxEnd = Math.max(maxEnd, startTime + length);
@@ -6567,7 +6635,7 @@ export default function GteWorkspace({
 
       return { notes, chords, maxEnd, delta };
     },
-    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
+    [normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature, trackOffsetFrames]
   );
 
   const applyMovePreview = useCallback(
@@ -7421,11 +7489,11 @@ export default function GteWorkspace({
       let minDelta = -Infinity;
       let maxDelta = Infinity;
       multiDrag.notes.forEach((note) => {
-        minDelta = Math.max(minDelta, -note.startTime);
+        minDelta = Math.max(minDelta, trackOffsetFrames - note.startTime);
         maxDelta = Math.min(maxDelta, timelineEnd - note.length - note.startTime);
       });
       multiDrag.chords.forEach((chord) => {
-        minDelta = Math.max(minDelta, -chord.startTime);
+        minDelta = Math.max(minDelta, trackOffsetFrames - chord.startTime);
         maxDelta = Math.min(maxDelta, timelineEnd - chord.length - chord.startTime);
       });
       const anchorCandidate = shouldGridSnapStarts
@@ -7473,7 +7541,7 @@ export default function GteWorkspace({
                 const rawStart = note.startTime + delta;
                 const maxStart = Math.max(0, timelineEnd - note.length);
                 const snappedStart = shouldGridSnapStarts ? snapMoveStartTimeToGrid(rawStart) : rawStart;
-                target.startTime = clamp(snappedStart, 0, maxStart);
+                target.startTime = clamp(snappedStart, trackOffsetFrames, maxStart);
               }
             });
             multiDrag.chords.forEach((chord) => {
@@ -7483,7 +7551,7 @@ export default function GteWorkspace({
                 const rawStart = chord.startTime + delta;
                 const maxStart = Math.max(0, timelineEnd - chord.length);
                 const snappedStart = shouldGridSnapStarts ? snapMoveStartTimeToGrid(rawStart) : rawStart;
-                target.startTime = clamp(snappedStart, 0, maxStart);
+                target.startTime = clamp(snappedStart, trackOffsetFrames, maxStart);
               }
             });
             return draft;
@@ -7494,7 +7562,7 @@ export default function GteWorkspace({
               const rawStart = note.startTime + delta;
               const maxStart = Math.max(0, timelineEnd - note.length);
               const snappedStart = shouldGridSnapStarts ? snapMoveStartTimeToGrid(rawStart) : rawStart;
-              const nextStart = clamp(snappedStart, 0, maxStart);
+              const nextStart = clamp(snappedStart, trackOffsetFrames, maxStart);
               last = await gteApi.setNoteStartTime(
                 editorId,
                 resolveNoteId(note.id),
@@ -7506,7 +7574,7 @@ export default function GteWorkspace({
               const rawStart = chord.startTime + delta;
               const maxStart = Math.max(0, timelineEnd - chord.length);
               const snappedStart = shouldGridSnapStarts ? snapMoveStartTimeToGrid(rawStart) : rawStart;
-              const nextStart = clamp(snappedStart, 0, maxStart);
+              const nextStart = clamp(snappedStart, trackOffsetFrames, maxStart);
               last = await gteApi.setChordStartTime(
                 editorId,
                 resolveChordId(chord.id),
@@ -8407,7 +8475,7 @@ export default function GteWorkspace({
         const data = await gteApi.exportTab(editorId);
         setIoPayload(JSON.stringify(data, null, 2));
       }
-      const file = buildGteExportFile(snapshot, exportFormat);
+      const file = buildGteExportFile(snapshot, exportFormat, timingMap);
       downloadGteExportFile(file);
       setIoMessage(`Exported ${file.filename}.`);
     } catch (err: any) {
@@ -13308,6 +13376,8 @@ export default function GteWorkspace({
               ? "max-h-[calc(100vh-1.5rem)] w-64 overflow-y-auto"
               : contextMenu.kind === "playingCoordinates"
               ? "w-56"
+              : contextMenu.kind === "bar"
+              ? "w-52"
               : "w-36"
           }`}
           style={{ left: contextMenu.x, top: contextMenu.y }}
@@ -13315,6 +13385,28 @@ export default function GteWorkspace({
         >
           {contextMenu.kind === "bar" ? (
             <>
+              <div className="border-b border-slate-100 px-3 py-2 text-slate-600">
+                <div className="mb-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  Tempo
+                </div>
+                {selectedBarBpmSegments.map((segment) => {
+                  const barLabel =
+                    segment.startBarIndex === segment.endBarIndex
+                      ? `Bar ${segment.startBarIndex + 1}`
+                      : `Bars ${segment.startBarIndex + 1}–${segment.endBarIndex + 1}`;
+                  return (
+                    <div
+                      key={`${segment.startBarIndex}-${segment.endBarIndex}-${formatTimingBpm(segment.bpm)}`}
+                      className="flex items-center justify-between gap-2 py-0.5"
+                    >
+                      <span>{barLabel}</span>
+                      <span className="font-semibold text-slate-800">
+                        {formatTimingBpm(segment.bpm)} BPM
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
               <button
                 type="button"
                 onClick={() => {
@@ -14166,6 +14258,7 @@ export default function GteWorkspace({
                   }}
                 >
                   {segments.map((segment) => {
+                    if (segment.endBar <= trackOffsetBarCount) return null;
                     const barIndices = Array.from(
                       { length: segment.endBar - segment.startBar },
                       (_, offset) => segment.startBar + offset
@@ -14210,6 +14303,19 @@ export default function GteWorkspace({
                           height: TIMELINE_BAR_HEADER_HEIGHT,
                         }}
                         aria-label={`Select ${label}`}
+                        title={
+                          segment.collapsed
+                            ? buildTimingBpmSegments(timingMap, barIndices, fallbackBarBpm)
+                                .map((tempoSegment) => {
+                                  const range =
+                                    tempoSegment.startBarIndex === tempoSegment.endBarIndex
+                                      ? `Bar ${tempoSegment.startBarIndex + 1}`
+                                      : `Bars ${tempoSegment.startBarIndex + 1}–${tempoSegment.endBarIndex + 1}`;
+                                  return `${range}: ${formatTimingBpm(tempoSegment.bpm)} BPM`;
+                                })
+                                .join(" · ")
+                            : barBpmTitle(segment.startBar)
+                        }
                       >
                         {label}
                       </button>
@@ -14450,6 +14556,7 @@ export default function GteWorkspace({
             >
               {framesPerMeasure > 0 &&
                 Array.from({ length: editorTabView.barCount }).map((_, barIndex) => {
+                  if (barIndex < trackOffsetBarCount) return null;
                   const left = 30 + barIndex * editorTabView.barWidth;
                   const selected = selectedBarIndexSet.has(barIndex);
                   return (
@@ -14487,8 +14594,10 @@ export default function GteWorkspace({
                           : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-800"
                       }`}
                       style={{ left, width: editorTabView.barWidth, height: TIMELINE_BAR_HEADER_HEIGHT }}
-                      title={`Select Bar ${barIndex + 1}`}
-                      aria-label={`Select Bar ${barIndex + 1}`}
+                      title={barBpmTitle(barIndex)}
+                      aria-label={`Select Bar ${barIndex + 1}, ${formatTimingBpm(
+                        getTimingBarBpm(timingMap, barIndex, fallbackBarBpm)
+                      )} BPM`}
                     >
                       <span className="truncate">Bar {barIndex + 1}</span>
                     </button>
@@ -14496,6 +14605,7 @@ export default function GteWorkspace({
                 })}
               {framesPerMeasure > 0 &&
                 Array.from({ length: editorTabView.barCount + 1 }).map((_, insertIndex) => {
+                  if (insertIndex < trackOffsetBarCount) return null;
                   const left = Math.max(
                     30,
                     Math.min(
@@ -14538,6 +14648,28 @@ export default function GteWorkspace({
                     />
                   );
                 })}
+              {trackOffsetFrames > 0 && framesPerMeasure > 0 && (
+                <div
+                  data-track-offset-blank="true"
+                  className="absolute top-0 z-[60] cursor-default overflow-hidden border-r border-slate-200 bg-white"
+                  style={{
+                    left: 30,
+                    width: (trackOffsetFrames / framesPerMeasure) * editorTabView.barWidth,
+                    height: editorTabView.height + TIMELINE_BAR_HEADER_HEIGHT + CUT_SEGMENT_OFFSET,
+                  }}
+                  title={`Track begins at bar ${trackOffsetFrames / FIXED_FRAMES_PER_BAR + 1}`}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => event.stopPropagation()}
+                  onDoubleClick={(event) => event.stopPropagation()}
+                >
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-sky-600 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
+                    â†’
+                  </span>
+                </div>
+              )}
               {editorTabView.barLines.map((barLine) => (
                 <div
                   key={barLine.key}
@@ -14680,6 +14812,7 @@ export default function GteWorkspace({
               <div className="relative" style={{ width: timelineChromeWidth, paddingTop: TIMELINE_BAR_HEADER_HEIGHT }}>
                 {framesPerMeasure > 0 &&
                   Array.from({ length: barCount }).map((_, barIndex) => {
+                    if (barIndex < trackOffsetBarCount) return null;
                     const left = barIndex * framesPerMeasure * scale;
                     const width = Math.max(1, framesPerMeasure * scale);
                     const selected = selectedBarIndexSet.has(barIndex);
@@ -14710,8 +14843,10 @@ export default function GteWorkspace({
                             : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-800"
                         }`}
                         style={{ left, width, height: TIMELINE_BAR_HEADER_HEIGHT }}
-                        title={`Select Bar ${barIndex + 1}`}
-                        aria-label={`Select Bar ${barIndex + 1}`}
+                        title={barBpmTitle(barIndex)}
+                        aria-label={`Select Bar ${barIndex + 1}, ${formatTimingBpm(
+                          getTimingBarBpm(timingMap, barIndex, fallbackBarBpm)
+                        )} BPM`}
                       >
                         <span className="truncate">Bar {barIndex + 1}</span>
                       </button>
@@ -14719,6 +14854,7 @@ export default function GteWorkspace({
                   })}
                 {framesPerMeasure > 0 &&
                   Array.from({ length: barCount + 1 }).map((_, insertIndex) => {
+                    if (insertIndex < trackOffsetBarCount) return null;
                     const left = Math.max(
                       0,
                       Math.min(
@@ -14805,6 +14941,28 @@ export default function GteWorkspace({
                   if (cutToolActive) setCutCursor(null);
                 }}
               >
+                {trackOffsetWidth > 0 && (
+                  <div
+                    data-track-offset-blank="true"
+                    className="absolute left-0 top-0 z-[60] cursor-default overflow-hidden border-r border-slate-200 bg-white"
+                    style={{ width: trackOffsetWidth, height: rowHeight }}
+                    title={`Track begins at bar ${trackOffsetFrames / FIXED_FRAMES_PER_BAR + 1}`}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                    onDoubleClick={(event) => event.stopPropagation()}
+                  >
+                    <span
+                      className="absolute top-1/2 -translate-y-1/2 rounded-full bg-sky-600 px-2 py-0.5 text-xs font-bold text-white shadow-sm"
+                      style={{ left: trackOffsetArrowLeft }}
+                      aria-hidden="true"
+                    >
+                      →
+                    </span>
+                  </div>
+                )}
                 {selectedBarIndices.map((barIndex) => {
                   if (framesPerMeasure <= 0 || barIndex < 0 || barIndex >= barCount) return null;
                   const left = barIndex * framesPerMeasure * scale;
@@ -14828,7 +14986,7 @@ export default function GteWorkspace({
                       data-bar-select-editor={editorId}
                       className="absolute top-0 z-20 pointer-events-none bg-transparent"
                       style={{ left, width, height: rowHeight }}
-                      title={`Selected Bar ${barIndex + 1}`}
+                      title={barBpmTitle(barIndex)}
                     />
                   );
                 })}
