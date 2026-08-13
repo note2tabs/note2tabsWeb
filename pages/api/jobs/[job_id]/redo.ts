@@ -7,14 +7,14 @@ const BACKEND_SECRET =
   process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 const MAX_ERROR_MESSAGE_LENGTH = 2000;
 
-async function readUpstreamError(upstream: Response): Promise<string> {
-  const text = (await upstream.text()).trim();
-  if (!text) {
-    return `Redo request failed with status ${upstream.status}.`;
+function readUpstreamError(text: string, status: number): string {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return `Redo request failed with status ${status}.`;
   }
 
   try {
-    const parsed = JSON.parse(text) as Record<string, unknown>;
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
     if (typeof parsed.detail === "string" && parsed.detail.trim()) {
       return parsed.detail.slice(0, MAX_ERROR_MESSAGE_LENGTH);
     }
@@ -25,7 +25,32 @@ async function readUpstreamError(upstream: Response): Promise<string> {
     // Fall through to raw text if upstream did not return JSON.
   }
 
-  return text.slice(0, MAX_ERROR_MESSAGE_LENGTH);
+  return trimmed.slice(0, MAX_ERROR_MESSAGE_LENGTH);
+}
+
+function parseQueuedRedoPayload(text: string, jobId: string) {
+  let payload: Record<string, unknown> = {};
+  if (text.trim()) {
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        payload = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // A successful legacy backend may not return JSON. Keep the root job pollable.
+    }
+  }
+
+  return {
+    ...payload,
+    ok: payload.ok !== false,
+    job_id: typeof payload.job_id === "string" && payload.job_id ? payload.job_id : jobId,
+    status: typeof payload.status === "string" && payload.status ? payload.status : "processing",
+    workflowState:
+      typeof payload.workflowState === "string" && payload.workflowState
+        ? payload.workflowState
+        : "processing",
+  };
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -59,9 +84,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(502).json({ error: "Unable to reach transcription backend." });
   }
 
+  const text = await upstream.text();
+  const retryAfter = upstream.headers.get("retry-after");
+  if (retryAfter) res.setHeader("Retry-After", retryAfter);
+  res.setHeader("Cache-Control", "private, no-store, max-age=0");
+
   if (upstream.ok) {
-    return res.status(200).json({ ok: true });
+    if (!retryAfter) res.setHeader("Retry-After", "2");
+    res.setHeader("Location", `/api/jobs/${encodeURIComponent(jobId)}`);
+    return res.status(upstream.status).json(parseQueuedRedoPayload(text, jobId));
   }
 
-  return res.status(upstream.status).json({ error: await readUpstreamError(upstream) });
+  return res.status(upstream.status).json({ error: readUpstreamError(text, upstream.status) });
 }

@@ -245,7 +245,9 @@ async function fetchBackendJob(jobId: string, headers: Record<string, string>, i
   const startedAt = Date.now();
   const baseUrl = `${API_BASE}/api/v1/jobs/${encodeURIComponent(jobId)}`;
   const url = includeOutput ? appendQueryParam(baseUrl, "include_output", "true") : baseUrl;
-  const upstream = await fetch(url, { headers });
+  const requestHeaders = { ...headers };
+  if (includeOutput) delete requestHeaders["If-None-Match"];
+  const upstream = await fetch(url, { headers: requestHeaders });
   const text = await upstream.text();
   return {
     upstream,
@@ -254,6 +256,20 @@ async function fetchBackendJob(jobId: string, headers: Record<string, string>, i
     bytes: Buffer.byteLength(text, "utf-8"),
     durationMs: Date.now() - startedAt,
   };
+}
+
+function forwardPollingHeaders(res: NextApiResponse, upstream: Response) {
+  const etag = upstream.headers.get("etag");
+  const retryAfter = upstream.headers.get("retry-after");
+  if (etag) res.setHeader("ETag", etag);
+  if (retryAfter) res.setHeader("Retry-After", retryAfter);
+  res.setHeader("Vary", "Cookie");
+}
+
+function setJobCacheHeaders(res: NextApiResponse) {
+  res.setHeader("Cache-Control", "private, no-cache, max-age=0, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
 }
 
 function addPreviewUrl(payload: Record<string, unknown>, jobId: string) {
@@ -365,6 +381,102 @@ function hasPersistableJobResult(payload: Record<string, unknown>) {
   );
 }
 
+const persistedTabJobSelect = {
+  id: true,
+  userId: true,
+  backendJobId: true,
+  sourceLabel: true,
+  sourceType: true,
+  durationSec: true,
+  resultJson: true,
+} as const;
+
+function isUniqueConstraintFailure(error: unknown) {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code?: unknown }).code === "P2002"
+  );
+}
+
+async function findPersistedTabJob(jobId: string, sessionUserId: string) {
+  const indexed = await prisma.tabJob.findUnique({
+    where: { backendJobId: jobId },
+    select: persistedTabJobSelect,
+  });
+  if (indexed) {
+    if (indexed.userId !== sessionUserId) {
+      throw new Error("Backend job result ownership conflict");
+    }
+    return indexed;
+  }
+
+  // Compatibility path for rows written before backendJobId became an indexed
+  // column. Each successful read upgrades the row so future polling is O(1).
+  const legacy = await prisma.tabJob.findFirst({
+    where: {
+      userId: sessionUserId,
+      resultJson: {
+        contains: `"backendJobId":"${jobId}"`,
+      },
+    },
+    select: persistedTabJobSelect,
+  });
+  if (!legacy) return null;
+
+  try {
+    await prisma.tabJob.update({
+      where: { id: legacy.id },
+      data: { backendJobId: jobId },
+    });
+    return { ...legacy, backendJobId: jobId };
+  } catch (error) {
+    if (!isUniqueConstraintFailure(error)) throw error;
+    const raced = await prisma.tabJob.findUnique({
+      where: { backendJobId: jobId },
+      select: persistedTabJobSelect,
+    });
+    if (!raced || raced.userId !== sessionUserId) {
+      throw new Error("Backend job result ownership conflict");
+    }
+    return raced;
+  }
+}
+
+async function markBackendJobPersisted(jobId: string, sessionUserId: string, tabJobId: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2500);
+  try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-User-Id": sessionUserId,
+    };
+    if (BACKEND_SECRET) headers["X-Backend-Secret"] = BACKEND_SECRET;
+    const response = await fetch(
+      `${API_BASE}/api/v1/jobs/${encodeURIComponent(jobId)}/persisted`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ durableResultId: tabJobId }),
+        signal: controller.signal,
+      }
+    );
+    if (!response.ok) {
+      console.warn("Backend job durability acknowledgement failed", {
+        jobId,
+        status: response.status,
+      });
+    }
+  } catch (error) {
+    // The persisted TabJob remains the source of truth. A later final-status
+    // poll retries this idempotent acknowledgement before compaction can occur.
+    console.warn("Backend job durability acknowledgement failed", { jobId, error });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function persistCompletedJob(jobId: string, sessionUserId: string, payload: Record<string, unknown>) {
   const tabs = normalizeTabs(getFirstJobValue(payload, ["tabs"]));
   const transcriberSegments = normalizeTranscriberSegments(
@@ -374,27 +486,11 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
     getFirstJobValue(payload, ["transcriberTracks", "instrumentTracks"])
   );
   if (tabs.length === 0 && transcriberSegments.length === 0 && transcriberTracks.length === 0) {
-    const existing = await prisma.tabJob.findFirst({
-      where: {
-        userId: sessionUserId,
-        resultJson: {
-          contains: `"backendJobId":"${jobId}"`,
-        },
-      },
-      select: { id: true },
-    });
+    const existing = await findPersistedTabJob(jobId, sessionUserId);
     return existing?.id ?? null;
   }
 
-  const existing = await prisma.tabJob.findFirst({
-    where: {
-      userId: sessionUserId,
-      resultJson: {
-        contains: `"backendJobId":"${jobId}"`,
-      },
-    },
-    select: { id: true, sourceLabel: true, sourceType: true, durationSec: true, resultJson: true },
-  });
+  const existing = await findPersistedTabJob(jobId, sessionUserId);
   const explicitLabel =
     typeof getFirstJobValue(payload, ["sourceLabel", "source_label", "fileName", "filename", "title"]) === "string"
       ? (getFirstJobValue(payload, ["sourceLabel", "source_label", "fileName", "filename", "title"]) as string)
@@ -464,6 +560,7 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
       await prisma.tabJob.update({
         where: { id: existing.id },
         data: {
+          backendJobId: jobId,
           sourceType,
           sourceLabel,
           durationSec: normalizedDuration,
@@ -474,17 +571,24 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
     return existing.id;
   }
 
-  const created = await prisma.tabJob.create({
-    data: {
+  const created = await prisma.tabJob.upsert({
+    where: { backendJobId: jobId },
+    create: {
       userId: sessionUserId,
+      backendJobId: jobId,
       sourceType,
       sourceLabel,
       durationSec: normalizedDuration,
       resultJson: serializedPayload,
     },
-    select: { id: true },
+    // A concurrent final poll may have created the row after our lookup. Do
+    // not overwrite it until ownership has been checked below.
+    update: {},
+    select: { id: true, userId: true },
   });
-
+  if (created.userId !== sessionUserId) {
+    throw new Error("Backend job result ownership conflict");
+  }
   return created.id;
 }
 
@@ -511,6 +615,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const headers: Record<string, string> = {};
   if (BACKEND_SECRET) headers["X-Backend-Secret"] = BACKEND_SECRET;
   headers["X-User-Id"] = session.user.id;
+  const ifNoneMatchRaw = req.headers["if-none-match"];
+  const ifNoneMatch = Array.isArray(ifNoneMatchRaw) ? ifNoneMatchRaw[0] : ifNoneMatchRaw;
+  if (!clientRequestedFullOutput && ifNoneMatch) headers["If-None-Match"] = ifNoneMatch;
 
   const requestStartedAt = Date.now();
   let fetched;
@@ -520,12 +627,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(502).json({ error: "Unable to reach transcription backend." });
   }
   let upstream = fetched.upstream;
+  const pollingHeadersSource = fetched.upstream;
   const text = fetched.text;
   const contentType = fetched.contentType;
   let upstreamBytes = fetched.bytes;
   let fetchedFullOutput = clientRequestedFullOutput;
   let persistedTab = false;
   if (!text) {
+    forwardPollingHeaders(res, pollingHeadersSource);
+    setJobCacheHeaders(res);
     res.status(upstream.status);
     return res.end();
   }
@@ -563,6 +673,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         if (tabJobId) {
           persistedTab = true;
+          await markBackendJobPersisted(jobId, session.user.id, tabJobId);
           resolvedTabJobId = tabJobId;
           payload.tab_job_id = tabJobId;
           payload.tabJobId = tabJobId;
@@ -664,9 +775,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const safeResponsePayload = trimPayloadToBudget(responsePayload);
       res.status(upstream.status);
       res.setHeader("Content-Type", "application/json");
-      res.setHeader("Cache-Control", "no-store, max-age=0, must-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
+      forwardPollingHeaders(res, pollingHeadersSource);
+      setJobCacheHeaders(res);
       logJobTransferMetric({
         upstreamStatus: upstream.status,
         upstreamBytes,
@@ -684,9 +794,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const textSnippet = text.slice(0, MAX_UPSTREAM_TEXT_BYTES);
   res.status(upstream.ok ? 502 : upstream.status);
   res.setHeader("Content-Type", "application/json");
-  res.setHeader("Cache-Control", "no-store, max-age=0, must-revalidate");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
+  forwardPollingHeaders(res, pollingHeadersSource);
+  setJobCacheHeaders(res);
   return res.json({
     error: upstream.ok
       ? "Invalid response from backend job endpoint."
