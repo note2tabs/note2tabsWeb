@@ -77,6 +77,7 @@ type UpstreamImportBody = {
     importGroupId?: string;
     warnings?: string[];
   };
+  canvas?: unknown;
 };
 
 type GteEditorListItem = {
@@ -494,6 +495,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           importedEditorIds: Array.isArray(parsed.importedEditorIds) ? parsed.importedEditorIds : undefined,
           quantization: parsed.quantization,
           alignment: parsed.alignment,
+          canvas:
+            req.body?.includeCanvas && parsed.canvas && typeof parsed.canvas === "object"
+              ? parsed.canvas
+              : undefined,
         } satisfies UpstreamImportBody);
         res.setHeader("Content-Type", "application/json; charset=utf-8");
       }

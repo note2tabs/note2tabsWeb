@@ -140,6 +140,9 @@ describe("transcriber import chunking", () => {
     expect(requests.every((request) => request.body.alignmentStrategy === "track_offset_bars")).toBe(true);
     expect(requests.every((request) => request.body.tempoStabilization?.enabled === true)).toBe(true);
     expect(
+      requests.every((request) => request.body.tempoStabilization?.minimumInteriorSegmentBars === 10)
+    ).toBe(true);
+    expect(
       requests.every((request) => request.body.tempoStabilization?.emptyBarsInheritTempo === true)
     ).toBe(true);
     expect(requests.every((request) => request.body.quantization.enabled === true)).toBe(true);
