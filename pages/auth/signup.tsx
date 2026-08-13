@@ -8,6 +8,7 @@ import NoIndexHead from "../../components/NoIndexHead";
 import { clearOAuthIntent, saveOAuthIntent } from "../../lib/oauthAnalytics";
 import { categorizeAnalyticsDestination } from "../../lib/analyticsPrivacy";
 import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
+import { premiumFunnelProperties, readPremiumFunnelContext } from "../../lib/premiumFunnel";
 
 const authErrorMessage = (error?: string | string[]) => {
   const value = Array.isArray(error) ? error[0] : error;
@@ -31,9 +32,9 @@ export default function SignupPage() {
   const nextHref = useMemo(() => {
     const raw = router.query.next;
     const value = Array.isArray(raw) ? raw[0] : raw;
-    if (typeof value !== "string") return "/";
+    if (typeof value !== "string") return "/home";
     const trimmed = value.trim();
-    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "/";
+    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "/home";
     return trimmed;
   }, [router.query.next]);
   const loginHref =
@@ -50,7 +51,12 @@ export default function SignupPage() {
     setError(null);
     setLoading(true);
     const destination = categorizeAnalyticsDestination(nextHref);
-    sendEvent(ANALYTICS_EVENTS.signupStarted, { method: "email", destination });
+    const premiumFunnel = readPremiumFunnelContext();
+    sendEvent(ANALYTICS_EVENTS.signupStarted, {
+      method: "email",
+      destination,
+      ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
+    });
     let fingerprintId: string | undefined;
     try {
       const fingerprint = await generateFingerprint();
@@ -61,7 +67,15 @@ export default function SignupPage() {
     const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, name, fingerprintId }),
+      body: JSON.stringify({
+        email,
+        password,
+        name,
+        fingerprintId,
+        funnelId: premiumFunnel?.funnelId,
+        funnelSource: premiumFunnel?.source,
+        funnelReason: premiumFunnel?.reason,
+      }),
     });
     setLoading(false);
     const data = await res.json();
@@ -73,7 +87,11 @@ export default function SignupPage() {
       });
       return;
     }
-    sendEvent(ANALYTICS_EVENTS.signupCompleted, { method: "email", destination });
+    sendEvent(ANALYTICS_EVENTS.signupCompleted, {
+      method: "email",
+      destination,
+      ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
+    });
     const nextEmail = encodeURIComponent((data?.email as string) || email);
     const sentParam = data?.emailSent === false ? "&sent=0" : "";
     const nextParam = nextHref === "/" ? "" : `&next=${encodeURIComponent(nextHref)}`;
@@ -141,9 +159,11 @@ export default function SignupPage() {
           <button
             type="button"
             onClick={() => {
+              const premiumFunnel = readPremiumFunnelContext();
               sendEvent(ANALYTICS_EVENTS.signupStarted, {
                 method: "google",
                 destination: categorizeAnalyticsDestination(nextHref),
+                ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
               });
               trackCtaClick("signup_google", { surface: "signup_page" });
               saveOAuthIntent("signup", nextHref);

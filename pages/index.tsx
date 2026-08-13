@@ -41,6 +41,7 @@ import TranscriptionModelValueNote from "../components/TranscriptionModelValueNo
 import PremiumConversionCard from "../components/PremiumConversionCard";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
+import PremiumHomeCallout from "../components/PremiumHomeCallout";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
 import {
   clearPendingTranscription,
@@ -59,6 +60,17 @@ import {
   categorizeAnalyticsError,
 } from "../lib/analyticsErrors";
 import { formatCreditResetDate } from "../lib/formatCreditResetDate";
+import {
+  getOrCreatePremiumFunnelContext,
+  premiumFunnelProperties,
+  premiumPricingHref,
+  type PremiumFunnelSource,
+} from "../lib/premiumFunnel";
+import {
+  premiumOfferCtaLabel,
+  premiumOfferReassurance,
+  usePremiumOfferEligibility,
+} from "../lib/usePremiumOfferEligibility";
 
 type TabsResponse = {
   tabs: string[][];
@@ -239,6 +251,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     setTranscriptionModel(model);
   };
   const isStaffUser = ["ADMIN", "MODERATOR", "MOD"].includes(transcriberSession?.user?.role || "");
+  const offerEligibility = usePremiumOfferEligibility(
+    sessionStatus === "authenticated" && !isPremiumUser
+  );
   const needsPremiumForSelectedFile = Boolean(
     transcriberSession && !isPremiumUser && selectedFile && selectedFile.size > MAX_FREE_BYTES
   );
@@ -1101,7 +1116,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         );
         sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "signed_out", mode });
         sendEvent(ANALYTICS_EVENTS.authHandoffSaved, { mode, path: "/" });
-        await signIn(undefined, { callbackUrl: "/?resumeTranscription=1#hero" });
+        await router.push(
+          `/auth/login?next=${encodeURIComponent("/transcribe?resumeTranscription=1")}`
+        );
       } catch {
         setError("We could not safely preserve this audio for sign-in. Please sign in first, then choose it again.");
       } finally {
@@ -1300,15 +1317,20 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     }
   };
 
-  const handlePricingClick = async () => {
+  const handlePricingClick = async (
+    source: PremiumFunnelSource = "home_pricing",
+    reason = "homepage_pricing_card"
+  ) => {
     if (pricingBusy) return;
+    const funnel = getOrCreatePremiumFunnelContext({ source, reason });
     sendEvent(ANALYTICS_EVENTS.pricingCtaClicked, {
       cta: "premium_card",
       signedIn: Boolean(session),
       path: "/",
+      ...premiumFunnelProperties(funnel),
     });
     if (!session) {
-      signIn(undefined, { callbackUrl: "/pricing?checkout=1" });
+      signIn(undefined, { callbackUrl: `${premiumPricingHref(funnel)}&checkout=1` });
       return;
     }
     if (isPremiumUser) {
@@ -1321,27 +1343,31 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       const res = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: "home_pricing" }),
+        body: JSON.stringify({
+          source: funnel.source,
+          reason: funnel.reason,
+          funnelId: funnel.funnelId,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data?.url) {
         sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-          source: "home_pricing",
           plan: "premium_monthly",
+          ...premiumFunnelProperties(funnel),
         });
         setPricingError(data?.error || "Could not start checkout.");
         return;
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
-        source: "home_pricing",
         plan: "premium_monthly",
         checkout_attempt_id: data.checkoutAttemptId,
+        ...premiumFunnelProperties(funnel),
       });
       window.location.href = data.url;
     } catch (err: any) {
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-        source: "home_pricing",
         plan: "premium_monthly",
+        ...premiumFunnelProperties(funnel),
       });
       setPricingError(err?.message || "Could not start checkout.");
     } finally {
@@ -1351,6 +1377,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   const handlePreservedUploadUpgrade = async () => {
     if (!selectedFile || pricingBusy) return;
+    const funnel = getOrCreatePremiumFunnelContext({
+      source: "large_upload_gate",
+      reason: "file_size_limit",
+    });
     setPricingBusy(true);
     setPricingError(null);
     try {
@@ -1366,7 +1396,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           returnTo: "/?resumeTranscription=1",
-          source: "large_upload_gate",
+          source: funnel.source,
+          reason: funnel.reason,
+          funnelId: funnel.funnelId,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -1374,15 +1406,15 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         throw new Error(payload?.error || "Could not start checkout.");
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
-        source: "large_upload_gate",
         plan: "premium_monthly",
         checkout_attempt_id: payload.checkoutAttemptId,
+        ...premiumFunnelProperties(funnel),
       });
       window.location.assign(payload.url);
     } catch (upgradeError) {
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-        source: "large_upload_gate",
         plan: "premium_monthly",
+        ...premiumFunnelProperties(funnel),
       });
       setPricingError(
         upgradeError instanceof Error ? upgradeError.message : "Could not start checkout."
@@ -1448,6 +1480,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 Turn recordings into guitar tab you can edit, practice, and export.
               </p>
             </div>
+            <PremiumHomeCallout />
             <form
               id="transcriber-start"
               className="prompt-shell prompt-shell--funnel"
@@ -1513,65 +1546,18 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <div className="instrument-choice-group">
                     <p className="instrument-question">Does your audio include other instruments?</p>
                     <div className="button-row instrument-choice-row">
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${
-                          includesOtherInstruments === true ? "active" : ""
-                        }`}
-                        onClick={() => setIncludesOtherInstruments(true)}
-                        aria-pressed={includesOtherInstruments === true}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${
-                          includesOtherInstruments === false ? "active" : ""
-                        }`}
-                        onClick={() => setIncludesOtherInstruments(false)}
-                        aria-pressed={includesOtherInstruments === false}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        No
-                      </button>
+                      <button type="button" className={`button-secondary instrument-choice-button ${includesOtherInstruments === true ? "active" : ""}`} onClick={() => setIncludesOtherInstruments(true)} aria-pressed={includesOtherInstruments === true} disabled={loading || authHandoffBusy}>Yes</button>
+                      <button type="button" className={`button-secondary instrument-choice-button ${includesOtherInstruments === false ? "active" : ""}`} onClick={() => setIncludesOtherInstruments(false)} aria-pressed={includesOtherInstruments === false} disabled={loading || authHandoffBusy}>No</button>
                     </div>
                   </div>
                   <div className="instrument-choice-group">
                     <p className="instrument-question">Are there multiple guitars?</p>
                     <div className="button-row instrument-choice-row">
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${
-                          multipleGuitars === true ? "active" : ""
-                        }`}
-                        onClick={() => setMultipleGuitars(true)}
-                        aria-pressed={multipleGuitars === true}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${
-                          multipleGuitars === false ? "active" : ""
-                        }`}
-                        onClick={() => setMultipleGuitars(false)}
-                        aria-pressed={multipleGuitars === false}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        No
-                      </button>
+                      <button type="button" className={`button-secondary instrument-choice-button ${multipleGuitars === true ? "active" : ""}`} onClick={() => setMultipleGuitars(true)} aria-pressed={multipleGuitars === true} disabled={loading || authHandoffBusy}>Yes</button>
+                      <button type="button" className={`button-secondary instrument-choice-button ${multipleGuitars === false ? "active" : ""}`} onClick={() => setMultipleGuitars(false)} aria-pressed={multipleGuitars === false} disabled={loading || authHandoffBusy}>No</button>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="button-primary instrument-start-button"
-                    onClick={handleInstrumentPromptStart}
-                    disabled={loading || !instrumentPromptComplete}
-                  >
-                    Start transcription
-                  </button>
+                  <button type="button" className="button-primary instrument-start-button" onClick={handleInstrumentPromptStart} disabled={loading || !instrumentPromptComplete}>Start transcription</button>
                 </div>
               ) : (
                 <>
@@ -1791,9 +1777,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 ) : (
                   <PremiumConversionCard
                     title="Keep transcribing today"
-                    description="Premium includes 100 monthly credits, rollover, faster processing, and full-song uploads."
+                    description="Premium includes 100 monthly credits, rollover, and full-song audio uploads."
                     actionLabel="Get Premium"
-                    onAction={() => void handlePricingClick()}
+                    onAction={() => void handlePricingClick("low_credits", "credits_low")}
                     busy={pricingBusy}
                     resetMessage={`Free credits reset ${creditsResetLabel}`}
                   />
@@ -2065,7 +2051,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 className="pricing-plan pricing-plan--premium"
                 data-reveal
               >
-                <div className="pricing-plan__badge">Most popular · 7-day trial</div>
+                <div className="pricing-plan__badge">
+                  {offerEligibility === "eligible" ? "Most popular · 7-day trial" : "Most popular"}
+                </div>
                 <div className="pricing-plan__top">
                   <h3>Premium</h3>
                   <div className="pricing-plan__price">
@@ -2085,10 +2073,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                       ? isStaffUser
                         ? "Premium access included"
                         : "Manage current plan"
-                      : "Start 7-day trial"}
+                      : premiumOfferCtaLabel(offerEligibility)}
                 </button>
                 <p className="pricing-plan__reassurance">
-                  $5.99/month after trial · Cancel anytime
+                  {premiumOfferReassurance(offerEligibility)}
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
@@ -2096,7 +2084,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <li>Heavy model for complex recordings</li>
                   <li>Unused credits roll over, up to 200</li>
                   <li>Full-length audio-file transcription</li>
-                  <li>Faster processing and 200 MB uploads</li>
+                  <li>Uploads up to 200 MB</li>
                 </ul>
               </article>
             </div>

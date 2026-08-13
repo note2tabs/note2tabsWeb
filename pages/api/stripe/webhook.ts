@@ -20,6 +20,12 @@ import {
   createPostHogServerClient,
   flushPostHogServerClientInBackground,
 } from "../../../lib/posthogServer";
+import {
+  normalizePremiumFunnelId,
+  normalizePremiumFunnelReason,
+  normalizePremiumFunnelSource,
+} from "../../../lib/premiumFunnel";
+import { normalizePremiumOfferVariant } from "../../../lib/premiumOfferExperiment";
 
 export const config = {
   api: {
@@ -172,16 +178,30 @@ async function setPremiumForIdentifier(identifier: UserIdentifier) {
   return user.id;
 }
 
-function trackSubscriptionStarted(userId: string, checkoutSessionId: string) {
+function trackSubscriptionStarted(userId: string, session: Stripe.Checkout.Session) {
   const client = createPostHogServerClient();
   if (!client) return;
+  const funnelId =
+    normalizePremiumFunnelId(session.metadata?.premiumFunnelId) ||
+    normalizePremiumFunnelId(session.client_reference_id);
+  const model = session.metadata?.premiumFunnelModel === "heavy"
+    ? "heavy"
+    : session.metadata?.premiumFunnelModel === "light"
+      ? "light"
+      : "unknown";
   client.capture({
     distinctId: userId,
     event: "subscription_started",
     properties: {
       plan: "premium_monthly",
-      source: "stripe_webhook",
-      $insert_id: `subscription-started:${checkoutSessionId}`,
+      source: normalizePremiumFunnelSource(session.metadata?.premiumFunnelSource),
+      reason: normalizePremiumFunnelReason(session.metadata?.premiumFunnelReason),
+      funnel_id: funnelId || undefined,
+      trial_included: session.metadata?.premiumTrialIncluded === "true",
+      offer_variant: normalizePremiumOfferVariant(session.metadata?.premiumOfferVariant),
+      model,
+      event_source: "stripe_webhook",
+      $insert_id: `subscription-started:${session.id}`,
     },
   });
   flushPostHogServerClientInBackground(client);
@@ -366,7 +386,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const identifier = await resolveUserIdentifierFromCheckoutSession(checkoutSession);
       if (identifier) {
         const userId = await setPremiumForIdentifier(identifier);
-        if (userId) trackSubscriptionStarted(userId, checkoutSession.id);
+        if (userId) trackSubscriptionStarted(userId, checkoutSession);
       }
     }
 

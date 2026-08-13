@@ -104,6 +104,7 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
   if (!token || (trackingIsDisabled() && !options.ignoreDeniedConsent)) return null;
   if (initPromise) return initPromise;
   clearLegacyAnalyticsPersistence();
+  const anonymousDistinctId = getCookie("analytics_anon");
 
   initPromise = import("posthog-js")
     .then(({ default: posthog }) => {
@@ -119,6 +120,14 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
         disable_capture_url_hashes: true,
         save_referrer: false,
         before_send: sanitizePostHogCapture,
+        ...(anonymousDistinctId
+          ? {
+              bootstrap: {
+                distinctID: anonymousDistinctId,
+                isIdentifiedID: false,
+              },
+            }
+          : {}),
         disable_session_recording:
           process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING !== "true",
         opt_out_capturing_by_default: trackingIsDisabled(),

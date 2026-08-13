@@ -1,7 +1,13 @@
 import type { ComponentProps } from "react";
+import dynamic from "next/dynamic";
 import GteWorkspace from "./GteWorkspace";
-import GteDrumWorkspace from "./GteDrumWorkspace";
 import { isDrumTrackType } from "../lib/gteDrums";
+
+const GteDrumWorkspace = dynamic(() => import("./GteDrumWorkspace"), {
+  loading: () => (
+    <div className="gte-workspace-loading" role="status" aria-label="Loading drum editor" />
+  ),
+});
 
 type Props = ComponentProps<typeof GteWorkspace>;
 
@@ -27,6 +33,7 @@ export default function GteTrackWorkspace(props: Props) {
       canvasId={canvasId}
       laneId={laneId}
       snapshot={props.snapshot}
+      timingMap={props.timingMap}
       onSnapshotChange={props.onSnapshotChange}
       isActive={Boolean(props.isActive)}
       mobileViewport={props.mobileViewport}
@@ -52,6 +59,9 @@ export default function GteTrackWorkspace(props: Props) {
       sharedTimelineBaseScale={props.sharedTimelineBaseScale}
       timelineZoomFactor={props.timelineZoomFactor}
       snapSubdivisionsPerBeat={props.snapSubdivisionsPerBeat}
+      showBarNumbers={props.showBarNumbers}
+      showTimeRuler={props.showTimeRuler}
+      showPlaybackCounter={props.showPlaybackCounter}
       globalSnapToGridEnabled={props.globalSnapToGridEnabled}
       globalPlaybackFrame={props.globalPlaybackFrame}
       getGlobalPlaybackFrame={props.getGlobalPlaybackFrame}

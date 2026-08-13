@@ -175,7 +175,12 @@ describe("stripe premium flow", () => {
       const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
       const { req, res } = createMocks({
         method: "POST",
-        body: { source: "pricing_page" },
+        body: {
+          source: "pricing_page",
+          reason: "plan_comparison",
+          funnelId: "funnel_test_123",
+          offerVariant: "value_framing",
+        },
         headers: {
           host: "note2tabs.test",
           "x-forwarded-proto": "https",
@@ -188,6 +193,9 @@ describe("stripe premium flow", () => {
       expect(res._getJSONData()).toEqual({
         url: "https://checkout.stripe.test/session_123",
         checkoutAttemptId: "local",
+        funnelId: "funnel_test_123",
+        trialIncluded: true,
+        offerVariant: "value_framing",
       });
       expect(posthogMock.capture).toHaveBeenCalledWith({
         distinctId: "user_1",
@@ -195,6 +203,10 @@ describe("stripe premium flow", () => {
         properties: expect.objectContaining({
           plan: "premium_monthly",
           source: "pricing_page",
+          reason: "plan_comparison",
+          funnel_id: "funnel_test_123",
+          offer_variant: "value_framing",
+          device_type: "desktop",
           $insert_id: "checkout-started:cs_test_123",
         }),
       });
@@ -205,12 +217,25 @@ describe("stripe premium flow", () => {
           mode: "subscription",
           payment_method_collection: "always",
           line_items: [{ price: "price_test_premium", quantity: 1 }],
-          subscription_data: { trial_period_days: 7 },
-          metadata: {
+          client_reference_id: "funnel_test_123",
+          subscription_data: expect.objectContaining({
+            trial_period_days: 7,
+            metadata: expect.objectContaining({
+              premiumFunnelId: "funnel_test_123",
+              premiumFunnelSource: "pricing_page",
+              premiumFunnelReason: "plan_comparison",
+              premiumOfferVariant: "value_framing",
+            }),
+          }),
+          metadata: expect.objectContaining({
             userId: "user_1",
             note2tabsPlan: "premium",
             note2tabsPriceId: "price_test_premium",
-          },
+            premiumFunnelId: "funnel_test_123",
+            premiumFunnelSource: "pricing_page",
+            premiumFunnelReason: "plan_comparison",
+            premiumOfferVariant: "value_framing",
+          }),
           success_url:
             "https://note2tabs.test/settings?upgrade=success&session_id={CHECKOUT_SESSION_ID}",
           cancel_url: "https://note2tabs.test/settings?upgrade=cancel",
@@ -384,7 +409,7 @@ describe("stripe premium flow", () => {
       expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
           customer: "cus_other",
-          subscription_data: { trial_period_days: 7 },
+          subscription_data: expect.objectContaining({ trial_period_days: 7 }),
         }),
         expect.any(Object)
       );
@@ -439,7 +464,34 @@ describe("stripe premium flow", () => {
       expect(res._getStatusCode()).toBe(200);
       const checkoutInput = stripeMock.checkout.sessions.create.mock.calls[0]?.[0];
       expect(checkoutInput).toEqual(expect.objectContaining({ customer: "cus_returning" }));
-      expect(checkoutInput).not.toHaveProperty("subscription_data");
+      expect(checkoutInput.subscription_data).not.toHaveProperty("trial_period_days");
+      expect(checkoutInput.subscription_data).toEqual(
+        expect.objectContaining({ metadata: expect.any(Object) })
+      );
+    });
+
+    it("does not present a returning Premium subscriber as trial eligible", async () => {
+      stripeMock.customers.list.mockResolvedValue({
+        data: [{ id: "cus_returning_paid", email: "user@example.com" }],
+      });
+      stripeMock.subscriptions.list.mockResolvedValue({
+        data: [
+          premiumSubscription({
+            id: "sub_previous_paid",
+            status: "canceled",
+            trial_start: null,
+            trial_end: null,
+          }),
+        ],
+      });
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({ method: "POST" });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      const checkoutInput = stripeMock.checkout.sessions.create.mock.calls[0]?.[0];
+      expect(checkoutInput.subscription_data).not.toHaveProperty("trial_period_days");
     });
 
     it("replaces an incomplete Premium subscription with a fresh checkout", async () => {
@@ -460,6 +512,43 @@ describe("stripe premium flow", () => {
       expect(stripeMock.checkout.sessions.create.mock.invocationCallOrder[0]).toBeLessThan(
         stripeMock.subscriptions.cancel.mock.invocationCallOrder[0]
       );
+    });
+  });
+
+  describe("premium offer eligibility", () => {
+    it("returns a trial only for accounts without previous Premium trial history", async () => {
+      const handler = (await import("../../pages/api/stripe/offer-eligibility")).default;
+      const eligible = createMocks({ method: "GET" });
+
+      await handler(eligible.req as any, eligible.res as any);
+
+      expect(eligible.res._getStatusCode()).toBe(200);
+      expect(eligible.res._getJSONData()).toEqual({
+        trialEligible: true,
+        hasPremiumAccess: false,
+      });
+
+      stripeMock.customers.list.mockResolvedValue({
+        data: [{ id: "cus_returning", email: "user@example.com" }],
+      });
+      stripeMock.subscriptions.list.mockResolvedValue({
+        data: [
+          premiumSubscription({
+            id: "sub_previous_trial",
+            status: "canceled",
+            trial_start: 1_700_000_000,
+          }),
+        ],
+      });
+      const returning = createMocks({ method: "GET" });
+
+      await handler(returning.req as any, returning.res as any);
+
+      expect(returning.res._getStatusCode()).toBe(200);
+      expect(returning.res._getJSONData()).toEqual({
+        trialEligible: false,
+        hasPremiumAccess: false,
+      });
     });
   });
 
@@ -662,11 +751,19 @@ describe("stripe premium flow", () => {
         type: "checkout.session.completed",
         data: {
           object: {
+            id: "cs_premium",
             mode: "subscription",
+            client_reference_id: "funnel_webhook_123",
             metadata: {
               userId: "user_1",
               note2tabsPlan: "premium",
               note2tabsPriceId: "price_test_premium",
+              premiumFunnelId: "funnel_webhook_123",
+              premiumFunnelSource: "signed_home",
+              premiumFunnelReason: "signed_home_value",
+              premiumOfferVariant: "value_framing",
+              premiumFunnelModel: "heavy",
+              premiumTrialIncluded: "true",
             },
             subscription: premiumSubscription(),
             customer_details: { email: "user@example.com" },
@@ -693,6 +790,20 @@ describe("stripe premium flow", () => {
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: "user_1" },
         data: { role: "PREMIUM", tokensRemaining: PREMIUM_MONTHLY_CREDITS },
+      });
+      expect(posthogMock.capture).toHaveBeenCalledWith({
+        distinctId: "user_1",
+        event: "subscription_started",
+        properties: expect.objectContaining({
+          source: "signed_home",
+          reason: "signed_home_value",
+          funnel_id: "funnel_webhook_123",
+          trial_included: true,
+          offer_variant: "value_framing",
+          model: "heavy",
+          event_source: "stripe_webhook",
+          $insert_id: "subscription-started:cs_premium",
+        }),
       });
     });
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { trackCtaClick } from "../lib/analytics";
 import type { TranscriptionModelChoice } from "../lib/transcriptionModels";
+import { premiumPricingHref } from "../lib/premiumFunnel";
 
 type TranscriptionModelValueNoteProps = {
   model: TranscriptionModelChoice;
@@ -43,7 +44,7 @@ export default function TranscriptionModelValueNote({
         higher-accuracy transcriptions.
       </span>
       <Link
-        href="/pricing"
+        href={premiumPricingHref({ source: "heavy_model", reason: "heavy_selected" })}
         onClick={() => trackCtaClick("heavy_model_see_premium", { surface })}
       >
         See Premium

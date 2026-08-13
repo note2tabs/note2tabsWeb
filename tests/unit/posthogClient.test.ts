@@ -151,6 +151,8 @@ describe("PostHog client identity lifecycle", () => {
 
   it("captures by default without persisting analytics state", async () => {
     const { localStorage, sessionStorage } = installBrowserGlobals("missing");
+    (document as { cookie: string }).cookie =
+      "analytics_consent=granted; analytics_anon=anon-browser-123";
     const posthog = createPostHogMock();
     vi.doMock("posthog-js", () => ({ default: posthog }));
     const analytics = await import("../../lib/posthogClient");
@@ -162,7 +164,14 @@ describe("PostHog client identity lifecycle", () => {
 
     expect(posthog.init).toHaveBeenCalledWith(
       "phc_test",
-      expect.objectContaining({ disable_persistence: true, opt_out_capturing_by_default: false })
+      expect.objectContaining({
+        disable_persistence: true,
+        opt_out_capturing_by_default: false,
+        bootstrap: {
+          distinctID: "anon-browser-123",
+          isIdentifiedID: false,
+        },
+      })
     );
     expect(posthog.capture).toHaveBeenCalledWith("pre_consent_event", {
       $current_url: "https://note2tabs.com/auth/verify-email",

@@ -50,6 +50,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         req,
         res,
         rawFingerprint,
+        funnelId: typeof req.body?.funnelId === "string" ? req.body.funnelId : undefined,
+        funnelSource:
+          typeof req.body?.funnelSource === "string" ? req.body.funnelSource : undefined,
+        funnelReason:
+          typeof req.body?.funnelReason === "string" ? req.body.funnelReason : undefined,
       });
     } catch (linkError) {
       console.warn("signup identity link warning", linkError);

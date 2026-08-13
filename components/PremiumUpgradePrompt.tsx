@@ -8,18 +8,21 @@ import {
   readCreditsForPremiumPrompt,
   type PremiumPromptSignal,
 } from "../lib/premiumPromptSignals";
+import {
+  getOrCreatePremiumFunnelContext,
+  premiumFunnelProperties,
+  premiumPricingHref,
+  type PremiumFunnelContext,
+} from "../lib/premiumFunnel";
 
 const DISMISSED_AT_KEY = "note2tabs:premium-prompt-dismissed-at";
-const LAST_PASSIVE_SHOWN_AT_KEY = "note2tabs:premium-prompt-passive-last-shown-at";
 const LAST_CONTEXTUAL_SHOWN_AT_KEY = "note2tabs:premium-prompt-contextual-last-shown-at";
 const DISMISS_FOR_MS = 14 * 24 * 60 * 60 * 1000;
-const PASSIVE_FREQUENCY_MS = 7 * 24 * 60 * 60 * 1000;
 const COMPLETION_FREQUENCY_MS = 3 * 24 * 60 * 60 * 1000;
 const URGENT_FREQUENCY_MS = 24 * 60 * 60 * 1000;
-const SHOW_AFTER_MS = 12_000;
 const LOW_CREDIT_THRESHOLD = 3;
 
-type PromptReason = "passive" | "transcription_completed" | "low_credits" | "no_credits";
+type PromptReason = "transcription_completed" | "low_credits" | "no_credits";
 
 const EXCLUDED_ROUTES = new Set([
   "/pricing",
@@ -35,18 +38,10 @@ const hasPremiumAccess = (role?: string) =>
 
 const getFrequencyForReason = (reason: PromptReason) => {
   if (reason === "no_credits" || reason === "low_credits") return URGENT_FREQUENCY_MS;
-  if (reason === "transcription_completed") return COMPLETION_FREQUENCY_MS;
-  return PASSIVE_FREQUENCY_MS;
+  return COMPLETION_FREQUENCY_MS;
 };
 
-const getLastShownKey = (reason: PromptReason) =>
-  reason === "passive" ? LAST_PASSIVE_SHOWN_AT_KEY : LAST_CONTEXTUAL_SHOWN_AT_KEY;
-
 const promptCopy: Record<PromptReason, { title: string; body: string }> = {
-  passive: {
-    title: "Use Heavy more often.",
-    body: "Get 10× more monthly credits, faster processing, and full-song uploads.",
-  },
   transcription_completed: {
     title: "Your transcription is ready.",
     body: "Premium gives you more room to keep creating and use Heavy more often.",
@@ -57,7 +52,7 @@ const promptCopy: Record<PromptReason, { title: string; body: string }> = {
   },
   no_credits: {
     title: "Keep transcribing with Premium.",
-    body: "Get 100 monthly credits, rollover, faster processing, and full-song uploads.",
+    body: "Get 100 monthly credits, rollover, and full-song audio uploads.",
   },
 };
 
@@ -73,6 +68,7 @@ export default function PremiumUpgradePrompt() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const [reason, setReason] = useState<PromptReason | null>(null);
+  const [funnelContext, setFunnelContext] = useState<PremiumFunnelContext | null>(null);
   const role = session?.user?.role;
   const isEligible =
     status === "authenticated" &&
@@ -82,6 +78,7 @@ export default function PremiumUpgradePrompt() {
 
   useEffect(() => {
     setReason(null);
+    setFunnelContext(null);
     if (!isEligible) return;
 
     let timeout: number | null = null;
@@ -89,19 +86,26 @@ export default function PremiumUpgradePrompt() {
     const schedule = (nextReason: PromptReason, delay: number) => {
       const now = Date.now();
       if (now - readTimestamp(DISMISSED_AT_KEY) < DISMISS_FOR_MS) return;
-      const lastShownKey = getLastShownKey(nextReason);
-      if (now - readTimestamp(lastShownKey) < getFrequencyForReason(nextReason)) return;
+      if (
+        now - readTimestamp(LAST_CONTEXTUAL_SHOWN_AT_KEY) <
+        getFrequencyForReason(nextReason)
+      ) return;
       if (timeout !== null) window.clearTimeout(timeout);
       timeout = window.setTimeout(() => {
         try {
-          window.localStorage.setItem(lastShownKey, String(Date.now()));
+          window.localStorage.setItem(LAST_CONTEXTUAL_SHOWN_AT_KEY, String(Date.now()));
         } catch {
           // Frequency limiting is best effort in hardened browser contexts.
         }
+        const nextFunnel = getOrCreatePremiumFunnelContext({
+          source: "premium_prompt",
+          reason: nextReason,
+        });
+        setFunnelContext(nextFunnel);
         setReason(nextReason);
         sendEvent(ANALYTICS_EVENTS.premiumPromptShown, {
-          reason: nextReason,
-          surface: "floating_prompt",
+          surface: "contextual_prompt",
+          ...premiumFunnelProperties(nextFunnel),
         });
       }, delay);
     };
@@ -111,8 +115,6 @@ export default function PremiumUpgradePrompt() {
       schedule("no_credits", 900);
     } else if (credits !== null && credits <= LOW_CREDIT_THRESHOLD) {
       schedule("low_credits", 1_500);
-    } else {
-      schedule("passive", SHOW_AFTER_MS);
     }
 
     const onSignal = (event: Event) => {
@@ -146,7 +148,8 @@ export default function PremiumUpgradePrompt() {
     setReason(null);
     sendEvent(ANALYTICS_EVENTS.premiumPromptDismissed, {
       reason,
-      surface: "floating_prompt",
+      surface: "contextual_prompt",
+      ...(funnelContext ? premiumFunnelProperties(funnelContext) : {}),
     });
   };
 
@@ -166,21 +169,23 @@ export default function PremiumUpgradePrompt() {
       <strong>{copy.title}</strong>
       <p>{copy.body}</p>
       <Link
-        href={{ pathname: "/pricing", query: { source: "premium_prompt", reason } }}
+        href={premiumPricingHref(
+          funnelContext || { source: "premium_prompt", reason }
+        )}
         onClick={() => {
           sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, {
-            reason,
-            surface: "floating_prompt",
+            surface: "contextual_prompt",
+            ...(funnelContext ? premiumFunnelProperties(funnelContext) : {}),
           });
           trackCtaClick("premium_prompt_view_plans", {
-            reason,
-            surface: "floating_prompt",
+            surface: "contextual_prompt",
+            ...(funnelContext ? premiumFunnelProperties(funnelContext) : {}),
           });
         }}
       >
         Explore Premium
       </Link>
-      <small>$5.99/month after a 7-day trial · Cancel anytime</small>
+      <small>Eligible new subscribers get a 7-day trial · Cancel anytime</small>
     </aside>
   );
 }

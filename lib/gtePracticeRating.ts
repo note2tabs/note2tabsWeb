@@ -1,6 +1,7 @@
-import type { EditorSnapshot } from "../types/gte";
+import type { EditorSnapshot, TimingMapV2 } from "../types/gte";
 import type { PracticeLoopRange } from "./gtePractice";
 import { normalizePlaybackSpeed } from "./gtePractice";
+import { frameDurationSeconds, frameToSeconds, secondsToFrame } from "./gteTiming";
 import { getOpenStringMidiFromSnapshot } from "./gteTuning";
 
 export type PracticeRatingStatus = "correct" | "timing" | "missed";
@@ -110,6 +111,7 @@ export function buildPracticeRatingBars(input: {
   fps: number;
   playbackSpeed: number;
   recordingLeadSeconds: number;
+  timingMap?: TimingMapV2;
 }) {
   const { snapshot, range } = input;
   const framesPerBar = Math.max(1, Math.round(input.framesPerBar));
@@ -122,7 +124,10 @@ export function buildPracticeRatingBars(input: {
   let eventIndex = 0;
 
   const toSeconds = (frame: number) =>
-    lead + (frame - range.startFrame) / (fps * speed);
+    lead +
+    (input.timingMap
+      ? frameDurationSeconds(input.timingMap, range.startFrame, frame) / speed
+      : (frame - range.startFrame) / (fps * speed));
   const bars: PracticeRatingRequestBar[] = Array.from(
     { length: lastBar - firstBar + 1 },
     (_, offset) => {
@@ -132,7 +137,12 @@ export function buildPracticeRatingBars(input: {
       return {
         bar_index: barIndex,
         start_time_s: toSeconds(barStartFrame),
-        duration_s: Math.max(0.01, (barEndFrame - barStartFrame) / (fps * speed)),
+        duration_s: Math.max(
+          0.01,
+          input.timingMap
+            ? frameDurationSeconds(input.timingMap, barStartFrame, barEndFrame) / speed
+            : (barEndFrame - barStartFrame) / (fps * speed)
+        ),
         note_events: [],
       };
     }
@@ -228,6 +238,7 @@ export function normalizePracticeRatingReplay(input: {
   fps: number;
   recordingLeadSeconds: number;
   framesPerBar: number;
+  timingMap?: TimingMapV2;
 }): PracticeRatingReplay {
   const notes: PracticeRatingNote[] = [];
   const falseNotes: PracticeRatingFalseNote[] = [];
@@ -271,8 +282,13 @@ export function normalizePracticeRatingReplay(input: {
     rawFalseNotes.forEach((note: any) => {
       const secondsFromPlayback =
         safeNumber(note?.start_time_s) - Math.max(0, input.recordingLeadSeconds);
-      const frame =
-        input.startFrame + Math.max(0, secondsFromPlayback) * input.fps * speed;
+      const frame = input.timingMap
+        ? secondsToFrame(
+            input.timingMap,
+            frameToSeconds(input.timingMap, input.startFrame) +
+              Math.max(0, secondsFromPlayback) * speed
+          )
+        : input.startFrame + Math.max(0, secondsFromPlayback) * input.fps * speed;
       falseNotes.push({
         frame,
         barIndex,

@@ -84,6 +84,11 @@ function ensureIds() {
   return { sessionId, anonId };
 }
 
+export function getAnalyticsTrackingIds() {
+  if (typeof window === "undefined" || !shouldTrack()) return null;
+  return ensureIds();
+}
+
 async function getFingerprintId() {
   if (fingerprintPromise) return fingerprintPromise;
   fingerprintPromise = (async () => {
