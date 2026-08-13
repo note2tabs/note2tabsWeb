@@ -280,7 +280,7 @@ export default function ProductHome({
           {loadError && recentEditors.length === 0 && <div className="product-home__error" role="alert"><span>{loadError}</span><button type="button" onClick={() => void loadEditors(true)}>Try again</button></div>}
 
           <section className="product-studio__library" aria-labelledby="recent-heading">
-            <header><div><p>Your library</p><h2 id="recent-heading">Recent tabs</h2></div><Link href="/gte" onClick={() => trackHomeCta("product_home_view_all_editors")}>View all tabs →</Link></header>
+            <header><div><h2 id="recent-heading">Recent tabs</h2></div><Link href="/gte" onClick={() => trackHomeCta("product_home_view_all_editors")}>View all tabs →</Link></header>
             {loading && !latestEditor ? (
               <div className="product-studio__grid" aria-live="polite" aria-busy="true">{[0, 1, 2].map((item) => <div className="product-hub__skeleton" key={item} aria-hidden="true" />)}<span className="sr-only">Loading your recent tabs</span></div>
             ) : recentEditors.length > 0 ? (
