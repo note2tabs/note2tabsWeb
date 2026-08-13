@@ -4,12 +4,27 @@ import { signIn, useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
 import SeoHead, { WEBSITE_ID, absoluteUrl } from "../components/SeoHead";
+import {
+  getOrCreatePremiumFunnelContext,
+  normalizePremiumFunnelReason,
+  normalizePremiumFunnelSource,
+  premiumFunnelProperties,
+  premiumPricingHref,
+  type PremiumFunnelContext,
+} from "../lib/premiumFunnel";
+import {
+  premiumOfferCtaLabel,
+  premiumOfferReassurance,
+  usePremiumOfferEligibility,
+} from "../lib/usePremiumOfferEligibility";
+import { premiumOfferExperimentProperties } from "../lib/premiumOfferExperiment";
+import { usePremiumOfferExperiment } from "../lib/usePremiumOfferExperiment";
 
 const pricingFaqs = [
   {
     question: "Can I try Premium before paying?",
     answer:
-      "Yes. New subscribers get a 7-day trial. After the trial, Premium is $5.99 per month unless you cancel.",
+      "Eligible new subscribers get a 7-day trial. Premium is $5.99 per month and you can cancel anytime.",
   },
   {
     question: "Do both plans include Light and Heavy?",
@@ -35,10 +50,16 @@ export default function PricingPage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const resumedCheckoutRef = useRef(false);
   const pricingViewTrackedRef = useRef(false);
+  const funnelContextRef = useRef<PremiumFunnelContext | null>(null);
   const currentRole = session?.user?.role || "";
   const hasPaidPremium = currentRole === "PREMIUM";
   const hasStaffAccess = ["ADMIN", "MODERATOR", "MOD"].includes(currentRole);
   const hasPremiumAccess = hasPaidPremium || hasStaffAccess;
+  const { variant: offerVariant, resolved: offerVariantResolved } =
+    usePremiumOfferExperiment(!hasPremiumAccess);
+  const offerEligibility = usePremiumOfferEligibility(
+    sessionStatus === "authenticated" && !hasPremiumAccess
+  );
   const description =
     "Simple monthly pricing for Note2Tabs. Compare free and premium plans for guitar tab transcription and editing.";
   const pricingJsonLd = [
@@ -82,33 +103,46 @@ export default function PricingPage() {
     },
   ];
 
-  const entrySource = router.query.source === "premium_prompt"
-    ? "premium_prompt"
-    : "pricing_page";
+  const entrySource = normalizePremiumFunnelSource(router.query.source);
+  const entryReason = normalizePremiumFunnelReason(router.query.reason);
+
+  const getFunnelContext = useCallback(() => {
+    if (funnelContextRef.current) return funnelContextRef.current;
+    const rawFunnelId = Array.isArray(router.query.funnel_id)
+      ? router.query.funnel_id[0]
+      : router.query.funnel_id;
+    funnelContextRef.current = getOrCreatePremiumFunnelContext({
+      source: entrySource,
+      reason: entryReason,
+      funnelId: rawFunnelId,
+    });
+    return funnelContextRef.current;
+  }, [entryReason, entrySource, router.query.funnel_id]);
 
   useEffect(() => {
-    if (!router.isReady || pricingViewTrackedRef.current) return;
+    if (!router.isReady || !offerVariantResolved || pricingViewTrackedRef.current) return;
     pricingViewTrackedRef.current = true;
+    const funnel = getFunnelContext();
     sendEvent(ANALYTICS_EVENTS.pricingViewed, {
       path: "/pricing",
-      source: entrySource,
-      prompt_reason:
-        entrySource === "premium_prompt" && typeof router.query.reason === "string"
-          ? router.query.reason
-          : undefined,
+      ...premiumFunnelProperties(funnel),
+      ...premiumOfferExperimentProperties(offerVariant),
     });
-  }, [entrySource, router.isReady, router.query.reason]);
+  }, [getFunnelContext, offerVariant, offerVariantResolved, router.isReady]);
 
   const startCheckout = useCallback(async () => {
     if (checkoutBusy) return;
+    const funnel = getFunnelContext();
     sendEvent(ANALYTICS_EVENTS.pricingCtaClicked, {
-      cta: "premium_trial",
+      cta: "premium_offer",
       signedIn: Boolean(session),
       path: "/pricing",
-      source: entrySource,
+      ...premiumFunnelProperties(funnel),
+      ...premiumOfferExperimentProperties(offerVariant),
     });
     if (!session) {
-      await signIn(undefined, { callbackUrl: "/pricing?checkout=1" });
+      const callbackUrl = `${premiumPricingHref(funnel)}&checkout=1`;
+      await signIn(undefined, { callbackUrl });
       return;
     }
     if (hasPremiumAccess) {
@@ -122,35 +156,43 @@ export default function PricingPage() {
       const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: entrySource }),
+        body: JSON.stringify({
+          source: funnel.source,
+          reason: funnel.reason,
+          funnelId: funnel.funnelId,
+          offerVariant,
+        }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.url) {
         throw new Error(payload?.error || "Could not start checkout.");
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
-        source: entrySource,
         plan: "premium_monthly",
         checkout_attempt_id: payload.checkoutAttemptId,
+        ...premiumFunnelProperties(funnel),
+        ...premiumOfferExperimentProperties(offerVariant),
       });
       window.location.assign(payload.url);
     } catch (error) {
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-        source: entrySource,
         plan: "premium_monthly",
+        ...premiumFunnelProperties(funnel),
+        ...premiumOfferExperimentProperties(offerVariant),
       });
       setCheckoutError(error instanceof Error ? error.message : "Could not start checkout.");
       setCheckoutBusy(false);
     }
-  }, [checkoutBusy, entrySource, hasPaidPremium, hasPremiumAccess, router, session]);
+  }, [checkoutBusy, getFunnelContext, hasPaidPremium, hasPremiumAccess, offerVariant, router, session]);
 
   useEffect(() => {
     if (!router.isReady || router.query.checkout !== "1") return;
-    if (sessionStatus !== "authenticated" || resumedCheckoutRef.current) return;
+    if (!offerVariantResolved || sessionStatus !== "authenticated" || resumedCheckoutRef.current) return;
     resumedCheckoutRef.current = true;
-    void router.replace("/pricing", undefined, { shallow: true });
+    const funnel = getFunnelContext();
+    void router.replace(premiumPricingHref(funnel), undefined, { shallow: true });
     void startCheckout();
-  }, [router.isReady, router.query.checkout, sessionStatus, startCheckout]);
+  }, [getFunnelContext, offerVariantResolved, router.isReady, router.query.checkout, sessionStatus, startCheckout]);
 
   return (
     <>
@@ -202,7 +244,13 @@ export default function PricingPage() {
               </article>
 
               <article className="pricing-plan pricing-plan--premium">
-                <div className="pricing-plan__badge">Most popular · 7-day trial</div>
+                <div className="pricing-plan__badge">
+                  {offerEligibility === "eligible"
+                    ? offerVariant === "value_framing"
+                      ? "Most popular · 7 days free"
+                      : "Most popular · 7-day trial"
+                    : "Most popular"}
+                </div>
                 <div className="pricing-plan__top">
                   <h2>Premium</h2>
                   <div className="pricing-plan__price">
@@ -224,11 +272,13 @@ export default function PricingPage() {
                     onClick={() => void startCheckout()}
                     disabled={checkoutBusy || sessionStatus === "loading"}
                   >
-                    {checkoutBusy ? "Opening checkout…" : "Start 7-day trial"}
+                    {checkoutBusy
+                      ? "Opening checkout…"
+                      : premiumOfferCtaLabel(offerEligibility, "Get Premium", offerVariant)}
                   </button>
                 )}
                 <p className="pricing-plan__reassurance">
-                  $5.99/month after trial · Cancel anytime
+                  {premiumOfferReassurance(offerEligibility, offerVariant)}
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
@@ -237,7 +287,6 @@ export default function PricingPage() {
                   <li>Unused credits roll over, up to 200</li>
                   <li>Full-length audio-file transcription</li>
                   <li>Uploads up to 200 MB</li>
-                  <li>Faster transcription processing</li>
                 </ul>
               </article>
             </section>

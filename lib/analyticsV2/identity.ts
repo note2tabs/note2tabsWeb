@@ -14,6 +14,11 @@ import {
   ANALYTICS_ATTRIBUTION_COOKIE,
   parseAcquisitionAttribution,
 } from "../acquisitionAttribution";
+import {
+  normalizePremiumFunnelId,
+  normalizePremiumFunnelReason,
+  normalizePremiumFunnelSource,
+} from "../premiumFunnel";
 
 type IdentitySource = "signup" | "login";
 
@@ -26,6 +31,9 @@ type LinkIdentityInput = {
   anonId?: string;
   sessionId?: string;
   consent?: string;
+  funnelId?: string;
+  funnelSource?: string;
+  funnelReason?: string;
 };
 
 export async function linkIdentityToUser(input: LinkIdentityInput) {
@@ -33,6 +41,7 @@ export async function linkIdentityToUser(input: LinkIdentityInput) {
   const anonId = input.anonId || cookies[ANALYTICS_ANON_COOKIE];
   const sessionId = input.sessionId || cookies[ANALYTICS_SESSION_COOKIE];
   const attribution = parseAcquisitionAttribution(cookies[ANALYTICS_ATTRIBUTION_COOKIE]);
+  const funnelId = normalizePremiumFunnelId(input.funnelId);
   const consentCookies = input.consent
     ? { ...cookies, [ANALYTICS_CONSENT_COOKIE]: input.consent }
     : cookies;
@@ -75,6 +84,13 @@ export async function linkIdentityToUser(input: LinkIdentityInput) {
             traffic_source: attribution.first_touch_source,
             traffic_medium: attribution.first_touch_medium,
             landing_path: attribution.first_touch_landing_path,
+          }
+        : {}),
+      ...(funnelId
+        ? {
+            last_premium_funnel_id: funnelId,
+            last_premium_funnel_source: normalizePremiumFunnelSource(input.funnelSource),
+            last_premium_funnel_reason: normalizePremiumFunnelReason(input.funnelReason),
           }
         : {}),
     },

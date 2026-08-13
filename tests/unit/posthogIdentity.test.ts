@@ -100,4 +100,24 @@ describe("server PostHog identity consent", () => {
       }),
     });
   });
+
+  it("keeps Premium funnel context on the identified account", async () => {
+    await linkIdentityToUser({
+      userId: "user-funnel",
+      source: "signup",
+      anonId: "anon-funnel",
+      funnelId: "funnel_signup_123",
+      funnelSource: "premium_prompt",
+      funnelReason: "low_credits",
+    });
+
+    expect(identify).toHaveBeenCalledWith({
+      distinctId: "user-funnel",
+      properties: expect.objectContaining({
+        last_premium_funnel_id: "funnel_signup_123",
+        last_premium_funnel_source: "premium_prompt",
+        last_premium_funnel_reason: "low_credits",
+      }),
+    });
+  });
 });

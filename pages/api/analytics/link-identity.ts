@@ -10,6 +10,9 @@ const bodySchema = z
     anonId: z.string().optional(),
     sessionId: z.string().optional(),
     source: z.enum(["signup", "login"]).optional(),
+    funnelId: z.string().regex(/^[a-zA-Z0-9_-]{8,80}$/).optional(),
+    funnelSource: z.string().max(64).optional(),
+    funnelReason: z.string().max(64).optional(),
   })
   .optional();
 
@@ -37,6 +40,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       rawFingerprint: parsed?.fingerprintId,
       anonId: parsed?.anonId,
       sessionId: parsed?.sessionId,
+      funnelId: parsed?.funnelId,
+      funnelSource: parsed?.funnelSource,
+      funnelReason: parsed?.funnelReason,
     });
 
     return res.status(200).json({ ok: true, linked });

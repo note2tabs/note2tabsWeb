@@ -7,6 +7,7 @@ import NoIndexHead from "../../components/NoIndexHead";
 import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
 import { clearOAuthIntent, saveOAuthIntent } from "../../lib/oauthAnalytics";
 import { categorizeAnalyticsDestination } from "../../lib/analyticsPrivacy";
+import { premiumFunnelProperties, readPremiumFunnelContext } from "../../lib/premiumFunnel";
 
 const authErrorMessage = (error?: string | string[]) => {
   const value = Array.isArray(error) ? error[0] : error;
@@ -51,6 +52,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     let fingerprintId: string | undefined;
+    const premiumFunnel = readPremiumFunnelContext();
     try {
       const fingerprint = await generateFingerprint();
       fingerprintId = fingerprint.fingerprintId;
@@ -62,6 +64,9 @@ export default function LoginPage() {
       email,
       password,
       fingerprintId,
+      funnelId: premiumFunnel?.funnelId,
+      funnelSource: premiumFunnel?.source,
+      funnelReason: premiumFunnel?.reason,
       callbackUrl: nextHref,
     });
     setLoading(false);
@@ -71,6 +76,7 @@ export default function LoginPage() {
       sendEvent(ANALYTICS_EVENTS.loginSucceeded, {
         method: "credentials",
         destination: categorizeAnalyticsDestination(nextHref),
+        ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
       });
       router.push(res?.url || nextHref);
     }
@@ -124,6 +130,14 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => {
+              const premiumFunnel = readPremiumFunnelContext();
+              sendEvent(ANALYTICS_EVENTS.ctaClicked, {
+                cta: "login_google",
+                method: "google",
+                destination: categorizeAnalyticsDestination(nextHref),
+                initiatedAs: "login",
+                ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
+              });
               saveOAuthIntent("login", nextHref);
               void signIn("google", { callbackUrl: nextHref });
             }}

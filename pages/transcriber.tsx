@@ -52,6 +52,11 @@ import {
   categorizeAnalyticsError,
 } from "../lib/analyticsErrors";
 import { formatCreditResetDate } from "../lib/formatCreditResetDate";
+import {
+  getOrCreatePremiumFunnelContext,
+  premiumFunnelProperties,
+  premiumPricingHref,
+} from "../lib/premiumFunnel";
 
 type TabsResponse = {
   tabs: string[][];
@@ -1060,6 +1065,10 @@ export default function TranscriberPage() {
 
   const handlePreservedUploadUpgrade = async () => {
     if (!selectedFile || upgradeBusy) return;
+    const funnel = getOrCreatePremiumFunnelContext({
+      source: "large_upload_gate",
+      reason: "file_size_limit",
+    });
     setUpgradeBusy(true);
     setError(null);
     try {
@@ -1075,7 +1084,9 @@ export default function TranscriberPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           returnTo: "/transcribe?resumeTranscription=1",
-          source: "large_upload_gate",
+          source: funnel.source,
+          reason: funnel.reason,
+          funnelId: funnel.funnelId,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -1083,15 +1094,15 @@ export default function TranscriberPage() {
         throw new Error(payload?.error || "Could not start checkout.");
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
-        source: "large_upload_gate",
         plan: "premium_monthly",
         checkout_attempt_id: payload.checkoutAttemptId,
+        ...premiumFunnelProperties(funnel),
       });
       window.location.assign(payload.url);
     } catch (upgradeError) {
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-        source: "large_upload_gate",
         plan: "premium_monthly",
+        ...premiumFunnelProperties(funnel),
       });
       setError(upgradeError instanceof Error ? upgradeError.message : "Could not start checkout.");
       setUpgradeBusy(false);
@@ -1328,57 +1339,18 @@ export default function TranscriberPage() {
                   <div className="instrument-choice-group">
                     <p className="instrument-question">Does your audio include other instruments?</p>
                     <div className="button-row instrument-choice-row">
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${separateGuitar === true ? "active" : ""}`}
-                        onClick={() => setSeparateGuitar(true)}
-                        aria-pressed={separateGuitar === true}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${separateGuitar === false ? "active" : ""}`}
-                        onClick={() => setSeparateGuitar(false)}
-                        aria-pressed={separateGuitar === false}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        No
-                      </button>
+                      <button type="button" className={`button-secondary instrument-choice-button ${separateGuitar === true ? "active" : ""}`} onClick={() => setSeparateGuitar(true)} aria-pressed={separateGuitar === true} disabled={loading || authHandoffBusy}>Yes</button>
+                      <button type="button" className={`button-secondary instrument-choice-button ${separateGuitar === false ? "active" : ""}`} onClick={() => setSeparateGuitar(false)} aria-pressed={separateGuitar === false} disabled={loading || authHandoffBusy}>No</button>
                     </div>
                   </div>
                   <div className="instrument-choice-group">
                     <p className="instrument-question">Does your audio include more than one guitar?</p>
                     <div className="button-row instrument-choice-row">
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${multipleGuitars === true ? "active" : ""}`}
-                        onClick={() => setMultipleGuitars(true)}
-                        aria-pressed={multipleGuitars === true}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${multipleGuitars === false ? "active" : ""}`}
-                        onClick={() => setMultipleGuitars(false)}
-                        aria-pressed={multipleGuitars === false}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        No
-                      </button>
+                      <button type="button" className={`button-secondary instrument-choice-button ${multipleGuitars === true ? "active" : ""}`} onClick={() => setMultipleGuitars(true)} aria-pressed={multipleGuitars === true} disabled={loading || authHandoffBusy}>Yes</button>
+                      <button type="button" className={`button-secondary instrument-choice-button ${multipleGuitars === false ? "active" : ""}`} onClick={() => setMultipleGuitars(false)} aria-pressed={multipleGuitars === false} disabled={loading || authHandoffBusy}>No</button>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="button-primary instrument-start-button"
-                    onClick={handleInstrumentPromptStart}
-                    disabled={loading || !instrumentPromptComplete}
-                  >
-                    Start transcription
-                  </button>
+                  <button type="button" className="button-primary instrument-start-button" onClick={handleInstrumentPromptStart} disabled={loading || !instrumentPromptComplete}>Start transcription</button>
                 </div>
               ) : (
                 <>
@@ -1514,9 +1486,9 @@ export default function TranscriberPage() {
                 ) : (
                   <PremiumConversionCard
                     title="Keep transcribing today"
-                    description="Premium includes 100 monthly credits, rollover, faster processing, and full-song uploads."
+                    description="Premium includes 100 monthly credits, rollover, and full-song audio uploads."
                     actionLabel="See Premium"
-                    href="/pricing"
+                    href={premiumPricingHref({ source: "low_credits", reason: "credits_low" })}
                     resetMessage={`Free credits reset ${creditsResetLabel}`}
                   />
                 )
