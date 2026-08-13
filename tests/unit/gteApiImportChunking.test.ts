@@ -7,6 +7,8 @@ import {
   TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS,
   type TranscriberSegmentGroup,
 } from "../../lib/gteApi";
+import { synthesizeTimingMap } from "../../lib/gteTiming";
+import type { CanvasSnapshot } from "../../types/gte";
 
 function buildGroup(index: number): TranscriberSegmentGroup {
   return [
@@ -17,6 +19,40 @@ function buildGroup(index: number): TranscriberSegmentGroup {
       amplitude: 0.8,
     },
   ];
+}
+
+function buildCanvas(id: string, bpms: number[], offsetFrames: number = 0): CanvasSnapshot {
+  const timingMap = synthesizeTimingMap(2, bpms.length * 480, 4, 4);
+  timingMap.bars = timingMap.bars.map((bar, index) => ({
+    ...bar,
+    quarterNoteBpm: bpms[index],
+    source: "onset_consensus",
+  }));
+  return {
+    id,
+    version: 3,
+    secondsPerBar: 2,
+    timingMap,
+    editors: [{
+      id: "lane-1",
+      framesPerMessure: 480,
+      fps: 240,
+      totalFrames: bpms.length * 480,
+      timelineOffsetFrames: offsetFrames,
+      notes: bpms.map((_, index) => ({
+        id: index + 1,
+        startTime: index * 480 + 60,
+        length: 120,
+        midiNum: 60,
+        tab: [0, 0],
+        optimals: [],
+      })),
+      chords: [],
+      cutPositionsWithCoords: [[[0, bpms.length * 480], [2, 0]]],
+      optimalsByTime: {},
+      tabRef: [],
+    }],
+  };
 }
 
 describe("transcriber import chunking", () => {
@@ -99,7 +135,59 @@ describe("transcriber import chunking", () => {
     expect(requests[1].body.rhythmOnsets).toEqual(requests[0].body.rhythmOnsets);
     expect(requests.every((request) => request.body.alignmentMode === "auto")).toBe(true);
     expect(requests.every((request) => request.body.appendMode === "after_content")).toBe(true);
+    expect(requests[0].body.includeCanvas).toBe(false);
+    expect(requests[1].body.includeCanvas).toBe(true);
+    expect(requests.every((request) => request.body.alignmentStrategy === "track_offset_bars")).toBe(true);
+    expect(requests.every((request) => request.body.tempoStabilization?.enabled === true)).toBe(true);
+    expect(
+      requests.every((request) => request.body.tempoStabilization?.emptyBarsInheritTempo === true)
+    ).toBe(true);
     expect(requests.every((request) => request.body.quantization.enabled === true)).toBe(true);
     expect(result.importedEditorIds).toEqual(["ed-1", "ed-2"]);
+  });
+
+  it("preserves an existing canvas tempo while placement remains a lane offset", async () => {
+    const existing = buildCanvas("canvas-1", [114, 114]);
+    const imported = buildCanvas("canvas-1", [114, 114, 132, 132], 960);
+    const requests: Array<{ url: string; method: string; body: any }> = [];
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const method = init?.method || "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : null;
+      requests.push({ url: String(url), method, body });
+      if (method === "GET") return new Response(JSON.stringify(existing), { status: 200 });
+      if (method === "PATCH") {
+        return new Response(
+          JSON.stringify({ ok: true, canvas: { ...imported, timingMap: body.timingMap }, timingMap: body.timingMap }),
+          { status: 200 }
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          target: "existing",
+          editorId: "canvas-1",
+          importedEditorIds: ["lane-1"],
+          canvas: imported,
+          alignment: { applied: true, mode: "auto", appendFrame: 960, importGroupId: "group-1" },
+        }),
+        { status: 200 }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await gteApi.importTranscriberToSaved({
+      target: "existing",
+      editorId: "canvas-1",
+      segmentGroups: [buildGroup(0)],
+    });
+
+    const importRequest = requests.find((request) => request.method === "POST")!;
+    const timingPatch = requests.find((request) => request.method === "PATCH")!;
+    expect(importRequest.body.alignmentStrategy).toBe("track_offset_bars");
+    expect(importRequest.body.tempoStabilization.existingCanvasTiming).toBe("preserve");
+    expect(timingPatch.body.timingMap.bars.map((bar: any) => bar.quarterNoteBpm)).toEqual([
+      114, 114, 114, 114,
+    ]);
+    expect(result.canvas?.editors[0].timelineOffsetFrames).toBe(960);
   });
 });

@@ -7,6 +7,11 @@ import type {
   TimingMapV2,
 } from "../types/gte";
 import { GTE_GUEST_EDITOR_ID } from "./gteGuestDraft";
+import {
+  MINIMUM_INTERIOR_TEMPO_SEGMENT_BARS,
+  preserveExistingTimingForOffsetImport,
+  stabilizeNewTranscriberTimingMap,
+} from "./gteTranscriberTiming";
 
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
@@ -39,6 +44,16 @@ export const MAX_EDITOR_NAME_LENGTH = 80;
 export const TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES = 96_000;
 export const TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS = 24;
 const TRANSCRIBER_IMPORT_MAX_SPLIT_DEPTH = 6;
+export const TRANSCRIBER_TEMPO_STABILIZATION_POLICY = {
+  enabled: true,
+  preferDominantTempo: true,
+  minimumInteriorSegmentBars: MINIMUM_INTERIOR_TEMPO_SEGMENT_BARS,
+  emptyBarsInheritTempo: true,
+  allowSingleOpeningBar: true,
+  allowShortOpeningSegment: true,
+  existingCanvasTiming: "preserve",
+  existingCanvasAlignment: "track_offset_bars",
+} as const;
 export type EditorOrCanvasSnapshot = EditorSnapshot | CanvasSnapshot;
 export type TranscriberSegment = {
   start_time_s?: number;
@@ -237,6 +252,8 @@ const postTranscriberImportSaved = (
     alignmentMode?: "auto" | "preserve";
     appendMode?: "after_content" | "at_offset";
     includeCanvas?: boolean;
+    tempoStabilization?: typeof TRANSCRIBER_TEMPO_STABILIZATION_POLICY;
+    alignmentStrategy?: "track_offset_bars";
   }
 ) =>
   request<TranscriberImportResponse>("/transcriber/import", {
@@ -260,6 +277,7 @@ async function postTranscriberImportChunk(
     sourceJobId?: string;
     importGroupId: string;
     rhythmOnsets: number[];
+    includeCanvas?: boolean;
   },
   segmentGroups: TranscriberSegmentGroup[],
   tracks?: TranscriberTrack[]
@@ -276,7 +294,9 @@ async function postTranscriberImportChunk(
     rhythmOnsets: options.rhythmOnsets,
     alignmentMode: "auto",
     appendMode: "after_content",
-    includeCanvas: false,
+    includeCanvas: Boolean(options.includeCanvas),
+    tempoStabilization: TRANSCRIBER_TEMPO_STABILIZATION_POLICY,
+    alignmentStrategy: "track_offset_bars",
   });
 }
 
@@ -379,6 +399,12 @@ async function importTranscriberToSaved(
   };
   let currentEditorId = payload.editorId;
   let nextTarget: "new" | "existing" = payload.target === "existing" ? "existing" : "new";
+  const existingSnapshot =
+    payload.target === "existing" && payload.editorId
+      ? await fetchEditor(payload.editorId).catch(() => null)
+      : null;
+  const existingCanvas =
+    existingSnapshot && "editors" in existingSnapshot ? existingSnapshot : null;
 
   for (let index = 0; index < chunks.length; index += 1) {
     const chunkTracks = trackBySegments?.slice(groupOffset, groupOffset + chunks[index].length);
@@ -391,6 +417,7 @@ async function importTranscriberToSaved(
         sourceJobId: payload.sourceJobId,
         importGroupId,
         rhythmOnsets,
+        includeCanvas: index === chunks.length - 1,
       },
       chunks[index],
       chunkTracks
@@ -408,6 +435,25 @@ async function importTranscriberToSaved(
     throw new Error("Transcriber import failed");
   }
 
+  if (lastResponse.canvas) {
+    const timingMap = existingCanvas
+      ? preserveExistingTimingForOffsetImport(lastResponse.canvas, existingCanvas)
+      : stabilizeNewTranscriberTimingMap(lastResponse.canvas);
+    const patched = await requestForEditor<{ ok: true; canvas: CanvasSnapshot; timingMap: TimingMapV2 }>(
+      currentEditorId,
+      `/editors/${encodeURIComponent(currentEditorId)}/timing`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expectedVersion: Math.max(1, Number(lastResponse.canvas.version) || 1),
+          timingMap,
+        }),
+      }
+    );
+    lastResponse = { ...lastResponse, canvas: patched.canvas };
+  }
+
   return {
     ok: true,
     target: lastResponse.target ?? (payload.target === "existing" ? "existing" : "new"),
@@ -417,6 +463,73 @@ async function importTranscriberToSaved(
     alignment: lastResponse.alignment,
     canvas: lastResponse.canvas,
   };
+}
+
+type ImportTranscriberToGuestPayload = {
+  segmentGroups: TranscriberSegmentGroup[];
+  tracks?: TranscriberTrack[];
+  editorId?: string;
+  name?: string;
+  quantize?: boolean;
+  quantization?: TranscriberQuantization;
+  sourceJobId?: string;
+  importGroupId?: string;
+  rhythmOnsets?: number[];
+};
+
+async function importTranscriberToGuest(
+  payload: ImportTranscriberToGuestPayload
+): Promise<TranscriberImportResponse> {
+  const existingSnapshot = payload.editorId
+    ? await fetchEditor(payload.editorId).catch(() => null)
+    : null;
+  const existingCanvas =
+    existingSnapshot &&
+    "editors" in existingSnapshot &&
+    existingSnapshot.editors.some((lane) => lane.notes.length > 0 || lane.chords.length > 0)
+      ? existingSnapshot
+      : null;
+  let response = await request<TranscriberImportResponse>(
+    "/transcriber/import",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payload,
+        target: "guest",
+        alignmentMode: "auto",
+        appendMode: "after_content",
+        alignmentStrategy: "track_offset_bars",
+        includeCanvas: true,
+        tempoStabilization: TRANSCRIBER_TEMPO_STABILIZATION_POLICY,
+        quantization: payload.quantization ?? {
+          enabled: Boolean(payload.quantize),
+          subdivision: "1/16",
+          strength: 1,
+          quantizeDurations: false,
+        },
+      }),
+    },
+    GUEST_BASE
+  );
+  if (!response.canvas) return response;
+  const timingMap = existingCanvas
+    ? preserveExistingTimingForOffsetImport(response.canvas, existingCanvas)
+    : stabilizeNewTranscriberTimingMap(response.canvas);
+  const patched = await requestForEditor<{ ok: true; canvas: CanvasSnapshot; timingMap: TimingMapV2 }>(
+    response.editorId,
+    `/editors/${encodeURIComponent(response.editorId)}/timing`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        expectedVersion: Math.max(1, Number(response.canvas.version) || 1),
+        timingMap,
+      }),
+    }
+  );
+  response = { ...response, canvas: patched.canvas };
+  return response;
 }
 
 export const gteApi = {
@@ -429,37 +542,8 @@ export const gteApi = {
     }),
   importTranscriberToSaved: (payload: ImportTranscriberToSavedPayload) =>
     importTranscriberToSaved(payload),
-  importTranscriberToGuest: (payload: {
-    segmentGroups: TranscriberSegmentGroup[];
-    tracks?: TranscriberTrack[];
-    editorId?: string;
-    name?: string;
-    quantize?: boolean;
-    quantization?: TranscriberQuantization;
-    sourceJobId?: string;
-    importGroupId?: string;
-    rhythmOnsets?: number[];
-  }) =>
-    request<TranscriberImportResponse>(
-      "/transcriber/import",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...payload,
-          target: "guest",
-          alignmentMode: "auto",
-          appendMode: "after_content",
-          quantization: payload.quantization ?? {
-            enabled: Boolean(payload.quantize),
-            subdivision: "1/16",
-            strength: 1,
-            quantizeDurations: false,
-          },
-        }),
-      },
-      GUEST_BASE
-    ),
+  importTranscriberToGuest: (payload: ImportTranscriberToGuestPayload) =>
+    importTranscriberToGuest(payload),
   prefetchEditor,
   getEditor: getPrefetchedEditor,
   deleteEditor: (editorId: string) =>

@@ -145,6 +145,55 @@ export const timingMapForCanvas = (canvas: CanvasSnapshot): TimingMapV2 => {
   });
 };
 
+export type TimingBpmSegment = {
+  startBarIndex: number;
+  endBarIndex: number;
+  bpm: number;
+};
+
+export const formatTimingBpm = (value: unknown) => {
+  const bpm = Math.max(1, finite(value, 1));
+  return String(Math.round(bpm * 100) / 100);
+};
+
+export const getTimingBarBpm = (
+  timingMap: TimingMapV2 | undefined,
+  barIndex: number,
+  fallbackBpm: number
+) => {
+  const mappedBpm = timingMap?.bars[barIndex]?.quarterNoteBpm;
+  return Math.max(1, finite(mappedBpm, fallbackBpm));
+};
+
+export const buildTimingBpmSegments = (
+  timingMap: TimingMapV2 | undefined,
+  barIndexes: number[],
+  fallbackBpm: number
+): TimingBpmSegment[] => {
+  const indexes = Array.from(
+    new Set(
+      barIndexes
+        .map((index) => Math.round(Number(index)))
+        .filter((index) => Number.isFinite(index) && index >= 0)
+    )
+  ).sort((left, right) => left - right);
+
+  return indexes.reduce<TimingBpmSegment[]>((segments, barIndex) => {
+    const bpm = getTimingBarBpm(timingMap, barIndex, fallbackBpm);
+    const previous = segments[segments.length - 1];
+    if (
+      previous &&
+      previous.endBarIndex + 1 === barIndex &&
+      formatTimingBpm(previous.bpm) === formatTimingBpm(bpm)
+    ) {
+      previous.endBarIndex = barIndex;
+      return segments;
+    }
+    segments.push({ startBarIndex: barIndex, endBarIndex: barIndex, bpm });
+    return segments;
+  }, []);
+};
+
 type TimingPoint = { frame: number; seconds: number };
 
 const pointsForBar = (bar: TimingBar): TimingPoint[] => {

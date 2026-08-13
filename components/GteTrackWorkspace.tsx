@@ -27,6 +27,7 @@ export default function GteTrackWorkspace(props: Props) {
       canvasId={canvasId}
       laneId={laneId}
       snapshot={props.snapshot}
+      timingMap={props.timingMap}
       onSnapshotChange={props.onSnapshotChange}
       isActive={Boolean(props.isActive)}
       mobileViewport={props.mobileViewport}

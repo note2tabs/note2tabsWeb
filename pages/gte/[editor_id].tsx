@@ -8,6 +8,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type UIEvent as ReactUiEvent,
 } from "react";
 import { getServerSession } from "next-auth/next";
@@ -105,6 +106,10 @@ import {
   recordGtePerfMeasure,
   useGteRenderInstrumentation,
 } from "../../lib/gtePerformanceDiagnostics";
+import {
+  normalizeTrackOffsetFrames,
+  offsetTrackToFrame,
+} from "../../lib/gteTrackOffset";
 
 const GteWorkspace = dynamic(() => import("../../components/GteTrackWorkspace"), {
   loading: () => (
@@ -115,6 +120,14 @@ const GteWorkspace = dynamic(() => import("../../components/GteTrackWorkspace"),
 type Props = {
   editorId: string;
   isGuestMode: boolean;
+};
+
+type TrackOffsetSession = {
+  laneId: string;
+  baseCanvas: CanvasSnapshot;
+  startOffsetFrames: number;
+  previewOffsetFrames: number;
+  previousZoomPercent: number;
 };
 
 type TopMenuId =
@@ -1223,6 +1236,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [confirmDeleteTrackId, setConfirmDeleteTrackId] = useState<string | null>(null);
   const [openTrackMenuId, setOpenTrackMenuId] = useState<string | null>(null);
   const [shiftingLaneId, setShiftingLaneId] = useState<string | null>(null);
+  const [trackContextMenu, setTrackContextMenu] = useState<{
+    laneId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [trackOffsetSession, setTrackOffsetSession] = useState<TrackOffsetSession | null>(null);
+  const trackOffsetSessionRef = useRef<TrackOffsetSession | null>(null);
+  const trackOffsetDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startScrollRatio: number;
+    scrollRatio: number;
+  } | null>(null);
   const [openMobileBarMenuLaneId, setOpenMobileBarMenuLaneId] = useState<string | null>(null);
   const [editMenuPortalTarget, setEditMenuPortalTarget] = useState<HTMLDivElement | null>(null);
   const [editorMode, setEditorMode] = useState<"canvas" | "tab" | "practice">("canvas");
@@ -2340,6 +2366,94 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
   }, [applyCanvasUpdate, barSelection?.barIndices, canvas, editorId, isGuestMode, timingApplyToAll, timingBpmDraft, timingSaving]);
 
+  const previewTrackOffset = useCallback((nextOffsetFrames: number) => {
+    const session = trackOffsetSessionRef.current;
+    if (!session) return;
+    const normalizedOffset = normalizeTrackOffsetFrames(nextOffsetFrames);
+    if (normalizedOffset === session.previewOffsetFrames) return;
+    const nextSession = { ...session, previewOffsetFrames: normalizedOffset };
+    trackOffsetSessionRef.current = nextSession;
+    setTrackOffsetSession(nextSession);
+    setCanvas(
+      normalizeCanvas(
+        {
+          ...session.baseCanvas,
+          editors: session.baseCanvas.editors.map((item) =>
+            item.id === session.laneId ? offsetTrackToFrame(item, normalizedOffset) : item
+          ),
+        },
+        editorId
+      )
+    );
+  }, [editorId]);
+
+  const beginTrackOffset = useCallback((laneId: string) => {
+    if (!canvas || shiftingLaneId) return;
+    const lane = canvas.editors.find((item) => item.id === laneId);
+    if (!lane) return;
+    const startOffsetFrames = normalizeTrackOffsetFrames(lane.timelineOffsetFrames);
+    const session: TrackOffsetSession = {
+      laneId,
+      baseCanvas: cloneCanvas(canvas),
+      startOffsetFrames,
+      previewOffsetFrames: startOffsetFrames,
+      previousZoomPercent: timelineZoomPercent,
+    };
+    trackOffsetSessionRef.current = session;
+    trackOffsetDragRef.current = null;
+    setTrackOffsetSession(session);
+    setTrackContextMenu(null);
+    setOpenTrackMenuId(null);
+    setActiveLaneId(laneId);
+    setTimelineZoomPercent((current) => Math.min(current, 50));
+  }, [canvas, cloneCanvas, shiftingLaneId, timelineZoomPercent]);
+
+  const finishTrackOffset = useCallback(async (commit: boolean) => {
+    const session = trackOffsetSessionRef.current;
+    if (!session) return;
+    trackOffsetSessionRef.current = null;
+    trackOffsetDragRef.current = null;
+    setTrackOffsetSession(null);
+    setTimelineZoomPercent(session.previousZoomPercent);
+
+    if (!commit || session.previewOffsetFrames === session.startOffsetFrames) {
+      setCanvas(session.baseCanvas);
+      return;
+    }
+
+    setShiftingLaneId(session.laneId);
+    setError(null);
+    try {
+      const previewCanvas = normalizeCanvas(
+        {
+          ...session.baseCanvas,
+          editors: session.baseCanvas.editors.map((item) =>
+            item.id === session.laneId
+              ? offsetTrackToFrame(item, session.previewOffsetFrames)
+              : item
+          ),
+        },
+        editorId
+      );
+      if (isGuestMode) {
+        setCanvas(session.baseCanvas);
+        applyCanvasUpdate(previewCanvas, { markDirty: true });
+      } else {
+        const response = await gteApi.setLaneTimelineOffset(editorId, session.laneId, {
+          expectedVersion: Math.max(1, Number(session.baseCanvas.version) || 1),
+          timelineOffsetFrames: session.previewOffsetFrames,
+          applyToImportGroup: false,
+        });
+        applyCanvasUpdate(normalizeCanvas(response.canvas, editorId), { markDirty: true });
+      }
+    } catch (err: any) {
+      setCanvas(session.baseCanvas);
+      setError(err?.message || "Could not offset this track.");
+    } finally {
+      setShiftingLaneId(null);
+    }
+  }, [applyCanvasUpdate, editorId, isGuestMode]);
+
   const handleShiftTrack = useCallback(async (laneId: string, deltaBars: number) => {
     if (!canvas || shiftingLaneId) return;
     const lane = canvas.editors.find((item) => item.id === laneId);
@@ -2347,35 +2461,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     const currentOffset = Math.max(0, Math.round(toNumber(lane.timelineOffsetFrames, 0)));
     const nextOffset = Math.max(0, currentOffset + deltaBars * FIXED_FRAMES_PER_BAR);
     if (nextOffset === currentOffset) return;
-    const delta = nextOffset - currentOffset;
     setShiftingLaneId(laneId);
     setError(null);
     try {
       if (isGuestMode) {
-        const groupId = lane.importGroupId;
-        const shifted = canvas.editors.map((item) => {
-          const shouldShift = groupId ? item.importGroupId === groupId : item.id === laneId;
-          if (!shouldShift) return item;
-          const shiftStart = (value: number) => Math.max(0, Math.round(toNumber(value, 0)) + delta);
-          return {
-            ...item,
-            timelineOffsetFrames: nextOffset,
-            notes: item.notes.map((note) => ({ ...note, startTime: shiftStart(note.startTime) })),
-            chords: item.chords.map((chord) => ({ ...chord, startTime: shiftStart(chord.startTime) })),
-            drumLoops: (item.drumLoops || []).map((loop) => ({
-              ...loop,
-              sourceStart: shiftStart(loop.sourceStart),
-              sourceEnd: shiftStart(loop.sourceEnd),
-              loopEnd: shiftStart(loop.loopEnd),
-            })),
-          };
-        });
+        const shifted = canvas.editors.map((item) =>
+          item.id === laneId ? offsetTrackToFrame(item, nextOffset) : item
+        );
         applyCanvasUpdate(normalizeCanvas({ ...canvas, editors: shifted }, editorId), { markDirty: true });
       } else {
         const response = await gteApi.setLaneTimelineOffset(editorId, laneId, {
           expectedVersion: Math.max(1, Number(canvas.version) || 1),
           timelineOffsetFrames: nextOffset,
-          applyToImportGroup: Boolean(lane.importGroupId),
+          applyToImportGroup: false,
         });
         applyCanvasUpdate(normalizeCanvas(response.canvas, editorId), { markDirty: true });
       }
@@ -2459,6 +2557,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       }
     },
     [applyCanvasUpdate, canvas, editorId, isGuestMode]
+  );
+
+  const handleMoveTrackBy = useCallback(
+    (laneId: string, direction: -1 | 1) => {
+      if (!canvas) return;
+      const currentIndex = canvas.editors.findIndex((lane) => lane.id === laneId);
+      const nextIndex = currentIndex + direction;
+      if (currentIndex < 0 || nextIndex < 0 || nextIndex >= canvas.editors.length) return;
+      setTrackContextMenu(null);
+      void handleReorderTrack(laneId, direction < 0 ? nextIndex : nextIndex + 1);
+    },
+    [canvas, handleReorderTrack]
   );
 
   const handleLaneSnapshotChange = (
@@ -2998,6 +3108,74 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       sharedViewportBarCount,
       timelineZoomPercent,
     ]
+  );
+
+  const handleTrackOffsetPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const session = trackOffsetSessionRef.current;
+      if (!session || event.button !== 0) return;
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      trackOffsetDragRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startScrollRatio: sharedTimelineScrollRatio,
+        scrollRatio: sharedTimelineScrollRatio,
+      };
+    },
+    [sharedTimelineScrollRatio]
+  );
+
+  const handleTrackOffsetPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const drag = trackOffsetDragRef.current;
+      const session = trackOffsetSessionRef.current;
+      if (!drag || !session || drag.pointerId !== event.pointerId) return;
+      event.preventDefault();
+
+      const edgeSize = Math.min(120, Math.max(56, window.innerWidth * 0.08));
+      let nextScrollRatio = drag.scrollRatio;
+      if (event.clientX < edgeSize) nextScrollRatio = Math.max(0, nextScrollRatio - 0.018);
+      if (event.clientX > window.innerWidth - edgeSize) {
+        nextScrollRatio = Math.min(1, nextScrollRatio + 0.018);
+      }
+      if (nextScrollRatio !== drag.scrollRatio) {
+        drag.scrollRatio = nextScrollRatio;
+        setSharedTimelineScrollRatio(nextScrollRatio);
+      }
+
+      const trackWidth = Math.max(
+        240,
+        (trackSectionRefs.current[session.laneId]?.clientWidth || window.innerWidth) - 160
+      );
+      const maxScroll = Math.max(0, globalTimelineTrackWidth - trackWidth);
+      const scrollDelta = (nextScrollRatio - drag.startScrollRatio) * maxScroll;
+      const pixelsPerBar = Math.max(
+        1,
+        FIXED_FRAMES_PER_BAR * (sharedTimelineBaseScale ?? 0.5) * (timelineZoomPercent / 100)
+      );
+      const deltaBars = Math.round((event.clientX - drag.startX + scrollDelta) / pixelsPerBar);
+      previewTrackOffset(
+        Math.max(0, session.startOffsetFrames + deltaBars * FIXED_FRAMES_PER_BAR)
+      );
+    },
+    [
+      globalTimelineTrackWidth,
+      previewTrackOffset,
+      sharedTimelineBaseScale,
+      timelineZoomPercent,
+    ]
+  );
+
+  const handleTrackOffsetPointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const drag = trackOffsetDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      event.currentTarget.releasePointerCapture(event.pointerId);
+      trackOffsetDragRef.current = null;
+      void finishTrackOffset(true);
+    },
+    [finishTrackOffset]
   );
 
   const mobileControlsSummary = `${nameDraft || "Untitled"} - ${bpmDraft} BPM - ${timeSignatureDraft}/${timeSignatureBottomDraft}`;
@@ -4821,12 +4999,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [globalPlaybackVolume]);
 
   useEffect(() => {
-    if (!openTrackMenuId && !openMobileBarMenuLaneId) return;
+    if (!openTrackMenuId && !openMobileBarMenuLaneId && !trackContextMenu) return;
     const handlePointerDown = (event: MouseEvent | TouchEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest("[data-track-menu='true'], [data-mobile-bar-menu='true']")) return;
       setOpenTrackMenuId(null);
       setOpenMobileBarMenuLaneId(null);
+      setTrackContextMenu(null);
     };
     window.addEventListener("mousedown", handlePointerDown, true);
     window.addEventListener("touchstart", handlePointerDown, true);
@@ -4834,7 +5013,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       window.removeEventListener("mousedown", handlePointerDown, true);
       window.removeEventListener("touchstart", handlePointerDown, true);
     };
-  }, [openMobileBarMenuLaneId, openTrackMenuId]);
+  }, [openMobileBarMenuLaneId, openTrackMenuId, trackContextMenu]);
+
+  useEffect(() => {
+    if (!trackOffsetSession) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        void finishTrackOffset(false);
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        void finishTrackOffset(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [finishTrackOffset, trackOffsetSession]);
 
   useEffect(() => {
     if (!mobileNavOpen) return;
@@ -8030,6 +8224,20 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         : ""
                     }`}
                     style={mobileEditing ? { backgroundColor: "var(--bg)", minHeight: 0 } : undefined}
+                    onContextMenuCapture={(event) => {
+                      const target = event.target as HTMLElement | null;
+                      if (!target?.closest("[data-track-offset-blank='true']")) return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setOpenTrackMenuId(null);
+                      setTrackContextMenu({ laneId, x: event.clientX, y: event.clientY });
+                    }}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setOpenTrackMenuId(null);
+                      setTrackContextMenu({ laneId, x: event.clientX, y: event.clientY });
+                    }}
                     onMouseDownCapture={(event) => {
                       const target = event.target as HTMLElement | null;
                       if (practiceModeEnabled) {
@@ -8491,6 +8699,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                     <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                                       Timeline position
                                     </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => beginTrackOffset(laneId)}
+                                      disabled={shiftingLaneId === laneId}
+                                      className="mt-2 w-full rounded-md bg-slate-900 px-2 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+                                    >
+                                      Offset track…
+                                    </button>
                                     <div className="mt-2 grid grid-cols-2 gap-2">
                                       <button
                                         type="button"
@@ -8510,9 +8726,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                       </button>
                                     </div>
                                     <p className="mt-2 text-[10px] leading-4 text-slate-400">
-                                      {lane.importGroupId
-                                        ? "Tracks from the same import move together."
-                                        : `Starts at bar ${Math.floor(Math.max(0, Number(lane.timelineOffsetFrames) || 0) / FIXED_FRAMES_PER_BAR) + 1}.`}
+                                      {`Starts at bar ${Math.floor(Math.max(0, Number(lane.timelineOffsetFrames) || 0) / FIXED_FRAMES_PER_BAR) + 1}.`}
                                     </p>
                                   </div>
                                   <button
@@ -8656,6 +8870,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       <aside
                         className="flex w-full shrink-0 flex-col rounded-xl border border-slate-200 bg-white/90 p-2.5 shadow-sm lg:w-36 lg:self-stretch"
                         data-track-reorder-block="true"
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setOpenTrackMenuId(null);
+                          setTrackContextMenu({ laneId, x: event.clientX, y: event.clientY });
+                        }}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <input
@@ -8858,6 +9078,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               </button>
                               {openTrackMenuId === laneId && (
                                 <div className="absolute left-1/2 top-8 z-30 min-w-[120px] -translate-x-1/2 rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                                  <button
+                                    type="button"
+                                    onClick={() => beginTrackOffset(laneId)}
+                                    className="block w-full px-3 py-1.5 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50"
+                                  >
+                                    Offset track…
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -9515,6 +9742,83 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 <div style={{ width: globalTimelineTrackWidth, height: 1 }} />
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {trackContextMenu && (
+        <div
+          data-track-menu="true"
+          className="fixed z-[10040] w-44 rounded-lg border border-slate-200 bg-white py-1 text-xs shadow-xl"
+          style={{ left: trackContextMenu.x, top: trackContextMenu.y }}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => beginTrackOffset(trackContextMenu.laneId)}
+            className="block w-full px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Offset track…
+          </button>
+          <div className="my-1 border-t border-slate-100" />
+          <button
+            type="button"
+            disabled={canvas?.editors.findIndex((lane) => lane.id === trackContextMenu.laneId) === 0}
+            onClick={() => handleMoveTrackBy(trackContextMenu.laneId, -1)}
+            className="block w-full px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-white"
+          >
+            Move up
+          </button>
+          <button
+            type="button"
+            disabled={
+              !canvas ||
+              canvas.editors.findIndex((lane) => lane.id === trackContextMenu.laneId) ===
+                canvas.editors.length - 1
+            }
+            onClick={() => handleMoveTrackBy(trackContextMenu.laneId, 1)}
+            className="block w-full px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-white"
+          >
+            Move down
+          </button>
+        </div>
+      )}
+      {trackOffsetSession && (
+        <div
+          className="fixed inset-0 z-[10030] cursor-ew-resize touch-none select-none bg-sky-950/[0.04]"
+          role="application"
+          aria-label="Offset track in whole-bar steps"
+          onPointerDown={handleTrackOffsetPointerDown}
+          onPointerMove={handleTrackOffsetPointerMove}
+          onPointerUp={handleTrackOffsetPointerUp}
+          onPointerCancel={() => void finishTrackOffset(false)}
+        >
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-sky-200/30 to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-sky-200/30 to-transparent" />
+          <div
+            className="absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-sky-200 bg-white/95 px-4 py-2 text-xs text-slate-700 shadow-xl backdrop-blur"
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <span className="font-semibold">Drag left or right</span>
+            <span className="tabular-nums text-sky-700">
+              Bar {trackOffsetSession.previewOffsetFrames / FIXED_FRAMES_PER_BAR + 1}
+            </span>
+            <button
+              type="button"
+              onClick={() => void finishTrackOffset(false)}
+              className="rounded-md border border-slate-200 px-2 py-1 font-semibold hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void finishTrackOffset(true)}
+              className="rounded-md bg-sky-600 px-2 py-1 font-semibold text-white hover:bg-sky-500"
+            >
+              Done
+            </button>
+          </div>
+          <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-sky-300 bg-white/90 px-5 py-2 text-lg font-bold tracking-[0.3em] text-sky-700 shadow-lg">
+            ← DRAG →
           </div>
         </div>
       )}
