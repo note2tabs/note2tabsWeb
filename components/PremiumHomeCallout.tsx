@@ -55,7 +55,6 @@ export default function PremiumHomeCallout() {
     <div className="premium-home-callout-wrap">
       <aside className="premium-home-callout" aria-label="Note2Tabs Premium">
         <div>
-          <span>Note2Tabs Premium</span>
           <strong>More room for full songs and the Heavy model.</strong>
           <p>Get 100 monthly credits, rollover, and full-length audio-file transcription.</p>
         </div>

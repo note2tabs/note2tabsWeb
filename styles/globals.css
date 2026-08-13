@@ -6462,14 +6462,6 @@ input[type="number"] {
   gap: 3px;
 }
 
-.premium-home-callout span {
-  color: rgba(6, 17, 13, 0.48);
-  font-size: 0.62rem;
-  font-weight: 750;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
-
 .premium-home-callout strong {
   font-size: 0.9rem;
   font-weight: 600;
