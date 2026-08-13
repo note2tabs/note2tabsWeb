@@ -28,6 +28,7 @@ export const ANALYTICS_EVENTS = {
   signupCompleted: "signup_completed",
   signupFailed: "signup_failed",
   loginSucceeded: "login_succeeded",
+  productHomeViewed: "product_home_viewed",
   uploadSelected: "upload_selected",
   uploadDropped: "upload_dropped",
   uploadValidationFailed: "upload_validation_failed",

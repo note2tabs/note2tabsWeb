@@ -18,6 +18,7 @@ const AnalyticsIdentityLinker = dynamic(() => import("../components/AnalyticsIde
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   const router = useRouter();
   const isGteEditorPage = router.pathname === "/gte/[editor_id]";
+  const isProductHomePage = router.pathname === "/home";
 
   useEffect(() => {
     const trackPageView = (url?: string) => {
@@ -50,7 +51,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         <div id="main-content" className="flex-1" tabIndex={-1}>
           <Component {...pageProps} />
         </div>
-        {!isGteEditorPage && <FooterBar />}
+        {!isGteEditorPage && !isProductHomePage && <FooterBar />}
         <SessionAccountRefresher />
         <AnalyticsIdentityLinker />
         <PremiumUpgradePrompt />

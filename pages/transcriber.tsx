@@ -763,7 +763,9 @@ export default function TranscriberPage() {
         );
         sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "signed_out", mode });
         sendEvent(ANALYTICS_EVENTS.authHandoffSaved, { mode, path: "/transcribe" });
-        await signIn(undefined, { callbackUrl: "/transcribe?resumeTranscription=1" });
+        await router.push(
+          `/auth/login?next=${encodeURIComponent("/transcribe?resumeTranscription=1")}`
+        );
       } catch {
         setError("We could not safely preserve this audio for sign-in. Please sign in first, then choose it again.");
       } finally {

@@ -32,9 +32,9 @@ export default function SignupPage() {
   const nextHref = useMemo(() => {
     const raw = router.query.next;
     const value = Array.isArray(raw) ? raw[0] : raw;
-    if (typeof value !== "string") return "/";
+    if (typeof value !== "string") return "/home";
     const trimmed = value.trim();
-    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "/";
+    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "/home";
     return trimmed;
   }, [router.query.next]);
   const loginHref =
