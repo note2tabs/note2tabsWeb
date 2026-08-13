@@ -1606,22 +1606,22 @@ input[type="number"] {
   background: var(--bg);
 }
 
-.product-studio-layout { display: grid; grid-template-columns: 188px minmax(0, 1fr); gap: 30px; max-width: 1240px; }
+.product-studio-layout { display: grid; grid-template-columns: 218px minmax(0, 1fr); gap: 26px; max-width: 1280px; }
 .product-studio { min-width: 0; }
-.product-studio-sidebar { position: sticky; top: 88px; align-self: start; display: flex; min-height: calc(100vh - 126px); flex-direction: column; padding: 7px 14px 7px 0; border-right: 1px solid rgba(6, 17, 13, 0.09); }
+.product-studio-sidebar { position: sticky; top: 88px; align-self: start; display: flex; min-height: calc(100vh - 126px); flex-direction: column; padding: 12px; border: 1px solid rgba(6, 17, 13, 0.075); border-radius: 15px; background: #f0eee8; }
 .product-studio-sidebar nav { display: grid; gap: 3px; }
-.product-studio-sidebar nav a { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: center; gap: 8px; min-height: 38px; padding: 0 10px; border-radius: 9px; color: rgba(6, 17, 13, 0.7); font-size: 0.72rem; font-weight: 620; }
-.product-studio-sidebar nav a:hover { background: rgba(6, 17, 13, 0.045); color: #06110d; }
-.product-studio-sidebar nav a.is-active { background: #e9e5db; color: #06110d; }
+.product-studio-sidebar nav a { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: center; gap: 9px; min-height: 41px; padding: 0 11px; border-radius: 9px; color: rgba(6, 17, 13, 0.72); font-size: 0.73rem; font-weight: 620; }
+.product-studio-sidebar nav a:hover { background: rgba(255, 255, 255, 0.58); color: #06110d; }
+.product-studio-sidebar nav a.is-active { background: #fff; color: #06110d; box-shadow: 0 1px 4px rgba(6, 17, 13, 0.07); }
 .product-studio-sidebar nav svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.45; color: rgba(6, 17, 13, 0.48); }
 .product-studio-sidebar nav a:first-child svg { fill: rgba(6, 17, 13, 0.08); }
-.product-studio-sidebar__recent { display: grid; gap: 2px; margin-top: 29px; }
+.product-studio-sidebar__recent { display: grid; gap: 2px; margin-top: 32px; }
 .product-studio-sidebar__recent header { display: flex; align-items: center; justify-content: space-between; padding: 0 9px 7px; color: rgba(6, 17, 13, 0.48); font-size: 0.59rem; font-weight: 720; letter-spacing: 0.06em; text-transform: uppercase; }
 .product-studio-sidebar__recent header a { color: rgba(6, 17, 13, 0.48); font-size: 0.54rem; letter-spacing: 0; text-transform: none; }
 .product-studio-sidebar__recent > a { overflow: hidden; padding: 7px 9px; border-radius: 8px; color: rgba(6, 17, 13, 0.67); font-size: 0.66rem; text-overflow: ellipsis; white-space: nowrap; }
 .product-studio-sidebar__recent > a:hover { background: rgba(6, 17, 13, 0.04); color: #06110d; }
 .product-studio-sidebar__recent small { padding: 7px 9px; color: rgba(6, 17, 13, 0.42); font-size: 0.62rem; }
-.product-studio-sidebar__premium { display: grid; gap: 4px; margin-top: auto; padding: 14px; border: 1px solid rgba(6, 17, 13, 0.09); border-radius: 12px; background: rgba(255, 255, 255, 0.48); color: #06110d; }
+.product-studio-sidebar__premium { display: grid; gap: 4px; margin-top: auto; padding: 14px; border: 1px solid rgba(6, 17, 13, 0.09); border-radius: 12px; background: #fff; color: #06110d; box-shadow: 0 4px 14px rgba(6, 17, 13, 0.045); }
 .product-studio-sidebar__premium strong { font-size: 0.7rem; }
 .product-studio-sidebar__premium span { color: rgba(6, 17, 13, 0.52); font-size: 0.59rem; line-height: 1.45; }
 .product-studio-sidebar__premium i { margin-top: 4px; color: #0d5d49; font-size: 0.61rem; font-style: normal; font-weight: 680; }
@@ -1688,7 +1688,7 @@ input[type="number"] {
 
 @media (max-width: 900px) {
   .product-studio-layout { grid-template-columns: 1fr; gap: 20px; }
-  .product-studio-sidebar { position: static; min-height: 0; padding: 0 0 14px; border-right: 0; border-bottom: 1px solid rgba(6, 17, 13, 0.09); }
+  .product-studio-sidebar { position: static; min-height: 0; padding: 0 0 14px; border: 0; border-bottom: 1px solid rgba(6, 17, 13, 0.09); border-radius: 0; background: transparent; }
   .product-studio-sidebar nav { display: flex; gap: 4px; overflow-x: auto; }
   .product-studio-sidebar nav a { flex: 0 0 auto; grid-template-columns: 18px auto; min-height: 36px; }
   .product-studio-sidebar__recent,

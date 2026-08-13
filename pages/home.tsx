@@ -241,7 +241,6 @@ export default function ProductHome({
           <div className="product-studio">
           <header className="product-studio__welcome">
             <div>
-              <p>Your workspace</p>
               <h1>Welcome back{firstName ? `, ${firstName}` : ""}</h1>
             </div>
             <div className="product-studio__credits" role="status" aria-label="Account usage">
