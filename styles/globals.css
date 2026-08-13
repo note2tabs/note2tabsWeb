@@ -3409,6 +3409,13 @@ input[type="number"] {
   min-width: 166px;
 }
 
+.nav-auth-slot--profile,
+.nav-shell--home .nav-auth-slot--profile {
+  width: 41px;
+  min-width: 41px;
+  gap: 0;
+}
+
 .nav-session-loading {
   display: block;
   width: 34px;
