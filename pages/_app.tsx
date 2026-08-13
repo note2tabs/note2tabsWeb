@@ -47,7 +47,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
       <div className="app-shell">
         <RouteLoadingIndicator />
         <a className="skip-link" href="#main-content">Skip to main content</a>
-        <NavBar editorRevealMode={isGteEditorPage} />
+        {!isProductHomePage && <NavBar editorRevealMode={isGteEditorPage} />}
         <div id="main-content" className="flex-1" tabIndex={-1}>
           <Component {...pageProps} />
         </div>

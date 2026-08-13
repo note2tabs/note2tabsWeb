@@ -130,7 +130,7 @@ export default function ProductHome({
           const rightTime = right.updatedAt ? new Date(right.updatedAt).getTime() : 0;
           return rightTime - leftTime;
         })
-        .slice(0, 3),
+        .slice(0, 6),
     [editors]
   );
   const latestEditor = recentEditors[0] || null;
@@ -211,148 +211,82 @@ export default function ProductHome({
   return (
     <>
       <NoIndexHead title="Home | Note2Tabs" canonicalPath="/home" />
-      <main className="product-home">
-        <div className="container product-home__shell">
-          <header className="product-home__header">
-            <div>
-              <h1>Home</h1>
-              <p>Welcome back{firstName ? `, ${firstName}` : ""}</p>
-            </div>
-            <div className="product-home__account" role="status" aria-label="Account usage">
-              <div className="product-home__account-heading">
-                <span>{accountLabel}</span>
-                <strong>{accountValue}</strong>
-              </div>
-              {creditPercent !== null && (
-                <div className="product-home__credit-track" aria-hidden="true">
-                  <span style={{ width: `${creditPercent}%` }} />
-                </div>
-              )}
-            </div>
-          </header>
-
-          <section className="product-home__command" aria-labelledby="product-home-command-title">
-            <h2 id="product-home-command-title" className="sr-only">Your Note2Tabs command center</h2>
-            {latestEditor && (
-              <Link
-                href={`/gte/${latestEditor.id}`}
-                className="product-home__current"
-                onPointerDown={() => void gteApi.prefetchEditor(latestEditor.id).catch(() => {})}
-                onClick={() => trackHomeCta("product_home_continue_editor")}
-              >
-                <span className="product-home__current-copy">
-                  <span className="product-home__current-label">Continue working</span>
-                  <strong>{editorName(latestEditor)}</strong>
-                  <small>{editorActivity(latestEditor)} · {relativeUpdatedAt(latestEditor.updatedAt)}</small>
-                  <span className="product-home__current-action">Open tab <i aria-hidden="true">→</i></span>
-                </span>
-                <CurrentTabArtwork />
+      <main className="product-hub">
+        <aside className="product-hub__sidebar" aria-label="Product navigation">
+          <Link href="/home" className="product-hub__brand" aria-label="Note2Tabs home">
+            <img src="/logo-mark-96.png" alt="" width="30" height="30" />
+            <strong>Note2Tabs</strong>
+          </Link>
+          <nav className="product-hub__nav">
+            <Link href="/home" className="is-active"><span aria-hidden="true">⌂</span>Home</Link>
+            <Link href="/transcribe" onClick={() => trackHomeCta("product_home_sidebar_transcribe")}><span aria-hidden="true">◉</span>Transcriber</Link>
+            <Link href="/gte" onClick={() => trackHomeCta("product_home_sidebar_editors")}><span aria-hidden="true">≡</span>My tabs</Link>
+          </nav>
+          <div className="product-hub__sidebar-recents">
+            <div><span>Recent</span><Link href="/gte">View all</Link></div>
+            {recentEditors.slice(0, 4).map((editor) => (
+              <Link key={editor.id} href={`/gte/${editor.id}`} onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})}>
+                {editorName(editor)}
               </Link>
-            )}
+            ))}
+            {!loading && recentEditors.length === 0 && <small>No tabs yet</small>}
+          </div>
+          <div className="product-hub__account" role="status" aria-label="Account usage">
+            <div><span>{accountLabel}</span><strong>{accountValue}</strong></div>
+            {creditPercent !== null && <span className="product-hub__credit"><i style={{ width: `${creditPercent}%` }} /></span>}
+            {!isPremium && <Link href="/pricing?source=product_home" onClick={() => trackHomeCta("product_home_sidebar_premium")}>Explore Premium</Link>}
+          </div>
+          <Link href="/settings" className="product-hub__profile"><span>{firstName?.charAt(0) || "N"}</span><div><strong>{firstName || "Your account"}</strong><small>Settings</small></div></Link>
+        </aside>
 
-            <div className={`product-home__toolbox${latestEditor ? "" : " product-home__toolbox--wide"}`}>
-              <div className="product-home__toolbox-heading">
-                <span>Start something new</span>
-                <Link href="/gte" onClick={() => trackHomeCta("product_home_editor_library")}>All tabs</Link>
+        <section className="product-hub__workspace">
+          <div className="product-hub__hero">
+            <span className="product-hub__doodle product-hub__doodle--guitar" aria-hidden="true" />
+            <span className="product-hub__doodle product-hub__doodle--notes" aria-hidden="true" />
+            <div className="product-hub__hero-content">
+              <p>YOUR MUSIC WORKSPACE</p>
+              <h1>What are you working on{firstName ? `, ${firstName}` : ""}?</h1>
+              <div className="product-hub__actions" aria-label="Start creating">
+                <Link href="/transcribe" onClick={() => trackHomeCta("product_home_transcribe")}>
+                  <ProductMark product="transcriber" />
+                  <span><strong>Transcribe audio</strong><small>Audio or YouTube to editable tab</small></span>
+                  <i aria-hidden="true">→</i>
+                </Link>
+                <button type="button" onClick={handleCreate} disabled={creating}>
+                  <ProductMark product="editor" />
+                  <span><strong>{creating ? "Creating your tab…" : "Start a blank tab"}</strong><small>Write, arrange, play, and practice</small></span>
+                  <i aria-hidden="true">→</i>
+                </button>
               </div>
-              <div className="product-home__launcher">
-              <Link
-                href="/transcribe"
-                className="product-home__launch-option product-home__launch-option--transcribe"
-                onClick={() => trackHomeCta("product_home_transcribe")}
-              >
-                <ProductMark product="transcriber" />
-                <span className="product-home__launch-copy">
-                  <span>Transcriber</span>
-                  <strong>Transcribe audio</strong>
-                  <small>Turn audio or YouTube into an editable tab</small>
-                </span>
-                <span className="product-home__launch-arrow" aria-hidden="true">→</span>
-              </Link>
-              <button
-                className="product-home__launch-option"
-                type="button"
-                onClick={handleCreate}
-                disabled={creating}
-              >
-                <ProductMark product="editor" />
-                <span className="product-home__launch-copy">
-                  <span>Editor</span>
-                  <strong>{creating ? "Creating your tab…" : "Start a blank tab"}</strong>
-                  <small>Write, arrange, play, and practice</small>
-                </span>
-                <span className="product-home__launch-arrow" aria-hidden="true">→</span>
-              </button>
-              </div>
-              {!isPremium && (
-                <Link className="product-home__toolbox-premium" href="/pricing?source=product_home" onClick={() => trackHomeCta("product_home_premium_hero")}>
-                  Get more credits with Premium <span aria-hidden="true">→</span>
+              {latestEditor && (
+                <Link href={`/gte/${latestEditor.id}`} className="product-hub__continue" onPointerDown={() => void gteApi.prefetchEditor(latestEditor.id).catch(() => {})} onClick={() => trackHomeCta("product_home_continue_editor")}>
+                  Continue <strong>{editorName(latestEditor)}</strong><span>{relativeUpdatedAt(latestEditor.updatedAt)} →</span>
                 </Link>
               )}
             </div>
-          </section>
+          </div>
 
-          {loadError && recentEditors.length === 0 && (
-            <div className="product-home__error" role="alert">
-              <span>{loadError}</span>
-              <button type="button" onClick={() => void loadEditors(true)}>Try again</button>
-            </div>
-          )}
+          {loadError && recentEditors.length === 0 && <div className="product-home__error" role="alert"><span>{loadError}</span><button type="button" onClick={() => void loadEditors(true)}>Try again</button></div>}
 
-          <section className="product-home__section product-home__recents" aria-labelledby="recent-heading">
-            <div className="product-home__section-heading">
-              <div>
-                <h2 id="recent-heading">Recent tabs</h2>
-              </div>
-              {recentEditors.length > 0 && (
-                <Link href="/gte" onClick={() => trackHomeCta("product_home_view_all_editors")}>View all</Link>
-              )}
-            </div>
+          <section className="product-hub__library" aria-labelledby="recent-heading">
+            <header><div><span>YOUR LIBRARY</span><h2 id="recent-heading">Recent tabs</h2></div><Link href="/gte" onClick={() => trackHomeCta("product_home_view_all_editors")}>Browse all →</Link></header>
             {loading && !latestEditor ? (
-              <div className="product-home__recent-grid" aria-live="polite" aria-busy="true">
-                {[0, 1, 2].map((item) => (
-                  <div className="product-home__recent-skeleton" key={item} aria-hidden="true" />
-                ))}
-                <span className="sr-only">Loading your recent tabs</span>
-              </div>
+              <div className="product-hub__grid" aria-live="polite" aria-busy="true">{[0, 1, 2].map((item) => <div className="product-hub__skeleton" key={item} aria-hidden="true" />)}<span className="sr-only">Loading your recent tabs</span></div>
             ) : recentEditors.length > 0 ? (
-              <div className="product-home__recent-grid">
-                {recentEditors.map((editor, index) => (
-                  <Link
-                    key={editor.id}
-                    href={`/gte/${editor.id}`}
-                    className={index === 0 ? "product-home__recent-card product-home__recent-card--latest" : "product-home__recent-card"}
-                    onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})}
-                    onClick={() => trackHomeCta(index === 0 ? "product_home_continue_editor" : "product_home_recent_editor")}
-                  >
-                    <span className="product-home__recent-details">
-                      <strong>{editorName(editor)}</strong>
-                      <small>{editorActivity(editor)}</small>
-                      <span>{relativeUpdatedAt(editor.updatedAt)}</span>
-                    </span>
-                    <span className="product-home__recent-open" aria-hidden="true">Open →</span>
+              <div className="product-hub__grid">
+                {recentEditors.map((editor) => (
+                  <Link key={editor.id} href={`/gte/${editor.id}`} className="product-hub__tab" onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})} onClick={() => trackHomeCta("product_home_recent_editor")}>
+                    <CurrentTabArtwork />
+                    <span><strong>{editorName(editor)}</strong><small>{editorActivity(editor)}</small><em>{relativeUpdatedAt(editor.updatedAt)}</em></span>
                   </Link>
                 ))}
-                <button className="product-home__recent-card product-home__recent-card--new" type="button" onClick={handleCreate} disabled={creating}>
-                  <span className="product-home__new-mark" aria-hidden="true" />
-                  <span>
-                    <strong>{creating ? "Creating…" : "New tab"}</strong>
-                    <small>Start with a clean canvas</small>
-                  </span>
-                </button>
+                <button className="product-hub__new" type="button" onClick={handleCreate} disabled={creating}><i aria-hidden="true">+</i><span><strong>New tab</strong><small>Start with a clean canvas</small></span></button>
               </div>
             ) : (
-              <div className="product-home__empty-recents">
-                <span className="product-home__empty-paper" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span>
-                <div>
-                  <h3>Your tabs will live here.</h3>
-                  <p>Anything you transcribe or create is saved to your library.</p>
-                </div>
-              </div>
+              <div className="product-home__empty-recents"><span className="product-home__empty-paper" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span><div><h3>Your tabs will live here.</h3><p>Anything you transcribe or create is saved to your library.</p></div></div>
             )}
           </section>
-
-        </div>
+        </section>
       </main>
     </>
   );
