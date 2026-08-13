@@ -1766,6 +1766,10 @@ input[type="number"] {
   transform: translateY(0);
 }
 
+.nav-shell--profile-open {
+  z-index: 10020;
+}
+
 .nav {
   display: flex;
   align-items: center;
