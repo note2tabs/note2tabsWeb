@@ -26,6 +26,10 @@ export type ScaleDetectionResult = ScaleDetectionCandidate & {
   candidates: ScaleDetectionCandidate[];
 };
 
+export type RelativeScaleMatch = ScaleDetectionCandidate & {
+  relativeMatch: number;
+};
+
 const PITCH_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
 
 export const SCALE_NOTE_NAMES: Record<ScalePitchKey, string> = {
@@ -204,3 +208,26 @@ export function detectEditorScale(
 }
 
 export const detectGteScale = detectEditorScale;
+
+/**
+ * Presents the detector's ordered distance scores without implying a
+ * statistical probability. The closest result is always 100 and the other
+ * values are only comparable within this detection run.
+ */
+export const getRelativeScaleMatches = (
+  result: ScaleDetectionResult,
+  limit = 5
+): RelativeScaleMatch[] => {
+  const candidates = result.candidates.slice(0, Math.max(1, Math.round(limit)));
+  const bestDifference = Math.max(0, candidates[0]?.rmsDifference ?? 0);
+  return candidates.map((candidate, index) => {
+    const difference = Math.max(0, candidate.rmsDifference);
+    const relativeMatch =
+      index === 0 || difference === 0
+        ? 100
+        : bestDifference === 0
+          ? 0
+          : Math.max(0, Math.min(100, Math.round((bestDifference / difference) * 100)));
+    return { ...candidate, relativeMatch };
+  });
+};

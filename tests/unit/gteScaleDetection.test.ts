@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   collectGteMidiCounts,
   detectEditorScale,
+  getRelativeScaleMatches,
   midiToScalePitchKey,
 } from "../../lib/gteScaleDetection";
 import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
@@ -122,5 +123,28 @@ describe("gte scale detection", () => {
 
   it("returns null when the gte has no playable midi notes", () => {
     expect(detectEditorScale(baseCanvas([baseEditor("empty")]))).toBeNull();
+  });
+
+  it("exposes several ordered relative matches without probability semantics", () => {
+    const lane = baseEditor("tab-1");
+    lane.notes = [60, 62, 64, 65, 67, 69, 71, 72].map((midiNum, index) => ({
+      id: index + 1,
+      startTime: index * 60,
+      length: 60,
+      midiNum,
+      tab: [5, index] as [number, number],
+      optimals: [],
+    }));
+    const result = detectEditorScale(baseCanvas([lane]));
+    expect(result).not.toBeNull();
+
+    const matches = getRelativeScaleMatches(result!, 4);
+
+    expect(matches).toHaveLength(4);
+    expect(matches[0]).toMatchObject({ root: "C", scaleType: "Major", relativeMatch: 100 });
+    expect(matches.every((match) => match.relativeMatch >= 0 && match.relativeMatch <= 100)).toBe(true);
+    expect(matches.map((match) => match.rmsDifference)).toEqual(
+      [...matches.map((match) => match.rmsDifference)].sort((left, right) => left - right)
+    );
   });
 });

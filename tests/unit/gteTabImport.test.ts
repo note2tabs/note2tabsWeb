@@ -83,6 +83,26 @@ const pitchedMusicXml = `
     </part>
   </score-partwise>`;
 
+const multiPartMusicXml = `
+  <score-partwise>
+    <part-list>
+      <score-part id="P1"><part-name>Lead Guitar</part-name></score-part>
+      <score-part id="P2"><part-name>Rhythm Guitar</part-name></score-part>
+    </part-list>
+    <part id="P1">
+      <measure number="1">
+        <attributes><divisions>4</divisions></attributes>
+        <note><duration>4</duration><notations><technical><string>1</string><fret>3</fret></technical></notations></note>
+      </measure>
+    </part>
+    <part id="P2">
+      <measure number="1">
+        <attributes><divisions>4</divisions></attributes>
+        <note><duration>4</duration><notations><technical><string>6</string><fret>2</fret></technical></notations></note>
+      </measure>
+    </part>
+  </score-partwise>`;
+
 const compressedMusicXmlBytes = () =>
   zipSync({
     "META-INF/container.xml": new TextEncoder().encode(`<?xml version="1.0" encoding="UTF-8"?>
@@ -202,6 +222,20 @@ describe("gte tab import helpers", () => {
       [0, [0, 5], 120],
       [120, [0, 4], 120],
     ]);
+  });
+
+  it("keeps named MusicXML parts separate for track selection", () => {
+    const parsed = parseMusicXmlTabImport(multiPartMusicXml);
+
+    expect(parsed.tracks).toHaveLength(2);
+    expect(parsed.tracks?.[0]).toMatchObject({
+      name: "Lead Guitar",
+      stamps: [[0, [0, 3], 120]],
+    });
+    expect(parsed.tracks?.[1]).toMatchObject({
+      name: "Rhythm Guitar",
+      stamps: [[0, [5, 2], 120]],
+    });
   });
 
   it("keeps instrumental MIDI tracks separate", () => {

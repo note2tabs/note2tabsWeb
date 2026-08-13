@@ -1036,6 +1036,7 @@ export default function JobPage() {
           segmentGroups: resolvedTranscriberGroups,
           tracks: resolvedTranscriberTracks,
           quantize,
+          sourceJobId: jobToImport.job_id,
         });
         return {
           editorId: imported.editorId,
@@ -1078,6 +1079,7 @@ export default function JobPage() {
         segmentGroups: resolvedTranscriberGroups,
         tracks: resolvedTranscriberTracks,
         quantize,
+        sourceJobId: jobToImport.job_id,
       });
       return {
         editorId: imported.editorId,
@@ -1398,8 +1400,8 @@ export default function JobPage() {
             <div className="stack-tight">
               <h2 className="page-title" style={{ fontSize: "1.25rem" }}>Quantize import?</h2>
               <p className="muted text-small">
-                Quantize sets the editor tempo from the detected beat length before importing. Existing editors may
-                have their current note timing shifted by the tempo change.
+                Beat, bar, and tempo alignment happen automatically. Quantize additionally snaps note starts to a
+                1/16-note grid; note lengths stay as performed.
               </p>
             </div>
             <div className="button-row" style={{ justifyContent: "flex-end" }}>
@@ -1421,7 +1423,7 @@ export default function JobPage() {
                 }
                 disabled={importBusy || reviewBusy}
               >
-                Import without quantize
+                Keep performed timing
               </button>
               <button
                 type="button"
@@ -1433,7 +1435,7 @@ export default function JobPage() {
                 }
                 disabled={importBusy || reviewBusy}
               >
-                Quantize
+                Snap to 1/16
               </button>
             </div>
           </div>

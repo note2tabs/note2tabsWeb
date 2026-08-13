@@ -5,6 +5,7 @@ import {
   getDrumVoiceForNote,
   isDrumTrackType,
   isSupportedDrumNote,
+  snapDrumFrameToGrid,
 } from "../../lib/gteDrums";
 import { DRUM1_SAMPLE_URLS } from "../../lib/gteDrumPlayback";
 
@@ -55,5 +56,12 @@ describe("drum tracks", () => {
 
   it("rejects legacy sticks hits while sticks are disabled", () => {
     expect(isSupportedDrumNote({ midiNum: 37, tab: [6, 0] })).toBe(false);
+  });
+
+  it("snaps each bar independently for non-divisible drum grids", () => {
+    expect(snapDrumFrameToGrid(23, 7, 3)).toBe(23);
+    expect(snapDrumFrameToGrid(479, 7, 3)).toBe(480);
+    expect(snapDrumFrameToGrid(503, 7, 3)).toBe(503);
+    expect(snapDrumFrameToGrid(960, 7, 3)).toBe(960);
   });
 });

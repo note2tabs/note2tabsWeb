@@ -93,4 +93,32 @@ describe("gte proxy analytics", () => {
       payload: expect.objectContaining({ editorId: "ed_imported", target: "new" }),
     }));
   });
+
+  it("preserves the requested import canvas so BPM stabilization can run", async () => {
+    const canvas = {
+      id: "ed_imported",
+      version: 3,
+      secondsPerBar: 2,
+      editors: [],
+      timingMap: { version: 2, bars: [] },
+    };
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ editors: [] }), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, editorId: "ed_imported", canvas }), { status: 200 })
+      );
+
+    const handler = (await import("../../pages/api/gte/[[...path]]")).default;
+    const { req, res } = createMocks({
+      method: "POST",
+      query: { path: ["transcriber", "import"] },
+      body: { target: "new", includeCanvas: true },
+    });
+
+    await handler(req as any, res as any);
+
+    expect(JSON.parse(res._getData())).toEqual(
+      expect.objectContaining({ editorId: "ed_imported", canvas })
+    );
+  });
 });
