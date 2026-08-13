@@ -41,7 +41,6 @@ import TranscriptionModelValueNote from "../components/TranscriptionModelValueNo
 import PremiumConversionCard from "../components/PremiumConversionCard";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
-import TranscriptionRecordingDetails from "../components/TranscriptionRecordingDetails";
 import PremiumHomeCallout from "../components/PremiumHomeCallout";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
 import {
@@ -231,11 +230,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const [pricingBusy, setPricingBusy] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [authHandoffBusy, setAuthHandoffBusy] = useState(false);
-  const [includesOtherInstruments, setIncludesOtherInstruments] = useState(false);
+  const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
+  const [includesOtherInstruments, setIncludesOtherInstruments] = useState<boolean | null>(null);
   const [transcriptionModel, setTranscriptionModel] =
     useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
   const transcriptionModelTouchedRef = useRef(false);
-  const [multipleGuitars, setMultipleGuitars] = useState(false);
+  const [multipleGuitars, setMultipleGuitars] = useState<boolean | null>(null);
   const [localUnverifiedTranscriptionUsed, setLocalUnverifiedTranscriptionUsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
@@ -473,6 +473,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       }
 
       setError(null);
+      setShowInstrumentPrompt(false);
       if (pending.mode === "FILE") {
         setMode("FILE");
         setSelectedFile(pending.file);
@@ -502,7 +503,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         setError("Please verify your email to continue using the transcriber.");
         setStatus("Your upload is restored and will remain available after verification.");
       } else {
-        setStatus("Welcome back — your recording is ready to transcribe.");
+        setShowInstrumentPrompt(true);
+        setStatus("Welcome back — your transcription is ready to continue.");
       }
 
       sendEvent(ANALYTICS_EVENTS.authHandoffResumed, { mode: pending.mode, path: "/" });
@@ -691,6 +693,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     setError(null);
     setImportError(null);
     setTabsResult(null);
+    setShowInstrumentPrompt(false);
   };
 
   const onDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
@@ -723,6 +726,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setError(null);
       setImportError(null);
       setTabsResult(null);
+      setShowInstrumentPrompt(false);
     }
   };
 
@@ -832,13 +836,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     return true;
   };
 
-  const startConvert = async () => {
+  const startConvert = async (separateGuitar: boolean) => {
     if (convertInFlightRef.current || loading) return;
-    const separateGuitar = includesOtherInstruments;
     const transcribingStatusLabel = buildTranscribingStatusLabel(separateGuitar);
     const youtubeTranscribingStatusLabel = buildYoutubeTranscribingStatusLabel(separateGuitar);
 
     convertInFlightRef.current = true;
+    setShowInstrumentPrompt(false);
     setError(null);
     setImportError(null);
     setTabsResult(null);
@@ -1123,7 +1127,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     }
     if (!validateConvertInputs()) return;
     setError(null);
-    void startConvert();
+    setIncludesOtherInstruments(null);
+    setMultipleGuitars(null);
+    setShowInstrumentPrompt(true);
   };
 
   const handleHeroPrimaryAction = () => {
@@ -1134,6 +1140,17 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     }
     trackCtaClick("convert_to_tabs", { surface: "hero_funnel", mode });
     void handleConvert();
+  };
+
+  const instrumentPromptComplete = includesOtherInstruments !== null && multipleGuitars !== null;
+
+  const handleInstrumentPromptStart = () => {
+    if (includesOtherInstruments === null || multipleGuitars === null) return;
+    if (!validateConvertInputs()) {
+      setShowInstrumentPrompt(false);
+      return;
+    }
+    void startConvert(includesOtherInstruments);
   };
 
   const handleImportToEditor = async () => {
@@ -1471,16 +1488,29 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 handleHeroPrimaryAction();
               }}
             >
-              <div className="prompt-meta-row">
+              <div
+                className={`prompt-meta-row ${
+                  !showInstrumentPrompt || mode === "YOUTUBE" || (isSignedIn && displayedCredits)
+                    ? ""
+                    : "is-empty"
+                }`}
+                aria-hidden={
+                  !showInstrumentPrompt || mode === "YOUTUBE" || (isSignedIn && displayedCredits)
+                    ? undefined
+                    : "true"
+                }
+              >
                 <div className="prompt-meta-left">
-                  <div className="model-choice model-choice--meta">
-                    <TranscriptionModelDropdown
-                      id="home-transcription-model"
-                      value={transcriptionModel}
-                      onChange={selectTranscriptionModel}
-                      disabled={loading || authHandoffBusy}
-                    />
-                  </div>
+                  {!showInstrumentPrompt && (
+                    <div className="model-choice model-choice--meta">
+                      <TranscriptionModelDropdown
+                        id="home-transcription-model"
+                        value={transcriptionModel}
+                        onChange={selectTranscriptionModel}
+                        disabled={loading || authHandoffBusy}
+                      />
+                    </div>
+                  )}
                 </div>
                 {isSignedIn && displayedCredits && (
                   <p className="hero-credits-inline">
@@ -1497,17 +1527,38 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   </p>
                 )}
               </div>
-              <TranscriptionModelValueNote
-                model={transcriptionModel}
-                isPremium={isPremiumUser}
-                onSelectHeavy={() => {
-                  selectTranscriptionModel("heavy");
-                  trackCtaClick("try_heavy_model", { surface: "hero_funnel" });
-                }}
-                surface="hero_funnel"
-              />
+              {!showInstrumentPrompt && (
+                <TranscriptionModelValueNote
+                  model={transcriptionModel}
+                  isPremium={isPremiumUser}
+                  onSelectHeavy={() => {
+                    selectTranscriptionModel("heavy");
+                    trackCtaClick("try_heavy_model", { surface: "hero_funnel" });
+                  }}
+                  surface="hero_funnel"
+                />
+              )}
 
-              <>
+              {showInstrumentPrompt ? (
+                <div className="instrument-prompt">
+                  <div className="instrument-choice-group">
+                    <p className="instrument-question">Does your audio include other instruments?</p>
+                    <div className="button-row instrument-choice-row">
+                      <button type="button" className={`button-secondary instrument-choice-button ${includesOtherInstruments === true ? "active" : ""}`} onClick={() => setIncludesOtherInstruments(true)} aria-pressed={includesOtherInstruments === true} disabled={loading || authHandoffBusy}>Yes</button>
+                      <button type="button" className={`button-secondary instrument-choice-button ${includesOtherInstruments === false ? "active" : ""}`} onClick={() => setIncludesOtherInstruments(false)} aria-pressed={includesOtherInstruments === false} disabled={loading || authHandoffBusy}>No</button>
+                    </div>
+                  </div>
+                  <div className="instrument-choice-group">
+                    <p className="instrument-question">Are there multiple guitars?</p>
+                    <div className="button-row instrument-choice-row">
+                      <button type="button" className={`button-secondary instrument-choice-button ${multipleGuitars === true ? "active" : ""}`} onClick={() => setMultipleGuitars(true)} aria-pressed={multipleGuitars === true} disabled={loading || authHandoffBusy}>Yes</button>
+                      <button type="button" className={`button-secondary instrument-choice-button ${multipleGuitars === false ? "active" : ""}`} onClick={() => setMultipleGuitars(false)} aria-pressed={multipleGuitars === false} disabled={loading || authHandoffBusy}>No</button>
+                    </div>
+                  </div>
+                  <button type="button" className="button-primary instrument-start-button" onClick={handleInstrumentPromptStart} disabled={loading || !instrumentPromptComplete}>Start transcription</button>
+                </div>
+              ) : (
+                <>
                   <div className="funnel-panel">
                     <div className="funnel-row">
                       <div
@@ -1581,6 +1632,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                           aria-pressed={mode === "FILE"}
                           onClick={() => {
                             setMode("FILE");
+                            setShowInstrumentPrompt(false);
                             trackCtaClick("mode_file", { surface: "hero_funnel" });
                           }}
                         >
@@ -1592,6 +1644,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                           aria-pressed={mode === "YOUTUBE"}
                           onClick={() => {
                             setMode("YOUTUBE");
+                            setShowInstrumentPrompt(false);
                             trackCtaClick("mode_youtube", { surface: "hero_funnel" });
                           }}
                         >
@@ -1689,14 +1742,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                       </div>
                     </div>
                   )}
-                  <TranscriptionRecordingDetails
-                    includesOtherInstruments={includesOtherInstruments}
-                    multipleGuitars={multipleGuitars}
-                    onIncludesOtherInstrumentsChange={setIncludesOtherInstruments}
-                    onMultipleGuitarsChange={setMultipleGuitars}
-                    disabled={loading || authHandoffBusy}
-                  />
-              </>
+                </>
+              )}
 
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
               {error && <div className="error" role="alert">{error}</div>}

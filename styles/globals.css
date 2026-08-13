@@ -6614,43 +6614,6 @@ input[type="number"] {
   margin-top: 22px;
 }
 
-.recording-options {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 18px;
-  margin: 10px 2px 0;
-}
-
-.recording-option {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  cursor: pointer;
-}
-
-.recording-option span {
-  color: rgba(37, 50, 68, 0.64);
-  font-size: 0.72rem;
-  font-weight: 500;
-  line-height: 1.35;
-}
-
-.recording-option input {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
-  margin: 0;
-  accent-color: #172019;
-}
-
-@media (max-width: 600px) {
-  .recording-options {
-    display: grid;
-    gap: 8px;
-  }
-}
-
 @media (max-width: 860px) {
   .nav-shell--home .nav-links {
     top: 56px;
