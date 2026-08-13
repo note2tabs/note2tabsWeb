@@ -63,6 +63,7 @@ import { buildEditorTabView, getEditorTabViewCursorX } from "../lib/gteEditorTab
 import { useGteRenderInstrumentation } from "../lib/gtePerformanceDiagnostics";
 import { RevisionedAutosaveQueue } from "../lib/gteAutosaveQueue";
 import { windowTimelineEvents } from "../lib/gteEditorPerformance";
+import { getPlaybackScrollTarget } from "../lib/gtePlaybackScroll";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
   buildGteExportFile,
@@ -1729,7 +1730,6 @@ function ChordLaneWorkspace({
   const dragHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressChordClickRef = useRef(false);
   const chordMouseDownSelectionRef = useRef<{ chordId: number; wasSelected: boolean; shiftKey: boolean } | null>(null);
-  const playbackScrollRafRef = useRef<number | null>(null);
   const chordLanePlayheadRef = useRef<HTMLDivElement | null>(null);
   const chordPreviewAudioRef = useRef<AudioContext | null>(null);
   const chordPreviewGainRef = useRef<GainNode | null>(null);
@@ -2507,59 +2507,6 @@ function ChordLaneWorkspace({
     const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
     element.scrollLeft = maxScroll * Math.max(0, Math.min(1, sharedTimelineScrollRatio));
   }, [globalPlaybackIsPlaying, sharedTimelineScrollRatio, timelineWidth]);
-
-  useEffect(() => {
-    if (playbackScrollRafRef.current !== null) {
-      window.cancelAnimationFrame(playbackScrollRafRef.current);
-      playbackScrollRafRef.current = null;
-    }
-    if (mobileViewport || !globalPlaybackIsPlaying) return;
-    const container = timelineRef.current;
-    if (!container) return;
-
-    const tick = () => {
-      const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
-      if (maxScroll <= 0) {
-        playbackScrollRafRef.current = window.requestAnimationFrame(tick);
-        return;
-      }
-
-      const rect = container.getBoundingClientRect();
-      const visibleLeft = Math.max(rect.left, 0);
-      const visibleRight = Math.min(rect.right, window.innerWidth);
-      const visibleWidth = Math.max(1, visibleRight - visibleLeft);
-      const visibleStartInContainer = Math.max(0, visibleLeft - rect.left);
-      const minPlayheadOffset =
-        visibleStartInContainer + Math.max(48, Math.min(120, visibleWidth * 0.18));
-      const followPlayheadOffset = visibleStartInContainer + visibleWidth * 0.45;
-      const maxPlayheadOffset = visibleStartInContainer + visibleWidth * (2 / 3);
-      const currentPlayheadLeft = timelineContentOffset + readExternalPlaybackFrame() * pxPerFrame;
-      const playheadViewportX = currentPlayheadLeft - container.scrollLeft;
-
-      let nextScrollLeft = container.scrollLeft;
-      if (playheadViewportX < minPlayheadOffset) {
-        nextScrollLeft = Math.max(0, currentPlayheadLeft - minPlayheadOffset);
-      } else if (playheadViewportX > followPlayheadOffset) {
-        const targetScrollLeft = Math.max(0, Math.min(maxScroll, currentPlayheadLeft - followPlayheadOffset));
-        const hardLimitScrollLeft = Math.max(0, Math.min(maxScroll, currentPlayheadLeft - maxPlayheadOffset));
-        const easedScrollLeft = container.scrollLeft + (targetScrollLeft - container.scrollLeft) * 0.22;
-        nextScrollLeft = Math.max(hardLimitScrollLeft, Math.min(maxScroll, easedScrollLeft));
-      }
-
-      if (Math.abs(nextScrollLeft - container.scrollLeft) >= 0.5) {
-        container.scrollLeft = nextScrollLeft;
-      }
-      playbackScrollRafRef.current = window.requestAnimationFrame(tick);
-    };
-
-    playbackScrollRafRef.current = window.requestAnimationFrame(tick);
-    return () => {
-      if (playbackScrollRafRef.current !== null) {
-        window.cancelAnimationFrame(playbackScrollRafRef.current);
-        playbackScrollRafRef.current = null;
-      }
-    };
-  }, [globalPlaybackIsPlaying, mobileViewport, pxPerFrame, readExternalPlaybackFrame, timelineContentOffset]);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
@@ -12353,26 +12300,21 @@ export default function GteWorkspace({
     }
     // Only the selected track may drive the shared playback viewport. Allowing every
     // externally-played track to follow its own playhead creates competing scroll targets.
-    if (mobileViewport || !effectiveIsPlaying || !isActive) return;
+    // The canvas owns external playback scrolling so track remounts or selection
+    // changes cannot interrupt the camera. Keep this loop only for standalone use.
+    if (mobileViewport || !effectiveIsPlaying || !isActive || useExternalPlayback) return;
     const container = tabViewEnabled ? tabViewScrollRef.current : timelineOuterRef.current;
     if (!container) return;
 
-    const tick = () => {
+    const alignToPlayhead = () => {
       const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
-      if (maxScroll <= 0) {
-        playbackScrollRafRef.current = window.requestAnimationFrame(tick);
-        return;
-      }
+      if (maxScroll <= 0) return;
 
       const rect = container.getBoundingClientRect();
       const visibleLeft = Math.max(rect.left, 0);
       const visibleRight = Math.min(rect.right, window.innerWidth);
       const visibleWidth = Math.max(1, visibleRight - visibleLeft);
       const visibleStartInContainer = Math.max(0, visibleLeft - rect.left);
-      const minPlayheadOffset =
-        visibleStartInContainer + Math.max(48, Math.min(120, visibleWidth * 0.18));
-      const followPlayheadOffset = visibleStartInContainer + visibleWidth * 0.45;
-      const maxPlayheadOffset = visibleStartInContainer + visibleWidth * (2 / 3);
       const playheadLeft =
         tabViewEnabled
           ? 30 +
@@ -12380,21 +12322,23 @@ export default function GteWorkspace({
               Math.max(1, editorTabView.barCount * framesPerMeasure)) *
               (editorTabView.barCount * editorTabView.barWidth)
           : playheadFrameRef.current * scale;
-      const playheadViewportX = playheadLeft - container.scrollLeft;
-
-      let nextScrollLeft = container.scrollLeft;
-      if (playheadViewportX < minPlayheadOffset) {
-        nextScrollLeft = Math.max(0, playheadLeft - minPlayheadOffset);
-      } else if (playheadViewportX > followPlayheadOffset) {
-        const targetScrollLeft = Math.max(0, Math.min(maxScroll, playheadLeft - followPlayheadOffset));
-        const hardLimitScrollLeft = Math.max(0, Math.min(maxScroll, playheadLeft - maxPlayheadOffset));
-        const easedScrollLeft = container.scrollLeft + (targetScrollLeft - container.scrollLeft) * 0.22;
-        nextScrollLeft = Math.max(hardLimitScrollLeft, Math.min(maxScroll, easedScrollLeft));
-      }
+      const nextScrollLeft = getPlaybackScrollTarget({
+        playheadLeft,
+        maxScroll,
+        visibleStartInContainer,
+        visibleWidth,
+      });
 
       if (Math.abs(nextScrollLeft - container.scrollLeft) >= 0.5) {
         container.scrollLeft = nextScrollLeft;
       }
+    };
+
+    // Align immediately on Play, then keep the playhead at one stable viewport
+    // anchor. This removes the eased transition that could fight shared scrolling.
+    alignToPlayhead();
+    const tick = () => {
+      alignToPlayhead();
       playbackScrollRafRef.current = window.requestAnimationFrame(tick);
     };
 
@@ -12414,6 +12358,7 @@ export default function GteWorkspace({
     mobileViewport,
     scale,
     tabViewEnabled,
+    useExternalPlayback,
   ]);
 
   const showMobileEditRail = isMobileEditMode && isActive && !tabViewEnabled;

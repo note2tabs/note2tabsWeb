@@ -101,6 +101,7 @@ import {
 } from "../../lib/gtePerformanceDiagnostics";
 import { appendBoundedHistory, replaceCanvasLane } from "../../lib/gteEditorPerformance";
 import { createPlaybackLookaheadScheduler } from "../../lib/gtePlaybackLookahead";
+import { getPlaybackScrollTarget } from "../../lib/gtePlaybackScroll";
 
 const GteWorkspace = dynamic(() => import("../../components/GteTrackWorkspace"), {
   loading: () => (
@@ -4693,41 +4694,38 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   useEffect(() => {
     if (!globalPlaybackIsPlaying) return;
-    const scrollbar = globalTimelineScrollbarRef.current;
-    if (!scrollbar) return;
     let rafId: number | null = null;
-    const tick = () => {
+    const alignToPlayback = () => {
+      const scrollbar = globalTimelineScrollbarRef.current;
+      if (!scrollbar) return;
       const maxScroll = Math.max(0, scrollbar.scrollWidth - scrollbar.clientWidth);
       if (maxScroll > 0) {
         const progress = Math.max(
           0,
           Math.min(1, globalPlaybackFrameRef.current / Math.max(1, canvasTimelineEnd))
         );
-        const playheadX = progress * maxScroll;
-        const left = scrollbar.scrollLeft;
-        const right = left + scrollbar.clientWidth;
-        const padding = Math.min(180, scrollbar.clientWidth * 0.25);
-        if (playheadX < left + padding || playheadX > right - padding) {
-          const target = Math.max(
-            0,
-            Math.min(maxScroll, playheadX - scrollbar.clientWidth * 0.35)
-          );
-          if (Math.abs(scrollbar.scrollLeft - target) >= 0.5) {
-            applyingGlobalTimelineScrollbarRef.current = true;
-            scrollbar.scrollLeft = target;
-            window.requestAnimationFrame(() => {
-              applyingGlobalTimelineScrollbarRef.current = false;
-            });
-          }
+        const target = getPlaybackScrollTarget({
+          playheadLeft: progress * scrollbar.scrollWidth,
+          maxScroll,
+          visibleStartInContainer: 0,
+          visibleWidth: scrollbar.clientWidth,
+        });
+        if (Math.abs(scrollbar.scrollLeft - target) >= 0.5) {
+          synchronizeSharedTimelineScroll(target / maxScroll, target);
         }
       }
+    };
+    const tick = () => {
+      alignToPlayback();
       rafId = window.requestAnimationFrame(tick);
     };
+    // Align immediately, then retain canvas-level ownership until playback stops.
+    alignToPlayback();
     rafId = window.requestAnimationFrame(tick);
     return () => {
       if (rafId !== null) window.cancelAnimationFrame(rafId);
     };
-  }, [canvasTimelineEnd, globalPlaybackIsPlaying]);
+  }, [canvasTimelineEnd, globalPlaybackIsPlaying, synchronizeSharedTimelineScroll]);
 
   const mobileHistoryBusy = Boolean(deletingLaneId || addingLane || savingCanvas);
   const renderMobileHistoryControls = () => (
