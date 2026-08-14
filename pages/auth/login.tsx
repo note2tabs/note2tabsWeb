@@ -71,7 +71,7 @@ export default function LoginPage() {
     });
     setLoading(false);
     if (res?.error) {
-      setError(res.error);
+      setError(authErrorMessage(res.error) ?? "Sign in failed. Please try again.");
     } else {
       sendEvent(ANALYTICS_EVENTS.loginSucceeded, {
         method: "credentials",
