@@ -219,9 +219,6 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                   className={`nav-profile-menu${profileMenuOpen ? " open" : ""}`}
                   role="menu"
                 >
-                  <Link href="/home" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
-                    Home
-                  </Link>
                   {!hasPremiumAccess && (
                     <Link
                       href={premiumHref}
@@ -232,11 +229,8 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                       Explore Premium
                     </Link>
                   )}
-                  <Link href="/settings" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
-                    Settings
-                  </Link>
-                  <Link href="/tabs" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
-                    Transcriptions
+                  <Link href="/home" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
+                    Home
                   </Link>
                   <Link href="/gte" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
                     My editors
@@ -246,6 +240,9 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                       Analytics
                     </Link>
                   )}
+                  <Link href="/settings" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
+                    Settings
+                  </Link>
                   <button
                     type="button"
                     role="menuitem"
