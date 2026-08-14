@@ -632,6 +632,21 @@ export const gteApi = {
         body: JSON.stringify(payload),
       }
     ),
+  mergeTracks: (
+    editorId: string,
+    payload: { expectedVersion: number; laneIds: string[]; name?: string; keepOriginals?: boolean }
+  ) =>
+    requestForEditor<{
+      ok: true;
+      canvas: CanvasSnapshot;
+      mergedLaneId: string;
+      sourceLaneIds: string[];
+      keptOriginals: boolean;
+    }>(editorId, `/editors/${editorId}/canvas/tracks/merge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
   setEditorName: (editorId: string, name: string) =>
     requestForEditor<{ ok: true; snapshot: EditorOrCanvasSnapshot; canvas?: CanvasSnapshot }>(
       editorId,
