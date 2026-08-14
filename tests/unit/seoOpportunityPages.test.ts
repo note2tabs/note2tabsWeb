@@ -1,7 +1,9 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import AiGuitarTabGeneratorPage from "../../pages/ai-guitar-tab-generator";
+import AiGuitarTabGeneratorPage, {
+  AI_GENERATOR_META_TITLE,
+} from "../../pages/ai-guitar-tab-generator";
 import AudioToGuitarTabConverterPage from "../../pages/audio-to-guitar-tab-converter";
 import Mp3ToGuitarTabsPage from "../../pages/mp3-to-guitar-tabs";
 import YoutubeToGuitarTabsPage from "../../pages/youtube-to-guitar-tabs";
@@ -11,6 +13,10 @@ describe("Search Console opportunity pages", () => {
     const html = renderToStaticMarkup(createElement(AiGuitarTabGeneratorPage));
 
     expect(html).toContain("AI Guitar Tab Generator from Audio or YouTube");
+    expect(AI_GENERATOR_META_TITLE).toBe(
+      "Free AI Guitar Tab Generator | Audio & YouTube"
+    );
+    expect(html).toContain("Try an AI guitar tab generator free");
     expect(html).toContain("What helps the AI capture the most detail?");
     expect(html).toContain("Is the AI guitar tab generator free?");
     expect(html).toContain("/features");

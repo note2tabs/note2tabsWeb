@@ -117,7 +117,16 @@ The goal is to improve the useful draft, not to pretend the first output was fin
 ];
 
 function insertSection(content, marker, section) {
-  if (content.includes(section.trim())) return content;
+  const sectionHeading = section.trim().split("\n", 1)[0]?.trim();
+  // Editors may update links or wording after this script runs. Treat the
+  // stable heading as the idempotency key so rerunning the updater cannot
+  // insert the same section again merely because its body changed.
+  if (
+    content.includes(section.trim()) ||
+    (sectionHeading?.startsWith("## ") && content.includes(sectionHeading))
+  ) {
+    return content;
+  }
   const index = content.indexOf(marker);
   if (index === -1) {
     return `${content.trim()}\n\n${section.trim()}\n`;

@@ -151,6 +151,12 @@ describe("PostHog analytics ingestion", () => {
 
   it("sanitizes URLs, private routes, PII, and raw errors server-side", async () => {
     await ingestAnalyticsEvents({
+      req: {
+        headers: {
+          host: "www.note2tabs.com",
+          "x-forwarded-proto": "https",
+        },
+      } as any,
       cookies: { analytics_consent: "granted", analytics_anon: "anon_123" },
       body: {
         event_id: "private_123",
@@ -169,7 +175,9 @@ describe("PostHog analytics ingestion", () => {
     const properties = capture.mock.calls[0]?.[0]?.properties;
     expect(properties).toMatchObject({
       $pathname: "/reset-password/[token]",
+      $host: "www.note2tabs.com",
       $referrer: "https://google.com",
+      $referring_domain: "google.com",
       error_code: "backend_failed",
     });
     expect(properties.$current_url).not.toContain("private-token");

@@ -70,7 +70,7 @@ function normalizeLabel(value: string | null | undefined, fallback = "") {
     .slice(0, 100) || fallback;
 }
 
-function referringDomain(referrer: string | undefined) {
+export function referringDomain(referrer: string | undefined | null) {
   if (!referrer) return "";
   try {
     return new URL(referrer).hostname.toLowerCase().replace(/^www\./, "").slice(0, 160);

@@ -1,11 +1,14 @@
 import SeoLandingPage from "../components/SeoLandingPage";
 
+export const AI_GENERATOR_META_TITLE =
+  "Free AI Guitar Tab Generator | Audio & YouTube";
+
 export default function AiGuitarTabGeneratorPage() {
   return (
     <SeoLandingPage
       title="AI Guitar Tab Generator from Audio or YouTube"
-      metaTitle="AI Guitar Tab Generator Online | Audio & YouTube"
-      description="Generate structured, editable guitar tabs from audio or YouTube with AI. Play, arrange, practise, and export the result online with Note2Tabs."
+      metaTitle={AI_GENERATOR_META_TITLE}
+      description="Try an AI guitar tab generator free with audio or YouTube. Create structured, editable tabs you can play, arrange, practise, and export online."
       canonicalPath="/ai-guitar-tab-generator"
       primaryCta={{ label: "Generate tabs", href: "/transcribe" }}
       secondaryCta={{ label: "Open editor", href: "/editor" }}
