@@ -298,6 +298,15 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     return isFileClipRangeValid(fileStartTime, fileEndTime, fileDuration, isPremiumUser);
   }, [fileDuration, fileEndTime, fileStartTime, isPremiumUser, selectedFile]);
   const shouldDeferEditorSync = Boolean(appendEditorId);
+  const shouldRedirectToProductHome =
+    router.isReady &&
+    sessionStatus === "authenticated" &&
+    router.query.resumeTranscription !== "1";
+
+  useEffect(() => {
+    if (!shouldRedirectToProductHome) return;
+    void router.replace("/home");
+  }, [router, shouldRedirectToProductHome]);
 
   useEffect(() => {
     if (sessionStatus === "loading" || transcriptionModelTouchedRef.current) return;
@@ -1439,6 +1448,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       },
     },
   ];
+
+  if (shouldRedirectToProductHome) return null;
 
   return (
     <>
