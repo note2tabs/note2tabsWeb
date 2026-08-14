@@ -3,13 +3,27 @@ type PostHogProperties = Record<string, unknown>;
 type PendingOperation = (client: PostHogClient) => void;
 
 import {
+  sanitizeAnalyticsPathname,
   sanitizeAnalyticsProperties,
+  sanitizeAnalyticsUrl,
   sanitizePostHogCapture,
 } from "./analyticsPrivacy";
 
 const CONSENT_COOKIE = "analytics_consent";
 const MAX_PENDING_OPERATIONS = 100;
 const IDLE_LOAD_DELAY_MS = 1_800;
+const SESSION_REPLAY_BLOCKED_ROUTES = [
+  /^\/auth(?:\/|$)/,
+  /^\/reset-password(?:\/|$)/,
+  /^\/settings(?:\/|$)/,
+  /^\/home(?:\/|$)/,
+  /^\/mod(?:\/|$)/,
+  /^\/admin(?:\/|$)/,
+  /^\/tabs(?:\/|$)/,
+  /^\/history(?:\/|$)/,
+  /^\/job(?:\/|$)/,
+  /^\/gte\/?$/,
+];
 
 let client: PostHogClient | null = null;
 let initPromise: Promise<PostHogClient | null> | null = null;
@@ -120,6 +134,29 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
         disable_capture_url_hashes: true,
         save_referrer: false,
         before_send: sanitizePostHogCapture,
+        session_recording: {
+          // Editor content and controls are intentionally replayed in full. Sensitive
+          // non-editor surfaces opt out with this selector or route-level recording stops.
+          blockSelector: ".ph-no-capture, [data-ph-no-capture]",
+          maskAllInputs: false,
+          maskInputOptions: { password: true },
+          recordCrossOriginIframes: false,
+          recordHeaders: false,
+          recordBody: false,
+          captureCanvas: {
+            recordCanvas: true,
+            canvasFps: 4,
+            canvasQuality: "0.4",
+          },
+          maskCapturedNetworkRequestFn: (request) => ({
+            ...request,
+            name: sanitizeAnalyticsUrl(request.name),
+            requestHeaders: undefined,
+            responseHeaders: undefined,
+            requestBody: undefined,
+            responseBody: undefined,
+          }),
+        },
         ...(anonymousDistinctId
           ? {
               bootstrap: {
@@ -128,8 +165,8 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
               },
             }
           : {}),
-        disable_session_recording:
-          process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING !== "true",
+        // Recording starts explicitly after the route has passed the privacy allowlist.
+        disable_session_recording: true,
         opt_out_capturing_by_default: trackingIsDisabled(),
       });
 
@@ -147,6 +184,33 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
     });
 
   return initPromise;
+}
+
+function sessionReplayIsEnabled() {
+  return process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING === "true";
+}
+
+export function sessionReplayIsBlocked(url: string) {
+  const pathname = sanitizeAnalyticsPathname(url);
+  return SESSION_REPLAY_BLOCKED_ROUTES.some((pattern) => pattern.test(pathname));
+}
+
+export function stopPostHogSessionRecording() {
+  client?.stopSessionRecording();
+}
+
+export async function syncPostHogSessionRecording(url: string) {
+  if (!sessionReplayIsEnabled() || trackingIsDisabled()) {
+    stopPostHogSessionRecording();
+    return;
+  }
+  if (sessionReplayIsBlocked(url)) {
+    stopPostHogSessionRecording();
+    return;
+  }
+
+  const posthog = await initPostHog();
+  posthog?.startSessionRecording();
 }
 
 function enqueue(operation: PendingOperation) {

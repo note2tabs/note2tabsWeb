@@ -421,9 +421,6 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             <Link href="/gte" className="settingsButton settingsButtonSecondary">
               Open editor
             </Link>
-            <Link href="/feedback" className="button-secondary button-small">
-              Send feedback
-            </Link>
           </div>
         </SettingRow>
         {!user.isEmailVerified && (

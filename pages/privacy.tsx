@@ -31,12 +31,10 @@ export default function PrivacyPage() {
             server logs. This logging does not depend on analytics consent and is used solely to protect the service.
           </p>
 
-          <h2>Feedback and support messages</h2>
+          <h2>Support messages</h2>
           <p>
-            When you send product feedback, we store the message, a broad feedback category, the type of page it
-            came from, the submission time, and a link to your account. We use this first-party information to answer
-            support requests and improve Note2Tabs, even when optional analytics are disabled. We do not add the
-            free-text message to PostHog, and feedback linked to your account is deleted when you delete the account.
+            When you contact us for support, we use the information you provide to answer your request and improve
+            Note2Tabs. Please avoid including sensitive information that is not needed to resolve your issue.
           </p>
 
           <h2>Cookies and similar technologies</h2>
@@ -56,6 +54,13 @@ export default function PrivacyPage() {
             approximate location, and a short-lived in-memory identifier to help us improve Note2Tabs. Anonymous
             identifiers do not persist across browser reloads. When you sign in, analytics activity may be associated
             with your Note2Tabs account ID.
+          </p>
+          <p>
+            We may also use PostHog session replay to understand how the editor is used. Replays can include visible
+            editor content, project names, notes, chords, fingerings, control changes, pointer activity, and canvas
+            rendering. Account, authentication, settings, payment, administration, saved-tab library, and upload
+            surfaces are excluded from replay. Network headers and request or response bodies are not recorded, and
+            recorded URLs are stripped of query strings and private identifiers.
           </p>
           <p>
             You can deny analytics and continue using core features (subject to rate limits and security protections).

@@ -71,8 +71,8 @@ export default function AboutPage() {
                 </p>
                 <p className="about-story-paragraph">
                   We are constantly working on new features, design improvements, and tools for everyday guitarists.
-                  If there is something you would like to see, or you have feedback or an idea, please write to us.
-                  <Link href="/feedback"> <strong>We'd love to hear from you.</strong></Link>
+                  If there is something you would like to see, or you have an idea, you can contact us at{" "}
+                  <a href="mailto:support@note2tabs.com"><strong>support@note2tabs.com</strong></a>.
                 </p>
               </div>
             </div>

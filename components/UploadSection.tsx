@@ -202,7 +202,7 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6" data-ph-no-capture>
       <div className="grid gap-4 md:grid-cols-2">
         <div
           className={`relative rounded-xl border-2 border-dashed p-4 transition ${

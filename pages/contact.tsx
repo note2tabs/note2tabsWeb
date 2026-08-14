@@ -2,7 +2,7 @@ import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../components
 
 export default function ContactPage() {
   const description =
-    "Contact Note2Tabs for product questions, feedback, bug reports, account issues, and support.";
+    "Contact Note2Tabs for product questions, bug reports, account issues, and support.";
   const jsonLd = [
     {
       "@context": "https://schema.org",
@@ -37,7 +37,7 @@ export default function ContactPage() {
             <p className="legal-kicker">Contact</p>
             <h1 className="page-title">Get in touch with Note2Tabs</h1>
             <p className="page-subtitle">
-              Product questions, feedback, bug reports, or account issues. We read every message.
+              Product questions, bug reports, or account issues. We read every message.
             </p>
           </header>
 
@@ -55,7 +55,7 @@ export default function ContactPage() {
               <li>Billing and subscription questions</li>
               <li>Transcription workflow issues</li>
               <li>Editor and saved-tab problems</li>
-              <li>General feedback and feature requests</li>
+              <li>General product and feature questions</li>
             </ul>
           </section>
         </div>

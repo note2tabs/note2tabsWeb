@@ -1283,6 +1283,7 @@ export default function TranscriberPage() {
             </div>
             <form
               className="prompt-shell prompt-shell--funnel"
+              data-ph-no-capture
               data-reveal
               onSubmit={(event) => {
                 event.preventDefault();

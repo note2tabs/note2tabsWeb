@@ -1481,6 +1481,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
             <form
               id="transcriber-start"
               className="prompt-shell prompt-shell--funnel"
+              data-ph-no-capture
               data-reveal
               onSubmit={(event) => {
                 event.preventDefault();

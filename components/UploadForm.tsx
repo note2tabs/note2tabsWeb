@@ -68,7 +68,7 @@ export default function UploadForm({ onSubmit, loading = false, serverError }: U
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6" data-ph-no-capture>
       <div>
         <label className={labelStyles} htmlFor="fileInput">
           Audio file

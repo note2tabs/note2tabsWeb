@@ -63,6 +63,8 @@ function createPostHogMock() {
     reset: vi.fn(),
     opt_in_capturing: vi.fn(),
     opt_out_capturing: vi.fn(),
+    startSessionRecording: vi.fn(),
+    stopSessionRecording: vi.fn(),
   };
 }
 
@@ -74,6 +76,7 @@ describe("PostHog client identity lifecycle", () => {
 
   afterEach(() => {
     delete process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
+    delete process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING;
     vi.unstubAllGlobals();
     vi.doUnmock("posthog-js");
   });
@@ -206,5 +209,72 @@ describe("PostHog client identity lifecycle", () => {
     expect(sanitized.properties).toEqual({
       $current_url: "https://note2tabs.com/reset-password/[token]",
     });
+  });
+
+  it("blocks sensitive replay routes while allowing complete editor routes", async () => {
+    installBrowserGlobals("granted");
+    const analytics = await import("../../lib/posthogClient");
+
+    expect(analytics.sessionReplayIsBlocked("/settings?session_id=secret")).toBe(true);
+    expect(analytics.sessionReplayIsBlocked("https://note2tabs.com/settings?session_id=secret")).toBe(true);
+    expect(analytics.sessionReplayIsBlocked("/auth/login")).toBe(true);
+    expect(analytics.sessionReplayIsBlocked("/mod/users")).toBe(true);
+    expect(analytics.sessionReplayIsBlocked("/home")).toBe(true);
+    expect(analytics.sessionReplayIsBlocked("/gte")).toBe(true);
+    expect(analytics.sessionReplayIsBlocked("/gte/editor-secret-id")).toBe(false);
+  });
+
+  it("configures full editor capture without network payloads", async () => {
+    installBrowserGlobals("granted");
+    const posthog = createPostHogMock();
+    vi.doMock("posthog-js", () => ({ default: posthog }));
+    const analytics = await import("../../lib/posthogClient");
+
+    await analytics.initPostHog();
+    const config = posthog.init.mock.calls[0]?.[1] as any;
+    const networkRequest = config.session_recording.maskCapturedNetworkRequestFn({
+      name: "https://note2tabs.com/gte/editor-secret-id?token=secret",
+      entryType: "resource",
+      startTime: 0,
+      duration: 1,
+      requestHeaders: { authorization: "secret" },
+      requestBody: "secret request",
+      responseBody: "secret response",
+    });
+
+    expect(config.disable_session_recording).toBe(true);
+    expect(config.session_recording).toEqual(
+      expect.objectContaining({
+        blockSelector: ".ph-no-capture, [data-ph-no-capture]",
+        maskAllInputs: false,
+        recordHeaders: false,
+        recordBody: false,
+        captureCanvas: expect.objectContaining({ recordCanvas: true }),
+      })
+    );
+    expect(networkRequest).toEqual(
+      expect.objectContaining({
+        name: "https://note2tabs.com/gte/[editor_id]",
+        requestHeaders: undefined,
+        requestBody: undefined,
+        responseBody: undefined,
+      })
+    );
+  });
+
+  it("starts replay in an editor and stops it before a sensitive route", async () => {
+    installBrowserGlobals("granted");
+    process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING = "true";
+    const posthog = createPostHogMock();
+    vi.doMock("posthog-js", () => ({ default: posthog }));
+    const analytics = await import("../../lib/posthogClient");
+
+    await analytics.syncPostHogSessionRecording("/gte/editor-1");
+    expect(posthog.startSessionRecording).toHaveBeenCalledOnce();
+
+    await analytics.syncPostHogSessionRecording("/settings");
+    expect(posthog.stopSessionRecording).toHaveBeenCalledOnce();
+
+    delete process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING;
   });
 });

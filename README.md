@@ -55,9 +55,13 @@ The project token is intended for event ingestion and is safe to expose through
 the `NEXT_PUBLIC_` variable. Do not put a PostHog personal API key in the browser.
 
 The browser SDK captures page views, autocaptured interactions, custom product
-events, and web vitals. Server-side GTE and feedback events use `posthog-node`.
+events, web vitals, and privacy-controlled session replays. Server-side GTE events use `posthog-node`.
 Analytics are cookieless and enabled by default. The `analytics_consent` cookie is
 only set when a visitor opts out; opting out resets the PostHog browser identity.
+Session replay starts only when `NEXT_PUBLIC_POSTHOG_SESSION_RECORDING` is `true`.
+Editor DOM, inputs, and canvas rendering are recordable; authentication, account,
+settings, payment, moderation, saved-library, job, and upload surfaces are blocked.
+Replay network headers and bodies are disabled, and captured URLs are sanitized.
 
 After deployment, create PostHog insights and a dashboard for:
 
@@ -66,7 +70,6 @@ After deployment, create PostHog insights and a dashboard for:
 - `signup_started`, `signup_completed`, and `signup_failed`
 - `transcription_started`, `transcription_queued`, `transcription_succeeded`, and `transcription_failed`
 - `gte_editor_created`, `gte_editor_saved`, `gte_editor_exported`, and `gte_editor_action`
-- `user_feedback_submitted`
 - `web_vital`
 
 The legacy analytics tables are no longer read or written. Drop them only after

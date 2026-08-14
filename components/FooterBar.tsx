@@ -66,7 +66,6 @@ export default function FooterBar() {
           <section className="footer-section">
             <h2>Contact</h2>
             <a href="mailto:support@note2tabs.com">support@note2tabs.com</a>
-            <Link href="/feedback">Send feedback</Link>
           </section>
 
           <section className="footer-section">
