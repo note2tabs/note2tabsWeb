@@ -12,6 +12,7 @@ import {
   writeEditorListCache,
 } from "../lib/gteEditorListCache";
 import { hasPremiumEntitlement } from "../lib/premiumEntitlement";
+import { getEditorThumbnail } from "../lib/editorThumbnail";
 import type { EditorListItem } from "../types/gte";
 import { authOptions } from "./api/auth/[...nextauth]";
 
@@ -99,17 +100,7 @@ function SidebarIcon({ name }: { name: "home" | "transcriber" | "tabs" }) {
 }
 
 function CurrentTabArtwork({ editor }: { editor: EditorListItem }) {
-  const previewNotes = (editor.previewNotes || [])
-    .filter(
-      (note) =>
-        Number.isFinite(note.startTime) &&
-        Number.isInteger(note.string) &&
-        note.string >= 0 &&
-        note.string < 6 &&
-        Number.isInteger(note.fret) &&
-        note.fret >= 0
-    )
-    .slice(0, 36);
+  const { previewNotes, label } = getEditorThumbnail(editor);
   const firstFrame = previewNotes[0]?.startTime ?? 0;
   const lastFrame = previewNotes[previewNotes.length - 1]?.startTime ?? firstFrame;
   const frameRange = Math.max(1, lastFrame - firstFrame);
@@ -135,7 +126,7 @@ function CurrentTabArtwork({ editor }: { editor: EditorListItem }) {
         ))}
       </span>
       <span className="product-home__tab-art-footer">
-        {previewNotes.length > 0 ? "TAB" : "EMPTY TAB"}
+        {label}
       </span>
     </span>
   );
