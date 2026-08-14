@@ -17,12 +17,28 @@ import {
 
 const DISMISSED_AT_KEY = "note2tabs:premium-prompt-dismissed-at";
 const LAST_CONTEXTUAL_SHOWN_AT_KEY = "note2tabs:premium-prompt-contextual-last-shown-at";
+const LAST_TRANSCRIBER_SHOWN_AT_KEY = "note2tabs:premium-prompt-transcriber-last-shown-at";
 const DISMISS_FOR_MS = 14 * 24 * 60 * 60 * 1000;
+const PASSIVE_FREQUENCY_MS = 7 * 24 * 60 * 60 * 1000;
 const COMPLETION_FREQUENCY_MS = 3 * 24 * 60 * 60 * 1000;
 const URGENT_FREQUENCY_MS = 24 * 60 * 60 * 1000;
+const TRANSCRIBER_SHOW_AFTER_MS = 12_000;
 const LOW_CREDIT_THRESHOLD = 3;
 
-type PromptReason = "transcription_completed" | "low_credits" | "no_credits";
+type PromptReason =
+  | "transcriber_passive"
+  | "transcription_completed"
+  | "low_credits"
+  | "no_credits";
+
+export function getInitialPremiumPromptReason(
+  pathname: string,
+  credits: number | null
+): PromptReason | null {
+  if (credits === 0) return "no_credits";
+  if (credits !== null && credits <= LOW_CREDIT_THRESHOLD) return "low_credits";
+  return pathname === "/transcriber" ? "transcriber_passive" : null;
+}
 
 const EXCLUDED_ROUTES = new Set([
   "/pricing",
@@ -37,11 +53,16 @@ const hasPremiumAccess = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
 
 const getFrequencyForReason = (reason: PromptReason) => {
+  if (reason === "transcriber_passive") return PASSIVE_FREQUENCY_MS;
   if (reason === "no_credits" || reason === "low_credits") return URGENT_FREQUENCY_MS;
   return COMPLETION_FREQUENCY_MS;
 };
 
 const promptCopy: Record<PromptReason, { title: string; body: string }> = {
+  transcriber_passive: {
+    title: "More room for full songs and the Heavy model.",
+    body: "Get 100 monthly credits, rollover, and full-length audio-file transcription.",
+  },
   transcription_completed: {
     title: "Your transcription is ready.",
     body: "Premium gives you more room to keep creating and use Heavy more often.",
@@ -85,15 +106,18 @@ export default function PremiumUpgradePrompt() {
 
     const schedule = (nextReason: PromptReason, delay: number) => {
       const now = Date.now();
+      const lastShownKey =
+        nextReason === "transcriber_passive"
+          ? LAST_TRANSCRIBER_SHOWN_AT_KEY
+          : LAST_CONTEXTUAL_SHOWN_AT_KEY;
       if (now - readTimestamp(DISMISSED_AT_KEY) < DISMISS_FOR_MS) return;
       if (
-        now - readTimestamp(LAST_CONTEXTUAL_SHOWN_AT_KEY) <
-        getFrequencyForReason(nextReason)
+        now - readTimestamp(lastShownKey) < getFrequencyForReason(nextReason)
       ) return;
       if (timeout !== null) window.clearTimeout(timeout);
       timeout = window.setTimeout(() => {
         try {
-          window.localStorage.setItem(LAST_CONTEXTUAL_SHOWN_AT_KEY, String(Date.now()));
+          window.localStorage.setItem(lastShownKey, String(Date.now()));
         } catch {
           // Frequency limiting is best effort in hardened browser contexts.
         }
@@ -110,11 +134,18 @@ export default function PremiumUpgradePrompt() {
       }, delay);
     };
 
-    const credits = readCreditsForPremiumPrompt();
-    if (credits === 0) {
-      schedule("no_credits", 900);
-    } else if (credits !== null && credits <= LOW_CREDIT_THRESHOLD) {
-      schedule("low_credits", 1_500);
+    const initialReason = getInitialPremiumPromptReason(
+      router.pathname,
+      readCreditsForPremiumPrompt()
+    );
+    if (initialReason) {
+      const delay =
+        initialReason === "no_credits"
+          ? 900
+          : initialReason === "low_credits"
+            ? 1_500
+            : TRANSCRIBER_SHOW_AFTER_MS;
+      schedule(initialReason, delay);
     }
 
     const onSignal = (event: Event) => {
