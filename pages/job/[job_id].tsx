@@ -1361,7 +1361,7 @@ export default function JobPage() {
                   <pre>{reviewTabPreviewText}</pre>
                 ) : (
                   <p className="muted text-small" style={{ margin: 0 }}>
-                    No tab preview is available yet.
+                    Your transcription is ready. Open it in the editor to view and edit the full tab.
                   </p>
                 )}
               </div>
