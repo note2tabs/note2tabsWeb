@@ -25,6 +25,28 @@ async function main() {
     select: { id: true, title: true, slug: true },
   });
 
+  const publishedContent = await prisma.post.findMany({
+    where: { status: "PUBLISHED" },
+    select: { slug: true, content: true },
+  });
+  const repeatedSections = publishedContent.flatMap((post) => {
+    const headings = [...post.content.matchAll(/^##\s+(.+)$/gm)].map((match) =>
+      match[1].trim().toLowerCase()
+    );
+    const duplicates = [...new Set(headings.filter((heading, index) =>
+      headings.indexOf(heading) !== index
+    ))];
+    return duplicates.map((heading) => ({ slug: post.slug, heading }));
+  });
+
+  if (repeatedSections.length > 0) {
+    console.error("Published posts with repeated sections:");
+    repeatedSections.forEach(({ slug, heading }) => {
+      console.error(`- ${slug}: ${heading}`);
+    });
+    process.exitCode = 1;
+  }
+
   if (missingSeo.length > 0) {
     console.error("Published posts missing SEO fields:");
     missingSeo.forEach((post) => {
@@ -33,7 +55,7 @@ async function main() {
     process.exitCode = 1;
   }
 
-  if (!duplicates.length && !missingSeo.length) {
+  if (!duplicates.length && !missingSeo.length && !repeatedSections.length) {
     console.log("Blog checks passed.");
   }
 }

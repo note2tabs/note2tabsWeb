@@ -43,6 +43,7 @@ const recentlyUpdatedSeoPaths = new Set([
 const refreshedSeoPathDates = new Map([
   ["/audio-to-guitar-tab-converter", "2026-08-05"],
   ["/mp3-to-guitar-tabs", "2026-08-05"],
+  ["/ai-guitar-tab-generator", "2026-08-14"],
 ]);
 
 const buildUrl = (baseUrl: string, path: string) =>

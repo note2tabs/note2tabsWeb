@@ -10,6 +10,7 @@ import {
   sanitizeAnalyticsReferrer,
   sanitizeAnalyticsUrl,
 } from "../analyticsPrivacy";
+import { referringDomain } from "../acquisitionAttribution";
 import {
   ANALYTICS_ANON_COOKIE,
   ANALYTICS_SESSION_COOKIE,
@@ -49,6 +50,12 @@ function resolveBody(input: unknown) {
 function header(req: NextApiRequest | undefined, name: string) {
   const value = req?.headers[name.toLowerCase()];
   return Array.isArray(value) ? value[0] : value;
+}
+
+function analyticsHost(value: string | undefined) {
+  const normalized = (value || "").trim().toLowerCase();
+  if (!/^[a-z0-9.-]+(?::\d+)?$/.test(normalized)) return "";
+  return normalized.replace(/:\d+$/, "").slice(0, 253);
 }
 
 export function isTransientPrismaConnectionError() {
@@ -98,6 +105,7 @@ export async function ingestAnalyticsEvents(
   const environment =
     process.env.VERCEL_ENV || process.env.NODE_ENV || "development";
   const host = header(context.req, "host");
+  const safeHost = analyticsHost(host);
   const forwardedProto = header(context.req, "x-forwarded-proto") || "https";
   const userAgent = header(context.req, "user-agent");
 
@@ -118,6 +126,8 @@ export async function ingestAnalyticsEvents(
       event.path && host
         ? sanitizeAnalyticsUrl(`${safeProto}://${host}${pathname}`)
         : pathname;
+    const safeReferrer = sanitizeAnalyticsReferrer(event.referrer);
+    const safeReferringDomain = referringDomain(safeReferrer);
 
     client.capture({
       distinctId,
@@ -126,8 +136,12 @@ export async function ingestAnalyticsEvents(
         ...event.props,
         $insert_id: event.eventId,
         $current_url: currentUrl,
+        ...(safeHost ? { $host: safeHost } : {}),
         $pathname: pathname,
-        $referrer: sanitizeAnalyticsReferrer(event.referrer),
+        $referrer: safeReferrer,
+        ...(safeReferringDomain
+          ? { $referring_domain: safeReferringDomain }
+          : {}),
         $raw_user_agent: userAgent,
         $session_id: event.sessionId || cookieSessionId,
         anon_id: event.anonId || cookieAnonId,
