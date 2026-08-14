@@ -223,6 +223,11 @@ export function sanitizeAnalyticsProperties(
 
 export function sanitizePostHogCapture(result: CaptureResult | null): CaptureResult | null {
   if (!result || result.event === "$exception") return null;
+  // Session replay payloads contain deeply nested rrweb DOM trees. Running them
+  // through the bounded analytics-property sanitizer truncates the tree and makes
+  // the recording unusable. Replay URLs and network entries are sanitized by the
+  // session_recording.maskCapturedNetworkRequestFn configuration instead.
+  if (result.event === "$snapshot") return result;
   return {
     ...result,
     properties: sanitizeAnalyticsProperties(result.properties),

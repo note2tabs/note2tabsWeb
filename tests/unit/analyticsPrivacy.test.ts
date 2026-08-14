@@ -77,6 +77,39 @@ describe("analytics privacy sanitization", () => {
     ).toBeNull();
   });
 
+  it("preserves deeply nested session replay snapshots", () => {
+    const snapshot = {
+      uuid: "snapshot-id",
+      event: "$snapshot",
+      properties: {
+        $snapshot_data: {
+          type: 2,
+          data: {
+            node: {
+              childNodes: [
+                {
+                  childNodes: [
+                    {
+                      childNodes: [
+                        {
+                          childNodes: [
+                            { childNodes: [{ textContent: "editor content" }] },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+    } as any;
+
+    expect(sanitizePostHogCapture(snapshot)).toBe(snapshot);
+  });
+
   it("uses bounded funnel dimensions instead of destinations and errors", () => {
     expect(categorizeAnalyticsDestination("/transcribe?resumeTranscription=1")).toBe(
       "transcriber"
