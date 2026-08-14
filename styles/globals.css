@@ -1160,6 +1160,18 @@ input[type="number"] {
   background: #16231e;
 }
 
+.product-home__tab-art--thumbnail .product-home__tab-art-title {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(17, 27, 23, 0.52);
+  font-size: 0.5rem;
+  font-weight: 730;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .product-home__tab-art-staff {
   position: absolute;
   inset: 72px 21px auto;
@@ -1184,6 +1196,33 @@ input[type="number"] {
 .product-home__tab-note--one { top: 9px; left: 22px; }
 .product-home__tab-note--two { top: 33px; left: 74px; }
 .product-home__tab-note--three { top: 57px; left: 112px; }
+
+.product-home__tab-preview-bar {
+  position: absolute;
+  top: 0;
+  bottom: 11px;
+  width: 1px;
+  background: rgba(17, 27, 23, 0.18);
+}
+
+.product-home__tab-preview-bar--one { left: 33.33%; }
+.product-home__tab-preview-bar--two { left: 66.66%; }
+
+.product-home__tab-preview-note {
+  position: absolute;
+  z-index: 1;
+  min-width: 12px;
+  padding: 0 2px;
+  border-radius: 3px;
+  background: #fbfaf6;
+  color: #0b5f49;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.58rem;
+  font-weight: 760;
+  line-height: 11px;
+  text-align: center;
+  transform: translateX(-50%);
+}
 
 .product-home__tab-art-footer {
   position: absolute;
