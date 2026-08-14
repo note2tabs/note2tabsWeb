@@ -17,6 +17,31 @@ type NavBarProps = {
   editorRevealMode?: boolean;
 };
 
+type PrimaryNavSection = "home" | "editor" | "transcriber" | "premium";
+
+export const isPrimaryNavSectionActive = (
+  pathname: string,
+  section: PrimaryNavSection
+) => {
+  if (section === "home") return pathname === "/home";
+  if (section === "editor") return pathname === "/editor" || pathname.startsWith("/gte");
+  if (section === "transcriber") {
+    return (
+      pathname === "/transcribe" ||
+      pathname === "/transcriber" ||
+      pathname.startsWith("/job/")
+    );
+  }
+  return pathname === "/pricing";
+};
+
+export const shouldShowPremiumNav = (
+  sessionStatus: "loading" | "authenticated" | "unauthenticated",
+  hasSession: boolean,
+  hasPremiumAccess: boolean
+) =>
+  sessionStatus !== "loading" && (!hasSession || !hasPremiumAccess);
+
 export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
@@ -41,6 +66,10 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const premiumHref = "/pricing?source=navigation&reason=nav_premium";
   const editorHref = sessionStatus === "authenticated" ? "/gte" : "/editor";
   const logoHref = sessionStatus === "authenticated" ? "/home" : "/";
+  const navPillClass = (section: PrimaryNavSection, extraClass = "") =>
+    `nav-pill${extraClass ? ` ${extraClass}` : ""}${
+      isPrimaryNavSectionActive(router.pathname, section) ? " nav-pill--active" : ""
+    }`;
 
   useEffect(() => {
     setMenuOpen(false);
@@ -152,24 +181,35 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
           {(sessionStatus === "authenticated" || isProductHome) && (
             <Link
               href="/home"
-              className={`nav-pill${isProductHome ? " nav-pill--active" : ""}`}
+              className={navPillClass("home")}
               aria-current={isProductHome ? "page" : undefined}
             >
               Home
             </Link>
           )}
-          <Link href={editorHref} className="nav-pill">
+          <Link
+            href={editorHref}
+            className={navPillClass("editor")}
+            aria-current={isPrimaryNavSectionActive(router.pathname, "editor") ? "page" : undefined}
+          >
             Editor
           </Link>
-          <Link href="/transcribe" className="nav-pill">
+          <Link
+            href="/transcribe"
+            className={navPillClass("transcriber")}
+            aria-current={isPrimaryNavSectionActive(router.pathname, "transcriber") ? "page" : undefined}
+          >
             Transcriber
           </Link>
-          <Link
-            href={session && !hasPremiumAccess ? premiumHref : "/pricing"}
-            className={session && !hasPremiumAccess ? "nav-premium-link" : undefined}
-          >
-            {session && !hasPremiumAccess ? "Premium" : "Pricing"}
-          </Link>
+          {shouldShowPremiumNav(sessionStatus, Boolean(session), hasPremiumAccess) && (
+            <Link
+              href={session ? premiumHref : "/pricing"}
+              className={navPillClass("premium", session ? "nav-premium-link" : "")}
+              aria-current={isPrimaryNavSectionActive(router.pathname, "premium") ? "page" : undefined}
+            >
+              {session ? "Premium" : "Pricing"}
+            </Link>
+          )}
           <div
             className={`nav-auth-slot${
               sessionStatus === "loading"

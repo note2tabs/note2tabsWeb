@@ -3523,6 +3523,10 @@ input[type="number"] {
   text-underline-offset: 4px;
 }
 
+.nav-links .nav-premium-link.nav-pill--active {
+  text-decoration: none;
+}
+
 .nav-links--reading a:hover,
 .nav-links--reading button:hover {
   opacity: 1;
