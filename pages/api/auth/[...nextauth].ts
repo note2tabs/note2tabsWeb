@@ -54,6 +54,12 @@ const providers: NextAuthOptions["providers"] = [
             sessionId: cookies.analytics_session,
             consent: cookies.analytics_consent,
             rawFingerprint,
+            funnelId:
+              typeof req.body?.funnelId === "string" ? req.body.funnelId : undefined,
+            funnelSource:
+              typeof req.body?.funnelSource === "string" ? req.body.funnelSource : undefined,
+            funnelReason:
+              typeof req.body?.funnelReason === "string" ? req.body.funnelReason : undefined,
           });
         } catch (linkError) {
           console.warn("credentials login identity link warning", linkError);

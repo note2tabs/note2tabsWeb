@@ -30,6 +30,10 @@ import {
 } from "../lib/premiumEntitlement";
 import NoIndexHead from "../components/NoIndexHead";
 import PremiumConversionCard from "../components/PremiumConversionCard";
+import {
+  getOrCreatePremiumFunnelContext,
+  premiumFunnelProperties,
+} from "../lib/premiumFunnel";
 
 type Props = {
   user: {
@@ -248,26 +252,39 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     }
     setUpgradeBusy(true);
     setError(null);
+    const funnel = getOrCreatePremiumFunnelContext({
+      source: "settings",
+      reason: "account_plan",
+    });
     try {
       const res = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: "settings" }),
+        body: JSON.stringify({
+          source: funnel.source,
+          reason: funnel.reason,
+          funnelId: funnel.funnelId,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.url) {
         sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-          source: "settings",
           plan: "premium_monthly",
+          ...premiumFunnelProperties(funnel),
         });
         setError(data?.error || "Could not start checkout.");
         return;
       }
+      sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
+        plan: "premium_monthly",
+        checkout_attempt_id: data.checkoutAttemptId,
+        ...premiumFunnelProperties(funnel),
+      });
       window.location.href = data.url;
     } catch {
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-        source: "settings",
         plan: "premium_monthly",
+        ...premiumFunnelProperties(funnel),
       });
       setError("Could not reach checkout. Check your connection and try again.");
     } finally {
@@ -488,7 +505,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         ) : (
           <PremiumConversionCard
             title="Keep transcribing today"
-            description="Premium includes 100 monthly credits, rollover, faster processing, and full-song uploads."
+            description="Premium includes 100 monthly credits, rollover, and full-song audio uploads."
             actionLabel="Get Premium"
             onAction={() => void handleUpgrade()}
             busy={upgradeBusy}

@@ -6,32 +6,20 @@ import { stripeClient } from "../../../lib/stripe";
 import { getAppBaseUrl } from "../../../lib/urls";
 import {
   getStripePremiumConfig,
-  stripeSubscriptionMatchesPremium,
 } from "../../../lib/stripePremium";
 import { getFreshUserRole } from "../../../lib/serverAuth";
 import { createPostHogServerClient } from "../../../lib/posthogServer";
+import { inspectPremiumCustomerState } from "../../../lib/stripePremiumOffer";
+import {
+  normalizePremiumFunnelId,
+  normalizePremiumFunnelReason,
+  normalizePremiumFunnelSource,
+} from "../../../lib/premiumFunnel";
+import { normalizePremiumOfferVariant } from "../../../lib/premiumOfferExperiment";
+import { parseUserAgent } from "../../../lib/analyticsV2/ua";
 
 const PREMIUM_TRIAL_DAYS = 7;
 const PREMIUM_ACCESS_ROLES = new Set(["PREMIUM", "ADMIN", "MODERATOR", "MOD"]);
-const PORTAL_SUBSCRIPTION_STATUSES = new Set([
-  "active",
-  "trialing",
-  "past_due",
-  "paused",
-  "unpaid",
-]);
-
-const CHECKOUT_SOURCES = new Set([
-  "pricing_page",
-  "home_pricing",
-  "large_upload_gate",
-  "settings",
-  "premium_prompt",
-]);
-
-const checkoutSource = (value: unknown) =>
-  typeof value === "string" && CHECKOUT_SOURCES.has(value) ? value : "unknown";
-
 async function trackCheckoutEvent(
   distinctId: string,
   event: "checkout_session_requested" | "checkout_started" | "checkout_failed",
@@ -105,86 +93,94 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(409).json({ error: "This account already has Premium access." });
   }
 
-  const source = checkoutSource(req.body?.source);
+  const source = normalizePremiumFunnelSource(req.body?.source);
+  const reason = normalizePremiumFunnelReason(req.body?.reason);
+  const offerVariant = normalizePremiumOfferVariant(req.body?.offerVariant);
+  const requestedModel = String(req.body?.model || "").toLowerCase();
+  const model = source === "heavy_model" || reason.includes("heavy")
+    ? "heavy"
+    : requestedModel === "light" || requestedModel === "heavy"
+      ? requestedModel
+      : "unknown";
+  const deviceType = parseUserAgent(req.headers["user-agent"]).deviceType;
+  const funnelId =
+    normalizePremiumFunnelId(req.body?.funnelId) ||
+    createHash("sha256")
+      .update(`${session.user.id}|${requestId}|${Date.now()}`)
+      .digest("hex")
+      .slice(0, 24);
   console.log(JSON.stringify({
     level: "info",
     message: "checkout_session_requested",
     route: "/api/stripe/create-checkout-session",
     requestId,
     source,
+    reason,
+    funnelId,
+    offerVariant,
+    model,
+    deviceType,
   }));
   await trackCheckoutEvent(session.user.id, "checkout_session_requested", {
     plan: "premium_monthly",
     source,
+    reason,
+    funnel_id: funnelId,
+    offer_variant: offerVariant,
+    model,
+    device_type: deviceType,
     request_id: requestId,
   });
 
   try {
     const baseUrl = getAppBaseUrl(req);
     const returnPaths = resolveCheckoutReturnPaths(req.body?.returnTo);
-    const customers = await stripeClient.customers.list({
+    const customerState = await inspectPremiumCustomerState({
+      stripe: stripeClient,
       email: session.user.email,
-      limit: 100,
+      config: premiumConfig,
     });
-    const existingCustomers = customers.data.filter(
-      (customer) => customer && !("deleted" in customer)
-    );
-
-    let trialAlreadyUsed = false;
-    let premiumCustomer = null as (typeof existingCustomers)[number] | null;
-    const incompleteSubscriptionIds: string[] = [];
-    const subscriptionState: string[] = [];
-    for (const customer of existingCustomers) {
-      const subscriptions = await stripeClient.subscriptions.list({
-        customer: customer.id,
-        status: "all",
-        limit: 100,
+    if (customerState.manageableCustomer) {
+      const portal = await stripeClient.billingPortal.sessions.create({
+        customer: customerState.manageableCustomer.id,
+        return_url: `${baseUrl}${returnPaths.manage}`,
       });
-      const premiumSubscriptions = subscriptions.data.filter((subscription) =>
-        stripeSubscriptionMatchesPremium(subscription, premiumConfig)
-      );
-      if (premiumSubscriptions.length && !premiumCustomer) {
-        premiumCustomer = customer;
-      }
-      if (premiumSubscriptions.some((subscription) => Boolean(subscription.trial_start || subscription.trial_end))) {
-        trialAlreadyUsed = true;
-      }
-      subscriptionState.push(
-        `${customer.id}:${premiumSubscriptions
-          .map((subscription) => `${subscription.id}:${subscription.status}`)
-          .sort()
-          .join(",")}`
-      );
-      for (const subscription of premiumSubscriptions) {
-        if (subscription.status === "incomplete") {
-          incompleteSubscriptionIds.push(subscription.id);
-        }
-      }
-      if (premiumSubscriptions.some((subscription) => PORTAL_SUBSCRIPTION_STATUSES.has(subscription.status))) {
-        const portal = await stripeClient.billingPortal.sessions.create({
-          customer: customer.id,
-          return_url: `${baseUrl}${returnPaths.manage}`,
-        });
-        console.log(JSON.stringify({
-          level: "info",
-          message: "checkout_routed_to_portal",
-          route: "/api/stripe/create-checkout-session",
-          requestId,
-          source,
-          duration_ms: Date.now() - startedAt,
-        }));
-        return res.status(200).json({
-          url: portal.url,
-          action: "manage_subscription",
-        });
-      }
+      console.log(JSON.stringify({
+        level: "info",
+        message: "checkout_routed_to_portal",
+        route: "/api/stripe/create-checkout-session",
+        requestId,
+        source,
+        reason,
+        funnelId,
+        duration_ms: Date.now() - startedAt,
+      }));
+      return res.status(200).json({
+        url: portal.url,
+        action: "manage_subscription",
+      });
     }
 
-    const existingCustomer = premiumCustomer || existingCustomers[0];
+    const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
     const checkoutStateHash = createHash("sha256")
-      .update(`${session.user.id}|${returnPaths.success}|${subscriptionState.sort().join("|") || "new"}`)
+      .update(
+        `${session.user.id}|${returnPaths.success}|${funnelId}|${
+          customerState.subscriptionState.sort().join("|") || "new"
+        }`
+      )
       .digest("hex")
       .slice(0, 24);
+    const checkoutMetadata = {
+      userId: session.user.id,
+      note2tabsPlan: "premium",
+      note2tabsPriceId: premiumConfig.priceId,
+      premiumFunnelId: funnelId,
+      premiumFunnelSource: source,
+      premiumFunnelReason: reason,
+      premiumOfferVariant: offerVariant,
+      premiumFunnelModel: model,
+      premiumTrialIncluded: customerState.trialEligible ? "true" : "false",
+    };
     const checkout = await stripeClient.checkout.sessions.create(
       {
         ...(existingCustomer
@@ -193,28 +189,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         mode: "subscription",
         payment_method_collection: "always",
         line_items: [{ price: premiumConfig.priceId, quantity: 1 }],
-        ...(!trialAlreadyUsed
-          ? { subscription_data: { trial_period_days: PREMIUM_TRIAL_DAYS } }
-          : {}),
+        client_reference_id: funnelId,
+        subscription_data: {
+          ...(customerState.trialEligible ? { trial_period_days: PREMIUM_TRIAL_DAYS } : {}),
+          metadata: checkoutMetadata,
+        },
         success_url: `${baseUrl}${appendCheckoutSessionId(returnPaths.success)}`,
         cancel_url: `${baseUrl}${returnPaths.cancel}`,
-        metadata: {
-          userId: session.user.id,
-          note2tabsPlan: "premium",
-          note2tabsPriceId: premiumConfig.priceId,
-        },
+        metadata: checkoutMetadata,
       },
       { idempotencyKey: `premium-checkout-${session.user.id}-${checkoutStateHash}` }
     );
     if (!checkout.url) {
       throw new Error("Stripe returned a checkout session without a URL");
     }
-    for (const subscriptionId of incompleteSubscriptionIds) {
+    for (const subscriptionId of customerState.incompleteSubscriptionIds) {
       await stripeClient.subscriptions.cancel(subscriptionId);
     }
     await trackCheckoutEvent(session.user.id, "checkout_started", {
       plan: "premium_monthly",
       source,
+      reason,
+      funnel_id: funnelId,
+      trial_included: customerState.trialEligible,
+      offer_variant: offerVariant,
+      model,
+      device_type: deviceType,
       request_id: requestId,
       $insert_id: `checkout-started:${checkout.id}`,
     });
@@ -224,13 +224,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       route: "/api/stripe/create-checkout-session",
       requestId,
       source,
+      reason,
+      funnelId,
       duration_ms: Date.now() - startedAt,
     }));
-    return res.status(200).json({ url: checkout.url, checkoutAttemptId: requestId });
+    return res.status(200).json({
+      url: checkout.url,
+      checkoutAttemptId: requestId,
+      funnelId,
+      trialIncluded: customerState.trialEligible,
+      offerVariant,
+    });
   } catch (error) {
     await trackCheckoutEvent(session.user.id, "checkout_failed", {
       plan: "premium_monthly",
       source,
+      reason,
+      funnel_id: funnelId,
+      offer_variant: offerVariant,
+      model,
+      device_type: deviceType,
       request_id: requestId,
       failure_stage: "stripe_session_creation",
     });
@@ -240,6 +253,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       route: "/api/stripe/create-checkout-session",
       requestId,
       source,
+      reason,
+      funnelId,
       error_type: error instanceof Error ? error.name : "UnknownError",
       duration_ms: Date.now() - startedAt,
     }));

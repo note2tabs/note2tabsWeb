@@ -1,7 +1,7 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import type { ChangeEvent, KeyboardEvent } from "react";
+import type { ChangeEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import {
@@ -52,6 +52,11 @@ import {
   categorizeAnalyticsError,
 } from "../lib/analyticsErrors";
 import { formatCreditResetDate } from "../lib/formatCreditResetDate";
+import {
+  getOrCreatePremiumFunnelContext,
+  premiumFunnelProperties,
+  premiumPricingHref,
+} from "../lib/premiumFunnel";
 
 type TabsResponse = {
   tabs: string[][];
@@ -107,24 +112,14 @@ const parseTimestampInput = (value: string): number | null => {
 };
 
 const preserveTimestampColon = (value: string, previousValue: string) => {
-  if (!previousValue.includes(":")) return value;
-  return value.includes(":") ? value : previousValue;
-};
-
-const preventTimestampColonDelete = (event: KeyboardEvent<HTMLInputElement>) => {
-  if (event.key !== "Backspace" && event.key !== "Delete") return;
-  const input = event.currentTarget;
-  const colonIndex = input.value.indexOf(":");
-  if (colonIndex === -1 || input.selectionStart === null || input.selectionEnd === null) return;
-  const { selectionStart, selectionEnd } = input;
-  const deletesColon =
-    selectionStart !== selectionEnd
-      ? selectionStart <= colonIndex && selectionEnd > colonIndex
-      : (event.key === "Backspace" && selectionStart === colonIndex + 1) ||
-        (event.key === "Delete" && selectionStart === colonIndex);
-  if (deletesColon) {
-    event.preventDefault();
-  }
+  if (value.includes(":")) return value;
+  const digits = value.replace(/\D/g, "");
+  const previousColonIndex = previousValue.indexOf(":");
+  const colonIndex = Math.min(
+    previousColonIndex >= 0 ? previousColonIndex : Math.max(1, digits.length - 2),
+    digits.length
+  );
+  return `${digits.slice(0, colonIndex)}:${digits.slice(colonIndex)}`;
 };
 
 const getAudioFileDuration = (file: File): Promise<number | null> =>
@@ -593,11 +588,7 @@ export default function TranscriberPage() {
       setFileEndTime(null);
       return;
     }
-    const nextEnd = clampFileClipEnd(fileStartTime, parsed, fileDuration, isPremiumUser);
-    setFileEndTime(nextEnd);
-    if (nextEnd !== parsed) {
-      setFileEndInput(formatTimestamp(nextEnd));
-    }
+    setFileEndTime(parsed);
   };
 
   const handleFileStartInputBlur = () => {
@@ -758,7 +749,9 @@ export default function TranscriberPage() {
         );
         sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "signed_out", mode });
         sendEvent(ANALYTICS_EVENTS.authHandoffSaved, { mode, path: "/transcribe" });
-        await signIn(undefined, { callbackUrl: "/transcribe?resumeTranscription=1" });
+        await router.push(
+          `/auth/login?next=${encodeURIComponent("/transcribe?resumeTranscription=1")}`
+        );
       } catch {
         setError("We could not safely preserve this audio for sign-in. Please sign in first, then choose it again.");
       } finally {
@@ -1060,6 +1053,10 @@ export default function TranscriberPage() {
 
   const handlePreservedUploadUpgrade = async () => {
     if (!selectedFile || upgradeBusy) return;
+    const funnel = getOrCreatePremiumFunnelContext({
+      source: "large_upload_gate",
+      reason: "file_size_limit",
+    });
     setUpgradeBusy(true);
     setError(null);
     try {
@@ -1075,7 +1072,9 @@ export default function TranscriberPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           returnTo: "/transcribe?resumeTranscription=1",
-          source: "large_upload_gate",
+          source: funnel.source,
+          reason: funnel.reason,
+          funnelId: funnel.funnelId,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -1083,15 +1082,15 @@ export default function TranscriberPage() {
         throw new Error(payload?.error || "Could not start checkout.");
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
-        source: "large_upload_gate",
         plan: "premium_monthly",
         checkout_attempt_id: payload.checkoutAttemptId,
+        ...premiumFunnelProperties(funnel),
       });
       window.location.assign(payload.url);
     } catch (upgradeError) {
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-        source: "large_upload_gate",
         plan: "premium_monthly",
+        ...premiumFunnelProperties(funnel),
       });
       setError(upgradeError instanceof Error ? upgradeError.message : "Could not start checkout.");
       setUpgradeBusy(false);
@@ -1328,57 +1327,18 @@ export default function TranscriberPage() {
                   <div className="instrument-choice-group">
                     <p className="instrument-question">Does your audio include other instruments?</p>
                     <div className="button-row instrument-choice-row">
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${separateGuitar === true ? "active" : ""}`}
-                        onClick={() => setSeparateGuitar(true)}
-                        aria-pressed={separateGuitar === true}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${separateGuitar === false ? "active" : ""}`}
-                        onClick={() => setSeparateGuitar(false)}
-                        aria-pressed={separateGuitar === false}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        No
-                      </button>
+                      <button type="button" className={`button-secondary instrument-choice-button ${separateGuitar === true ? "active" : ""}`} onClick={() => setSeparateGuitar(true)} aria-pressed={separateGuitar === true} disabled={loading || authHandoffBusy}>Yes</button>
+                      <button type="button" className={`button-secondary instrument-choice-button ${separateGuitar === false ? "active" : ""}`} onClick={() => setSeparateGuitar(false)} aria-pressed={separateGuitar === false} disabled={loading || authHandoffBusy}>No</button>
                     </div>
                   </div>
                   <div className="instrument-choice-group">
                     <p className="instrument-question">Does your audio include more than one guitar?</p>
                     <div className="button-row instrument-choice-row">
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${multipleGuitars === true ? "active" : ""}`}
-                        onClick={() => setMultipleGuitars(true)}
-                        aria-pressed={multipleGuitars === true}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        className={`button-secondary instrument-choice-button ${multipleGuitars === false ? "active" : ""}`}
-                        onClick={() => setMultipleGuitars(false)}
-                        aria-pressed={multipleGuitars === false}
-                        disabled={loading || authHandoffBusy}
-                      >
-                        No
-                      </button>
+                      <button type="button" className={`button-secondary instrument-choice-button ${multipleGuitars === true ? "active" : ""}`} onClick={() => setMultipleGuitars(true)} aria-pressed={multipleGuitars === true} disabled={loading || authHandoffBusy}>Yes</button>
+                      <button type="button" className={`button-secondary instrument-choice-button ${multipleGuitars === false ? "active" : ""}`} onClick={() => setMultipleGuitars(false)} aria-pressed={multipleGuitars === false} disabled={loading || authHandoffBusy}>No</button>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="button-primary instrument-start-button"
-                    onClick={handleInstrumentPromptStart}
-                    disabled={loading || !instrumentPromptComplete}
-                  >
-                    Start transcription
-                  </button>
+                  <button type="button" className="button-primary instrument-start-button" onClick={handleInstrumentPromptStart} disabled={loading || !instrumentPromptComplete}>Start transcription</button>
                 </div>
               ) : (
                 <>
@@ -1469,8 +1429,8 @@ export default function TranscriberPage() {
                   {mode === "YOUTUBE" && (
                     <div className="prompt-field prompt-field--compact">
                       <div className="advanced-grid">
-                        <label>Start time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:00" value={ytStartInput} onChange={(event) => handleYtStartInputChange(event.target.value)} onKeyDown={preventTimestampColonDelete} onBlur={handleYtStartInputBlur} required /></label>
-                        <label>End time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:30" value={ytEndInput} onChange={(event) => handleYtEndInputChange(event.target.value)} onKeyDown={preventTimestampColonDelete} onBlur={handleYtEndInputBlur} required /></label>
+                        <label>Start time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:00" value={ytStartInput} onChange={(event) => handleYtStartInputChange(event.target.value)} onBlur={handleYtStartInputBlur} required /></label>
+                        <label>End time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:30" value={ytEndInput} onChange={(event) => handleYtEndInputChange(event.target.value)} onBlur={handleYtEndInputBlur} required /></label>
                         <p className="advanced-note">Max length is 30 s.</p>
                       </div>
                     </div>
@@ -1478,8 +1438,8 @@ export default function TranscriberPage() {
                   {mode === "FILE" && selectedFile && (
                     <div className="prompt-field prompt-field--compact">
                       <div className="advanced-grid">
-                        <label>Start time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:00" value={fileStartInput} onChange={(event) => handleFileStartInputChange(event.target.value)} onKeyDown={preventTimestampColonDelete} onBlur={handleFileStartInputBlur} required /></label>
-                        <label>End time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="1:00" value={fileEndInput} onChange={(event) => handleFileEndInputChange(event.target.value)} onKeyDown={preventTimestampColonDelete} onBlur={handleFileEndInputBlur} required /></label>
+                        <label>Start time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:00" value={fileStartInput} onChange={(event) => handleFileStartInputChange(event.target.value)} onBlur={handleFileStartInputBlur} required /></label>
+                        <label>End time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="1:00" value={fileEndInput} onChange={(event) => handleFileEndInputChange(event.target.value)} onBlur={handleFileEndInputBlur} required /></label>
                         <p className="advanced-note">{isPremiumUser ? "Pick any section within the file." : "Free file uploads are limited to 60 s."}</p>
                       </div>
                     </div>
@@ -1514,9 +1474,9 @@ export default function TranscriberPage() {
                 ) : (
                   <PremiumConversionCard
                     title="Keep transcribing today"
-                    description="Premium includes 100 monthly credits, rollover, faster processing, and full-song uploads."
+                    description="Premium includes 100 monthly credits, rollover, and full-song audio uploads."
                     actionLabel="See Premium"
-                    href="/pricing"
+                    href={premiumPricingHref({ source: "low_credits", reason: "credits_low" })}
                     resetMessage={`Free credits reset ${creditsResetLabel}`}
                   />
                 )

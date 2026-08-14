@@ -34,9 +34,13 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const editorAtPageTopRef = useRef(true);
   const isReadingArticle = router.pathname === "/blog/[slug]";
   const isHome = router.pathname === "/";
+  const isProductHome = router.pathname === "/home";
   const role = session?.user?.role || "";
   const isAdmin = role === "ADMIN";
+  const hasPremiumAccess = ["PREMIUM", "ADMIN", "MODERATOR", "MOD"].includes(role);
+  const premiumHref = "/pricing?source=navigation&reason=nav_premium";
   const editorHref = sessionStatus === "authenticated" ? "/gte" : "/editor";
+  const logoHref = sessionStatus === "authenticated" ? "/home" : "/";
 
   useEffect(() => {
     setMenuOpen(false);
@@ -136,7 +140,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
       className={`nav-shell${isReadingArticle ? " nav-shell--reading" : ""}${isHome ? " nav-shell--home" : ""}${isHome && !isScrolled ? " nav-shell--blend" : ""}${editorRevealMode ? " nav-shell--editor-reveal" : ""}${editorRevealMode && (editorRevealVisible || menuOpen || profileMenuOpen) ? " nav-shell--editor-visible" : ""}${profileMenuOpen ? " nav-shell--profile-open" : ""}`}
     >
       <div className="container nav">
-        <Link href="/" className="logo">
+        <Link href={logoHref} className="logo">
           <img src="/logo-mark-96.png" alt="Note2Tabs logo" className="logo-mark" width="28" height="28" />
           <span className="logo-text">Note2Tabs</span>
         </Link>
@@ -145,13 +149,27 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
           className={`nav-links ${menuOpen ? "open" : ""}${isReadingArticle ? " nav-links--reading" : ""}`}
           aria-label="Primary navigation"
         >
+          {(sessionStatus === "authenticated" || isProductHome) && (
+            <Link
+              href="/home"
+              className={`nav-pill${isProductHome ? " nav-pill--active" : ""}`}
+              aria-current={isProductHome ? "page" : undefined}
+            >
+              Home
+            </Link>
+          )}
           <Link href={editorHref} className="nav-pill">
             Editor
           </Link>
           <Link href="/transcribe" className="nav-pill">
             Transcriber
           </Link>
-          <Link href="/pricing">Pricing</Link>
+          <Link
+            href={session && !hasPremiumAccess ? premiumHref : "/pricing"}
+            className={session && !hasPremiumAccess ? "nav-premium-link" : undefined}
+          >
+            {session && !hasPremiumAccess ? "Premium" : "Pricing"}
+          </Link>
           <div
             className={`nav-auth-slot${
               sessionStatus === "loading"
@@ -166,7 +184,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
             )}
             {sessionStatus === "unauthenticated" && (
               <>
-                <button type="button" onClick={() => signIn(undefined, { callbackUrl: "/" })}>
+                <button type="button" onClick={() => signIn(undefined, { callbackUrl: "/home" })}>
                   Log in
                 </button>
                 <Link href="/auth/signup" className="nav-cta">
@@ -201,6 +219,19 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                   className={`nav-profile-menu${profileMenuOpen ? " open" : ""}`}
                   role="menu"
                 >
+                  <Link href="/home" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
+                    Home
+                  </Link>
+                  {!hasPremiumAccess && (
+                    <Link
+                      href={premiumHref}
+                      className="nav-profile-menu__premium"
+                      role="menuitem"
+                      onClick={() => setProfileMenuOpen(false)}
+                    >
+                      Explore Premium
+                    </Link>
+                  )}
                   <Link href="/settings" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
                     Settings
                   </Link>
