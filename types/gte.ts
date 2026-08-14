@@ -136,6 +136,11 @@ export type EditorListItem = {
   totalFrames?: number;
   noteCount?: number;
   chordCount?: number;
+  previewNotes?: Array<{
+    startTime: number;
+    string: number;
+    fret: number;
+  }>;
 };
 
 export type CanvasSnapshot = {

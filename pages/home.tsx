@@ -98,17 +98,45 @@ function SidebarIcon({ name }: { name: "home" | "transcriber" | "tabs" }) {
   return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5.5h13m-13 4.5h13m-13 4.5h8" /></svg>;
 }
 
-function CurrentTabArtwork() {
+function CurrentTabArtwork({ editor }: { editor: EditorListItem }) {
+  const previewNotes = (editor.previewNotes || [])
+    .filter(
+      (note) =>
+        Number.isFinite(note.startTime) &&
+        Number.isInteger(note.string) &&
+        note.string >= 0 &&
+        note.string < 6 &&
+        Number.isInteger(note.fret) &&
+        note.fret >= 0
+    )
+    .slice(0, 36);
+  const firstFrame = previewNotes[0]?.startTime ?? 0;
+  const lastFrame = previewNotes[previewNotes.length - 1]?.startTime ?? firstFrame;
+  const frameRange = Math.max(1, lastFrame - firstFrame);
+
   return (
-    <span className="product-home__tab-art" aria-hidden="true">
-      <span className="product-home__tab-art-title" />
+    <span className="product-home__tab-art product-home__tab-art--thumbnail" aria-hidden="true">
+      <span className="product-home__tab-art-title">Tab view</span>
       <span className="product-home__tab-art-staff">
         <i /><i /><i /><i /><i /><i />
-        <b className="product-home__tab-note product-home__tab-note--one" />
-        <b className="product-home__tab-note product-home__tab-note--two" />
-        <b className="product-home__tab-note product-home__tab-note--three" />
+        <b className="product-home__tab-preview-bar product-home__tab-preview-bar--one" />
+        <b className="product-home__tab-preview-bar product-home__tab-preview-bar--two" />
+        {previewNotes.map((note, index) => (
+          <span
+            className="product-home__tab-preview-note"
+            key={`${note.startTime}-${note.string}-${note.fret}-${index}`}
+            style={{
+              left: `${5 + ((note.startTime - firstFrame) / frameRange) * 88}%`,
+              top: `${note.string * 12 - 5}px`,
+            }}
+          >
+            {note.fret}
+          </span>
+        ))}
       </span>
-      <span className="product-home__tab-art-footer">TAB</span>
+      <span className="product-home__tab-art-footer">
+        {previewNotes.length > 0 ? "TAB" : "EMPTY TAB"}
+      </span>
     </span>
   );
 }
@@ -281,7 +309,7 @@ export default function ProductHome({
               <div className="product-studio__grid">
                 {recentEditors.map((editor) => (
                   <Link key={editor.id} href={`/gte/${editor.id}`} className="product-studio__tab" onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})} onClick={() => trackHomeCta("product_home_recent_editor")}>
-                    <CurrentTabArtwork />
+                    <CurrentTabArtwork editor={editor} />
                     <span><strong>{editorName(editor)}</strong><small>{editorActivity(editor)}</small><em>{relativeUpdatedAt(editor.updatedAt)}</em></span>
                   </Link>
                 ))}
@@ -317,18 +345,33 @@ export const getServerSideProps: GetServerSideProps<ProductHomeProps> = async (c
             updatedAt: new Date(now - 55 * 60_000).toISOString(),
             noteCount: 84,
             chordCount: 12,
+            previewNotes: [
+              { startTime: 0, string: 1, fret: 3 },
+              { startTime: 80, string: 2, fret: 5 },
+              { startTime: 160, string: 1, fret: 7 },
+              { startTime: 240, string: 3, fret: 7 },
+              { startTime: 320, string: 2, fret: 5 },
+              { startTime: 400, string: 0, fret: 3 },
+            ],
           },
           {
             id: "local-preview-2",
             name: "New idea",
             updatedAt: new Date(now - 24 * 60 * 60_000).toISOString(),
             noteCount: 28,
+            previewNotes: [
+              { startTime: 0, string: 5, fret: 0 },
+              { startTime: 120, string: 4, fret: 2 },
+              { startTime: 240, string: 3, fret: 2 },
+              { startTime: 360, string: 2, fret: 1 },
+            ],
           },
           {
             id: "local-preview-3",
             name: "Acoustic arrangement",
             updatedAt: new Date(now - 2 * 24 * 60 * 60_000).toISOString(),
             chordCount: 18,
+            previewNotes: [],
           },
         ],
       },
