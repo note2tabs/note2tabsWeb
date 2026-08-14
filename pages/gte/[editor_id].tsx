@@ -16,6 +16,7 @@ import { authOptions } from "../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
 import { buildLaneEditorRef, gteApi, normalizeEditorName } from "../../lib/gteApi";
+import { buildTrackMergePlan } from "../../lib/gteTrackMerge";
 import {
   PLAYBACK_SPEED_OPTIONS,
   SPEED_TRAINER_START_OPTIONS,
@@ -2399,14 +2400,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const commitTrackMerge = useCallback(async () => {
     if (!canvas || mergeTracksBusy || mergeTrackIds.length < 2) return;
+    const mergePlan = buildTrackMergePlan(canvas.editors, mergeTrackIds);
+    if (!mergePlan) return;
     setMergeTracksBusy(true);
     setError(null);
     try {
       const response = await gteApi.mergeTracks(editorId, {
         expectedVersion: Math.max(1, Number(canvas.version) || 1),
-        laneIds: mergeTrackIds,
-        name: "Merged track",
-        keepOriginals: true,
+        laneIds: mergePlan.laneIds,
+        name: mergePlan.name,
+        keepOriginals: false,
       });
       applyCanvasUpdate(normalizeCanvas(response.canvas, editorId), { markDirty: false });
       setActiveLaneId(response.mergedLaneId);
@@ -9714,7 +9717,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             <div className="stack-tight">
               <h2 id="merge-tracks-title" className="page-title" style={{ fontSize: "1.25rem" }}>Merge tracks</h2>
               <p className="muted text-small">
-                Notes and chords are combined into a new optimized track. Your original tracks stay unchanged.
+                Notes and chords are combined into one optimized track. The original tracks are removed.
               </p>
             </div>
             <div className="mt-4 grid max-h-72 gap-2 overflow-y-auto">
@@ -9751,7 +9754,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               })}
             </div>
             <p className="mt-3 text-xs text-slate-500">
-              Drum tracks can only be merged with other drum tracks. The first selected track supplies the tuning.
+              Drum tracks can only be merged with other drum tracks. The upper selected track supplies the tuning.
             </p>
             <div className="button-row mt-5" style={{ justifyContent: "flex-end" }}>
               <button
