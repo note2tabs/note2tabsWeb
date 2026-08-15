@@ -4355,15 +4355,8 @@ export default function GteWorkspace({
     useExternalPlayback ? playbackSpeed ?? localPlaybackSpeed : localPlaybackSpeed
   );
   const editorTabView = useMemo(
-    () => {
-      const layoutSnapshot =
-        practiceMode && practiceChordOverlay?.chords.length
-          ? {
-              ...snapshot,
-              chords: [...snapshot.chords, ...practiceChordOverlay.chords],
-            }
-          : snapshot;
-      return buildEditorTabView(layoutSnapshot, {
+    () =>
+      buildEditorTabView(snapshot, {
         framesPerBar: framesPerMeasure,
         beatsPerBar: timeSignature,
         scale,
@@ -4371,12 +4364,10 @@ export default function GteWorkspace({
         minBarCount: viewportBarCount,
         variableBarWidths: practiceMode,
         collapseConsecutiveEmptyBars: practiceMode,
-      });
-    },
+      }),
     [
       effectivePlayheadFrame,
       framesPerMeasure,
-      practiceChordOverlay,
       practiceMode,
       scale,
       snapshot,
