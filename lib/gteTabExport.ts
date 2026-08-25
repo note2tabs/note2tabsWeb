@@ -1,6 +1,7 @@
 import { buildTabTextFromSnapshot } from "./gteTabText";
 import type { EditorSnapshot, TabCoord, TimingMapV2 } from "../types/gte";
 import { normalizeTimingMap } from "./gteTiming";
+import { getTabMidi } from "./gteTuning";
 
 export type GteExportFormat = "json" | "txt" | "musicxml" | "midi";
 
@@ -51,10 +52,8 @@ const getFramesPerBar = (snapshot: EditorSnapshot) =>
   Math.max(1, toSafeInt(snapshot.framesPerMessure, DEFAULT_FRAMES_PER_BAR));
 
 const getMidiFromTab = (snapshot: EditorSnapshot, tab: TabCoord, fallback?: number) => {
-  const direct = snapshot.tabRef?.[tab[0]]?.[tab[1]];
-  if (Number.isFinite(Number(direct))) return Math.round(Number(direct));
   if (Number.isFinite(Number(fallback)) && Number(fallback) > 0) return Math.round(Number(fallback));
-  return 40 + (5 - clamp(toSafeInt(tab[0], 0), 0, 5)) * 5 + clamp(toSafeInt(tab[1], 0), 0, 36);
+  return getTabMidi(snapshot, tab, 40 + (5 - clamp(toSafeInt(tab[0], 0), 0, 5)) * 5 + clamp(toSafeInt(tab[1], 0), 0, 36));
 };
 
 type ExportNoteEvent = {

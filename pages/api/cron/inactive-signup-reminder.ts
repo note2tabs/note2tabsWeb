@@ -73,7 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     buildInactiveSignupReminderIdentifier(userId)
   );
 
-  const [existingReminderMarkers, editorSnapshots] = await Promise.all([
+  const [existingReminderMarkers, editorCanvases] = await Promise.all([
     prisma.verificationToken.findMany({
       where: {
         identifier: {
@@ -82,7 +82,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       select: { identifier: true },
     }),
-    prisma.editor_snapshots.findMany({
+    prisma.canvases.findMany({
       where: {
         user_id: {
           in: candidateIds,
@@ -95,7 +95,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const reminderSentSet = new Set(existingReminderMarkers.map((marker) => marker.identifier));
   const editorCreatedSet = new Set<string>();
-  for (const row of editorSnapshots) {
+  for (const row of editorCanvases) {
     editorCreatedSet.add(row.user_id);
   }
 

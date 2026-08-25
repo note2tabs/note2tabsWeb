@@ -1,5 +1,4 @@
 import type { CanvasSnapshot, EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
-import { buildTabRefForTuning } from "./gteTuning";
 
 const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
@@ -33,7 +32,6 @@ const makeNote = (id: number, bar: number, laneIndex: number, slot: number): Not
 };
 
 const buildLane = (laneIndex: number, bars: number, notesPerLane: number): EditorSnapshot => {
-  const tabRef = buildTabRefForTuning(STANDARD_TUNING, 0, 22);
   const notes: Note[] = [];
   let noteId = 1;
   for (let bar = 0; bar < bars && notes.length < notesPerLane; bar += 1) {
@@ -72,7 +70,7 @@ const buildLane = (laneIndex: number, bars: number, notesPerLane: number): Edito
     noteEffects,
     cutPositionsWithCoords: buildCutRegions(bars),
     optimalsByTime: {},
-    tabRef,
+    maxFret: 22,
     tuning: {
       presetId: "standard",
       capo: 0,

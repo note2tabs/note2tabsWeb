@@ -2,7 +2,7 @@ import type { EditorSnapshot, TimingMapV2 } from "../types/gte";
 import type { PracticeLoopRange } from "./gtePractice";
 import { normalizePlaybackSpeed } from "./gtePractice";
 import { frameDurationSeconds, frameToSeconds, secondsToFrame } from "./gteTiming";
-import { getOpenStringMidiFromSnapshot } from "./gteTuning";
+import { getTabMidi } from "./gteTuning";
 
 export type PracticeRatingStatus = "correct" | "timing" | "missed";
 
@@ -97,11 +97,7 @@ const resolveTabMidi = (
   tab: [number, number],
   fallback?: number
 ) => {
-  const fromRef = snapshot.tabRef?.[tab[0]]?.[tab[1]];
-  if (Number.isFinite(Number(fromRef))) return Number(fromRef);
-  const openMidi = getOpenStringMidiFromSnapshot(snapshot)[tab[0]];
-  if (Number.isFinite(openMidi)) return openMidi + tab[1];
-  return safeNumber(fallback, 0);
+  return getTabMidi(snapshot, tab, safeNumber(fallback, 0));
 };
 
 export function buildPracticeRatingBars(input: {

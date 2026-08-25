@@ -50,7 +50,7 @@ function buildCanvas(id: string, bpms: number[], offsetFrames: number = 0): Canv
       chords: [],
       cutPositionsWithCoords: [[[0, bpms.length * 480], [2, 0]]],
       optimalsByTime: {},
-      tabRef: [],
+      maxFret: 22,
     }],
   };
 }

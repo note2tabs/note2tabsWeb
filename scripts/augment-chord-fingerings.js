@@ -101,18 +101,16 @@ function serializeCsv(headers, rows) {
   return [headers.join(";"), ...rows.map((row) => headers.map((header) => escapeCsvCell(row[header])).join(";"))].join("\n") + "\n";
 }
 
-function generateTabRef() {
-  return STANDARD_TUNING_HIGH_TO_LOW.map((openMidi) =>
-    Array.from({ length: FRET_AMOUNT }, (_, fret) => openMidi + fret)
-  );
+function fretMidi(baseMidi, fret) {
+  return Math.round(Number(baseMidi)) + Math.round(Number(fret));
 }
 
-function findClosestA(tabRef, coord, midi) {
-  const locations = [];
-  tabRef.forEach((stringMidis, stringIndex) => {
-    stringMidis.forEach((value, fret) => {
-      if (value === midi) locations.push([stringIndex, fret]);
-    });
+function findClosestA(openStrings, coord, midi) {
+  const locations = openStrings.flatMap((baseMidi, stringIndex) => {
+    const fret = Math.round(Number(midi)) - baseMidi;
+    return fret >= 0 && fret < FRET_AMOUNT && fretMidi(baseMidi, fret) === midi
+      ? [[stringIndex, fret]]
+      : [];
   });
   return locations
     .map((item) => ({
@@ -164,13 +162,12 @@ function scoreChord(chordTuple) {
 }
 
 function allFingeringsFromMidis(midiContents, playCoord = [0, 0]) {
-  const tabRef = generateTabRef();
   let midis = Array.from(new Set(midiContents.map((midi) => Math.round(Number(midi))).filter(Number.isFinite)));
   midis = midis.filter((midi) => !midis.includes(midi - 12));
   const normalAndOctaves = [...midis, ...midis.map((midi) => midi + 12)];
   const midiToFret = new Map();
   normalAndOctaves.forEach((midi) => {
-    midiToFret.set(midi, findClosestA(tabRef, playCoord, midi));
+    midiToFret.set(midi, findClosestA(STANDARD_TUNING_HIGH_TO_LOW, playCoord, midi));
   });
   return generateOctaveCombos(midis)
     .flatMap((midiCombo) => createPossibleTabs(midiCombo, midiToFret))

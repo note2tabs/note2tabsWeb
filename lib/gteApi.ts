@@ -1042,7 +1042,7 @@ export const gteApi = {
     editorId: string,
     payload?: {
       tuning?: EditorSnapshot["tuning"];
-      tabRef?: EditorSnapshot["tabRef"];
+      maxFret?: number;
     }
   ) =>
     requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/cuts/generate`, {

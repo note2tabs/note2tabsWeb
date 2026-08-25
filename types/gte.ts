@@ -118,13 +118,13 @@ export type EditorSnapshot = {
   fps: number;
   totalFrames: number;
   secondsPerBar?: number;
+  maxFret?: number;
   notes: Note[];
   chords: Chord[];
   noteEffects?: NoteEffect[];
   drumLoops?: DrumLoopRegion[];
   cutPositionsWithCoords: CutWithCoord[];
   optimalsByTime: Record<string, Record<string, TabCoord[]>>;
-  tabRef?: number[][];
 };
 
 export type EditorListItem = {

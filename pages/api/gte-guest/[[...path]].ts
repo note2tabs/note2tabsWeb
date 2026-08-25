@@ -45,7 +45,7 @@ const normalizeEditorType = (value: unknown) => {
   if (raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor") return "chords";
   return "tab";
 };
-const getLaneOpenStringMidi = (lane: Pick<EditorSnapshot, "tabRef" | "tuning">) => {
+const getLaneOpenStringMidi = (lane: Pick<EditorSnapshot, "tuning">) => {
   const tuningOpen =
     Array.isArray(lane.tuning?.openStringMidi) &&
     lane.tuning.openStringMidi.length >= 6 &&
@@ -56,30 +56,18 @@ const getLaneOpenStringMidi = (lane: Pick<EditorSnapshot, "tabRef" | "tuning">) 
   if (tuningOpen) {
     return tuningOpen.map((value) => Math.round(value + capo));
   }
-  if (Array.isArray(lane.tabRef) && lane.tabRef.length >= 6) {
-    const fromTabRef = lane.tabRef
-      .slice(0, 6)
-      .map((stringValues) =>
-        Array.isArray(stringValues) && Number.isFinite(Number(stringValues[0]))
-          ? Math.round(Number(stringValues[0]))
-          : null
-      );
-    if (fromTabRef.every((value) => value !== null)) {
-      return fromTabRef as number[];
-    }
-  }
   return [...STANDARD_TUNING_MIDI];
 };
-const getMaxFret = (lane: Pick<EditorSnapshot, "tabRef">) =>
-  lane.tabRef?.[0]?.length ? lane.tabRef[0].length - 1 : DEFAULT_MAX_FRET;
-const clampTab = (lane: Pick<EditorSnapshot, "tabRef">, tab?: TabCoord | null): TabCoord => {
+const getMaxFret = (lane: Pick<EditorSnapshot, "maxFret">) =>
+  clamp(Math.round(toNumber(lane.maxFret, DEFAULT_MAX_FRET)), 1, 36);
+const clampTab = (lane: Pick<EditorSnapshot, "maxFret">, tab?: TabCoord | null): TabCoord => {
   const source = tab ?? DEFAULT_CUT_COORD;
   return [
     clamp(Math.round(toNumber(source[0], 0)), 0, 5),
     clamp(Math.round(toNumber(source[1], 0)), 0, getMaxFret(lane)),
   ];
 };
-const buildDefaultCuts = (lane: Pick<EditorSnapshot, "tabRef" | "totalFrames">): CutWithCoord[] => [
+const buildDefaultCuts = (lane: Pick<EditorSnapshot, "maxFret" | "totalFrames">): CutWithCoord[] => [
   [[0, Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)))], clampTab(lane)],
 ];
 const isSameTab = (left: TabCoord, right: TabCoord) => left[0] === right[0] && left[1] === right[1];
@@ -340,8 +328,6 @@ const ensureUpstreamGuestCanvas = async (sessionId: string, canvas: CanvasSnapsh
 };
 
 const getTabMidi = (lane: EditorSnapshot, tab: TabCoord) => {
-  const fromRef = lane.tabRef?.[tab[0]]?.[tab[1]];
-  if (fromRef !== undefined && fromRef !== null && Number.isFinite(Number(fromRef))) return Number(fromRef);
   const openStrings = getLaneOpenStringMidi(lane);
   const base = openStrings[tab[0]];
   return Number.isFinite(base) ? base + tab[1] : 0;
@@ -453,10 +439,9 @@ const reorderSingleBarInLane = (lane: EditorSnapshot, fromIndex: number, toIndex
 
 const getAllTabsForMidi = (lane: EditorSnapshot, midi: number) => {
   const result: TabCoord[] = [];
-  lane.tabRef?.forEach((stringValues, stringIndex) => {
-    stringValues?.forEach((value, fret) => {
-      if (Number(value) === midi) result.push([stringIndex, fret]);
-    });
+  getLaneOpenStringMidi(lane).forEach((baseMidi, stringIndex) => {
+    const fret = Math.round(Number(midi)) - baseMidi;
+    if (fret >= 0 && fret <= getMaxFret(lane)) result.push([stringIndex, fret]);
   });
   return result.length ? result : [clampTab(lane)];
 };
@@ -565,12 +550,7 @@ const deleteCutBoundary = (lane: EditorSnapshot, boundaryIndex: number) => {
 
 const generateCuts = (lane: EditorSnapshot) => {
   const tabsForMidi = (midi: number): TabCoord[] => {
-    const result: TabCoord[] = [];
-    lane.tabRef?.forEach((stringValues, stringIndex) => {
-      stringValues?.forEach((value, fret) => {
-        if (Number(value) === midi) result.push([stringIndex, fret]);
-      });
-    });
+    const result = getAllTabsForMidi(lane, midi);
     return result.length ? result : [clampTab(lane)];
   };
   const chooseClosestTab = (candidates: TabCoord[], reference: TabCoord): TabCoord => {
@@ -1148,7 +1128,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         const upstreamBody = {
           ...(body ?? {}),
           tuning: (body?.tuning ?? laneForPayload.tuning) || laneForPayload.tuning,
-          tabRef: (body?.tabRef ?? laneForPayload.tabRef) || laneForPayload.tabRef,
+          maxFret: body?.maxFret ?? laneForPayload.maxFret,
         };
         return ensureUpstreamGuestCanvas(sessionId, canvas)
           .then(({ headers }) =>

@@ -15,6 +15,7 @@ import {
 } from "../lib/gteSamplePlayback";
 import { createPlaybackLookaheadScheduler } from "../lib/gtePlaybackLookahead";
 import { buildImportTrackPreviewEvents } from "../lib/gteImportTrackPreview";
+import { getTabMidi as getSnapshotTabMidi } from "../lib/gteTuning";
 
 type Props = {
   editorId?: string;
@@ -76,8 +77,7 @@ const clampTab = (tab: TabCoord | undefined): TabCoord => [
 ];
 
 const getTabMidi = (lane: EditorSnapshot, tab: TabCoord) => {
-  const midi = lane.tabRef?.[tab[0]]?.[tab[1]];
-  return Number.isFinite(Number(midi)) ? Math.round(Number(midi)) : 0;
+  return getSnapshotTabMidi(lane, tab, 0);
 };
 
 const buildDefaultCuts = (lane: EditorSnapshot, totalFrames: number, framesPerBar: number) => {

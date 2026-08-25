@@ -334,7 +334,7 @@ describe("gte tab import helpers", () => {
       noteEffects: [],
       cutPositionsWithCoords: [],
       optimalsByTime: {},
-      tabRef: [],
+      maxFret: 22,
     } as any);
 
     const parsed = parseMusicXmlTabImport(xml);

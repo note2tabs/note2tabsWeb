@@ -61,7 +61,7 @@ import {
   warmTrackInstrument,
 } from "../../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../../lib/gteSlidePlayback";
-import { getOpenStringMidiFromSnapshot } from "../../lib/gteTuning";
+import { getOpenStringMidiFromSnapshot, getTabMidi as getSnapshotTabMidi } from "../../lib/gteTuning";
 import {
   getDrumVoiceForNote,
   isDrumTrackType,
@@ -402,7 +402,7 @@ const normalizeLane = (
         : [[[0, totalFrames], [2, 0]]],
     optimalsByTime:
       lane.optimalsByTime && typeof lane.optimalsByTime === "object" ? lane.optimalsByTime : {},
-    tabRef: Array.isArray(lane.tabRef) ? lane.tabRef : createGuestSnapshot(laneId).tabRef,
+    maxFret: Math.max(1, Math.min(36, Math.round(toNumber(lane.maxFret, createGuestSnapshot(laneId).maxFret ?? 22)))),
   };
 };
 
@@ -4022,19 +4022,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         frameDurationSeconds(globalTimingMap, fromFrame, toFrame) / runPlaybackSpeed;
 
       const getMidiFromTab = (lane: EditorSnapshot, tab: [number, number], fallback?: number) => {
-        const fromRef = lane.tabRef?.[tab[0]]?.[tab[1]];
-        if (fromRef !== undefined && fromRef !== null && Number.isFinite(Number(fromRef))) {
-          return Number(fromRef);
-        }
         if (fallback !== undefined && fallback !== null && Number.isFinite(Number(fallback))) {
           return Number(fallback);
         }
-        const openStrings = getOpenStringMidiFromSnapshot(lane);
-        const base = openStrings[tab[0]];
-        if (base !== undefined && Number.isFinite(tab[1]) && tab[1] >= 0) {
-          return base + tab[1];
-        }
-        return 0;
+        return getSnapshotTabMidi(lane, tab, 0);
       };
 
       let endFrame = Math.max(playbackStartFrame, playbackEndFrame);

@@ -36,7 +36,7 @@ const canvasWithBpms = (bpms: number[], activeBars: number[]): CanvasSnapshot =>
         chords: [],
         cutPositionsWithCoords: [[[0, bpms.length * 480], [2, 0]]],
         optimalsByTime: {},
-        tabRef: [],
+        maxFret: 22,
       },
     ],
   };

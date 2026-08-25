@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { buildMidiFromSnapshot, buildMusicXmlFromSnapshot, buildGteExportFile, sanitizeExportFilename } from "../../lib/gteTabExport";
-import { buildTabRefForTuning } from "../../lib/gteTuning";
 import type { EditorSnapshot, TimingMapV2 } from "../../types/gte";
 
 const snapshot = (): EditorSnapshot => ({
@@ -34,7 +33,8 @@ const snapshot = (): EditorSnapshot => ({
   noteEffects: [],
   cutPositionsWithCoords: [[[0, 960], [2, 0]]],
   optimalsByTime: {},
-  tabRef: buildTabRefForTuning([64, 59, 55, 50, 45, 40], 0, 22),
+  maxFret: 22,
+  tuning: { presetId: "standard", openStringMidi: [64, 59, 55, 50, 45, 40], capo: 0 },
 });
 
 describe("gteTabExport", () => {

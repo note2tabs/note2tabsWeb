@@ -13,7 +13,7 @@ const lane = (): EditorSnapshot => ({
   drumLoops: [{ id: "loop-1", sourceStart: 0, sourceEnd: 480, loopEnd: 960 }],
   cutPositionsWithCoords: [[[0, 960], [2, 0]]],
   optimalsByTime: {},
-  tabRef: [],
+  maxFret: 22,
 });
 
 describe("track timeline offset", () => {

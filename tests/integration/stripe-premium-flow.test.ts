@@ -43,6 +43,9 @@ const { sessionMock, stripeMock, prismaMock, posthogMock } = vi.hoisted(() => {
         groupBy: vi.fn(),
         deleteMany: vi.fn(),
       },
+      canvases: {
+        deleteMany: vi.fn(),
+      },
       account: {
         deleteMany: vi.fn(),
       },
@@ -160,6 +163,7 @@ describe("stripe premium flow", () => {
     prismaMock.user.update.mockResolvedValue({});
     prismaMock.user.delete.mockResolvedValue({});
     prismaMock.tabJob.deleteMany.mockResolvedValue({ count: 0 });
+    prismaMock.canvases.deleteMany.mockResolvedValue({ count: 0 });
     prismaMock.account.deleteMany.mockResolvedValue({ count: 0 });
     prismaMock.session.deleteMany.mockResolvedValue({ count: 0 });
     prismaMock.stripeRenewalInvoice.findUnique.mockResolvedValue(null);

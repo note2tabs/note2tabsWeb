@@ -83,12 +83,6 @@ const normalizeOptimalsByTime = (
   return next;
 };
 
-const buildDefaultTabRef = (maxFret: number) => {
-  return STANDARD_TUNING_MIDI.map((base) =>
-    Array.from({ length: maxFret + 1 }, (_, fret) => base + fret)
-  );
-};
-
 const buildDefaultCutPositions = (totalFrames: number = DEFAULT_TOTAL_FRAMES): CutWithCoord[] => [
   [
     [
@@ -102,30 +96,22 @@ const buildDefaultCutPositions = (totalFrames: number = DEFAULT_TOTAL_FRAMES): C
   ],
 ];
 
-const buildNormalizedTabRef = (value: unknown): number[][] => {
-  const fallback = buildDefaultTabRef(DEFAULT_MAX_FRET);
-  if (!Array.isArray(value)) return fallback;
-  return fallback.map((fallbackString, stringIndex) => {
-    const source = value[stringIndex];
-    if (!Array.isArray(source)) return fallbackString;
-    const normalized = source
-      .map((fretValue) => toFiniteNumber(fretValue, NaN))
-      .filter((fretValue) => Number.isFinite(fretValue));
-    const base = normalized.length ? normalized[0] : fallbackString[0];
-    return Array.from({ length: DEFAULT_MAX_FRET + 1 }, (_, fret) => normalized[fret] ?? base + fret);
-  });
-};
-
-const normalizeTuning = (value: unknown, tabRef: number[][]): EditorSnapshot["tuning"] => {
+const normalizeTuning = (value: unknown, legacyTabRef: unknown): EditorSnapshot["tuning"] => {
   const raw = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const preset = getTuningPreset(typeof raw.presetId === "string" ? raw.presetId : undefined);
   const fromRaw = Array.isArray(raw.openStringMidi)
     ? raw.openStringMidi.map((item) => toFiniteNumber(item, NaN)).filter((item) => Number.isFinite(item))
     : [];
-  const openStringMidi =
-    fromRaw.length === tabRef.length
-      ? fromRaw.map((item) => Math.round(item))
-      : tabRef.map((stringValues) => Math.round(toFiniteNumber(stringValues?.[0], 0)));
+  const legacyOpenStrings = Array.isArray(legacyTabRef)
+    ? legacyTabRef.slice(0, 6).map((stringValues) =>
+        Array.isArray(stringValues) ? toFiniteNumber(stringValues[0], NaN) : NaN
+      )
+    : [];
+  const openStringMidi = fromRaw.length === 6
+    ? fromRaw.map((item) => Math.round(item))
+    : legacyOpenStrings.length === 6 && legacyOpenStrings.every(Number.isFinite)
+      ? legacyOpenStrings.map((item) => Math.round(item))
+      : [...preset.openStringMidi];
   return {
     presetId: preset.id,
     label: typeof raw.label === "string" && raw.label.trim() ? raw.label.trim() : preset.label,
@@ -230,7 +216,7 @@ export const createGuestSnapshot = (editorId: string = GTE_GUEST_EDITOR_ID): Edi
     drumLoops: [],
     cutPositionsWithCoords: buildDefaultCutPositions(DEFAULT_TOTAL_FRAMES),
     optimalsByTime: {},
-    tabRef: buildDefaultTabRef(DEFAULT_MAX_FRET),
+    maxFret: DEFAULT_MAX_FRET,
   };
 };
 
@@ -344,8 +330,12 @@ export const normalizeGuestSnapshot = (
   );
 
   const cutPositionsWithCoords = normalizeCutPositions(raw.cutPositionsWithCoords, frameRatio);
-  const tabRef = buildNormalizedTabRef(raw.tabRef);
-  const tuning = normalizeTuning(raw.tuning, tabRef);
+  const legacyTabRef = raw.tabRef;
+  const legacyMaxFret = Array.isArray(legacyTabRef) && Array.isArray(legacyTabRef[0])
+    ? legacyTabRef[0].length - 1
+    : DEFAULT_MAX_FRET;
+  const maxFret = clampInt(raw.maxFret, legacyMaxFret, 1, 36);
+  const tuning = normalizeTuning(raw.tuning, legacyTabRef);
 
   const id = typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : fallbackEditorId;
   const name = typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : "Untitled";
@@ -369,6 +359,7 @@ export const normalizeGuestSnapshot = (
     timeSignature,
     timeSignatureBottom,
     secondsPerBar,
+    maxFret,
     notes,
     chords,
     noteEffects,
@@ -377,7 +368,6 @@ export const normalizeGuestSnapshot = (
       ? cutPositionsWithCoords
       : buildDefaultCutPositions(totalFrames),
     optimalsByTime: normalizeOptimalsByTime(raw.optimalsByTime, frameRatio),
-    tabRef,
     tuning,
   };
 };

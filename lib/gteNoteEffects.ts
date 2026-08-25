@@ -1,5 +1,5 @@
 import type { EditorSnapshot, Note, TabCoord } from "../types/gte";
-import { getOpenStringMidiFromSnapshot } from "./gteTuning";
+import { getMaxFretFromSnapshot, getOpenStringMidiFromSnapshot, getTabMidi } from "./gteTuning";
 
 type EffectNote = EditorSnapshot["notes"][number];
 
@@ -21,12 +21,7 @@ export type AlignEffectNotesResult =
 
 const getNoteMidi = (snapshot: EditorSnapshot, note: EffectNote) => {
   if (Number.isFinite(note.midiNum) && note.midiNum > 0) return note.midiNum;
-  const fromTabRef = snapshot.tabRef?.[note.tab[0]]?.[note.tab[1]];
-  if (fromTabRef !== undefined && fromTabRef !== null && Number.isFinite(Number(fromTabRef))) {
-    return Number(fromTabRef);
-  }
-  const openMidi = getOpenStringMidiFromSnapshot(snapshot)[note.tab[0]];
-  return Number.isFinite(openMidi) ? openMidi + note.tab[1] : 0;
+  return getTabMidi(snapshot, note.tab, 0);
 };
 
 export const orderNotesForEffect = (snapshot: EditorSnapshot, noteIds: number[]): EffectNote[] => {
@@ -41,18 +36,9 @@ const findEquivalentTabOnString = (
   targetString: number,
   midi: number
 ): TabCoord | null => {
-  const stringValues = snapshot.tabRef?.[targetString];
-  if (Array.isArray(stringValues)) {
-    const fret = stringValues.findIndex((value) => Number(value) === midi);
-    if (fret >= 0) return [targetString, fret];
-    return null;
-  }
-
   const openMidi = getOpenStringMidiFromSnapshot(snapshot)[targetString];
   const fret = midi - openMidi;
-  const maxFret = snapshot.tabRef?.[0]?.length
-    ? snapshot.tabRef[0].length - 1
-    : 24;
+  const maxFret = getMaxFretFromSnapshot(snapshot);
   return Number.isInteger(fret) && fret >= 0 && fret <= maxFret
     ? [targetString, fret]
     : null;
@@ -84,11 +70,7 @@ export const applyNoteFingeringUpdates = (
     const note = snapshot.notes.find((item) => item.id === update.noteId);
     if (!note) return;
     note.tab = [update.tab[0], update.tab[1]];
-    const tabMidi = snapshot.tabRef?.[update.tab[0]]?.[update.tab[1]];
-    const openMidi = getOpenStringMidiFromSnapshot(snapshot)[update.tab[0]];
-    note.midiNum = tabMidi !== undefined && tabMidi !== null && Number.isFinite(Number(tabMidi))
-      ? Number(tabMidi)
-      : openMidi + update.tab[1];
+    note.midiNum = getTabMidi(snapshot, update.tab, note.midiNum);
   });
 };
 
@@ -118,11 +100,7 @@ export const getEffectAwareFingeringUpdates = (
   validRequests.forEach((update) => {
     const note = draft.notes.find((item) => item.id === update.noteId)!;
     note.tab = [update.tab[0], update.tab[1]];
-    const tabMidi = draft.tabRef?.[update.tab[0]]?.[update.tab[1]];
-    const openMidi = getOpenStringMidiFromSnapshot(draft)[update.tab[0]];
-    note.midiNum = tabMidi !== undefined && tabMidi !== null && Number.isFinite(Number(tabMidi))
-      ? Number(tabMidi)
-      : openMidi + update.tab[1];
+    note.midiNum = getTabMidi(draft, update.tab, note.midiNum);
   });
 
   const handledNoteIds = new Set<number>();

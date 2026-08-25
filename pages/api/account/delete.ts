@@ -62,6 +62,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     await prisma.tabJob.deleteMany({ where: { userId: session.user.id } });
+    await prisma.canvases.deleteMany({ where: { user_id: session.user.id } });
     await prisma.account.deleteMany({ where: { userId: session.user.id } });
     await prisma.session.deleteMany({ where: { userId: session.user.id } });
     await prisma.user.delete({ where: { id: session.user.id } });

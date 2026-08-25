@@ -32,7 +32,13 @@ import {
 } from "../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../lib/gteSlidePlayback";
 import { buildChordPlaybackWindows } from "../lib/gteChordPlayback";
-import { getOpenStringMidiFromSnapshot, getStringLabelsForSnapshot } from "../lib/gteTuning";
+import {
+  getAllTabsForMidi as getSnapshotTabsForMidi,
+  getMaxFretFromSnapshot,
+  getOpenStringMidiFromSnapshot,
+  getStringLabelsForSnapshot,
+  getTabMidi as getSnapshotTabMidi,
+} from "../lib/gteTuning";
 import {
   alignEffectNotesToFirstString,
   applyNoteFingeringUpdates,
@@ -605,10 +611,10 @@ const parseOptionalNumber = (value: string): OptionalNumber => {
 
 const cloneTabCoord = (tab: TabCoord): TabCoord => [tab[0], tab[1]];
 
-const getMaxFret = (snapshot: Pick<EditorSnapshot, "tabRef">) =>
-  snapshot.tabRef?.[0]?.length ? snapshot.tabRef[0].length - 1 : DEFAULT_MAX_FRET;
+const getMaxFret = (snapshot: Pick<EditorSnapshot, "maxFret">) =>
+  getMaxFretFromSnapshot(snapshot);
 
-const isTabCoordValidForSnapshot = (snapshot: Pick<EditorSnapshot, "tabRef">, tab: TabCoord) => {
+const isTabCoordValidForSnapshot = (snapshot: Pick<EditorSnapshot, "maxFret">, tab: TabCoord) => {
   const maxFret = getMaxFret(snapshot);
   return (
     Number.isInteger(tab[0]) &&
@@ -620,7 +626,7 @@ const isTabCoordValidForSnapshot = (snapshot: Pick<EditorSnapshot, "tabRef">, ta
   );
 };
 
-const clampTabCoordInSnapshot = (snapshot: Pick<EditorSnapshot, "tabRef">, tab?: TabCoord | null): TabCoord => {
+const clampTabCoordInSnapshot = (snapshot: Pick<EditorSnapshot, "maxFret">, tab?: TabCoord | null): TabCoord => {
   const maxFret = getMaxFret(snapshot);
   const source = tab ?? DEFAULT_CUT_COORD;
   const stringIndex = Number.isFinite(source[0]) ? Math.max(0, Math.min(5, Math.round(source[0]))) : 0;
@@ -654,13 +660,8 @@ const normalizeCutRegions = (draft: EditorSnapshot, regions: CutWithCoord[]): Cu
 const getCutRegions = (draft: EditorSnapshot) =>
   normalizeCutRegions(draft, Array.isArray(draft.cutPositionsWithCoords) ? draft.cutPositionsWithCoords : []);
 
-const getAllTabsForMidi = (snapshot: Pick<EditorSnapshot, "tabRef">, midi: number): TabCoord[] => {
-  const result: TabCoord[] = [];
-  snapshot.tabRef?.forEach((stringValues, stringIndex) => {
-    stringValues?.forEach((value, fret) => {
-      if (Number(value) === midi) result.push([stringIndex, fret]);
-    });
-  });
+const getAllTabsForMidi = (snapshot: Pick<EditorSnapshot, "tuning" | "maxFret">, midi: number): TabCoord[] => {
+  const result = getSnapshotTabsForMidi(snapshot, midi);
   return result.length ? result : [clampTabCoordInSnapshot(snapshot, DEFAULT_CUT_COORD)];
 };
 
@@ -945,16 +946,7 @@ const cutRegionsEqual = (left: CutWithCoord[], right: CutWithCoord[]) => {
 };
 
 const getTabMidi = (snapshot: EditorSnapshot, tab: TabCoord) => {
-  const fromRef = snapshot.tabRef?.[tab[0]]?.[tab[1]];
-  if (fromRef !== undefined && fromRef !== null && Number.isFinite(Number(fromRef))) {
-    return Number(fromRef);
-  }
-  const openStrings = getOpenStringMidiFromSnapshot(snapshot);
-  const base = openStrings[tab[0]];
-  if (base !== undefined && Number.isFinite(tab[1])) {
-    return base + tab[1];
-  }
-  return 0;
+  return getSnapshotTabMidi(snapshot, tab, 0);
 };
 
 const nextNoteEffectId = (draft: EditorSnapshot) =>
@@ -1341,22 +1333,7 @@ type QuantizePreviewEntity = {
 };
 
 const getPlayableTabsForMidi = (snapshot: EditorSnapshot, midi: number): TabCoord[] => {
-  const result: TabCoord[] = [];
-  const maxFret = getMaxFret(snapshot);
-  if (snapshot.tabRef?.length) {
-    snapshot.tabRef.forEach((stringValues, stringIndex) => {
-      stringValues?.forEach((value, fret) => {
-        if (Number(value) === midi && fret >= 0 && fret <= maxFret) result.push([stringIndex, fret]);
-      });
-    });
-    return result;
-  }
-  const openStrings = getOpenStringMidiFromSnapshot(snapshot);
-  openStrings.forEach((openMidi, stringIndex) => {
-    const fret = midi - openMidi;
-    if (Number.isInteger(fret) && fret >= 0 && fret <= maxFret) result.push([stringIndex, fret]);
-  });
-  return result;
+  return getSnapshotTabsForMidi(snapshot, midi);
 };
 
 const normalizeKeyBaseValue = (value: unknown) =>
@@ -4901,8 +4878,8 @@ export default function GteWorkspace({
           stringIndex >= 0 && stringIndex < DEFAULT_STRING_LABELS.length;
           stringIndex += stringStep
         ) {
-          const samePitchFret =
-            snapshotValue.tabRef?.[stringIndex]?.findIndex((midi) => Number(midi) === currentMidi) ?? -1;
+          const openMidi = getOpenStringMidiFromSnapshot(snapshotValue)[stringIndex];
+          const samePitchFret = Number.isFinite(openMidi) ? currentMidi - openMidi : -1;
           if (samePitchFret < 0) continue;
           const crossedFret = samePitchFret + delta;
           if (crossedFret >= 0 && crossedFret <= maxSnapshotFret) {
@@ -9880,7 +9857,7 @@ export default function GteWorkspace({
   const handleGenerateCuts = () => {
     void runMutation(() => gteApi.generateCuts(editorId, {
       tuning: snapshot.tuning,
-      tabRef: snapshot.tabRef,
+      maxFret: snapshot.maxFret,
     }), {
       serverMode: "immediate",
       unavailableMessage: "Generated cuts are available after saving this draft to an account.",
@@ -10288,15 +10265,8 @@ export default function GteWorkspace({
   };
 
   function getMidiFromTab(tab: TabCoord, fallback?: number) {
-    const value = snapshot.tabRef?.[tab[0]]?.[tab[1]];
-    if (value !== undefined && value !== null) return Number(value);
     if (fallback !== undefined && fallback !== null) return Number(fallback);
-    const openStrings = getOpenStringMidiFromSnapshot(snapshot);
-    const base = openStrings[tab[0]];
-    if (base !== undefined && Number.isFinite(tab[1]) && tab[1] >= 0) {
-      return base + tab[1];
-    }
-    return 0;
+    return getSnapshotTabMidi(snapshot, tab, 0);
   }
 
   function ensurePreviewAudio() {

@@ -35,48 +35,53 @@ export const normalizeCapo = (value: unknown) => {
   return Math.max(0, Math.min(MAX_CAPO, parsed));
 };
 
-export const buildTabRefForTuning = (
-  openStringMidi: number[],
-  capo: number,
-  maxFret: number = DEFAULT_MAX_FRET
-) => {
-  const safeCapo = normalizeCapo(capo);
-  const safeMaxFret = Math.max(1, Math.round(maxFret));
-  return openStringMidi.map((openMidi) =>
-    Array.from({ length: safeMaxFret + 1 }, (_, fret) => Math.round(openMidi) + safeCapo + fret)
-  );
+export const fretMidi = (baseMidi: number, fret: number) =>
+  Math.round(Number(baseMidi)) + Math.round(Number(fret));
+
+export const getMaxFretFromSnapshot = (snapshot: Pick<EditorSnapshot, "maxFret">) => {
+  const parsed = Math.round(Number(snapshot.maxFret));
+  return Number.isFinite(parsed) ? Math.max(1, Math.min(36, parsed)) : DEFAULT_MAX_FRET;
 };
 
-export const getMaxFretFromSnapshot = (snapshot: Pick<EditorSnapshot, "tabRef">) =>
-  snapshot.tabRef?.[0]?.length ? Math.max(1, snapshot.tabRef[0].length - 1) : DEFAULT_MAX_FRET;
-
-const getTabMidi = (snapshot: Pick<EditorSnapshot, "tabRef">, tab: number[] | undefined, fallback = 0) => {
+export const getTabMidi = (
+  snapshot: Pick<EditorSnapshot, "tuning">,
+  tab: number[] | undefined,
+  fallback = 0
+) => {
   if (!tab || tab.length < 2) return fallback;
-  const midi = snapshot.tabRef?.[tab[0]]?.[tab[1]];
+  const openStrings = getOpenStringMidiFromSnapshot(snapshot);
+  const baseMidi = openStrings[Math.round(Number(tab[0]))];
+  const midi = Number.isFinite(baseMidi) ? fretMidi(baseMidi, tab[1]) : NaN;
   return Number.isFinite(Number(midi)) ? Math.round(Number(midi)) : fallback;
 };
 
-const getAllTabsForMidi = (tabRef: number[][] | undefined, midi: number) => {
+export const getAllTabsForMidi = (
+  snapshot: Pick<EditorSnapshot, "tuning" | "maxFret">,
+  midi: number
+) => {
   const tabs: Array<[number, number]> = [];
-  tabRef?.forEach((stringValues, stringIndex) => {
-    stringValues?.forEach((value, fret) => {
-      if (Number(value) === midi) tabs.push([stringIndex, fret]);
-    });
+  const maxFret = getMaxFretFromSnapshot(snapshot);
+  getOpenStringMidiFromSnapshot(snapshot).forEach((baseMidi, stringIndex) => {
+    const fret = Math.round(Number(midi)) - baseMidi;
+    if (fret >= 0 && fret <= maxFret) tabs.push([stringIndex, fret]);
   });
   return tabs;
 };
 
-const resolvePlayableMidi = (tabRef: number[][] | undefined, midi: number) => {
+const resolvePlayableMidi = (
+  snapshot: Pick<EditorSnapshot, "tuning" | "maxFret">,
+  midi: number
+) => {
   const safeMidi = Math.round(Number(midi));
   if (!Number.isFinite(safeMidi)) return null;
   for (const candidate of [safeMidi, safeMidi + 12, safeMidi - 12]) {
-    const tabs = getAllTabsForMidi(tabRef, candidate);
+    const tabs = getAllTabsForMidi(snapshot, candidate);
     if (tabs.length) return { midi: candidate, tabs };
   }
   return null;
 };
 
-const getCutCoordAtTime = (snapshot: Pick<EditorSnapshot, "cutPositionsWithCoords" | "totalFrames" | "tabRef">, time: number) => {
+const getCutCoordAtTime = (snapshot: Pick<EditorSnapshot, "cutPositionsWithCoords" | "totalFrames" | "maxFret">, time: number) => {
   const fallback: [number, number] = [2, 0];
   const totalFrames = Math.max(1, Math.round(Number(snapshot.totalFrames) || 1));
   const roundedTime = Math.max(0, Math.min(totalFrames, Math.round(Number(time) || 0)));
@@ -123,7 +128,6 @@ export const applyTuningToSnapshotPreservingSound = (
   const preset = getTuningPreset(presetId);
   const capo = normalizeCapo(capoValue);
   const maxFret = getMaxFretFromSnapshot(snapshot);
-  const tabRef = buildTabRefForTuning(preset.openStringMidi, capo, maxFret);
   const next: EditorSnapshot = {
     ...snapshot,
     tuning: {
@@ -132,7 +136,7 @@ export const applyTuningToSnapshotPreservingSound = (
       openStringMidi: [...preset.openStringMidi],
       capo,
     },
-    tabRef,
+    maxFret,
     notes: [],
     chords: [],
   };
@@ -154,7 +158,7 @@ export const applyTuningToSnapshotPreservingSound = (
   const notes = [...snapshot.notes].sort((left, right) => left.startTime - right.startTime || left.id - right.id);
   notes.forEach((note) => {
     const originalMidi = note.midiNum || getTabMidi(snapshot, note.tab);
-    const resolved = resolvePlayableMidi(tabRef, originalMidi);
+    const resolved = resolvePlayableMidi(next, originalMidi);
     if (!resolved) return;
     const reference = getCutCoordAtTime(next, note.startTime);
     const tab = chooseOptimizedTab(resolved.tabs, reference, occupiedAt(note.startTime, note.length, { noteId: note.id }));
@@ -174,7 +178,7 @@ export const applyTuningToSnapshotPreservingSound = (
     const localBlocked = occupiedAt(chord.startTime, chord.length, { chordId: chord.id });
     chord.currentTabs.forEach((oldTab, index) => {
       const originalMidi = chord.originalMidi[index] || getTabMidi(snapshot, oldTab);
-      const resolved = resolvePlayableMidi(tabRef, originalMidi);
+      const resolved = resolvePlayableMidi(next, originalMidi);
       if (!resolved) return;
       const reference = tabs[tabs.length - 1] ?? getCutCoordAtTime(next, chord.startTime);
       const tab = chooseOptimizedTab(resolved.tabs, reference, localBlocked);
@@ -208,7 +212,6 @@ export const applyTuningToSnapshot = (
   const preset = getTuningPreset(presetId);
   const capo = normalizeCapo(capoValue);
   const maxFret = getMaxFretFromSnapshot(snapshot);
-  const tabRef = buildTabRefForTuning(preset.openStringMidi, capo, maxFret);
   const next: EditorSnapshot = {
     ...snapshot,
     tuning: {
@@ -217,14 +220,16 @@ export const applyTuningToSnapshot = (
       openStringMidi: [...preset.openStringMidi],
       capo,
     },
-    tabRef,
+    maxFret,
     notes: snapshot.notes.map((note) => ({
       ...note,
-      midiNum: tabRef[note.tab[0]]?.[note.tab[1]] ?? note.midiNum,
+      midiNum: getTabMidi({ tuning: { presetId: preset.id, label: preset.label, openStringMidi: preset.openStringMidi, capo } }, note.tab, note.midiNum),
     })),
     chords: snapshot.chords.map((chord) => ({
       ...chord,
-      originalMidi: chord.currentTabs.map((tab, index) => tabRef[tab[0]]?.[tab[1]] ?? chord.originalMidi[index] ?? 0),
+      originalMidi: chord.currentTabs.map((tab, index) =>
+        getTabMidi({ tuning: { presetId: preset.id, label: preset.label, openStringMidi: preset.openStringMidi, capo } }, tab, chord.originalMidi[index] ?? 0)
+      ),
     })),
   };
   return next;
@@ -239,14 +244,10 @@ export const getSnapshotTuning = (snapshot: EditorSnapshot) => {
 };
 
 export const getOpenStringMidiFromSnapshot = (
-  snapshot: Pick<EditorSnapshot, "tabRef" | "tuning">
+  snapshot: Pick<EditorSnapshot, "tuning">
 ) => {
   const preset = getTuningPreset(snapshot.tuning?.presetId);
   const capo = normalizeCapo(snapshot.tuning?.capo);
-  if (preset?.openStringMidi?.length >= 6) {
-    return preset.openStringMidi.slice(0, 6).map((value) => Math.round(Number(value)) + capo);
-  }
-
   if (
     Array.isArray(snapshot.tuning?.openStringMidi) &&
     snapshot.tuning.openStringMidi.length >= 6 &&
@@ -257,17 +258,8 @@ export const getOpenStringMidiFromSnapshot = (
       .slice(0, 6)
       .map((value) => Math.round(Number(value)) + fallbackCapo);
   }
-  if (Array.isArray(snapshot.tabRef) && snapshot.tabRef.length >= 6) {
-    const fromTabRef = snapshot.tabRef
-      .slice(0, 6)
-      .map((stringValues) =>
-        Array.isArray(stringValues) && Number.isFinite(Number(stringValues[0]))
-          ? Math.round(Number(stringValues[0]))
-          : null
-      );
-    if (fromTabRef.every((value) => value !== null)) {
-      return fromTabRef as number[];
-    }
+  if (preset?.openStringMidi?.length >= 6) {
+    return preset.openStringMidi.slice(0, 6).map((value) => Math.round(Number(value)) + capo);
   }
   return [...TUNING_PRESETS[0].openStringMidi];
 };
@@ -279,7 +271,7 @@ export const getStringLabelFromMidi = (midi: number) => {
   return NOTE_NAMES[index];
 };
 
-export const getStringLabelsForSnapshot = (snapshot: Pick<EditorSnapshot, "tabRef" | "tuning">) => {
+export const getStringLabelsForSnapshot = (snapshot: Pick<EditorSnapshot, "tuning">) => {
   const presetId = snapshot.tuning?.presetId || DEFAULT_TUNING_ID;
   const baseLabels = TUNING_STRING_LABELS[presetId];
   if (Array.isArray(baseLabels) && baseLabels.length === 6) {

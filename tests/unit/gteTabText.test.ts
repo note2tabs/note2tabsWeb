@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { buildTabRefForTuning } from "../../lib/gteTuning";
 import { buildTabTextFromSnapshot } from "../../lib/gteTabText";
 import type { EditorSnapshot } from "../../types/gte";
 
@@ -29,7 +28,8 @@ const baseSnapshot = (): EditorSnapshot => ({
   ],
   cutPositionsWithCoords: [[[0, 480], [2, 0]]],
   optimalsByTime: {},
-  tabRef: buildTabRefForTuning([64, 59, 55, 50, 45, 40], 0, 22),
+  maxFret: 22,
+  tuning: { presetId: "standard", openStringMidi: [64, 59, 55, 50, 45, 40], capo: 0 },
 });
 
 describe("gteTabText", () => {

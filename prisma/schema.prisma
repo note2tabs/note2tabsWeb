@@ -413,18 +413,6 @@ model canvas_lanes {
   @@index([user_id, canvas_id, track_type], map: "idx_canvas_lanes_track_type")
 }
 
-model canvas_drafts {
-  user_id      String
-  canvas_id    String
-  revision     BigInt   @default(1)
-  base_version Int      @default(1)
-  snapshot     Json
-  updated_at   DateTime @default(now()) @db.Timestamptz(6)
-
-  @@id([user_id, canvas_id])
-  @@index([updated_at], map: "idx_canvas_drafts_updated")
-}
-
 model canvases {
   user_id               String
   canvas_id             String
@@ -437,29 +425,13 @@ model canvases {
   timing_version        Int            @default(2)
   timing_map            Json           @default("{}")
   version               Int            @default(1)
+  draft_revision        Int            @default(0)
   updated_at            DateTime       @db.Timestamptz(6)
   created_at            DateTime       @default(now()) @db.Timestamptz(6)
   canvas_lanes          canvas_lanes[]
 
   @@id([user_id, canvas_id])
   @@index([user_id, updated_at(sort: Desc)], map: "idx_canvases_user_updated")
-}
-
-model editor_snapshots {
-  user_id            String
-  editor_id          String
-  snapshot           Json
-  updated_at         DateTime @db.Timestamptz(6)
-  version            Int
-  name               String?
-  frames_per_messure Int?
-  total_frames       Int?
-  note_count         Int?
-  chord_count        Int?
-  created_at         DateTime @default(now()) @db.Timestamptz(6)
-
-  @@id([user_id, editor_id])
-  @@index([user_id, updated_at(sort: Desc)], map: "idx_editor_user_updated")
 }
 
 model jobs {
@@ -528,6 +500,7 @@ model lane_notes {
   midi_num     Int
   tab_string   Int
   tab_fret     Int
+  metadata     Json         @default("{}")
   updated_at   DateTime     @db.Timestamptz(6)
   created_at   DateTime     @default(now()) @db.Timestamptz(6)
   canvas_lanes canvas_lanes @relation(fields: [user_id, canvas_id, lane_id], references: [user_id, canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
