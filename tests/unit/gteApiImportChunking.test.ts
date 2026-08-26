@@ -149,6 +149,60 @@ describe("transcriber import chunking", () => {
     expect(result.importedEditorIds).toEqual(["ed-1", "ed-2"]);
   });
 
+  it("removes the bootstrap track from a newly created transcriber canvas", async () => {
+    const importedLane = buildCanvas("canvas-1", [120]).editors[0];
+    const canvas: CanvasSnapshot = {
+      ...buildCanvas("canvas-1", [120]),
+      editors: [
+        { ...importedLane, id: "lane-default", name: "Track 1", notes: [], chords: [] },
+        { ...importedLane, id: "lane-imported", name: "Imported guitar" },
+      ],
+    };
+    const requests: Array<{ url: string; method: string }> = [];
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const method = init?.method || "GET";
+      requests.push({ url: String(url), method });
+      if (method === "DELETE") {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            removedEditorId: "lane-default",
+            canvas: { ...canvas, editors: [canvas.editors[1]] },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      if (method === "PATCH") {
+        return new Response(
+          JSON.stringify({ ok: true, canvas, timingMap: canvas.timingMap }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          target: "new",
+          editorId: "canvas-1",
+          importedEditorIds: ["lane-imported"],
+          canvas,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await gteApi.importTranscriberToSaved({
+      target: "new",
+      segmentGroups: [buildGroup(0)],
+    });
+
+    expect(requests).toContainEqual({
+      method: "DELETE",
+      url: "/api/gte/editors/canvas-1/canvas/editors/lane-default",
+    });
+    expect(result.canvas?.editors.map((lane) => lane.id)).toEqual(["lane-imported"]);
+  });
+
   it("preserves an existing canvas tempo while placement remains a lane offset", async () => {
     const existing = buildCanvas("canvas-1", [114, 114]);
     const imported = buildCanvas("canvas-1", [114, 114, 132, 132], 960);

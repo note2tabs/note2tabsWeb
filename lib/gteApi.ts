@@ -371,6 +371,38 @@ export const collectTranscriberRhythmOnsets = (
     )
   ).sort((left, right) => left - right);
 
+async function retainOnlyImportedTracks(
+  editorId: string,
+  canvas: CanvasSnapshot,
+  importedEditorIds: string[]
+): Promise<CanvasSnapshot> {
+  const importedIds = new Set(importedEditorIds.filter(Boolean));
+  if (importedIds.size === 0 || !canvas.editors.some((lane) => importedIds.has(lane.id))) {
+    return canvas;
+  }
+
+  let nextCanvas = canvas;
+  const unimportedLaneIds = canvas.editors
+    .filter((lane) => !importedIds.has(lane.id))
+    .map((lane) => lane.id);
+
+  for (const laneId of unimportedLaneIds) {
+    if (nextCanvas.editors.length <= 1) break;
+    const result = await requestForEditor<{ ok: true; canvas: CanvasSnapshot; removedEditorId: string }>(
+      editorId,
+      `/editors/${encodeURIComponent(editorId)}/canvas/editors/${encodeURIComponent(laneId)}`,
+      { method: "DELETE" }
+    );
+    nextCanvas = result.canvas;
+  }
+
+  if (nextCanvas.editors.some((lane) => !importedIds.has(lane.id))) {
+    throw new Error("Transcriber import left an unexpected non-imported track.");
+  }
+
+  return nextCanvas;
+}
+
 async function importTranscriberToSaved(
   payload: ImportTranscriberToSavedPayload
 ): Promise<TranscriberImportResponse> {
@@ -435,6 +467,8 @@ async function importTranscriberToSaved(
     throw new Error("Transcriber import failed");
   }
 
+  const finalImportedEditorIds =
+    importedEditorIds.length > 0 ? importedEditorIds : lastResponse.importedEditorIds || [];
   if (lastResponse.canvas) {
     const timingMap = existingCanvas
       ? preserveExistingTimingForOffsetImport(lastResponse.canvas, existingCanvas)
@@ -452,13 +486,19 @@ async function importTranscriberToSaved(
       }
     );
     lastResponse = { ...lastResponse, canvas: patched.canvas };
+    if (payload.target !== "existing") {
+      lastResponse = {
+        ...lastResponse,
+        canvas: await retainOnlyImportedTracks(currentEditorId, patched.canvas, finalImportedEditorIds),
+      };
+    }
   }
 
   return {
     ok: true,
     target: lastResponse.target ?? (payload.target === "existing" ? "existing" : "new"),
     editorId: currentEditorId,
-    importedEditorIds: importedEditorIds.length > 0 ? importedEditorIds : lastResponse.importedEditorIds,
+    importedEditorIds: finalImportedEditorIds,
     quantization: lastResponse.quantization,
     alignment: lastResponse.alignment,
     canvas: lastResponse.canvas,
@@ -528,7 +568,13 @@ async function importTranscriberToGuest(
       }),
     }
   );
-  response = { ...response, canvas: patched.canvas };
+  const importedEditorIds = response.importedEditorIds || [];
+  response = {
+    ...response,
+    canvas: existingCanvas
+      ? patched.canvas
+      : await retainOnlyImportedTracks(response.editorId, patched.canvas, importedEditorIds),
+  };
   return response;
 }
 
