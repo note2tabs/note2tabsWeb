@@ -4181,7 +4181,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
           const baseMidi =
             Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(lane, note.tab);
-          const noteGain = 0.55;
+          const noteGain = 0.55 * Math.max(0, Math.min(1, Number(note.velocity ?? 1)));
           if (!outgoingTransitions.has(note.id)) {
             pushEvent(note.startTime, note.length, baseMidi, noteGain, instrumentId, lanePan, laneId);
             return;
@@ -4317,6 +4317,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         }
 
         lane.chords.forEach((chord) => {
+          if (chord.source === "transcription") {
+            chord.currentTabs.forEach((tab, tabIndex) => {
+              const midi = getMidiFromTab(lane, tab, chord.originalMidi?.[tabIndex]);
+              const velocity = Math.max(0, Math.min(1, Number(chord.velocities?.[tabIndex] ?? 1)));
+              pushEvent(chord.startTime, chord.length, midi, 0.55 * velocity, instrumentId, lanePan, laneId);
+            });
+            return;
+          }
           buildChordPlaybackWindows({
             chordStart: chord.startTime,
             chordLength: chord.length,

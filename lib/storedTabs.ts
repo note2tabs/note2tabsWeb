@@ -15,6 +15,7 @@ export type StoredTranscriberTrack = {
   name: string;
   trackType: "tab" | "drums";
   instrumentId: string;
+  program?: number;
   segments: StoredTranscriberSegmentGroup;
 };
 
@@ -150,7 +151,14 @@ export function normalizeTranscriberTracks(value: unknown): StoredTranscriberTra
     const instrumentId = typeof record.instrumentId === "string" && record.instrumentId.trim()
       ? record.instrumentId.trim().slice(0, 80)
       : trackType === "drums" ? "drum1" : "jazz";
-    return [{ name, trackType, instrumentId, segments: groups[0] }];
+    const program = Number(record.program);
+    return [{
+      name,
+      trackType,
+      instrumentId,
+      ...(Number.isInteger(program) && program >= 0 && program <= 127 ? { program } : {}),
+      segments: groups[0],
+    }];
   });
 }
 
