@@ -12,7 +12,12 @@ import {
 } from "../lib/analytics";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
-import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
+import {
+  buildLaneEditorRef,
+  gteApi,
+  type EditorOrCanvasSnapshot,
+  type TranscriberSegmentGroup,
+} from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
 import {
@@ -700,6 +705,9 @@ export default function TranscriberPage() {
     return GTE_GUEST_EDITOR_ID;
   };
 
+  const resolvePrimaryLaneId = (snapshot: EditorOrCanvasSnapshot): string | undefined =>
+    "editors" in snapshot ? snapshot.editors[0]?.id : snapshot.id;
+
   const getSelectedTranscriberSegmentGroups = () => {
     if (!transcriberSegments || transcriberSegments.length === 0) return null;
     const groups = transcriberSegments
@@ -1138,11 +1146,19 @@ export default function TranscriberPage() {
         return;
       }
       let targetEditorId = editorChoice;
+      let laneId: string | undefined;
       if (!targetEditorId || targetEditorId === "new") {
         const created = await gteApi.createEditor();
         targetEditorId = created.editorId;
+        laneId = resolvePrimaryLaneId(created.snapshot);
+      } else {
+        const loaded = await gteApi.getEditor(targetEditorId);
+        laneId = resolvePrimaryLaneId(loaded);
       }
-      await gteApi.appendImportTab(targetEditorId, { stamps, totalFrames });
+      if (!laneId) {
+        throw new Error("Could not find a track to import into.");
+      }
+      await gteApi.appendImportTab(buildLaneEditorRef(targetEditorId, laneId), { stamps, totalFrames });
       sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
         ...eventProperties,
         editor_id: targetEditorId,
