@@ -23,11 +23,18 @@ import {
 } from "../lib/transcriptionModels";
 import {
   DEFAULT_FILE_SNIPPET_SEC,
+  DEFAULT_YOUTUBE_SNIPPET_SEC,
   MAX_FREE_FILE_SNIPPET_SEC,
+  MAX_FREE_YOUTUBE_SNIPPET_SEC,
+  MAX_YOUTUBE_WINDOW_SEC,
   clampFileClipEnd,
   clampFileClipStart,
+  clampYoutubeClipEnd,
+  clampYoutubeClipStart,
   getDefaultFileClipRange,
   isFileClipRangeValid,
+  isYoutubeClipRangeValid,
+  resolveYoutubeClipDuration,
 } from "../lib/transcriptionClip";
 import SeoHead, {
   ORGANIZATION_ID,
@@ -101,9 +108,6 @@ const AUDIO_ACCEPT = "audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.webm";
 
 const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 
-const MAX_YT_SNIPPET_SEC = 30;
-const MAX_YT_START_SEC = 9 * 60;
-const MAX_YT_END_SEC = 10 * 60;
 const HOW_STEP_DURATION_MS = 4000;
 
 const isYouTubeId = (value: string) => /^[a-zA-Z0-9_-]{11}$/.test(value);
@@ -197,7 +201,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const [ytStartTime, setYtStartTime] = useState<number | null>(null);
   const [ytEndTime, setYtEndTime] = useState<number | null>(null);
   const [ytStartInput, setYtStartInput] = useState("0:00");
-  const [ytEndInput, setYtEndInput] = useState(formatTimestamp(MAX_YT_SNIPPET_SEC));
+  const [ytEndInput, setYtEndInput] = useState(formatTimestamp(DEFAULT_YOUTUBE_SNIPPET_SEC));
   const [fileDuration, setFileDuration] = useState<number | null>(null);
   const [fileStartTime, setFileStartTime] = useState<number | null>(0);
   const [fileEndTime, setFileEndTime] = useState<number | null>(DEFAULT_FILE_SNIPPET_SEC);
@@ -277,18 +281,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   }, [appendEditorId, editorChoices]);
   const youtubeId = useMemo(() => parseYouTubeId(youtubeUrl), [youtubeUrl]);
   const resolvedYtDuration = useMemo(() => {
-    if (ytStartTime === null || ytEndTime === null) return 0;
-    const rawDuration = ytEndTime - ytStartTime;
-    return Math.min(MAX_YT_SNIPPET_SEC, Math.max(1, rawDuration));
-  }, [ytStartTime, ytEndTime]);
-  const youtubeTimeRangeValid = useMemo(() => {
-    if (ytStartTime === null || ytEndTime === null) return false;
-    if (ytStartTime < 0 || ytStartTime > MAX_YT_START_SEC) return false;
-    if (ytEndTime <= 0 || ytEndTime > MAX_YT_END_SEC) return false;
-    if (ytEndTime <= ytStartTime) return false;
-    if (ytEndTime - ytStartTime > MAX_YT_SNIPPET_SEC) return false;
-    return true;
-  }, [ytStartTime, ytEndTime]);
+    return resolveYoutubeClipDuration(ytStartTime, ytEndTime, isPremiumUser);
+  }, [isPremiumUser, ytStartTime, ytEndTime]);
+  const youtubeTimeRangeValid = useMemo(
+    () => isYoutubeClipRangeValid(ytStartTime, ytEndTime, isPremiumUser),
+    [isPremiumUser, ytStartTime, ytEndTime]
+  );
   const resolvedFileDuration = useMemo(() => {
     if (fileStartTime === null || fileEndTime === null) return 0;
     return Math.max(1, fileEndTime - fileStartTime);
@@ -384,8 +382,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setYtStartInput("0:00");
     }
     if (ytEndTime === null) {
-      setYtEndTime(MAX_YT_SNIPPET_SEC);
-      setYtEndInput(formatTimestamp(MAX_YT_SNIPPET_SEC));
+      setYtEndTime(DEFAULT_YOUTUBE_SNIPPET_SEC);
+      setYtEndInput(formatTimestamp(DEFAULT_YOUTUBE_SNIPPET_SEC));
     }
   }, [mode]);
 
@@ -564,14 +562,11 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setYtStartInput("");
       return;
     }
-    const nextStart = Math.min(MAX_YT_START_SEC, Math.max(0, ytStartTime));
-    setYtStartTime(nextStart);
-    setYtStartInput(formatTimestamp(nextStart));
-    if (ytEndTime === null) return;
-    const maxEnd = Math.min(MAX_YT_END_SEC, nextStart + MAX_YT_SNIPPET_SEC);
-    const nextEnd = ytEndTime <= nextStart ? maxEnd : Math.min(maxEnd, ytEndTime);
-    setYtEndTime(nextEnd);
-    setYtEndInput(formatTimestamp(nextEnd));
+    const nextRange = clampYoutubeClipStart(ytStartTime, ytEndTime, isPremiumUser);
+    setYtStartTime(nextRange.start);
+    setYtStartInput(formatTimestamp(nextRange.start));
+    setYtEndTime(nextRange.end);
+    setYtEndInput(formatTimestamp(nextRange.end));
   };
 
   const handleYtEndInputBlur = () => {
@@ -579,9 +574,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setYtEndInput("");
       return;
     }
-    const minEnd = ytStartTime !== null ? ytStartTime + 1 : 1;
-    const maxEnd = ytStartTime !== null ? Math.min(MAX_YT_END_SEC, ytStartTime + MAX_YT_SNIPPET_SEC) : MAX_YT_END_SEC;
-    const nextEnd = Math.min(maxEnd, Math.max(minEnd, ytEndTime));
+    const nextEnd = clampYoutubeClipEnd(ytStartTime, ytEndTime, isPremiumUser);
     setYtEndTime(nextEnd);
     setYtEndInput(formatTimestamp(nextEnd));
   };
@@ -784,9 +777,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       mode === "YOUTUBE" &&
       ytStartTime !== null &&
       ytEndTime !== null &&
-      ytEndTime - ytStartTime > MAX_YT_SNIPPET_SEC
+      !isPremiumUser &&
+      ytEndTime - ytStartTime > MAX_FREE_YOUTUBE_SNIPPET_SEC
     ) {
-      setError(`Time window must be ${MAX_YT_SNIPPET_SEC} seconds or less.`);
+      setError(`Free YouTube clips must be ${MAX_FREE_YOUTUBE_SNIPPET_SEC} seconds or less.`);
       return false;
     }
 
@@ -815,15 +809,15 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         setError("Start time must be 0 or greater.");
         return false;
       }
-      if (ytStartTime !== null && ytStartTime > MAX_YT_START_SEC) {
-        setError("Start time must be 9:00 or earlier.");
+      if (ytStartTime !== null && ytStartTime >= MAX_YOUTUBE_WINDOW_SEC) {
+        setError("Start time must be before 10:00.");
         return false;
       }
       if (ytEndTime !== null && ytEndTime <= 0) {
         setError("End time must be greater than 0.");
         return false;
       }
-      if (ytEndTime !== null && ytEndTime > MAX_YT_END_SEC) {
+      if (ytEndTime !== null && ytEndTime > MAX_YOUTUBE_WINDOW_SEC) {
         setError("End time must be 10:00 or earlier.");
         return false;
       }
@@ -1105,7 +1099,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 mode: "YOUTUBE",
                 youtubeUrl: youtubeUrl.trim(),
                 startTime: Math.max(0, ytStartTime ?? 0),
-                endTime: Math.max(1, ytEndTime ?? MAX_YT_SNIPPET_SEC),
+                endTime: Math.max(1, ytEndTime ?? DEFAULT_YOUTUBE_SNIPPET_SEC),
                 savedAt: Date.now(),
               }
         );
@@ -1697,7 +1691,11 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                             required
                           />
                         </label>
-                        <p className="advanced-note">Max length is 30 s.</p>
+                        <p className="advanced-note">
+                          {isPremiumUser
+                            ? "Choose any clip length within the first 10 minutes."
+                            : "Free clips can be up to 30 s."}
+                        </p>
                       </div>
                     </div>
                   )}
@@ -2079,6 +2077,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <li>Unused credits roll over, up to 200</li>
                   <li>Full-length audio-file transcription</li>
                   <li>Uploads up to 200 MB</li>
+                  <li>Longer YouTube clips within the first 10 minutes</li>
                 </ul>
               </article>
             </div>
