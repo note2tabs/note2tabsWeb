@@ -19,6 +19,7 @@ describe("PostHog analytics ingestion", () => {
   beforeEach(() => {
     capture.mockClear();
     flushPostHogServerClientInBackground.mockClear();
+    vi.unstubAllEnvs();
   });
 
   it("normalizes and captures legacy events", async () => {
@@ -77,6 +78,68 @@ describe("PostHog analytics ingestion", () => {
         }),
       })
     );
+  });
+
+  it("uses the trusted visitor IP and edge geography on Vercel", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    await ingestAnalyticsEvents({
+      req: {
+        headers: {
+          "x-vercel-forwarded-for": "2a00:1450:400f:80d::200e",
+          "x-forwarded-for": "203.0.113.10",
+          "x-vercel-ip-country": "se",
+          "x-vercel-ip-continent": "eu",
+        },
+      } as any,
+      cookies: { analytics_consent: "granted" },
+      body: {
+        event_id: "geo_123",
+        name: "page_viewed",
+        ts: "2026-08-25T12:34:56.000Z",
+        props: {
+          $ip: "198.51.100.20",
+          $geoip_country_code: "US",
+          environment: "spoofed",
+        },
+      },
+    });
+
+    expect(capture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timestamp: new Date("2026-08-25T12:34:56.000Z"),
+        properties: expect.objectContaining({
+          $ip: "2a00:1450:400f:80d::200e",
+          $geoip_country_code: "SE",
+          $geoip_continent_code: "EU",
+          environment: "production",
+          analytics_transport: "server_proxy",
+          analytics_geo_source: "vercel_edge",
+          analytics_geo_version: 2,
+        }),
+      })
+    );
+  });
+
+  it("does not trust forwarded geography outside Vercel", async () => {
+    await ingestAnalyticsEvents({
+      req: {
+        headers: {
+          "x-forwarded-for": "203.0.113.10",
+          "x-vercel-ip-country": "US",
+        },
+      } as any,
+      cookies: { analytics_consent: "granted" },
+      body: {
+        event_id: "untrusted_geo_123",
+        name: "page_viewed",
+        props: { $ip: "198.51.100.20", $geoip_country_code: "US" },
+      },
+    });
+
+    const properties = capture.mock.calls[0]?.[0]?.properties;
+    expect(properties).not.toHaveProperty("$ip");
+    expect(properties).not.toHaveProperty("$geoip_country_code");
+    expect(properties).not.toHaveProperty("analytics_geo_source");
   });
 
   it("preserves classified first-touch attribution supplied by the client", async () => {
