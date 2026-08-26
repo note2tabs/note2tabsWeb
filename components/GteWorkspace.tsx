@@ -10451,8 +10451,7 @@ export default function GteWorkspace({
       if (consumedTransitionNoteIds.has(note.id)) return;
       if (incomingTransitionNoteIds.has(note.id) && !outgoingTransitions.has(note.id)) return;
       const key = `note-${note.id}`;
-      const gain = (conflictInfo.conflictKeys.has(key) ? 0.25 : 0.55) *
-        Math.max(0, Math.min(1, Number(note.velocity ?? 1)));
+      const gain = conflictInfo.conflictKeys.has(key) ? 0.25 : 0.55;
       const baseMidi =
         Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(note.tab);
       if (!outgoingTransitions.has(note.id)) {
@@ -10546,14 +10545,6 @@ export default function GteWorkspace({
       });
     });
     snapshot.chords.forEach((chord) => {
-      if (chord.source === "transcription") {
-        chord.currentTabs.forEach((tab, idx) => {
-          const midi = getMidiFromTab(tab, chord.originalMidi[idx]);
-          const velocity = Math.max(0, Math.min(1, Number(chord.velocities?.[idx] ?? 1)));
-          pushEvent(chord.startTime, chord.length, midi, 0.5 * velocity, tab[0]);
-        });
-        return;
-      }
       buildChordPlaybackWindows({
         chordStart: chord.startTime,
         chordLength: chord.length,

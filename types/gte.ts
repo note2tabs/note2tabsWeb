@@ -7,8 +7,6 @@ export type Note = {
   midiNum: number;
   tab: TabCoord;
   optimals: TabCoord[];
-  velocity?: number;
-  pitchBend?: number[];
 };
 
 export type GteTrackType = "tab" | "chords" | "drums";
@@ -70,9 +68,6 @@ export type Chord = {
   quality?: string;
   extension?: string;
   label?: string;
-  source?: string;
-  velocities?: number[];
-  pitchBends?: number[][];
   strums?: Array<{
     id?: number;
     time: number;
@@ -103,7 +98,6 @@ export type EditorSnapshot = {
   trackType?: GteTrackType | string;
   chordEditor?: Record<string, unknown>;
   instrumentId?: string;
-  program?: number;
   playbackVolume?: number;
   playbackMuted?: boolean;
   playbackIsolated?: boolean;

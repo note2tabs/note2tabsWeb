@@ -19,7 +19,7 @@ export type PreparedTrackSample = TrackSampleDefinition & {
 };
 
 export type PreparedTrackInstrument = {
-  kind: "opus" | "synth";
+  kind: "opus";
   option: TrackInstrumentOption;
   samples: PreparedTrackSample[];
 };
@@ -131,9 +131,6 @@ export const prepareTrackInstrument = async (
   const cached = contextCache.get(option.id);
   if (cached) return cached;
 
-  if (option.kind === "synth") {
-    return { kind: "synth", option, samples: [] };
-  }
   const pending = Promise.all(
     option.samples.map(async (sample) => {
       const encoded = await fetchSampleData(sample.url);
@@ -148,7 +145,6 @@ export const prepareTrackInstrument = async (
 export const warmTrackInstrument = async (instrumentId?: string | null) => {
   if (typeof window === "undefined") return;
   const option = getTrackInstrumentOption(instrumentId);
-  if (option.kind === "synth") return;
   try {
     await Promise.all(option.samples.map((sample) => fetchSampleData(sample.url)));
   } catch {
@@ -167,26 +163,6 @@ export const schedulePreparedTrackNote = ({
   bendSegments,
 }: ScheduledTrackNote) => {
   if (!Number.isFinite(midi) || midi <= 0) return;
-  if (instrument.kind === "synth") {
-    const oscillator = ctx.createOscillator();
-    const amp = ctx.createGain();
-    const frequency = 440 * Math.pow(2, (midi - 69) / 12);
-    oscillator.frequency.setValueAtTime(frequency, startTime);
-    oscillator.type = instrument.option.id === "gm:synth-lead" ? "square" :
-      instrument.option.id === "gm:bass" ? "triangle" : "sine";
-    const peak = Math.max(0, gain * instrument.option.gain);
-    const attack = instrument.option.id === "gm:strings" || instrument.option.id === "gm:synth-pad" ? 0.08 : 0.01;
-    const release = instrument.option.id === "gm:synth-pad" ? 0.25 : 0.1;
-    amp.gain.setValueAtTime(0, startTime);
-    amp.gain.linearRampToValueAtTime(peak, startTime + Math.min(attack, duration / 2));
-    amp.gain.setValueAtTime(peak, startTime + Math.max(attack, duration));
-    amp.gain.linearRampToValueAtTime(0, startTime + duration + release);
-    oscillator.connect(amp);
-    amp.connect(destination);
-    oscillator.start(startTime);
-    oscillator.stop(startTime + duration + release + 0.02);
-    return;
-  }
   const sample = findNearestTrackSample(instrument.samples, midi);
   if (!sample) return;
 

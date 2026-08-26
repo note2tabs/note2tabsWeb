@@ -8,19 +8,10 @@ export type TrackSampleDefinition = {
 export type TrackInstrumentOption = {
   id: string;
   label: string;
-  kind: "opus" | "synth";
+  kind: "opus";
   gain: number;
   samples: TrackSampleDefinition[];
 };
-
-const VIRTUAL_INSTRUMENT_OPTIONS: TrackInstrumentOption[] = [
-  { id: "gm:piano", label: "Piano", kind: "synth", gain: 0.7, samples: [] },
-  { id: "gm:bass", label: "Bass", kind: "synth", gain: 0.75, samples: [] },
-  { id: "gm:strings", label: "Strings", kind: "synth", gain: 0.55, samples: [] },
-  { id: "gm:synth-lead", label: "Synth Lead", kind: "synth", gain: 0.55, samples: [] },
-  { id: "gm:synth-pad", label: "Synth Pad", kind: "synth", gain: 0.45, samples: [] },
-  { id: "gm:instrument", label: "Instrument", kind: "synth", gain: 0.55, samples: [] },
-];
 
 type RawManifestEntry = {
   id?: unknown;
@@ -68,7 +59,7 @@ const parseManifest = (value: unknown): TrackInstrumentOption[] => {
   });
 };
 
-export const TRACK_INSTRUMENT_OPTIONS = [...parseManifest(rawManifest), ...VIRTUAL_INSTRUMENT_OPTIONS];
+export const TRACK_INSTRUMENT_OPTIONS = parseManifest(rawManifest);
 
 if (!TRACK_INSTRUMENT_OPTIONS.length) {
   throw new Error("public/sound_samples/manifest.json must contain at least one Opus instrument.");

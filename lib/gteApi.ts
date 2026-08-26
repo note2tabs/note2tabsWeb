@@ -71,7 +71,6 @@ export type TranscriberTrack = {
   name: string;
   trackType: "tab" | "drums";
   instrumentId: string;
-  program?: number;
   segments: TranscriberSegmentGroup;
 };
 export type TranscriberImportResponse = {

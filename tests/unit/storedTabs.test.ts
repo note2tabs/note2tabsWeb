@@ -23,9 +23,8 @@ describe("stored tab payloads", () => {
         {
           name: "Lead Synth",
           trackType: "tab",
-          instrumentId: "gm:synth-lead",
-          program: 80,
-          segments: [{ start_time_s: 0, end_time_s: 0.5, pitch_midi: 64, amplitude: 0.7, pitch_bend: [0, 1] }],
+          instrumentId: "jazz",
+          segments: [{ start_time_s: 0, end_time_s: 0.5, pitch_midi: 64 }],
         },
         {
           name: "Drums",
@@ -37,13 +36,7 @@ describe("stored tab payloads", () => {
     });
 
     expect(parseStoredTabPayload(resultJson).transcriberTracks).toEqual([
-      expect.objectContaining({
-        name: "Lead Synth",
-        instrumentId: "gm:synth-lead",
-        program: 80,
-        trackType: "tab",
-        segments: [expect.objectContaining({ amplitude: 0.7, pitch_bend: [0, 1] })],
-      }),
+      expect.objectContaining({ name: "Lead Synth", instrumentId: "jazz", trackType: "tab" }),
       expect.objectContaining({ name: "Drums", instrumentId: "drum1", trackType: "drums" }),
     ]);
   });
