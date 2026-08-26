@@ -660,6 +660,11 @@ export default function JobPage() {
     if (!router.isReady) return false;
     return parseBooleanFlag(getQueryStringValue(router.query.review)) ?? false;
   }, [router.isReady, router.query.review]);
+  const appendEditorId = useMemo(() => {
+    if (!router.isReady) return null;
+    const value = getQueryStringValue(router.query.appendEditorId);
+    return value && value.trim() ? value.trim() : null;
+  }, [router.isReady, router.query.appendEditorId]);
   const isSignedIn = Boolean(session);
   const canOpenGuestEditor = !isSignedIn && isLocalNoDbClientMode;
   const hasWorkflowState = Boolean(workflowState && workflowState.trim());
@@ -1092,7 +1097,7 @@ export default function JobPage() {
     setReviewBusy(true);
     setReviewError(null);
     let importedSuccessfully = false;
-    const targetEditorChoice = "new";
+    const targetEditorChoice = appendEditorId ?? "new";
     try {
       if (isFinalizedStatus) {
         const importableJob = await waitForImportableJob(displayJob);
