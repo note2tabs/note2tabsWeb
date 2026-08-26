@@ -287,6 +287,7 @@ export default function PricingPage() {
                   <li>Unused credits roll over, up to 200</li>
                   <li>Full-length audio-file transcription</li>
                   <li>Uploads up to 200 MB</li>
+                  <li>Longer YouTube clips within the first 10 minutes</li>
                 </ul>
               </article>
             </section>

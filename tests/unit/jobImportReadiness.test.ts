@@ -17,10 +17,10 @@ describe("job editor import readiness", () => {
     expect(source).toContain("finalizedJobForImport = await waitForImportableJob(normalizedFullLatest, normalizedLatest)");
   });
 
-  it("automatically waits for importable tabs and opens a new quantized editor", () => {
+  it("automatically waits for importable tabs and opens the requested quantized editor", () => {
     expect(source).toContain("const waitForImportableJob = async");
     expect(source).toContain("const importableJob = await waitForImportableJob(displayJob)");
-    expect(source).toContain('const targetEditorChoice = "new"');
+    expect(source).toContain('const targetEditorChoice = appendEditorId ?? "new"');
     expect(source).toContain("await importJobToEditor(importableJob, targetEditorChoice, true)");
     expect(source).toContain("void automaticallyOpenEditor()");
     expect(source).not.toContain("Quantize import?");

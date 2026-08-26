@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   clampFileClipEnd,
   clampFileClipStart,
+  clampYoutubeClipEnd,
+  clampYoutubeClipStart,
   getDefaultFileClipRange,
   isFileClipRangeValid,
+  isYoutubeClipRangeValid,
+  resolveYoutubeClipDuration,
 } from "../../lib/transcriptionClip";
 
 describe("transcription file clip limits", () => {
@@ -44,5 +48,31 @@ describe("transcription file clip limits", () => {
   it("lets admins set longer end times up to the known duration", () => {
     expect(clampFileClipEnd(30, 180, 300, true)).toBe(180);
     expect(clampFileClipEnd(30, 360, 300, true)).toBe(300);
+  });
+});
+
+describe("YouTube clip limits", () => {
+  it("keeps free users limited to 30 seconds", () => {
+    expect(isYoutubeClipRangeValid(0, 30, false)).toBe(true);
+    expect(isYoutubeClipRangeValid(0, 31, false)).toBe(false);
+    expect(resolveYoutubeClipDuration(0, 90, false)).toBe(30);
+  });
+
+  it("allows Premium and staff users to select longer clips", () => {
+    expect(isYoutubeClipRangeValid(0, 300, true)).toBe(true);
+    expect(resolveYoutubeClipDuration(60, 300, true)).toBe(240);
+  });
+
+  it("keeps every YouTube clip inside the first ten minutes", () => {
+    expect(isYoutubeClipRangeValid(300, 600, true)).toBe(true);
+    expect(isYoutubeClipRangeValid(300, 601, true)).toBe(false);
+    expect(isYoutubeClipRangeValid(600, 601, true)).toBe(false);
+  });
+
+  it("clamps free ranges without shortening Premium ranges", () => {
+    expect(clampYoutubeClipEnd(120, 300, false)).toBe(150);
+    expect(clampYoutubeClipEnd(120, 300, true)).toBe(300);
+    expect(clampYoutubeClipStart(570, 590, false)).toEqual({ start: 570, end: 590 });
+    expect(clampYoutubeClipStart(570, 300, true)).toEqual({ start: 570, end: 600 });
   });
 });

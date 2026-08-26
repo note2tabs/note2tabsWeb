@@ -32,6 +32,11 @@ import {
   setBackendCredits,
   withBackendRemainingCredits,
 } from "../../lib/backendCredits";
+import {
+  MAX_FREE_YOUTUBE_SNIPPET_SEC,
+  MAX_YOUTUBE_WINDOW_SEC,
+  isYoutubeClipRangeValid,
+} from "../../lib/transcriptionClip";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -659,6 +664,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ? Math.max(1, Math.ceil(youtubePayload?.duration || 0))
         : Math.max(1, Math.ceil(filePayload?.duration || DEFAULT_DURATION_SEC));
     const fileStartSec = Math.max(0, Math.floor(filePayload?.startTime || 0));
+    if (mode === "YOUTUBE" && youtubePayload) {
+      const startTime = Number(youtubePayload.startTime);
+      const duration = Number(youtubePayload.duration);
+      if (!Number.isFinite(startTime) || !Number.isFinite(duration) || duration <= 0) {
+        return res.status(400).json({ error: "A valid YouTube clip range is required." });
+      }
+      if (!isPremium && duration > MAX_FREE_YOUTUBE_SNIPPET_SEC) {
+        return res.status(403).json({
+          error: `Free YouTube clips are limited to ${MAX_FREE_YOUTUBE_SNIPPET_SEC} seconds.`,
+          maxDurationSec: MAX_FREE_YOUTUBE_SNIPPET_SEC,
+        });
+      }
+      if (!isYoutubeClipRangeValid(startTime, startTime + duration, isPremium)) {
+        return res.status(400).json({
+          error: `YouTube clips must stay within the first ${MAX_YOUTUBE_WINDOW_SEC / 60} minutes.`,
+          maxEndTimeSec: MAX_YOUTUBE_WINDOW_SEC,
+        });
+      }
+    }
     if (mode === "FILE" && !isPremium && durationSec > MAX_FREE_FILE_DURATION_SEC) {
       return res.status(403).json({
         error: `Free file uploads are limited to ${MAX_FREE_FILE_DURATION_SEC} seconds.`,
@@ -858,6 +882,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       credits: user ? creditsAfter : undefined,
       jobId: backendJobId,
       status: "processing",
+      durationSec,
       transcriptionModel,
       unverifiedTranscriptionUsed: reservedUnverifiedTranscription || undefined,
     });
