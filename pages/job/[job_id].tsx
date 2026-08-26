@@ -665,6 +665,11 @@ export default function JobPage() {
     const value = getQueryStringValue(router.query.appendEditorId);
     return value && value.trim() ? value.trim() : null;
   }, [router.isReady, router.query.appendEditorId]);
+  const ytTitleHint = useMemo(() => {
+    if (!router.isReady) return null;
+    const value = getQueryStringValue(router.query.ytTitle);
+    return value && value.trim() ? value.trim() : null;
+  }, [router.isReady, router.query.ytTitle]);
   const isSignedIn = Boolean(session);
   const canOpenGuestEditor = !isSignedIn && isLocalNoDbClientMode;
   const hasWorkflowState = Boolean(workflowState && workflowState.trim());
@@ -938,7 +943,7 @@ export default function JobPage() {
       throw new Error("No importable tab groups are available for this transcription.");
     }
 
-    let importSourceLabel = jobToImport.song_title || "Imported transcription";
+    let importSourceLabel = ytTitleHint || jobToImport.song_title || "Imported transcription";
     let resolvedTranscriberGroups = getJobTranscriberGroups(jobToImport);
     let resolvedTranscriberTracks = getJobTranscriberTracks(jobToImport);
     let resolvedTabSegments = getJobTabSegments(jobToImport);
@@ -952,7 +957,7 @@ export default function JobPage() {
         resolvedTranscriberTracks =
           resolvedTranscriberTracks.length > 0 ? resolvedTranscriberTracks : storedTab.transcriberTracks;
         resolvedTabSegments = resolvedTabSegments.length > 0 ? resolvedTabSegments : storedTab.tabs;
-        if (storedTab.sourceLabel) {
+        if (!ytTitleHint && storedTab.sourceLabel) {
           importSourceLabel = storedTab.sourceLabel;
         }
       } catch (error) {
