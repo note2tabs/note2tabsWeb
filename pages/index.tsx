@@ -16,6 +16,7 @@ import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
+import { fetchYouTubeVideoTitle } from "../lib/youtubeTitle";
 import {
   DEFAULT_TRANSCRIPTION_MODEL,
   getDefaultTranscriptionModel,
@@ -856,6 +857,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
     try {
       let response: Response | null = null;
+      const youtubeTitlePromise = mode === "YOUTUBE" ? fetchYouTubeVideoTitle(youtubeId) : null;
       if (mode === "FILE" && selectedFile) {
         const uploadFileName = normalizeUploadFilename(selectedFile.name);
         const postFileDirectly = async () => {
@@ -984,6 +986,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         }
         if (appendEditorId) {
           jobParams.set("appendEditorId", appendEditorId);
+        }
+        const youtubeTitle = youtubeTitlePromise ? await youtubeTitlePromise.catch(() => null) : null;
+        if (youtubeTitle) {
+          jobParams.set("ytTitle", youtubeTitle);
         }
         await router.push(
           jobParams.toString() ? `/job/${data.jobId}?${jobParams.toString()}` : `/job/${data.jobId}`

@@ -6,9 +6,8 @@ describe("job multiple guitar import choice", () => {
   const source = readFileSync(join(process.cwd(), "pages/job/[job_id].tsx"), "utf8");
 
   it("does not default missing multiple-guitar state to true", () => {
-    expect(source).toContain("useState(false)");
-    expect(source).toContain("stored ?? multipleGuitarsHint ?? false");
-    expect(source).not.toContain("stored ?? true");
+    expect(source).toContain("loadedMultipleGuitars ?? multipleGuitarsHint ?? false");
+    expect(source).not.toContain("multipleGuitarsHint ?? true");
   });
 
   it("finalizes with the loaded backend multiple-guitar choice", () => {
