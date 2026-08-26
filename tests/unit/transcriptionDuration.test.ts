@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import { normalizePositiveDurationSec } from "../../lib/transcriptionDuration";
 
 describe("normalizePositiveDurationSec", () => {
