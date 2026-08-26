@@ -1426,6 +1426,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const transcriberHref = isGuestMode
     ? "/#hero"
     : `/?appendEditorId=${encodeURIComponent(editorId)}#hero`;
+  const transcriberNewHref = "/transcriber";
+  const transcriberAppendHref = `/transcriber?appendEditorId=${encodeURIComponent(editorId)}`;
   const chordDiagramHandednessStorageKey = useMemo(() => {
     if (session?.user?.id) {
       return `${CHORD_DIAGRAM_HANDEDNESS_STORAGE_PREFIX}user:${session.user.id}`;
@@ -6951,6 +6953,32 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           ))}
                         </div>
                       </details>
+                      {!isGuestMode && (
+                        <details className="group/transcribe relative">
+                          <summary className="flex list-none cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                            <span>Transcribe</span>
+                            <span aria-hidden="true">›</span>
+                          </summary>
+                          <div className="absolute left-full top-0 z-[10001] min-w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                            <button
+                              type="button"
+                              onClick={() => void router.push(transcriberNewHref)}
+                              className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                              title="Transcribe audio into a new editor"
+                            >
+                              Transcribe new
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void router.push(transcriberAppendHref)}
+                              className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                              title="Transcribe audio and import it into this editor"
+                            >
+                              Transcribe to this editor
+                            </button>
+                          </div>
+                        </details>
+                      )}
                     </div>
                   </details>
 
