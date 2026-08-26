@@ -72,7 +72,7 @@ export default function AiGuitarTabGeneratorPage() {
         { question: "Can I add guitar techniques and choose different fingerings?", answer: "Yes. Generated tabs remain fully editable, with tools for fingerings, chord shapes, bends, slides, hammer-ons, pull-offs, timing, arrangement, playback, and practice." },
         { question: "Is the AI guitar tab generator free?", answer: "Note2Tabs is free to try with monthly transcription credits. The free plan is useful for testing short riffs and song sections, while Premium adds more credits and full-length audio-file transcription." },
         { question: "Can AI generate guitar tabs from an MP3 or WAV file?", answer: "Yes. Upload MP3, WAV, M4A, AAC, FLAC, OGG, or WebM audio, choose the section, and generate an editable guitar tab." },
-        { question: "Can it generate guitar tabs from YouTube?", answer: "Yes. Paste a public YouTube link and select a clip of up to 30 seconds within the first ten minutes of the video." },
+        { question: "Can it generate guitar tabs from YouTube?", answer: "Yes. Paste a public YouTube link and choose a clip within the first ten minutes. Free clips can be up to 30 seconds, while Premium supports longer selections." },
         { question: "Does it work for a complete song?", answer: "Premium supports full-length uploaded audio-file transcription. YouTube input is designed for focused clips, and complex songs still benefit from section-by-section review." },
       ]}
       relatedLinks={[

@@ -76,7 +76,9 @@ function makeRes() {
 async function callTranscribe(
   role: string,
   multipleGuitars = false,
-  transcriptionModel: "light" | "heavy" | null = "heavy"
+  transcriptionModel: "light" | "heavy" | null = "heavy",
+  duration = 30,
+  startTime = 0
 ) {
   const handler = (await import("../../pages/api/transcribe")).default;
   mocks.session.mockResolvedValue({ user: { id: "user_1" } });
@@ -102,8 +104,8 @@ async function callTranscribe(
   const req = makeJsonReq({
     mode: "YOUTUBE",
     youtubeUrl: "https://www.youtube.com/watch?v=test",
-    startTime: 0,
-    duration: 30,
+    startTime,
+    duration,
     ...(transcriptionModel ? { transcriptionModel } : {}),
     separateGuitar: false,
     multipleGuitars,
@@ -183,6 +185,35 @@ describe("transcribe credits", () => {
     expect(requestInit.body).toBeInstanceOf(FormData);
     const body = requestInit.body as FormData;
     expect(body.get("multiple_guitars")).toBe("true");
+  });
+
+  it("rejects free YouTube clips longer than 30 seconds", async () => {
+    const res = await callTranscribe("FREE", false, "light", 31);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatchObject({ maxDurationSec: 30 });
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
+  it.each(["PREMIUM", "ADMIN", "MODERATOR"])(
+    "allows %s users to transcribe longer YouTube clips",
+    async (role) => {
+      const res = await callTranscribe(role, false, "light", 90, 60);
+
+      expect(res.statusCode).toBe(202);
+      const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
+      const body = requestInit.body as FormData;
+      expect(body.get("start_time")).toBe("60");
+      expect(body.get("duration")).toBe("90");
+    }
+  );
+
+  it("rejects Premium YouTube clips extending beyond the first ten minutes", async () => {
+    const res = await callTranscribe("PREMIUM", false, "light", 31, 570);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toMatchObject({ maxEndTimeSec: 600 });
+    expect(mocks.fetch).not.toHaveBeenCalled();
   });
 
   it("limits free file uploads to one minute", async () => {

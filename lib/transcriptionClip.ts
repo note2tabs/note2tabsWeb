@@ -1,10 +1,15 @@
 export const MAX_FREE_FILE_SNIPPET_SEC = 60;
 export const DEFAULT_FILE_SNIPPET_SEC = 60;
+export const MAX_FREE_YOUTUBE_SNIPPET_SEC = 30;
+export const DEFAULT_YOUTUBE_SNIPPET_SEC = 30;
+export const MAX_YOUTUBE_WINDOW_SEC = 10 * 60;
 
 export type FileClipRange = {
   start: number;
   end: number;
 };
+
+export type YouTubeClipRange = FileClipRange;
 
 const toDurationLimit = (durationSec: number | null) =>
   durationSec !== null && Number.isFinite(durationSec) && durationSec > 0 ? Math.ceil(durationSec) : null;
@@ -65,4 +70,61 @@ export function isFileClipRangeValid(
   const durationLimit = toDurationLimit(durationSec);
   if (durationLimit !== null && endTime > durationLimit) return false;
   return isPremiumUser || endTime - startTime <= MAX_FREE_FILE_SNIPPET_SEC;
+}
+
+export function getYoutubeClipMaxLengthSec(isPremiumUser: boolean) {
+  return isPremiumUser ? MAX_YOUTUBE_WINDOW_SEC : MAX_FREE_YOUTUBE_SNIPPET_SEC;
+}
+
+export function resolveYoutubeClipDuration(
+  startTime: number | null,
+  endTime: number | null,
+  isPremiumUser: boolean
+) {
+  if (startTime === null || endTime === null) return 0;
+  return Math.min(
+    getYoutubeClipMaxLengthSec(isPremiumUser),
+    Math.max(1, endTime - startTime)
+  );
+}
+
+export function isYoutubeClipRangeValid(
+  startTime: number | null,
+  endTime: number | null,
+  isPremiumUser: boolean
+) {
+  if (startTime === null || endTime === null) return false;
+  if (startTime < 0 || startTime >= MAX_YOUTUBE_WINDOW_SEC) return false;
+  if (endTime <= startTime || endTime > MAX_YOUTUBE_WINDOW_SEC) return false;
+  return isPremiumUser || endTime - startTime <= MAX_FREE_YOUTUBE_SNIPPET_SEC;
+}
+
+export function clampYoutubeClipStart(
+  startTime: number,
+  endTime: number | null,
+  isPremiumUser: boolean
+): YouTubeClipRange {
+  const start = Math.min(MAX_YOUTUBE_WINDOW_SEC - 1, Math.max(0, startTime));
+  const maxEnd = Math.min(
+    MAX_YOUTUBE_WINDOW_SEC,
+    start + getYoutubeClipMaxLengthSec(isPremiumUser)
+  );
+  const fallbackEnd = Math.min(MAX_YOUTUBE_WINDOW_SEC, start + DEFAULT_YOUTUBE_SNIPPET_SEC);
+  const end = endTime === null || endTime <= start ? fallbackEnd : Math.min(maxEnd, endTime);
+  return { start, end };
+}
+
+export function clampYoutubeClipEnd(
+  startTime: number | null,
+  endTime: number,
+  isPremiumUser: boolean
+) {
+  const start = startTime === null
+    ? 0
+    : Math.min(MAX_YOUTUBE_WINDOW_SEC - 1, Math.max(0, startTime));
+  const maxEnd = Math.min(
+    MAX_YOUTUBE_WINDOW_SEC,
+    start + getYoutubeClipMaxLengthSec(isPremiumUser)
+  );
+  return Math.min(maxEnd, Math.max(start + 1, endTime));
 }
