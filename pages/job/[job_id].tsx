@@ -13,8 +13,8 @@ import { saveJobToHistory } from "../../lib/history";
 import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
 import { normalizeTabSegments, tabSegmentsToStamps, tabsToTabText } from "../../lib/tabTextToStamps";
 import { getAppBaseUrl } from "../../lib/urls";
-import type { EditorListItem } from "../../types/gte";
 import NoIndexHead from "../../components/NoIndexHead";
+import { EditorLoadingState } from "../../components/EditorLoadingState";
 import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
 import {
   DEFAULT_JOB_POLL_DELAY_MS,
@@ -31,7 +31,6 @@ const TAB_JOB_ID_KEYS = ["tab_job_id", "tabJobId", "tab_id", "tabId"];
 type JobModeHint = "FILE" | "YOUTUBE";
 type JobModelHint = "light" | "heavy";
 type PendingStageKey = "queue" | "download" | "prepare" | "separate" | "predict" | "note_events" | "format";
-type ReviewAction = "finalize" | null;
 type ImportResult = {
   editorId: string;
   importFormat: "segment_groups" | "tab_stamps";
@@ -608,7 +607,7 @@ function getFinalizedJobFromResponse(payload: Record<string, unknown> | null): J
 }
 
 export default function JobPage() {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
   const { job_id } = router.query;
   const [job, setJob] = useState<JobResponse | null>(null);
@@ -623,26 +622,13 @@ export default function JobPage() {
   const [loadAdScript, setLoadAdScript] = useState(false);
   const [savedHistory, setSavedHistory] = useState(false);
   const [shareUrls, setShareUrls] = useState<{ twitter: string; reddit: string } | null>(null);
-  const [importBusy, setImportBusy] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [editorChoices, setEditorChoices] = useState<EditorListItem[]>([]);
-  const [editorChoice, setEditorChoice] = useState<string>("new");
-  const [editorLoading, setEditorLoading] = useState(false);
-  const [reviewMultipleGuitars, setReviewMultipleGuitars] = useState(false);
   const [reviewBusy, setReviewBusy] = useState(false);
-  const [reviewAction, setReviewAction] = useState<ReviewAction>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
-  const [storedReviewTabPreviewText, setStoredReviewTabPreviewText] = useState("");
-  const [quantizeImportDialog, setQuantizeImportDialog] = useState<"job" | "review" | null>(null);
   const [progressClock, setProgressClock] = useState(() => Date.now());
-  const reviewMultipleGuitarsInitRef = useRef<string | null>(null);
+  const automaticImportJobRef = useRef<string | null>(null);
   const displayJob = useMemo(() => normalizeJobForDisplay(job), [job]);
   const workflowState = useMemo(() => getWorkflowState(displayJob), [displayJob]);
   const reviewInfo = useMemo(() => getReviewInfo(displayJob), [displayJob]);
-  const reviewNoteCount = useMemo(() => {
-    const value = Number(reviewInfo?.noteEventCount);
-    return Number.isFinite(value) ? Math.max(0, Math.round(value)) : null;
-  }, [reviewInfo]);
   const modeHint = useMemo<JobModeHint | null>(() => {
     if (!router.isReady) return null;
     const rawMode = getQueryStringValue(router.query.mode);
@@ -670,25 +656,12 @@ export default function JobPage() {
     );
     return queryDuration ?? jobDuration;
   }, [displayJob, router.query.duration, router.query.durationSec]);
-  const appendEditorId = useMemo(() => {
-    if (!router.isReady) return null;
-    const value = router.query.appendEditorId;
-    if (Array.isArray(value)) return value[0]?.trim() || null;
-    return typeof value === "string" && value.trim() ? value.trim() : null;
-  }, [router.isReady, router.query.appendEditorId]);
-  const editorChoicesForSelect = useMemo(() => {
-    if (!appendEditorId || editorChoices.some((editor) => editor.id === appendEditorId)) {
-      return editorChoices;
-    }
-    return [{ id: appendEditorId, name: "Current editor" }, ...editorChoices];
-  }, [appendEditorId, editorChoices]);
   const reviewModeRequested = useMemo(() => {
     if (!router.isReady) return false;
     return parseBooleanFlag(getQueryStringValue(router.query.review)) ?? false;
   }, [router.isReady, router.query.review]);
   const isSignedIn = Boolean(session);
   const canOpenGuestEditor = !isSignedIn && isLocalNoDbClientMode;
-  const importButtonLabel = canOpenGuestEditor ? "Open in guest editor" : "Import to editor";
   const hasWorkflowState = Boolean(workflowState && workflowState.trim());
   const isWorkflowProcessing = workflowState === "processing";
   const isDoneJob = displayJob?.status === "done";
@@ -702,15 +675,6 @@ export default function JobPage() {
     (Boolean(displayJob?.audio_preview_url) || Boolean(reviewInfo));
   const showReviewUi = isReviewReady || isRecoverableReview || isReopenedFinalizedReview || isDoneJob;
   const isFinalizedJob = isFinalizedStatus && !showReviewUi;
-  const tabSegments = useMemo(() => getJobTabSegments(displayJob), [displayJob]);
-  const tabJobId = useMemo(() => getJobTabJobId(displayJob), [displayJob]);
-  const localReviewTabPreviewText = useMemo(() => {
-    const tabText = displayJob?.tab_text || (tabSegments.length > 0 ? tabsToTabText(tabSegments) : "");
-    return getTabPreviewText(tabText);
-  }, [displayJob?.tab_text, tabSegments]);
-  const reviewTabPreviewText = localReviewTabPreviewText || storedReviewTabPreviewText;
-  const transcriberGroups = useMemo(() => getJobTranscriberGroups(displayJob), [displayJob]);
-  const canImportToEditor = isFinalizedJob && (tabSegments.length > 0 || transcriberGroups.length > 0 || Boolean(tabJobId));
   const pendingPresentation = useMemo(
     () => buildPendingPresentation(displayJob, progressClock, modeHint, separateGuitarHint, durationHintSeconds, modelHint),
     [displayJob, progressClock, modeHint, separateGuitarHint, durationHintSeconds, modelHint]
@@ -720,10 +684,6 @@ export default function JobPage() {
   const loadedMultipleGuitars = useMemo(
     () => parseBooleanValue(getFirstJobValue(displayJob, ["multipleGuitars", "multiple_guitars"])),
     [displayJob]
-  );
-  const hasReviewChanges = useMemo(
-    () => loadedMultipleGuitars !== null && reviewMultipleGuitars !== loadedMultipleGuitars,
-    [reviewMultipleGuitars, loadedMultipleGuitars]
   );
 
   useEffect(() => {
@@ -746,68 +706,6 @@ export default function JobPage() {
     });
   }, [durationHintSeconds, job_id, modeHint, modelHint, showReviewUi]);
 
-  useEffect(() => {
-    if (!router.isReady || !showReviewUi || typeof job_id !== "string") return;
-    if (reviewMultipleGuitarsInitRef.current === job_id) return;
-    const stored = parseBooleanValue(getFirstJobValue(displayJob, ["multipleGuitars", "multiple_guitars"]));
-    setReviewMultipleGuitars(stored ?? multipleGuitarsHint ?? false);
-    reviewMultipleGuitarsInitRef.current = job_id;
-  }, [displayJob, job_id, multipleGuitarsHint, router.isReady, showReviewUi]);
-
-  useEffect(() => {
-    if (!showReviewUi || !isSignedIn) return;
-    let cancelled = false;
-    setEditorLoading(true);
-    gteApi
-      .listEditors()
-      .then((data) => {
-        if (cancelled) return;
-        const editors = data.editors || [];
-        setEditorChoices(editors);
-        setEditorChoice((previous) => {
-          if (appendEditorId) return appendEditorId;
-          if (previous !== "new" && editors.some((editor) => editor.id === previous)) return previous;
-          return "new";
-        });
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setEditorChoices([]);
-        setEditorChoice(appendEditorId || "new");
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setEditorLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [showReviewUi, isSignedIn, appendEditorId]);
-
-  useEffect(() => {
-    if (!showReviewUi || localReviewTabPreviewText || !tabJobId) {
-      setStoredReviewTabPreviewText("");
-      return;
-    }
-
-    let cancelled = false;
-    setStoredReviewTabPreviewText("");
-    fetchStoredTabPayload(tabJobId)
-      .then((storedTab) => {
-        if (cancelled) return;
-        setStoredReviewTabPreviewText(getTabPreviewText(tabsToTabText(storedTab.tabs)));
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setStoredReviewTabPreviewText("");
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [localReviewTabPreviewText, showReviewUi, tabJobId]);
 
   const fetchJob = async (
     id: string,
@@ -980,17 +878,10 @@ export default function JobPage() {
     setAdContainerKey(0);
     setSavedHistory(false);
     setShareUrls(null);
-    setImportError(null);
-    setEditorChoices([]);
-    setEditorChoice(appendEditorId || "new");
-    setEditorLoading(false);
     setReviewError(null);
     setReviewBusy(false);
-    setReviewAction(null);
-    setStoredReviewTabPreviewText("");
-    setReviewMultipleGuitars(false);
-    reviewMultipleGuitarsInitRef.current = null;
-  }, [job_id, appendEditorId]);
+    automaticImportJobRef.current = null;
+  }, [job_id]);
 
   useEffect(() => {
     if (!isFinalizedJob || !job_id) return;
@@ -1047,15 +938,20 @@ export default function JobPage() {
     let resolvedTranscriberTracks = getJobTranscriberTracks(jobToImport);
     let resolvedTabSegments = getJobTabSegments(jobToImport);
     const tabJobId = getJobTabJobId(jobToImport);
-    if ((resolvedTranscriberGroups.length === 0 || resolvedTabSegments.length === 0) && tabJobId) {
-      const storedTab = await fetchStoredTabPayload(tabJobId);
-      resolvedTranscriberGroups =
-        resolvedTranscriberGroups.length > 0 ? resolvedTranscriberGroups : storedTab.transcriberSegments;
-      resolvedTranscriberTracks =
-        resolvedTranscriberTracks.length > 0 ? resolvedTranscriberTracks : storedTab.transcriberTracks;
-      resolvedTabSegments = resolvedTabSegments.length > 0 ? resolvedTabSegments : storedTab.tabs;
-      if (storedTab.sourceLabel) {
-        importSourceLabel = storedTab.sourceLabel;
+    if (tabJobId) {
+      const needsStoredPayload = resolvedTranscriberGroups.length === 0 || resolvedTabSegments.length === 0;
+      try {
+        const storedTab = await fetchStoredTabPayload(tabJobId);
+        resolvedTranscriberGroups =
+          resolvedTranscriberGroups.length > 0 ? resolvedTranscriberGroups : storedTab.transcriberSegments;
+        resolvedTranscriberTracks =
+          resolvedTranscriberTracks.length > 0 ? resolvedTranscriberTracks : storedTab.transcriberTracks;
+        resolvedTabSegments = resolvedTabSegments.length > 0 ? resolvedTabSegments : storedTab.tabs;
+        if (storedTab.sourceLabel) {
+          importSourceLabel = storedTab.sourceLabel;
+        }
+      } catch (error) {
+        if (needsStoredPayload) throw error;
       }
     }
     if (resolvedTranscriberTracks.length > 0) {
@@ -1191,44 +1087,19 @@ export default function JobPage() {
     }
   };
 
-  const handleImportToEditor = async (quantize: boolean) => {
-    if (importBusy) return;
-    setQuantizeImportDialog(null);
-    setImportBusy(true);
-    setImportError(null);
-    try {
-      const importableJob = await waitForImportableJob(displayJob);
-      if (!importableJob) {
-        throw new Error("Tabs are still getting ready for the editor. Please try again in a moment.");
-      }
-      await importJobToEditor(importableJob, editorChoice, quantize);
-    } catch (err: any) {
-      const message =
-        err?.message === "No importable tab groups are available for this transcription."
-          ? "Tabs are still getting ready for the editor. Please try again in a moment."
-          : err?.message || "Failed to import tabs into the editor.";
-      setImportError(message);
-    } finally {
-      setImportBusy(false);
-    }
-  };
-
-  const handleContinue = async (quantize: boolean) => {
+  const automaticallyOpenEditor = async () => {
     if (!showReviewUi || typeof job_id !== "string" || reviewBusy) return;
-    setQuantizeImportDialog(null);
     setReviewBusy(true);
-    setReviewAction("finalize");
     setReviewError(null);
-    let finalizeSucceeded = false;
     let importedSuccessfully = false;
-    const targetEditorChoice = editorChoice;
+    const targetEditorChoice = "new";
     try {
-      if (isFinalizedStatus && !hasReviewChanges) {
+      if (isFinalizedStatus) {
         const importableJob = await waitForImportableJob(displayJob);
         if (!importableJob) {
           throw new Error("Tabs are still getting ready for the editor. Please try again in a moment.");
         }
-        importedSuccessfully = await importJobToEditor(importableJob, targetEditorChoice, quantize);
+        importedSuccessfully = await importJobToEditor(importableJob, targetEditorChoice, true);
         return;
       }
 
@@ -1241,8 +1112,6 @@ export default function JobPage() {
       if (!response.ok) {
         throw new Error(await readErrorMessage(response));
       }
-      finalizeSucceeded = true;
-
       const finalizePayload = await readJsonResponse(response);
       const finalizedResponseJob = mergeJobImportFallback(getFinalizedJobFromResponse(finalizePayload), displayJob);
       let finalizedJobForImport = await waitForImportableJob(finalizedResponseJob, displayJob);
@@ -1281,7 +1150,7 @@ export default function JobPage() {
         throw new Error("Tabs are still finalizing. Please try again in a moment.");
       }
 
-      importedSuccessfully = await importJobToEditor(finalizedJobForImport, targetEditorChoice, quantize);
+      importedSuccessfully = await importJobToEditor(finalizedJobForImport, targetEditorChoice, true);
     } catch (err: any) {
       const message =
         err?.message === "No importable tab groups are available for this transcription."
@@ -1290,12 +1159,20 @@ export default function JobPage() {
       setReviewError(message);
     } finally {
       setReviewBusy(false);
-      setReviewAction(null);
-      if (!importedSuccessfully || !finalizeSucceeded) {
+      if (!importedSuccessfully) {
         await fetchJob(job_id);
       }
     }
   };
+
+  useEffect(() => {
+    if (!router.isReady || !showReviewUi || typeof job_id !== "string") return;
+    if (sessionStatus === "loading" || automaticImportJobRef.current === job_id) return;
+    automaticImportJobRef.current = job_id;
+    void automaticallyOpenEditor();
+    // The completed job id is the one-shot trigger. Import state changes must not start a duplicate editor import.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job_id, router.isReady, sessionStatus, showReviewUi]);
 
   const handleRestart = () => {
     void router.push("/");
@@ -1310,11 +1187,7 @@ export default function JobPage() {
   };
 
   const showAdGate = isFinalizedJob && !hasWatchedAd;
-  const title = showReviewUi
-    ? displayJob?.song_title
-      ? `Import ${displayJob.song_title} - Note2Tabs`
-      : "Import transcription - Note2Tabs"
-    : "Preparing Tabs - Note2Tabs";
+  const title = showReviewUi ? "Opening editor - Note2Tabs" : "Preparing Tabs - Note2Tabs";
 
   return (
     <>
@@ -1333,7 +1206,7 @@ export default function JobPage() {
         <div className="container stack">
           <div className="page-header job-route-header">
             <div>
-              <h1 className="page-title">{showReviewUi ? "Your tab is ready" : "Preparing your guitar tab"}</h1>
+              <h1 className="page-title">{showReviewUi ? "Opening your editor" : "Preparing your guitar tab"}</h1>
             </div>
             {!showReviewUi && (
               <button type="button" onClick={() => void router.push("/")} className="button-ghost button-small">
@@ -1344,78 +1217,30 @@ export default function JobPage() {
 
           <div className="job-route-content">
           {showReviewUi ? (
-            <div className="review-shell" aria-busy={reviewBusy}>
-              <section className="card review-import-card">
-                <div className="review-import-header">
-                  <div className="stack" style={{ gap: "8px" }}>
-                    <h2 className="review-hero-title">{displayJob?.song_title || "Your transcription is ready"}</h2>
-                  </div>
-                  {reviewNoteCount !== null ? (
-                    <span className="review-count-pill">{reviewNoteCount.toLocaleString()} notes</span>
-                  ) : null}
+            <div className="stack">
+              <EditorLoadingState label="Quantizing transcription and opening your editor" />
+              {reviewError ? (
+                <div className="stack-tight">
+                  <div className="error">{reviewError}</div>
+                  <button
+                    type="button"
+                    className="button-primary button-small"
+                    disabled={reviewBusy}
+                    onClick={() => {
+                      if (typeof job_id === "string") automaticImportJobRef.current = null;
+                      setReviewError(null);
+                      void automaticallyOpenEditor();
+                    }}
+                  >
+                    Retry opening editor
+                  </button>
                 </div>
-
-              <div className="review-value-preview" aria-label="Tab preview">
-                <p className="review-value-title">Preview</p>
-                {reviewTabPreviewText ? (
-                  <pre>{reviewTabPreviewText}</pre>
-                ) : (
-                  <p className="muted text-small" style={{ margin: 0 }}>
-                    Your transcription is ready. Open it in the editor to view and edit the full tab.
-                  </p>
-                )}
-              </div>
-
-              {reviewError ? <div className="error">{reviewError}</div> : null}
-
-              <div className="review-import-options">
-                {isSignedIn ? (
-                  <div className="review-editor-target">
-                    <p className="label" style={{ margin: 0 }}>
-                      Import to guitar tab editor
-                    </p>
-                    <select
-                      className="form-select"
-                      value={editorChoice}
-                      onChange={(event) => setEditorChoice(event.target.value)}
-                      disabled={reviewBusy || editorLoading}
-                    >
-                      <option value="new">New editor</option>
-                      {editorChoicesForSelect.map((editor) => (
-                        <option key={editor.id} value={editor.id}>
-                          {editor.name || "Untitled"}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : canOpenGuestEditor ? (
-                  <p className="muted text-small" style={{ margin: 0 }}>
-                    Tabs will be opened in the guest editor.
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="button-row review-actions review-import-actions">
-                <button
-                  type="button"
-                  onClick={() => setQuantizeImportDialog("review")}
-                  className="button-primary button-small"
-                  disabled={reviewBusy || editorLoading}
-                >
-                  {reviewAction === "finalize" ? "Opening..." : "Open in editor"}
-                </button>
-                <p className="review-cta-note">You can edit everything after opening.</p>
-              </div>
-              </section>
+              ) : null}
             </div>
           ) : (
             <JobStatusLayout
               job={displayJob}
               pendingPresentation={pendingPresentation}
-              onImportToEditor={canImportToEditor ? () => setQuantizeImportDialog("job") : null}
-              importBusy={importBusy}
-              importButtonLabel={importButtonLabel}
-              importError={importError}
               onDownloadTabs={handleDownloadTabs}
               onRestart={handleRestart}
               hasWatchedAd={hasWatchedAd}
@@ -1432,53 +1257,6 @@ export default function JobPage() {
           </div>
         </div>
       </main>
-      {quantizeImportDialog && (
-        <div className="dialog-scrim" onMouseDown={() => !importBusy && !reviewBusy && setQuantizeImportDialog(null)}>
-          <div className="dialog-card" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="stack-tight">
-              <h2 className="page-title" style={{ fontSize: "1.25rem" }}>Quantize import?</h2>
-              <p className="muted text-small">
-                Beat, bar, and tempo alignment happen automatically. Quantize additionally snaps note starts to a
-                1/16-note grid; note lengths stay as performed.
-              </p>
-            </div>
-            <div className="button-row" style={{ justifyContent: "flex-end" }}>
-              <button
-                type="button"
-                className="button-secondary button-small"
-                onClick={() => setQuantizeImportDialog(null)}
-                disabled={importBusy || reviewBusy}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="button-secondary button-small"
-                onClick={() =>
-                  quantizeImportDialog === "review"
-                    ? void handleContinue(false)
-                    : void handleImportToEditor(false)
-                }
-                disabled={importBusy || reviewBusy}
-              >
-                Keep performed timing
-              </button>
-              <button
-                type="button"
-                className="button-primary button-small"
-                onClick={() =>
-                  quantizeImportDialog === "review"
-                    ? void handleContinue(true)
-                    : void handleImportToEditor(true)
-                }
-                disabled={importBusy || reviewBusy}
-              >
-                Snap to 1/16
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

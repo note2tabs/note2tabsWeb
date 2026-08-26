@@ -17,9 +17,17 @@ describe("job editor import readiness", () => {
     expect(source).toContain("finalizedJobForImport = await waitForImportableJob(normalizedFullLatest, normalizedLatest)");
   });
 
-  it("waits for importable tabs before the finalized import button opens the editor", () => {
+  it("automatically waits for importable tabs and opens a new quantized editor", () => {
     expect(source).toContain("const waitForImportableJob = async");
     expect(source).toContain("const importableJob = await waitForImportableJob(displayJob)");
-    expect(source).toContain("await importJobToEditor(importableJob, editorChoice, quantize)");
+    expect(source).toContain('const targetEditorChoice = "new"');
+    expect(source).toContain("await importJobToEditor(importableJob, targetEditorChoice, true)");
+    expect(source).toContain("void automaticallyOpenEditor()");
+    expect(source).not.toContain("Quantize import?");
+  });
+
+  it("uses the persisted source label as the new editor name", () => {
+    expect(source).toContain("const storedTab = await fetchStoredTabPayload(tabJobId)");
+    expect(source).toContain("importSourceLabel = storedTab.sourceLabel");
   });
 });
