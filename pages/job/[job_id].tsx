@@ -1109,7 +1109,7 @@ export default function JobPage() {
         if (!importableJob) {
           throw new Error("Tabs are still getting ready for the editor. Please try again in a moment.");
         }
-        importedSuccessfully = await importJobToEditor(importableJob, targetEditorChoice, false);
+        importedSuccessfully = await importJobToEditor(importableJob, targetEditorChoice, true);
         return;
       }
 
@@ -1160,7 +1160,7 @@ export default function JobPage() {
         throw new Error("Tabs are still finalizing. Please try again in a moment.");
       }
 
-      importedSuccessfully = await importJobToEditor(finalizedJobForImport, targetEditorChoice, false);
+      importedSuccessfully = await importJobToEditor(finalizedJobForImport, targetEditorChoice, true);
     } catch (err: any) {
       const message =
         err?.message === "No importable tab groups are available for this transcription."
