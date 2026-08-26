@@ -882,6 +882,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       credits: user ? creditsAfter : undefined,
       jobId: backendJobId,
       status: "processing",
+      durationSec,
       transcriptionModel,
       unverifiedTranscriptionUsed: reservedUnverifiedTranscription || undefined,
     });

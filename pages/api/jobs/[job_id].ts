@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "../../../lib/prisma";
 import { buildUniqueTabJobLabel, deriveTabJobBaseLabel } from "../../../lib/tabJobNames";
+import { normalizePositiveDurationSec } from "../../../lib/transcriptionDuration";
 import {
   parseStoredTabPayload,
   normalizeTranscriberTracks,
@@ -501,7 +502,7 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
       : "";
   const artist =
     typeof getFirstJobValue(payload, ["artist"]) === "string" ? (getFirstJobValue(payload, ["artist"]) as string) : "";
-  const durationValue = Number(getFirstJobValue(payload, ["durationSec", "duration", "duration_sec"]));
+  const durationValue = getFirstJobValue(payload, ["durationSec", "duration", "duration_sec"]);
   const sourceType =
     typeof getFirstJobValue(payload, ["sourceType", "source_type"]) === "string"
       ? String(getFirstJobValue(payload, ["sourceType", "source_type"]))
@@ -539,7 +540,7 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
         ? false
         : null
       : null;
-  const normalizedDuration = Number.isFinite(durationValue) ? Math.max(1, Math.round(durationValue)) : null;
+  const normalizedDuration = normalizePositiveDurationSec(durationValue);
   const serializedPayload = serializeStoredTabPayload({
     tabs,
     transcriberSegments,
@@ -553,7 +554,7 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
     const needsUpdate =
       existing.sourceLabel !== sourceLabel ||
       existing.sourceType !== sourceType ||
-      existing.durationSec !== normalizedDuration ||
+      (normalizedDuration !== null && existing.durationSec !== normalizedDuration) ||
       existing.resultJson !== serializedPayload ||
       parsedExisting.backendJobId !== jobId;
     if (needsUpdate) {
@@ -563,7 +564,7 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
           backendJobId: jobId,
           sourceType,
           sourceLabel,
-          durationSec: normalizedDuration,
+          ...(normalizedDuration !== null ? { durationSec: normalizedDuration } : {}),
           resultJson: serializedPayload,
         },
       });
@@ -714,6 +715,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (progress !== null) responsePayload.progress = progress;
       const attempts = getFiniteNumberValue(payload, ["attempts"]);
       if (attempts !== null) responsePayload.attempts = Math.max(0, Math.round(attempts));
+      const durationSec = getFiniteNumberValue(payload, ["durationSec", "duration", "duration_sec"]);
+      if (durationSec !== null && durationSec > 0) {
+        responsePayload.durationSec = Math.max(1, Math.round(durationSec));
+      }
 
       const steps = getFirstJobValue(payload, ["steps"]);
       if (Array.isArray(steps)) responsePayload.steps = steps;
