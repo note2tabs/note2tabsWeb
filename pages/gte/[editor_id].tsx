@@ -1804,7 +1804,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setIsMobileViewport(matches);
       setMobileControlsOpen((prev) => (matches ? prev : false));
       setMobileNavOpen((prev) => (matches ? prev : false));
-      if (!matches) {
+      if (matches) {
+        setEditorMode("practice");
+        setMobileEditLaneId(null);
+        setMobileControlsOpen(false);
+      } else {
         setMobileEditLaneId(null);
       }
     };
@@ -5290,7 +5294,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     const activeIndex = editorMode === "canvas" ? 0 : editorMode === "tab" ? 1 : 2;
     return (
     <div
-      className={`rounded-lg border border-slate-200 bg-slate-100 p-0.5 ${
+      className={`gte-view-mode-switch rounded-lg border border-slate-200 bg-slate-100 p-0.5 ${
         compact ? "w-64" : "w-72"
       }`}
     >
