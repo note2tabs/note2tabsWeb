@@ -42,7 +42,7 @@ export default function AdPlacementsPreviewPage() {
           <section className="stack">
             <div>
               <h2 className="section-title">Transcription processing</h2>
-              <p className="muted text-small">In production this appears after 12 seconds for eligible free users.</p>
+              <p className="muted text-small">In production this appears after the loading screen has remained visible for 4 seconds.</p>
             </div>
             <JobStatusLayout
               job={previewJob}

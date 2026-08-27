@@ -24,7 +24,7 @@ import AdvertisementSlot from "../../components/AdvertisementSlot";
 
 const FINALIZE_IMPORT_TIMEOUT_MS = 60_000;
 const FINALIZE_IMPORT_POLL_MS = 1200;
-const PROCESSING_AD_DELAY_MS = 12_000;
+const PROCESSING_AD_DELAY_MS = 4_000;
 const PRIMIS_CHANNEL_ID = "YOUR_PRIMIS_CHANNEL_ID";
 const ADS_AVAILABLE = PRIMIS_CHANNEL_ID && PRIMIS_CHANNEL_ID !== "YOUR_PRIMIS_CHANNEL_ID";
 const PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "running"]);
