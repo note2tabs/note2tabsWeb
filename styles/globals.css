@@ -566,6 +566,56 @@ input[type="number"] {
   .product-home__action { transition: none; }
 }
 
+/* Advertising inventory remains a neutral review surface until the approved
+   CMP and network tags are connected. */
+.ad-slot {
+  width: min(100%, 728px);
+  min-height: 78px;
+  margin: 18px auto 0;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 3px;
+  text-align: center;
+}
+
+.ad-slot__label {
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ad-slot__preview {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.ad-slot--editor {
+  min-height: 66px;
+  margin-top: 0;
+  background: rgba(248, 250, 252, 0.78);
+}
+
+@media (max-width: 640px) {
+  .ad-slot {
+    width: 100%;
+    min-height: 58px;
+    margin-top: 12px;
+    border-radius: 11px;
+  }
+
+  .ad-slot--editor {
+    min-height: 52px;
+  }
+}
+
 .footer-privacy-button {
   width: fit-content;
   padding: 0;

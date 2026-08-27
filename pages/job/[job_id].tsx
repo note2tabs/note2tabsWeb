@@ -20,6 +20,7 @@ import {
   DEFAULT_JOB_POLL_DELAY_MS,
   requestJobStatus,
 } from "../../lib/jobPolling";
+import AdvertisementSlot from "../../components/AdvertisementSlot";
 
 const FINALIZE_IMPORT_TIMEOUT_MS = 60_000;
 const FINALIZE_IMPORT_POLL_MS = 1200;
@@ -671,6 +672,9 @@ export default function JobPage() {
     return value && value.trim() ? value.trim() : null;
   }, [router.isReady, router.query.ytTitle]);
   const isSignedIn = Boolean(session);
+  const isPremiumUser = ["PREMIUM", "ADMIN", "MODERATOR", "MOD"].includes(
+    session?.user?.role || ""
+  );
   const canOpenGuestEditor = !isSignedIn && isLocalNoDbClientMode;
   const hasWorkflowState = Boolean(workflowState && workflowState.trim());
   const isWorkflowProcessing = workflowState === "processing";
@@ -1263,6 +1267,9 @@ export default function JobPage() {
               onVideoComplete={handleVideoComplete}
               shareUrls={hasWatchedAd ? shareUrls : null}
             />
+          )}
+          {hasPendingPresentation && !isPremiumUser && (
+            <AdvertisementSlot placement="transcription-loading" />
           )}
           </div>
         </div>

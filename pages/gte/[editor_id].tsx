@@ -82,6 +82,7 @@ import { getChordEditorMidiNotes } from "../../lib/gteChordEditor";
 import { buildChordPlaybackWindows } from "../../lib/gteChordPlayback";
 import GteFileImportButton from "../../components/GteFileImportButton";
 import { EditorLoadingState } from "../../components/EditorLoadingState";
+import AdvertisementSlot from "../../components/AdvertisementSlot";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
   buildGteExportFile,
@@ -1209,6 +1210,9 @@ const moveBarsInCanvas = (
 export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   useGteRenderInstrumentation("GteEditorPage", editorId);
   const { data: session } = useSession();
+  const showEditorAd = !["PREMIUM", "ADMIN", "MODERATOR", "MOD"].includes(
+    session?.user?.role || ""
+  );
   const [canvas, setCanvas] = useState<CanvasSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -8401,6 +8405,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               </div>
             )}
           </div>
+        )}
+        {showEditorAd && !isMobileEditMode && !practiceModeEnabled && (
+          <AdvertisementSlot placement="editor" />
         )}
         {practiceModeEnabled && !isMobileEditMode && (
           <>
