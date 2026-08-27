@@ -44,6 +44,7 @@ export default function AdPlacementsPreviewPage() {
               <h2 className="section-title">Transcription processing</h2>
               <p className="muted text-small">In production this appears after the loading screen has remained visible for 4 seconds.</p>
             </div>
+            <AdvertisementSlot placement="transcription-loading" preview />
             <JobStatusLayout
               job={previewJob}
               pendingPresentation={previewProgress}
@@ -57,7 +58,6 @@ export default function AdPlacementsPreviewPage() {
               showFallbackVideo={false}
               onVideoComplete={() => {}}
             />
-            <AdvertisementSlot placement="transcription-loading" preview />
           </section>
 
           <section className="stack">

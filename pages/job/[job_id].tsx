@@ -1240,6 +1240,9 @@ export default function JobPage() {
           </div>
 
           <div className="job-route-content">
+          {processingAdReady && hasPendingPresentation && !isPremiumUser && (
+            <AdvertisementSlot placement="transcription-loading" />
+          )}
           {showReviewUi ? (
             <div className="stack">
               <EditorLoadingState label="Quantizing transcription and opening your editor" />
@@ -1277,9 +1280,6 @@ export default function JobPage() {
               onVideoComplete={handleVideoComplete}
               shareUrls={shareUrls}
             />
-          )}
-          {processingAdReady && hasPendingPresentation && !isPremiumUser && (
-            <AdvertisementSlot placement="transcription-loading" />
           )}
           </div>
         </div>

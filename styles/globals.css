@@ -604,6 +604,10 @@ input[type="number"] {
   background: rgba(248, 250, 252, 0.72);
 }
 
+.job-route-content > .ad-slot--transcription-loading {
+  margin-bottom: 16px;
+}
+
 .ad-slot__dismiss {
   position: absolute;
   top: 7px;
