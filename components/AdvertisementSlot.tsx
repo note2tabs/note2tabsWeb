@@ -12,7 +12,7 @@ type AdvertisementSlotProps = {
   className?: string;
 };
 
-const DISMISS_DURATION_MS = 24 * 60 * 60 * 1000;
+const DISMISS_DURATION_MS = 10 * 60 * 1000;
 
 const dismissalKey = (placement: AdvertisementSlotProps["placement"]) =>
   `note2tabs:ad-dismissed:${placement}`;
@@ -92,7 +92,7 @@ export default function AdvertisementSlot({ placement, className = "" }: Adverti
       experiment: AD_EXPERIENCE_FLAG,
       variant: variant || "discreet-dismissible",
       placement,
-      dismiss_duration_hours: DISMISS_DURATION_MS / (60 * 60 * 1000),
+      dismiss_duration_minutes: DISMISS_DURATION_MS / (60 * 1000),
     });
   };
 
@@ -104,7 +104,7 @@ export default function AdvertisementSlot({ placement, className = "" }: Adverti
       aria-label={label}
       data-ad-placement={placement}
     >
-      <button type="button" className="ad-slot__dismiss" onClick={dismiss} aria-label="Hide advertisement for 24 hours">
+      <button type="button" className="ad-slot__dismiss" onClick={dismiss} aria-label="Hide advertisement for 10 minutes">
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <path d="m4 4 8 8M12 4l-8 8" />
         </svg>
