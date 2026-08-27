@@ -24,6 +24,7 @@ import AdvertisementSlot from "../../components/AdvertisementSlot";
 
 const FINALIZE_IMPORT_TIMEOUT_MS = 60_000;
 const FINALIZE_IMPORT_POLL_MS = 1200;
+const PROCESSING_AD_DELAY_MS = 12_000;
 const PRIMIS_CHANNEL_ID = "YOUR_PRIMIS_CHANNEL_ID";
 const ADS_AVAILABLE = PRIMIS_CHANNEL_ID && PRIMIS_CHANNEL_ID !== "YOUR_PRIMIS_CHANNEL_ID";
 const PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "running"]);
@@ -626,6 +627,7 @@ export default function JobPage() {
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [progressClock, setProgressClock] = useState(() => Date.now());
+  const [processingAdReady, setProcessingAdReady] = useState(false);
   const automaticImportJobRef = useRef<string | null>(null);
   const displayJob = useMemo(() => normalizeJobForDisplay(job), [job]);
   const workflowState = useMemo(() => getWorkflowState(displayJob), [displayJob]);
@@ -699,6 +701,13 @@ export default function JobPage() {
     () => parseBooleanValue(getFirstJobValue(displayJob, ["multipleGuitars", "multiple_guitars"])),
     [displayJob]
   );
+
+  useEffect(() => {
+    setProcessingAdReady(false);
+    if (!hasPendingPresentation || isPremiumUser) return;
+    const timer = window.setTimeout(() => setProcessingAdReady(true), PROCESSING_AD_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [hasPendingPresentation, isPremiumUser, job_id]);
 
   useEffect(() => {
     if (!showReviewUi || typeof job_id !== "string") return;
@@ -1200,7 +1209,8 @@ export default function JobPage() {
     handleSkipAd();
   };
 
-  const showAdGate = isFinalizedJob && !hasWatchedAd;
+  // Completed tabs must never be gated behind an advertisement.
+  const showAdGate = false;
   const title = showReviewUi ? "Opening editor - Note2Tabs" : "Preparing Tabs - Note2Tabs";
 
   return (
@@ -1265,10 +1275,10 @@ export default function JobPage() {
               showFallbackVideo={showFallbackVideo}
               enablePrimis={ADS_AVAILABLE}
               onVideoComplete={handleVideoComplete}
-              shareUrls={hasWatchedAd ? shareUrls : null}
+              shareUrls={shareUrls}
             />
           )}
-          {hasPendingPresentation && !isPremiumUser && (
+          {processingAdReady && hasPendingPresentation && !isPremiumUser && (
             <AdvertisementSlot placement="transcription-loading" />
           )}
           </div>

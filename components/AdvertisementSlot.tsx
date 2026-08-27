@@ -10,6 +10,7 @@ import { initPostHog } from "../lib/posthogClient";
 type AdvertisementSlotProps = {
   placement: "transcription-loading" | "editor";
   className?: string;
+  preview?: boolean;
 };
 
 const DISMISS_DURATION_MS = 10 * 60 * 1000;
@@ -21,14 +22,17 @@ const dismissalKey = (placement: AdvertisementSlotProps["placement"]) =>
  * Review surface for future ad inventory. The ad network must replace the
  * preview body only after its certified consent signal is available.
  */
-export default function AdvertisementSlot({ placement, className = "" }: AdvertisementSlotProps) {
-  const [visible, setVisible] = useState(false);
-  const [variant, setVariant] = useState<AdExperienceVariant | null>(null);
+export default function AdvertisementSlot({ placement, className = "", preview = false }: AdvertisementSlotProps) {
+  const [visible, setVisible] = useState(preview);
+  const [variant, setVariant] = useState<AdExperienceVariant | null>(
+    preview ? "discreet-dismissible" : null
+  );
   const exposureTrackedRef = useRef(false);
   const impressionTrackedRef = useRef(false);
   const label = placement === "transcription-loading" ? "Transcription loading ad" : "Editor ad";
 
   useEffect(() => {
+    if (preview) return;
     let active = true;
     let unsubscribe: (() => void) | undefined;
     let fallbackTimer: number | undefined;
@@ -68,9 +72,10 @@ export default function AdvertisementSlot({ placement, className = "" }: Adverti
       if (fallbackTimer) window.clearTimeout(fallbackTimer);
       unsubscribe?.();
     };
-  }, [placement]);
+  }, [placement, preview]);
 
   useEffect(() => {
+    if (preview) return;
     if (!variant) return;
     if (variant === "control") {
       setVisible(false);
@@ -83,11 +88,12 @@ export default function AdvertisementSlot({ placement, className = "" }: Adverti
       impressionTrackedRef.current = true;
       sendEvent("ad_impression", { experiment: AD_EXPERIENCE_FLAG, variant, placement });
     }
-  }, [placement, variant]);
+  }, [placement, preview, variant]);
 
   const dismiss = () => {
-    window.localStorage.setItem(dismissalKey(placement), String(Date.now()));
+    if (!preview) window.localStorage.setItem(dismissalKey(placement), String(Date.now()));
     setVisible(false);
+    if (preview) return;
     sendEvent("ad_dismissed", {
       experiment: AD_EXPERIENCE_FLAG,
       variant: variant || "discreet-dismissible",

@@ -70,7 +70,6 @@ import {
   premiumFunnelProperties,
   premiumPricingHref,
 } from "../lib/premiumFunnel";
-import AdvertisementSlot from "../components/AdvertisementSlot";
 
 type TabsResponse = {
   tabs: string[][];
@@ -1503,9 +1502,6 @@ export default function TranscriberPage() {
                 )
               )}
             </form>
-            {(loading || authHandoffBusy) && !isPremiumUser && (
-              <AdvertisementSlot placement="transcription-loading" />
-            )}
 
             <div className="hero-outcome-row" data-reveal>
               <span>MP3, WAV, M4A</span>
