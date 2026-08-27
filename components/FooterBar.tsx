@@ -60,7 +60,13 @@ export default function FooterBar() {
             <h2>Terms & Policies</h2>
             <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
-            <Link href="/settings#privacy-controls">Analytics settings</Link>
+            <button
+              type="button"
+              className="footer-privacy-button"
+              onClick={() => window.dispatchEvent(new CustomEvent("note2tabs:open-consent"))}
+            >
+              Privacy choices
+            </button>
           </section>
 
           <section className="footer-section">

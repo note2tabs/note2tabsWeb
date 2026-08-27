@@ -225,7 +225,7 @@ export function parseAcquisitionAttribution(value: string | undefined): Acquisit
 
 export function getAcquisitionAttribution(): AcquisitionAttribution | null {
   if (typeof window === "undefined" || typeof document === "undefined") return null;
-  if (cookieValue("analytics_consent") === "denied") return null;
+  if (cookieValue("analytics_consent") !== "granted") return null;
 
   const existing = cookieValue(ANALYTICS_ATTRIBUTION_COOKIE);
   const parsedExisting = parseAcquisitionAttribution(existing);

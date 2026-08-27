@@ -47,25 +47,37 @@ describe("server PostHog identity consent", () => {
     expect(flushPostHogServerClientInBackground).not.toHaveBeenCalled();
   });
 
-  it.each([undefined, "granted", "invalid"])(
-    "aliases and identifies unless explicitly opted out (%s)",
-    async (consent) => {
-      await linkIdentityToUser({
-        userId: "user-1",
-        source: "signup",
-        anonId: "anon-1",
-        sessionId: "session-1",
-        consent,
-      });
+  it("aliases and identifies after explicit consent", async () => {
+    const consent = "granted";
+    await linkIdentityToUser({
+      userId: "user-1",
+      source: "signup",
+      anonId: "anon-1",
+      sessionId: "session-1",
+      consent,
+    });
 
-      expect(alias).toHaveBeenCalledWith({ distinctId: "anon-1", alias: "user-1" });
-      expect(identify).toHaveBeenCalledWith({
-        distinctId: "user-1",
-        properties: { last_identity_source: "signup" },
-      });
-      expect(flushPostHogServerClientInBackground).toHaveBeenCalledOnce();
-    }
-  );
+    expect(alias).toHaveBeenCalledWith({ distinctId: "anon-1", alias: "user-1" });
+    expect(identify).toHaveBeenCalledWith({
+      distinctId: "user-1",
+      properties: { last_identity_source: "signup" },
+    });
+    expect(flushPostHogServerClientInBackground).toHaveBeenCalledOnce();
+  });
+
+  it.each([undefined, "invalid"])("does not identify without valid consent (%s)", async (consent) => {
+    const result = await linkIdentityToUser({
+      userId: "user-1",
+      source: "signup",
+      anonId: "anon-1",
+      consent,
+    });
+
+    expect(result).toMatchObject({ ok: true, reason: "consent_denied" });
+    expect(createPostHogServerClient).not.toHaveBeenCalled();
+    expect(alias).not.toHaveBeenCalled();
+    expect(identify).not.toHaveBeenCalled();
+  });
 
   it("copies first-touch attribution onto the account during identity linking", async () => {
     const attribution = encodeURIComponent(
@@ -109,6 +121,7 @@ describe("server PostHog identity consent", () => {
       funnelId: "funnel_signup_123",
       funnelSource: "premium_prompt",
       funnelReason: "low_credits",
+      consent: "granted",
     });
 
     expect(identify).toHaveBeenCalledWith({

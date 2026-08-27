@@ -101,7 +101,7 @@ describe("PostHog client identity lifecycle", () => {
     expect(analytics.isPostHogIdentityResetPending()).toBe(false);
   });
 
-  it("keeps denied consent authoritative after resetting PostHog", async () => {
+  it("does not load PostHog when optional analytics is denied", async () => {
     installBrowserGlobals("denied");
     const posthog = createPostHogMock();
     vi.doMock("posthog-js", () => ({ default: posthog }));
@@ -111,14 +111,14 @@ describe("PostHog client identity lifecycle", () => {
     analytics.capturePostHogEvent("should_not_send");
     analytics.identifyPostHogUser("user-a");
 
-    const lastResetOrder = posthog.reset.mock.invocationCallOrder.at(-1);
-    const optOutOrder = posthog.opt_out_capturing.mock.invocationCallOrder.at(-1);
-    expect(lastResetOrder).toBeLessThan(optOutOrder as number);
+    expect(posthog.init).not.toHaveBeenCalled();
+    expect(posthog.reset).not.toHaveBeenCalled();
+    expect(posthog.opt_out_capturing).not.toHaveBeenCalled();
     expect(posthog.capture).not.toHaveBeenCalled();
     expect(posthog.identify).not.toHaveBeenCalled();
   });
 
-  it("cannot clear a loaded client's opt-out while consent remains denied", async () => {
+  it("keeps PostHog unloaded while consent remains denied", async () => {
     installBrowserGlobals("denied");
     const posthog = createPostHogMock();
     vi.doMock("posthog-js", () => ({ default: posthog }));
@@ -131,7 +131,7 @@ describe("PostHog client identity lifecycle", () => {
 
     expect(result).toBeNull();
     expect(posthog.reset).toHaveBeenCalledTimes(resetsAfterDenial);
-    expect(posthog.opt_out_capturing).toHaveBeenCalledTimes(2);
+    expect(posthog.opt_out_capturing).not.toHaveBeenCalled();
   });
 
   it("defers an identity reset while consent is denied and applies it on the next permitted init", async () => {
@@ -152,7 +152,7 @@ describe("PostHog client identity lifecycle", () => {
     expect(analytics.isPostHogIdentityResetPending()).toBe(false);
   });
 
-  it("captures by default without persisting analytics state", async () => {
+  it("captures after explicit consent without persisting analytics state", async () => {
     const { localStorage, sessionStorage } = installBrowserGlobals("missing");
     (document as { cookie: string }).cookie =
       "analytics_consent=granted; analytics_anon=anon-browser-123";

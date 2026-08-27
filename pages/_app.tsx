@@ -19,6 +19,7 @@ import {
 import "../styles/globals.css";
 
 const AnalyticsIdentityLinker = dynamic(() => import("../components/AnalyticsIdentityLinker"), { ssr: false });
+const ConsentBanner = dynamic(() => import("../components/ConsentBanner"), { ssr: false });
 
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   const router = useRouter();
@@ -87,6 +88,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         <SessionAccountRefresher />
         <AnalyticsIdentityLinker />
         <PremiumUpgradePrompt />
+        <ConsentBanner />
       </div>
     </SessionProvider>
   );

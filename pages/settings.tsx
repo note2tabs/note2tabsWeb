@@ -21,6 +21,7 @@ import { resetPostHogIdentity, setPostHogConsent } from "../lib/posthogClient";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { clearPendingTranscription } from "../lib/pendingTranscription";
 import { ANALYTICS_ATTRIBUTION_COOKIE } from "../lib/acquisitionAttribution";
+import { readConsentPreferences, writeConsentPreferences } from "../lib/consentPreferences";
 import {
   clearRecoverableCheckoutSessionId,
   confirmPremiumCheckout,
@@ -101,7 +102,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [consentBusy, setConsentBusy] = useState(false);
   const [consentMessage, setConsentMessage] = useState<string | null>(null);
-  const [consentState, setConsentState] = useState<"granted" | "denied">("granted");
+  const [consentState, setConsentState] = useState<"granted" | "denied">("denied");
   const [upgradeBusy, setUpgradeBusy] = useState(false);
   const [portalBusy, setPortalBusy] = useState(false);
   const [signOutBusy, setSignOutBusy] = useState(false);
@@ -125,7 +126,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     if (typeof document === "undefined") return;
     const match = document.cookie.match(/(?:^|; )analytics_consent=([^;]*)/);
     const value = match?.[1] ? decodeURIComponent(match[1]) : undefined;
-    setConsentState(value === "denied" ? "denied" : "granted");
+    setConsentState(value === "granted" ? "granted" : "denied");
   }, []);
 
   useEffect(() => {
@@ -368,12 +369,8 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     setConsentMessage(null);
     setError(null);
     try {
-      const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
       const secure = window.location.protocol === "https:" ? "; Secure" : "";
       if (state === "denied") {
-        document.cookie = `analytics_consent=denied; expires=${expires}; Max-Age=${
-          365 * 24 * 60 * 60
-        }; path=/; SameSite=Lax${secure}`;
         for (const cookieName of [
           "analytics_session",
           "analytics_anon",
@@ -383,11 +380,9 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             0
           ).toUTCString()}; path=/; SameSite=Lax${secure}`;
         }
-      } else {
-        document.cookie = `analytics_consent=; Max-Age=0; expires=${new Date(
-          0
-        ).toUTCString()}; path=/; SameSite=Lax${secure}`;
       }
+      const current = readConsentPreferences();
+      writeConsentPreferences({ analytics: state, advertising: current?.advertising || "denied" });
       await setPostHogConsent(state);
       setConsentState(state);
       setConsentMessage(

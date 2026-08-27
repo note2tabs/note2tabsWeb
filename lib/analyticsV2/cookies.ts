@@ -67,8 +67,7 @@ export function generateId() {
 }
 
 export function getConsentFromCookies(cookies: Record<string, string>): ConsentCookieState {
-  // Keep server ingestion aligned with the default-on client and Settings opt-out.
-  return cookies[ANALYTICS_CONSENT_COOKIE] === "denied" ? "denied" : "granted";
+  return cookies[ANALYTICS_CONSENT_COOKIE] === "granted" ? "granted" : "denied";
 }
 
 export function setConsentCookie(res: NextApiResponse, value: ConsentCookieState) {

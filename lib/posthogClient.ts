@@ -42,7 +42,7 @@ function getCookie(name: string) {
 }
 
 function trackingIsDisabled() {
-  return trackingDisabledOverride ?? (getCookie(CONSENT_COOKIE) === "denied");
+  return trackingDisabledOverride ?? (getCookie(CONSENT_COOKIE) !== "granted");
 }
 
 function clearLegacyAnalyticsPersistence() {
@@ -319,11 +319,10 @@ export async function setPostHogConsent(state: "granted" | "denied") {
 
   pendingOperations = [];
   markIdentityResetPending();
-  const posthog = client || (await initPostHog({ ignoreDeniedConsent: true }));
-  if (posthog) {
+  if (client) {
     // reset() clears PostHog's own consent value, so opt out must be last.
-    posthog.reset();
-    posthog.opt_out_capturing();
+    client.reset();
+    client.opt_out_capturing();
     completeIdentityReset();
   }
   window.dispatchEvent(new CustomEvent("note2tabs:analytics-consent-changed", { detail: state }));
