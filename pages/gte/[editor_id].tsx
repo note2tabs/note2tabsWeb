@@ -1210,9 +1210,11 @@ const moveBarsInCanvas = (
 export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   useGteRenderInstrumentation("GteEditorPage", editorId);
   const { data: session } = useSession();
-  const showEditorAd = !["PREMIUM", "ADMIN", "MODERATOR", "MOD"].includes(
-    session?.user?.role || ""
-  );
+  // Guest workspaces always use the free experience, even if a stale session
+  // value is still resolving in the client after sign-out.
+  const showEditorAd =
+    isGuestMode ||
+    !["PREMIUM", "ADMIN", "MODERATOR", "MOD"].includes(session?.user?.role || "");
   const [canvas, setCanvas] = useState<CanvasSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

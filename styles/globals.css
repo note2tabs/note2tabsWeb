@@ -600,7 +600,13 @@ input[type="number"] {
 .ad-slot--editor {
   min-height: 66px;
   margin-top: 0;
-  background: rgba(248, 250, 252, 0.78);
+  border-color: rgba(100, 116, 139, 0.28);
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+}
+
+.ad-slot--editor .ad-slot__label {
+  color: #475569;
 }
 
 @media (max-width: 640px) {
