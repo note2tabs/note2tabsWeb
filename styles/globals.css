@@ -604,6 +604,12 @@ input[type="number"] {
   background: rgba(248, 250, 252, 0.72);
 }
 
+.ad-slot--editor-practice {
+  min-height: 54px;
+  margin-top: 0;
+  background: rgba(248, 250, 252, 0.66);
+}
+
 .job-route-content > .ad-slot--transcription-loading {
   margin-bottom: 16px;
 }
@@ -649,6 +655,10 @@ input[type="number"] {
 
   .ad-slot--editor {
     min-height: 48px;
+  }
+
+  .ad-slot--editor-practice {
+    min-height: 46px;
   }
 }
 

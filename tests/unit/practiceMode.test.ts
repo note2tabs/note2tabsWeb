@@ -62,6 +62,16 @@ describe("editor practice mode", () => {
     expect(workspace).toContain("scrollIntoView");
   });
 
+  it("keeps a free-user ad placement available in practice mode", () => {
+    expect(editorPage).toContain(
+      'showEditorAd && practiceModeEnabled && ('
+    );
+    expect(editorPage).toContain(
+      '<AdvertisementSlot placement="editor-practice" />'
+    );
+    expect(globalStyles).toContain(".ad-slot--editor-practice");
+  });
+
   it("shows only the chosen track while practising", () => {
     expect(editorPage).toContain("Switch practice track. Current track:");
     expect(editorPage).toContain('aria-label="Choose a track to practice"');

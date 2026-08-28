@@ -8,7 +8,7 @@ import {
 import { initPostHog } from "../lib/posthogClient";
 
 type AdvertisementSlotProps = {
-  placement: "transcription-loading" | "editor";
+  placement: "transcription-loading" | "editor" | "editor-practice";
   className?: string;
   preview?: boolean;
 };
@@ -29,7 +29,12 @@ export default function AdvertisementSlot({ placement, className = "", preview =
   );
   const exposureTrackedRef = useRef(false);
   const impressionTrackedRef = useRef(false);
-  const label = placement === "transcription-loading" ? "Transcription loading ad" : "Editor ad";
+  const label =
+    placement === "transcription-loading"
+      ? "Transcription loading ad"
+      : placement === "editor-practice"
+      ? "Practice mode ad"
+      : "Editor ad";
 
   useEffect(() => {
     if (preview) return;

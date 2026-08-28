@@ -8417,6 +8417,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             {renderPracticeHelp()}
           </>
         )}
+        {showEditorAd && practiceModeEnabled && (
+          <AdvertisementSlot placement="editor-practice" />
+        )}
         {loading && !canvas && (
           <EditorLoadingState />
         )}
