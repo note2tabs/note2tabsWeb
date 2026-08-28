@@ -18,4 +18,9 @@ describe("advertisement dismissal", () => {
     expect(source).toContain("Prefer an ad-free workspace?");
     expect(source).toContain("ad_dismissal_inline");
   });
+
+  it("does not report a paid impression when only the UI placement appears", () => {
+    expect(source).toContain('sendEvent("ad_slot_presented"');
+    expect(source).not.toContain('sendEvent("ad_impression"');
+  });
 });

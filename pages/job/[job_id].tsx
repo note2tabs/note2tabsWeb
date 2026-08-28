@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import Script from "next/script";
 import { useRouter } from "next/router";
 import { signIn, useSession } from "next-auth/react";
 import JobStatusLayout, {
@@ -25,8 +24,6 @@ import AdvertisementSlot from "../../components/AdvertisementSlot";
 const FINALIZE_IMPORT_TIMEOUT_MS = 60_000;
 const FINALIZE_IMPORT_POLL_MS = 1200;
 const PROCESSING_AD_DELAY_MS = 4_000;
-const PRIMIS_CHANNEL_ID = "YOUR_PRIMIS_CHANNEL_ID";
-const ADS_AVAILABLE = PRIMIS_CHANNEL_ID && PRIMIS_CHANNEL_ID !== "YOUR_PRIMIS_CHANNEL_ID";
 const PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "running"]);
 const TAB_JOB_ID_KEYS = ["tab_job_id", "tabJobId", "tab_id", "tabId"];
 
@@ -621,7 +618,6 @@ export default function JobPage() {
   const [hasWatchedAd, setHasWatchedAd] = useState(false);
   const [showFallbackVideo, setShowFallbackVideo] = useState(true);
   const [adContainerKey, setAdContainerKey] = useState(0);
-  const [loadAdScript, setLoadAdScript] = useState(false);
   const [savedHistory, setSavedHistory] = useState(false);
   const [shareUrls, setShareUrls] = useState<{ twitter: string; reddit: string } | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
@@ -880,9 +876,6 @@ export default function JobPage() {
 
   useEffect(() => {
     if (!isFinalizedJob) return;
-    if (!hasWatchedAd && ADS_AVAILABLE) {
-      setLoadAdScript(true);
-    }
     if (!savedHistory && job_id && typeof job_id === "string") {
       saveJobToHistory({
         jobId: job_id,
@@ -892,12 +885,11 @@ export default function JobPage() {
       });
       setSavedHistory(true);
     }
-  }, [isFinalizedJob, hasWatchedAd, savedHistory, job_id, displayJob?.song_title, displayJob?.artist]);
+  }, [isFinalizedJob, savedHistory, job_id, displayJob?.song_title, displayJob?.artist]);
 
   useEffect(() => {
     setHasWatchedAd(false);
     setShowFallbackVideo(true);
-    setLoadAdScript(false);
     setAdContainerKey(0);
     setSavedHistory(false);
     setShareUrls(null);
@@ -916,25 +908,6 @@ export default function JobPage() {
       reddit: `https://reddit.com/submit?url=${encodeURIComponent(base)}&title=${text}`,
     });
   }, [isFinalizedJob, job_id]);
-
-  useEffect(() => {
-    if (!loadAdScript) return;
-    const handleEnd = () => {
-      setHasWatchedAd(true);
-    };
-    const handleRetry = () => {
-      setAdContainerKey((current) => current + 1);
-      setShowFallbackVideo(true);
-    };
-    document.addEventListener("PrimisOnAdEnded", handleEnd);
-    document.addEventListener("PrimisOnAdSkipped", handleRetry);
-    document.addEventListener("PrimisOnAdError", handleRetry);
-    return () => {
-      document.removeEventListener("PrimisOnAdEnded", handleEnd);
-      document.removeEventListener("PrimisOnAdSkipped", handleRetry);
-      document.removeEventListener("PrimisOnAdError", handleRetry);
-    };
-  }, [loadAdScript]);
 
   const handleDownloadTabs = () => {
     const content = displayJob?.tab_text || "";
@@ -1220,12 +1193,6 @@ export default function JobPage() {
         canonicalPath={`/job/${encodeURIComponent(typeof job_id === "string" ? job_id : "")}`}
         description="Job status on Note2Tabs."
       />
-      {loadAdScript && (
-        <Script
-          src={`https://live.primis.tech/live/liveView.php?s=${PRIMIS_CHANNEL_ID}`}
-          strategy="afterInteractive"
-        />
-      )}
       <main className="page page-tight">
         <div className="container stack">
           <div className="page-header job-route-header">
@@ -1276,7 +1243,6 @@ export default function JobPage() {
               adContainerKey={adContainerKey}
               onSkipAd={handleSkipAd}
               showFallbackVideo={showFallbackVideo}
-              enablePrimis={ADS_AVAILABLE}
               onVideoComplete={handleVideoComplete}
               shareUrls={shareUrls}
             />

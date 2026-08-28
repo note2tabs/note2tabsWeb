@@ -7,6 +7,8 @@ import {
   type AdExperienceVariant,
 } from "../lib/adExperienceExperiment";
 import { initPostHog } from "../lib/posthogClient";
+import type { AdPlacement } from "../lib/ads/types";
+import { useAdSlotRuntime } from "../lib/ads/useAdSlotRuntime";
 import {
   getOrCreatePremiumFunnelContext,
   premiumFunnelProperties,
@@ -15,9 +17,10 @@ import {
 } from "../lib/premiumFunnel";
 
 type AdvertisementSlotProps = {
-  placement: "transcription-loading" | "editor" | "editor-practice";
+  placement: AdPlacement;
   className?: string;
   preview?: boolean;
+  runtimePreview?: boolean;
 };
 
 const DISMISS_DURATION_MS = 10 * 60 * 1000;
@@ -32,7 +35,12 @@ const dismissalKey = (placement: AdvertisementSlotProps["placement"]) =>
  * Review surface for future ad inventory. The ad network must replace the
  * preview body only after its certified consent signal is available.
  */
-export default function AdvertisementSlot({ placement, className = "", preview = false }: AdvertisementSlotProps) {
+export default function AdvertisementSlot({
+  placement,
+  className = "",
+  preview = false,
+  runtimePreview = false,
+}: AdvertisementSlotProps) {
   const [visible, setVisible] = useState(preview);
   const [variant, setVariant] = useState<AdExperienceVariant | null>(
     preview ? "discreet-dismissible" : null
@@ -42,6 +50,7 @@ export default function AdvertisementSlot({ placement, className = "", preview =
   const exposureTrackedRef = useRef(false);
   const impressionTrackedRef = useRef(false);
   const adFreePromptTimerRef = useRef<number | null>(null);
+  const adRestoreTimerRef = useRef<number | null>(null);
   const label =
     placement === "transcription-loading"
       ? "Transcription loading ad"
@@ -104,14 +113,24 @@ export default function AdvertisementSlot({ placement, className = "", preview =
     setVisible(shouldShow);
     if (shouldShow && !impressionTrackedRef.current) {
       impressionTrackedRef.current = true;
-      sendEvent("ad_impression", { experiment: AD_EXPERIENCE_FLAG, variant, placement });
+      sendEvent("ad_slot_presented", { experiment: AD_EXPERIENCE_FLAG, variant, placement });
     }
   }, [placement, preview, variant]);
+
+  const adRuntime = useAdSlotRuntime({
+    placement,
+    preview: preview && !runtimePreview,
+    suppressed: !visible || adFreePromptVisible,
+    simulation: runtimePreview,
+  });
 
   useEffect(
     () => () => {
       if (adFreePromptTimerRef.current !== null) {
         window.clearTimeout(adFreePromptTimerRef.current);
+      }
+      if (adRestoreTimerRef.current !== null) {
+        window.clearTimeout(adRestoreTimerRef.current);
       }
     },
     []
@@ -134,6 +153,20 @@ export default function AdvertisementSlot({ placement, className = "", preview =
       }
     }
     setVisible(false);
+    if (!preview) {
+      if (adRestoreTimerRef.current !== null) window.clearTimeout(adRestoreTimerRef.current);
+      adRestoreTimerRef.current = window.setTimeout(() => {
+        adRestoreTimerRef.current = null;
+        if (variant === "control") return;
+        setVisible(true);
+        sendEvent("ad_slot_presented", {
+          experiment: AD_EXPERIENCE_FLAG,
+          variant: variant || "discreet-dismissible",
+          placement,
+          trigger: "dismissal_expired",
+        });
+      }, DISMISS_DURATION_MS);
+    }
     if (!preview) {
       sendEvent("ad_dismissed", {
         experiment: AD_EXPERIENCE_FLAG,
@@ -198,12 +231,19 @@ export default function AdvertisementSlot({ placement, className = "", preview =
   }
 
   if (!visible) return null;
+  if (adRuntime.liveConfigured && ["empty", "error"].includes(adRuntime.status)) {
+    return null;
+  }
+  const runtimeHidden =
+    adRuntime.liveConfigured && ["disabled", "blocked"].includes(adRuntime.status);
 
   return (
     <aside
       className={`ad-slot ad-slot--${placement} ${className}`.trim()}
       aria-label={label}
       data-ad-placement={placement}
+      data-ad-runtime-status={adRuntime.status}
+      hidden={runtimeHidden}
     >
       <button type="button" className="ad-slot__dismiss" onClick={dismiss} aria-label="Hide advertisement for 10 minutes">
         <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -211,7 +251,11 @@ export default function AdvertisementSlot({ placement, className = "", preview =
         </svg>
       </button>
       <span className="ad-slot__label">Advertisement</span>
-      <span className="ad-slot__preview">Ad placement preview</span>
+      {adRuntime.liveConfigured ? (
+        <div ref={adRuntime.elementRef} className="ad-slot__provider" data-ad-slot-id={placement} />
+      ) : (
+        <span className="ad-slot__preview">Ad placement preview</span>
+      )}
     </aside>
   );
 }

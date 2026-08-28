@@ -44,7 +44,7 @@ export default function AdPlacementsPreviewPage() {
               <h2 className="section-title">Transcription processing</h2>
               <p className="muted text-small">In production this appears after the loading screen has remained visible for 4 seconds.</p>
             </div>
-            <AdvertisementSlot placement="transcription-loading" preview />
+            <AdvertisementSlot placement="transcription-loading" preview runtimePreview />
             <JobStatusLayout
               job={previewJob}
               pendingPresentation={previewProgress}
@@ -63,14 +63,14 @@ export default function AdPlacementsPreviewPage() {
           <section className="stack">
             <div>
               <h2 className="section-title">Free editor</h2>
-              <p className="muted text-small">A single quiet unit above the workspace. Premium and Practice mode remain ad-free.</p>
+              <p className="muted text-small">A single quiet unit above the workspace. Premium accounts remain ad-free.</p>
             </div>
             <div className="card stack" style={{ padding: 16 }}>
               <div className="flex items-center justify-between gap-3 text-sm text-slate-600">
                 <strong className="text-slate-800">Untitled tab</strong>
                 <span>120 BPM · 4/4</span>
               </div>
-              <AdvertisementSlot placement="editor" preview />
+              <AdvertisementSlot placement="editor" preview runtimePreview />
               <div className="rounded-xl border border-slate-200 bg-white p-4" aria-hidden="true">
                 <div className="grid gap-3 opacity-60">
                   {Array.from({ length: 6 }, (_, index) => (
@@ -79,6 +79,14 @@ export default function AdPlacementsPreviewPage() {
                 </div>
               </div>
             </div>
+          </section>
+
+          <section className="stack">
+            <div>
+              <h2 className="section-title">Practice mode</h2>
+              <p className="muted text-small">Uses the same restrained editor treatment without covering the score or playback controls.</p>
+            </div>
+            <AdvertisementSlot placement="editor-practice" preview runtimePreview />
           </section>
         </div>
       </main>
