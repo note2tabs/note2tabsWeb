@@ -1,11 +1,18 @@
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { sendEvent } from "../lib/analytics";
+import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
 import {
   AD_EXPERIENCE_FLAG,
   normalizeAdExperienceVariant,
   type AdExperienceVariant,
 } from "../lib/adExperienceExperiment";
 import { initPostHog } from "../lib/posthogClient";
+import {
+  getOrCreatePremiumFunnelContext,
+  premiumFunnelProperties,
+  premiumPricingHref,
+  type PremiumFunnelContext,
+} from "../lib/premiumFunnel";
 
 type AdvertisementSlotProps = {
   placement: "transcription-loading" | "editor" | "editor-practice";
@@ -14,6 +21,9 @@ type AdvertisementSlotProps = {
 };
 
 const DISMISS_DURATION_MS = 10 * 60 * 1000;
+const AD_FREE_PROMPT_DURATION_MS = 8 * 1000;
+const AD_FREE_PROMPT_FREQUENCY_MS = 7 * 24 * 60 * 60 * 1000;
+const AD_FREE_PROMPT_SHOWN_AT_KEY = "note2tabs:ad-free-prompt-shown-at";
 
 const dismissalKey = (placement: AdvertisementSlotProps["placement"]) =>
   `note2tabs:ad-dismissed:${placement}`;
@@ -27,8 +37,11 @@ export default function AdvertisementSlot({ placement, className = "", preview =
   const [variant, setVariant] = useState<AdExperienceVariant | null>(
     preview ? "discreet-dismissible" : null
   );
+  const [adFreePromptVisible, setAdFreePromptVisible] = useState(false);
+  const [premiumFunnel, setPremiumFunnel] = useState<PremiumFunnelContext | null>(null);
   const exposureTrackedRef = useRef(false);
   const impressionTrackedRef = useRef(false);
+  const adFreePromptTimerRef = useRef<number | null>(null);
   const label =
     placement === "transcription-loading"
       ? "Transcription loading ad"
@@ -95,17 +108,94 @@ export default function AdvertisementSlot({ placement, className = "", preview =
     }
   }, [placement, preview, variant]);
 
+  useEffect(
+    () => () => {
+      if (adFreePromptTimerRef.current !== null) {
+        window.clearTimeout(adFreePromptTimerRef.current);
+      }
+    },
+    []
+  );
+
   const dismiss = () => {
-    if (!preview) window.localStorage.setItem(dismissalKey(placement), String(Date.now()));
+    const now = Date.now();
+    let shouldShowAdFreePrompt = preview;
+    if (!preview) {
+      try {
+        window.localStorage.setItem(dismissalKey(placement), String(now));
+        const lastShownAt = Number(window.localStorage.getItem(AD_FREE_PROMPT_SHOWN_AT_KEY) || 0);
+        shouldShowAdFreePrompt =
+          !Number.isFinite(lastShownAt) || now - lastShownAt >= AD_FREE_PROMPT_FREQUENCY_MS;
+        if (shouldShowAdFreePrompt) {
+          window.localStorage.setItem(AD_FREE_PROMPT_SHOWN_AT_KEY, String(now));
+        }
+      } catch {
+        shouldShowAdFreePrompt = true;
+      }
+    }
     setVisible(false);
-    if (preview) return;
-    sendEvent("ad_dismissed", {
-      experiment: AD_EXPERIENCE_FLAG,
-      variant: variant || "discreet-dismissible",
-      placement,
-      dismiss_duration_minutes: DISMISS_DURATION_MS / (60 * 1000),
+    if (!preview) {
+      sendEvent("ad_dismissed", {
+        experiment: AD_EXPERIENCE_FLAG,
+        variant: variant || "discreet-dismissible",
+        placement,
+        dismiss_duration_minutes: DISMISS_DURATION_MS / (60 * 1000),
+      });
+    }
+    if (!shouldShowAdFreePrompt) return;
+
+    const funnel = getOrCreatePremiumFunnelContext({
+      source: "premium_prompt",
+      reason: "ad_free_after_dismissal",
     });
+    setPremiumFunnel(funnel);
+    setAdFreePromptVisible(true);
+    if (!preview) {
+      sendEvent(ANALYTICS_EVENTS.premiumPromptShown, {
+        surface: "ad_dismissal_inline",
+        placement,
+        ...premiumFunnelProperties(funnel),
+      });
+    }
+    if (adFreePromptTimerRef.current !== null) {
+      window.clearTimeout(adFreePromptTimerRef.current);
+    }
+    adFreePromptTimerRef.current = window.setTimeout(() => {
+      setAdFreePromptVisible(false);
+      adFreePromptTimerRef.current = null;
+    }, AD_FREE_PROMPT_DURATION_MS);
   };
+
+  if (adFreePromptVisible && premiumFunnel) {
+    return (
+      <aside
+        className={`ad-slot ad-slot--${placement} ad-slot--premium-replacement ${className}`.trim()}
+        aria-label="Ad-free Premium option"
+        aria-live="polite"
+      >
+        <span className="ad-slot__premium-message">Prefer an ad-free workspace?</span>
+        <Link
+          className="ad-slot__premium-link"
+          href={premiumPricingHref(premiumFunnel)}
+          onClick={() => {
+            if (preview) return;
+            sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, {
+              surface: "ad_dismissal_inline",
+              placement,
+              ...premiumFunnelProperties(premiumFunnel),
+            });
+            trackCtaClick("ad_dismissal_explore_premium", {
+              surface: "ad_dismissal_inline",
+              placement,
+              ...premiumFunnelProperties(premiumFunnel),
+            });
+          }}
+        >
+          Explore Premium
+        </Link>
+      </aside>
+    );
+  }
 
   if (!visible) return null;
 

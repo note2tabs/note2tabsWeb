@@ -598,6 +598,36 @@ input[type="number"] {
   color: #94a3b8;
 }
 
+.ad-slot--premium-replacement {
+  flex-direction: row;
+  gap: 8px;
+  animation: ad-slot-premium-in 180ms ease-out;
+}
+
+.ad-slot__premium-message {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.ad-slot__premium-link {
+  font-size: 11px;
+  font-weight: 650;
+  color: #0f172a;
+  text-decoration: underline;
+  text-decoration-color: rgba(15, 23, 42, 0.25);
+  text-underline-offset: 3px;
+}
+
+.ad-slot__premium-link:hover,
+.ad-slot__premium-link:focus-visible {
+  text-decoration-color: currentColor;
+}
+
+@keyframes ad-slot-premium-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .ad-slot--editor {
   min-height: 58px;
   margin-top: 0;
@@ -659,6 +689,16 @@ input[type="number"] {
 
   .ad-slot--editor-practice {
     min-height: 46px;
+  }
+
+  .ad-slot--premium-replacement {
+    padding: 8px 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ad-slot--premium-replacement {
+    animation: none;
   }
 }
 
