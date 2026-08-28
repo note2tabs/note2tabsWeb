@@ -12,9 +12,9 @@ describe("advertisement dismissal", () => {
     expect(source).toContain("const DISMISS_DURATION_MS = 10 * 60 * 1000");
   });
 
-  it("offers a short, frequency-limited ad-free Premium suggestion", () => {
-    expect(source).toContain("const AD_FREE_PROMPT_DURATION_MS = 8 * 1000");
-    expect(source).toContain("const AD_FREE_PROMPT_FREQUENCY_MS = 7 * 24 * 60 * 60 * 1000");
+  it("offers a short ad-free Premium suggestion once per dismissal cycle", () => {
+    expect(source).toContain("const AD_FREE_PROMPT_DURATION_MS = 4 * 1000");
+    expect(source).toContain("const AD_FREE_PROMPT_FREQUENCY_MS = DISMISS_DURATION_MS");
     expect(source).toContain("Prefer an ad-free workspace?");
     expect(source).toContain("ad_dismissal_inline");
   });

@@ -21,8 +21,8 @@ type AdvertisementSlotProps = {
 };
 
 const DISMISS_DURATION_MS = 10 * 60 * 1000;
-const AD_FREE_PROMPT_DURATION_MS = 8 * 1000;
-const AD_FREE_PROMPT_FREQUENCY_MS = 7 * 24 * 60 * 60 * 1000;
+const AD_FREE_PROMPT_DURATION_MS = 4 * 1000;
+const AD_FREE_PROMPT_FREQUENCY_MS = DISMISS_DURATION_MS;
 const AD_FREE_PROMPT_SHOWN_AT_KEY = "note2tabs:ad-free-prompt-shown-at";
 
 const dismissalKey = (placement: AdvertisementSlotProps["placement"]) =>
