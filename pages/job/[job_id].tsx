@@ -673,6 +673,7 @@ export default function JobPage() {
   const isPremiumUser = ["PREMIUM", "ADMIN", "MODERATOR", "MOD"].includes(
     session?.user?.role || ""
   );
+  const isProcessingAdEligible = sessionStatus !== "loading" && !isPremiumUser;
   const canOpenGuestEditor = !isSignedIn && isLocalNoDbClientMode;
   const hasWorkflowState = Boolean(workflowState && workflowState.trim());
   const isWorkflowProcessing = workflowState === "processing";
@@ -700,10 +701,10 @@ export default function JobPage() {
 
   useEffect(() => {
     setProcessingAdReady(false);
-    if (!hasPendingPresentation || isPremiumUser) return;
+    if (!hasPendingPresentation || !isProcessingAdEligible) return;
     const timer = window.setTimeout(() => setProcessingAdReady(true), PROCESSING_AD_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [hasPendingPresentation, isPremiumUser, job_id]);
+  }, [hasPendingPresentation, isProcessingAdEligible, job_id]);
 
   useEffect(() => {
     if (!showReviewUi || typeof job_id !== "string") return;
@@ -1207,7 +1208,7 @@ export default function JobPage() {
           </div>
 
           <div className="job-route-content">
-          {processingAdReady && hasPendingPresentation && !isPremiumUser && (
+          {processingAdReady && hasPendingPresentation && isProcessingAdEligible && (
             <AdvertisementSlot placement="transcription-loading" />
           )}
           {showReviewUi ? (

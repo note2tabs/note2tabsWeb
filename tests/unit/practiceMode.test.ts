@@ -63,6 +63,7 @@ describe("editor practice mode", () => {
   });
 
   it("keeps a free-user ad placement available in practice mode", () => {
+    expect(editorPage).toContain('sessionStatus !== "loading"');
     expect(editorPage).toContain(
       'showEditorAd && practiceModeEnabled && ('
     );
