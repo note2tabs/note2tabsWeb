@@ -58,6 +58,16 @@ Before adding custom lifecycle email code, verify these in the production Stripe
 
 Stripe documents `customer.subscription.trial_will_end` as arriving about three days before trial end and recommends trial-ending notices. Stripe also recommends Smart Retries and payment-update emails for recoverable payment failures.
 
+### Current test-mode audit
+
+The Stripe account available to this workspace was inspected read-only on August 29, 2026. It is a **test-mode** account, so these findings must not be presented as the production configuration:
+
+- There is no active Customer Portal configuration. Preview testing cannot currently prove self-service cancellation, cancellation reversal, payment-method updates, or cancellation-reason capture.
+- The only test webhook endpoint is disabled.
+- That endpoint includes subscription updates/deletion, trial ending, payment failure, and invoice payment, but does not subscribe to `checkout.session.completed`.
+
+Before end-to-end preview verification, create or activate a test Customer Portal configuration with payment-method updates, subscription cancellation at period end, and cancellation reasons; then enable a test webhook endpoint covering `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.trial_will_end`, `invoice.payment_failed`, and `invoice.paid`. Repeat the same audit separately against live mode before production rollout.
+
 Cancellation reasons should include price, missing features, alternative, no longer needed, service, ease of use, quality, and free text—the categories Stripe supports in its portal ([Stripe cancellation page](https://docs.stripe.com/customer-management/cancellation-page)). Do not enable a retention coupon until cancellation reasons show price is a material cause and retained revenue can be measured; otherwise it can train customers to cancel for a discount.
 
 Stripe recommends Smart Retries and currently describes eight attempts over two weeks as its default recommendation; hard declines still require a new payment method ([Stripe Smart Retries](https://docs.stripe.com/billing/revenue-recovery/smart-retries)).
