@@ -11,7 +11,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
     if (!token) {
-      return res.status(400).json({ error: "Invalid token." });
+      return res.status(400).json({
+        error: "This verification link is invalid or has expired. Request a new verification email and try again.",
+      });
     }
 
     const verification = await prisma.verificationToken.findUnique({
@@ -41,6 +43,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ ok: true });
   } catch (error) {
     console.error("verify-email error", error);
-    return res.status(500).json({ error: "Could not verify email." });
+    return res.status(500).json({
+      error: "We could not verify your email right now. Please try again shortly.",
+    });
   }
 }

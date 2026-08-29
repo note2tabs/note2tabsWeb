@@ -442,7 +442,7 @@ export default function AdminBlogPage({ isAdmin }: Props) {
           ))}
         </nav>
 
-        {error && <div className="error">{error}</div>}
+        {error && <div className="error" role="alert">{error}</div>}
         {statusMessage && <div className="success">{statusMessage}</div>}
 
         {activeTab === "posts" && (
@@ -990,7 +990,9 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   if (!isAdmin) {
     return {
       redirect: {
-        destination: "/auth/login",
+        destination: session?.user?.id
+          ? "/home"
+          : `/auth/login?next=${encodeURIComponent(ctx.resolvedUrl || "/admin/blog")}`,
         permanent: false,
       },
     };

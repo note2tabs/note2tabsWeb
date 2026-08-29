@@ -9,7 +9,8 @@ const sitemapSource = readFileSync(
 
 describe("sitemap indexing policy", () => {
   it("submits the canonical standalone editor landing page", () => {
-    expect(sitemapSource).toContain('"/online-guitar-tab-editor"');
+    expect(sitemapSource).toContain('"/editor"');
+    expect(sitemapSource).not.toContain('"/online-guitar-tab-editor"');
   });
 
   it("submits published articles without taxonomy archive crawl noise", () => {

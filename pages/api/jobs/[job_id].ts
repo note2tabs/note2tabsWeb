@@ -601,7 +601,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.id) {
-    return res.status(401).json({ error: "Not authenticated" });
+    return res.status(401).json({ error: "Your session has expired. Please sign in again." });
   }
 
   const jobId = Array.isArray(req.query.job_id) ? req.query.job_id[0] : req.query.job_id;
@@ -796,14 +796,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  const textSnippet = text.slice(0, MAX_UPSTREAM_TEXT_BYTES);
   res.status(upstream.ok ? 502 : upstream.status);
   res.setHeader("Content-Type", "application/json");
   forwardPollingHeaders(res, pollingHeadersSource);
   setJobCacheHeaders(res);
   return res.json({
     error: upstream.ok
-      ? "Invalid response from backend job endpoint."
-      : textSnippet || "Job request failed.",
+      ? "The transcription service returned an incomplete update. Your job is still safe; please try again shortly."
+      : upstream.status === 404
+        ? "This transcription could not be found. It may have expired or been removed."
+        : upstream.status === 401 || upstream.status === 403
+          ? "Your session has expired. Please sign in again."
+          : upstream.status === 429
+            ? "The transcription service is busy. Wait a moment and try again."
+            : "We could not load this transcription right now. Please try again shortly.",
   });
 }

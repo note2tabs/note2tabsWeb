@@ -65,7 +65,7 @@ export default function UsersAdminPage({ users, canEdit }: Props) {
           </Link>
         </div>
 
-        {error && <div className="error">{error}</div>}
+        {error && <div className="error" role="alert">{error}</div>}
 
         <section className="card">
           <div className="card-outline table-scroll">
@@ -130,13 +130,16 @@ export default function UsersAdminPage({ users, canEdit }: Props) {
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   const role = await getFreshUserRole(session);
-  if (!session?.user?.id || !role || !MODERATION_ROLES.has(role)) {
+  if (!session?.user?.id) {
     return {
       redirect: {
-        destination: "/",
+        destination: `/auth/login?next=${encodeURIComponent(ctx.resolvedUrl || "/mod/users")}`,
         permanent: false,
       },
     };
+  }
+  if (!role || !MODERATION_ROLES.has(role)) {
+    return { redirect: { destination: "/home", permanent: false } };
   }
 
   const users = await prisma.user.findMany({

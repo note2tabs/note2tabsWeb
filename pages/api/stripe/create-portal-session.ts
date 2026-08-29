@@ -16,12 +16,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.email || !session.user.id) {
-    return res.status(401).json({ error: "Not authenticated" });
+    return res.status(401).json({ error: "Your session has expired. Please sign in again." });
   }
 
   const premiumConfig = getStripePremiumConfig();
   if (!stripeClient || !premiumConfig) {
-    return res.status(503).json({ error: "Stripe not configured yet." });
+    return res.status(503).json({
+      error: "Subscription management is temporarily unavailable. Please try again shortly.",
+    });
   }
 
   try {
@@ -49,9 +51,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const baseUrl = getAppBaseUrl(req);
+    const returnPath = req.body?.returnTo === "/home" ? "/home" : "/settings";
     const portal = await stripeClient.billingPortal.sessions.create({
       customer: customer.id,
-      return_url: `${baseUrl}/settings`,
+      return_url: `${baseUrl}${returnPath}`,
     });
 
     return res.status(200).json({ url: portal.url });

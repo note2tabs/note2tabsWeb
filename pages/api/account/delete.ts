@@ -27,11 +27,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const session = await getServerSession(req, res, authOptions);
     if (!session?.user?.id || !session.user.email) {
-      return res.status(401).json({ error: "Not authenticated" });
+      return res.status(401).json({ error: "Your session has expired. Please sign in again." });
     }
     const currentRole = await getFreshUserRole(session);
     if (!currentRole) {
-      return res.status(401).json({ error: "Account not found" });
+      return res.status(404).json({
+        error: "We could not find this account. It may already have been deleted; sign out and back in to refresh your session.",
+      });
     }
 
     const premiumConfig = getStripePremiumConfig();
@@ -70,6 +72,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ ok: true });
   } catch (error) {
     console.error("delete account error", error);
-    return res.status(500).json({ error: "Could not delete account." });
+    return res.status(500).json({
+      error: "We could not delete your account. Nothing was removed; please try again or contact support.",
+    });
   }
 }

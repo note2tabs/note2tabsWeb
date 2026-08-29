@@ -107,7 +107,10 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
       throw new Error(`File too large. Max ${formatMaxSize(presignData.maxBytes)}.`);
     }
     if (!presignRes.ok || !presignData?.url || !presignData?.key) {
-      throw new Error(presignData?.error || "Could not prepare upload.");
+      throw new Error(
+        presignData?.error ||
+          "We could not prepare this file for secure upload. Your file is still selected; please try again."
+      );
     }
 
     const uploadRes = await fetch(presignData.url, {
@@ -124,7 +127,10 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
         contentType: file.type || "application/octet-stream",
         response: uploadErrorText || null,
       });
-      throw new Error(uploadErrorText || "Upload failed. Please try again.");
+      throw new Error(
+        uploadErrorText ||
+          "We could not transfer this file. Check your connection and try again; your file is still selected."
+      );
     }
     return presignData.key as string;
   };
@@ -144,11 +150,13 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(data?.error || "Transcription failed.");
+      throw new Error(
+        data?.error || "We could not finish this transcription. Your selection is still here, so you can try again."
+      );
     }
     const segments = Array.isArray(data?.tabs) ? (data.tabs as string[][]) : [];
     if (!segments.length) {
-      throw new Error("No tabs returned.");
+      throw new Error("The transcription finished without a usable tab. Try a clearer section or another model.");
     }
     return segments;
   };
@@ -169,11 +177,13 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(data?.error || "Transcription failed.");
+      throw new Error(
+        data?.error || "We could not finish this transcription. Your selection is still here, so you can try again."
+      );
     }
     const segments = Array.isArray(data?.tabs) ? (data.tabs as string[][]) : [];
     if (!segments.length) {
-      throw new Error("No tabs returned.");
+      throw new Error("The transcription finished without a usable tab. Try a clearer section or another model.");
     }
     return segments;
   };
@@ -195,7 +205,7 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
       }
     } catch (err) {
       console.error(err);
-      setError("Something went wrong. Please try again.");
+      setError("We could not reach the transcription service. Check your connection and try again.");
     } finally {
       setProcessing(false);
     }

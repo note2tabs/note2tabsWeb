@@ -53,13 +53,16 @@ export default function VerifyEmailPage() {
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(data?.error || "Could not verify email.");
+          throw new Error(data?.error || "This verification link could not be confirmed. It may have expired; request a new email below.");
         }
         await updateSession().catch(() => null);
         setVerifyState("verified");
       })
       .catch((err: any) => {
-        setVerifyError(err?.message || "Could not verify email.");
+        setVerifyError(
+          err?.message ||
+            "This verification link could not be confirmed. It may have expired; request a new email below."
+        );
         setVerifyState("error");
       });
   }, [token, updateSession]);
@@ -76,19 +79,21 @@ export default function VerifyEmailPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.error || "Could not resend verification email.");
+        throw new Error(data?.error || "We could not send another verification email. Please try again shortly.");
       }
       if (data?.alreadyVerified) {
         setResendMessage("Your email is already verified.");
       } else if (data?.sent === false) {
         setResendMessage(
-          "Verification email delivery is not configured yet. Set SES SMTP credentials and a valid sender address."
+          "We could not send the verification email right now. Please try again shortly or contact support."
         );
       } else {
         setResendMessage("Verification email sent. Please check your inbox.");
       }
     } catch (err: any) {
-      setResendError(err?.message || "Could not resend verification email.");
+      setResendError(
+        err?.message || "We could not send another verification email. Check your connection and try again."
+      );
     } finally {
       setResendBusy(false);
     }
@@ -112,13 +117,13 @@ export default function VerifyEmailPage() {
           {verifyState === "verified" && (
             <div className="notice">Email verified. You can now use the transcriber.</div>
           )}
-          {verifyState === "error" && verifyError && <div className="error">{verifyError}</div>}
+          {verifyState === "error" && verifyError && <div className="error" role="alert">{verifyError}</div>}
 
           {!token && (
             <div className="notice">
               {sent
                 ? "We sent you a verification email. Click the link in that email to verify your account."
-                : "We created your account. Verification email delivery is not configured yet; use resend once email is configured."}
+                : "Your account was created, but we could not send the verification email. Try resending it below or contact support."}
             </div>
           )}
 
@@ -130,8 +135,8 @@ export default function VerifyEmailPage() {
               Go to login
             </Link>
           </div>
-          {resendMessage && <div className="notice">{resendMessage}</div>}
-          {resendError && <div className="error">{resendError}</div>}
+          {resendMessage && <div className="notice" role="status">{resendMessage}</div>}
+          {resendError && <div className="error" role="alert">{resendError}</div>}
         </div>
       </div>
     </main>

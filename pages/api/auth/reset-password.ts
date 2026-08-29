@@ -22,17 +22,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         : "";
     const token = rawToken.trim();
     if (!token) {
-      return res.status(400).json({ error: "Invalid token" });
+      return res.status(400).json({ error: "This password reset link is incomplete or invalid. Request a new email below." });
     }
 
     const verification = await prisma.verificationToken.findUnique({ where: { token } });
     if (!verification || verification.expires < new Date()) {
-      return res.status(400).json({ error: "Token expired or invalid." });
+      return res.status(400).json({ error: "This password reset link has expired or is invalid. Request a new email below." });
     }
 
     const resetPayload = parseResetIdentifier(verification.identifier);
     if (!resetPayload) {
-      return res.status(400).json({ error: "Token expired or invalid." });
+      return res.status(400).json({ error: "This password reset link has expired or is invalid. Request a new email below." });
     }
 
     if (req.method === "GET") {
@@ -56,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       where: { id: resetPayload.userId },
     });
     if (!user) {
-      return res.status(400).json({ error: "User not found." });
+      return res.status(400).json({ error: "This reset request is no longer valid. Request a new password reset email." });
     }
 
     const passwordHash = await hash(password, 10);
@@ -70,6 +70,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ ok: true });
   } catch (error) {
     console.error("reset-password error", error);
-    return res.status(500).json({ error: "Could not reset password." });
+    return res.status(500).json({ error: "We could not update your password right now. Please try again shortly." });
   }
 }

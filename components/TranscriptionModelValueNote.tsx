@@ -22,7 +22,7 @@ export default function TranscriptionModelValueNote({
         <span>
           Working with a complex recording? Heavy offers our highest accuracy.
         </span>
-        <button type="button" onClick={onSelectHeavy}>
+        <button type="button" onClick={onSelectHeavy} className="model-value-note__action">
           Try Heavy
         </button>
       </p>

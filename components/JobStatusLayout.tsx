@@ -219,14 +219,15 @@ export default function JobStatusLayout({
 
   if (job.status === "error" || job.status === "failed") {
     return (
-      <div className="card">
-        <p style={{ fontWeight: 600, margin: 0 }}>Something went wrong.</p>
-        <p className="muted text-small" style={{ margin: "8px 0 0" }}>
-          {job.error_message || "Please try again."}
+      <div className="card job-error-card" role="alert">
+        <p className="job-error-card__eyebrow">Transcription stopped</p>
+        <h2 className="job-error-card__title">We could not finish this tab</h2>
+        <p className="job-error-card__message">
+          {job.error_message || "Try the recording again, or choose a different section or model."}
         </p>
-        <div className="button-row" style={{ marginTop: "16px" }}>
+        <div className="button-row job-error-card__actions">
           <button type="button" onClick={onRestart} className="button-primary button-small">
-            Back to home
+            Return to transcriber
           </button>
         </div>
       </div>
@@ -338,7 +339,7 @@ export default function JobStatusLayout({
           </div>
         )}
       </div>
-      {importError ? <div className="error">{importError}</div> : null}
+      {importError ? <div className="error" role="alert">{importError}</div> : null}
     </div>
   );
 }

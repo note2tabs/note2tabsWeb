@@ -37,7 +37,9 @@ describe("job API authentication", () => {
     await handler(req as any, res as any);
 
     expect(res._getStatusCode()).toBe(401);
-    expect(JSON.parse(res._getData())).toEqual({ error: "Not authenticated" });
+    expect(JSON.parse(res._getData())).toEqual({
+      error: "Your session has expired. Please sign in again.",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

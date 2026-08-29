@@ -50,7 +50,7 @@ describe("editor snapshot prefetching", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(gteApi.prefetchEditor("editor-retry")).rejects.toThrow(
-      "temporary failure"
+      "temporarily unavailable"
     );
     await expect(gteApi.getEditor("editor-retry")).resolves.toEqual(snapshot);
     expect(fetchMock).toHaveBeenCalledTimes(2);

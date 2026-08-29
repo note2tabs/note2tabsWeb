@@ -552,7 +552,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.warn("transcribe database sync failed, using dev guest fallback", error);
       }
     } else if (!allowDevGuestTranscription) {
-      return res.status(401).json({ error: "Not authenticated" });
+      return res.status(401).json({ error: "Your session has expired. Please sign in again." });
     }
 
     const contentType = req.headers["content-type"] || "";
@@ -847,7 +847,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (!backendJobId) {
       await releaseUnverifiedTranscriptionReservation();
-      return res.status(502).json({ error: "Backend did not return a job id." });
+      return res.status(502).json({
+        error: "We could not start this transcription. Please wait a moment and try again.",
+      });
     }
     reservedUnverifiedTranscriptionUserId = null;
 
@@ -889,7 +891,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } catch (error) {
     await releaseUnverifiedTranscriptionReservation();
     console.error("transcribe error", error);
-    return res.status(500).json({ error: "Transcription failed." });
+    return res.status(500).json({
+      error: "The transcription service is temporarily unavailable. Your selection is still here, so you can try again shortly.",
+    });
   }
 }
 

@@ -16,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { email, password, name } = req.body || {};
     if (!email || typeof email !== "string" || !email.includes("@")) {
-      return res.status(400).json({ error: "Invalid email" });
+      return res.status(400).json({ error: "Enter a valid email address." });
     }
     if (!password || typeof password !== "string" || password.length < MIN_PASSWORD) {
       return res
@@ -80,6 +80,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   } catch (error) {
     console.error("Signup error", error);
-    return res.status(500).json({ error: "Could not create account." });
+    return res.status(500).json({
+      error: "We could not create your account right now. Please try again shortly.",
+    });
   }
 }

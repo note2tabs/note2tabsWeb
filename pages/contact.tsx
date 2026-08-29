@@ -44,7 +44,7 @@ export default function ContactPage() {
           <section className="legal-prose">
             <h2>Email</h2>
             <p>
-              Reach us at <strong>support@note2tabs.com</strong>.
+              Reach us at <a href="mailto:support@note2tabs.com"><strong>support@note2tabs.com</strong></a>.
             </p>
             <p>
               Including your account email and a short description of the issue helps us respond faster.

@@ -28,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.id) {
-    return res.status(401).json({ error: "Not authenticated" });
+    return res.status(401).json({ error: "Your session has expired. Please sign in again." });
   }
   let currentRole = "FREE";
   if (isEmailVerificationRequiredServer) {
@@ -60,7 +60,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { fileName, contentType, size } = req.body || {};
   const sizeNum = typeof size === "number" ? size : Number(size);
   if (typeof fileName !== "string" || !Number.isFinite(sizeNum) || sizeNum <= 0) {
-    return res.status(400).json({ error: "Invalid payload" });
+    return res.status(400).json({ error: "Choose a valid audio file and try again." });
   }
 
   const isPremium =
@@ -70,7 +70,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     currentRole === "MOD";
   const maxBytes = isPremium ? MAX_PREMIUM_BYTES : MAX_FREE_BYTES;
   if (sizeNum > maxBytes) {
-    return res.status(413).json({ error: "File too large", maxBytes });
+    return res.status(413).json({
+      error: `This file exceeds your plan's ${Math.round(maxBytes / (1024 * 1024))} MB upload limit. Choose a smaller file or shorter section.`,
+      maxBytes,
+    });
   }
 
   const headers: Record<string, string> = {
@@ -97,12 +100,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     data = {};
   }
   if (!upstream.ok) {
-    const errorMessage =
-      (typeof data?.error === "string" && data.error.trim()) ||
-      (typeof data?.detail === "string" && data.detail.trim()) ||
-      (typeof data?.detail?.error === "string" && data.detail.error.trim()) ||
-      rawText.trim() ||
-      "Could not prepare upload.";
     console.error("upload presign upstream error", {
       status: upstream.status,
       userId: session.user.id,
@@ -111,6 +108,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       size: sizeNum,
       response: rawText || null,
     });
+    const errorMessage =
+      upstream.status === 413
+        ? "This file is larger than your plan allows. Choose a shorter section or a smaller file."
+        : upstream.status === 401 || upstream.status === 403
+          ? "Your session has expired. Sign in again, then reselect this file."
+          : upstream.status === 429
+            ? "Uploads are temporarily busy. Wait a moment and try this file again."
+            : upstream.status >= 500
+              ? "Secure file upload is temporarily unavailable. Your file remains selected, so you can try again shortly."
+              : "We could not prepare this file for upload. Check that it is an MP3, WAV, or M4A file and try again.";
     return res.status(upstream.status).json({ error: errorMessage });
   }
   if (!data?.url || !data?.key) {
@@ -119,7 +126,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       fileName,
       response: rawText || null,
     });
-    return res.status(502).json({ error: "Invalid presign response." });
+    return res.status(502).json({
+      error: "Secure file upload is temporarily unavailable. Your file remains selected, so you can try again shortly.",
+    });
   }
   return res.status(200).json({ url: data.url, key: data.key, maxBytes });
 }

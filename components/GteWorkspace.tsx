@@ -2825,6 +2825,7 @@ function ChordLaneWorkspace({
                 </svg>
                 <input
                   type="range"
+                  name="canvas-playback-volume"
                   min={0}
                   max={1}
                   step={0.01}
@@ -2832,6 +2833,7 @@ function ChordLaneWorkspace({
                   onChange={(event) => onGlobalPlaybackVolumeChange?.(Number(event.target.value))}
                   className="w-20 accent-slate-700"
                   title="Volume"
+                  aria-label="Playback volume"
                 />
               </div>
             </div>
@@ -3503,7 +3505,7 @@ function ChordLaneWorkspace({
                 height: CHORD_TIME_RULER_HEIGHT,
               }}
               title="Click to jump playback"
-              aria-label="Timeline seconds ruler"
+              aria-label="Timeline seconds ruler, starting at 0:00"
               onMouseDown={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -5758,7 +5760,7 @@ export default function GteWorkspace({
         applySnapshot(next);
         markLocalSnapshotDirty();
       } catch (err: any) {
-        setError(err?.message || "Could not apply local change.");
+      setError(err?.message || "We could not apply that edit. Your existing tab is unchanged; please try again.");
       }
       return;
     }
@@ -5773,7 +5775,7 @@ export default function GteWorkspace({
         markServerSnapshotSynced(data.snapshot);
       }
     } catch (err: any) {
-      setError(err?.message || "Something went wrong.");
+      setError(err?.message || "We could not apply that edit. Your existing tab has not been changed. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -5901,7 +5903,10 @@ export default function GteWorkspace({
         }
       } catch (err: any) {
         pendingMutationsRef.current.shift();
-        setError(err?.message || "Something went wrong.");
+        setError(
+          err?.message ||
+            "We could not save that edit. It has been reverted so your tab stays consistent. Please try again."
+        );
         let nextSnapshot = mutation.before;
         pendingMutationsRef.current.forEach((pending) => {
           nextSnapshot = pending.apply(cloneSnapshot(nextSnapshot));
@@ -8496,7 +8501,7 @@ export default function GteWorkspace({
       downloadGteExportFile(file);
       setIoMessage(`Exported ${file.filename}.`);
     } catch (err: any) {
-      setError(err?.message || "Could not export tab.");
+      setError(err?.message || "We could not prepare this tab for export. Your work is unchanged; please try again.");
     } finally {
       setBusy(false);
     }
@@ -8513,7 +8518,7 @@ export default function GteWorkspace({
     try {
       const parsed = JSON.parse(ioPayload || "{}");
       if (!parsed?.stamps || !Array.isArray(parsed.stamps)) {
-        throw new Error("Missing stamps array in JSON.");
+        throw new Error("This file does not contain a valid Note2Tabs tab. Choose an exported Note2Tabs JSON file.");
       }
       const payload = {
         stamps: parsed.stamps,
@@ -8525,7 +8530,7 @@ export default function GteWorkspace({
       applySnapshot(res.snapshot);
       setIoMessage("Import complete.");
     } catch (err: any) {
-      setError(err?.message || "Could not import tab JSON.");
+      setError(err?.message || "We could not import this tab file. Check that it is a valid Note2Tabs JSON export.");
     } finally {
       setBusy(false);
     }
@@ -9274,7 +9279,7 @@ export default function GteWorkspace({
         applySnapshot(res.snapshot);
       }
     } catch (err: any) {
-      setError(err?.message || "Could not update chord.");
+      setError(err?.message || "We could not update this chord. Its previous notes are unchanged; please try again.");
     } finally {
       setBusy(false);
     }
@@ -9419,7 +9424,7 @@ export default function GteWorkspace({
     (fretValue: number) => {
       if (!selectedNote) return;
       if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) {
-        setError("Invalid fret.");
+        setError(`Enter a whole-number fret between 0 and ${maxFret}.`);
         return;
       }
       if (selectedNote.tab[1] === fretValue) return;
@@ -9495,7 +9500,7 @@ export default function GteWorkspace({
     clearPendingNoteFretArrowCommit();
     const fretValue = Number(noteMenuDraft.fret);
     if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) {
-      setError("Invalid fret.");
+      setError(`Enter a whole-number fret between 0 and ${maxFret}.`);
       return;
     }
     commitNoteMenuFretValue(fretValue);
@@ -9546,7 +9551,7 @@ export default function GteWorkspace({
     (rawDenominator: string | number) => {
       const denominator = Number(rawDenominator);
       if (!NOTE_LENGTH_FRACTION_DENOMINATORS.includes(denominator)) {
-        setError("Invalid note length.");
+        setError("Enter a note length greater than zero.");
         return;
       }
       const nextLength = noteFractionDenominatorToFrames(denominator);
@@ -9646,7 +9651,7 @@ export default function GteWorkspace({
     if (!selectedChord || chordNoteMenuIndex === null || !chordNoteMenuDraft) return;
     const fretValue = Number(chordNoteMenuDraft.fret);
     if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) {
-      setError("Invalid fret.");
+      setError(`Enter a whole-number fret between 0 and ${maxFret}.`);
       return;
     }
     const nextTabs = selectedChord.currentTabs.map((tab, idx) =>
@@ -12785,6 +12790,7 @@ export default function GteWorkspace({
 
               <div className="grid grid-cols-1 gap-1.5">
                 <select
+                  name="editor-scale-mode"
                   data-scale-mode-select="true"
                   value={scaleToolMode}
                   onChange={(event) => {
@@ -12803,6 +12809,7 @@ export default function GteWorkspace({
                   }}
                   className="h-7 min-w-0 rounded-md border-0 bg-transparent px-2 text-[11px] font-normal text-slate-700 shadow-none outline-none transition hover:bg-slate-100 focus:bg-slate-100"
                   title="Scale mode - Shortcut: D"
+                  aria-label="Scale mode"
                 >
                   <option value="length">Length scaling</option>
                   <option value="start">Start-time scaling</option>
@@ -13827,6 +13834,7 @@ export default function GteWorkspace({
                   </svg>
                   <input
                     type="range"
+                    name="workspace-playback-volume"
                     min={0}
                     max={1}
                     step={0.01}
@@ -13834,6 +13842,7 @@ export default function GteWorkspace({
                     onChange={(event) => setEffectivePlaybackVolume(Number(event.target.value))}
                     className="w-full min-w-0 accent-slate-700"
                     title="Volume"
+                    aria-label="Playback volume"
                   />
                 </div>
                 {practiceControlsVisible && (
@@ -14008,6 +14017,7 @@ export default function GteWorkspace({
                     onChange={(event) => setEffectivePlaybackVolume(Number(event.target.value))}
                     className="w-20 accent-slate-700"
                     title="Volume"
+                    aria-label="Playback volume"
                   />
               </div>
               </div>
@@ -14849,7 +14859,7 @@ export default function GteWorkspace({
                   height: CUT_SEGMENT_OFFSET,
                 }}
                 title="Click to jump playback"
-                aria-label="Timeline seconds ruler"
+                aria-label="Timeline seconds ruler, starting at 0:00"
                 onMouseDown={handleTabViewRulerMouseDown}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter" && event.key !== " ") return;
@@ -15160,7 +15170,7 @@ export default function GteWorkspace({
                     className="absolute left-0 z-10 cursor-pointer border-t border-slate-200 bg-slate-50/80 text-[8px] text-slate-500"
                     style={{ top: rowHeight, width: timelineWidth, height: CUT_SEGMENT_OFFSET }}
                     title="Click to jump playback"
-                    aria-label="Timeline seconds ruler"
+                    aria-label="Timeline seconds ruler, starting at 0:00"
                     onMouseDown={handleTimelineRulerMouseDown}
                     onKeyDown={(event) => {
                       if (event.key !== "Enter" && event.key !== " ") return;
@@ -15376,7 +15386,7 @@ export default function GteWorkspace({
                         className="absolute rounded-md border border-sky-300 bg-sky-200/60 px-2 py-1 text-[10px] text-slate-700"
                         style={{ top, left, width, height: CUT_SEGMENT_HEIGHT }}
                         title="Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below"
-                        aria-label="Playing coordinates"
+                        aria-label={`Playing coordinates ${stringLabel}${fretLabel}`}
                         onMouseDown={(event) => {
                           if (event.button !== 0) {
                             event.stopPropagation();
@@ -15401,9 +15411,9 @@ export default function GteWorkspace({
                           className={`absolute top-0 flex h-full items-center justify-center rounded text-[10px] font-semibold text-slate-700 hover:text-slate-900 ${
                             cutToolActive ? "cursor-crosshair" : "cursor-pointer"
                           }`}
-                          style={{ left: labelLeft - left, width: coordLabelWidth }}
+                          style={{ left: labelLeft - left, top: 0, width: coordLabelWidth, height: 24 }}
                           title="Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below"
-                          aria-label="Playing coordinates"
+                          aria-label={`Playing coordinates ${stringLabel}${fretLabel}`}
                           onClick={(event) => {
                             if (cutToolActive) {
                               event.preventDefault();

@@ -30,6 +30,8 @@ import {
 } from "../lib/premiumEntitlement";
 import NoIndexHead from "../components/NoIndexHead";
 import PremiumConversionCard from "../components/PremiumConversionCard";
+import SubscriptionRetentionDialog from "../components/SubscriptionRetentionDialog";
+import type { SubscriptionRetentionGoal } from "../lib/subscriptionCancellationRetention";
 import {
   getOrCreatePremiumFunnelContext,
   premiumFunnelProperties,
@@ -54,6 +56,17 @@ type Props = {
 };
 
 type SettingsSection = "account" | "plan" | "security" | "privacy" | "danger";
+type DeleteGoal = "transcribe_songs" | "edit_tabs" | "practice" | "save_export" | "explore" | "skip";
+type DeleteAlternative = { href: string; label: string; detail: string; section?: SettingsSection };
+
+const deleteGoals: Array<{ value: DeleteGoal; label: string }> = [
+  { value: "transcribe_songs", label: "Turn songs into editable tabs" },
+  { value: "edit_tabs", label: "Create and arrange tabs in the editor" },
+  { value: "practice", label: "Practice songs and improve my playing" },
+  { value: "save_export", label: "Save, refine, and export my music" },
+  { value: "explore", label: "Explore what Note2Tabs can do" },
+  { value: "skip", label: "Prefer not to say" },
+];
 
 const settingsSections: Array<{ id: SettingsSection; label: string }> = [
   { id: "account", label: "Account" },
@@ -62,6 +75,27 @@ const settingsSections: Array<{ id: SettingsSection; label: string }> = [
   { id: "privacy", label: "Privacy" },
   { id: "danger", label: "Danger zone" },
 ];
+
+const accountRoleLabel = (role: string) => {
+  if (role === "PREMIUM") return "Premium";
+  if (role === "ADMIN") return "Administrator";
+  if (role === "MODERATOR" || role === "MOD") return "Moderator";
+  return "Free";
+};
+
+const accountInitials = (name: string | null, email: string) => {
+  const source = name?.trim() || email.split("@")[0] || "N";
+  const parts = source.split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "N";
+};
+
+const formatSettingsDate = (value: string) =>
+  new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(value));
 
 type SettingRowProps = {
   label: string;
@@ -94,8 +128,8 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteFlowOpen, setDeleteFlowOpen] = useState(false);
-  const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
-  const [deleteOriginReason, setDeleteOriginReason] = useState("");
+  const [deleteStep, setDeleteStep] = useState<"retention" | "confirm">("retention");
+  const [deleteGoal, setDeleteGoal] = useState<DeleteGoal | "">("");
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
   const [verifyBusy, setVerifyBusy] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
@@ -104,22 +138,47 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const [consentState, setConsentState] = useState<"granted" | "denied">("granted");
   const [upgradeBusy, setUpgradeBusy] = useState(false);
   const [portalBusy, setPortalBusy] = useState(false);
+  const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
   const [signOutBusy, setSignOutBusy] = useState(false);
   const [checkoutStatus, setCheckoutStatus] = useState<string | null>(null);
   const checkoutReturnHandledRef = useRef(false);
   const verifyHref = `/auth/verify-email?email=${encodeURIComponent(user.email)}`;
-  const canContinueDeleteFlow = deleteOriginReason.trim().length >= 8;
   const canFinalizeDelete = deleteConfirmationText.trim().toLowerCase() === "delete";
   const isAdminOrMod = user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const isAdmin = user.role === "ADMIN";
-  const analyticsHref = isAdmin
-    ? "/admin/analytics?view=overview&range=30d"
-    : "/admin/analytics?view=moderation&range=30d";
   const isPremium =
     user.role === "PREMIUM" || user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const isPaidPremium = user.role === "PREMIUM";
-  const resetLabel = new Date(credits.resetAt).toLocaleDateString();
+
+  const resetDeleteFlow = () => {
+    setDeleteFlowOpen(false);
+    setDeleteStep("retention");
+    setDeleteGoal("");
+    setDeleteConfirmationText("");
+    setError(null);
+  };
+
+  const deletionAlternative: DeleteAlternative | null = (() => {
+    if (deleteGoal === "transcribe_songs")
+      return { href: "/transcribe", label: "Transcribe another song", detail: "Your transcriber is ready to turn another recording into an editable tab." };
+    if (deleteGoal === "edit_tabs")
+      return { href: "/gte", label: "Open my editor", detail: "Continue arranging notes, chords, drums, timing, and playback without starting over." };
+    if (deleteGoal === "practice")
+      return { href: "/home", label: "Continue practicing", detail: "Return to your workspace and continue with playback, looping, speed training, and Practice mode." };
+    if (deleteGoal === "save_export")
+      return { href: "/tabs", label: "View my saved tabs", detail: "Your saved work is still available to refine, play back, or export whenever you return." };
+    if (deleteGoal === "explore")
+      return { href: "/home", label: "Return to my workspace", detail: "Transcription, editing, playback, and practice are all waiting in your workspace." };
+    return null;
+  })();
+  const analyticsHref = isAdmin
+    ? "/admin/analytics?view=overview&range=30d"
+    : "/admin/analytics?view=moderation&range=30d";
+  const resetLabel = formatSettingsDate(credits.resetAt);
   const creditsUsedLabel = `${credits.used} / ${credits.limit}`;
+  const creditUsagePercent = credits.limit > 0
+    ? Math.min(100, Math.max(0, (credits.used / credits.limit) * 100))
+    : 0;
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -164,8 +223,12 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     const reconcileCheckout = async () => {
       if (isPremium) {
         clearRecoverableCheckoutSessionId();
-        setCheckoutStatus("Premium is active. Your upgraded limits are ready to use.");
-        setUpgradeBusy(false);
+        if (outcome === "success") {
+          window.location.replace("/home?upgrade=confirmed");
+        } else {
+          setCheckoutStatus("Premium is active. Your upgraded limits are ready to use.");
+          setUpgradeBusy(false);
+        }
         return;
       }
 
@@ -187,7 +250,9 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       }
 
       clearRecoverableCheckoutSessionId();
-      window.location.replace("/settings?upgrade=confirmed");
+      window.location.replace(
+        outcome === "success" ? "/home?upgrade=confirmed" : "/settings?upgrade=confirmed"
+      );
     };
 
     void reconcileCheckout();
@@ -247,7 +312,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
 
   const handleUpgrade = async () => {
     if (!stripeReady) {
-      setError("Stripe not configured yet. Coming soon.");
+      setError("Premium upgrades are temporarily unavailable. Please try again later.");
       return;
     }
     setUpgradeBusy(true);
@@ -272,7 +337,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
           plan: "premium_monthly",
           ...premiumFunnelProperties(funnel),
         });
-        setError(data?.error || "Could not start checkout.");
+        setError(data?.error || "Checkout is temporarily unavailable. Please try again in a moment.");
         return;
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
@@ -292,13 +357,22 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     }
   };
 
-  const handleManageSubscription = async () => {
+  const handleManageSubscription = async (
+    intent: "billing" | "cancellation",
+    goal?: SubscriptionRetentionGoal
+  ) => {
     if (!stripeReady) {
-      setError("Stripe not configured yet. Subscription management is unavailable.");
+      setError("Subscription management is temporarily unavailable. Please try again later.");
       return;
     }
     setPortalBusy(true);
     setError(null);
+    sendEvent(
+      intent === "cancellation"
+        ? ANALYTICS_EVENTS.subscriptionCancellationContinued
+        : ANALYTICS_EVENTS.subscriptionManagementOpened,
+      goal ? { goal } : undefined
+    );
     try {
       const res = await fetch("/api/stripe/create-portal-session", { method: "POST" });
       const data = await res.json().catch(() => ({}));
@@ -325,11 +399,11 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.error || "Could not resend verification email.");
+        throw new Error(data?.error || "We could not send another verification email. Please try again shortly.");
       }
       setVerifyMessage(data?.alreadyVerified ? "Your email is already verified." : "Verification email sent.");
     } catch (err: any) {
-      setError(err?.message || "Could not resend verification email.");
+      setError(err?.message || "We could not send another verification email. Check your connection and try again.");
     } finally {
       setVerifyBusy(false);
     }
@@ -355,6 +429,10 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         setError(data?.error || "Could not delete account.");
         return;
       }
+      sendEvent(ANALYTICS_EVENTS.accountDeletionConfirmed, {
+        goal: deleteGoal || "unknown",
+        plan: isPaidPremium ? "premium" : "free",
+      });
       await handleSignOut(true);
     } catch {
       setError("Could not delete account. Check your connection and try again.");
@@ -396,7 +474,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
           : "Analytics tracking is denied and analytics identifiers were cleared."
       );
     } catch (err: any) {
-      setError(err?.message || "Could not update analytics consent.");
+      setError(err?.message || "We could not save your analytics preference. Please try again.");
     } finally {
       setConsentBusy(false);
     }
@@ -407,16 +485,26 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <h2 id="settings-account-title" className="settingsSectionTitle">
         Account
       </h2>
+      <p className="settingsSectionIntro">Your profile and Note2Tabs workspace.</p>
+      <div className="settingsProfileSummary">
+        <div className="settingsProfileAvatar" aria-hidden="true">
+          {accountInitials(user.name, user.email)}
+        </div>
+        <div>
+          <p className="settingsProfileName">{user.name || "Note2Tabs musician"}</p>
+          <p className="settingsProfileEmail">{user.email}</p>
+        </div>
+        <span className={`settingsPlanBadge${isPremium ? " settingsPlanBadgePremium" : ""}`}>
+          {accountRoleLabel(user.role)}
+        </span>
+      </div>
       <div className="settingsRows">
-        <SettingRow label="Email" value={user.email} />
-        <SettingRow label="Name" value={user.name || "Not set"} />
-        <SettingRow label="Role" value={user.role} />
-        <SettingRow label="Created" value={new Date(user.createdAt).toLocaleDateString()} />
+        <SettingRow label="Created" value={<time dateTime={user.createdAt}>{formatSettingsDate(user.createdAt)}</time>} />
         <SettingRow label="Email verified" value={user.isEmailVerified ? "Yes" : "No"} />
-        <SettingRow label="Actions">
+        <SettingRow label="Your work" description="Open your saved tabs or continue in the editor.">
           <div className="settingsActions">
             <Link href="/tabs" className="settingsButton settingsButtonSecondary">
-              Transcriptions
+              Transcription history
             </Link>
             <Link href="/gte" className="settingsButton settingsButtonSecondary">
               Open editor
@@ -453,15 +541,31 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <h2 id="settings-plan-title" className="settingsSectionTitle">
         Plan and credits
       </h2>
+      <p className="settingsSectionIntro">Your subscription, monthly allowance, and billing controls.</p>
+      <div className={`settingsPlanSummary${isPremium ? " settingsPlanSummaryPremium" : ""}`}>
+        <div className="settingsPlanSummaryTop">
+          <div>
+            <span className="settingsPlanEyebrow">Current plan</span>
+            <h3>{isPremium ? "Note2Tabs Premium" : "Note2Tabs Free"}</h3>
+          </div>
+          <span className={`settingsPlanBadge${isPremium ? " settingsPlanBadgePremium" : ""}`}>
+            {isPremium ? "Active" : "Free"}
+          </span>
+        </div>
+        <div className="settingsCreditSummary">
+          <div className="settingsCreditCopy">
+            <span>{credits.remaining} credits remaining</span>
+            <span>{creditsUsedLabel} used</span>
+          </div>
+          <div className="settingsCreditTrack" aria-label={`${creditsUsedLabel} credits used`}>
+            <span style={{ width: `${creditUsagePercent}%` }} />
+          </div>
+          <p>{isPremium ? "100 monthly credits with rollover up to 200." : "10 credits each month."}</p>
+        </div>
+      </div>
       <div className="settingsRows">
-        <SettingRow
-          label="Plan"
-          value={isPremium ? `${user.role} - 100 credits/month (rollover up to 200)` : "Free - 10 credits/month"}
-        />
-        <SettingRow label="Credits used" value={creditsUsedLabel} />
-        <SettingRow label="Remaining" value={credits.remaining} />
-        <SettingRow label="Next credits" value={resetLabel} />
-        <SettingRow label="Actions">
+        <SettingRow label="Next credit refresh" value={resetLabel} />
+        <SettingRow label="Billing and plan">
           <div className="settingsActions">
             {!isPremium && (
               <button
@@ -470,13 +574,15 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
                 className="settingsButton settingsButtonPrimary"
                 disabled={upgradeBusy}
               >
-                {stripeReady ? "Upgrade to Premium" : "Premium (coming soon)"}
+                {stripeReady ? "Upgrade to Premium" : "Premium temporarily unavailable"}
               </button>
             )}
             {isPaidPremium && (
               <button
                 type="button"
-                onClick={handleManageSubscription}
+                onClick={() => {
+                  setSubscriptionDialogOpen(true);
+                }}
                 className="settingsButton settingsButtonSecondary"
                 disabled={portalBusy}
               >
@@ -521,6 +627,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <h2 id="settings-security-title" className="settingsSectionTitle">
         Security
       </h2>
+      <p className="settingsSectionIntro">Control access to your account and current session.</p>
       <div className="settingsRows">
         <SettingRow label="Change password" value="Update your login password.">
           <div className="settingsActions">
@@ -550,11 +657,12 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <h2 id="settings-privacy-title" className="settingsSectionTitle">
         Privacy
       </h2>
+      <p className="settingsSectionIntro">Choose how optional product analytics are used.</p>
       <div className="settingsRows">
         <SettingRow
           label="Analytics"
           description="Cookieless product analytics are enabled by default. You can turn them off anytime."
-          value={consentState}
+          value={consentState === "granted" ? "Enabled" : "Disabled"}
         >
           <div className="settingsActions">
             <button
@@ -595,9 +703,13 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             className="settingsButton settingsButtonDanger"
             onClick={() => {
               setDeleteFlowOpen(true);
-              setDeleteStep(1);
+              setDeleteStep("retention");
+              setDeleteGoal("");
               setDeleteConfirmationText("");
               setError(null);
+              sendEvent(ANALYTICS_EVENTS.accountDeletionStarted, {
+                plan: isPaidPremium ? "premium" : "free",
+              });
             }}
           >
             Delete account
@@ -606,75 +718,74 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       )}
       {deleteFlowOpen && (
         <div className="card-outline stack delete-flow">
-          {deleteStep === 1 && (
+          {deleteStep === "retention" ? (
             <>
-              <p className="muted text-small">
-                Before removing your account, what made you sign up in the first place?
-              </p>
-              <label className="form-group">
-                <span className="label">Why did you create your Note2Tabs account?</span>
-                <textarea
-                  className="form-textarea"
-                  rows={3}
-                  value={deleteOriginReason}
-                  onChange={(event) => setDeleteOriginReason(event.target.value)}
-                  placeholder="Example: I wanted faster tab writing and to keep my song edits in one place."
-                />
-              </label>
-              <div className="delete-alternatives">
+              <div>
+                <h3 className="delete-flow-title">Before you go</h3>
                 <p className="muted text-small">
-                  You started this account to save progress and keep your workflow in one place. Before deleting, you
-                  can also:
+                  What did you originally want Note2Tabs to help you do? Let’s make sure there is nothing valuable left unfinished.
                 </p>
-                <div className="button-row">
-                  <Link href="/tabs" className="button-secondary button-small">
-                    Review transcriptions
-                  </Link>
-                  <Link href="/reset-password" className="button-secondary button-small">
-                    Reset password
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => void handleSignOut()}
-                    className="button-secondary button-small"
-                    disabled={signOutBusy}
-                  >
-                    {signOutBusy ? "Signing out…" : "Log out instead"}
-                  </button>
-                </div>
               </div>
-              <div className="button-row">
-                <button
-                  type="button"
-                  className="button-secondary button-small"
-                  onClick={() => {
-                    setDeleteFlowOpen(false);
-                    setDeleteStep(1);
-                    setDeleteOriginReason("");
-                    setDeleteConfirmationText("");
-                    setError(null);
-                  }}
+              <label className="form-group">
+                <span className="label">I signed up to…</span>
+                <select
+                  className="form-input"
+                  value={deleteGoal}
+                  onChange={(event) => setDeleteGoal(event.target.value as DeleteGoal)}
                 >
+                  <option value="">Choose what brought you here</option>
+                  {deleteGoals.map((goal) => (
+                    <option key={goal.value} value={goal.value}>{goal.label}</option>
+                  ))}
+                </select>
+              </label>
+              {deletionAlternative && (
+                <div className="delete-alternatives">
+                  <p className="text-small">{deletionAlternative.detail}</p>
+                  <Link
+                    href={deletionAlternative.href}
+                    className="settingsButton settingsButtonSecondary"
+                    onClick={(event) => {
+                      sendEvent(ANALYTICS_EVENTS.accountDeletionAlternativeClicked, {
+                        goal: deleteGoal,
+                        destination: deletionAlternative.section || deletionAlternative.href,
+                      });
+                      if (deletionAlternative.section) {
+                        event.preventDefault();
+                        resetDeleteFlow();
+                        handleSelectSection(deletionAlternative.section);
+                      }
+                    }}
+                  >
+                    {deletionAlternative.label}
+                  </Link>
+                </div>
+              )}
+              <div className="button-row">
+                <button type="button" className="button-secondary button-small" onClick={resetDeleteFlow}>
                   Keep my account
                 </button>
                 <button
                   type="button"
-                  className="button-secondary button-small"
+                  className="button-ghost button-small"
+                  disabled={!deleteGoal}
                   onClick={() => {
-                    setDeleteStep(2);
-                    setError(null);
+                    if (!deleteGoal) return;
+                    sendEvent(ANALYTICS_EVENTS.accountDeletionGoalSelected, {
+                      goal: deleteGoal,
+                      plan: isPaidPremium ? "premium" : "free",
+                    });
+                    setDeleteStep("confirm");
                   }}
-                  disabled={!canContinueDeleteFlow}
                 >
-                  Continue to final step
+                  Continue to deletion
                 </button>
               </div>
             </>
-          )}
-          {deleteStep === 2 && (
+          ) : (
             <>
               <p className="muted text-small">
-                Final confirmation: type <strong>delete</strong> to permanently remove your account and data.
+                This permanently removes your account, saved tabs, transcription history, and active subscription. Type <strong>delete</strong> to confirm.
               </p>
               <label className="form-group">
                 <span className="label">Type delete to confirm</span>
@@ -688,16 +799,8 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
                 />
               </label>
               <div className="button-row">
-                <button
-                  type="button"
-                  className="button-secondary button-small"
-                  onClick={() => {
-                    setDeleteStep(1);
-                    setDeleteConfirmationText("");
-                    setError(null);
-                  }}
-                >
-                  Back
+                <button type="button" className="button-secondary button-small" onClick={() => setDeleteStep("retention")}>
+                  Go back
                 </button>
                 <button
                   type="button"
@@ -718,19 +821,43 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   return (
     <>
       <NoIndexHead title="Settings | Note2Tabs" canonicalPath="/settings" />
+      <SubscriptionRetentionDialog
+        open={subscriptionDialogOpen}
+        busy={portalBusy}
+        onClose={() => setSubscriptionDialogOpen(false)}
+        onCancellationIntent={() => {
+          sendEvent(ANALYTICS_EVENTS.subscriptionCancellationIntentStarted, {
+            entry: "settings",
+          });
+        }}
+        onOpenPortal={(intent, goal) => {
+          if (intent === "cancellation") {
+            sendEvent(ANALYTICS_EVENTS.subscriptionCancellationGoalSelected, { goal });
+          }
+          void handleManageSubscription(intent, goal);
+        }}
+        onAlternative={(goal, destination) => {
+          sendEvent(ANALYTICS_EVENTS.subscriptionCancellationAlternativeClicked, {
+            goal,
+            destination,
+          });
+          setSubscriptionDialogOpen(false);
+        }}
+      />
     <main className="page settingsPage">
       <div className="container settingsShell">
-        <header className="settingsHeader">
-          <div>
-            <h1 className="settingsTitle">Settings</h1>
-            <p className="settingsSubtitle">Manage your account, credits, privacy, and saved work.</p>
-          </div>
-          <Link href="/" className="button-ghost button-small">
-            Back to app
-          </Link>
-        </header>
+        <div className="settingsWindow">
+          <header className="settingsHeader">
+            <div>
+              <h1 className="settingsTitle">Settings</h1>
+              <p className="settingsSubtitle">Manage your Note2Tabs account.</p>
+            </div>
+            <Link href="/home" className="settingsCloseButton" aria-label="Close settings and return home">
+              <span aria-hidden="true">×</span>
+            </Link>
+          </header>
 
-        <section className="settingsPanel" aria-label="Settings panel">
+          <section className="settingsPanel" aria-label="Settings panel">
           <aside className="settingsSidebar" aria-label="Settings sections">
             <p className="settingsSidebarLabel">Settings</p>
             <nav className="settingsNav" role="tablist" aria-label="Settings tabs">
@@ -760,9 +887,10 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             {selectedSection === "security" && renderSecuritySection()}
             {selectedSection === "privacy" && renderPrivacySection()}
             {selectedSection === "danger" && renderDangerSection()}
-            {error && <div className="error">{error}</div>}
+            {error && <div className="error" role="alert">{error}</div>}
           </div>
-        </section>
+          </section>
+        </div>
       </div>
     </main>
     </>
@@ -774,7 +902,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (!session?.user?.email || !session.user.id) {
     return {
       redirect: {
-        destination: "/auth/login",
+        destination: `/auth/login?next=${encodeURIComponent(ctx.resolvedUrl || "/settings")}`,
         permanent: false,
       },
     };

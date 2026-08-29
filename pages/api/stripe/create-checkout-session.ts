@@ -77,7 +77,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.email || !session.user.id) {
-    return res.status(401).json({ error: "Not authenticated" });
+    return res.status(401).json({ error: "Your session has expired. Please sign in again." });
   }
   const currentRole = await getFreshUserRole(session);
   if (!currentRole) {
@@ -86,7 +86,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const premiumConfig = getStripePremiumConfig();
   if (!stripeClient || !premiumConfig) {
-    return res.status(503).json({ error: "Stripe not configured yet." });
+    return res.status(503).json({
+      error: "Premium checkout is temporarily unavailable. Please try again shortly.",
+    });
   }
 
   if (PREMIUM_ACCESS_ROLES.has(currentRole)) {

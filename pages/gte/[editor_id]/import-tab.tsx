@@ -12,7 +12,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (!userId) {
     return {
       redirect: {
-        destination: "/auth/login",
+        destination: `/auth/login?next=${encodeURIComponent(ctx.resolvedUrl || "/gte")}`,
         permanent: false,
       },
     };

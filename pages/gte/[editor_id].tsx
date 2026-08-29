@@ -1539,7 +1539,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setLastCommittedAt(normalized.updatedAt || null);
       setHasPendingCommit(false);
     } catch (err: any) {
-      setError(err?.message || "Could not load editor.");
+      setError(err?.message || "We could not load this tab. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -1590,7 +1590,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           setLastCommittedAt(normalized.updatedAt || null);
           setHasPendingCommit(false);
         } catch (err: any) {
-          setError(err?.message || "Could not load guest editor.");
+          setError(err?.message || "We could not restore this browser draft. Reload the page to try again.");
         } finally {
           setLoading(false);
         }
@@ -1825,6 +1825,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, []);
 
   useEffect(() => {
+    if (!router.isReady || isMobileViewport) return;
+    if (router.query.mode === "practice") {
+      setEditorMode("practice");
+    }
+  }, [isMobileViewport, router.isReady, router.query.mode]);
+
+  useEffect(() => {
     let cancelled = false;
     void loadTrackInstrumentOptions().then((options) => {
       if (cancelled) return;
@@ -1870,7 +1877,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           setLastCommittedAt(normalized.updatedAt || new Date().toISOString());
           setHasPendingCommit(false);
         } catch (err: any) {
-          setSaveError(err?.message || "Could not save guest session.");
+          setSaveError(err?.message || "We could not save this draft in your browser. Keep this tab open and try again.");
         } finally {
           setSavingCanvas(false);
         }
@@ -1889,7 +1896,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         setLastCommittedAt(normalized.updatedAt || new Date().toISOString());
         setHasPendingCommit(false);
       } catch (err: any) {
-        setSaveError(err?.message || "Could not save editor.");
+        setSaveError(err?.message || "We could not save your latest changes. Keep this tab open while we retry.");
       } finally {
         setSavingCanvas(false);
       }
@@ -1903,7 +1910,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         await gteApi.applySnapshot(editorId, cloneCanvas(nextCanvas));
       } catch (err: any) {
         if (!options?.silent) {
-          setSaveError(err?.message || "Could not sync canvas draft.");
+          setSaveError(err?.message || "We could not sync your latest changes. They remain on this device and will retry automatically.");
         }
       }
     },
@@ -2042,7 +2049,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         setNameEditing(false);
       }
     } catch (err: any) {
-      setNameError(err?.message || "Could not update name.");
+      setNameError(err?.message || "We could not rename this tab. Its previous name is unchanged; please try again.");
     } finally {
       setNameSaving(false);
     }
@@ -2081,7 +2088,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       const nextCanvas = normalizeCanvas((res as any).canvas ?? fallbackCanvas, editorId);
       applyCanvasUpdate(nextCanvas, { markDirty: !isGuestMode });
     } catch (err: any) {
-      setBpmError(err?.message || "Could not update BPM.");
+      setBpmError(err?.message || "We could not update the tempo. The previous BPM is unchanged; please try again.");
     } finally {
       setBpmSaving(false);
     }
@@ -2238,7 +2245,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       }
       setPendingMeterChange(null);
     } catch (err: any) {
-      setTimeSignatureError(err?.message || "Could not update time signature.");
+      setTimeSignatureError(err?.message || "We could not update the time signature. The previous meter is unchanged; please try again.");
     } finally {
       setTimeSignatureSaving(false);
     }
@@ -2293,7 +2300,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       });
       setActiveLaneId(res.editor?.id || nextCanvas.editors[nextCanvas.editors.length - 1]?.id || null);
     } catch (err: any) {
-      setError(err?.message || "Could not add track.");
+      setError(err?.message || "We could not add a new track. Your existing tracks are unchanged; please try again.");
     } finally {
       setAddingLane(false);
     }
@@ -2327,7 +2334,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         }
         applyCanvasUpdate(nextCanvas, { markDirty: isGuestMode });
       } catch (err: any) {
-        setSaveError(err?.message || "Could not rename track.");
+        setSaveError(err?.message || "We could not rename this track. Its previous name is unchanged; please try again.");
       }
     },
     [applyCanvasUpdate, canvas, editorId, isGuestMode]
@@ -2349,7 +2356,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       const file = buildGteExportFile(lane, format, canvas?.timingMap);
       downloadGteExportFile(file);
     } catch (err: any) {
-      setError(err?.message || "Could not export this track.");
+      setError(err?.message || "We could not prepare this track for export. Your tab is unchanged; please try again.");
     } finally {
       setExportingTrack(false);
     }
@@ -2425,7 +2432,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       }
       setTimingDialogOpen(false);
     } catch (err: any) {
-      setError(err?.message || "Could not update bar tempo.");
+      setError(err?.message || "We could not update the selected bar tempo. Existing timing is unchanged; please try again.");
     } finally {
       setTimingSaving(false);
     }
@@ -2513,7 +2520,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       }
     } catch (err: any) {
       setCanvas(session.baseCanvas);
-      setError(err?.message || "Could not offset this track.");
+      setError(err?.message || "We could not shift this track. It remains at its previous position; please try again.");
     } finally {
       setShiftingLaneId(null);
     }
@@ -2544,7 +2551,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       }
       setOpenTrackMenuId(null);
     } catch (err: any) {
-      setError(err?.message || "Could not move this track.");
+      setError(err?.message || "We could not reorder this track. The track order is unchanged; please try again.");
     } finally {
       setShiftingLaneId(null);
     }
@@ -2574,7 +2581,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setActiveLaneId(response.mergedLaneId);
       setMergeTracksDialogOpen(false);
     } catch (err: any) {
-      setError(err?.message || "Could not merge these tracks.");
+      setError(err?.message || "We could not merge these tracks. The original tracks are unchanged; please try again.");
     } finally {
       setMergeTracksBusy(false);
     }
@@ -2625,7 +2632,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         setMobileEditLaneId(null);
       }
     } catch (err: any) {
-      setError(err?.message || "Could not remove track.");
+      setError(err?.message || "We could not remove this track. It is still in your tab; please try again.");
     } finally {
       setDeletingLaneId(null);
     }
@@ -2648,7 +2655,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         applyCanvasUpdate(normalizeCanvas(res.canvas, editorId), { markDirty: !isGuestMode });
         setActiveLaneId(laneId);
       } catch (err: any) {
-        setError(err?.message || "Could not reorder tracks.");
+        setError(err?.message || "We could not reorder the tracks. Their previous order is unchanged; please try again.");
       }
     },
     [applyCanvasUpdate, canvas, editorId, isGuestMode]
@@ -2753,7 +2760,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       void warmTrackInstrument(normalizedInstrumentId);
       if (!isGuestMode) {
         void gteApi.setTrackInstrument(editorId, laneId, normalizedInstrumentId).catch((err: any) => {
-          setSaveError(err?.message || "Could not save track sound.");
+          setSaveError(err?.message || "We could not save this track sound. The previous sound remains selected; please try again.");
         });
       }
     },
@@ -2788,7 +2795,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setHasPendingCommit(true);
       setActiveLaneId(laneId);
       void gteApi.applySnapshot(editorId, nextCanvas).catch((err: any) => {
-        setSaveError(err?.message || "Could not save track tuning.");
+        setSaveError(err?.message || "We could not save this tuning. The previous tuning is unchanged; please try again.");
       });
     },
     [canvas, editorId, recordCanvasHistory]
@@ -2938,7 +2945,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           )
         );
       } catch (err: any) {
-        setError(err?.message || "Could not copy bars.");
+        setError(err?.message || "We could not copy the selected bars. Select them again and retry.");
       }
     },
     [canvas, editorId, isGuestMode]
@@ -2961,7 +2968,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         }
         setActiveLaneId(laneId);
       } catch (err: any) {
-        setError(err?.message || "Could not paste bars.");
+        setError(err?.message || "We could not paste these bars. Your tab is unchanged; please try again.");
       }
     },
     [applyCanvasBarUpdate, barClipboard, canvas, editorId, isGuestMode]
@@ -2984,7 +2991,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         }
         clearBarSelectionState();
       } catch (err: any) {
-        setError(err?.message || "Could not delete bars.");
+        setError(err?.message || "We could not delete the selected bars. Your tab is unchanged; please try again.");
       }
     },
     [applyCanvasBarUpdate, canvas, clearBarSelectionState, editorId, isGuestMode]
@@ -3026,7 +3033,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         setBarDragState(null);
         clearBarSelectionState();
       } catch (err: any) {
-        setError(err?.message || "Could not move bars.");
+        setError(err?.message || "We could not move the selected bars. Their previous positions are unchanged; please try again.");
       }
     },
     [applyCanvasBarUpdate, canvas, clearBarSelectionState, editorId, isGuestMode]
@@ -5848,6 +5855,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             <span>Speed</span>
             <select
               value={normalizedPlaybackSpeed}
+              name="practice-playback-speed"
               onChange={(event) => setPlaybackSpeed(Number(event.target.value))}
               disabled={speedTrainerSessionActive}
               className="bg-transparent text-xs font-semibold text-slate-900 outline-none disabled:cursor-not-allowed"
@@ -5934,6 +5942,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   Instrument
                   <select
                     value={practiceInstrumentValue}
+                    name="practice-instrument"
                     onChange={(event) =>
                       handleLaneInstrumentChange(practiceSoundLaneId, event.target.value)
                     }
@@ -5977,6 +5986,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   Volume
                   <input
                     type="range"
+                    name="practice-track-volume"
                     min={0}
                     max={1}
                     step={0.01}
@@ -5995,6 +6005,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   Pan
                   <input
                     type="range"
+                    name="practice-track-pan"
                     min={-1}
                     max={1}
                     step={0.01}
@@ -6003,6 +6014,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       handleTrackPanChange(practiceSoundLaneId, Number(event.target.value))
                     }
                     className="mt-1.5 w-full accent-slate-700"
+                    aria-label="Practice track pan"
                   />
                 </label>
               </div>
@@ -6059,12 +6071,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 Metronome volume
                 <input
                   type="range"
+                  name="practice-metronome-volume"
                   min={0}
                   max={1}
                   step={0.05}
                   value={metronomeVolume}
                   onChange={(event) => setMetronomeVolume(Number(event.target.value))}
                   className="mt-1 w-full accent-sky-600"
+                  aria-label="Practice metronome volume"
                 />
               </label>
               <button
@@ -6807,6 +6821,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </span>
                   <input
                     type="range"
+                    name="timeline-zoom-menu"
                     min={TIMELINE_ZOOM_MIN}
                     max={TIMELINE_ZOOM_MAX}
                     step={1}
@@ -7206,6 +7221,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         </span>
                         <input
                           type="range"
+                          name="timeline-zoom"
                           min={TIMELINE_ZOOM_MIN}
                           max={TIMELINE_ZOOM_MAX}
                           step={1}
@@ -7247,6 +7263,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <span>Add note size</span>
                         <select
                           value={chordOnlyDefaultNoteLengthDenominator}
+                          name="add-note-size"
                           onKeyDown={blockSizeSelectKeyboardChange}
                           onChange={(event) =>
                             setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))
@@ -7266,6 +7283,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <span>Cursor size</span>
                         <select
                           value={chordOnlyCursorSizeDenominator}
+                          name="cursor-size"
                           onKeyDown={blockSizeSelectKeyboardChange}
                           onChange={(event) =>
                             setChordOnlyCursorSizeDenominator(
@@ -7383,6 +7401,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <span>Snapping accuracy</span>
                         <select
                           value={globalSnapSubdivisionsPerBeat}
+                          name="snap-subdivision"
                           onChange={(event) =>
                             setGlobalSnapSubdivisionsPerBeat(Number(event.target.value))
                           }
@@ -7456,6 +7475,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <span>Playback speed</span>
                         <select
                           value={normalizedPlaybackSpeed}
+                          name="playback-speed"
                           onChange={(event) => setPlaybackSpeed(Number(event.target.value))}
                           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
                           title="Playback speed"
@@ -7561,6 +7581,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       <span className="flex items-center gap-1">
                         <select
                           value={normalizeKeyBase(canvas?.keyBase)}
+                          name="song-key-base"
                           onChange={(event) => {
                             commitCanvasKey(Number(event.target.value), normalizeKeyType(canvas?.keyType));
                             event.currentTarget.blur();
@@ -7574,6 +7595,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         </select>
                         <select
                           value={normalizeKeyType(canvas?.keyType)}
+                          name="song-key-type"
                           onChange={(event) => {
                             commitCanvasKey(normalizeKeyBase(canvas?.keyBase), Number(event.target.value));
                             event.currentTarget.blur();
@@ -7592,6 +7614,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       <span className="flex items-center gap-1">
                         <input
                           type="number"
+                          name="song-bpm"
                           step={1}
                           min={1}
                           value={bpmDraft}
@@ -7662,6 +7685,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       <span className="flex items-center gap-1">
                         <select
                           value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
+                          name="time-signature-top"
                           onChange={(event) => {
                             setTimeSignatureDraft(event.target.value);
                             scheduleTimeSignatureCommit(Number(event.target.value));
@@ -7677,6 +7701,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <span>/</span>
                         <select
                           value={normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
+                          name="time-signature-bottom"
                           onChange={(event) => {
                             void commitTimeSignatureBottom(Number(event.target.value));
                             event.currentTarget.blur();
@@ -7717,6 +7742,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       Add note size
                       <select
                         value={chordOnlyDefaultNoteLengthDenominator}
+                        name="editor-add-note-size"
                         onKeyDown={blockSizeSelectKeyboardChange}
                         onChange={(event) =>
                           setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))
@@ -7734,6 +7760,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       Cursor size
                       <select
                         value={chordOnlyCursorSizeDenominator}
+                        name="editor-cursor-size"
                         onKeyDown={blockSizeSelectKeyboardChange}
                         onChange={(event) =>
                           setChordOnlyCursorSizeDenominator(
@@ -7771,6 +7798,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       Grid division
                       <select
                         value={globalSnapSubdivisionsPerBeat}
+                        name="editor-grid-division"
                         onChange={(event) =>
                           setGlobalSnapSubdivisionsPerBeat(Number(event.target.value))
                         }
@@ -8803,6 +8831,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               <div className="flex items-center gap-2">
                                 <input
                                   key={`${laneId}:${lane.name || ""}`}
+                                  name={`mobile-track-${index + 1}-name`}
                                   defaultValue={lane.name || `Track ${index + 1}`}
                                   maxLength={80}
                                   aria-label={`Track ${index + 1} name`}
@@ -9167,6 +9196,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <div className="flex items-center justify-between gap-2">
                           <input
                             key={`${laneId}:${lane.name || ""}`}
+                            name={`track-${index + 1}-name`}
                             defaultValue={lane.name || `Track ${index + 1}`}
                             maxLength={80}
                             aria-label={`Track ${index + 1} name`}
@@ -9188,6 +9218,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         </div>
                         {!drumLane && <div className="mt-2 min-w-0">
                           <select
+                            name={`track-${index + 1}-sound`}
                             value={instrumentValue}
                             onChange={(event) => {
                               handleLaneInstrumentChange(laneId, event.target.value);
@@ -9208,6 +9239,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         {!isChordLane(lane) && !drumLane && (
                           <div className="mt-2 min-w-0 space-y-1.5">
                             <select
+                              name={`track-${index + 1}-tuning`}
                               value={tuning.presetId}
                               onChange={(event) =>
                                 handleLaneTuningChange(laneId, event.target.value, tuning.capo)
@@ -9227,6 +9259,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               Capo
                               <input
                                 type="number"
+                                name={`track-${index + 1}-capo`}
                                 min={0}
                                 max={12}
                                 value={trackCapoDraftById[laneId] ?? String(tuning.capo)}
@@ -9261,6 +9294,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             <span className="w-6 shrink-0 text-[10px] font-medium text-slate-500">Vol</span>
                             <input
                               type="range"
+                              name={`track-${index + 1}-volume`}
                               min={0}
                               max={1}
                               step={0.01}
@@ -9270,7 +9304,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onPointerCancel={() => commitTrackVolume(laneId)}
                               onBlur={() => commitTrackVolume(laneId)}
                               onClick={(event) => event.stopPropagation()}
-                              className="h-2 min-w-0 flex-1 accent-slate-700"
+                              className="h-6 min-w-0 flex-1 accent-slate-700"
                               title="Track volume"
                               aria-label="Track volume"
                             />
@@ -9282,13 +9316,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             <span className="w-6 shrink-0 text-[10px] font-medium text-slate-500">Pan</span>
                             <input
                               type="range"
+                              name={`track-${index + 1}-pan`}
                               min={-1}
                               max={1}
                               step={0.01}
                               value={trackPan}
                               onChange={(event) => handleTrackPanChange(laneId, Number(event.target.value))}
                               onClick={(event) => event.stopPropagation()}
-                              className="h-2 min-w-0 flex-1 accent-sky-700"
+                              className="h-6 min-w-0 flex-1 accent-sky-700"
                               title="Track pan"
                               aria-label="headset direction (L/R)"
                             />
@@ -10043,6 +10078,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   </svg>
                   <input
                     type="range"
+                    name="editor-playback-volume"
                     min={0}
                     max={1}
                     step={0.01}
@@ -10050,6 +10086,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     onChange={(event) => handleGlobalPlaybackVolumeChange(Number(event.target.value))}
                     className="w-20 accent-slate-700"
                     title="Volume"
+                    aria-label="Playback volume"
                   />
               </div>
             </div>
@@ -10065,6 +10102,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 <span>Zoom</span>
                 <input
                   type="range"
+                  name="bottom-timeline-zoom"
                   min={TIMELINE_ZOOM_MIN}
                   max={TIMELINE_ZOOM_MAX}
                   step={1}
@@ -10399,7 +10437,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (!session?.user?.id) {
     return {
       redirect: {
-        destination: "/auth/login",
+        destination: `/auth/login?next=${encodeURIComponent(ctx.resolvedUrl || `/gte/${editorId}`)}`,
         permanent: false,
       },
     };

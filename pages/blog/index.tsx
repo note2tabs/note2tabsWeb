@@ -29,6 +29,7 @@ type Props = {
   pageCount: number;
   activeCategory: string | null;
   activeTag: string | null;
+  dataUnavailable?: boolean;
 };
 
 export default function BlogIndexPage({
@@ -41,6 +42,7 @@ export default function BlogIndexPage({
   pageCount,
   activeCategory,
   activeTag,
+  dataUnavailable = false,
 }: Props) {
   const pageParams = new URLSearchParams();
   if (activeCategory) pageParams.set("category", activeCategory);
@@ -181,7 +183,20 @@ export default function BlogIndexPage({
 
         <section className="blog-section">
           <h2 className="section-title">Latest posts</h2>
-          {posts.length === 0 && <div className="blog-empty">No posts found for this filter.</div>}
+          {posts.length === 0 && (
+            <div className="blog-empty stack-tight" role={dataUnavailable ? "status" : undefined}>
+              <strong>{dataUnavailable ? "The guides are temporarily unavailable." : "No posts found for this filter."}</strong>
+              {dataUnavailable && (
+                <span>Try again shortly, or continue with the editor and transcriber while the library reconnects.</span>
+              )}
+              {dataUnavailable && (
+                <div className="button-row">
+                  <Link href="/blog" className="button-secondary button-small">Try again</Link>
+                  <Link href="/editor" className="button-primary button-small">Open the editor</Link>
+                </div>
+              )}
+            </div>
+          )}
           <div className="blog-grid">
             {posts.map((post) => (
               <BlogPostCard
@@ -236,8 +251,15 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     where.tags = { some: { tag: { slug: activeTag } } };
   }
 
-  const [total, postsRaw, categories, tags, pillarsRaw] = await withPrismaReadRetry(() =>
-    prisma.$transaction([
+  let total = 0;
+  let postsRaw: any[] = [];
+  let categories: Array<{ id: string; name: string; slug: string }> = [];
+  let tags: Array<{ id: string; name: string; slug: string }> = [];
+  let pillarsRaw: any[] = [];
+  let dataUnavailable = false;
+  try {
+    [total, postsRaw, categories, tags, pillarsRaw] = await withPrismaReadRetry(() =>
+      prisma.$transaction([
       prisma.post.count({ where }),
       prisma.post.findMany({
       where,
@@ -317,8 +339,13 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
         },
       },
       }),
-    ])
-  );
+      ])
+    );
+  } catch (error) {
+    dataUnavailable = true;
+    ctx.res.setHeader("Cache-Control", "no-store");
+    console.error("blog index lookup failed", error);
+  }
 
   const mapPost = (post: any): BlogPostCard => ({
     id: post.id,
@@ -344,6 +371,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       pageCount: Math.max(1, Math.ceil(total / BLOG_PAGE_SIZE)),
       activeCategory,
       activeTag,
+      dataUnavailable,
     },
   };
 };

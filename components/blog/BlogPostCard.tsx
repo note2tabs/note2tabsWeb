@@ -35,7 +35,15 @@ export default function BlogPostCard({
     <article className={`blog-card blog-card--${variant}${hasCover ? "" : " blog-card--no-cover"}`}>
       {coverImageUrl && (
         <Link href={`/blog/${slug}`} className="blog-card-media-link" aria-label={title}>
-          <img src={coverImageUrl} alt={title} className="blog-card-cover" loading="lazy" />
+          <img
+            src={coverImageUrl}
+            alt={title}
+            className="blog-card-cover"
+            width={1200}
+            height={675}
+            loading="lazy"
+            decoding="async"
+          />
         </Link>
       )}
 

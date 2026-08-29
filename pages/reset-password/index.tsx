@@ -13,22 +13,23 @@ export default function RequestResetPage() {
     setError(null);
     setMessage(null);
     setLoading(true);
-    const res = await fetch("/api/auth/request-reset", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) {
-      setError(data?.error || "Could not start reset.");
-      return;
+    try {
+      const res = await fetch("/api/auth/request-reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.error || "We could not start the password reset. Please try again shortly.");
+        return;
+      }
+      setMessage("If that email exists, we sent a reset email with a link and reset code.");
+    } catch {
+      setError("We could not reach the password reset service. Check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
-    setMessage(
-      data?.deliveryConfigured
-        ? "If that email exists, we sent a reset email with a link and reset code."
-        : "If that email exists, a reset link was generated, but email delivery is not configured yet."
-    );
   };
 
   return (
@@ -56,8 +57,8 @@ export default function RequestResetPage() {
                 className="form-input"
               />
             </div>
-            {error && <div className="error">{error}</div>}
-            {message && <div className="status">{message}</div>}
+            {error && <div className="error" role="alert">{error}</div>}
+            {message && <div className="status" role="status">{message}</div>}
             <button type="submit" disabled={loading} className="button-primary">
               {loading ? "Sending..." : "Send reset link"}
             </button>
