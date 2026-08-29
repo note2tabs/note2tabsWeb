@@ -693,9 +693,10 @@ export type NoteChordCluster = {
 };
 
 /**
- * Groups a track's notes by onset proximity while requiring every member of a
- * group to overlap at a common point. The complete-link onset bound prevents a
- * run of slightly-late notes from chaining into one oversized chord.
+ * Groups a track's notes by close start and end timing while requiring every
+ * member of a group to overlap at a common point. Complete-link timing bounds
+ * prevent slightly-staggered runs or long/short note mixes from chaining into
+ * one oversized chord.
  *
  * This helper is deliberately non-mutating: callers can inspect the returned
  * clusters before deciding whether to turn groups with two or more notes into
@@ -703,9 +704,9 @@ export type NoteChordCluster = {
  */
 export const clusterTrackNotesIntoChordGroups = (
   notes: Note[],
-  onsetToleranceFrames: number
+  timingToleranceFrames: number
 ): NoteChordCluster[] => {
-  const tolerance = Math.max(0, Math.round(onsetToleranceFrames));
+  const tolerance = Math.max(0, Math.round(timingToleranceFrames));
   const ordered = [...notes].sort(
     (left, right) => left.startTime - right.startTime || left.midiNum - right.midiNum || left.id - right.id
   );
@@ -715,10 +716,18 @@ export const clusterTrackNotesIntoChordGroups = (
     const noteStart = Math.round(note.startTime);
     const noteEnd = noteStart + clampEventLength(note.length);
     const current = clusters[clusters.length - 1];
+    const currentStarts = current?.notes.map((item) => Math.round(item.startTime)) ?? [];
+    const currentEnds =
+      current?.notes.map((item) => Math.round(item.startTime) + clampEventLength(item.length)) ?? [];
+    const nextStarts = [...currentStarts, noteStart];
+    const nextEnds = [...currentEnds, noteEnd];
+    const latestStart = nextStarts.length ? Math.max(...nextStarts) : noteStart;
+    const earliestEnd = nextEnds.length ? Math.min(...nextEnds) : noteEnd;
     const joinsCurrent =
       Boolean(current) &&
-      noteStart - current.startTime <= tolerance &&
-      noteStart < current.endTime;
+      Math.max(...nextStarts) - Math.min(...nextStarts) <= tolerance &&
+      Math.max(...nextEnds) - Math.min(...nextEnds) <= tolerance &&
+      latestStart < earliestEnd;
 
     if (!current || !joinsCurrent) {
       clusters.push({ startTime: noteStart, endTime: noteEnd, notes: [note] });
@@ -726,7 +735,8 @@ export const clusterTrackNotesIntoChordGroups = (
     }
 
     current.notes.push(note);
-    current.endTime = Math.min(current.endTime, noteEnd);
+    current.startTime = Math.min(...nextStarts);
+    current.endTime = Math.max(...nextEnds);
   });
 
   return clusters;
@@ -4192,6 +4202,7 @@ export default function GteWorkspace({
   const [localSnapToGridEnabled, setLocalSnapToGridEnabled] = useState(true);
   const [localSnapToKeyEnabled, setLocalSnapToKeyEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [optimizingFingering, setOptimizingFingering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playbackVolume, setPlaybackVolume] = useState(0.6);
   const [localPracticeLoopEnabled, setLocalPracticeLoopEnabled] = useState(false);
@@ -8904,6 +8915,7 @@ export default function GteWorkspace({
 
   const handleOptimizeFingering = () => {
     if (snapshotRef.current.notes.length === 0 && snapshotRef.current.chords.length === 0) return;
+    setOptimizingFingering(true);
     void runMutation(
       async () => {
         const generated = await requestGeneratedPlayingCoordinates();
@@ -8946,7 +8958,7 @@ export default function GteWorkspace({
         },
         serverMode: "immediate",
       }
-    );
+    ).finally(() => setOptimizingFingering(false));
     setSelectedNoteIds([]);
     setSelectedChordIds([]);
   };
@@ -13070,10 +13082,14 @@ export default function GteWorkspace({
                   void handleOptimizeFingering();
                 }}
                 disabled={
-                  (snapshot.notes.length === 0 && snapshot.chords.length === 0) || selectionActionsLocked
+                  optimizingFingering ||
+                  (snapshot.notes.length === 0 && snapshot.chords.length === 0) ||
+                  selectionActionsLocked
                 }
                 title={
-                  selectionActionsLocked
+                  optimizingFingering
+                    ? "Optimizing fingering"
+                    : selectionActionsLocked
                     ? "Disabled while notes/chords are selected in multiple tracks"
                     : "Chordizes simultaneous notes and optimizes the whole track"
                 }
@@ -13966,7 +13982,9 @@ export default function GteWorkspace({
                       setContextMenu(null);
                     }}
                     disabled={
-                      (snapshot.notes.length === 0 && snapshot.chords.length === 0) || selectionActionsLocked
+                      optimizingFingering ||
+                      (snapshot.notes.length === 0 && snapshot.chords.length === 0) ||
+                      selectionActionsLocked
                     }
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
@@ -16699,6 +16717,26 @@ export default function GteWorkspace({
                       </button>
                     </div>
                   )}
+
+                {optimizingFingering && (
+                  <div
+                    className="absolute top-0 z-[90] flex items-center justify-center bg-white/30 backdrop-blur-[2px]"
+                    style={{
+                      left: timelineViewport.scrollLeft,
+                      width: Math.max(1, timelineViewport.clientWidth || timelineWidth),
+                      height: timelineHeight,
+                    }}
+                    role="status"
+                    aria-live="polite"
+                    aria-label="Optimizing fingering"
+                  >
+                    <span
+                      className="h-9 w-9 animate-spin rounded-full border-[3px] border-slate-200 border-t-slate-800 shadow-sm"
+                      aria-hidden="true"
+                    />
+                    <span className="sr-only">Optimizing fingering</span>
+                  </div>
+                )}
 
                 {draftNote && mobileViewport && (
                   <div

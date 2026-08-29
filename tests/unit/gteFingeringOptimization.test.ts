@@ -62,6 +62,19 @@ describe("track fingering optimization", () => {
     expect(JSON.stringify(notes)).toBe(before);
   });
 
+  it("requires note starts and ends to both be close before chordizing", () => {
+    const notes = [
+      { ...note(1, 0, 60, [1, 1]), length: 240 },
+      { ...note(2, 4, 64, [0, 0]), length: 60 },
+      { ...note(3, 260, 67, [0, 3]), length: 120 },
+      { ...note(4, 267, 71, [1, 4]), length: 126 },
+    ];
+
+    const groups = clusterTrackNotesIntoChordGroups(notes, 15);
+
+    expect(groups.map((group) => group.notes.map((item) => item.id))).toEqual([[1], [2], [3, 4]]);
+  });
+
   it("generates coordinates, chordizes clusters, and preserves every pitch", () => {
     const draft = snapshot();
     const result = optimizeTrackFingeringInSnapshot(draft);
