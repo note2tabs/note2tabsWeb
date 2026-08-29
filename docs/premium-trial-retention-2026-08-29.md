@@ -30,12 +30,19 @@ The Stripe webhook now records the subscription lifecycle required to diagnose c
 
 Events use the authenticated Note2Tabs user ID, contain no email or Stripe customer identifier, and use Stripe event IDs for idempotency. Cancellation reason and feedback are recorded when Stripe supplies them.
 
+The browser's checkout confirmation is recorded separately as
+`subscription_checkout_confirmed`. Only the verified Stripe webhook emits
+`subscription_started`, preventing a successful checkout return and its
+webhook from inflating the trial cohort.
+
 ## Stripe settings that require dashboard authorization
 
 Before adding custom lifecycle email code, verify these in the production Stripe Dashboard so customers do not receive duplicate messages:
 
 1. Customer portal: allow cancellation at period end and enable cancellation-reason collection.
-2. Subscriptions and emails: enable the trial-ending reminder and point its management link to the customer portal.
+2. Choose exactly one trial reminder:
+   - keep `PREMIUM_TRIAL_REMINDER_MODE=stripe` (or unset) and enable Stripe's native trial-ending reminder; or
+   - set `PREMIUM_TRIAL_REMINDER_MODE=custom` and leave Stripe's reminder disabled. The custom reminder states the renewal date and price and returns the customer to their latest tab in Practice mode.
 3. Revenue recovery: enable Smart Retries and failed-payment emails.
 4. Branding: confirm Note2Tabs logo, colours, support URL, and statement descriptor.
 

@@ -26,6 +26,11 @@ import {
   normalizePremiumFunnelSource,
 } from "../../../lib/premiumFunnel";
 import { normalizePremiumOfferVariant } from "../../../lib/premiumOfferExperiment";
+import { sendTransactionalEmail } from "../../../lib/email";
+import {
+  buildPremiumTrialReminderEmail,
+  customPremiumTrialReminderEnabled,
+} from "../../../lib/premiumTrialReminder";
 
 export const config = {
   api: {
@@ -213,6 +218,7 @@ type SubscriptionLifecycleEvent =
   | "subscription_ended"
   | "subscription_payment_failed"
   | "subscription_renewed"
+  | "subscription_trial_reminder_sent"
   | "subscription_trial_ending";
 
 async function resolveUserIdFromEmail(email: string | null) {
@@ -248,6 +254,42 @@ function trackSubscriptionLifecycle(
     },
   });
   flushPostHogServerClientInBackground(client);
+}
+
+async function sendPremiumTrialReminder(
+  userId: string,
+  email: string,
+  trialEnd: number,
+  stripeEventId: string
+) {
+  if (!customPremiumTrialReminderEnabled()) return;
+  const [user, latestEditor] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    }),
+    prisma.canvases.findFirst({
+      where: { user_id: userId },
+      orderBy: { updated_at: "desc" },
+      select: { canvas_id: true, name: true },
+    }),
+  ]);
+  const reminder = buildPremiumTrialReminderEmail({
+    name: user?.name,
+    trialEndsAt: new Date(trialEnd * 1000),
+    latestEditor: latestEditor
+      ? { id: latestEditor.canvas_id, name: latestEditor.name }
+      : null,
+  });
+  await sendTransactionalEmail({
+    to: email,
+    subject: reminder.subject,
+    html: reminder.html,
+    text: reminder.text,
+  });
+  trackSubscriptionLifecycle(userId, "subscription_trial_reminder_sent", stripeEventId, {
+    destination: latestEditor ? "latest_editor_practice" : "transcriber",
+  });
 }
 
 type RenewalInvoiceDetails = {
@@ -509,6 +551,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           days_remaining: unixDaysRemaining(subscription.trial_end),
           cancel_at_period_end: subscription.cancel_at_period_end,
         });
+        if (email && subscription.trial_end && !subscription.cancel_at_period_end) {
+          try {
+            await sendPremiumTrialReminder(userId, email, subscription.trial_end, event.id);
+          } catch (error) {
+            // Reminder delivery must not cause Stripe to retry an otherwise
+            // successfully handled billing event.
+            console.error("Premium trial reminder delivery failed", { userId, error });
+          }
+        }
       }
     }
 

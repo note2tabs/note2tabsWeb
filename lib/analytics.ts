@@ -21,6 +21,7 @@ export const ANALYTICS_EVENTS = {
   checkoutFailed: "checkout_failed",
   checkoutClientFailed: "checkout_client_failed",
   subscriptionStarted: "subscription_started",
+  subscriptionCheckoutConfirmed: "subscription_checkout_confirmed",
   premiumTrialActivationShown: "premium_trial_activation_shown",
   premiumTrialActivationLanded: "premium_trial_activation_landed",
   premiumPromptShown: "premium_prompt_shown",

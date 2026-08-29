@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMocks, createResponse } from "node-mocks-http";
 import { PREMIUM_MONTHLY_CREDITS, STARTING_CREDITS } from "../../lib/credits";
 
-const { sessionMock, stripeMock, prismaMock, posthogMock } = vi.hoisted(() => {
+const { sessionMock, stripeMock, prismaMock, posthogMock, sendEmailMock } = vi.hoisted(() => {
   return {
     sessionMock: vi.fn(),
     stripeMock: {
@@ -45,6 +45,7 @@ const { sessionMock, stripeMock, prismaMock, posthogMock } = vi.hoisted(() => {
       },
       canvases: {
         deleteMany: vi.fn(),
+        findFirst: vi.fn(),
       },
       account: {
         deleteMany: vi.fn(),
@@ -63,6 +64,7 @@ const { sessionMock, stripeMock, prismaMock, posthogMock } = vi.hoisted(() => {
       capture: vi.fn(),
       flush: vi.fn().mockResolvedValue(undefined),
     },
+    sendEmailMock: vi.fn().mockResolvedValue(true),
   };
 });
 
@@ -81,6 +83,10 @@ vi.mock("../../lib/prisma", () => ({
 vi.mock("../../lib/posthogServer", () => ({
   createPostHogServerClient: vi.fn(() => posthogMock),
   flushPostHogServerClientInBackground: vi.fn(),
+}));
+
+vi.mock("../../lib/email", () => ({
+  sendTransactionalEmail: (...args: unknown[]) => sendEmailMock(...args),
 }));
 
 function buildWebhookReq(signature = "sig_test", body = "{}") {
@@ -130,6 +136,7 @@ describe("stripe premium flow", () => {
     process.env.STRIPE_PRICE_PREMIUM_MONTHLY = "price_test_premium";
     delete process.env.STRIPE_PRODUCT_PREMIUM;
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+    delete process.env.PREMIUM_TRIAL_REMINDER_MODE;
     process.env.NEXTAUTH_URL = "https://note2tabs.test";
     sessionMock.mockResolvedValue({
       user: { id: "user_1", email: "user@example.com" },
@@ -164,6 +171,7 @@ describe("stripe premium flow", () => {
     prismaMock.user.delete.mockResolvedValue({});
     prismaMock.tabJob.deleteMany.mockResolvedValue({ count: 0 });
     prismaMock.canvases.deleteMany.mockResolvedValue({ count: 0 });
+    prismaMock.canvases.findFirst.mockResolvedValue(null);
     prismaMock.account.deleteMany.mockResolvedValue({ count: 0 });
     prismaMock.session.deleteMany.mockResolvedValue({ count: 0 });
     prismaMock.stripeRenewalInvoice.findUnique.mockResolvedValue(null);
@@ -1161,6 +1169,52 @@ describe("stripe premium flow", () => {
         properties: expect.objectContaining({
           cancel_at_period_end: false,
           $insert_id: "subscription_trial_ending:evt_trial_ending",
+        }),
+      });
+    });
+
+    it("sends one custom trial reminder to the latest tab when explicitly enabled", async () => {
+      process.env.PREMIUM_TRIAL_REMINDER_MODE = "custom";
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        id: "evt_trial_reminder",
+        type: "customer.subscription.trial_will_end",
+        data: {
+          object: premiumSubscription({
+            status: "trialing",
+            trial_end: 1_800_000_000,
+            cancel_at_period_end: false,
+          }),
+        },
+      });
+      stripeMock.customers.retrieve.mockResolvedValue({
+        id: "cus_123",
+        email: "user@example.com",
+      });
+      prismaMock.user.findFirst.mockResolvedValue({ id: "user_1" });
+      prismaMock.user.findUnique.mockResolvedValue({ name: "Noel" });
+      prismaMock.canvases.findFirst.mockResolvedValue({
+        canvas_id: "editor_123",
+        name: "Autumn Fall",
+      });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const req = buildWebhookReq();
+      const res = createResponse();
+      await handler(req as any, res as any);
+
+      expect(sendEmailMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: "user@example.com",
+          subject: expect.stringContaining("Your Note2Tabs trial ends"),
+          text: expect.stringContaining("/gte/editor_123?mode=practice&source=trial_reminder"),
+        })
+      );
+      expect(posthogMock.capture).toHaveBeenCalledWith({
+        distinctId: "user_1",
+        event: "subscription_trial_reminder_sent",
+        properties: expect.objectContaining({
+          destination: "latest_editor_practice",
+          $insert_id: "subscription_trial_reminder_sent:evt_trial_reminder",
         }),
       });
     });
