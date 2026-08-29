@@ -263,6 +263,20 @@ async function sendPremiumTrialReminder(
   stripeEventId: string
 ) {
   if (!customPremiumTrialReminderEnabled()) return;
+  const reminderIdentifier = `reminder:premium-trial:${userId}`;
+  const reminderToken = `stripe-event:${stripeEventId}`;
+  try {
+    await prisma.verificationToken.create({
+      data: {
+        identifier: reminderIdentifier,
+        token: reminderToken,
+        expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      },
+    });
+  } catch (error) {
+    if (prismaErrorCode(error) === "P2002") return;
+    throw error;
+  }
   const [user, latestEditor] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -281,12 +295,19 @@ async function sendPremiumTrialReminder(
       ? { id: latestEditor.canvas_id, name: latestEditor.name }
       : null,
   });
-  await sendTransactionalEmail({
-    to: email,
-    subject: reminder.subject,
-    html: reminder.html,
-    text: reminder.text,
-  });
+  try {
+    await sendTransactionalEmail({
+      to: email,
+      subject: reminder.subject,
+      html: reminder.html,
+      text: reminder.text,
+    });
+  } catch (error) {
+    await prisma.verificationToken.deleteMany({
+      where: { identifier: reminderIdentifier, token: reminderToken },
+    });
+    throw error;
+  }
   trackSubscriptionLifecycle(userId, "subscription_trial_reminder_sent", stripeEventId, {
     destination: latestEditor ? "latest_editor_practice" : "transcriber",
   });

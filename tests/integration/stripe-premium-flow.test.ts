@@ -58,6 +58,10 @@ const { sessionMock, stripeMock, prismaMock, posthogMock, sendEmailMock } = vi.h
         findFirst: vi.fn(),
         create: vi.fn(),
       },
+      verificationToken: {
+        create: vi.fn(),
+        deleteMany: vi.fn(),
+      },
       $transaction: vi.fn(),
     },
     posthogMock: {
@@ -177,6 +181,8 @@ describe("stripe premium flow", () => {
     prismaMock.stripeRenewalInvoice.findUnique.mockResolvedValue(null);
     prismaMock.stripeRenewalInvoice.findFirst.mockResolvedValue(null);
     prismaMock.stripeRenewalInvoice.create.mockResolvedValue({});
+    prismaMock.verificationToken.create.mockResolvedValue({});
+    prismaMock.verificationToken.deleteMany.mockResolvedValue({ count: 0 });
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => unknown) =>
       callback(prismaMock)
     );
@@ -1209,6 +1215,12 @@ describe("stripe premium flow", () => {
           text: expect.stringContaining("/gte/editor_123?mode=practice&source=trial_reminder"),
         })
       );
+      expect(prismaMock.verificationToken.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          identifier: "reminder:premium-trial:user_1",
+          token: "stripe-event:evt_trial_reminder",
+        }),
+      });
       expect(posthogMock.capture).toHaveBeenCalledWith({
         distinctId: "user_1",
         event: "subscription_trial_reminder_sent",
@@ -1217,6 +1229,35 @@ describe("stripe premium flow", () => {
           $insert_id: "subscription_trial_reminder_sent:evt_trial_reminder",
         }),
       });
+    });
+
+    it("does not resend a custom trial reminder for the same Stripe event", async () => {
+      process.env.PREMIUM_TRIAL_REMINDER_MODE = "custom";
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        id: "evt_trial_duplicate",
+        type: "customer.subscription.trial_will_end",
+        data: {
+          object: premiumSubscription({
+            status: "trialing",
+            trial_end: 1_800_000_000,
+            cancel_at_period_end: false,
+          }),
+        },
+      });
+      stripeMock.customers.retrieve.mockResolvedValue({
+        id: "cus_123",
+        email: "user@example.com",
+      });
+      prismaMock.user.findFirst.mockResolvedValue({ id: "user_1" });
+      prismaMock.verificationToken.create.mockRejectedValue({ code: "P2002" });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const req = buildWebhookReq();
+      const res = createResponse();
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(sendEmailMock).not.toHaveBeenCalled();
     });
 
     it("tracks failed Premium renewal payments without exposing customer details", async () => {
