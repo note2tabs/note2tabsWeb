@@ -2986,6 +2986,134 @@ input[type="number"] {
   padding-top: 92px;
 }
 
+.subscription-retention-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.34);
+  backdrop-filter: blur(3px);
+}
+
+.subscription-retention-dialog {
+  position: relative;
+  width: min(100%, 520px);
+  max-height: min(720px, calc(100dvh - 32px));
+  overflow-y: auto;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 20px;
+  padding: 28px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
+}
+
+.subscription-retention-dialog h2 {
+  margin: 0 40px 8px 0;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+}
+
+.subscription-retention-dialog > p {
+  margin: 0 0 20px;
+}
+
+.subscription-retention-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.subscription-retention-choices {
+  display: grid;
+  gap: 10px;
+}
+
+.subscription-retention-choice {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--text);
+  text-align: left;
+}
+
+.subscription-retention-choice:hover {
+  border-color: rgba(15, 23, 42, 0.28);
+  background: #fafaf9;
+}
+
+.subscription-retention-choice span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.subscription-retention-save {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 15px;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: 14px;
+  background: rgba(240, 253, 250, 0.58);
+}
+
+.subscription-retention-save p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.subscription-retention-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.subscription-retention-back {
+  display: block;
+  margin: 12px auto 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.84rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 560px) {
+  .subscription-retention-backdrop {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .subscription-retention-dialog {
+    padding: 24px 18px 18px;
+    border-radius: 18px;
+  }
+
+  .subscription-retention-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 .settingsShell {
   width: min(100% - 32px, 1040px);
   display: grid;

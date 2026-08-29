@@ -30,6 +30,8 @@ import {
 } from "../lib/premiumEntitlement";
 import NoIndexHead from "../components/NoIndexHead";
 import PremiumConversionCard from "../components/PremiumConversionCard";
+import SubscriptionRetentionDialog from "../components/SubscriptionRetentionDialog";
+import type { SubscriptionCancellationReason } from "../lib/subscriptionCancellationRetention";
 import {
   getOrCreatePremiumFunnelContext,
   premiumFunnelProperties,
@@ -104,6 +106,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const [consentState, setConsentState] = useState<"granted" | "denied">("granted");
   const [upgradeBusy, setUpgradeBusy] = useState(false);
   const [portalBusy, setPortalBusy] = useState(false);
+  const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
   const [signOutBusy, setSignOutBusy] = useState(false);
   const [checkoutStatus, setCheckoutStatus] = useState<string | null>(null);
   const checkoutReturnHandledRef = useRef(false);
@@ -298,13 +301,22 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     }
   };
 
-  const handleManageSubscription = async () => {
+  const handleManageSubscription = async (
+    intent: "billing" | "cancellation",
+    reason?: SubscriptionCancellationReason
+  ) => {
     if (!stripeReady) {
       setError("Stripe not configured yet. Subscription management is unavailable.");
       return;
     }
     setPortalBusy(true);
     setError(null);
+    sendEvent(
+      intent === "cancellation"
+        ? ANALYTICS_EVENTS.subscriptionCancellationContinued
+        : ANALYTICS_EVENTS.subscriptionManagementOpened,
+      reason ? { reason } : undefined
+    );
     try {
       const res = await fetch("/api/stripe/create-portal-session", { method: "POST" });
       const data = await res.json().catch(() => ({}));
@@ -482,7 +494,9 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             {isPaidPremium && (
               <button
                 type="button"
-                onClick={handleManageSubscription}
+                onClick={() => {
+                  setSubscriptionDialogOpen(true);
+                }}
                 className="settingsButton settingsButtonSecondary"
                 disabled={portalBusy}
               >
@@ -724,6 +738,29 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   return (
     <>
       <NoIndexHead title="Settings | Note2Tabs" canonicalPath="/settings" />
+      <SubscriptionRetentionDialog
+        open={subscriptionDialogOpen}
+        busy={portalBusy}
+        onClose={() => setSubscriptionDialogOpen(false)}
+        onCancellationIntent={() => {
+          sendEvent(ANALYTICS_EVENTS.subscriptionCancellationIntentStarted, {
+            entry: "settings",
+          });
+        }}
+        onOpenPortal={(intent, reason) => {
+          if (intent === "cancellation") {
+            sendEvent(ANALYTICS_EVENTS.subscriptionCancellationReasonSelected, { reason });
+          }
+          void handleManageSubscription(intent, reason);
+        }}
+        onAlternative={(reason, destination) => {
+          sendEvent(ANALYTICS_EVENTS.subscriptionCancellationAlternativeClicked, {
+            reason,
+            destination,
+          });
+          setSubscriptionDialogOpen(false);
+        }}
+      />
     <main className="page settingsPage">
       <div className="container settingsShell">
         <header className="settingsHeader">
