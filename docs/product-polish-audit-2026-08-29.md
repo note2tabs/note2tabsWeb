@@ -19,7 +19,10 @@ This audit covers the production frontend and its user-facing API errors. It doe
 - Standardized expired-session responses and preserved deep-link destinations through authentication.
 - Improved login, signup, verification, reset, settings, library, transcription, import/export, editor, drum, and checkout failure states.
 - Improved the signed-in home and tab-library hierarchy, empty states, tab metadata, menus, dialogs, and accessible names without redesigning established UI.
-- Simplified account deletion to one clear confirmation instead of requiring feedback that was never submitted.
+- Added a transparent two-step account-deletion flow: a categorized leaving reason,
+  a relevant way to resolve the problem or keep saved work, followed by an explicit
+  permanent-deletion confirmation. Users can choose “Prefer not to say,” and deletion
+  remains available without hidden obstruction.
 - Added a complete branded fallback when the blog database is temporarily unavailable.
 - Added resilient sitemap/RSS behavior and corrected route/redirect handling for Next.js 16.
 - Fixed contrast, hit-target, image-dimension, form-label, ruler, coordinate, alert, and dialog issues found during the audit.

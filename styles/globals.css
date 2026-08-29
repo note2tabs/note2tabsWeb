@@ -2946,6 +2946,12 @@ input[type="number"] {
   background: linear-gradient(180deg, #fffdfd, #fff7f7);
 }
 
+.delete-flow-title {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
 .delete-alternatives {
   display: grid;
   gap: 10px;

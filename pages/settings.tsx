@@ -54,6 +54,19 @@ type Props = {
 };
 
 type SettingsSection = "account" | "plan" | "security" | "privacy" | "danger";
+type DeleteReason = "not_using" | "results" | "difficult" | "cost" | "technical" | "privacy" | "other" | "skip";
+type DeleteAlternative = { href: string; label: string; detail: string; section?: SettingsSection };
+
+const deleteReasons: Array<{ value: DeleteReason; label: string }> = [
+  { value: "not_using", label: "I am not using it enough" },
+  { value: "results", label: "The transcription results did not meet my needs" },
+  { value: "difficult", label: "The editor or transcriber was difficult to use" },
+  { value: "cost", label: "Premium is not right for my budget" },
+  { value: "technical", label: "I ran into a technical problem" },
+  { value: "privacy", label: "I have a privacy or data concern" },
+  { value: "other", label: "Another reason" },
+  { value: "skip", label: "Prefer not to say" },
+];
 
 const settingsSections: Array<{ id: SettingsSection; label: string }> = [
   { id: "account", label: "Account" },
@@ -101,6 +114,8 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteFlowOpen, setDeleteFlowOpen] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<"retention" | "confirm">("retention");
+  const [deleteReason, setDeleteReason] = useState<DeleteReason | "">("");
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
   const [verifyBusy, setVerifyBusy] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
@@ -116,12 +131,44 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const canFinalizeDelete = deleteConfirmationText.trim().toLowerCase() === "delete";
   const isAdminOrMod = user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const isAdmin = user.role === "ADMIN";
-  const analyticsHref = isAdmin
-    ? "/admin/analytics?view=overview&range=30d"
-    : "/admin/analytics?view=moderation&range=30d";
   const isPremium =
     user.role === "PREMIUM" || user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const isPaidPremium = user.role === "PREMIUM";
+
+  const resetDeleteFlow = () => {
+    setDeleteFlowOpen(false);
+    setDeleteStep("retention");
+    setDeleteReason("");
+    setDeleteConfirmationText("");
+    setError(null);
+  };
+
+  const deletionAlternative: DeleteAlternative | null = (() => {
+    if (deleteReason === "cost") {
+      return isPaidPremium
+        ? { href: "/settings", section: "plan", label: "Manage my plan", detail: "You can cancel Premium without deleting your tabs or account." }
+        : { href: "/home", label: "Keep my free account", detail: "A free account has no subscription charge and keeps your saved work available." };
+    }
+    if (deleteReason === "results") {
+      return { href: "/transcribe", label: "Try another transcription", detail: "Different source audio and the Heavy model can improve complex recordings." };
+    }
+    if (deleteReason === "difficult") {
+      return { href: "/contact", label: "Tell us what was confusing", detail: "We would like to help and use your feedback to improve the product." };
+    }
+    if (deleteReason === "technical") {
+      return { href: "/contact", label: "Get help with the problem", detail: "Contact us and describe what happened—we will investigate it." };
+    }
+    if (deleteReason === "privacy") {
+      return { href: "/settings", section: "privacy", label: "Review privacy controls", detail: "You can disable analytics without deleting your saved work." };
+    }
+    if (deleteReason === "not_using") {
+      return { href: "/tabs", label: "Keep my saved tabs", detail: "There is no need to delete a free account; your work can wait until you return." };
+    }
+    return null;
+  })();
+  const analyticsHref = isAdmin
+    ? "/admin/analytics?view=overview&range=30d"
+    : "/admin/analytics?view=moderation&range=30d";
   const resetLabel = new Date(credits.resetAt).toLocaleDateString();
   const creditsUsedLabel = `${credits.used} / ${credits.limit}`;
 
@@ -359,6 +406,10 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         setError(data?.error || "Could not delete account.");
         return;
       }
+      sendEvent(ANALYTICS_EVENTS.accountDeletionConfirmed, {
+        reason: deleteReason || "unknown",
+        plan: isPaidPremium ? "premium" : "free",
+      });
       await handleSignOut(true);
     } catch {
       setError("Could not delete account. Check your connection and try again.");
@@ -599,8 +650,13 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             className="settingsButton settingsButtonDanger"
             onClick={() => {
               setDeleteFlowOpen(true);
+              setDeleteStep("retention");
+              setDeleteReason("");
               setDeleteConfirmationText("");
               setError(null);
+              sendEvent(ANALYTICS_EVENTS.accountDeletionStarted, {
+                plan: isPaidPremium ? "premium" : "free",
+              });
             }}
           >
             Delete account
@@ -609,41 +665,101 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       )}
       {deleteFlowOpen && (
         <div className="card-outline stack delete-flow">
-          <p className="muted text-small">
-            This permanently removes your account, saved tabs, transcription history, and active subscription. Type <strong>delete</strong> to confirm.
-          </p>
-          <label className="form-group">
-            <span className="label">Type delete to confirm</span>
-            <input
-              type="text"
-              className="form-input"
-              value={deleteConfirmationText}
-              onChange={(event) => setDeleteConfirmationText(event.target.value)}
-              placeholder="delete"
-              autoComplete="off"
-            />
-          </label>
-          <div className="button-row">
-            <button
-              type="button"
-              className="button-secondary button-small"
-              onClick={() => {
-                setDeleteFlowOpen(false);
-                setDeleteConfirmationText("");
-                setError(null);
-              }}
-            >
-              Keep my account
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleDelete()}
-              className="button-secondary button-small button-delete-final"
-              disabled={busy || !canFinalizeDelete}
-            >
-              {busy ? "Deleting..." : "Delete account permanently"}
-            </button>
-          </div>
+          {deleteStep === "retention" ? (
+            <>
+              <div>
+                <h3 className="delete-flow-title">Before you go</h3>
+                <p className="muted text-small">
+                  What made Note2Tabs not work for you? Your answer helps us improve, and you can prefer not to say.
+                </p>
+              </div>
+              <label className="form-group">
+                <span className="label">Main reason</span>
+                <select
+                  className="form-input"
+                  value={deleteReason}
+                  onChange={(event) => setDeleteReason(event.target.value as DeleteReason)}
+                >
+                  <option value="">Choose a reason</option>
+                  {deleteReasons.map((reason) => (
+                    <option key={reason.value} value={reason.value}>{reason.label}</option>
+                  ))}
+                </select>
+              </label>
+              {deletionAlternative && (
+                <div className="delete-alternatives">
+                  <p className="text-small">{deletionAlternative.detail}</p>
+                  <Link
+                    href={deletionAlternative.href}
+                    className="settingsButton settingsButtonSecondary"
+                    onClick={(event) => {
+                      sendEvent(ANALYTICS_EVENTS.accountDeletionAlternativeClicked, {
+                        reason: deleteReason,
+                        destination: deletionAlternative.section || deletionAlternative.href,
+                      });
+                      if (deletionAlternative.section) {
+                        event.preventDefault();
+                        resetDeleteFlow();
+                        handleSelectSection(deletionAlternative.section);
+                      }
+                    }}
+                  >
+                    {deletionAlternative.label}
+                  </Link>
+                </div>
+              )}
+              <div className="button-row">
+                <button type="button" className="button-secondary button-small" onClick={resetDeleteFlow}>
+                  Keep my account
+                </button>
+                <button
+                  type="button"
+                  className="button-ghost button-small"
+                  disabled={!deleteReason}
+                  onClick={() => {
+                    if (!deleteReason) return;
+                    sendEvent(ANALYTICS_EVENTS.accountDeletionReasonSelected, {
+                      reason: deleteReason,
+                      plan: isPaidPremium ? "premium" : "free",
+                    });
+                    setDeleteStep("confirm");
+                  }}
+                >
+                  Continue to deletion
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="muted text-small">
+                This permanently removes your account, saved tabs, transcription history, and active subscription. Type <strong>delete</strong> to confirm.
+              </p>
+              <label className="form-group">
+                <span className="label">Type delete to confirm</span>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={deleteConfirmationText}
+                  onChange={(event) => setDeleteConfirmationText(event.target.value)}
+                  placeholder="delete"
+                  autoComplete="off"
+                />
+              </label>
+              <div className="button-row">
+                <button type="button" className="button-secondary button-small" onClick={() => setDeleteStep("retention")}>
+                  Go back
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete()}
+                  className="button-secondary button-small button-delete-final"
+                  disabled={busy || !canFinalizeDelete}
+                >
+                  {busy ? "Deleting..." : "Delete account permanently"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </section>
