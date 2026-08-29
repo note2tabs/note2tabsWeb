@@ -63,7 +63,7 @@ Stripe documents `customer.subscription.trial_will_end` as arriving about three 
 The Stripe account available to this workspace was inspected read-only on August 29, 2026. It is a **test-mode** account, so these findings must not be presented as the production configuration:
 
 - There is no active Customer Portal configuration. Preview testing cannot currently prove self-service cancellation, cancellation reversal, payment-method updates, or cancellation-reason capture.
-- The only test webhook endpoint is disabled.
+- The only test webhook endpoint targets `note2tabs.com/api/stripe/webhook` and is disabled. It should not simply be re-enabled for branch verification because its signing secret and destination are not isolated to the preview.
 - That endpoint includes subscription updates/deletion, trial ending, payment failure, and invoice payment, but does not subscribe to `checkout.session.completed`.
 
 Before end-to-end preview verification, create or activate a test Customer Portal configuration with payment-method updates, subscription cancellation at period end, and cancellation reasons; then enable a test webhook endpoint covering `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.trial_will_end`, `invoice.payment_failed`, and `invoice.payment_succeeded`. Repeat the same audit separately against live mode before production rollout.
