@@ -53,6 +53,8 @@ model User {
   tokensRemaining             Int                  @default(120)
   createdAt                   DateTime             @default(now())
   updatedAt                   DateTime             @updatedAt
+  lastLoginAt                 DateTime             @default(now())
+  lastActiveAt                DateTime             @default(now())
   emailVerifiedBool           Boolean              @default(false)
   unverifiedTranscriptionUsed Boolean              @default(false)
   accounts                    Account[]

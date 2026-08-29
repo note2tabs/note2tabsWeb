@@ -127,6 +127,21 @@ export const authOptions: NextAuthOptions = {
     },
     async signIn({ user, account }) {
       if (shouldBypassPrismaSync()) return true;
+      if (user?.id) {
+        try {
+          const signedInAt = new Date();
+          await prisma.user.updateMany({
+            where: { id: user.id },
+            data: {
+              lastLoginAt: signedInAt,
+              lastActiveAt: signedInAt,
+            },
+          });
+        } catch (error) {
+          markPrismaUnavailable(error);
+          console.error("Failed to record user login", error);
+        }
+      }
       if (account?.provider && account.provider !== "credentials" && user?.email) {
         try {
           await prisma.user.updateMany({
