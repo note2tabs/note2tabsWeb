@@ -34,6 +34,7 @@ const recentlyUpdatedSeoPaths = new Set([
   "/mp3-to-guitar-tabs",
   "/ai-guitar-tab-generator",
   "/free-guitar-tab-maker",
+  "/youtube-to-guitar-tabs",
   "/features",
   ...seoFeaturePages.map((page) => `/features/${page.slug}`),
 ]);
@@ -41,7 +42,9 @@ const recentlyUpdatedSeoPaths = new Set([
 const refreshedSeoPathDates = new Map([
   ["/audio-to-guitar-tab-converter", "2026-08-05"],
   ["/mp3-to-guitar-tabs", "2026-08-05"],
-  ["/ai-guitar-tab-generator", "2026-08-14"],
+  ["/ai-guitar-tab-generator", "2026-08-30"],
+  ["/free-guitar-tab-maker", "2026-08-30"],
+  ["/youtube-to-guitar-tabs", "2026-08-30"],
 ]);
 
 const buildUrl = (baseUrl: string, path: string) =>
