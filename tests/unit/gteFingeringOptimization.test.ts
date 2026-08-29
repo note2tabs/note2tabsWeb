@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   clusterTrackNotesIntoChordGroups,
+  createBackendStyleChordAlternatives,
+  createPossibleTabs,
   finalizeOptimizedTrackFingeringInSnapshot,
+  generateOctaveCombos,
   optimizeTrackFingeringInSnapshot,
+  scoreChord,
 } from "../../components/GteWorkspace";
 import { getTabMidi } from "../../lib/gteTuning";
 import type { Chord, EditorSnapshot, Note } from "../../types/gte";
@@ -113,6 +117,52 @@ describe("track fingering optimization", () => {
     optimizeTrackFingeringInSnapshot(draft, { optimizeChordFingerings: false });
 
     expect(draft.chords[0].currentTabs).toEqual(originalTabs);
+  });
+
+  it("ports the backend octave-combo generator order", () => {
+    expect(generateOctaveCombos([60, 64, 67])).toEqual([
+      [60, 64, 67],
+      [60, 64, 67, 72],
+      [60, 64, 67, 76],
+      [60, 64, 67, 79],
+      [60, 64, 67, 72, 76],
+      [60, 64, 67, 72, 79],
+      [60, 64, 67, 76, 79],
+      [60, 64, 67, 72, 76, 79],
+    ]);
+  });
+
+  it("ports backend possible-tab generation and rejects duplicate strings", () => {
+    const alternatives = createPossibleTabs(
+      [60, 64],
+      new Map([
+        [60, [[0, 8], [1, 3]]],
+        [64, [[0, 12], [2, 2]]],
+      ])
+    );
+
+    expect(alternatives).toEqual([
+      [[0, 8], [2, 2]],
+      [[1, 3], [0, 12]],
+      [[1, 3], [2, 2]],
+    ]);
+  });
+
+  it("ports the backend chord scoring formula", () => {
+    expect(scoreChord([[0, 0], [1, 1], [3, 3]])).toBe(4);
+    expect(scoreChord([[0, 0], [1, 0], [2, 0]])).toBe(0);
+  });
+
+  it("uses backend-style chord alternatives when optimizing chord fingerings", () => {
+    const draft = snapshot();
+    draft.notes = [];
+    draft.chords = [chord(20, 0, 120, [[1, 1], [0, 0]], [60, 64])];
+    const expectedBest = createBackendStyleChordAlternatives(draft, [60, 64], [2, 5])[0];
+
+    optimizeTrackFingeringInSnapshot(draft, { generatePlayingCoordinates: false });
+
+    expect(draft.chords[0].currentTabs).toEqual(expectedBest);
+    expect(draft.chords[0].ogTabs).toEqual(expectedBest);
   });
 
   it("keeps onset clusters larger than the available strings as notes", () => {

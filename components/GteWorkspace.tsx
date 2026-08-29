@@ -979,92 +979,141 @@ type FingeringOptimizationResult = {
   createdChordIds: number[];
 };
 
-const eventsOverlap = (
-  leftStart: number,
-  leftLength: number,
-  rightStart: number,
-  rightLength: number
-) =>
-  leftStart < rightStart + clampEventLength(rightLength) &&
-  rightStart < leftStart + clampEventLength(leftLength);
-
-const getBlockedStringsForChord = (snapshot: EditorSnapshot, chord: Chord) => {
-  const blocked = new Set<number>();
-  snapshot.notes.forEach((note) => {
-    if (eventsOverlap(chord.startTime, chord.length, note.startTime, note.length)) {
-      blocked.add(note.tab[0]);
+export const generateOctaveCombos = (baseMidis: number[]) => {
+  const baseList = baseMidis.map((midi) => Math.trunc(Number(midi)));
+  const additionalList = baseList.map((midi) => midi + 12);
+  const result: number[][] = [];
+  const selected: number[] = [];
+  const collectCombinations = (startIndex: number, targetSize: number) => {
+    if (selected.length === targetSize) {
+      const combo = [...baseList, ...selected];
+      if (combo.length <= 6) result.push(combo);
+      return;
     }
-  });
-  snapshot.chords.forEach((other) => {
-    if (other.id === chord.id) return;
-    if (!eventsOverlap(chord.startTime, chord.length, other.startTime, other.length)) return;
-    other.currentTabs.forEach((tab) => blocked.add(tab[0]));
-  });
-  return blocked;
-};
-
-const scoreChordTabs = (tabs: TabCoord[], playingCoord: TabCoord) => {
-  const fretted = tabs.map((tab) => tab[1]).filter((fret) => fret > 0);
-  const fretSpan = fretted.length > 1 ? Math.max(...fretted) - Math.min(...fretted) : 0;
-  const strings = tabs.map((tab) => tab[0]);
-  const stringSpan = strings.length > 1 ? Math.max(...strings) - Math.min(...strings) + 1 : 1;
-  const stringGaps = Math.max(0, stringSpan - new Set(strings).size);
-  const positionDistance = tabs.reduce(
-    (total, tab) => total + scoreTabDistance(tab, playingCoord, false),
-    0
-  );
-  let pitchOrderPenalty = 0;
-  for (let index = 1; index < tabs.length; index += 1) {
-    // MIDI pitches are sorted low-to-high. On a standard tab, higher pitches
-    // should generally move toward the lower string indices.
-    if (tabs[index][0] > tabs[index - 1][0]) pitchOrderPenalty += 4;
+    for (let index = startIndex; index < additionalList.length; index += 1) {
+      selected.push(additionalList[index]);
+      collectCombinations(index + 1, targetSize);
+      selected.pop();
+    }
+  };
+  for (let size = 0; size <= additionalList.length; size += 1) {
+    collectCombinations(0, size);
   }
-  return positionDistance + fretSpan * 3 + stringGaps * 2 + pitchOrderPenalty;
+  return result;
 };
 
-const chooseBestChordTabs = (snapshot: EditorSnapshot, chord: Chord): TabCoord[] | null => {
-  if (chord.originalMidi.length < 2 || chord.originalMidi.length > 6) return null;
-  const playingCoord = getCutCoordAtTime(snapshot, chord.startTime);
-  const blockedStrings = getBlockedStringsForChord(snapshot, chord);
-  const candidatesByPitch = chord.originalMidi.map((midi) =>
-    getSnapshotTabsForMidi(snapshot, midi)
-      .filter((tab) => !blockedStrings.has(tab[0]))
-      .sort(
-        (left, right) =>
-          scoreTabDistance(left, playingCoord, false) - scoreTabDistance(right, playingCoord, false) ||
-          left[0] - right[0] ||
-          left[1] - right[1]
-      )
+export const createPossibleTabs = (
+  midiList: number[],
+  midiDict: Map<number, TabCoord[]> | Record<number, TabCoord[]>
+) => {
+  const valueLists = midiList.map((midi) =>
+    midiDict instanceof Map ? midiDict.get(midi) ?? [] : midiDict[midi] ?? []
   );
-  if (candidatesByPitch.some((candidates) => candidates.length === 0)) return null;
+  if (valueLists.some((tabs) => tabs.length === 0)) return [];
 
-  let bestTabs: TabCoord[] | null = null;
-  let bestScore = Number.POSITIVE_INFINITY;
+  const combinations: TabCoord[][] = [];
   const selected: TabCoord[] = [];
   const usedStrings = new Set<number>();
 
-  const search = (pitchIndex: number) => {
-    if (pitchIndex === candidatesByPitch.length) {
-      const score = scoreChordTabs(selected, playingCoord);
-      if (score < bestScore) {
-        bestScore = score;
-        bestTabs = selected.map((tab) => cloneTabCoord(tab));
-      }
+  const search = (index: number) => {
+    if (index === valueLists.length) {
+      combinations.push(selected.map((tab) => cloneTabCoord(tab)));
       return;
     }
-
-    candidatesByPitch[pitchIndex].forEach((tab) => {
+    valueLists[index].forEach((tab) => {
       if (usedStrings.has(tab[0])) return;
       usedStrings.add(tab[0]);
       selected.push(tab);
-      search(pitchIndex + 1);
+      search(index + 1);
       selected.pop();
       usedStrings.delete(tab[0]);
     });
   };
 
   search(0);
-  return bestTabs;
+  return combinations;
+};
+
+export const scoreChord = (chordTuple: TabCoord[]) => {
+  const yValues = chordTuple.map((item) => item[1]);
+  const yValuesNo0 = yValues.filter((item) => item !== 0);
+  const distance =
+    yValuesNo0.length === 0 ? 0 : Math.max(...yValuesNo0) - Math.min(...yValuesNo0);
+  const stringValues = chordTuple.map((item) => item[0]);
+  const gaps = Math.max(...stringValues) - Math.min(...stringValues) + 1 - stringValues.length;
+  return distance + 2 * gaps;
+};
+
+const findClosestTabsForMidi = (
+  snapshot: Pick<EditorSnapshot, "tuning" | "maxFret">,
+  coord: TabCoord,
+  midi: number
+) => {
+  const fretAmount = getMaxFret(snapshot) + 1;
+  const target = Math.trunc(Number(midi));
+  const stringWeight = 0.1;
+  return getOpenStringMidiFromSnapshot(snapshot)
+    .map((baseMidi, stringIndex) => [stringIndex, target - baseMidi] as TabCoord)
+    .filter((tab) => tab[1] >= 0 && tab[1] < fretAmount)
+    .map((tab, index) => ({
+      tab,
+      index,
+      distance:
+        tab[1] === 0
+          ? 0
+          : (coord[0] - tab[0]) ** 2 * stringWeight + ((coord[1] - tab[1]) * 3) ** 2,
+    }))
+    .sort((left, right) => left.distance - right.distance || left.index - right.index)
+    .slice(0, 6)
+    .map((item) => cloneTabCoord(item.tab));
+};
+
+export const createBackendStyleChordAlternatives = (
+  snapshot: Pick<EditorSnapshot, "tuning" | "maxFret">,
+  midiContents: number[],
+  playCoord: TabCoord = [0, 0]
+) => {
+  const seen = new Set<number>();
+  const midis = midiContents
+    .map((midi) => Math.trunc(Number(midi)))
+    .filter((midi) => Number.isFinite(midi))
+    .filter((midi) => {
+      if (seen.has(midi)) return false;
+      seen.add(midi);
+      return true;
+    })
+    .filter((midi) => !seen.has(midi - 12));
+  const octaveCombos = generateOctaveCombos(midis);
+  const normalAndOctaves = [...midis, ...midis.map((midi) => midi + 12)];
+  const midiToFret = new Map<number, TabCoord[]>();
+  normalAndOctaves.forEach((midi) => {
+    midiToFret.set(midi, findClosestTabsForMidi(snapshot, playCoord, midi));
+  });
+
+  const allTabs: TabCoord[][] = [];
+  octaveCombos.forEach((midiCombo) => {
+    allTabs.push(...createPossibleTabs(midiCombo, midiToFret));
+  });
+  return allTabs.sort((left, right) => scoreChord(left) - scoreChord(right));
+};
+
+const getBackendStyleChordMidis = (snapshot: EditorSnapshot, chord: Chord) => {
+  const mids = chord.currentTabs
+    .map((tab) => (isTabCoordValidForSnapshot(snapshot, tab) ? getTabMidi(snapshot, tab) : null))
+    .filter((midi): midi is number => midi !== null);
+  return mids.length
+    ? mids
+    : chord.originalMidi
+        .map((midi) => Math.trunc(Number(midi)))
+        .filter((midi) => Number.isFinite(midi));
+};
+
+const chooseBestChordTabs = (snapshot: EditorSnapshot, chord: Chord): TabCoord[] | null => {
+  const mids = getBackendStyleChordMidis(snapshot, chord);
+  if (!mids.length) return null;
+  const playCoord = getCutCoordAtTime(snapshot, chord.startTime);
+  const alternatives = createBackendStyleChordAlternatives(snapshot, mids, playCoord);
+  return alternatives[0] ?? null;
 };
 
 const buildChordFromCluster = (
@@ -8922,34 +8971,9 @@ export default function GteWorkspace({
         const optimized = cloneSnapshot(generated.snapshot);
         optimizeTrackFingeringInSnapshot(optimized, {
           generatePlayingCoordinates: false,
-          optimizeChordFingerings: false,
         });
-
-        // Persist chordization first so newly-created chord IDs exist when the
-        // backend alternatives endpoint ranks their possible fingerings.
-        const chordized = await gteApi.applySnapshot(editorId, optimized);
-        const chordizedSnapshot = cloneSnapshot(chordized.snapshot as EditorSnapshot);
-        const rankedAlternatives = await Promise.all(
-          chordizedSnapshot.chords.map(async (chord) => ({
-            chordId: chord.id,
-            alternatives: (await gteApi.getChordAlternatives(editorId, chord.id)).alternatives,
-          }))
-        );
-        const bestTabsByChordId = new Map(
-          rankedAlternatives
-            .filter((result) => result.alternatives.length > 0)
-            .map((result) => [result.chordId, result.alternatives[0]] as const)
-        );
-        chordizedSnapshot.chords.forEach((chord) => {
-          const bestTabs = bestTabsByChordId.get(chord.id);
-          if (!bestTabs) return;
-          chord.currentTabs = bestTabs.map((tab) => cloneTabCoord(tab));
-          chord.ogTabs = bestTabs.map((tab) => cloneTabCoord(tab));
-          chord.fingering = undefined;
-          chord.fingeringIndex = 0;
-        });
-        finalizeOptimizedTrackFingeringInSnapshot(chordizedSnapshot);
-        return gteApi.applySnapshot(editorId, chordizedSnapshot);
+        finalizeOptimizedTrackFingeringInSnapshot(optimized);
+        return gteApi.applySnapshot(editorId, optimized);
       },
       {
         localApply: (draft) => {
