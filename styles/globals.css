@@ -5974,8 +5974,8 @@ input[type="number"] {
 .blog-post {
   padding-top: 50px;
   background:
-    radial-gradient(760px 340px at 15% 0%, rgba(42, 109, 244, 0.08), transparent 62%),
-    linear-gradient(#fbfdff, var(--bg) 520px);
+    radial-gradient(760px 340px at 15% 0%, rgba(31, 191, 159, 0.065), transparent 62%),
+    linear-gradient(#fffdf8, var(--bg) 520px);
 }
 
 .blog-post .container {
@@ -6303,9 +6303,13 @@ input[type="number"] {
   border: 1px solid rgba(42, 109, 244, 0.2);
   border-radius: 14px;
   background:
-    radial-gradient(280px 150px at 100% 0%, rgba(31, 191, 159, 0.13), transparent 72%),
+    radial-gradient(280px 150px at 100% 0%, rgba(31, 191, 159, 0.1), transparent 72%),
     #fff;
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.07);
+}
+
+.post-mobile-product-card {
+  display: none;
 }
 
 .post-product-card h2,
@@ -6817,6 +6821,40 @@ input[type="number"] {
     gap: 28px;
   }
 
+  .post-mobile-product-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.055);
+  }
+
+  .post-mobile-product-card > div {
+    display: grid;
+    gap: 3px;
+  }
+
+  .post-mobile-product-card strong {
+    color: #162235;
+    font-size: 0.92rem;
+  }
+
+  .post-mobile-product-card span {
+    color: #647067;
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+
+  .post-mobile-product-card .button-primary {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
   .post-reader-rail {
     position: static;
     grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
@@ -6862,6 +6900,18 @@ input[type="number"] {
   .panel-filters,
   .form-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .post-mobile-product-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .post-mobile-product-card .button-primary {
+    width: 100%;
+    justify-content: center;
   }
 }
 

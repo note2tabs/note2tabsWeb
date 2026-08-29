@@ -9,6 +9,7 @@ import { estimateReadingTime, getPublishedWhere } from "../../lib/blog";
 import { compilePostContent, parseStoredToc } from "../../lib/blogContent";
 import { normalizeCanonicalUrl } from "../../lib/canonical";
 import BlogPostCard from "../../components/blog/BlogPostCard";
+import BlogProductLink from "../../components/blog/BlogProductLink";
 import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 import { formatBlogDate } from "../../lib/dateFormat";
 
@@ -148,6 +149,22 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
           </figure>
         )}
 
+        <section className="post-mobile-product-card" aria-label="Try Note2Tabs">
+          <div>
+            <strong>{isTranscriptionGuide ? "Try it with your own recording" : "Put this guide into practice"}</strong>
+            <span>{isTranscriptionGuide ? "Create an editable tab from audio or YouTube." : "Open a blank tab and start in your browser."}</span>
+          </div>
+          <BlogProductLink
+            href={isTranscriptionGuide ? "/transcribe" : "/editor"}
+            articleSlug={post.slug}
+            cta={isTranscriptionGuide ? "blog_transcribe" : "blog_editor"}
+            placement="article_mobile_intro"
+            className="button-primary button-small"
+          >
+            {isTranscriptionGuide ? "Try the transcriber" : "Open the editor"}
+          </BlogProductLink>
+        </section>
+
         <div className="post-reader-layout">
           <article className="post-content">
             <div className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
@@ -173,12 +190,24 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
                   ? "Create a structured transcription, then open it in the editor—or use either tool on its own."
                   : "Write, arrange, play back, and export guitar tabs in the browser. No transcription required."}
               </p>
-              <Link href={isTranscriptionGuide ? "/transcribe" : "/editor"} className="button-primary">
+              <BlogProductLink
+                href={isTranscriptionGuide ? "/transcribe" : "/editor"}
+                articleSlug={post.slug}
+                cta={isTranscriptionGuide ? "blog_transcribe" : "blog_editor"}
+                placement="article_sidebar_primary"
+                className="button-primary"
+              >
                 {isTranscriptionGuide ? "Transcribe a song" : "Open the editor"}
-              </Link>
-              <Link href={isTranscriptionGuide ? "/editor" : "/transcribe"} className="post-product-link">
+              </BlogProductLink>
+              <BlogProductLink
+                href={isTranscriptionGuide ? "/editor" : "/transcribe"}
+                articleSlug={post.slug}
+                cta={isTranscriptionGuide ? "blog_editor" : "blog_transcribe"}
+                placement="article_sidebar_secondary"
+                className="post-product-link"
+              >
                 {isTranscriptionGuide ? "Or create a tab yourself" : "Or transcribe a recording"} →
-              </Link>
+              </BlogProductLink>
             </section>
           </aside>
         </div>
@@ -192,8 +221,8 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
             </p>
           </div>
           <div className="post-end-cta-actions">
-            <Link href="/editor" className="button-primary">Try the tab editor</Link>
-            <Link href="/transcribe" className="button-secondary">Transcribe audio</Link>
+            <BlogProductLink href="/editor" articleSlug={post.slug} cta="blog_editor" placement="article_end" className="button-primary">Try the tab editor</BlogProductLink>
+            <BlogProductLink href="/transcribe" articleSlug={post.slug} cta="blog_transcribe" placement="article_end" className="button-secondary">Transcribe audio</BlogProductLink>
           </div>
         </section>
 
