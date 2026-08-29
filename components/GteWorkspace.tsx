@@ -101,7 +101,11 @@ const TOOL_HELP_SECTIONS = [
     tools: [
       ["Merge to Chord", "Combines selected notes or chords into one chord."],
       ["Disband Chord", "Turns the selected chord back into separate notes."],
-      ["Optimize Notes", "Finds easier string and fret positions for selected notes."],
+      ["Optimize to Coordinates", "Moves selected notes to their best existing playing coordinates."],
+      [
+        "Optimize Fingering",
+        "Builds chords from simultaneous notes, generates playing coordinates, and chooses playable fingerings for the whole track.",
+      ],
       ["Snap to Key", "Moves selected notes to the nearest notes in the detected key."],
       ["Quantize", "Aligns selected notes or chords to a rhythmic grid."],
       ["Merge Notes", "Joins selected notes on each string into longer notes."],
@@ -682,6 +686,62 @@ const scoreTabDistance = (tab: TabCoord, coord: TabCoord, isConnectedToEffect: b
   return Math.abs(tab[0] - coord[0]) + Math.abs(tab[1] - coord[1]);
 };
 
+export type NoteChordCluster = {
+  startTime: number;
+  endTime: number;
+  notes: Note[];
+};
+
+/**
+ * Groups a track's notes by close start and end timing while requiring every
+ * member of a group to overlap at a common point. Complete-link timing bounds
+ * prevent slightly-staggered runs or long/short note mixes from chaining into
+ * one oversized chord.
+ *
+ * This helper is deliberately non-mutating: callers can inspect the returned
+ * clusters before deciding whether to turn groups with two or more notes into
+ * chord objects.
+ */
+export const clusterTrackNotesIntoChordGroups = (
+  notes: Note[],
+  timingToleranceFrames: number
+): NoteChordCluster[] => {
+  const tolerance = Math.max(0, Math.round(timingToleranceFrames));
+  const ordered = [...notes].sort(
+    (left, right) => left.startTime - right.startTime || left.midiNum - right.midiNum || left.id - right.id
+  );
+  const clusters: NoteChordCluster[] = [];
+
+  ordered.forEach((note) => {
+    const noteStart = Math.round(note.startTime);
+    const noteEnd = noteStart + clampEventLength(note.length);
+    const current = clusters[clusters.length - 1];
+    const currentStarts = current?.notes.map((item) => Math.round(item.startTime)) ?? [];
+    const currentEnds =
+      current?.notes.map((item) => Math.round(item.startTime) + clampEventLength(item.length)) ?? [];
+    const nextStarts = [...currentStarts, noteStart];
+    const nextEnds = [...currentEnds, noteEnd];
+    const latestStart = nextStarts.length ? Math.max(...nextStarts) : noteStart;
+    const earliestEnd = nextEnds.length ? Math.min(...nextEnds) : noteEnd;
+    const joinsCurrent =
+      Boolean(current) &&
+      Math.max(...nextStarts) - Math.min(...nextStarts) <= tolerance &&
+      Math.max(...nextEnds) - Math.min(...nextEnds) <= tolerance &&
+      latestStart < earliestEnd;
+
+    if (!current || !joinsCurrent) {
+      clusters.push({ startTime: noteStart, endTime: noteEnd, notes: [note] });
+      return;
+    }
+
+    current.notes.push(note);
+    current.startTime = Math.min(...nextStarts);
+    current.endTime = Math.max(...nextEnds);
+  });
+
+  return clusters;
+};
+
 const computeNoteAlternatesForSnapshot = (
   snapshot: EditorSnapshot,
   note: EditorSnapshot["notes"][number]
@@ -912,6 +972,297 @@ const generateCutsInSnapshot = (draft: EditorSnapshot) => {
     next.push([[start, end], coord]);
   }
   setCutRegionsInSnapshot(draft, next);
+};
+
+type FingeringOptimizationResult = {
+  chordGroups: NoteChordCluster[];
+  createdChordIds: number[];
+};
+
+export const generateOctaveCombos = (baseMidis: number[]) => {
+  const baseList = baseMidis.map((midi) => Math.trunc(Number(midi)));
+  const additionalList = baseList.map((midi) => midi + 12);
+  const result: number[][] = [];
+  const selected: number[] = [];
+  const collectCombinations = (startIndex: number, targetSize: number) => {
+    if (selected.length === targetSize) {
+      const combo = [...baseList, ...selected];
+      if (combo.length <= 6) result.push(combo);
+      return;
+    }
+    for (let index = startIndex; index < additionalList.length; index += 1) {
+      selected.push(additionalList[index]);
+      collectCombinations(index + 1, targetSize);
+      selected.pop();
+    }
+  };
+  for (let size = 0; size <= additionalList.length; size += 1) {
+    collectCombinations(0, size);
+  }
+  return result;
+};
+
+export const createPossibleTabs = (
+  midiList: number[],
+  midiDict: Map<number, TabCoord[]> | Record<number, TabCoord[]>
+) => {
+  const valueLists = midiList.map((midi) =>
+    midiDict instanceof Map ? midiDict.get(midi) ?? [] : midiDict[midi] ?? []
+  );
+  if (valueLists.some((tabs) => tabs.length === 0)) return [];
+
+  const combinations: TabCoord[][] = [];
+  const selected: TabCoord[] = [];
+  const usedStrings = new Set<number>();
+
+  const search = (index: number) => {
+    if (index === valueLists.length) {
+      combinations.push(selected.map((tab) => cloneTabCoord(tab)));
+      return;
+    }
+    valueLists[index].forEach((tab) => {
+      if (usedStrings.has(tab[0])) return;
+      usedStrings.add(tab[0]);
+      selected.push(tab);
+      search(index + 1);
+      selected.pop();
+      usedStrings.delete(tab[0]);
+    });
+  };
+
+  search(0);
+  return combinations;
+};
+
+export const scoreChord = (chordTuple: TabCoord[]) => {
+  const yValues = chordTuple.map((item) => item[1]);
+  const yValuesNo0 = yValues.filter((item) => item !== 0);
+  const distance =
+    yValuesNo0.length === 0 ? 0 : Math.max(...yValuesNo0) - Math.min(...yValuesNo0);
+  const stringValues = chordTuple.map((item) => item[0]);
+  const gaps = Math.max(...stringValues) - Math.min(...stringValues) + 1 - stringValues.length;
+  return distance + 2 * gaps;
+};
+
+const findClosestTabsForMidi = (
+  snapshot: Pick<EditorSnapshot, "tuning" | "maxFret">,
+  coord: TabCoord,
+  midi: number
+) => {
+  const fretAmount = getMaxFret(snapshot) + 1;
+  const target = Math.trunc(Number(midi));
+  const stringWeight = 0.1;
+  return getOpenStringMidiFromSnapshot(snapshot)
+    .map((baseMidi, stringIndex) => [stringIndex, target - baseMidi] as TabCoord)
+    .filter((tab) => tab[1] >= 0 && tab[1] < fretAmount)
+    .map((tab, index) => ({
+      tab,
+      index,
+      distance:
+        tab[1] === 0
+          ? 0
+          : (coord[0] - tab[0]) ** 2 * stringWeight + ((coord[1] - tab[1]) * 3) ** 2,
+    }))
+    .sort((left, right) => left.distance - right.distance || left.index - right.index)
+    .slice(0, 6)
+    .map((item) => cloneTabCoord(item.tab));
+};
+
+export const createBackendStyleChordAlternatives = (
+  snapshot: Pick<EditorSnapshot, "tuning" | "maxFret">,
+  midiContents: number[],
+  playCoord: TabCoord = [0, 0]
+) => {
+  const seen = new Set<number>();
+  const midis = midiContents
+    .map((midi) => Math.trunc(Number(midi)))
+    .filter((midi) => Number.isFinite(midi))
+    .filter((midi) => {
+      if (seen.has(midi)) return false;
+      seen.add(midi);
+      return true;
+    })
+    .filter((midi) => !seen.has(midi - 12));
+  const octaveCombos = generateOctaveCombos(midis);
+  const normalAndOctaves = [...midis, ...midis.map((midi) => midi + 12)];
+  const midiToFret = new Map<number, TabCoord[]>();
+  normalAndOctaves.forEach((midi) => {
+    midiToFret.set(midi, findClosestTabsForMidi(snapshot, playCoord, midi));
+  });
+
+  const allTabs: TabCoord[][] = [];
+  octaveCombos.forEach((midiCombo) => {
+    allTabs.push(...createPossibleTabs(midiCombo, midiToFret));
+  });
+  return allTabs.sort((left, right) => scoreChord(left) - scoreChord(right));
+};
+
+const getBackendStyleChordMidis = (snapshot: EditorSnapshot, chord: Chord) => {
+  const mids = chord.currentTabs
+    .map((tab) => (isTabCoordValidForSnapshot(snapshot, tab) ? getTabMidi(snapshot, tab) : null))
+    .filter((midi): midi is number => midi !== null);
+  return mids.length
+    ? mids
+    : chord.originalMidi
+        .map((midi) => Math.trunc(Number(midi)))
+        .filter((midi) => Number.isFinite(midi));
+};
+
+const chooseBestChordTabs = (snapshot: EditorSnapshot, chord: Chord): TabCoord[] | null => {
+  const mids = getBackendStyleChordMidis(snapshot, chord);
+  if (!mids.length) return null;
+  const playCoord = getCutCoordAtTime(snapshot, chord.startTime);
+  const alternatives = createBackendStyleChordAlternatives(snapshot, mids, playCoord);
+  return alternatives[0] ?? null;
+};
+
+const buildChordFromCluster = (
+  snapshot: EditorSnapshot,
+  notes: Note[],
+  chordId: number
+): Chord => {
+  const ordered = [...notes].sort(
+    (left, right) =>
+      (left.midiNum || getTabMidi(snapshot, left.tab)) -
+        (right.midiNum || getTabMidi(snapshot, right.tab)) ||
+      left.id - right.id
+  );
+  const startTime = Math.min(...ordered.map((note) => Math.round(note.startTime)));
+  const endTime = Math.max(
+    ...ordered.map((note) => Math.round(note.startTime) + clampEventLength(note.length))
+  );
+  const currentTabs = ordered.map((note) => cloneTabCoord(note.tab));
+  return {
+    id: chordId,
+    startTime,
+    length: clampEventLength(endTime - startTime),
+    originalMidi: ordered.map((note) => note.midiNum || getTabMidi(snapshot, note.tab)),
+    currentTabs,
+    ogTabs: currentTabs.map((tab) => cloneTabCoord(tab)),
+    velocities: ordered.map((note) => note.velocity ?? 100),
+    pitchBends: ordered.map((note) => (Array.isArray(note.pitchBend) ? [...note.pitchBend] : [])),
+    source: "fingering-optimizer",
+  };
+};
+
+/**
+ * Optionally generates playing coordinates, chordizes temporally-clustered
+ * notes, and chooses playable note and chord fingerings. The supplied snapshot
+ * is mutated to match the editor's other local-first transformation helpers.
+ */
+export const optimizeTrackFingeringInSnapshot = (
+  draft: EditorSnapshot,
+  options?: {
+    generatePlayingCoordinates?: boolean;
+    optimizeChordFingerings?: boolean;
+  }
+): FingeringOptimizationResult => {
+  if (options?.generatePlayingCoordinates !== false) {
+    generateCutsInSnapshot(draft);
+  }
+  const tolerance = Math.max(1, Math.round((draft.framesPerMessure || FIXED_FRAMES_PER_BAR) / 32));
+  const chordGroups = clusterTrackNotesIntoChordGroups(draft.notes, tolerance);
+  const createdChordIds: number[] = [];
+  const chordizedNoteIds = new Set<number>();
+  let nextChordId = draft.chords.reduce((max, chord) => Math.max(max, chord.id), 0) + 1;
+
+  chordGroups.forEach((group) => {
+    // A guitar has six strings. Keep oversized onset clusters as notes rather
+    // than silently dropping pitches or generating an impossible chord.
+    if (group.notes.length < 2 || group.notes.length > 6) return;
+    const chordNotes = group.notes;
+    const chord = buildChordFromCluster(draft, chordNotes, nextChordId);
+    draft.chords.push(chord);
+    createdChordIds.push(nextChordId);
+    nextChordId += 1;
+    chordNotes.forEach((note) => chordizedNoteIds.add(note.id));
+  });
+
+  if (chordizedNoteIds.size > 0) {
+    draft.notes = draft.notes.filter((note) => !chordizedNoteIds.has(note.id));
+    draft.noteEffects = (draft.noteEffects || []).filter(
+      (effect) =>
+        !chordizedNoteIds.has(effect.startNoteId) && !chordizedNoteIds.has(effect.endNoteId)
+    );
+  }
+
+  if (options?.optimizeChordFingerings !== false) {
+    [...draft.chords]
+      .sort((left, right) => left.startTime - right.startTime || left.id - right.id)
+      .forEach((chord) => {
+        const bestTabs = chooseBestChordTabs(draft, chord);
+        if (!bestTabs) return;
+        chord.currentTabs = bestTabs;
+        chord.ogTabs = bestTabs.map((tab) => cloneTabCoord(tab));
+        chord.fingering = undefined;
+        chord.fingeringIndex = 0;
+      });
+  }
+
+  [...draft.notes]
+    .sort((left, right) => left.startTime - right.startTime || left.id - right.id)
+    .forEach((note) => {
+      const alternates = computeNoteAlternatesForSnapshot(draft, note);
+      note.optimals = alternates.possibleTabs.map((tab) => cloneTabCoord(tab));
+      const bestTab = alternates.possibleTabs[0];
+      if (!bestTab) return;
+      applyNoteFingeringUpdates(
+        draft,
+        getEffectAwareFingeringUpdates(draft, [{ noteId: note.id, tab: bestTab }])
+      );
+    });
+
+  return { chordGroups, createdChordIds };
+};
+
+export const finalizeOptimizedTrackFingeringInSnapshot = (draft: EditorSnapshot) => {
+  const nextNoteId = () => draft.notes.reduce((max, note) => Math.max(max, note.id), 0) + 1;
+
+  draft.chords = draft.chords.filter((chord) => {
+    const tabs = chord.currentTabs.length ? chord.currentTabs : chord.ogTabs;
+    const midi = chord.originalMidi.length ? chord.originalMidi : tabs.map((tab) => getTabMidi(draft, tab));
+    if (Math.max(tabs.length, midi.length) !== 1) return true;
+
+    const tab = tabs[0];
+    if (!tab) return false;
+    draft.notes.push({
+      id: nextNoteId(),
+      startTime: Math.round(chord.startTime),
+      length: clampEventLength(chord.length),
+      midiNum: midi[0] ?? getTabMidi(draft, tab),
+      tab: cloneTabCoord(tab),
+      optimals: [],
+      velocity: chord.velocities?.[0],
+      pitchBend: chord.pitchBends?.[0] ? [...chord.pitchBends[0]] : undefined,
+    });
+    return false;
+  });
+
+  const events = [
+    ...draft.notes.map((note) => ({ kind: "note" as const, event: note })),
+    ...draft.chords.map((chord) => ({ kind: "chord" as const, event: chord })),
+  ].sort((left, right) => {
+    const startDelta = Math.round(left.event.startTime) - Math.round(right.event.startTime);
+    if (startDelta !== 0) return startDelta;
+    const kindDelta = left.kind.localeCompare(right.kind);
+    if (kindDelta !== 0) return kindDelta;
+    return left.event.id - right.event.id;
+  });
+
+  for (let index = 0; index < events.length - 1; index += 1) {
+    const current = events[index].event;
+    const next = events[index + 1].event;
+    const currentStart = Math.round(current.startTime);
+    const nextStart = Math.round(next.startTime);
+    if (nextStart <= currentStart) continue;
+    const currentEnd = currentStart + clampEventLength(current.length);
+    if (currentEnd > nextStart) {
+      current.length = clampEventLength(nextStart - currentStart);
+    }
+  }
+
+  draft.notes = recomputeSnapshotOptimals(draft).notes;
+  draft.noteEffects = normalizeSnapshotNoteEffects(draft);
 };
 
 const mergeRedundantCutRegionsInSnapshot = (draft: EditorSnapshot) => {
@@ -3902,6 +4253,7 @@ export default function GteWorkspace({
   const [localSnapToGridEnabled, setLocalSnapToGridEnabled] = useState(true);
   const [localSnapToKeyEnabled, setLocalSnapToKeyEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [optimizingFingering, setOptimizingFingering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playbackVolume, setPlaybackVolume] = useState(0.6);
   const [localPracticeLoopEnabled, setLocalPracticeLoopEnabled] = useState(false);
@@ -8607,7 +8959,40 @@ export default function GteWorkspace({
     setDraftNoteAnchor(null);
   };
 
-  const handleAssignOptimals = () => {
+  const requestGeneratedPlayingCoordinates = () => {
+    const current = snapshotRef.current;
+    return gteApi.generateCuts(editorId, {
+      tuning: current.tuning,
+      maxFret: current.maxFret,
+    });
+  };
+
+  const handleOptimizeFingering = () => {
+    if (snapshotRef.current.notes.length === 0 && snapshotRef.current.chords.length === 0) return;
+    setOptimizingFingering(true);
+    void runMutation(
+      async () => {
+        const generated = await requestGeneratedPlayingCoordinates();
+        const optimized = cloneSnapshot(generated.snapshot);
+        optimizeTrackFingeringInSnapshot(optimized, {
+          generatePlayingCoordinates: false,
+        });
+        finalizeOptimizedTrackFingeringInSnapshot(optimized);
+        return gteApi.applySnapshot(editorId, optimized);
+      },
+      {
+        localApply: (draft) => {
+          optimizeTrackFingeringInSnapshot(draft);
+          finalizeOptimizedTrackFingeringInSnapshot(draft);
+        },
+        serverMode: "immediate",
+      }
+    ).finally(() => setOptimizingFingering(false));
+    setSelectedNoteIds([]);
+    setSelectedChordIds([]);
+  };
+
+  const handleOptimizeToCoordinates = () => {
     if (!selectedNoteIds.length) return;
     void runMutation(
       async () => ({}),
@@ -8628,9 +9013,7 @@ export default function GteWorkspace({
             .forEach((note) => {
               const alternates = computeNoteAlternatesForSnapshot(draft, note);
               const nextTab = alternates.possibleTabs[0];
-              note.optimals = alternates.possibleTabs.map(
-                (tab) => [tab[0], tab[1]] as TabCoord
-              );
+              note.optimals = alternates.possibleTabs.map((tab) => cloneTabCoord(tab));
               if (!nextTab) return;
               applyNoteFingeringUpdates(
                 draft,
@@ -9860,10 +10243,7 @@ export default function GteWorkspace({
   };
 
   const handleGenerateCuts = () => {
-    void runMutation(() => gteApi.generateCuts(editorId, {
-      tuning: snapshot.tuning,
-      maxFret: snapshot.maxFret,
-    }), {
+    void runMutation(requestGeneratedPlayingCoordinates, {
       serverMode: "immediate",
       unavailableMessage: "Generated cuts are available after saving this draft to an account.",
     });
@@ -12083,7 +12463,7 @@ export default function GteWorkspace({
         if (guardSingleTrackSelectionAction("Optimize")) return;
         if (selectedNoteIds.length > 0) {
           event.preventDefault();
-          handleAssignOptimals();
+          handleOptimizeToCoordinates();
         }
         return;
       }
@@ -12710,20 +13090,43 @@ export default function GteWorkspace({
               <button
                 type="button"
                 onClick={() => {
-                  void handleAssignOptimals();
+                  void handleOptimizeToCoordinates();
                 }}
                 disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
                 title={
                   selectionActionsLocked
                     ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Assigns the optimal fingering to selected notes - Shortcut: O"
+                    : "Moves selected notes to their best playing coordinates - Shortcut: O"
                 }
                 className={textButtonClass}
               >
                 <span className={shortcutClass}>O</span>
-                Optimize Notes
+                Optimize to Coordinates
               </button>
-              {renderToolHelp("Optimize Notes")}
+              {renderToolHelp("Optimize to Coordinates")}
+
+              <button
+                type="button"
+                onClick={() => {
+                  void handleOptimizeFingering();
+                }}
+                disabled={
+                  optimizingFingering ||
+                  (snapshot.notes.length === 0 && snapshot.chords.length === 0) ||
+                  selectionActionsLocked
+                }
+                title={
+                  optimizingFingering
+                    ? "Optimizing fingering"
+                    : selectionActionsLocked
+                    ? "Disabled while notes/chords are selected in multiple tracks"
+                    : "Chordizes simultaneous notes and optimizes the whole track"
+                }
+                className={textButtonClass}
+              >
+                Optimize Fingering
+              </button>
+              {renderToolHelp("Optimize Fingering")}
 
               <button
                 type="button"
@@ -13566,6 +13969,18 @@ export default function GteWorkspace({
                   <button
                     type="button"
                     onClick={() => {
+                      void handleOptimizeToCoordinates();
+                      setContextMenu(null);
+                    }}
+                    disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <span>Optimize to Coordinates</span>
+                    <span className="text-[10px] text-slate-400">O</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
                       if (activeChordIds.length) {
                         const chordIds = [...activeChordIds];
                         void runMutation(
@@ -13594,14 +14009,17 @@ export default function GteWorkspace({
                   <button
                     type="button"
                     onClick={() => {
-                      void handleAssignOptimals();
+                      void handleOptimizeFingering();
                       setContextMenu(null);
                     }}
-                    disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
+                    disabled={
+                      optimizingFingering ||
+                      (snapshot.notes.length === 0 && snapshot.chords.length === 0) ||
+                      selectionActionsLocked
+                    }
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
-                    <span>Optimize Notes</span>
-                    <span className="text-[10px] text-slate-400">O</span>
+                    <span>Optimize Fingering</span>
                   </button>
                   <button
                     type="button"
@@ -16333,6 +16751,26 @@ export default function GteWorkspace({
                       </button>
                     </div>
                   )}
+
+                {optimizingFingering && (
+                  <div
+                    className="absolute top-0 z-[90] flex items-center justify-center bg-white/30 backdrop-blur-[2px]"
+                    style={{
+                      left: timelineViewport.scrollLeft,
+                      width: Math.max(1, timelineViewport.clientWidth || timelineWidth),
+                      height: timelineHeight,
+                    }}
+                    role="status"
+                    aria-live="polite"
+                    aria-label="Optimizing fingering"
+                  >
+                    <span
+                      className="h-9 w-9 animate-spin rounded-full border-[3px] border-slate-200 border-t-slate-800 shadow-sm"
+                      aria-hidden="true"
+                    />
+                    <span className="sr-only">Optimizing fingering</span>
+                  </div>
+                )}
 
                 {draftNote && mobileViewport && (
                   <div
