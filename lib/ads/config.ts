@@ -71,4 +71,3 @@ export function readAdRegion() {
 export function isAdRuntimeConfigured(config: AdRuntimeConfig) {
   return config.enabled && config.provider !== "none" && Boolean(config.unitId);
 }
-
