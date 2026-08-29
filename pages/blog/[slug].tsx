@@ -12,6 +12,7 @@ import BlogPostCard from "../../components/blog/BlogPostCard";
 import BlogProductLink from "../../components/blog/BlogProductLink";
 import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 import { formatBlogDate } from "../../lib/dateFormat";
+import { getBlogProductPaths } from "../../lib/blogProductPaths";
 
 const ADMIN_ROLES = new Set(["ADMIN"]);
 
@@ -53,6 +54,7 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
   const isTranscriptionGuide = /\b(audio|ai|youtube|mp3|wav|transcri|song-to)\b/i.test(
     `${post.slug} ${post.title} ${post.tags.map((tag) => tag.name).join(" ")}`
   );
+  const productPaths = getBlogProductPaths(post.slug, post.title);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -168,6 +170,23 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
         <div className="post-reader-layout">
           <article className="post-content">
             <div className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
+            <nav className="post-tool-paths" aria-label="Related Note2Tabs tools">
+              <span className="post-product-eyebrow">Use the right tool</span>
+              <div>
+                {productPaths.map((path) => (
+                  <BlogProductLink
+                    key={path.href}
+                    href={path.href}
+                    articleSlug={post.slug}
+                    cta="blog_related_tool"
+                    placement="article_contextual_links"
+                  >
+                    <strong>{path.label}</strong>
+                    <span>{path.description}</span>
+                  </BlogProductLink>
+                ))}
+              </div>
+            </nav>
           </article>
           <aside className="post-reader-rail" aria-label="Article navigation and Note2Tabs tools">
             {toc.length > 1 && (

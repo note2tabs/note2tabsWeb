@@ -6348,6 +6348,48 @@ input[type="number"] {
   text-align: center;
 }
 
+.post-tool-paths {
+  display: grid;
+  gap: 12px;
+  max-width: 68ch;
+  margin: 38px auto 0;
+  padding-top: 22px;
+  border-top: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+.post-tool-paths > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.post-tool-paths a {
+  display: grid;
+  gap: 5px;
+  padding: 14px 15px;
+  border: 1px solid rgba(15, 23, 42, 0.11);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #162235;
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+
+.post-tool-paths a:hover {
+  transform: translateY(-1px);
+  border-color: rgba(31, 111, 86, 0.34);
+}
+
+.post-tool-paths strong {
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.post-tool-paths a span {
+  color: #5f6b65;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
 .post-end-cta {
   width: min(100%, 920px);
   margin: 24px auto 2px;
@@ -6912,6 +6954,10 @@ input[type="number"] {
   .post-mobile-product-card .button-primary {
     width: 100%;
     justify-content: center;
+  }
+
+  .post-tool-paths > div {
+    grid-template-columns: 1fr;
   }
 }
 
