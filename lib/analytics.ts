@@ -31,7 +31,7 @@ export const ANALYTICS_EVENTS = {
   subscriptionCancellationRecoveryFailed: "subscription_cancellation_recovery_failed",
   subscriptionManagementOpened: "subscription_management_opened",
   subscriptionCancellationIntentStarted: "subscription_cancellation_intent_started",
-  subscriptionCancellationReasonSelected: "subscription_cancellation_reason_selected",
+  subscriptionCancellationGoalSelected: "subscription_cancellation_goal_selected",
   subscriptionCancellationAlternativeClicked: "subscription_cancellation_alternative_clicked",
   subscriptionCancellationContinued: "subscription_cancellation_continued",
   premiumPromptShown: "premium_prompt_shown",

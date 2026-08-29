@@ -50,11 +50,12 @@ Recoverable `past_due` subscriptions now receive a compact Home notice with a di
 A trial customer who has scheduled cancellation can also open Stripe directly from the secondary “Review subscription” action rather than navigating through Settings first. The action remains neutral and separately measures cancellation-recovery intent and failures.
 
 Settings now separates ordinary billing tasks from cancellation intent before opening
-Stripe. Customers considering cancellation can state the main reason, receive one
-relevant recovery path (saved work, support, Heavy-model guidance, or feature feedback),
+Stripe. Customers considering cancellation are reminded what they originally wanted
+to accomplish and receive one relevant path back to that value (transcription, the
+Heavy model, editing, practice, or saved work),
 keep Premium, or continue clearly to Stripe. “Prefer not to say” is always available;
 the flow does not hide cancellation, invent a discount, or change access. Events measure
-intent, categorized reason, recovery-action clicks, and continuation to Stripe so the
+intent, original product goal, recovery-action clicks, and continuation to Stripe so the
 save flow can be evaluated against retained subscriptions rather than clicks alone.
 
 When custom trial messaging is enabled, the initial enrollment notice includes the seven-day duration, start and first charge date, $5.99 monthly price, included service, and direct online cancellation. This is required because Visa's current public rules require the amount, transaction date, and easy online cancellation at least seven days before the recurring charge ([Visa Core Rules, pp. 460–461](https://corporate.visa.com/content/dam/VCOM/download/about-visa/visa-rules-public.pdf)); Stripe separately notes that for a trial seven days or shorter, those details belong in the initial confirmation ([Stripe trial requirements](https://docs.stripe.com/billing/subscriptions/trials)). The later three-day message is activation support, not the sole billing notice.

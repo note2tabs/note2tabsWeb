@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
-  getSubscriptionSaveOption,
-  SUBSCRIPTION_CANCELLATION_REASONS,
-  type SubscriptionCancellationReason,
+  getSubscriptionValueReminder,
+  SUBSCRIPTION_RETENTION_GOALS,
+  type SubscriptionRetentionGoal,
 } from "../lib/subscriptionCancellationRetention";
 
 type Props = {
@@ -11,8 +11,8 @@ type Props = {
   busy: boolean;
   onClose: () => void;
   onCancellationIntent: () => void;
-  onOpenPortal: (intent: "billing" | "cancellation", reason?: SubscriptionCancellationReason) => void;
-  onAlternative: (reason: SubscriptionCancellationReason, destination: string) => void;
+  onOpenPortal: (intent: "billing" | "cancellation", goal?: SubscriptionRetentionGoal) => void;
+  onAlternative: (goal: SubscriptionRetentionGoal, destination: string) => void;
 };
 
 export default function SubscriptionRetentionDialog({
@@ -24,14 +24,14 @@ export default function SubscriptionRetentionDialog({
   onAlternative,
 }: Props) {
   const [step, setStep] = useState<"intent" | "retention">("intent");
-  const [reason, setReason] = useState<SubscriptionCancellationReason | "">("");
+  const [goal, setGoal] = useState<SubscriptionRetentionGoal | "">("");
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const saveOption = getSubscriptionSaveOption(reason);
+  const valueReminder = getSubscriptionValueReminder(goal);
 
   useEffect(() => {
     if (!open) return;
     setStep("intent");
-    setReason("");
+    setGoal("");
     closeButtonRef.current?.focus();
   }, [open]);
 
@@ -92,24 +92,24 @@ export default function SubscriptionRetentionDialog({
           <>
             <h2 id="subscription-retention-title">Before you cancel</h2>
             <p id="subscription-retention-description" className="muted">
-              What is the main reason? You can prefer not to say and continue at any time.
+              What did you originally want Note2Tabs to help you do? Let’s make sure there is nothing valuable left unfinished.
             </p>
             <label className="form-group">
-              <span className="label">Main reason</span>
-              <select className="form-input" value={reason} onChange={(event) => setReason(event.target.value as SubscriptionCancellationReason)}>
-                <option value="">Choose a reason</option>
-                {SUBSCRIPTION_CANCELLATION_REASONS.map((item) => (
+              <span className="label">I signed up to…</span>
+              <select className="form-input" value={goal} onChange={(event) => setGoal(event.target.value as SubscriptionRetentionGoal)}>
+                <option value="">Choose what brought you here</option>
+                {SUBSCRIPTION_RETENTION_GOALS.map((item) => (
                   <option key={item.value} value={item.value}>{item.label}</option>
                 ))}
               </select>
             </label>
 
-            {saveOption && reason && (
+            {valueReminder && goal && (
               <div className="subscription-retention-save">
-                <strong>{saveOption.title}</strong>
-                <p>{saveOption.detail}</p>
-                <Link href={saveOption.href} className="settingsButton settingsButtonPrimary" onClick={() => onAlternative(reason, saveOption.href)}>
-                  {saveOption.action}
+                <strong>{valueReminder.title}</strong>
+                <p>{valueReminder.detail}</p>
+                <Link href={valueReminder.href} className="settingsButton settingsButtonPrimary" onClick={() => onAlternative(goal, valueReminder.href)}>
+                  {valueReminder.action}
                 </Link>
               </div>
             )}
@@ -121,8 +121,8 @@ export default function SubscriptionRetentionDialog({
               <button
                 type="button"
                 className="button-ghost button-small"
-                onClick={() => reason && onOpenPortal("cancellation", reason)}
-                disabled={!reason || busy}
+                onClick={() => goal && onOpenPortal("cancellation", goal)}
+                disabled={!goal || busy}
               >
                 {busy ? "Opening Stripe…" : "Continue to cancellation"}
               </button>

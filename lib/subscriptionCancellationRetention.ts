@@ -1,75 +1,81 @@
-export type SubscriptionCancellationReason =
-  | "price"
-  | "not_using"
-  | "quality"
-  | "missing_feature"
-  | "difficult"
-  | "technical"
-  | "other"
+export type SubscriptionRetentionGoal =
+  | "transcribe_songs"
+  | "higher_accuracy"
+  | "edit_tabs"
+  | "practice"
+  | "save_export"
+  | "explore"
   | "skip";
 
-export const SUBSCRIPTION_CANCELLATION_REASONS: Array<{
-  value: SubscriptionCancellationReason;
+export const SUBSCRIPTION_RETENTION_GOALS: Array<{
+  value: SubscriptionRetentionGoal;
   label: string;
 }> = [
-  { value: "price", label: "Premium is not right for my budget" },
-  { value: "not_using", label: "I am not using Note2Tabs enough" },
-  { value: "quality", label: "The transcription results did not meet my needs" },
-  { value: "missing_feature", label: "A feature I need is missing" },
-  { value: "difficult", label: "The product was difficult to use" },
-  { value: "technical", label: "I ran into a technical problem" },
-  { value: "other", label: "Another reason" },
+  { value: "transcribe_songs", label: "Turn full songs into editable tabs" },
+  { value: "higher_accuracy", label: "Get the best transcription accuracy available" },
+  { value: "edit_tabs", label: "Create and arrange tabs in the editor" },
+  { value: "practice", label: "Practice songs and improve my playing" },
+  { value: "save_export", label: "Save, refine, and export my music" },
+  { value: "explore", label: "Explore what Note2Tabs can do" },
   { value: "skip", label: "Prefer not to say" },
 ];
 
-export type SubscriptionSaveOption = {
+export type SubscriptionValueReminder = {
   title: string;
   detail: string;
   href: string;
   action: string;
 };
 
-export function getSubscriptionSaveOption(
-  reason: SubscriptionCancellationReason | ""
-): SubscriptionSaveOption | null {
-  if (reason === "price") {
+export function getSubscriptionValueReminder(
+  goal: SubscriptionRetentionGoal | ""
+): SubscriptionValueReminder | null {
+  if (goal === "transcribe_songs") {
     return {
-      title: "Your work can stay on a free account",
-      detail: "If you cancel in Stripe, Premium remains available through the current billing period and your saved tabs stay in your library.",
-      href: "/tabs",
-      action: "Review my saved tabs",
+      title: "Premium gives full songs more room",
+      detail: "Keep 100 monthly credits, rollover, full-length uploads, and greater Heavy-model capacity for the recordings you want to finish.",
+      href: "/transcribe",
+      action: "Transcribe a song",
     };
   }
-  if (reason === "not_using") {
+  if (goal === "higher_accuracy") {
     return {
-      title: "Pick up where you left off",
-      detail: "Your recent tabs are ready for editing or practice. One more session may help you decide whether Premium is still useful.",
+      title: "Keep access to more Heavy-model transcription",
+      detail: "The Heavy model is Note2Tabs’ highest-accuracy option for complex recordings, and Premium gives you substantially more room to use it.",
+      href: "/transcribe",
+      action: "Try the Heavy model",
+    };
+  }
+  if (goal === "edit_tabs") {
+    return {
+      title: "Your editor is ready when inspiration returns",
+      detail: "Continue arranging notes, chords, drums, timing, and playback without starting over.",
+      href: "/gte",
+      action: "Open my editor",
+    };
+  }
+  if (goal === "practice") {
+    return {
+      title: "Turn a saved tab into your next practice session",
+      detail: "Return to your workspace and continue with playback, looping, speed training, and Practice mode.",
+      href: "/home",
+      action: "Continue practicing",
+    };
+  }
+  if (goal === "save_export") {
+    return {
+      title: "Your saved work is still here",
+      detail: "Reopen a recent tab to refine it, play it back, or export it in the format you need.",
+      href: "/tabs",
+      action: "View my saved tabs",
+    };
+  }
+  if (goal === "explore") {
+    return {
+      title: "There may still be more worth trying",
+      detail: "Your workspace brings transcription, editing, playback, and practice together in one place.",
       href: "/home",
       action: "Return to my workspace",
-    };
-  }
-  if (reason === "quality") {
-    return {
-      title: "Complex recordings may need the Heavy model",
-      detail: "Premium includes greater Heavy-model capacity. If a result was genuinely poor, tell us which recording failed so we can investigate it.",
-      href: "/contact",
-      action: "Get transcription help",
-    };
-  }
-  if (reason === "missing_feature") {
-    return {
-      title: "Tell us what is missing",
-      detail: "We can confirm whether the feature already exists, suggest a workflow, or use your request to guide the product.",
-      href: "/contact",
-      action: "Request a feature",
-    };
-  }
-  if (reason === "difficult" || reason === "technical") {
-    return {
-      title: "Let us help before you leave",
-      detail: "Describe what was confusing or broken and we will investigate it. You do not need to solve it alone.",
-      href: "/contact",
-      action: "Contact support",
     };
   }
   return null;

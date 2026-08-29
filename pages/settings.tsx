@@ -31,7 +31,7 @@ import {
 import NoIndexHead from "../components/NoIndexHead";
 import PremiumConversionCard from "../components/PremiumConversionCard";
 import SubscriptionRetentionDialog from "../components/SubscriptionRetentionDialog";
-import type { SubscriptionCancellationReason } from "../lib/subscriptionCancellationRetention";
+import type { SubscriptionRetentionGoal } from "../lib/subscriptionCancellationRetention";
 import {
   getOrCreatePremiumFunnelContext,
   premiumFunnelProperties,
@@ -303,7 +303,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
 
   const handleManageSubscription = async (
     intent: "billing" | "cancellation",
-    reason?: SubscriptionCancellationReason
+    goal?: SubscriptionRetentionGoal
   ) => {
     if (!stripeReady) {
       setError("Stripe not configured yet. Subscription management is unavailable.");
@@ -315,7 +315,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       intent === "cancellation"
         ? ANALYTICS_EVENTS.subscriptionCancellationContinued
         : ANALYTICS_EVENTS.subscriptionManagementOpened,
-      reason ? { reason } : undefined
+      goal ? { goal } : undefined
     );
     try {
       const res = await fetch("/api/stripe/create-portal-session", { method: "POST" });
@@ -747,15 +747,15 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             entry: "settings",
           });
         }}
-        onOpenPortal={(intent, reason) => {
+        onOpenPortal={(intent, goal) => {
           if (intent === "cancellation") {
-            sendEvent(ANALYTICS_EVENTS.subscriptionCancellationReasonSelected, { reason });
+            sendEvent(ANALYTICS_EVENTS.subscriptionCancellationGoalSelected, { goal });
           }
-          void handleManageSubscription(intent, reason);
+          void handleManageSubscription(intent, goal);
         }}
-        onAlternative={(reason, destination) => {
+        onAlternative={(goal, destination) => {
           sendEvent(ANALYTICS_EVENTS.subscriptionCancellationAlternativeClicked, {
-            reason,
+            goal,
             destination,
           });
           setSubscriptionDialogOpen(false);
