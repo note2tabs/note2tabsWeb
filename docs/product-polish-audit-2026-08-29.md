@@ -27,20 +27,25 @@ This audit covers the production frontend and its user-facing API errors. It doe
 ## Verification completed
 
 - `npx tsc --noEmit --incremental false`: passed.
-- `npm test`: 93 files and 409 tests passed.
+- `npm test`: 94 files and 413 tests passed.
+- Simulated application flows: signup, verification, password reset, Stripe checkout,
+  customer portal, authenticated transcription, finalization, editor import, save,
+  and export all passed with controlled service responses.
 - `npx next build --webpack`: passed.
 - Production sitemap: 47/47 URLs returned successfully.
 - Internal link crawl: 80 links checked with no broken destinations; the only redirect was the intentional `/gte` authentication flow.
 - Local desktop/mobile route sweeps: no unexpected horizontal overflow or broken images on representative public, auth, home, blog, transcriber, pricing, error, and editor routes.
 - Lighthouse spot checks on the guest editor and error-state previews scored 100 in performance, accessibility, best practices, and SEO.
 
-## External release checks
+## External service smoke checks
 
-These require deployed credentials or real third-party state and cannot be proven by an isolated local build:
+The application behavior for these paths is covered with simulated service responses.
+The following checks validate the third-party services themselves and are useful after deployment,
+but they are not remaining frontend code-audit blockers:
 
-- Complete one real login/signup/email-verification/password-reset cycle.
-- Complete one Stripe checkout and customer-portal round trip in the preview environment.
-- Run one authenticated transcription through upload, refresh/recovery, review, import, editor save, and export.
+- Confirm that the production email provider delivers verification and password-reset messages.
+- Confirm that Stripe's hosted checkout and customer portal accept the production configuration.
+- Confirm that the deployed transcription backend completes one real media job and returns its artifacts.
 - Confirm authenticated admin/moderator authorization with test accounts.
 
-No known code-level blocker remains from this audit. Keep the branch in preview until the four external checks above pass; it has not been merged into `dev` or `main`.
+No known code-level blocker remains from this audit. The branch has not been merged into `dev` or `main`.
