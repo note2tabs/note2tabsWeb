@@ -15,6 +15,9 @@ This audit covers the production frontend and its user-facing API errors. It doe
 
 ## Improvements made
 
+- Reworked Settings as a focused app window with compact navigation, calm row
+  hierarchy, profile and plan summaries, visible credit usage, responsive tab
+  navigation, and retained subscription/account save flows.
 - Replaced vague or technical customer-facing failures with actionable, context-specific messages while preventing backend details from leaking through public proxies.
 - Standardized expired-session responses and preserved deep-link destinations through authentication.
 - Improved login, signup, verification, reset, settings, library, transcription, import/export, editor, drum, and checkout failure states.

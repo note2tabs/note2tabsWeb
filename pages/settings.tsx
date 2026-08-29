@@ -83,6 +83,20 @@ const accountRoleLabel = (role: string) => {
   return "Free";
 };
 
+const accountInitials = (name: string | null, email: string) => {
+  const source = name?.trim() || email.split("@")[0] || "N";
+  const parts = source.split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "N";
+};
+
+const formatSettingsDate = (value: string) =>
+  new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(value));
+
 type SettingRowProps = {
   label: string;
   description?: string;
@@ -160,8 +174,11 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const analyticsHref = isAdmin
     ? "/admin/analytics?view=overview&range=30d"
     : "/admin/analytics?view=moderation&range=30d";
-  const resetLabel = new Date(credits.resetAt).toLocaleDateString();
+  const resetLabel = formatSettingsDate(credits.resetAt);
   const creditsUsedLabel = `${credits.used} / ${credits.limit}`;
+  const creditUsagePercent = credits.limit > 0
+    ? Math.min(100, Math.max(0, (credits.used / credits.limit) * 100))
+    : 0;
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -468,13 +485,23 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <h2 id="settings-account-title" className="settingsSectionTitle">
         Account
       </h2>
+      <p className="settingsSectionIntro">Your profile and Note2Tabs workspace.</p>
+      <div className="settingsProfileSummary">
+        <div className="settingsProfileAvatar" aria-hidden="true">
+          {accountInitials(user.name, user.email)}
+        </div>
+        <div>
+          <p className="settingsProfileName">{user.name || "Note2Tabs musician"}</p>
+          <p className="settingsProfileEmail">{user.email}</p>
+        </div>
+        <span className={`settingsPlanBadge${isPremium ? " settingsPlanBadgePremium" : ""}`}>
+          {accountRoleLabel(user.role)}
+        </span>
+      </div>
       <div className="settingsRows">
-        <SettingRow label="Email" value={user.email} />
-        <SettingRow label="Name" value={user.name || "Not set"} />
-        <SettingRow label="Role" value={accountRoleLabel(user.role)} />
-        <SettingRow label="Created" value={<time dateTime={user.createdAt}>{new Date(user.createdAt).toLocaleDateString()}</time>} />
+        <SettingRow label="Created" value={<time dateTime={user.createdAt}>{formatSettingsDate(user.createdAt)}</time>} />
         <SettingRow label="Email verified" value={user.isEmailVerified ? "Yes" : "No"} />
-        <SettingRow label="Actions">
+        <SettingRow label="Your work" description="Open your saved tabs or continue in the editor.">
           <div className="settingsActions">
             <Link href="/tabs" className="settingsButton settingsButtonSecondary">
               Transcription history
@@ -514,15 +541,31 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <h2 id="settings-plan-title" className="settingsSectionTitle">
         Plan and credits
       </h2>
+      <p className="settingsSectionIntro">Your subscription, monthly allowance, and billing controls.</p>
+      <div className={`settingsPlanSummary${isPremium ? " settingsPlanSummaryPremium" : ""}`}>
+        <div className="settingsPlanSummaryTop">
+          <div>
+            <span className="settingsPlanEyebrow">Current plan</span>
+            <h3>{isPremium ? "Note2Tabs Premium" : "Note2Tabs Free"}</h3>
+          </div>
+          <span className={`settingsPlanBadge${isPremium ? " settingsPlanBadgePremium" : ""}`}>
+            {isPremium ? "Active" : "Free"}
+          </span>
+        </div>
+        <div className="settingsCreditSummary">
+          <div className="settingsCreditCopy">
+            <span>{credits.remaining} credits remaining</span>
+            <span>{creditsUsedLabel} used</span>
+          </div>
+          <div className="settingsCreditTrack" aria-label={`${creditsUsedLabel} credits used`}>
+            <span style={{ width: `${creditUsagePercent}%` }} />
+          </div>
+          <p>{isPremium ? "100 monthly credits with rollover up to 200." : "10 credits each month."}</p>
+        </div>
+      </div>
       <div className="settingsRows">
-        <SettingRow
-          label="Plan"
-          value={isPremium ? `${accountRoleLabel(user.role)} · 100 credits/month (rollover up to 200)` : "Free · 10 credits/month"}
-        />
-        <SettingRow label="Credits used" value={creditsUsedLabel} />
-        <SettingRow label="Remaining" value={credits.remaining} />
-        <SettingRow label="Next credits" value={resetLabel} />
-        <SettingRow label="Actions">
+        <SettingRow label="Next credit refresh" value={resetLabel} />
+        <SettingRow label="Billing and plan">
           <div className="settingsActions">
             {!isPremium && (
               <button
@@ -584,6 +627,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <h2 id="settings-security-title" className="settingsSectionTitle">
         Security
       </h2>
+      <p className="settingsSectionIntro">Control access to your account and current session.</p>
       <div className="settingsRows">
         <SettingRow label="Change password" value="Update your login password.">
           <div className="settingsActions">
@@ -613,6 +657,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <h2 id="settings-privacy-title" className="settingsSectionTitle">
         Privacy
       </h2>
+      <p className="settingsSectionIntro">Choose how optional product analytics are used.</p>
       <div className="settingsRows">
         <SettingRow
           label="Analytics"
@@ -801,17 +846,18 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       />
     <main className="page settingsPage">
       <div className="container settingsShell">
-        <header className="settingsHeader">
-          <div>
-            <h1 className="settingsTitle">Settings</h1>
-            <p className="settingsSubtitle">Manage your account, credits, privacy, and saved work.</p>
-          </div>
-          <Link href="/home" className="button-ghost button-small">
-            Back to app
-          </Link>
-        </header>
+        <div className="settingsWindow">
+          <header className="settingsHeader">
+            <div>
+              <h1 className="settingsTitle">Settings</h1>
+              <p className="settingsSubtitle">Manage your Note2Tabs account.</p>
+            </div>
+            <Link href="/home" className="settingsCloseButton" aria-label="Close settings and return home">
+              <span aria-hidden="true">×</span>
+            </Link>
+          </header>
 
-        <section className="settingsPanel" aria-label="Settings panel">
+          <section className="settingsPanel" aria-label="Settings panel">
           <aside className="settingsSidebar" aria-label="Settings sections">
             <p className="settingsSidebarLabel">Settings</p>
             <nav className="settingsNav" role="tablist" aria-label="Settings tabs">
@@ -843,7 +889,8 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             {selectedSection === "danger" && renderDangerSection()}
             {error && <div className="error" role="alert">{error}</div>}
           </div>
-        </section>
+          </section>
+        </div>
       </div>
     </main>
     </>
