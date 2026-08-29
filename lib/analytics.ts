@@ -27,6 +27,8 @@ export const ANALYTICS_EVENTS = {
   subscriptionPaymentRecoveryShown: "subscription_payment_recovery_shown",
   subscriptionPaymentRecoveryClicked: "subscription_payment_recovery_clicked",
   subscriptionPaymentRecoveryFailed: "subscription_payment_recovery_failed",
+  subscriptionCancellationRecoveryClicked: "subscription_cancellation_recovery_clicked",
+  subscriptionCancellationRecoveryFailed: "subscription_cancellation_recovery_failed",
   premiumPromptShown: "premium_prompt_shown",
   premiumPromptClicked: "premium_prompt_clicked",
   premiumPromptDismissed: "premium_prompt_dismissed",

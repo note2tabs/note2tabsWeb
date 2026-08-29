@@ -318,6 +318,37 @@ export default function ProductHome({
     }
   };
 
+  const handleCancellationRecovery = async () => {
+    if (billingPortalBusy) return;
+    setBillingPortalBusy(true);
+    setBillingRecoveryError(null);
+    sendEvent(ANALYTICS_EVENTS.subscriptionCancellationRecoveryClicked, {
+      surface: "product_home",
+      trial: Boolean(subscription?.isTrial),
+    });
+    try {
+      const response = await fetch("/api/stripe/create-portal-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnTo: "/home" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.url) {
+        throw new Error(payload?.error || "Could not open subscription details.");
+      }
+      window.location.href = payload.url;
+    } catch (error) {
+      setBillingRecoveryError(
+        error instanceof Error ? error.message : "Could not open subscription details."
+      );
+      sendEvent(ANALYTICS_EVENTS.subscriptionCancellationRecoveryFailed, {
+        surface: "product_home",
+        trial: Boolean(subscription?.isTrial),
+      });
+      setBillingPortalBusy(false);
+    }
+  };
+
   const handleCreate = async () => {
     if (creating) return;
     setCreating(true);
@@ -401,6 +432,7 @@ export default function ProductHome({
                     ? "Open your latest tab in Practice and hear how it feels under your fingers."
                     : "Transcribe one recording, then open it in the editor and try Practice."}
                 </small>
+                {billingRecoveryError && <small role="alert">{billingRecoveryError}</small>}
               </div>
               <div className="product-studio__trial-actions">
                 <Link
@@ -410,9 +442,9 @@ export default function ProductHome({
                   {latestEditor ? "Practice this tab" : "Transcribe a recording"}
                 </Link>
                 {subscription.cancelAtPeriodEnd && (
-                  <Link href="/settings" onClick={() => trackHomeCta("trial_manage_subscription")}>
-                    Manage subscription
-                  </Link>
+                  <button type="button" onClick={handleCancellationRecovery} disabled={billingPortalBusy}>
+                    {billingPortalBusy ? "Opening…" : "Review subscription"}
+                  </button>
                 )}
               </div>
             </aside>
