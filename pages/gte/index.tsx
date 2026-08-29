@@ -93,7 +93,7 @@ export default function GteIndexPage({ userId }: Props) {
       setEditors(nextEditors);
       writeEditorListCache(nextEditors);
     } catch (err: any) {
-      setError(err?.message || "Could not load editors.");
+      setError(err?.message || "We could not load your tabs. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -142,7 +142,7 @@ export default function GteIndexPage({ userId }: Props) {
       invalidateEditorListCache(window.sessionStorage, userId);
       await router.push(`/gte/${data.editorId}`);
     } catch (err: any) {
-      setError(err?.message || "Could not create editor.");
+      setError(err?.message || "We could not create a new tab. Check your connection and try again.");
       setCreating(false);
     }
   };
@@ -161,7 +161,7 @@ export default function GteIndexPage({ userId }: Props) {
       });
       setDeleteDialog((prev) => (prev?.id === editor.id ? null : prev));
     } catch (err: any) {
-      setError(err?.message || "Could not delete editor.");
+      setError(err?.message || "We could not delete this tab. It is still in your library; please try again.");
     } finally {
       setDeletingId(null);
     }
@@ -203,7 +203,7 @@ export default function GteIndexPage({ userId }: Props) {
       });
       setRenameDialog(null);
     } catch (err: any) {
-      setError(err?.message || "Could not rename editor.");
+      setError(err?.message || "We could not rename this tab. Its previous name is unchanged; please try again.");
     } finally {
       setRenamingId(null);
     }
@@ -235,7 +235,10 @@ export default function GteIndexPage({ userId }: Props) {
       setGuestDraft(null);
       await router.push(`/gte/${created.editorId}`);
     } catch (err: any) {
-      setError(err?.message || "Could not import guest draft.");
+      setError(
+        err?.message ||
+          "We could not save this browser draft to your account. The draft is still on this device; please try again."
+      );
     } finally {
       setGuestImporting(false);
     }
@@ -257,7 +260,7 @@ export default function GteIndexPage({ userId }: Props) {
         <div className="page-header">
           <div>
             <h1 className="page-title">Guitar Tab Editor</h1>
-            <p className="page-subtitle">Open transcriptions, start a new tab, or bring in a draft you made earlier.</p>
+            <p className="page-subtitle">Open your tabs, start a new arrangement, or import work made elsewhere.</p>
           </div>
           <div className="button-row">
             <GteFileImportButton
@@ -330,9 +333,25 @@ export default function GteIndexPage({ userId }: Props) {
             </div>
           )}
           {loading && <EditorLibraryLoadingState />}
-          {error && <div className="error">{error}</div>}
+          {error && (
+            <div className="error flex flex-wrap items-center justify-between gap-3" role="alert">
+              <span>{error}</span>
+              <button type="button" className="button-secondary button-small" onClick={() => void loadEditors(true)}>
+                Try again
+              </button>
+            </div>
+          )}
           {!loading && !editors.length && (
-            <p className="muted text-small">No transcriptions yet. Start your first one.</p>
+            <div className="blog-empty stack-tight">
+              <strong>Your tab library is ready.</strong>
+              <span>Create a blank tab, import an existing file, or transcribe a recording to begin.</span>
+              <div className="button-row">
+                <button type="button" className="button-primary button-small" onClick={handleCreate} disabled={creating}>
+                  {creating ? "Creating…" : "Create a blank tab"}
+                </button>
+                <Link href="/transcribe" className="button-secondary button-small">Transcribe a recording</Link>
+              </div>
+            </div>
           )}
           <div className="gte-library-grid">
             {editors.map((editor) => (
@@ -355,8 +374,8 @@ export default function GteIndexPage({ userId }: Props) {
                   </h2>
                 </div>
                 <div className="muted text-small gte-library-meta">
-                  <p>Notes: {editor.noteCount ?? 0} - Chords: {editor.chordCount ?? 0}</p>
-                  {editor.updatedAt && <p>Updated: {new Date(editor.updatedAt).toLocaleString()}</p>}
+                  <p>{editor.noteCount ?? 0} notes · {editor.chordCount ?? 0} chords</p>
+                  {editor.updatedAt && <p><time dateTime={editor.updatedAt}>Updated {new Date(editor.updatedAt).toLocaleString()}</time></p>}
                 </div>
                 <div className="gte-library-row-menu" data-editor-row-menu="true">
                   <div style={{ position: "relative" }}>
@@ -364,16 +383,19 @@ export default function GteIndexPage({ userId }: Props) {
                       type="button"
                       className="button-secondary button-small"
                       onClick={() => setOpenMenuId((prev) => (prev === editor.id ? null : editor.id))}
-                      aria-label="Editor options"
-                      title="Editor options"
+                      aria-label={`Options for ${editor.name || "Untitled tab"}`}
+                      aria-expanded={openMenuId === editor.id}
+                      aria-haspopup="menu"
+                      title="Tab options"
                     >
-                      ...
+                      <span aria-hidden="true">⋯</span>
                     </button>
                     {openMenuId === editor.id && (
-                      <div className="editor-actions-menu">
+                      <div className="editor-actions-menu" role="menu">
                         <button
                           type="button"
                           className="editor-actions-menu-item"
+                          role="menuitem"
                           onClick={() => {
                             setOpenMenuId(null);
                             setRenameDialog({ id: editor.id, name: editor.name || "Untitled" });
@@ -385,6 +407,7 @@ export default function GteIndexPage({ userId }: Props) {
                         <button
                           type="button"
                           className="editor-actions-menu-item editor-actions-menu-item--danger"
+                          role="menuitem"
                           onClick={() => {
                             setOpenMenuId(null);
                             setDeleteDialog(editor);
@@ -404,14 +427,15 @@ export default function GteIndexPage({ userId }: Props) {
       </div>
       {renameDialog && (
         <div className="dialog-scrim" onMouseDown={() => !renamingId && setRenameDialog(null)}>
-          <div className="dialog-card" onMouseDown={(event) => event.stopPropagation()}>
+          <div className="dialog-card" role="dialog" aria-modal="true" aria-labelledby="rename-tab-title" onMouseDown={(event) => event.stopPropagation()}>
             <div className="stack-tight">
-              <h2 className="page-title" style={{ fontSize: "1.25rem" }}>Rename tab</h2>
+              <h2 id="rename-tab-title" className="page-title" style={{ fontSize: "1.25rem" }}>Rename tab</h2>
               <p className="muted text-small">Choose a new name for this editor.</p>
             </div>
             <div className="stack-tight">
               <input
                 type="text"
+                aria-label="Tab name"
                 value={renameDialog.name}
                 onChange={(event) =>
                   setRenameDialog((prev) => (prev ? { ...prev, name: event.target.value } : prev))
@@ -451,10 +475,10 @@ export default function GteIndexPage({ userId }: Props) {
       )}
       {deleteDialog && (
         <div className="dialog-scrim" onMouseDown={() => !deletingId && setDeleteDialog(null)}>
-          <div className="dialog-card" onMouseDown={(event) => event.stopPropagation()}>
+          <div className="dialog-card" role="alertdialog" aria-modal="true" aria-labelledby="delete-tab-title" aria-describedby="delete-tab-description" onMouseDown={(event) => event.stopPropagation()}>
             <div className="stack-tight">
-              <h2 className="page-title" style={{ fontSize: "1.25rem" }}>Delete tab?</h2>
-              <p className="muted text-small">
+              <h2 id="delete-tab-title" className="page-title" style={{ fontSize: "1.25rem" }}>Delete tab?</h2>
+              <p id="delete-tab-description" className="muted text-small">
                 Delete "{deleteDialog.name || "Untitled"}"? This cannot be undone.
               </p>
             </div>

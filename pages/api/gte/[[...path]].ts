@@ -254,7 +254,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const requestStartedAt = Date.now();
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.id) {
-    return res.status(401).json({ error: "Not authenticated" });
+    return res.status(401).json({ error: "Your session has expired. Please sign in again." });
   }
 
   const url = buildUrl(req);
@@ -351,7 +351,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   } catch (error: any) {
     return res.status(502).json({
-      error: "GTE upstream request failed",
+      error: "The editor service is temporarily unavailable. Your saved work is unchanged; please try again shortly.",
       detail: error?.message || "fetch_failed",
       path,
       method,

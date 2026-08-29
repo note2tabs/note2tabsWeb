@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
 import { issueAndSendPasswordResetEmail } from "../../../lib/passwordReset";
-import { EmailConfigurationError, isEmailDeliveryConfigured } from "../../../lib/email";
+import { EmailConfigurationError } from "../../../lib/email";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -12,7 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { email } = req.body || {};
     if (!email || typeof email !== "string" || !email.includes("@")) {
-      return res.status(400).json({ error: "Invalid email" });
+      return res.status(400).json({ error: "Enter a valid email address." });
     }
 
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
@@ -20,7 +20,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Avoid leaking user existence
       return res.status(200).json({
         ok: true,
-        deliveryConfigured: isEmailDeliveryConfigured(),
       });
     }
 
@@ -32,13 +31,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({
       ok: true,
-      deliveryConfigured: isEmailDeliveryConfigured(),
       sent: result.sent,
     });
   } catch (error) {
     if (error instanceof EmailConfigurationError) {
       console.error("request-reset email configuration error", error);
-      return res.status(500).json({ error: error.message });
+      // Keep account existence and internal mail configuration private.
+      return res.status(200).json({ ok: true });
     }
 
     console.error("request-reset error", error);

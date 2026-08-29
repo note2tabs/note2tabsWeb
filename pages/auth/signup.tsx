@@ -64,38 +64,47 @@ export default function SignupPage() {
     } catch {
       // best effort only
     }
-    const res = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email,
-        password,
-        name,
-        fingerprintId,
-        funnelId: premiumFunnel?.funnelId,
-        funnelSource: premiumFunnel?.source,
-        funnelReason: premiumFunnel?.reason,
-      }),
-    });
-    setLoading(false);
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data?.error || "Could not sign up.");
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password,
+          name,
+          fingerprintId,
+          funnelId: premiumFunnel?.funnelId,
+          funnelSource: premiumFunnel?.source,
+          funnelReason: premiumFunnel?.reason,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.error || "We could not create your account. Please check the details and try again.");
+        sendEvent(ANALYTICS_EVENTS.signupFailed, {
+          method: "email",
+          error_code: categorizeAnalyticsError(data?.error, "signup_failed"),
+        });
+        return;
+      }
+      sendEvent(ANALYTICS_EVENTS.signupCompleted, {
+        method: "email",
+        destination,
+        ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
+      });
+      const nextEmail = encodeURIComponent((data?.email as string) || email);
+      const sentParam = data?.emailSent === false ? "&sent=0" : "";
+      const nextParam = nextHref === "/" ? "" : `&next=${encodeURIComponent(nextHref)}`;
+      await router.push(`/auth/verify-email?email=${nextEmail}${sentParam}${nextParam}`);
+    } catch (requestError) {
+      setError("We could not reach the sign-up service. Check your connection and try again.");
       sendEvent(ANALYTICS_EVENTS.signupFailed, {
         method: "email",
-        error_code: categorizeAnalyticsError(data?.error, "signup_failed"),
+        error_code: categorizeAnalyticsError(requestError, "signup_network_error"),
       });
-      return;
+    } finally {
+      setLoading(false);
     }
-    sendEvent(ANALYTICS_EVENTS.signupCompleted, {
-      method: "email",
-      destination,
-      ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
-    });
-    const nextEmail = encodeURIComponent((data?.email as string) || email);
-    const sentParam = data?.emailSent === false ? "&sent=0" : "";
-    const nextParam = nextHref === "/" ? "" : `&next=${encodeURIComponent(nextHref)}`;
-    router.push(`/auth/verify-email?email=${nextEmail}${sentParam}${nextParam}`);
   };
 
   return (

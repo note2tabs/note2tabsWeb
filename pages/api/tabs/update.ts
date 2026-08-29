@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const session = await getServerSession(req, res, authOptions);
     if (!session?.user?.id) {
-      return res.status(401).json({ error: "Not authenticated" });
+      return res.status(401).json({ error: "Your session has expired. Please sign in again." });
     }
 
     const { id, sourceLabel, resultJson } = req.body || {};
@@ -76,6 +76,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   } catch (error) {
     console.error("update tab error", error);
-    return res.status(500).json({ error: "Could not update tab" });
+    return res.status(500).json({
+      error: "We could not save this tab update. Your previous version is unchanged; please try again.",
+    });
   }
 }

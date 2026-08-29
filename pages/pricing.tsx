@@ -165,7 +165,7 @@ export default function PricingPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.url) {
-        throw new Error(payload?.error || "Could not start checkout.");
+        throw new Error(payload?.error || "Checkout is temporarily unavailable. Please try again in a moment.");
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         plan: "premium_monthly",
@@ -180,7 +180,11 @@ export default function PricingPage() {
         ...premiumFunnelProperties(funnel),
         ...premiumOfferExperimentProperties(offerVariant),
       });
-      setCheckoutError(error instanceof Error ? error.message : "Could not start checkout.");
+      setCheckoutError(
+        error instanceof Error
+          ? error.message
+          : "Checkout is temporarily unavailable. Please check your connection and try again."
+      );
       setCheckoutBusy(false);
     }
   }, [checkoutBusy, getFunnelContext, hasPaidPremium, hasPremiumAccess, offerVariant, router, session]);

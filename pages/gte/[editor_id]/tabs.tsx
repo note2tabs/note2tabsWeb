@@ -146,7 +146,10 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
         });
       } catch (err: unknown) {
         if (!active) return;
-        const message = err instanceof Error ? err.message : "Could not load ASCII tabs.";
+        const message =
+          err instanceof Error
+            ? err.message
+            : "We could not prepare the text tab. Return to the editor and try again.";
         setError(message);
       } finally {
         if (active) setLoading(false);
@@ -206,7 +209,7 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
 
   return (
     <>
-      <NoIndexHead title="txt tabs | Note2Tabs" canonicalPath={`/gte/${editorId}/tabs`} />
+      <NoIndexHead title="Text tab export | Note2Tabs" canonicalPath={`/gte/${editorId}/tabs`} />
       <main className="content py-8">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
           <div className="flex flex-wrap items-center gap-2">
@@ -253,9 +256,9 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
 
           {!loading && !error && (
             <section>
-              <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm font-medium text-slate-700">Tabs</p>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="inline-flex items-center overflow-hidden rounded-full border border-slate-200 bg-white">
                     <button
                       type="button"

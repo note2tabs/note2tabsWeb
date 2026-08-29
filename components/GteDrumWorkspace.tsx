@@ -1090,7 +1090,7 @@ export default function GteDrumWorkspace({
         await gteApi.saveDrumNote(canvasId, laneId, note);
       } catch (error: any) {
         updateSnapshotNotes(previousNotes, { recordHistory: false, markDirty: false });
-        setSaveError(error?.message || "Could not save drum hit.");
+        setSaveError(error?.message || "We could not save this drum hit. The rest of the pattern is unchanged; please try again.");
       }
     },
     [
@@ -1125,7 +1125,7 @@ export default function GteDrumWorkspace({
       } catch (error: any) {
         updateSnapshotNotes(previousNotes, { recordHistory: false, markDirty: false });
         replaceSelection(ids);
-        setSaveError(error?.message || "Could not remove drum hit.");
+        setSaveError(error?.message || "We could not remove this drum hit. It is still in the pattern; please try again.");
       }
     },
     [
@@ -1192,7 +1192,7 @@ export default function GteDrumWorkspace({
         );
       } catch (error: any) {
         updateSnapshotNotes(previousNotes, { recordHistory: false, markDirty: false });
-        setSaveError(error?.message || "Could not move drum hits.");
+        setSaveError(error?.message || "We could not move the selected drum hits. Their previous positions are unchanged; please try again.");
       }
     },
     [canvasId, laneId, tableBacked, updateSnapshotNotes]

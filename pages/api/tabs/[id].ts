@@ -13,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const session = await getServerSession(req, res, authOptions);
     if (!session?.user?.id) {
-      return res.status(401).json({ error: "Not authenticated" });
+      return res.status(401).json({ error: "Your session has expired. Please sign in again." });
     }
 
     const id = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
@@ -49,6 +49,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   } catch (error) {
     console.error("get tab error", error);
-    return res.status(500).json({ error: "Could not load tab" });
+    return res.status(500).json({
+      error: "We could not load this saved transcription right now. Please try again shortly.",
+    });
   }
 }

@@ -63,6 +63,13 @@ const settingsSections: Array<{ id: SettingsSection; label: string }> = [
   { id: "danger", label: "Danger zone" },
 ];
 
+const accountRoleLabel = (role: string) => {
+  if (role === "PREMIUM") return "Premium";
+  if (role === "ADMIN") return "Administrator";
+  if (role === "MODERATOR" || role === "MOD") return "Moderator";
+  return "Free";
+};
+
 type SettingRowProps = {
   label: string;
   description?: string;
@@ -94,8 +101,6 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteFlowOpen, setDeleteFlowOpen] = useState(false);
-  const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
-  const [deleteOriginReason, setDeleteOriginReason] = useState("");
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
   const [verifyBusy, setVerifyBusy] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
@@ -108,7 +113,6 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const [checkoutStatus, setCheckoutStatus] = useState<string | null>(null);
   const checkoutReturnHandledRef = useRef(false);
   const verifyHref = `/auth/verify-email?email=${encodeURIComponent(user.email)}`;
-  const canContinueDeleteFlow = deleteOriginReason.trim().length >= 8;
   const canFinalizeDelete = deleteConfirmationText.trim().toLowerCase() === "delete";
   const isAdminOrMod = user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const isAdmin = user.role === "ADMIN";
@@ -247,7 +251,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
 
   const handleUpgrade = async () => {
     if (!stripeReady) {
-      setError("Stripe not configured yet. Coming soon.");
+      setError("Premium upgrades are temporarily unavailable. Please try again later.");
       return;
     }
     setUpgradeBusy(true);
@@ -272,7 +276,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
           plan: "premium_monthly",
           ...premiumFunnelProperties(funnel),
         });
-        setError(data?.error || "Could not start checkout.");
+        setError(data?.error || "Checkout is temporarily unavailable. Please try again in a moment.");
         return;
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
@@ -294,7 +298,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
 
   const handleManageSubscription = async () => {
     if (!stripeReady) {
-      setError("Stripe not configured yet. Subscription management is unavailable.");
+      setError("Subscription management is temporarily unavailable. Please try again later.");
       return;
     }
     setPortalBusy(true);
@@ -325,11 +329,11 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.error || "Could not resend verification email.");
+        throw new Error(data?.error || "We could not send another verification email. Please try again shortly.");
       }
       setVerifyMessage(data?.alreadyVerified ? "Your email is already verified." : "Verification email sent.");
     } catch (err: any) {
-      setError(err?.message || "Could not resend verification email.");
+      setError(err?.message || "We could not send another verification email. Check your connection and try again.");
     } finally {
       setVerifyBusy(false);
     }
@@ -396,7 +400,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
           : "Analytics tracking is denied and analytics identifiers were cleared."
       );
     } catch (err: any) {
-      setError(err?.message || "Could not update analytics consent.");
+      setError(err?.message || "We could not save your analytics preference. Please try again.");
     } finally {
       setConsentBusy(false);
     }
@@ -410,13 +414,13 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <div className="settingsRows">
         <SettingRow label="Email" value={user.email} />
         <SettingRow label="Name" value={user.name || "Not set"} />
-        <SettingRow label="Role" value={user.role} />
-        <SettingRow label="Created" value={new Date(user.createdAt).toLocaleDateString()} />
+        <SettingRow label="Role" value={accountRoleLabel(user.role)} />
+        <SettingRow label="Created" value={<time dateTime={user.createdAt}>{new Date(user.createdAt).toLocaleDateString()}</time>} />
         <SettingRow label="Email verified" value={user.isEmailVerified ? "Yes" : "No"} />
         <SettingRow label="Actions">
           <div className="settingsActions">
             <Link href="/tabs" className="settingsButton settingsButtonSecondary">
-              Transcriptions
+              Transcription history
             </Link>
             <Link href="/gte" className="settingsButton settingsButtonSecondary">
               Open editor
@@ -456,7 +460,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <div className="settingsRows">
         <SettingRow
           label="Plan"
-          value={isPremium ? `${user.role} - 100 credits/month (rollover up to 200)` : "Free - 10 credits/month"}
+          value={isPremium ? `${accountRoleLabel(user.role)} · 100 credits/month (rollover up to 200)` : "Free · 10 credits/month"}
         />
         <SettingRow label="Credits used" value={creditsUsedLabel} />
         <SettingRow label="Remaining" value={credits.remaining} />
@@ -470,7 +474,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
                 className="settingsButton settingsButtonPrimary"
                 disabled={upgradeBusy}
               >
-                {stripeReady ? "Upgrade to Premium" : "Premium (coming soon)"}
+                {stripeReady ? "Upgrade to Premium" : "Premium temporarily unavailable"}
               </button>
             )}
             {isPaidPremium && (
@@ -554,7 +558,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         <SettingRow
           label="Analytics"
           description="Cookieless product analytics are enabled by default. You can turn them off anytime."
-          value={consentState}
+          value={consentState === "granted" ? "Enabled" : "Disabled"}
         >
           <div className="settingsActions">
             <button
@@ -595,7 +599,6 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             className="settingsButton settingsButtonDanger"
             onClick={() => {
               setDeleteFlowOpen(true);
-              setDeleteStep(1);
               setDeleteConfirmationText("");
               setError(null);
             }}
@@ -606,110 +609,41 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       )}
       {deleteFlowOpen && (
         <div className="card-outline stack delete-flow">
-          {deleteStep === 1 && (
-            <>
-              <p className="muted text-small">
-                Before removing your account, what made you sign up in the first place?
-              </p>
-              <label className="form-group">
-                <span className="label">Why did you create your Note2Tabs account?</span>
-                <textarea
-                  className="form-textarea"
-                  rows={3}
-                  value={deleteOriginReason}
-                  onChange={(event) => setDeleteOriginReason(event.target.value)}
-                  placeholder="Example: I wanted faster tab writing and to keep my song edits in one place."
-                />
-              </label>
-              <div className="delete-alternatives">
-                <p className="muted text-small">
-                  You started this account to save progress and keep your workflow in one place. Before deleting, you
-                  can also:
-                </p>
-                <div className="button-row">
-                  <Link href="/tabs" className="button-secondary button-small">
-                    Review transcriptions
-                  </Link>
-                  <Link href="/reset-password" className="button-secondary button-small">
-                    Reset password
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => void handleSignOut()}
-                    className="button-secondary button-small"
-                    disabled={signOutBusy}
-                  >
-                    {signOutBusy ? "Signing out…" : "Log out instead"}
-                  </button>
-                </div>
-              </div>
-              <div className="button-row">
-                <button
-                  type="button"
-                  className="button-secondary button-small"
-                  onClick={() => {
-                    setDeleteFlowOpen(false);
-                    setDeleteStep(1);
-                    setDeleteOriginReason("");
-                    setDeleteConfirmationText("");
-                    setError(null);
-                  }}
-                >
-                  Keep my account
-                </button>
-                <button
-                  type="button"
-                  className="button-secondary button-small"
-                  onClick={() => {
-                    setDeleteStep(2);
-                    setError(null);
-                  }}
-                  disabled={!canContinueDeleteFlow}
-                >
-                  Continue to final step
-                </button>
-              </div>
-            </>
-          )}
-          {deleteStep === 2 && (
-            <>
-              <p className="muted text-small">
-                Final confirmation: type <strong>delete</strong> to permanently remove your account and data.
-              </p>
-              <label className="form-group">
-                <span className="label">Type delete to confirm</span>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={deleteConfirmationText}
-                  onChange={(event) => setDeleteConfirmationText(event.target.value)}
-                  placeholder="delete"
-                  autoComplete="off"
-                />
-              </label>
-              <div className="button-row">
-                <button
-                  type="button"
-                  className="button-secondary button-small"
-                  onClick={() => {
-                    setDeleteStep(1);
-                    setDeleteConfirmationText("");
-                    setError(null);
-                  }}
-                >
-                  Back
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDelete()}
-                  className="button-secondary button-small button-delete-final"
-                  disabled={busy || !canFinalizeDelete}
-                >
-                  {busy ? "Deleting..." : "Delete account permanently"}
-                </button>
-              </div>
-            </>
-          )}
+          <p className="muted text-small">
+            This permanently removes your account, saved tabs, transcription history, and active subscription. Type <strong>delete</strong> to confirm.
+          </p>
+          <label className="form-group">
+            <span className="label">Type delete to confirm</span>
+            <input
+              type="text"
+              className="form-input"
+              value={deleteConfirmationText}
+              onChange={(event) => setDeleteConfirmationText(event.target.value)}
+              placeholder="delete"
+              autoComplete="off"
+            />
+          </label>
+          <div className="button-row">
+            <button
+              type="button"
+              className="button-secondary button-small"
+              onClick={() => {
+                setDeleteFlowOpen(false);
+                setDeleteConfirmationText("");
+                setError(null);
+              }}
+            >
+              Keep my account
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              className="button-secondary button-small button-delete-final"
+              disabled={busy || !canFinalizeDelete}
+            >
+              {busy ? "Deleting..." : "Delete account permanently"}
+            </button>
+          </div>
         </div>
       )}
     </section>
@@ -725,7 +659,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             <h1 className="settingsTitle">Settings</h1>
             <p className="settingsSubtitle">Manage your account, credits, privacy, and saved work.</p>
           </div>
-          <Link href="/" className="button-ghost button-small">
+          <Link href="/home" className="button-ghost button-small">
             Back to app
           </Link>
         </header>
@@ -760,7 +694,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             {selectedSection === "security" && renderSecuritySection()}
             {selectedSection === "privacy" && renderPrivacySection()}
             {selectedSection === "danger" && renderDangerSection()}
-            {error && <div className="error">{error}</div>}
+            {error && <div className="error" role="alert">{error}</div>}
           </div>
         </section>
       </div>
@@ -774,7 +708,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (!session?.user?.email || !session.user.id) {
     return {
       redirect: {
-        destination: "/auth/login",
+        destination: `/auth/login?next=${encodeURIComponent(ctx.resolvedUrl || "/settings")}`,
         permanent: false,
       },
     };

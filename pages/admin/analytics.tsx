@@ -46,13 +46,16 @@ export default function AnalyticsDashboard({ dashboardUrl }: Props) {
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
-  if (!session?.user?.id || !(await hasFreshUserRole(session, ADMIN_ROLES))) {
+  if (!session?.user?.id) {
     return {
       redirect: {
-        destination: "/",
+        destination: `/auth/login?next=${encodeURIComponent(ctx.resolvedUrl || "/admin/analytics")}`,
         permanent: false,
       },
     };
+  }
+  if (!(await hasFreshUserRole(session, ADMIN_ROLES))) {
+    return { redirect: { destination: "/home", permanent: false } };
   }
 
   return {

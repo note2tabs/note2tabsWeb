@@ -1679,7 +1679,7 @@ input[type="number"] {
 
 .product-studio__start { position: relative; min-height: 390px; overflow: hidden; padding: 52px; border: 1px solid rgba(6, 17, 13, 0.1); border-radius: 24px; background: #f6f3ea; box-shadow: 0 14px 34px rgba(6, 17, 13, 0.055); }
 .product-studio__start-copy { position: relative; z-index: 2; display: grid; width: min(100%, 760px); margin: 0 auto; justify-items: center; text-align: center; }
-.product-studio__start h2 { margin: 0; font-size: clamp(1.75rem, 3.8vw, 2.75rem); font-weight: 590; letter-spacing: -0.05em; }
+.product-studio__start h1 { margin: 0; font-size: clamp(1.75rem, 3.8vw, 2.75rem); font-weight: 590; letter-spacing: -0.05em; }
 .product-studio__start-copy > span { margin-top: 9px; color: rgba(6, 17, 13, 0.58); font-size: 0.84rem; }
 .product-studio__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 10px; margin-top: 30px; padding: 9px; border: 1px solid rgba(6, 17, 13, 0.11); border-radius: 21px; background: rgba(255, 255, 255, 0.82); box-shadow: 0 16px 38px rgba(6, 17, 13, 0.09); }
 .product-studio__actions > a,
@@ -1741,7 +1741,7 @@ input[type="number"] {
   .product-studio__welcome h1 { font-size: 1.15rem; }
   .product-studio__credits { width: 170px; }
   .product-studio__start { min-height: 0; padding: 42px 16px 34px; }
-  .product-studio__start h2 { font-size: 1.75rem; }
+  .product-studio__start h1 { font-size: 1.75rem; }
   .product-studio__actions { grid-template-columns: 1fr; }
   .product-studio__actions > a,
   .product-studio__actions > button { min-height: 76px; }
@@ -3336,8 +3336,43 @@ input[type="number"] {
 }
 
 .error {
-  background: #fff1f1;
-  color: #b91c1c;
+  border: 1px solid rgba(127, 29, 29, 0.16);
+  background: rgba(255, 255, 255, 0.92);
+  color: #512a2a;
+  line-height: 1.55;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+}
+
+.job-error-card {
+  border-color: rgba(127, 29, 29, 0.14);
+  background: #fff;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.07);
+}
+
+.job-error-card__eyebrow {
+  margin: 0 0 8px;
+  color: #7c5555;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.job-error-card__title {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.25rem;
+}
+
+.job-error-card__message {
+  max-width: 62ch;
+  margin: 9px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.job-error-card__actions {
+  margin-top: 18px;
 }
 
 .nav-shell {
@@ -3730,8 +3765,8 @@ input[type="number"] {
 }
 
 .footer-social-link {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   color: rgba(226, 232, 240, 0.84);
@@ -5335,7 +5370,7 @@ input[type="number"] {
 .blog-tools-note {
   max-width: 31ch;
   margin: 0;
-  color: #64748b;
+  color: #5b6878;
   font-size: 0.84rem;
   line-height: 1.5;
   text-align: right;
@@ -7841,6 +7876,9 @@ input[type="number"] {
 
 .model-value-note button,
 .model-value-note a {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
   border: 0;
   padding: 0;
   background: transparent;
@@ -11269,7 +11307,7 @@ input[type="number"] {
 .pricing-plan__reassurance {
   min-height: 42px;
   margin: 10px 0 0;
-  color: rgba(6, 17, 13, 0.54);
+  color: rgba(6, 17, 13, 0.62);
   font-size: 0.72rem;
   line-height: 1.45;
   text-align: center;

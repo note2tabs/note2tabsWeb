@@ -14,6 +14,7 @@ import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
 import { normalizeTabSegments, tabSegmentsToStamps, tabsToTabText } from "../../lib/tabTextToStamps";
 import { getAppBaseUrl } from "../../lib/urls";
 import NoIndexHead from "../../components/NoIndexHead";
+import { publicJobError } from "../../lib/backendError";
 import { EditorLoadingState } from "../../components/EditorLoadingState";
 import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
 import {
@@ -497,6 +498,10 @@ function normalizeJobForDisplay(job: JobResponse | null): JobResponse | null {
       ? (getFirstJobValue(job, ["tab_text", "tabText"]) as string)
       : "") || tabsValueToText(getFirstJobValue(job, ["tabs"]));
   const stems = getFirstJobValue(job, ["stems"]);
+  const rawErrorMessage =
+    (typeof getFirstJobValue(job, ["error_message", "errorMessage", "lastError"]) === "string"
+      ? (getFirstJobValue(job, ["error_message", "errorMessage", "lastError"]) as string)
+      : job.error_message) || null;
   return {
     ...job,
     song_title:
@@ -513,26 +518,23 @@ function normalizeJobForDisplay(job: JobResponse | null): JobResponse | null {
         ? (getFirstJobValue(job, ["audio_preview_url", "audioPreviewUrl"]) as string)
         : job.audio_preview_url) || job.audio_preview_url,
     stems: Array.isArray(stems) ? stems : job.stems,
-    error_message:
-      (typeof getFirstJobValue(job, ["error_message", "errorMessage", "lastError"]) === "string"
-        ? (getFirstJobValue(job, ["error_message", "errorMessage", "lastError"]) as string)
-        : job.error_message) || job.error_message,
+    error_message: rawErrorMessage ? publicJobError(rawErrorMessage) : null,
   };
 }
 
 async function readErrorMessage(response: Response) {
   const text = await response.text();
   if (!text) {
-    return "Request failed.";
+    return publicJobError(`Request failed with status ${response.status}.`);
   }
   try {
     const parsed = JSON.parse(text) as Record<string, unknown>;
-    if (typeof parsed.detail === "string" && parsed.detail.trim()) return parsed.detail;
-    if (typeof parsed.error === "string" && parsed.error.trim()) return parsed.error;
+    if (typeof parsed.detail === "string" && parsed.detail.trim()) return publicJobError(parsed.detail);
+    if (typeof parsed.error === "string" && parsed.error.trim()) return publicJobError(parsed.error);
   } catch {
-    // Ignore parse failures and fall back to the raw response text.
+    // Ignore parse failures and convert the response to a safe customer-facing message.
   }
-  return text;
+  return publicJobError(text);
 }
 
 async function fetchStoredTabPayload(tabId: string): Promise<StoredTabPayloadResponse> {
@@ -745,7 +747,7 @@ export default function JobPage() {
       const fallback: JobResponse = {
         job_id: id,
         status: "error",
-        error_message: "Could not fetch job status.",
+        error_message: publicJobError("Could not fetch job status."),
       };
       setJob(fallback);
       if (pollTimeoutRef.current) {
@@ -1165,7 +1167,7 @@ export default function JobPage() {
       const message =
         err?.message === "No importable tab groups are available for this transcription."
           ? "Tabs are still getting ready for the editor. Please try again in a moment."
-          : err?.message || "Failed to finalize tab groups.";
+          : err?.message || "We could not finish preparing these tracks for the editor. Please try again in a moment.";
       setReviewError(message);
     } finally {
       setReviewBusy(false);
@@ -1231,7 +1233,7 @@ export default function JobPage() {
               <EditorLoadingState label="Quantizing transcription and opening your editor" />
               {reviewError ? (
                 <div className="stack-tight">
-                  <div className="error">{reviewError}</div>
+                  <div className="error" role="alert">{reviewError}</div>
                   <button
                     type="button"
                     className="button-primary button-small"

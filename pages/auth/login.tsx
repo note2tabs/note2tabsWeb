@@ -59,26 +59,31 @@ export default function LoginPage() {
     } catch {
       // best effort only
     }
-    const res = await signIn("credentials", {
-      redirect: false,
-      email,
-      password,
-      fingerprintId,
-      funnelId: premiumFunnel?.funnelId,
-      funnelSource: premiumFunnel?.source,
-      funnelReason: premiumFunnel?.reason,
-      callbackUrl: nextHref,
-    });
-    setLoading(false);
-    if (res?.error) {
-      setError(authErrorMessage(res.error) ?? "Sign in failed. Please try again.");
-    } else {
-      sendEvent(ANALYTICS_EVENTS.loginSucceeded, {
-        method: "credentials",
-        destination: categorizeAnalyticsDestination(nextHref),
-        ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
+    try {
+      const res = await signIn("credentials", {
+        redirect: false,
+        email,
+        password,
+        fingerprintId,
+        funnelId: premiumFunnel?.funnelId,
+        funnelSource: premiumFunnel?.source,
+        funnelReason: premiumFunnel?.reason,
+        callbackUrl: nextHref,
       });
-      router.push(res?.url || nextHref);
+      if (res?.error) {
+        setError(authErrorMessage(res.error) ?? "We could not sign you in. Check your details and try again.");
+      } else {
+        sendEvent(ANALYTICS_EVENTS.loginSucceeded, {
+          method: "credentials",
+          destination: categorizeAnalyticsDestination(nextHref),
+          ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
+        });
+        await router.push(res?.url || nextHref);
+      }
+    } catch {
+      setError("We could not reach the sign-in service. Check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
   };
 

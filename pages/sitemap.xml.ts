@@ -12,7 +12,6 @@ type SitemapEntry = {
 const staticPaths = [
   "/",
   "/editor",
-  "/online-guitar-tab-editor",
   "/transcribe",
   "/pricing",
   "/blog",
@@ -31,7 +30,6 @@ const staticPaths = [
 
 const recentlyUpdatedSeoPaths = new Set([
   "/editor",
-  "/online-guitar-tab-editor",
   "/audio-to-guitar-tab-converter",
   "/mp3-to-guitar-tabs",
   "/ai-guitar-tab-generator",
@@ -68,7 +66,12 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
       where: publishedWhere,
       select: { slug: true, updatedAt: true, publishedAt: true, publishAt: true },
     })
-  );
+  ).catch((error) => {
+    // Product and legal URLs should remain discoverable during a temporary
+    // content-database outage. A later cached response restores article URLs.
+    console.error("sitemap blog lookup failed", error);
+    return [];
+  });
 
   const entries: SitemapEntry[] = staticPaths.map((path) => ({
     loc: buildUrl(baseUrl, path),

@@ -143,11 +143,40 @@ const encodeSnapToGridQuery = (snapToGrid?: boolean) =>
     ? ""
     : `&snap_to_grid=${encodeURIComponent(String(snapToGrid))}&snapToGrid=${encodeURIComponent(String(snapToGrid))}`;
 
+export function editorRequestError(text: string, status: number) {
+  if (status === 401) return "Your session has expired. Sign in again to continue editing.";
+  if (status === 403) return "You do not have access to this editor.";
+  if (status === 404) return "This editor could not be found. It may have been removed or opened from an old link.";
+  if (status === 409) return "This editor changed in another tab. Reload the page before trying that action again.";
+  if (status === 413) return "This edit is too large to save at once. Try making the change in smaller parts.";
+  if (status === 429) return "The editor is receiving too many changes at once. Wait a moment and try again.";
+  if (status >= 500 || status === 0) {
+    return "The editor service is temporarily unavailable. Your local changes are still on this device and will retry automatically.";
+  }
+
+  let message = text.trim();
+  try {
+    const parsed = JSON.parse(message) as Record<string, unknown>;
+    const candidate = parsed.error ?? parsed.detail ?? parsed.message;
+    if (typeof candidate === "string") message = candidate.trim();
+  } catch {
+    // Plain-text validation messages are handled below.
+  }
+  const looksTechnical =
+    !message ||
+    message.length > 240 ||
+    /(?:traceback|stack trace|exception|prisma|sql|\/api\/|gs:\/\/|s3:\/\/|[A-Z_]{4,}=)/i.test(message) ||
+    /^[<{[]/.test(message);
+  return looksTechnical
+    ? "The editor could not complete that action. Check your selection and try again."
+    : message;
+}
+
 async function request<T>(path: string, options: RequestInit = {}, base: string = AUTH_BASE): Promise<T> {
   const res = await fetch(`${base}${path}`, options);
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(text || "Request failed");
+    throw new Error(editorRequestError(text, res.status));
   }
   if (!text) {
     return {} as T;
@@ -179,8 +208,8 @@ function takeBootstrappedEditor(editorId: string) {
   const bootstrap = window.__note2tabsEditorBootstrap;
   if (!bootstrap || bootstrap.editorId !== editorId) return null;
   delete window.__note2tabsEditorBootstrap;
-  return bootstrap.promise.then(({ ok, text }) => {
-    if (!ok) throw new Error(text || "Request failed");
+  return bootstrap.promise.then(({ ok, status, text }) => {
+    if (!ok) throw new Error(editorRequestError(text, status));
     if (!text) return {} as EditorOrCanvasSnapshot;
     try {
       return JSON.parse(text) as EditorOrCanvasSnapshot;

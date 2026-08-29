@@ -35,7 +35,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.id) return res.status(401).json({ error: "Not authenticated" });
+  if (!session?.user?.id) {
+    return res.status(401).json({ error: "Your session has expired. Please sign in again." });
+  }
   const role = await getFreshUserRole(session);
   if (!role) return res.status(401).json({ error: "Account not found" });
 

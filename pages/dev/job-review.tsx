@@ -80,6 +80,7 @@ export default function JobReviewPreviewPage() {
                     </p>
                     <select
                       className="form-select"
+                      aria-label="Choose editor destination"
                       value={editorChoice}
                       onChange={(event) => setEditorChoice(event.target.value)}
                       disabled={isImporting}

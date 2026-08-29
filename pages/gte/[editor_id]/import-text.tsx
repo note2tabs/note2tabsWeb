@@ -45,7 +45,10 @@ export default function ImportTextTabPage({ editorId }: Props) {
       });
       await router.push(`/gte/${editorId}`);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Could not import text tab.";
+      const message =
+        err instanceof Error
+          ? err.message
+          : "We could not import this text tab. Check the formatting and try again.";
       setError(message);
     } finally {
       setBusy(false);
@@ -136,7 +139,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   if (!userId) {
     return {
       redirect: {
-        destination: "/auth/login",
+        destination: `/auth/login?next=${encodeURIComponent(ctx.resolvedUrl || "/gte")}`,
         permanent: false,
       },
     };

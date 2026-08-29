@@ -31,7 +31,7 @@ const editorName = (editor: EditorListItem) => editor.name?.trim() || "Untitled 
 const editorLoadMessage = (error: unknown) => {
   const message = error instanceof Error ? error.message : "";
   if (!message || message.startsWith("{") || /authenticated|unauthorized/i.test(message)) {
-    return "Your recent work could not be loaded.";
+    return "We could not load your recent tabs. Check your connection and try again; your saved work is unchanged.";
   }
   return message;
 };
@@ -226,8 +226,12 @@ export default function ProductHome({
       const created = await gteApi.createEditor();
       invalidateEditorListCache(window.sessionStorage, userId);
       await router.push(`/gte/${created.editorId}`);
-    } catch {
-      setLoadError("A new tab could not be created.");
+    } catch (error: unknown) {
+      setLoadError(
+        error instanceof Error
+          ? editorLoadMessage(error)
+          : "We could not create a new tab. Check your connection and try again."
+      );
       setCreating(false);
     }
   };
@@ -268,7 +272,7 @@ export default function ProductHome({
             <span className="product-hub__doodle product-hub__doodle--guitar" aria-hidden="true" />
             <span className="product-hub__doodle product-hub__doodle--notes" aria-hidden="true" />
             <div className="product-studio__start-copy">
-              <h2 id="studio-start-title">What would you like to play next?</h2>
+              <h1 id="studio-start-title">What would you like to play next?</h1>
               <span>Transcribe a recording or begin with a blank tab.</span>
               <div className="product-studio__actions" aria-label="Start creating">
                 <Link href="/transcribe" onClick={() => trackHomeCta("product_home_transcribe")}>

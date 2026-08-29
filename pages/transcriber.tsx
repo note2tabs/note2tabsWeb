@@ -872,7 +872,7 @@ export default function TranscriberPage() {
         if (isDevelopmentClient) {
           response = await postFileDirectly();
         } else {
-          const uploadStorageError = "Could not upload file to storage. Please try again.";
+          const uploadStorageError = "We could not securely transfer this file. Check your connection and try again; the file is still selected.";
           const presignRes = await fetch("/api/uploads/presign", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -983,7 +983,7 @@ export default function TranscriberPage() {
           setError(null);
           return;
         }
-        setError(data?.error || "Transcription failed. Please try again.");
+        setError(data?.error || "We could not start this transcription. Your selection is still here, so you can try again.");
         sendEvent("transcribe_error", {
           mode,
           error_code: categorizeAnalyticsError(data?.error, "transcription_failed"),
@@ -992,7 +992,7 @@ export default function TranscriberPage() {
         return;
       }
       if (!data.tabs || !Array.isArray(data.tabs)) {
-        setError("No tabs returned from server.");
+        setError("The transcription finished without a usable tab. Try a clearer section or switch models.");
         sendEvent("transcribe_error", { mode, error_code: "no_tabs" });
         return;
       }
@@ -1030,7 +1030,7 @@ export default function TranscriberPage() {
       setStatus("Tabs ready. Import below.");
       return;
     } catch (err: any) {
-      setError(err?.message || "Something went wrong. Please try again.");
+      setError(err?.message || "We could not reach the transcription service. Check your connection and try again.");
       sendEvent("transcribe_error", {
         mode,
         error_code: categorizeAnalyticsError(err, "transcription_failed"),
@@ -1086,7 +1086,7 @@ export default function TranscriberPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.url) {
-        throw new Error(payload?.error || "Could not start checkout.");
+        throw new Error(payload?.error || "Checkout is temporarily unavailable. Please try again in a moment.");
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         plan: "premium_monthly",
@@ -1099,7 +1099,11 @@ export default function TranscriberPage() {
         plan: "premium_monthly",
         ...premiumFunnelProperties(funnel),
       });
-      setError(upgradeError instanceof Error ? upgradeError.message : "Could not start checkout.");
+      setError(
+        upgradeError instanceof Error
+          ? upgradeError.message
+          : "We could not reach checkout. Check your connection and try again."
+      );
       setUpgradeBusy(false);
     }
   };
@@ -1164,7 +1168,9 @@ export default function TranscriberPage() {
       });
       await router.push(`/gte/${targetEditorId}`);
     } catch (err: any) {
-      const message = err?.message || "Failed to import tabs.";
+      const message =
+        err?.message ||
+        "We could not add this transcription to the editor. The transcription is still available; please try again.";
       setImportError(message);
       sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
         ...eventProperties,
@@ -1211,7 +1217,9 @@ export default function TranscriberPage() {
       });
       await router.push(`/gte/${editorId}?source=transcriber`);
     } catch (err: any) {
-      const message = err?.message || "Failed to open the guest editor.";
+      const message =
+        err?.message ||
+        "We could not open the editor. Your transcription is still available; please try again.";
       setImportError(message);
       sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
         ...eventProperties,
@@ -1558,7 +1566,7 @@ export default function TranscriberPage() {
                   )}
                 </div>
               </div>
-              {importError && <div className="error">{importError}</div>}
+              {importError && <div className="error" role="alert">{importError}</div>}
             </div>
           </section>
         )}

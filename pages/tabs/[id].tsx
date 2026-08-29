@@ -15,7 +15,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   if (!session?.user?.id) {
     return {
       redirect: {
-        destination: "/auth/login",
+        destination: `/auth/login?next=${encodeURIComponent(ctx.resolvedUrl || "/tabs")}`,
         permanent: false,
       },
     };

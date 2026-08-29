@@ -52,18 +52,23 @@ export default function ResetPasswordTokenPage() {
     }
     setError(null);
     setSubmitting(true);
-    const res = await fetch("/api/auth/reset-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, code, password }),
-    });
-    const data = await res.json();
-    setSubmitting(false);
-    if (!res.ok) {
-      setError(data?.error || "Could not reset password.");
-      return;
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, code, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.error || "We could not update your password. Please check the code and try again.");
+        return;
+      }
+      setMessage("Password updated. You can now log in.");
+    } catch {
+      setError("We could not reach the password reset service. Check your connection and try again.");
+    } finally {
+      setSubmitting(false);
     }
-    setMessage("Password updated. You can now log in.");
   };
 
   return (
@@ -81,7 +86,7 @@ export default function ResetPasswordTokenPage() {
             </div>
           ) : tokenError ? (
             <div className="auth-card-header stack">
-              <div className="error">{tokenError}</div>
+              <div className="error" role="alert">{tokenError}</div>
               <Link href="/reset-password" className="button-secondary">
                 Request a new reset email
               </Link>
@@ -127,8 +132,8 @@ export default function ResetPasswordTokenPage() {
                   className="form-input"
                 />
               </div>
-              {error && <div className="error">{error}</div>}
-              {message && <div className="status">{message}</div>}
+              {error && <div className="error" role="alert">{error}</div>}
+              {message && <div className="status" role="status">{message}</div>}
               <button type="submit" disabled={submitting} className="button-primary">
                 {submitting ? "Saving..." : "Update password"}
               </button>

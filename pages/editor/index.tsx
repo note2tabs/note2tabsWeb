@@ -155,7 +155,7 @@ export default function EditorLandingPage() {
       const data = await gteApi.createEditor();
       await router.push(`/gte/${data.editorId}`);
     } catch (err: any) {
-      setError(err?.message || "Could not start a new tab.");
+      setError(err?.message || "We could not start a new tab. Check your connection and try again.");
       setCreating(false);
     }
   };
@@ -189,7 +189,7 @@ export default function EditorLandingPage() {
                 <span>Guest mode</span>
                 <span>30+ guitar-specific tools</span>
               </div>
-              {error && <div className="error editor-landing-error">{error}</div>}
+              {error && <div className="error editor-landing-error" role="alert">{error}</div>}
             </div>
 
             <div className="editor-v2-hero-visual" aria-label="Preview of the Note2Tabs guitar tab editor">

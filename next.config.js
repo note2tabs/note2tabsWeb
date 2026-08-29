@@ -4,6 +4,18 @@ const nextConfig = {
   async redirects() {
     return [
       {
+        source: "/transcriber",
+        has: [{ type: "host", value: "note2tabs.com" }],
+        destination: "https://www.note2tabs.com/transcribe",
+        permanent: true,
+      },
+      {
+        source: "/online-guitar-tab-editor",
+        has: [{ type: "host", value: "note2tabs.com" }],
+        destination: "https://www.note2tabs.com/editor",
+        permanent: true,
+      },
+      {
         source: "/:path*",
         has: [{ type: "host", value: "note2tabs.com" }],
         destination: "https://www.note2tabs.com/:path*",

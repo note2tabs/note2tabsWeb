@@ -18,7 +18,12 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
     take: 50,
     select: { title: true, slug: true, excerpt: true, publishedAt: true, publishAt: true, updatedAt: true },
-  }));
+  })).catch((error) => {
+    // Keep a valid feed available while the content store recovers rather
+    // than returning an HTML error document from an XML endpoint.
+    console.error("blog RSS lookup failed", error);
+    return [];
+  });
 
   const items = posts
     .map((post) => {

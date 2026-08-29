@@ -873,7 +873,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         if (isDevelopmentClient) {
           response = await postFileDirectly();
         } else {
-          const uploadStorageError = "Could not upload file to storage. Please try again.";
+          const uploadStorageError = "We could not securely transfer this file. Check your connection and try again; the file is still selected.";
           sendEvent(ANALYTICS_EVENTS.uploadPresignStarted, { mode, size: selectedFile.size });
           const presignRes = await fetch("/api/uploads/presign", {
             method: "POST",
@@ -1004,7 +1004,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           setError(null);
           return;
         }
-        setError(data?.error || "Transcription failed. Please try again.");
+        setError(data?.error || "We could not start this transcription. Your selection is still here, so you can try again.");
         sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
           mode,
           error_code: categorizeAnalyticsError(data?.error, "transcription_failed"),
@@ -1013,7 +1013,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         return;
       }
       if (!data.tabs || !Array.isArray(data.tabs)) {
-        setError("No tabs returned from server.");
+        setError("The transcription finished without a usable tab. Try a clearer section or switch models.");
         sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
           mode,
           error_code: "no_tabs",
@@ -1059,7 +1059,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setStatus("Tabs ready. Choose an editor below.");
       return;
     } catch (err: any) {
-      setError(err?.message || "Something went wrong. Please try again.");
+      setError(err?.message || "We could not reach the transcription service. Check your connection and try again.");
       sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
         mode,
         error_code: categorizeAnalyticsError(err, "transcription_failed"),
@@ -1182,7 +1182,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       await gteApi.appendImportTab(targetEditorId, { stamps, totalFrames });
       await router.push(`/gte/${targetEditorId}`);
     } catch (err: any) {
-      setImportError(err?.message || "Failed to import tabs.");
+      setImportError(
+        err?.message || "We could not add this transcription to the editor. The transcription is still available; please try again."
+      );
     } finally {
       setImportBusy(false);
     }
@@ -1306,7 +1308,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       }
       await openTabsInGuestEditor(tabsResult);
     } catch (err: any) {
-      setImportError(err?.message || "Failed to open the guest editor.");
+      setImportError(
+        err?.message || "We could not open the editor. Your transcription is still available; please try again."
+      );
     } finally {
       setImportBusy(false);
     }
@@ -1350,7 +1354,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           plan: "premium_monthly",
           ...premiumFunnelProperties(funnel),
         });
-        setPricingError(data?.error || "Could not start checkout.");
+        setPricingError(data?.error || "Checkout is temporarily unavailable. Please try again in a moment.");
         return;
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
@@ -1364,7 +1368,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         plan: "premium_monthly",
         ...premiumFunnelProperties(funnel),
       });
-      setPricingError(err?.message || "Could not start checkout.");
+      setPricingError(err?.message || "We could not reach checkout. Check your connection and try again.");
     } finally {
       setPricingBusy(false);
     }
@@ -1398,7 +1402,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.url) {
-        throw new Error(payload?.error || "Could not start checkout.");
+        throw new Error(payload?.error || "Checkout is temporarily unavailable. Please try again in a moment.");
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         plan: "premium_monthly",
@@ -1412,7 +1416,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         ...premiumFunnelProperties(funnel),
       });
       setPricingError(
-        upgradeError instanceof Error ? upgradeError.message : "Could not start checkout."
+        upgradeError instanceof Error
+          ? upgradeError.message
+          : "We could not reach checkout. Check your connection and try again."
       );
       setPricingBusy(false);
     }
@@ -1840,7 +1846,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   )}
                 </div>
               </div>
-              {importError && <div className="error">{importError}</div>}
+              {importError && <div className="error" role="alert">{importError}</div>}
             </div>
           </section>
         )}
@@ -2087,7 +2093,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 </ul>
               </article>
             </div>
-            {pricingError && <div className="error">{pricingError}</div>}
+            {pricingError && <div className="error" role="alert">{pricingError}</div>}
             <div className="home-pricing__details" data-reveal>
               <Link href="/pricing">Compare all plan details</Link>
             </div>

@@ -11,13 +11,16 @@ export default function ModDashboardRedirect() {
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
-  if (!session?.user?.id || !(await hasFreshUserRole(session, MODERATION_ROLES))) {
+  if (!session?.user?.id) {
     return {
       redirect: {
-        destination: "/",
+        destination: `/auth/login?next=${encodeURIComponent(ctx.resolvedUrl || "/mod/dashboard")}`,
         permanent: false,
       },
     };
+  }
+  if (!(await hasFreshUserRole(session, MODERATION_ROLES))) {
+    return { redirect: { destination: "/home", permanent: false } };
   }
 
   return {

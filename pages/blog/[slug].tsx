@@ -136,7 +136,15 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
 
         {post.coverImageUrl && (
           <figure className="post-cover-shell">
-            <img src={post.coverImageUrl} alt={post.title} className="post-cover" loading="eager" decoding="async" />
+            <img
+              src={post.coverImageUrl}
+              alt={post.title}
+              className="post-cover"
+              width={1200}
+              height={675}
+              loading="eager"
+              decoding="async"
+            />
           </figure>
         )}
 

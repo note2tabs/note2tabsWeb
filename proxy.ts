@@ -1,7 +1,7 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
 
-export default async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   // Authentication handoffs use the public transcriber to restore a pending
   // upload. They must finish before the normal signed-in home redirect.
   if (request.nextUrl.searchParams.get("resumeTranscription") === "1") {

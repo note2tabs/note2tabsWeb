@@ -102,7 +102,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.id) {
-    return res.status(401).json({ error: "Not authenticated" });
+    return res.status(401).json({ error: "Your session has expired. Please sign in again." });
   }
 
   const user = await prisma.user.findUnique({
