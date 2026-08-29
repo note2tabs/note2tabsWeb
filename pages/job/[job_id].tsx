@@ -1209,7 +1209,10 @@ export default function JobPage() {
 
           <div className="job-route-content">
           {processingAdReady && hasPendingPresentation && isProcessingAdEligible && (
-            <AdvertisementSlot placement="transcription-loading" />
+            <AdvertisementSlot
+              placement="transcription-loading"
+              context={{ job_id: typeof job_id === "string" ? job_id : "" }}
+            />
           )}
           {showReviewUi ? (
             <div className="stack">

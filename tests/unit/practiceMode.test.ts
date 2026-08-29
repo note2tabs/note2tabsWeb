@@ -67,9 +67,8 @@ describe("editor practice mode", () => {
     expect(editorPage).toContain(
       'showEditorAd && practiceModeEnabled && ('
     );
-    expect(editorPage).toContain(
-      '<AdvertisementSlot placement="editor-practice" />'
-    );
+    expect(editorPage).toContain('placement="editor-practice"');
+    expect(editorPage).toContain('editor_mode: "practice"');
     expect(globalStyles).toContain(".ad-slot--editor-practice");
   });
 

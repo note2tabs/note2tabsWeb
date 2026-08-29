@@ -61,4 +61,16 @@ describe("advertising runtime configuration", () => {
     expect(getAdRuntimeConfig("editor").enabled).toBe(false);
     expect(getAdRuntimeConfig("transcription-loading").enabled).toBe(true);
   });
+
+  it("supports conservative placement-specific refresh strategies", () => {
+    process.env.NEXT_PUBLIC_AD_REFRESH_SECONDS = "90";
+    process.env.NEXT_PUBLIC_AD_REFRESH_SECONDS_EDITOR = "180";
+    process.env.NEXT_PUBLIC_AD_REFRESH_ENABLED = "false";
+    process.env.NEXT_PUBLIC_AD_REFRESH_ENABLED_EDITOR = "true";
+
+    expect(getAdRuntimeConfig("editor").refreshSeconds).toBe(180);
+    expect(getAdRuntimeConfig("editor").refreshEnabled).toBe(true);
+    expect(getAdRuntimeConfig("transcription-loading").refreshSeconds).toBe(90);
+    expect(getAdRuntimeConfig("transcription-loading").refreshEnabled).toBe(false);
+  });
 });

@@ -8414,7 +8414,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         )}
         {showEditorAd && !isMobileEditMode && !practiceModeEnabled && (
-          <AdvertisementSlot placement="editor" />
+          <AdvertisementSlot
+            placement="editor"
+            context={{ editor_id: editorId, editor_mode: "edit" }}
+          />
         )}
         {practiceModeEnabled && !isMobileEditMode && (
           <>
@@ -8423,7 +8426,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </>
         )}
         {showEditorAd && practiceModeEnabled && (
-          <AdvertisementSlot placement="editor-practice" />
+          <AdvertisementSlot
+            placement="editor-practice"
+            context={{ editor_id: editorId, editor_mode: "practice" }}
+          />
         )}
         {loading && !canvas && (
           <EditorLoadingState />

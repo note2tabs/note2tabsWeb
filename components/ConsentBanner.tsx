@@ -49,9 +49,9 @@ export default function ConsentBanner() {
   if (!visible) return null;
 
   return (
-    <aside className="consent-banner" aria-label="Privacy choices" role="dialog" aria-modal="false">
+    <section className="consent-banner" aria-labelledby="privacy-choices-title">
       <div className="consent-banner__copy">
-        <h2>Your privacy choices</h2>
+        <h2 id="privacy-choices-title">Your privacy choices</h2>
         <p>
           Essential technology keeps Note2Tabs working. With your permission, we also use analytics to improve the
           product and advertising technology to fund it. You can change your choice anytime.{" "}
@@ -93,6 +93,6 @@ export default function ConsentBanner() {
           <button type="button" className="button-primary" onClick={() => void save(ACCEPT_ALL)}>Accept all</button>
         </div>
       )}
-    </aside>
+    </section>
   );
 }

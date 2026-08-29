@@ -21,6 +21,7 @@ type UseAdSlotRuntimeInput = {
   preview: boolean;
   suppressed: boolean;
   simulation?: boolean;
+  context?: Record<string, string | number | boolean | null | undefined>;
 };
 
 const randomSlotId = () => {
@@ -31,7 +32,13 @@ const randomSlotId = () => {
   }
 };
 
-export function useAdSlotRuntime({ placement, preview, suppressed, simulation = false }: UseAdSlotRuntimeInput) {
+export function useAdSlotRuntime({
+  placement,
+  preview,
+  suppressed,
+  simulation = false,
+  context = {},
+}: UseAdSlotRuntimeInput) {
   const config = useMemo(() => {
     const resolved = getAdRuntimeConfig(placement);
     if (!simulation) return resolved;
@@ -46,6 +53,8 @@ export function useAdSlotRuntime({ placement, preview, suppressed, simulation = 
     };
   }, [placement, simulation]);
   const liveConfigured = isAdRuntimeConfigured(config);
+  const contextRef = useRef(context);
+  contextRef.current = context;
   const slotIdRef = useRef(randomSlotId());
   const elementRef = useRef<HTMLDivElement | null>(null);
   const handleRef = useRef<AdProviderHandle | null>(null);
@@ -70,6 +79,7 @@ export function useAdSlotRuntime({ placement, preview, suppressed, simulation = 
         provider: config.provider,
         slot_session_id: slotIdRef.current,
         refresh_count: refreshCountRef.current,
+        ...contextRef.current,
         ...properties,
       });
     },
@@ -102,9 +112,13 @@ export function useAdSlotRuntime({ placement, preview, suppressed, simulation = 
       refreshCountRef.current >= config.maxRefreshes ||
       !handleRef.current?.refresh
     ) return;
-    if (refreshTimerRef.current !== null) window.clearTimeout(refreshTimerRef.current);
-    const elapsed = Date.now() - lastFillAtRef.current;
-    const remaining = Math.max(0, config.refreshSeconds * 1000 - elapsed);
+    if (refreshTimerRef.current !== null) return;
+    // A refresh interval begins only while the slot is currently viewable and
+    // the page is active. Returning from the background or scrolling the slot
+    // back into view starts a fresh interval rather than creating an immediate
+    // impression after mostly invisible elapsed time.
+    if (!isEngagedAndVisible()) return;
+    const remaining = config.refreshSeconds * 1000;
     refreshTimerRef.current = window.setTimeout(async () => {
       refreshTimerRef.current = null;
       if (!isEngagedAndVisible() || !handleRef.current?.refresh) return;
@@ -253,9 +267,14 @@ export function useAdSlotRuntime({ placement, preview, suppressed, simulation = 
           !viewableForFillRef.current
         ) {
           scheduleClientViewability();
+          if (lastFillAtRef.current) scheduleRefresh();
         } else if (viewableTimerRef.current !== null) {
           window.clearTimeout(viewableTimerRef.current);
           viewableTimerRef.current = null;
+          if (refreshTimerRef.current !== null) {
+            window.clearTimeout(refreshTimerRef.current);
+            refreshTimerRef.current = null;
+          }
         }
       },
       { threshold: [0, config.minVisibleRatio, 1] }
@@ -270,7 +289,15 @@ export function useAdSlotRuntime({ placement, preview, suppressed, simulation = 
     const onVisibility = () => {
       pageVisibleRef.current = document.visibilityState === "visible";
       mountIfEligible();
-      if (pageVisibleRef.current && lastFillAtRef.current) scheduleRefresh();
+      if (pageVisibleRef.current) {
+        if (handleRef.current && !viewableForFillRef.current) scheduleClientViewability();
+        if (lastFillAtRef.current) scheduleRefresh();
+      } else {
+        if (refreshTimerRef.current !== null) window.clearTimeout(refreshTimerRef.current);
+        if (viewableTimerRef.current !== null) window.clearTimeout(viewableTimerRef.current);
+        refreshTimerRef.current = null;
+        viewableTimerRef.current = null;
+      }
     };
     const activityEvents: Array<keyof WindowEventMap> = ["pointerdown", "keydown", "touchstart", "scroll"];
     activityEvents.forEach((name) => window.addEventListener(name, onActivity, { passive: true }));

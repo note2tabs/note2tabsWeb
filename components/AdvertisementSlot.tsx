@@ -23,6 +23,7 @@ type AdvertisementSlotProps = {
   className?: string;
   preview?: boolean;
   runtimePreview?: boolean;
+  context?: Record<string, string | number | boolean | null | undefined>;
 };
 
 const DISMISS_DURATION_MS = 10 * 60 * 1000;
@@ -42,6 +43,7 @@ export default function AdvertisementSlot({
   className = "",
   preview = false,
   runtimePreview = false,
+  context = {},
 }: AdvertisementSlotProps) {
   const { data: session, status: sessionStatus } = useSession();
   const accountEligibilityResolved = preview || sessionStatus !== "loading";
@@ -127,6 +129,10 @@ export default function AdvertisementSlot({
     preview: preview && !runtimePreview,
     suppressed: !accountEligibilityResolved || !accountEligible || !visible || adFreePromptVisible,
     simulation: runtimePreview,
+    context: {
+      account_type: session?.user?.role?.toLowerCase() || "guest",
+      ...context,
+    },
   });
 
   useEffect(

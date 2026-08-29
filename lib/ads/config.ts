@@ -24,6 +24,13 @@ const parseList = (value: string | undefined) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+const placementEnvSuffix = (placement: AdPlacement) =>
+  placement.replaceAll("-", "_").toUpperCase();
+
+const placementValue = (placement: AdPlacement, name: string) =>
+  process.env[`NEXT_PUBLIC_AD_${name}_${placementEnvSuffix(placement)}`] ||
+  process.env[`NEXT_PUBLIC_AD_${name}`];
+
 const unitIdForPlacement = (placement: AdPlacement) => {
   if (placement === "transcription-loading") return process.env.NEXT_PUBLIC_AD_UNIT_TRANSCRIPTION_LOADING || "";
   if (placement === "editor-practice") return process.env.NEXT_PUBLIC_AD_UNIT_EDITOR_PRACTICE || "";
@@ -35,7 +42,7 @@ export type AdRuntimeConfig = ReturnType<typeof getAdRuntimeConfig>;
 export function getAdRuntimeConfig(placement: AdPlacement) {
   const disabledPlacements = parseList(process.env.NEXT_PUBLIC_ADS_DISABLED_PLACEMENTS);
   const refreshSeconds = parseNumber(
-    process.env.NEXT_PUBLIC_AD_REFRESH_SECONDS,
+    placementValue(placement, "REFRESH_SECONDS"),
     MIN_REFRESH_SECONDS,
     MIN_REFRESH_SECONDS,
     30 * 60
@@ -48,7 +55,7 @@ export function getAdRuntimeConfig(placement: AdPlacement) {
     unitId: unitIdForPlacement(placement),
     sizes: PLACEMENT_SIZES[placement],
     demandSources: parseList(process.env.NEXT_PUBLIC_AD_DEMAND_SOURCES),
-    refreshEnabled: parseBoolean(process.env.NEXT_PUBLIC_AD_REFRESH_ENABLED, false),
+    refreshEnabled: parseBoolean(placementValue(placement, "REFRESH_ENABLED"), false),
     refreshSeconds,
     maxRefreshes: Math.round(parseNumber(process.env.NEXT_PUBLIC_AD_MAX_REFRESHES, 8, 0, 50)),
     minVisibleRatio: parseNumber(process.env.NEXT_PUBLIC_AD_MIN_VISIBLE_RATIO, 0.5, 0.5, 1),
