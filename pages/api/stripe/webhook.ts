@@ -232,6 +232,21 @@ async function resolveUserIdFromEmail(email: string | null) {
   return user?.id || null;
 }
 
+async function resolveUserIdFromSubscription(
+  subscription: Stripe.Subscription,
+  fallbackEmail: string | null
+) {
+  const metadataUserId = subscription.metadata?.userId?.trim();
+  if (metadataUserId) {
+    const user = await prisma.user.findUnique({
+      where: { id: metadataUserId },
+      select: { id: true },
+    });
+    if (user?.id) return user.id;
+  }
+  return resolveUserIdFromEmail(fallbackEmail);
+}
+
 function unixDaysRemaining(timestamp?: number | null) {
   if (!timestamp) return undefined;
   return Math.max(0, Math.ceil((timestamp * 1000 - Date.now()) / 86_400_000));
@@ -580,15 +595,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ received: true, ignored: "unrelated_subscription" });
       }
       const email = await resolveEmailFromCustomerRef(subscription.customer);
+      const userId = await resolveUserIdFromSubscription(subscription, email);
+      if (userId) {
+        trackSubscriptionLifecycle(userId, "subscription_ended", event.id, {
+          status: subscription.status,
+          cancellation_reason: subscription.cancellation_details?.reason || undefined,
+          cancellation_feedback: subscription.cancellation_details?.feedback || undefined,
+        });
+      }
       if (email) {
-        const userId = await resolveUserIdFromEmail(email);
-        if (userId) {
-          trackSubscriptionLifecycle(userId, "subscription_ended", event.id, {
-            status: subscription.status,
-            cancellation_reason: subscription.cancellation_details?.reason || undefined,
-            cancellation_feedback: subscription.cancellation_details?.feedback || undefined,
-          });
-        }
         await downgradePremiumByEmail(
           email,
           premiumConfig,
@@ -603,7 +618,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ received: true, ignored: "unrelated_subscription" });
       }
       const email = await resolveEmailFromCustomerRef(subscription.customer);
-      const userId = await resolveUserIdFromEmail(email);
+      const userId = await resolveUserIdFromSubscription(subscription, email);
       const previous = event.data.previous_attributes as
         | Partial<Stripe.Subscription>
         | undefined;
@@ -625,8 +640,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         );
       }
-      if (email && ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
-        await setPremiumForIdentifier({ email });
+      if (ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
+        if (userId) await setPremiumForIdentifier({ id: userId });
+        else if (email) await setPremiumForIdentifier({ email });
       }
       if (email && REVOKED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
         await downgradePremiumByEmail(
@@ -643,7 +659,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ received: true, ignored: "unrelated_subscription" });
       }
       const email = await resolveEmailFromCustomerRef(subscription.customer);
-      const userId = await resolveUserIdFromEmail(email);
+      const userId = await resolveUserIdFromSubscription(subscription, email);
       if (userId) {
         trackSubscriptionLifecycle(userId, "subscription_trial_ending", event.id, {
           status: subscription.status,
@@ -668,37 +684,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!premiumSubscription) {
         return res.status(200).json({ received: true, ignored: "unrelated_invoice" });
       }
+      if (!ENTITLED_SUBSCRIPTION_STATUSES.has(premiumSubscription.status)) {
+        return res.status(200).json({ received: true, ignored: "subscription_not_entitled" });
+      }
       const email =
         normalizeEmail(invoice.customer_email) || (await resolveEmailFromCustomerRef(invoice.customer));
-      if (email) {
-        const isRenewal = invoice.billing_reason === "subscription_cycle";
-        if (!ENTITLED_SUBSCRIPTION_STATUSES.has(premiumSubscription.status)) {
-          return res.status(200).json({ received: true, ignored: "subscription_not_entitled" });
+      const userId = await resolveUserIdFromSubscription(premiumSubscription, email);
+      const identifier: UserIdentifier | null = userId
+        ? { id: userId }
+        : email
+          ? { email }
+          : null;
+      if (!identifier) return res.status(200).json({ received: true, ignored: "user_not_found" });
+      const isRenewal = invoice.billing_reason === "subscription_cycle";
+      if (isRenewal) {
+        const subscriptionId = stripeSubscriptionId(premiumSubscription);
+        const renewalAt = stripeInvoiceRenewalAt(invoice, premiumConfig);
+        if (!invoice.id || !subscriptionId || !renewalAt) {
+          return res.status(200).json({ received: true, ignored: "invalid_renewal" });
         }
-        if (isRenewal) {
-          const subscriptionId = stripeSubscriptionId(premiumSubscription);
-          const renewalAt = stripeInvoiceRenewalAt(invoice, premiumConfig);
-          if (!invoice.id || !subscriptionId || !renewalAt) {
-            return res.status(200).json({ received: true, ignored: "invalid_renewal" });
-          }
-          const result = await grantRenewalForIdentifier(
-            { email },
-            {
-              invoiceId: invoice.id,
-              stripeSubscriptionId: subscriptionId,
-              renewalAt,
-            }
-          );
-          const userId = await resolveUserIdFromEmail(email);
-          if (userId && result === "granted") {
-            trackSubscriptionLifecycle(userId, "subscription_renewed", event.id, {
-              billing_reason: invoice.billing_reason || undefined,
-            });
-          }
-          return res.status(200).json({ received: true, renewal: result });
+        const result = await grantRenewalForIdentifier(identifier, {
+          invoiceId: invoice.id,
+          stripeSubscriptionId: subscriptionId,
+          renewalAt,
+        });
+        if (userId && result === "granted") {
+          trackSubscriptionLifecycle(userId, "subscription_renewed", event.id, {
+            billing_reason: invoice.billing_reason || undefined,
+          });
         }
-        await setPremiumForIdentifier({ email });
+        return res.status(200).json({ received: true, renewal: result });
       }
+      await setPremiumForIdentifier(identifier);
     }
 
     if (event.type === "invoice.payment_failed") {
@@ -717,7 +734,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       const email =
         normalizeEmail(invoice.customer_email) || (await resolveEmailFromCustomerRef(invoice.customer));
-      const userId = await resolveUserIdFromEmail(email);
+      const userId = await resolveUserIdFromSubscription(premiumSubscription, email);
       if (userId) {
         trackSubscriptionLifecycle(userId, "subscription_payment_failed", event.id, {
           status: premiumSubscription.status,

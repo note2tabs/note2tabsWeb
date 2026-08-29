@@ -1252,6 +1252,45 @@ describe("stripe premium flow", () => {
       });
     });
 
+    it("attributes lifecycle events from subscription metadata when the Stripe email changed", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        id: "evt_cancel_metadata",
+        type: "customer.subscription.updated",
+        data: {
+          previous_attributes: { cancel_at_period_end: false },
+          object: premiumSubscription({
+            status: "trialing",
+            metadata: { userId: "user_metadata" },
+            cancel_at_period_end: true,
+            trial_end: Math.floor(Date.now() / 1000) + 3 * 86_400,
+          }),
+        },
+      });
+      stripeMock.customers.retrieve.mockResolvedValue({
+        id: "cus_123",
+        email: "old-address@example.com",
+      });
+      prismaMock.user.findUnique.mockResolvedValue({ id: "user_metadata" });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const req = buildWebhookReq();
+      const res = createResponse();
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(posthogMock.capture).toHaveBeenCalledWith({
+        distinctId: "user_metadata",
+        event: "subscription_cancel_scheduled",
+        properties: expect.objectContaining({
+          $insert_id: "subscription_cancel_scheduled:evt_cancel_metadata",
+        }),
+      });
+      expect(prismaMock.user.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: "user_metadata" } })
+      );
+    });
+
     it("tracks the Stripe trial-ending lifecycle event", async () => {
       stripeMock.webhooks.constructEvent.mockReturnValue({
         id: "evt_trial_ending",
