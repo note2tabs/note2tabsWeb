@@ -19,8 +19,8 @@ This audit covers the production frontend and its user-facing API errors. It doe
 - Standardized expired-session responses and preserved deep-link destinations through authentication.
 - Improved login, signup, verification, reset, settings, library, transcription, import/export, editor, drum, and checkout failure states.
 - Improved the signed-in home and tab-library hierarchy, empty states, tab metadata, menus, dialogs, and accessible names without redesigning established UI.
-- Added a transparent two-step account-deletion flow: a categorized leaving reason,
-  a relevant way to resolve the problem or keep saved work, followed by an explicit
+- Added a transparent two-step account-deletion flow: a reminder of what originally
+  brought the user to Note2Tabs, a relevant route back to that product value, followed by an explicit
   permanent-deletion confirmation. Users can choose “Prefer not to say,” and deletion
   remains available without hidden obstruction.
 - Added a complete branded fallback when the blog database is temporarily unavailable.

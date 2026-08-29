@@ -48,7 +48,7 @@ export const ANALYTICS_EVENTS = {
   transcriptionImportedToEditor: "transcription_imported_to_editor",
   transcriptionEditorImportFailed: "transcription_editor_import_failed",
   accountDeletionStarted: "account_deletion_started",
-  accountDeletionReasonSelected: "account_deletion_reason_selected",
+  accountDeletionGoalSelected: "account_deletion_goal_selected",
   accountDeletionAlternativeClicked: "account_deletion_alternative_clicked",
   accountDeletionConfirmed: "account_deletion_confirmed",
 } as const;

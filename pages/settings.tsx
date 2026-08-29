@@ -54,17 +54,15 @@ type Props = {
 };
 
 type SettingsSection = "account" | "plan" | "security" | "privacy" | "danger";
-type DeleteReason = "not_using" | "results" | "difficult" | "cost" | "technical" | "privacy" | "other" | "skip";
+type DeleteGoal = "transcribe_songs" | "edit_tabs" | "practice" | "save_export" | "explore" | "skip";
 type DeleteAlternative = { href: string; label: string; detail: string; section?: SettingsSection };
 
-const deleteReasons: Array<{ value: DeleteReason; label: string }> = [
-  { value: "not_using", label: "I am not using it enough" },
-  { value: "results", label: "The transcription results did not meet my needs" },
-  { value: "difficult", label: "The editor or transcriber was difficult to use" },
-  { value: "cost", label: "Premium is not right for my budget" },
-  { value: "technical", label: "I ran into a technical problem" },
-  { value: "privacy", label: "I have a privacy or data concern" },
-  { value: "other", label: "Another reason" },
+const deleteGoals: Array<{ value: DeleteGoal; label: string }> = [
+  { value: "transcribe_songs", label: "Turn songs into editable tabs" },
+  { value: "edit_tabs", label: "Create and arrange tabs in the editor" },
+  { value: "practice", label: "Practice songs and improve my playing" },
+  { value: "save_export", label: "Save, refine, and export my music" },
+  { value: "explore", label: "Explore what Note2Tabs can do" },
   { value: "skip", label: "Prefer not to say" },
 ];
 
@@ -115,7 +113,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const [busy, setBusy] = useState(false);
   const [deleteFlowOpen, setDeleteFlowOpen] = useState(false);
   const [deleteStep, setDeleteStep] = useState<"retention" | "confirm">("retention");
-  const [deleteReason, setDeleteReason] = useState<DeleteReason | "">("");
+  const [deleteGoal, setDeleteGoal] = useState<DeleteGoal | "">("");
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
   const [verifyBusy, setVerifyBusy] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
@@ -138,32 +136,22 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const resetDeleteFlow = () => {
     setDeleteFlowOpen(false);
     setDeleteStep("retention");
-    setDeleteReason("");
+    setDeleteGoal("");
     setDeleteConfirmationText("");
     setError(null);
   };
 
   const deletionAlternative: DeleteAlternative | null = (() => {
-    if (deleteReason === "cost") {
-      return isPaidPremium
-        ? { href: "/settings", section: "plan", label: "Manage my plan", detail: "You can cancel Premium without deleting your tabs or account." }
-        : { href: "/home", label: "Keep my free account", detail: "A free account has no subscription charge and keeps your saved work available." };
-    }
-    if (deleteReason === "results") {
-      return { href: "/transcribe", label: "Try another transcription", detail: "Different source audio and the Heavy model can improve complex recordings." };
-    }
-    if (deleteReason === "difficult") {
-      return { href: "/contact", label: "Tell us what was confusing", detail: "We would like to help and use your feedback to improve the product." };
-    }
-    if (deleteReason === "technical") {
-      return { href: "/contact", label: "Get help with the problem", detail: "Contact us and describe what happened—we will investigate it." };
-    }
-    if (deleteReason === "privacy") {
-      return { href: "/settings", section: "privacy", label: "Review privacy controls", detail: "You can disable analytics without deleting your saved work." };
-    }
-    if (deleteReason === "not_using") {
-      return { href: "/tabs", label: "Keep my saved tabs", detail: "There is no need to delete a free account; your work can wait until you return." };
-    }
+    if (deleteGoal === "transcribe_songs")
+      return { href: "/transcribe", label: "Transcribe another song", detail: "Your transcriber is ready to turn another recording into an editable tab." };
+    if (deleteGoal === "edit_tabs")
+      return { href: "/gte", label: "Open my editor", detail: "Continue arranging notes, chords, drums, timing, and playback without starting over." };
+    if (deleteGoal === "practice")
+      return { href: "/home", label: "Continue practicing", detail: "Return to your workspace and continue with playback, looping, speed training, and Practice mode." };
+    if (deleteGoal === "save_export")
+      return { href: "/tabs", label: "View my saved tabs", detail: "Your saved work is still available to refine, play back, or export whenever you return." };
+    if (deleteGoal === "explore")
+      return { href: "/home", label: "Return to my workspace", detail: "Transcription, editing, playback, and practice are all waiting in your workspace." };
     return null;
   })();
   const analyticsHref = isAdmin
@@ -407,7 +395,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         return;
       }
       sendEvent(ANALYTICS_EVENTS.accountDeletionConfirmed, {
-        reason: deleteReason || "unknown",
+        goal: deleteGoal || "unknown",
         plan: isPaidPremium ? "premium" : "free",
       });
       await handleSignOut(true);
@@ -651,7 +639,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             onClick={() => {
               setDeleteFlowOpen(true);
               setDeleteStep("retention");
-              setDeleteReason("");
+              setDeleteGoal("");
               setDeleteConfirmationText("");
               setError(null);
               sendEvent(ANALYTICS_EVENTS.accountDeletionStarted, {
@@ -670,19 +658,19 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
               <div>
                 <h3 className="delete-flow-title">Before you go</h3>
                 <p className="muted text-small">
-                  What made Note2Tabs not work for you? Your answer helps us improve, and you can prefer not to say.
+                  What did you originally want Note2Tabs to help you do? Let’s make sure there is nothing valuable left unfinished.
                 </p>
               </div>
               <label className="form-group">
-                <span className="label">Main reason</span>
+                <span className="label">I signed up to…</span>
                 <select
                   className="form-input"
-                  value={deleteReason}
-                  onChange={(event) => setDeleteReason(event.target.value as DeleteReason)}
+                  value={deleteGoal}
+                  onChange={(event) => setDeleteGoal(event.target.value as DeleteGoal)}
                 >
-                  <option value="">Choose a reason</option>
-                  {deleteReasons.map((reason) => (
-                    <option key={reason.value} value={reason.value}>{reason.label}</option>
+                  <option value="">Choose what brought you here</option>
+                  {deleteGoals.map((goal) => (
+                    <option key={goal.value} value={goal.value}>{goal.label}</option>
                   ))}
                 </select>
               </label>
@@ -694,7 +682,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
                     className="settingsButton settingsButtonSecondary"
                     onClick={(event) => {
                       sendEvent(ANALYTICS_EVENTS.accountDeletionAlternativeClicked, {
-                        reason: deleteReason,
+                        goal: deleteGoal,
                         destination: deletionAlternative.section || deletionAlternative.href,
                       });
                       if (deletionAlternative.section) {
@@ -715,11 +703,11 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
                 <button
                   type="button"
                   className="button-ghost button-small"
-                  disabled={!deleteReason}
+                  disabled={!deleteGoal}
                   onClick={() => {
-                    if (!deleteReason) return;
-                    sendEvent(ANALYTICS_EVENTS.accountDeletionReasonSelected, {
-                      reason: deleteReason,
+                    if (!deleteGoal) return;
+                    sendEvent(ANALYTICS_EVENTS.accountDeletionGoalSelected, {
+                      goal: deleteGoal,
                       plan: isPaidPremium ? "premium" : "free",
                     });
                     setDeleteStep("confirm");
