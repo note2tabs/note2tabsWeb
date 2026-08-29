@@ -274,4 +274,32 @@ describe("job proxy backend coordination", () => {
     );
     consoleError.mockRestore();
   });
+
+  it("returns the linked editor for a transcription that was already imported", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            job_id: "job_123",
+            status: "succeeded",
+            sourceLabel: "Completed song",
+            tabs: [["e|--0--"]],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    prismaMock.tabJob.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ resultJson: "{}", gteEditorId: "editor_123" });
+    prismaMock.tabJob.upsert.mockResolvedValue({ id: "tab_123", userId: "user_1" });
+
+    const handler = (await import("../../pages/api/jobs/[job_id]")).default;
+    const { req, res } = createMocks({ method: "GET", query: { job_id: "job_123" } });
+    await handler(req as any, res as any);
+
+    expect(JSON.parse(res._getData())).toEqual(
+      expect.objectContaining({ tabJobId: "tab_123", gte_editor_id: "editor_123" })
+    );
+  });
 });

@@ -16,6 +16,7 @@ import {
 } from "../../../lib/gteDrumLoopStore";
 import type { GteAnalyticsEvent } from "../../../lib/gteAnalytics";
 import { parseTextTabImport } from "../../../lib/gteTabImport";
+import { prisma } from "../../../lib/prisma";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -467,6 +468,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const shouldLogCreate = !target || target === "new";
       const parsed = text ? (JSON.parse(text) as UpstreamImportBody) : {};
       const editorId = typeof parsed.editorId === "string" ? parsed.editorId : undefined;
+      const sourceJobId =
+        typeof (req.body as { sourceJobId?: unknown } | undefined)?.sourceJobId === "string"
+          ? String((req.body as { sourceJobId?: string }).sourceJobId).trim()
+          : "";
+      if (editorId && sourceJobId) {
+        await prisma.tabJob.updateMany({
+          where: { userId: session.user.id, backendJobId: sourceJobId },
+          data: { gteEditorId: editorId },
+        });
+      }
       if (shouldLogCreate && editorId) {
         await maybeLogGteAnalyticsEvent({
           userId: session.user.id,

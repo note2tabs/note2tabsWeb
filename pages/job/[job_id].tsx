@@ -1106,6 +1106,13 @@ export default function JobPage() {
     let importedSuccessfully = false;
     const targetEditorChoice = appendEditorId ?? "new";
     try {
+      if (displayJob?.gte_editor_id) {
+        importedSuccessfully = true;
+        await router.replace(
+          `/gte/${encodeURIComponent(displayJob.gte_editor_id)}?source=transcription_complete_email`
+        );
+        return;
+      }
       if (isFinalizedStatus) {
         const importableJob = await waitForImportableJob(displayJob);
         if (!importableJob) {
