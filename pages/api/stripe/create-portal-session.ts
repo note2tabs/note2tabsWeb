@@ -51,9 +51,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const baseUrl = getAppBaseUrl(req);
+    const returnPath = req.body?.returnTo === "/home" ? "/home" : "/settings";
     const portal = await stripeClient.billingPortal.sessions.create({
       customer: customer.id,
-      return_url: `${baseUrl}/settings`,
+      return_url: `${baseUrl}${returnPath}`,
     });
 
     return res.status(200).json({ url: portal.url });

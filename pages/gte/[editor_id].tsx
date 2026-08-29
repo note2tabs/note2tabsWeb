@@ -1825,6 +1825,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, []);
 
   useEffect(() => {
+    if (!router.isReady || isMobileViewport) return;
+    if (router.query.mode === "practice") {
+      setEditorMode("practice");
+    }
+  }, [isMobileViewport, router.isReady, router.query.mode]);
+
+  useEffect(() => {
     let cancelled = false;
     void loadTrackInstrumentOptions().then((options) => {
       if (cancelled) return;

@@ -30,6 +30,8 @@ import {
 } from "../lib/premiumEntitlement";
 import NoIndexHead from "../components/NoIndexHead";
 import PremiumConversionCard from "../components/PremiumConversionCard";
+import SubscriptionRetentionDialog from "../components/SubscriptionRetentionDialog";
+import type { SubscriptionRetentionGoal } from "../lib/subscriptionCancellationRetention";
 import {
   getOrCreatePremiumFunnelContext,
   premiumFunnelProperties,
@@ -122,6 +124,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const [consentState, setConsentState] = useState<"granted" | "denied">("granted");
   const [upgradeBusy, setUpgradeBusy] = useState(false);
   const [portalBusy, setPortalBusy] = useState(false);
+  const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
   const [signOutBusy, setSignOutBusy] = useState(false);
   const [checkoutStatus, setCheckoutStatus] = useState<string | null>(null);
   const checkoutReturnHandledRef = useRef(false);
@@ -203,8 +206,12 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     const reconcileCheckout = async () => {
       if (isPremium) {
         clearRecoverableCheckoutSessionId();
-        setCheckoutStatus("Premium is active. Your upgraded limits are ready to use.");
-        setUpgradeBusy(false);
+        if (outcome === "success") {
+          window.location.replace("/home?upgrade=confirmed");
+        } else {
+          setCheckoutStatus("Premium is active. Your upgraded limits are ready to use.");
+          setUpgradeBusy(false);
+        }
         return;
       }
 
@@ -226,7 +233,9 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       }
 
       clearRecoverableCheckoutSessionId();
-      window.location.replace("/settings?upgrade=confirmed");
+      window.location.replace(
+        outcome === "success" ? "/home?upgrade=confirmed" : "/settings?upgrade=confirmed"
+      );
     };
 
     void reconcileCheckout();
@@ -331,13 +340,22 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     }
   };
 
-  const handleManageSubscription = async () => {
+  const handleManageSubscription = async (
+    intent: "billing" | "cancellation",
+    goal?: SubscriptionRetentionGoal
+  ) => {
     if (!stripeReady) {
       setError("Subscription management is temporarily unavailable. Please try again later.");
       return;
     }
     setPortalBusy(true);
     setError(null);
+    sendEvent(
+      intent === "cancellation"
+        ? ANALYTICS_EVENTS.subscriptionCancellationContinued
+        : ANALYTICS_EVENTS.subscriptionManagementOpened,
+      goal ? { goal } : undefined
+    );
     try {
       const res = await fetch("/api/stripe/create-portal-session", { method: "POST" });
       const data = await res.json().catch(() => ({}));
@@ -519,7 +537,9 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             {isPaidPremium && (
               <button
                 type="button"
-                onClick={handleManageSubscription}
+                onClick={() => {
+                  setSubscriptionDialogOpen(true);
+                }}
                 className="settingsButton settingsButtonSecondary"
                 disabled={portalBusy}
               >
@@ -756,6 +776,29 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   return (
     <>
       <NoIndexHead title="Settings | Note2Tabs" canonicalPath="/settings" />
+      <SubscriptionRetentionDialog
+        open={subscriptionDialogOpen}
+        busy={portalBusy}
+        onClose={() => setSubscriptionDialogOpen(false)}
+        onCancellationIntent={() => {
+          sendEvent(ANALYTICS_EVENTS.subscriptionCancellationIntentStarted, {
+            entry: "settings",
+          });
+        }}
+        onOpenPortal={(intent, goal) => {
+          if (intent === "cancellation") {
+            sendEvent(ANALYTICS_EVENTS.subscriptionCancellationGoalSelected, { goal });
+          }
+          void handleManageSubscription(intent, goal);
+        }}
+        onAlternative={(goal, destination) => {
+          sendEvent(ANALYTICS_EVENTS.subscriptionCancellationAlternativeClicked, {
+            goal,
+            destination,
+          });
+          setSubscriptionDialogOpen(false);
+        }}
+      />
     <main className="page settingsPage">
       <div className="container settingsShell">
         <header className="settingsHeader">

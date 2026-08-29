@@ -26,6 +26,12 @@ import {
   normalizePremiumFunnelSource,
 } from "../../../lib/premiumFunnel";
 import { normalizePremiumOfferVariant } from "../../../lib/premiumOfferExperiment";
+import { sendTransactionalEmail } from "../../../lib/email";
+import {
+  buildPremiumTrialStartedEmail,
+  buildPremiumTrialReminderEmail,
+  customPremiumTrialReminderEnabled,
+} from "../../../lib/premiumTrialReminder";
 
 export const config = {
   api: {
@@ -207,6 +213,192 @@ function trackSubscriptionStarted(userId: string, session: Stripe.Checkout.Sessi
   flushPostHogServerClientInBackground(client);
 }
 
+type SubscriptionLifecycleEvent =
+  | "subscription_cancel_scheduled"
+  | "subscription_cancellation_reversed"
+  | "subscription_ended"
+  | "subscription_payment_failed"
+  | "subscription_renewed"
+  | "subscription_trial_reminder_sent"
+  | "subscription_trial_started_notice_sent"
+  | "subscription_trial_ending";
+
+async function resolveUserIdFromEmail(email: string | null) {
+  if (!email) return null;
+  const user = await prisma.user.findFirst({
+    where: { email: email.toLowerCase() },
+    select: { id: true },
+  });
+  return user?.id || null;
+}
+
+async function resolveUserIdFromSubscription(
+  subscription: Stripe.Subscription,
+  fallbackEmail: string | null
+) {
+  const metadataUserId = subscription.metadata?.userId?.trim();
+  if (metadataUserId) {
+    const user = await prisma.user.findUnique({
+      where: { id: metadataUserId },
+      select: { id: true },
+    });
+    if (user?.id) return user.id;
+  }
+  return resolveUserIdFromEmail(fallbackEmail);
+}
+
+function unixDaysRemaining(timestamp?: number | null) {
+  if (!timestamp) return undefined;
+  return Math.max(0, Math.ceil((timestamp * 1000 - Date.now()) / 86_400_000));
+}
+
+function trackSubscriptionLifecycle(
+  userId: string,
+  lifecycleEvent: SubscriptionLifecycleEvent,
+  stripeEventId: string,
+  properties: Record<string, string | number | boolean | null | undefined> = {}
+) {
+  const client = createPostHogServerClient();
+  if (!client) return;
+  client.capture({
+    distinctId: userId,
+    event: lifecycleEvent,
+    properties: {
+      plan: "premium_monthly",
+      event_source: "stripe_webhook",
+      ...properties,
+      $insert_id: `${lifecycleEvent}:${stripeEventId}`,
+    },
+  });
+  flushPostHogServerClientInBackground(client);
+}
+
+async function sendPremiumTrialReminder(
+  userId: string,
+  email: string,
+  trialEnd: number,
+  stripeEventId: string
+) {
+  if (!customPremiumTrialReminderEnabled()) return;
+  const reminderIdentifier = `reminder:premium-trial:${userId}`;
+  const reminderToken = `stripe-event:${stripeEventId}`;
+  try {
+    await prisma.verificationToken.create({
+      data: {
+        identifier: reminderIdentifier,
+        token: reminderToken,
+        expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      },
+    });
+  } catch (error) {
+    if (prismaErrorCode(error) === "P2002") return;
+    throw error;
+  }
+  const [user, latestEditor] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    }),
+    prisma.canvases.findFirst({
+      where: { user_id: userId },
+      orderBy: { updated_at: "desc" },
+      select: { canvas_id: true, name: true },
+    }),
+  ]);
+  const reminder = buildPremiumTrialReminderEmail({
+    name: user?.name,
+    trialEndsAt: new Date(trialEnd * 1000),
+    latestEditor: latestEditor
+      ? { id: latestEditor.canvas_id, name: latestEditor.name }
+      : null,
+  });
+  try {
+    await sendTransactionalEmail({
+      to: email,
+      subject: reminder.subject,
+      html: reminder.html,
+      text: reminder.text,
+    });
+  } catch (error) {
+    await prisma.verificationToken.deleteMany({
+      where: { identifier: reminderIdentifier, token: reminderToken },
+    });
+    throw error;
+  }
+  trackSubscriptionLifecycle(userId, "subscription_trial_reminder_sent", stripeEventId, {
+    destination: latestEditor ? "latest_editor_practice" : "transcriber",
+  });
+}
+
+async function sendPremiumTrialStartedNotice(
+  userId: string,
+  session: Stripe.Checkout.Session,
+  stripeEventId: string
+) {
+  if (!customPremiumTrialReminderEnabled() || !stripeClient) return;
+  const subscriptionRef = session.subscription;
+  if (!subscriptionRef) return;
+  const subscription =
+    typeof subscriptionRef === "string"
+      ? await stripeClient.subscriptions.retrieve(subscriptionRef)
+      : subscriptionRef;
+  if (subscription.status !== "trialing" || !subscription.trial_end) return;
+
+  const marker = {
+    identifier: `notice:premium-trial-started:${userId}`,
+    token: `stripe-event:${stripeEventId}:trial-started`,
+  };
+  try {
+    await prisma.verificationToken.create({
+      data: {
+        ...marker,
+        expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      },
+    });
+  } catch (error) {
+    if (prismaErrorCode(error) === "P2002") return;
+    throw error;
+  }
+
+  const [user, latestEditor] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, name: true },
+    }),
+    prisma.canvases.findFirst({
+      where: { user_id: userId },
+      orderBy: { updated_at: "desc" },
+      select: { canvas_id: true, name: true },
+    }),
+  ]);
+  if (!user?.email) {
+    await prisma.verificationToken.deleteMany({ where: marker });
+    return;
+  }
+  const notice = buildPremiumTrialStartedEmail({
+    name: user.name,
+    trialStartsAt: new Date((subscription.trial_start || subscription.created) * 1000),
+    trialEndsAt: new Date(subscription.trial_end * 1000),
+    latestEditor: latestEditor
+      ? { id: latestEditor.canvas_id, name: latestEditor.name }
+      : null,
+  });
+  try {
+    await sendTransactionalEmail({
+      to: user.email,
+      subject: notice.subject,
+      html: notice.html,
+      text: notice.text,
+    });
+  } catch (error) {
+    await prisma.verificationToken.deleteMany({ where: marker });
+    throw error;
+  }
+  trackSubscriptionLifecycle(userId, "subscription_trial_started_notice_sent", stripeEventId, {
+    destination: latestEditor ? "latest_editor_practice" : "transcriber",
+  });
+}
+
 type RenewalInvoiceDetails = {
   invoiceId: string;
   stripeSubscriptionId: string;
@@ -386,7 +578,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const identifier = await resolveUserIdentifierFromCheckoutSession(checkoutSession);
       if (identifier) {
         const userId = await setPremiumForIdentifier(identifier);
-        if (userId) trackSubscriptionStarted(userId, checkoutSession);
+        if (userId) {
+          trackSubscriptionStarted(userId, checkoutSession);
+          try {
+            await sendPremiumTrialStartedNotice(userId, checkoutSession, event.id);
+          } catch (error) {
+            console.error("Premium trial started notice delivery failed", { userId, error });
+          }
+        }
       }
     }
 
@@ -396,6 +595,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ received: true, ignored: "unrelated_subscription" });
       }
       const email = await resolveEmailFromCustomerRef(subscription.customer);
+      const userId = await resolveUserIdFromSubscription(subscription, email);
+      if (userId) {
+        trackSubscriptionLifecycle(userId, "subscription_ended", event.id, {
+          status: subscription.status,
+          cancellation_reason: subscription.cancellation_details?.reason || undefined,
+          cancellation_feedback: subscription.cancellation_details?.feedback || undefined,
+        });
+      }
       if (email) {
         await downgradePremiumByEmail(
           email,
@@ -411,8 +618,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ received: true, ignored: "unrelated_subscription" });
       }
       const email = await resolveEmailFromCustomerRef(subscription.customer);
-      if (email && ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
-        await setPremiumForIdentifier({ email });
+      const userId = await resolveUserIdFromSubscription(subscription, email);
+      const previous = event.data.previous_attributes as
+        | Partial<Stripe.Subscription>
+        | undefined;
+      if (userId && previous && "cancel_at_period_end" in previous) {
+        trackSubscriptionLifecycle(
+          userId,
+          subscription.cancel_at_period_end
+            ? "subscription_cancel_scheduled"
+            : "subscription_cancellation_reversed",
+          event.id,
+          {
+            status: subscription.status,
+            trial: subscription.status === "trialing",
+            days_remaining: unixDaysRemaining(
+              subscription.cancel_at || subscription.trial_end || subscription.current_period_end
+            ),
+            cancellation_reason: subscription.cancellation_details?.reason || undefined,
+            cancellation_feedback: subscription.cancellation_details?.feedback || undefined,
+          }
+        );
+      }
+      if (ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
+        if (userId) await setPremiumForIdentifier({ id: userId });
+        else if (email) await setPremiumForIdentifier({ email });
       }
       if (email && REVOKED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
         await downgradePremiumByEmail(
@@ -423,37 +653,69 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
+    if (event.type === "customer.subscription.trial_will_end") {
+      const subscription = event.data.object as Stripe.Subscription;
+      if (!stripeSubscriptionMatchesPremium(subscription, premiumConfig)) {
+        return res.status(200).json({ received: true, ignored: "unrelated_subscription" });
+      }
+      const email = await resolveEmailFromCustomerRef(subscription.customer);
+      const userId = await resolveUserIdFromSubscription(subscription, email);
+      if (userId) {
+        trackSubscriptionLifecycle(userId, "subscription_trial_ending", event.id, {
+          status: subscription.status,
+          days_remaining: unixDaysRemaining(subscription.trial_end),
+          cancel_at_period_end: subscription.cancel_at_period_end,
+        });
+        if (email && subscription.trial_end && !subscription.cancel_at_period_end) {
+          try {
+            await sendPremiumTrialReminder(userId, email, subscription.trial_end, event.id);
+          } catch (error) {
+            // Reminder delivery must not cause Stripe to retry an otherwise
+            // successfully handled billing event.
+            console.error("Premium trial reminder delivery failed", { userId, error });
+          }
+        }
+      }
+    }
+
     if (event.type === "invoice.payment_succeeded") {
       const invoice = event.data.object as Stripe.Invoice;
       const premiumSubscription = await premiumSubscriptionForInvoice(invoice, premiumConfig);
       if (!premiumSubscription) {
         return res.status(200).json({ received: true, ignored: "unrelated_invoice" });
       }
+      if (!ENTITLED_SUBSCRIPTION_STATUSES.has(premiumSubscription.status)) {
+        return res.status(200).json({ received: true, ignored: "subscription_not_entitled" });
+      }
       const email =
         normalizeEmail(invoice.customer_email) || (await resolveEmailFromCustomerRef(invoice.customer));
-      if (email) {
-        const isRenewal = invoice.billing_reason === "subscription_cycle";
-        if (!ENTITLED_SUBSCRIPTION_STATUSES.has(premiumSubscription.status)) {
-          return res.status(200).json({ received: true, ignored: "subscription_not_entitled" });
+      const userId = await resolveUserIdFromSubscription(premiumSubscription, email);
+      const identifier: UserIdentifier | null = userId
+        ? { id: userId }
+        : email
+          ? { email }
+          : null;
+      if (!identifier) return res.status(200).json({ received: true, ignored: "user_not_found" });
+      const isRenewal = invoice.billing_reason === "subscription_cycle";
+      if (isRenewal) {
+        const subscriptionId = stripeSubscriptionId(premiumSubscription);
+        const renewalAt = stripeInvoiceRenewalAt(invoice, premiumConfig);
+        if (!invoice.id || !subscriptionId || !renewalAt) {
+          return res.status(200).json({ received: true, ignored: "invalid_renewal" });
         }
-        if (isRenewal) {
-          const subscriptionId = stripeSubscriptionId(premiumSubscription);
-          const renewalAt = stripeInvoiceRenewalAt(invoice, premiumConfig);
-          if (!invoice.id || !subscriptionId || !renewalAt) {
-            return res.status(200).json({ received: true, ignored: "invalid_renewal" });
-          }
-          const result = await grantRenewalForIdentifier(
-            { email },
-            {
-              invoiceId: invoice.id,
-              stripeSubscriptionId: subscriptionId,
-              renewalAt,
-            }
-          );
-          return res.status(200).json({ received: true, renewal: result });
+        const result = await grantRenewalForIdentifier(identifier, {
+          invoiceId: invoice.id,
+          stripeSubscriptionId: subscriptionId,
+          renewalAt,
+        });
+        if (userId && result === "granted") {
+          trackSubscriptionLifecycle(userId, "subscription_renewed", event.id, {
+            billing_reason: invoice.billing_reason || undefined,
+          });
         }
-        await setPremiumForIdentifier({ email });
+        return res.status(200).json({ received: true, renewal: result });
       }
+      await setPremiumForIdentifier(identifier);
     }
 
     if (event.type === "invoice.payment_failed") {
@@ -469,6 +731,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (email) {
           await downgradePremiumByEmail(email, premiumConfig, customerId);
         }
+      }
+      const email =
+        normalizeEmail(invoice.customer_email) || (await resolveEmailFromCustomerRef(invoice.customer));
+      const userId = await resolveUserIdFromSubscription(premiumSubscription, email);
+      if (userId) {
+        trackSubscriptionLifecycle(userId, "subscription_payment_failed", event.id, {
+          status: premiumSubscription.status,
+          attempt_count: invoice.attempt_count || 0,
+          billing_reason: invoice.billing_reason || undefined,
+        });
       }
     }
 

@@ -26,6 +26,28 @@ type ProductHomeProps = {
   initialEditors?: EditorListItem[];
 };
 
+type PremiumSubscriptionStatus = {
+  status: string;
+  isTrial: boolean;
+  trialEndsAt: string | null;
+  cancelAtPeriodEnd: boolean;
+  accessEndsAt: string | null;
+};
+
+const trialDaysRemaining = (endsAt: string | null) => {
+  if (!endsAt) return null;
+  const remaining = new Date(endsAt).getTime() - Date.now();
+  if (!Number.isFinite(remaining)) return null;
+  return Math.max(0, Math.ceil(remaining / 86_400_000));
+};
+
+const shortDate = (value: string | null) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
+};
+
 const editorName = (editor: EditorListItem) => editor.name?.trim() || "Untitled tab";
 
 const editorLoadMessage = (error: unknown) => {
@@ -146,7 +168,12 @@ export default function ProductHome({
   const [loading, setLoading] = useState(!localPreview);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [subscription, setSubscription] = useState<PremiumSubscriptionStatus | null>(null);
+  const [billingPortalBusy, setBillingPortalBusy] = useState(false);
+  const [billingRecoveryError, setBillingRecoveryError] = useState<string | null>(null);
   const viewTrackedRef = useRef(false);
+  const trialActivationTrackedRef = useRef(false);
+  const paymentRecoveryTrackedRef = useRef(false);
   const isPremium = hasPremiumEntitlement({ user: { role } });
 
   const recentEditors = useMemo(
@@ -209,6 +236,32 @@ export default function ProductHome({
   }, [loadEditors, localPreview, userId]);
 
   useEffect(() => {
+    if (localPreview || role !== "PREMIUM") return;
+    const controller = new AbortController();
+    void fetch("/api/stripe/subscription-status", {
+      credentials: "same-origin",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<{ subscription: PremiumSubscriptionStatus | null }>;
+      })
+      .then((payload) => setSubscription(payload?.subscription || null))
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      });
+    return () => controller.abort();
+  }, [localPreview, role]);
+
+  useEffect(() => {
+    if (!router.isReady || router.query.upgrade !== "confirmed") return;
+    sendEvent(ANALYTICS_EVENTS.premiumTrialActivationLanded, {
+      surface: "product_home",
+    });
+    void router.replace("/home", undefined, { shallow: true });
+  }, [router.isReady, router.query.upgrade]);
+
+  useEffect(() => {
     if (loading || viewTrackedRef.current) return;
     viewTrackedRef.current = true;
     sendEvent(ANALYTICS_EVENTS.productHomeViewed, {
@@ -216,6 +269,85 @@ export default function ProductHome({
       plan: isPremium ? "premium" : "free",
     });
   }, [isPremium, loading, recentEditors.length]);
+
+  useEffect(() => {
+    if (!subscription?.isTrial || trialActivationTrackedRef.current) return;
+    trialActivationTrackedRef.current = true;
+    sendEvent(ANALYTICS_EVENTS.premiumTrialActivationShown, {
+      has_recent_tab: Boolean(latestEditor),
+      cancellation_scheduled: subscription.cancelAtPeriodEnd,
+      days_remaining: trialDaysRemaining(subscription.trialEndsAt),
+      surface: "product_home",
+    });
+  }, [latestEditor, subscription]);
+
+  useEffect(() => {
+    if (subscription?.status !== "past_due" || paymentRecoveryTrackedRef.current) return;
+    paymentRecoveryTrackedRef.current = true;
+    sendEvent(ANALYTICS_EVENTS.subscriptionPaymentRecoveryShown, {
+      surface: "product_home",
+    });
+  }, [subscription?.status]);
+
+  const handleBillingRecovery = async () => {
+    if (billingPortalBusy) return;
+    setBillingPortalBusy(true);
+    setBillingRecoveryError(null);
+    sendEvent(ANALYTICS_EVENTS.subscriptionPaymentRecoveryClicked, {
+      surface: "product_home",
+    });
+    try {
+      const response = await fetch("/api/stripe/create-portal-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnTo: "/home" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.url) {
+        throw new Error(payload?.error || "Could not open billing details.");
+      }
+      window.location.href = payload.url;
+    } catch (error) {
+      setBillingRecoveryError(
+        error instanceof Error ? error.message : "Could not open billing details."
+      );
+      sendEvent(ANALYTICS_EVENTS.subscriptionPaymentRecoveryFailed, {
+        surface: "product_home",
+      });
+      setBillingPortalBusy(false);
+    }
+  };
+
+  const handleCancellationRecovery = async () => {
+    if (billingPortalBusy) return;
+    setBillingPortalBusy(true);
+    setBillingRecoveryError(null);
+    sendEvent(ANALYTICS_EVENTS.subscriptionCancellationRecoveryClicked, {
+      surface: "product_home",
+      trial: Boolean(subscription?.isTrial),
+    });
+    try {
+      const response = await fetch("/api/stripe/create-portal-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnTo: "/home" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.url) {
+        throw new Error(payload?.error || "Could not open subscription details.");
+      }
+      window.location.href = payload.url;
+    } catch (error) {
+      setBillingRecoveryError(
+        error instanceof Error ? error.message : "Could not open subscription details."
+      );
+      sendEvent(ANALYTICS_EVENTS.subscriptionCancellationRecoveryFailed, {
+        surface: "product_home",
+        trial: Boolean(subscription?.isTrial),
+      });
+      setBillingPortalBusy(false);
+    }
+  };
 
   const handleCreate = async () => {
     if (creating) return;
@@ -267,6 +399,60 @@ export default function ProductHome({
               {creditPercent !== null && <i><b style={{ width: `${creditPercent}%` }} /></i>}
             </div>
           </header>
+
+          {subscription?.status === "past_due" && (
+            <aside className="product-studio__trial" aria-label="Premium payment needs attention">
+              <div>
+                <span>Payment needs attention</span>
+                <strong>Keep your Premium access active</strong>
+                <small>
+                  Update your payment details so your credits, Heavy model access, and full-song uploads continue uninterrupted.
+                </small>
+                {billingRecoveryError && <small role="alert">{billingRecoveryError}</small>}
+              </div>
+              <div className="product-studio__trial-actions">
+                <button type="button" onClick={handleBillingRecovery} disabled={billingPortalBusy}>
+                  {billingPortalBusy ? "Opening billing…" : "Update payment"}
+                </button>
+              </div>
+            </aside>
+          )}
+
+          {subscription?.isTrial && subscription.status !== "past_due" && (
+            <aside className="product-studio__trial" aria-label="Premium trial">
+              <div>
+                <span>
+                  {subscription.cancelAtPeriodEnd
+                    ? `Premium access until ${shortDate(subscription.accessEndsAt) || "trial end"}`
+                    : `Premium trial · ${trialDaysRemaining(subscription.trialEndsAt) ?? "A few"} days left`}
+                </span>
+                <strong>
+                  {latestEditor
+                    ? `Keep going with ${editorName(latestEditor)}`
+                    : "Make something you will want to play again"}
+                </strong>
+                <small>
+                  {latestEditor
+                    ? "Open your latest tab in Practice and hear how it feels under your fingers."
+                    : "Transcribe one recording, then open it in the editor and try Practice."}
+                </small>
+                {billingRecoveryError && <small role="alert">{billingRecoveryError}</small>}
+              </div>
+              <div className="product-studio__trial-actions">
+                <Link
+                  href={latestEditor ? `/gte/${latestEditor.id}?mode=practice&source=trial_home` : "/transcribe?source=trial_home"}
+                  onClick={() => trackHomeCta(latestEditor ? "trial_continue_practice" : "trial_start_transcription")}
+                >
+                  {latestEditor ? "Practice this tab" : "Transcribe a recording"}
+                </Link>
+                {subscription.cancelAtPeriodEnd && (
+                  <button type="button" onClick={handleCancellationRecovery} disabled={billingPortalBusy}>
+                    {billingPortalBusy ? "Opening…" : "Review subscription"}
+                  </button>
+                )}
+              </div>
+            </aside>
+          )}
 
           <section className="product-studio__start" aria-labelledby="studio-start-title">
             <span className="product-hub__doodle product-hub__doodle--guitar" aria-hidden="true" />

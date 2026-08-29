@@ -1676,6 +1676,19 @@ input[type="number"] {
 .product-studio__credits strong { justify-self: end; }
 .product-studio__credits > i { grid-column: 1 / -1; height: 3px; margin-top: 5px; overflow: hidden; border-radius: 999px; background: rgba(6, 17, 13, 0.09); }
 .product-studio__credits b { display: block; height: 100%; border-radius: inherit; background: #268469; }
+.product-studio__trial { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: -8px 0 22px; padding: 14px 16px; border: 1px solid rgba(6, 17, 13, 0.1); border-radius: 14px; background: rgba(255, 255, 255, 0.68); box-shadow: 0 12px 30px rgba(28, 37, 32, 0.05); }
+.product-studio__trial > div:first-child { display: grid; gap: 3px; min-width: 0; }
+.product-studio__trial span { color: #26745f; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.055em; text-transform: uppercase; }
+.product-studio__trial strong { overflow: hidden; color: #07110e; font-size: 0.93rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.product-studio__trial small { color: rgba(6, 17, 13, 0.58); font-size: 0.75rem; line-height: 1.45; }
+.product-studio__trial-actions { display: flex; align-items: center; flex: 0 0 auto; gap: 8px; }
+.product-studio__trial-actions a,
+.product-studio__trial-actions button { padding: 9px 12px; border: 1px solid rgba(6, 17, 13, 0.12); border-radius: 10px; color: rgba(6, 17, 13, 0.68); font-size: 0.73rem; font-weight: 650; }
+.product-studio__trial-actions a:first-child,
+.product-studio__trial-actions button:first-child { border-color: #07110e; background: #07110e; color: #fff; }
+.product-studio__trial-actions a:hover,
+.product-studio__trial-actions button:hover { transform: translateY(-1px); }
+.product-studio__trial-actions button:disabled { cursor: wait; opacity: 0.68; transform: none; }
 
 .product-studio__start { position: relative; min-height: 390px; overflow: hidden; padding: 52px; border: 1px solid rgba(6, 17, 13, 0.1); border-radius: 24px; background: #f6f3ea; box-shadow: 0 14px 34px rgba(6, 17, 13, 0.055); }
 .product-studio__start-copy { position: relative; z-index: 2; display: grid; width: min(100%, 760px); margin: 0 auto; justify-items: center; text-align: center; }
@@ -1740,6 +1753,11 @@ input[type="number"] {
   .product-studio__welcome { align-items: flex-start; }
   .product-studio__welcome h1 { font-size: 1.15rem; }
   .product-studio__credits { width: 170px; }
+  .product-studio__trial { align-items: stretch; flex-direction: column; gap: 12px; margin-top: -10px; }
+  .product-studio__trial strong { white-space: normal; }
+  .product-studio__trial-actions { display: grid; grid-template-columns: 1fr; }
+  .product-studio__trial-actions a,
+  .product-studio__trial-actions button { text-align: center; }
   .product-studio__start { min-height: 0; padding: 42px 16px 34px; }
   .product-studio__start h1 { font-size: 1.75rem; }
   .product-studio__actions { grid-template-columns: 1fr; }
@@ -2972,6 +2990,134 @@ input[type="number"] {
 
 .settingsPage {
   padding-top: 92px;
+}
+
+.subscription-retention-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.34);
+  backdrop-filter: blur(3px);
+}
+
+.subscription-retention-dialog {
+  position: relative;
+  width: min(100%, 520px);
+  max-height: min(720px, calc(100dvh - 32px));
+  overflow-y: auto;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 20px;
+  padding: 28px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
+}
+
+.subscription-retention-dialog h2 {
+  margin: 0 40px 8px 0;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+}
+
+.subscription-retention-dialog > p {
+  margin: 0 0 20px;
+}
+
+.subscription-retention-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.subscription-retention-choices {
+  display: grid;
+  gap: 10px;
+}
+
+.subscription-retention-choice {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--text);
+  text-align: left;
+}
+
+.subscription-retention-choice:hover {
+  border-color: rgba(15, 23, 42, 0.28);
+  background: #fafaf9;
+}
+
+.subscription-retention-choice span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.subscription-retention-save {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 15px;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: 14px;
+  background: rgba(240, 253, 250, 0.58);
+}
+
+.subscription-retention-save p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.subscription-retention-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.subscription-retention-back {
+  display: block;
+  margin: 12px auto 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.84rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 560px) {
+  .subscription-retention-backdrop {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .subscription-retention-dialog {
+    padding: 24px 18px 18px;
+    border-radius: 18px;
+  }
+
+  .subscription-retention-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 
 .settingsShell {

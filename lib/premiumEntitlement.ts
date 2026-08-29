@@ -37,7 +37,10 @@ export const confirmPremiumCheckout = async (
       body: JSON.stringify({ sessionId }),
     });
     if (response.ok) {
-      sendEvent(ANALYTICS_EVENTS.subscriptionStarted, {
+      // Stripe's webhook is authoritative for subscription_started. Keep the
+      // browser confirmation as a separate delivery/UX signal so one checkout
+      // cannot be counted twice as two subscriptions.
+      sendEvent(ANALYTICS_EVENTS.subscriptionCheckoutConfirmed, {
         plan: "premium_monthly",
         $insert_id: `subscription-started:${sessionId}`,
       });
