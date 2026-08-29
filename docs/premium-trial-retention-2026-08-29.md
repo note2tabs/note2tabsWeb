@@ -45,6 +45,8 @@ Successful checkout now continues into `/home` instead of leaving the customer i
 
 Recoverable `past_due` subscriptions now receive a compact Home notice with a direct payment-management action. It returns to Home after Stripe and separately measures notice exposure, recovery attempts, and client failures. The portal return path is restricted to an internal allowlist so the recovery endpoint cannot become an open redirect.
 
+A trial customer who has scheduled cancellation can also open Stripe directly from the secondary “Review subscription” action rather than navigating through Settings first. The action remains neutral and separately measures cancellation-recovery intent and failures.
+
 When custom trial messaging is enabled, the initial enrollment notice includes the seven-day duration, start and first charge date, $5.99 monthly price, included service, and direct online cancellation. This is required because Visa's current public rules require the amount, transaction date, and easy online cancellation at least seven days before the recurring charge ([Visa Core Rules, pp. 460–461](https://corporate.visa.com/content/dam/VCOM/download/about-visa/visa-rules-public.pdf)); Stripe separately notes that for a trial seven days or shorter, those details belong in the initial confirmation ([Stripe trial requirements](https://docs.stripe.com/billing/subscriptions/trials)). The later three-day message is activation support, not the sole billing notice.
 
 ## Stripe settings that require dashboard authorization
