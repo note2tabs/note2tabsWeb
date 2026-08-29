@@ -1090,5 +1090,103 @@ describe("stripe premium flow", () => {
       expect(prismaMock.user.findFirst).not.toHaveBeenCalled();
       expect(prismaMock.user.update).not.toHaveBeenCalled();
     });
+
+    it("tracks a scheduled trial cancellation with Stripe cancellation context", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        id: "evt_cancel_scheduled",
+        type: "customer.subscription.updated",
+        data: {
+          previous_attributes: { cancel_at_period_end: false },
+          object: premiumSubscription({
+            status: "trialing",
+            cancel_at_period_end: true,
+            trial_end: Math.floor(Date.now() / 1000) + 3 * 86_400,
+            cancellation_details: { reason: "cancellation_requested", feedback: "too_expensive" },
+          }),
+        },
+      });
+      stripeMock.customers.retrieve.mockResolvedValue({
+        id: "cus_123",
+        email: "user@example.com",
+      });
+      prismaMock.user.findFirst
+        .mockResolvedValueOnce({ id: "user_1" })
+        .mockResolvedValueOnce({ id: "user_1", role: "PREMIUM", tokensRemaining: 50 });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const req = buildWebhookReq();
+      const res = createResponse();
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(posthogMock.capture).toHaveBeenCalledWith({
+        distinctId: "user_1",
+        event: "subscription_cancel_scheduled",
+        properties: expect.objectContaining({
+          trial: true,
+          cancellation_feedback: "too_expensive",
+          $insert_id: "subscription_cancel_scheduled:evt_cancel_scheduled",
+        }),
+      });
+    });
+
+    it("tracks the Stripe trial-ending lifecycle event", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        id: "evt_trial_ending",
+        type: "customer.subscription.trial_will_end",
+        data: {
+          object: premiumSubscription({
+            status: "trialing",
+            trial_end: Math.floor(Date.now() / 1000) + 3 * 86_400,
+            cancel_at_period_end: false,
+          }),
+        },
+      });
+      stripeMock.customers.retrieve.mockResolvedValue({
+        id: "cus_123",
+        email: "user@example.com",
+      });
+      prismaMock.user.findFirst.mockResolvedValue({ id: "user_1" });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const req = buildWebhookReq();
+      const res = createResponse();
+
+      await handler(req as any, res as any);
+
+      expect(posthogMock.capture).toHaveBeenCalledWith({
+        distinctId: "user_1",
+        event: "subscription_trial_ending",
+        properties: expect.objectContaining({
+          cancel_at_period_end: false,
+          $insert_id: "subscription_trial_ending:evt_trial_ending",
+        }),
+      });
+    });
+
+    it("tracks failed Premium renewal payments without exposing customer details", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        id: "evt_payment_failed",
+        type: "invoice.payment_failed",
+        data: { object: premiumInvoice({ attempt_count: 2 }) },
+      });
+      prismaMock.user.findFirst.mockResolvedValue({ id: "user_1" });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const req = buildWebhookReq();
+      const res = createResponse();
+
+      await handler(req as any, res as any);
+
+      expect(posthogMock.capture).toHaveBeenCalledWith({
+        distinctId: "user_1",
+        event: "subscription_payment_failed",
+        properties: expect.objectContaining({
+          attempt_count: 2,
+          $insert_id: "subscription_payment_failed:evt_payment_failed",
+        }),
+      });
+    });
   });
 });

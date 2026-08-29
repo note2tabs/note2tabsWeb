@@ -207,6 +207,49 @@ function trackSubscriptionStarted(userId: string, session: Stripe.Checkout.Sessi
   flushPostHogServerClientInBackground(client);
 }
 
+type SubscriptionLifecycleEvent =
+  | "subscription_cancel_scheduled"
+  | "subscription_cancellation_reversed"
+  | "subscription_ended"
+  | "subscription_payment_failed"
+  | "subscription_renewed"
+  | "subscription_trial_ending";
+
+async function resolveUserIdFromEmail(email: string | null) {
+  if (!email) return null;
+  const user = await prisma.user.findFirst({
+    where: { email: email.toLowerCase() },
+    select: { id: true },
+  });
+  return user?.id || null;
+}
+
+function unixDaysRemaining(timestamp?: number | null) {
+  if (!timestamp) return undefined;
+  return Math.max(0, Math.ceil((timestamp * 1000 - Date.now()) / 86_400_000));
+}
+
+function trackSubscriptionLifecycle(
+  userId: string,
+  lifecycleEvent: SubscriptionLifecycleEvent,
+  stripeEventId: string,
+  properties: Record<string, string | number | boolean | null | undefined> = {}
+) {
+  const client = createPostHogServerClient();
+  if (!client) return;
+  client.capture({
+    distinctId: userId,
+    event: lifecycleEvent,
+    properties: {
+      plan: "premium_monthly",
+      event_source: "stripe_webhook",
+      ...properties,
+      $insert_id: `${lifecycleEvent}:${stripeEventId}`,
+    },
+  });
+  flushPostHogServerClientInBackground(client);
+}
+
 type RenewalInvoiceDetails = {
   invoiceId: string;
   stripeSubscriptionId: string;
@@ -397,6 +440,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       const email = await resolveEmailFromCustomerRef(subscription.customer);
       if (email) {
+        const userId = await resolveUserIdFromEmail(email);
+        if (userId) {
+          trackSubscriptionLifecycle(userId, "subscription_ended", event.id, {
+            status: subscription.status,
+            cancellation_reason: subscription.cancellation_details?.reason || undefined,
+            cancellation_feedback: subscription.cancellation_details?.feedback || undefined,
+          });
+        }
         await downgradePremiumByEmail(
           email,
           premiumConfig,
@@ -411,6 +462,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ received: true, ignored: "unrelated_subscription" });
       }
       const email = await resolveEmailFromCustomerRef(subscription.customer);
+      const userId = await resolveUserIdFromEmail(email);
+      const previous = event.data.previous_attributes as
+        | Partial<Stripe.Subscription>
+        | undefined;
+      if (userId && previous && "cancel_at_period_end" in previous) {
+        trackSubscriptionLifecycle(
+          userId,
+          subscription.cancel_at_period_end
+            ? "subscription_cancel_scheduled"
+            : "subscription_cancellation_reversed",
+          event.id,
+          {
+            status: subscription.status,
+            trial: subscription.status === "trialing",
+            days_remaining: unixDaysRemaining(
+              subscription.cancel_at || subscription.trial_end || subscription.current_period_end
+            ),
+            cancellation_reason: subscription.cancellation_details?.reason || undefined,
+            cancellation_feedback: subscription.cancellation_details?.feedback || undefined,
+          }
+        );
+      }
       if (email && ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
         await setPremiumForIdentifier({ email });
       }
@@ -420,6 +493,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           premiumConfig,
           stripeSubscriptionId(subscription.customer)
         );
+      }
+    }
+
+    if (event.type === "customer.subscription.trial_will_end") {
+      const subscription = event.data.object as Stripe.Subscription;
+      if (!stripeSubscriptionMatchesPremium(subscription, premiumConfig)) {
+        return res.status(200).json({ received: true, ignored: "unrelated_subscription" });
+      }
+      const email = await resolveEmailFromCustomerRef(subscription.customer);
+      const userId = await resolveUserIdFromEmail(email);
+      if (userId) {
+        trackSubscriptionLifecycle(userId, "subscription_trial_ending", event.id, {
+          status: subscription.status,
+          days_remaining: unixDaysRemaining(subscription.trial_end),
+          cancel_at_period_end: subscription.cancel_at_period_end,
+        });
       }
     }
 
@@ -450,6 +539,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               renewalAt,
             }
           );
+          const userId = await resolveUserIdFromEmail(email);
+          if (userId && result === "granted") {
+            trackSubscriptionLifecycle(userId, "subscription_renewed", event.id, {
+              billing_reason: invoice.billing_reason || undefined,
+            });
+          }
           return res.status(200).json({ received: true, renewal: result });
         }
         await setPremiumForIdentifier({ email });
@@ -469,6 +564,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (email) {
           await downgradePremiumByEmail(email, premiumConfig, customerId);
         }
+      }
+      const email =
+        normalizeEmail(invoice.customer_email) || (await resolveEmailFromCustomerRef(invoice.customer));
+      const userId = await resolveUserIdFromEmail(email);
+      if (userId) {
+        trackSubscriptionLifecycle(userId, "subscription_payment_failed", event.id, {
+          status: premiumSubscription.status,
+          attempt_count: invoice.attempt_count || 0,
+          billing_reason: invoice.billing_reason || undefined,
+        });
       }
     }
 
