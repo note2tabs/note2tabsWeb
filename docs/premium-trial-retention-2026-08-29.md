@@ -36,6 +36,8 @@ The Stripe webhook now records the subscription lifecycle required to diagnose c
 
 Events use the authenticated Note2Tabs user ID, contain no email or Stripe customer identifier, and use Stripe event IDs for idempotency. Cancellation reason and feedback are recorded when Stripe supplies them.
 
+New lifecycle events prefer the Note2Tabs `userId` already stored in signed Stripe subscription metadata, with email lookup retained for legacy subscriptions. An account email change therefore does not silently detach cancellation, trial-ending, renewal, or payment-failure events from the correct user.
+
 The browser's checkout confirmation is recorded separately as
 `subscription_checkout_confirmed`. Only the verified Stripe webhook emits
 `subscription_started`, preventing a successful checkout return and its
