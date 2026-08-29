@@ -66,13 +66,16 @@ Stripe documents `customer.subscription.trial_will_end` as arriving about three 
 
 ### Current test-mode audit
 
-The Stripe account available to this workspace was inspected read-only on August 29, 2026. It is a **test-mode** account, so these findings must not be presented as the production configuration:
+The Stripe test account and retention preview were configured and verified on August 29, 2026. These findings must not be presented as the production configuration:
 
-- There is no active Customer Portal configuration. Preview testing cannot currently prove self-service cancellation, cancellation reversal, payment-method updates, or cancellation-reason capture.
-- The only test webhook endpoint targets `note2tabs.com/api/stripe/webhook` and is disabled. It should not simply be re-enabled for branch verification because its signing secret and destination are not isolated to the preview.
-- That endpoint includes subscription updates/deletion, trial ending, payment failure, and invoice payment, but does not subscribe to `checkout.session.completed`.
+- The branch has an active test Customer Portal with payment-method updates, cancellation at period end, and eight cancellation reasons.
+- The retention branch alone overrides inherited Preview billing variables with the matching Stripe test key and price. Production and other preview branches are unchanged.
+- Its dedicated webhook subscribes to `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.trial_will_end`, `invoice.payment_failed`, and `invoice.payment_succeeded`.
+- Vercel Deployment Protection remains enabled. The Stripe endpoint uses Vercel's automation-bypass query mechanism rather than exposing the preview publicly.
+- A Stripe CLI `customer.subscription.trial_will_end` fixture reached the deployed `/api/stripe/webhook` function and returned HTTP 200.
+- Custom reminders are selected for this preview with `PREMIUM_TRIAL_REMINDER_MODE=custom`.
 
-Before end-to-end preview verification, create or activate a test Customer Portal configuration with payment-method updates, subscription cancellation at period end, and cancellation reasons; then enable a test webhook endpoint covering `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.trial_will_end`, `invoice.payment_failed`, and `invoice.payment_succeeded`. Repeat the same audit separately against live mode before production rollout.
+Repeat the portal, webhook, reminder, Smart Retry, email, branding, and event-coverage audit separately against live mode before production rollout.
 
 Cancellation reasons should include price, missing features, alternative, no longer needed, service, ease of use, quality, and free text—the categories Stripe supports in its portal ([Stripe cancellation page](https://docs.stripe.com/customer-management/cancellation-page)). Do not enable a retention coupon until cancellation reasons show price is a material cause and retained revenue can be measured; otherwise it can train customers to cancel for a discount.
 
