@@ -599,6 +599,51 @@ describe("stripe premium flow", () => {
       });
     });
 
+    it("supports a safe Home return path for payment recovery", async () => {
+      stripeMock.customers.list.mockResolvedValue({
+        data: [{ id: "cus_123", email: "user@example.com" }],
+      });
+      stripeMock.subscriptions.list.mockResolvedValue({
+        data: [premiumSubscription({ id: "sub_123", status: "past_due" })],
+      });
+      const handler = (await import("../../pages/api/stripe/create-portal-session")).default;
+      const { req, res } = createMocks({
+        method: "POST",
+        body: { returnTo: "/home" },
+        headers: { host: "note2tabs.test", "x-forwarded-proto": "https" },
+      });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(stripeMock.billingPortal.sessions.create).toHaveBeenCalledWith({
+        customer: "cus_123",
+        return_url: "https://note2tabs.test/home",
+      });
+    });
+
+    it("does not accept an arbitrary portal return URL", async () => {
+      stripeMock.customers.list.mockResolvedValue({
+        data: [{ id: "cus_123", email: "user@example.com" }],
+      });
+      stripeMock.subscriptions.list.mockResolvedValue({
+        data: [premiumSubscription({ id: "sub_123" })],
+      });
+      const handler = (await import("../../pages/api/stripe/create-portal-session")).default;
+      const { req, res } = createMocks({
+        method: "POST",
+        body: { returnTo: "https://attacker.example" },
+        headers: { host: "note2tabs.test", "x-forwarded-proto": "https" },
+      });
+
+      await handler(req as any, res as any);
+
+      expect(stripeMock.billingPortal.sessions.create).toHaveBeenCalledWith({
+        customer: "cus_123",
+        return_url: "https://note2tabs.test/settings",
+      });
+    });
+
     it("returns 404 when no Stripe customer exists for the account", async () => {
       stripeMock.customers.list.mockResolvedValue({ data: [] });
       const handler = (await import("../../pages/api/stripe/create-portal-session")).default;

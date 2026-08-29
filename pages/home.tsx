@@ -169,8 +169,11 @@ export default function ProductHome({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [subscription, setSubscription] = useState<PremiumSubscriptionStatus | null>(null);
+  const [billingPortalBusy, setBillingPortalBusy] = useState(false);
+  const [billingRecoveryError, setBillingRecoveryError] = useState<string | null>(null);
   const viewTrackedRef = useRef(false);
   const trialActivationTrackedRef = useRef(false);
+  const paymentRecoveryTrackedRef = useRef(false);
   const isPremium = hasPremiumEntitlement({ user: { role } });
 
   const recentEditors = useMemo(
@@ -278,6 +281,43 @@ export default function ProductHome({
     });
   }, [latestEditor, subscription]);
 
+  useEffect(() => {
+    if (subscription?.status !== "past_due" || paymentRecoveryTrackedRef.current) return;
+    paymentRecoveryTrackedRef.current = true;
+    sendEvent(ANALYTICS_EVENTS.subscriptionPaymentRecoveryShown, {
+      surface: "product_home",
+    });
+  }, [subscription?.status]);
+
+  const handleBillingRecovery = async () => {
+    if (billingPortalBusy) return;
+    setBillingPortalBusy(true);
+    setBillingRecoveryError(null);
+    sendEvent(ANALYTICS_EVENTS.subscriptionPaymentRecoveryClicked, {
+      surface: "product_home",
+    });
+    try {
+      const response = await fetch("/api/stripe/create-portal-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnTo: "/home" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.url) {
+        throw new Error(payload?.error || "Could not open billing details.");
+      }
+      window.location.href = payload.url;
+    } catch (error) {
+      setBillingRecoveryError(
+        error instanceof Error ? error.message : "Could not open billing details."
+      );
+      sendEvent(ANALYTICS_EVENTS.subscriptionPaymentRecoveryFailed, {
+        surface: "product_home",
+      });
+      setBillingPortalBusy(false);
+    }
+  };
+
   const handleCreate = async () => {
     if (creating) return;
     setCreating(true);
@@ -325,7 +365,25 @@ export default function ProductHome({
             </div>
           </header>
 
-          {subscription?.isTrial && (
+          {subscription?.status === "past_due" && (
+            <aside className="product-studio__trial" aria-label="Premium payment needs attention">
+              <div>
+                <span>Payment needs attention</span>
+                <strong>Keep your Premium access active</strong>
+                <small>
+                  Update your payment details so your credits, Heavy model access, and full-song uploads continue uninterrupted.
+                </small>
+                {billingRecoveryError && <small role="alert">{billingRecoveryError}</small>}
+              </div>
+              <div className="product-studio__trial-actions">
+                <button type="button" onClick={handleBillingRecovery} disabled={billingPortalBusy}>
+                  {billingPortalBusy ? "Opening billing…" : "Update payment"}
+                </button>
+              </div>
+            </aside>
+          )}
+
+          {subscription?.isTrial && subscription.status !== "past_due" && (
             <aside className="product-studio__trial" aria-label="Premium trial">
               <div>
                 <span>
