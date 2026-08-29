@@ -7,6 +7,12 @@ export type AdInteractionEligibility = {
   now: number;
 };
 
+const AD_FREE_ROLES = new Set(["PREMIUM", "ADMIN", "MODERATOR", "MOD"]);
+
+export function hasAdFreeEntitlement(role: string | null | undefined) {
+  return AD_FREE_ROLES.has((role || "").trim().toUpperCase());
+}
+
 export function isAdInteractionEligible(input: AdInteractionEligibility) {
   return (
     input.documentVisible &&
@@ -14,4 +20,3 @@ export function isAdInteractionEligible(input: AdInteractionEligibility) {
     input.now - input.lastActivityAt <= input.idleAfterMs
   );
 }
-

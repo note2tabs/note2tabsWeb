@@ -21,7 +21,12 @@ It makes no network requests, emits no production analytics or revenue, and requ
 - Global and per-placement kill switches are environment-controlled.
 - Region blocking is supported through the `note2tabs_region` cookie. The edge/deployment layer must set a trustworthy
   country or regulatory-region value before this is used for enforcement.
-- Premium, admin and moderator roles are excluded by the placement owners.
+- Premium, admin and moderator roles are excluded centrally by the shared slot component, including guest-editor URLs;
+  placements also wait for session resolution so paid users never see an ad flash.
+- Disabled or incomplete live configuration renders nothing. The visible placeholder is restricted to the explicit
+  review route, so a missing provider or unit ID cannot leak a mock ad surface into production.
+- Provider loading is deduplicated across slots, and late provider callbacks are ignored after unmount or consent
+  changes to avoid duplicate scripts, stale impressions and route-transition state updates.
 - Refresh is disabled by default. If enabled after provider approval and inventory declaration, it is clamped to at
   least 60 seconds, stops after the configured maximum, and runs only while the page is visible, at least 50% of the
   slot is visible and recent user activity exists.

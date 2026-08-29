@@ -23,4 +23,10 @@ describe("advertisement dismissal", () => {
     expect(source).toContain('sendEvent("ad_slot_presented"');
     expect(source).not.toContain('sendEvent("ad_impression"');
   });
+
+  it("fails closed for unresolved, Premium, and unconfigured sessions", () => {
+    expect(source).toContain('sessionStatus !== "loading"');
+    expect(source).toContain("hasAdFreeEntitlement(session?.user?.role)");
+    expect(source).toContain("if (!preview && !adRuntime.liveConfigured) return null");
+  });
 });

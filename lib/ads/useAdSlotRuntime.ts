@@ -110,7 +110,14 @@ export function useAdSlotRuntime({ placement, preview, suppressed, simulation = 
       if (!isEngagedAndVisible() || !handleRef.current?.refresh) return;
       refreshCountRef.current += 1;
       track("ad_refresh_requested", { trigger: "engaged_viewable_interval" });
-      await handleRef.current.refresh();
+      try {
+        await handleRef.current.refresh();
+      } catch (error) {
+        track("ad_error", {
+          error_code: error instanceof Error ? error.message.slice(0, 80) : "refresh_failed",
+          operation: "refresh",
+        });
+      }
     }, remaining);
   }, [config.maxRefreshes, config.refreshEnabled, config.refreshSeconds, isEngagedAndVisible, track]);
 
@@ -191,6 +198,7 @@ export function useAdSlotRuntime({ placement, preview, suppressed, simulation = 
 
     const element = elementRef.current;
     if (!element) return;
+    let active = true;
     pageVisibleRef.current = document.visibilityState === "visible";
     const mountIfEligible = () => {
       if (mountedRef.current || !isEngagedAndVisible()) return;
@@ -214,14 +222,21 @@ export function useAdSlotRuntime({ placement, preview, suppressed, simulation = 
               demandSources: config.demandSources,
               limitedAds: !simulation && !hasAdvertisingConsent(),
             },
-            onProviderEvent
+            (event) => {
+              if (active) onProviderEvent(event);
+            }
           )
         )
         .then((handle) => {
+          if (!active) {
+            void handle.destroy();
+            return;
+          }
           handleRef.current = handle;
           if (lastFillAtRef.current) scheduleRefresh();
         })
         .catch((error) => {
+          if (!active) return;
           setStatus("error");
           track("ad_error", {
             error_code: error instanceof Error ? error.message.slice(0, 80) : "provider_load_failed",
@@ -263,6 +278,7 @@ export function useAdSlotRuntime({ placement, preview, suppressed, simulation = 
     setStatus("waiting");
 
     return () => {
+      active = false;
       observer.disconnect();
       activityEvents.forEach((name) => window.removeEventListener(name, onActivity));
       document.removeEventListener("visibilitychange", onVisibility);

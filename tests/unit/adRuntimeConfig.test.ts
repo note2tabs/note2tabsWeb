@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { getAdRuntimeConfig, isAdRuntimeConfigured } from "../../lib/ads/config";
-import { isAdInteractionEligible } from "../../lib/ads/eligibility";
+import { hasAdFreeEntitlement, isAdInteractionEligible } from "../../lib/ads/eligibility";
 
 const originalEnv = { ...process.env };
 
@@ -26,6 +26,16 @@ describe("advertising interaction eligibility", () => {
     expect(isAdInteractionEligible({ ...base, documentVisible: false })).toBe(false);
     expect(isAdInteractionEligible({ ...base, visibleRatio: 0.49 })).toBe(false);
     expect(isAdInteractionEligible({ ...base, lastActivityAt: 0 })).toBe(false);
+  });
+});
+
+describe("advertising account eligibility", () => {
+  it("keeps every privileged subscription role ad-free", () => {
+    expect(hasAdFreeEntitlement("PREMIUM")).toBe(true);
+    expect(hasAdFreeEntitlement("admin")).toBe(true);
+    expect(hasAdFreeEntitlement("MODERATOR")).toBe(true);
+    expect(hasAdFreeEntitlement("FREE")).toBe(false);
+    expect(hasAdFreeEntitlement(undefined)).toBe(false);
   });
 });
 

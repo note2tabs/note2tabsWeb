@@ -15,6 +15,19 @@ declare global {
   }
 }
 
+const bridgeLoadPromises = new WeakMap<object, Promise<void>>();
+
+async function loadBridgeOnce(bridge: AdBridge) {
+  const existing = bridgeLoadPromises.get(bridge);
+  if (existing) return existing;
+  const pending = Promise.resolve(bridge.load()).catch((error) => {
+    bridgeLoadPromises.delete(bridge);
+    throw error;
+  });
+  bridgeLoadPromises.set(bridge, pending);
+  return pending;
+}
+
 const unavailableProvider: AdProvider = {
   name: "none",
   load: () => {},
@@ -28,7 +41,7 @@ const bridgeProvider: AdProvider = {
   name: "bridge",
   load: async () => {
     if (!window.note2tabsAdBridge) throw new Error("ad_bridge_unavailable");
-    await window.note2tabsAdBridge.load();
+    await loadBridgeOnce(window.note2tabsAdBridge);
   },
   mount: async (element, request, emit) => {
     if (!window.note2tabsAdBridge) throw new Error("ad_bridge_unavailable");

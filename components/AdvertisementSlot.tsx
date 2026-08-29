@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
 import {
@@ -9,6 +10,7 @@ import {
 import { initPostHog } from "../lib/posthogClient";
 import type { AdPlacement } from "../lib/ads/types";
 import { useAdSlotRuntime } from "../lib/ads/useAdSlotRuntime";
+import { hasAdFreeEntitlement } from "../lib/ads/eligibility";
 import {
   getOrCreatePremiumFunnelContext,
   premiumFunnelProperties,
@@ -41,6 +43,9 @@ export default function AdvertisementSlot({
   preview = false,
   runtimePreview = false,
 }: AdvertisementSlotProps) {
+  const { data: session, status: sessionStatus } = useSession();
+  const accountEligibilityResolved = preview || sessionStatus !== "loading";
+  const accountEligible = preview || !hasAdFreeEntitlement(session?.user?.role);
   const [visible, setVisible] = useState(preview);
   const [variant, setVariant] = useState<AdExperienceVariant | null>(
     preview ? "discreet-dismissible" : null
@@ -59,7 +64,7 @@ export default function AdvertisementSlot({
       : "Editor ad";
 
   useEffect(() => {
-    if (preview) return;
+    if (preview || !accountEligibilityResolved || !accountEligible) return;
     let active = true;
     let unsubscribe: (() => void) | undefined;
     let fallbackTimer: number | undefined;
@@ -99,10 +104,10 @@ export default function AdvertisementSlot({
       if (fallbackTimer) window.clearTimeout(fallbackTimer);
       unsubscribe?.();
     };
-  }, [placement, preview]);
+  }, [accountEligibilityResolved, accountEligible, placement, preview]);
 
   useEffect(() => {
-    if (preview) return;
+    if (preview || !accountEligibilityResolved || !accountEligible) return;
     if (!variant) return;
     if (variant === "control") {
       setVisible(false);
@@ -115,12 +120,12 @@ export default function AdvertisementSlot({
       impressionTrackedRef.current = true;
       sendEvent("ad_slot_presented", { experiment: AD_EXPERIENCE_FLAG, variant, placement });
     }
-  }, [placement, preview, variant]);
+  }, [accountEligibilityResolved, accountEligible, placement, preview, variant]);
 
   const adRuntime = useAdSlotRuntime({
     placement,
     preview: preview && !runtimePreview,
-    suppressed: !visible || adFreePromptVisible,
+    suppressed: !accountEligibilityResolved || !accountEligible || !visible || adFreePromptVisible,
     simulation: runtimePreview,
   });
 
@@ -198,6 +203,11 @@ export default function AdvertisementSlot({
       adFreePromptTimerRef.current = null;
     }, AD_FREE_PROMPT_DURATION_MS);
   };
+
+  if (!accountEligibilityResolved || !accountEligible) return null;
+  // A disabled or incomplete live configuration must never expose a review
+  // placeholder to real users. Preview routes opt in explicitly above.
+  if (!preview && !adRuntime.liveConfigured) return null;
 
   if (adFreePromptVisible && premiumFunnel) {
     return (
