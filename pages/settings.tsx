@@ -164,8 +164,12 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     const reconcileCheckout = async () => {
       if (isPremium) {
         clearRecoverableCheckoutSessionId();
-        setCheckoutStatus("Premium is active. Your upgraded limits are ready to use.");
-        setUpgradeBusy(false);
+        if (outcome === "success") {
+          window.location.replace("/home?upgrade=confirmed");
+        } else {
+          setCheckoutStatus("Premium is active. Your upgraded limits are ready to use.");
+          setUpgradeBusy(false);
+        }
         return;
       }
 
@@ -187,7 +191,9 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       }
 
       clearRecoverableCheckoutSessionId();
-      window.location.replace("/settings?upgrade=confirmed");
+      window.location.replace(
+        outcome === "success" ? "/home?upgrade=confirmed" : "/settings?upgrade=confirmed"
+      );
     };
 
     void reconcileCheckout();

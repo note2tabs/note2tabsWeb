@@ -1189,4 +1189,58 @@ describe("stripe premium flow", () => {
       });
     });
   });
+
+  describe("subscription status", () => {
+    it("returns the authenticated user's trial and cancellation timing", async () => {
+      const now = Math.floor(Date.now() / 1000);
+      stripeMock.customers.list.mockResolvedValue({
+        data: [{ id: "cus_123", email: "user@example.com" }],
+      });
+      stripeMock.subscriptions.list.mockResolvedValue({
+        data: [
+          premiumSubscription({
+            created: now - 86_400,
+            status: "trialing",
+            trial_end: now + 3 * 86_400,
+            current_period_end: now + 3 * 86_400,
+            cancel_at_period_end: true,
+          }),
+        ],
+      });
+
+      const handler = (await import("../../pages/api/stripe/subscription-status")).default;
+      const { req, res } = createMocks({ method: "GET" });
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(res._getHeaders()["cache-control"]).toBe("private, no-store");
+      expect(res._getJSONData()).toEqual({
+        subscription: expect.objectContaining({
+          status: "trialing",
+          isTrial: true,
+          cancelAtPeriodEnd: true,
+        }),
+      });
+    });
+
+    it("does not expose an unrelated Stripe product", async () => {
+      stripeMock.customers.list.mockResolvedValue({
+        data: [{ id: "cus_123", email: "user@example.com" }],
+      });
+      stripeMock.subscriptions.list.mockResolvedValue({
+        data: [
+          {
+            ...premiumSubscription(),
+            items: { data: [{ price: unrelatedPrice }] },
+          },
+        ],
+      });
+
+      const handler = (await import("../../pages/api/stripe/subscription-status")).default;
+      const { req, res } = createMocks({ method: "GET" });
+      await handler(req as any, res as any);
+
+      expect(res._getJSONData()).toEqual({ subscription: null });
+    });
+  });
 });
