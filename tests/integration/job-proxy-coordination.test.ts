@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMocks } from "node-mocks-http";
 
-const { sessionMock, fetchMock, prismaMock } = vi.hoisted(() => ({
+const { sessionMock, fetchMock, prismaMock, completionEmailMock } = vi.hoisted(() => ({
   sessionMock: vi.fn(),
   fetchMock: vi.fn(),
+  completionEmailMock: vi.fn(),
   prismaMock: {
     tabJob: {
       findUnique: vi.fn(),
@@ -28,11 +29,17 @@ vi.mock("../../lib/prisma", () => ({
   prisma: prismaMock,
 }));
 
+vi.mock("../../lib/transcriptionCompleteEmail", () => ({
+  sendTranscriptionCompleteEmailOnce: (...args: unknown[]) => completionEmailMock(...args),
+}));
+
 describe("job proxy backend coordination", () => {
   beforeEach(() => {
     vi.resetModules();
     sessionMock.mockReset();
     fetchMock.mockReset();
+    completionEmailMock.mockReset();
+    completionEmailMock.mockResolvedValue(true);
     sessionMock.mockResolvedValue({ user: { id: "user_1" } });
     for (const method of Object.values(prismaMock.tabJob)) method.mockReset();
     prismaMock.tabJob.findUnique.mockResolvedValue(null);
@@ -228,5 +235,43 @@ describe("job proxy backend coordination", () => {
     expect(JSON.parse(res._getData())).toEqual(
       expect.objectContaining({ tabJobId: "tab_123", tab_job_id: "tab_123" })
     );
+    expect(completionEmailMock).toHaveBeenCalledWith({
+      userId: "user_1",
+      jobId: "job_123",
+      tabJobId: "tab_123",
+    });
+  });
+
+  it("keeps a completed transcription successful when its email cannot be delivered", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            job_id: "job_123",
+            status: "succeeded",
+            sourceLabel: "Completed song",
+            tabs: [["e|--0--"]],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    prismaMock.tabJob.upsert.mockResolvedValue({ id: "tab_123", userId: "user_1" });
+    completionEmailMock.mockRejectedValueOnce(new Error("SES unavailable"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const handler = (await import("../../pages/api/jobs/[job_id]")).default;
+    const { req, res } = createMocks({
+      method: "GET",
+      query: { job_id: "job_123" },
+    });
+
+    await handler(req as any, res as any);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(JSON.parse(res._getData())).toEqual(
+      expect.objectContaining({ status: "succeeded", tabJobId: "tab_123" })
+    );
+    consoleError.mockRestore();
   });
 });

@@ -4,6 +4,7 @@ import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "../../../lib/prisma";
 import { buildUniqueTabJobLabel, deriveTabJobBaseLabel } from "../../../lib/tabJobNames";
 import { normalizePositiveDurationSec } from "../../../lib/transcriptionDuration";
+import { sendTranscriptionCompleteEmailOnce } from "../../../lib/transcriptionCompleteEmail";
 import {
   parseStoredTabPayload,
   normalizeTranscriberTracks,
@@ -675,6 +676,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (tabJobId) {
           persistedTab = true;
           await markBackendJobPersisted(jobId, session.user.id, tabJobId);
+          try {
+            await sendTranscriptionCompleteEmailOnce({
+              userId: session.user.id,
+              jobId,
+              tabJobId,
+            });
+          } catch (error) {
+            // Email is helpful but must never turn a completed transcription
+            // into a failed job response. A later final-status poll can retry.
+            console.error("Transcription completion email delivery failed", {
+              userId: session.user.id,
+              jobId,
+              error,
+            });
+          }
           resolvedTabJobId = tabJobId;
           payload.tab_job_id = tabJobId;
           payload.tabJobId = tabJobId;
