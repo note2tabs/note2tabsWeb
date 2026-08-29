@@ -66,7 +66,7 @@ The Stripe account available to this workspace was inspected read-only on August
 - The only test webhook endpoint is disabled.
 - That endpoint includes subscription updates/deletion, trial ending, payment failure, and invoice payment, but does not subscribe to `checkout.session.completed`.
 
-Before end-to-end preview verification, create or activate a test Customer Portal configuration with payment-method updates, subscription cancellation at period end, and cancellation reasons; then enable a test webhook endpoint covering `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.trial_will_end`, `invoice.payment_failed`, and `invoice.paid`. Repeat the same audit separately against live mode before production rollout.
+Before end-to-end preview verification, create or activate a test Customer Portal configuration with payment-method updates, subscription cancellation at period end, and cancellation reasons; then enable a test webhook endpoint covering `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.trial_will_end`, `invoice.payment_failed`, and `invoice.payment_succeeded`. Repeat the same audit separately against live mode before production rollout.
 
 Cancellation reasons should include price, missing features, alternative, no longer needed, service, ease of use, quality, and free text—the categories Stripe supports in its portal ([Stripe cancellation page](https://docs.stripe.com/customer-management/cancellation-page)). Do not enable a retention coupon until cancellation reasons show price is a material cause and retained revenue can be measured; otherwise it can train customers to cancel for a discount.
 
