@@ -748,7 +748,7 @@ export default function TranscriberPage() {
                 savedAt: Date.now(),
               }
         );
-        sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "signed_out", mode });
+        sendEvent(ANALYTICS_EVENTS.authHandoffRequired, { reason: "signed_out", mode });
         sendEvent(ANALYTICS_EVENTS.authHandoffSaved, { mode, path: "/transcribe" });
         await router.push(
           `/auth/login?next=${encodeURIComponent("/transcribe?resumeTranscription=1")}`

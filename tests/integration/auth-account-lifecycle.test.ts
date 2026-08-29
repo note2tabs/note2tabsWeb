@@ -69,6 +69,7 @@ describe("account signup, verification, and password-reset lifecycle", () => {
         password: "a-secure-password",
         name: "Player",
         fingerprintId: "browser_1",
+        returnTo: "/transcribe?resumeTranscription=1",
       },
     });
 
@@ -89,11 +90,14 @@ describe("account signup, verification, and password-reset lifecycle", () => {
         emailVerifiedBool: false,
       }),
     });
-    expect(mocks.issueVerification).toHaveBeenCalledWith({
-      id: "user_1",
-      email: "player@example.com",
-      name: "Player",
-    });
+    expect(mocks.issueVerification).toHaveBeenCalledWith(
+      {
+        id: "user_1",
+        email: "player@example.com",
+        name: "Player",
+      },
+      { returnTo: "/transcribe?resumeTranscription=1" }
+    );
   });
 
   it("verifies the account and consumes the one-time token", async () => {

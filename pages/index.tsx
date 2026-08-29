@@ -1109,7 +1109,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 savedAt: Date.now(),
               }
         );
-        sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "signed_out", mode });
+        sendEvent(ANALYTICS_EVENTS.authHandoffRequired, { reason: "signed_out", mode });
         sendEvent(ANALYTICS_EVENTS.authHandoffSaved, { mode, path: "/" });
         await router.push(
           `/auth/login?next=${encodeURIComponent("/transcribe?resumeTranscription=1")}`

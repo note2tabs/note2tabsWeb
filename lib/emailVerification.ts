@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { prisma } from "./prisma";
 import { sendTransactionalEmail } from "./email";
+import { normalizeSafeReturnPath } from "./safeReturnPath";
 
 const VERIFY_TOKEN_PREFIX = "verify:";
 const VERIFY_TOKEN_TTL_MS = 1000 * 60 * 60 * 24; // 24h
@@ -38,17 +39,26 @@ export async function createEmailVerificationToken(userId: string) {
   return token;
 }
 
-export function buildVerificationUrl(token: string, email?: string) {
-  const emailParam = email ? `&email=${encodeURIComponent(email)}` : "";
-  return `${baseUrl()}/auth/verify-email?token=${encodeURIComponent(token)}${emailParam}`;
+export function buildVerificationUrl(
+  token: string,
+  email?: string,
+  returnTo?: string
+) {
+  const url = new URL("/auth/verify-email", baseUrl());
+  url.searchParams.set("token", token);
+  if (email) url.searchParams.set("email", email);
+  if (returnTo) {
+    url.searchParams.set("next", normalizeSafeReturnPath(returnTo));
+  }
+  return url.toString();
 }
 
 export async function sendVerificationEmail(
   email: string,
   token: string,
-  options?: { name?: string | null }
+  options?: { name?: string | null; returnTo?: string }
 ) {
-  const url = buildVerificationUrl(token, email);
+  const url = buildVerificationUrl(token, email, options?.returnTo);
   const firstName = options?.name?.trim() || "there";
   const subject = "Verify your Note2Tabs account";
   const text = `Hi ${firstName},\n\nPlease verify your email to use the transcriber:\n${url}\n\nIf you didn't create this account, you can ignore this email.`;
@@ -68,8 +78,11 @@ export async function issueAndSendVerificationEmail(user: {
   id: string;
   email: string;
   name?: string | null;
-}) {
+}, options?: { returnTo?: string }) {
   const token = await createEmailVerificationToken(user.id);
-  const sent = await sendVerificationEmail(user.email, token, { name: user.name });
+  const sent = await sendVerificationEmail(user.email, token, {
+    name: user.name,
+    returnTo: options?.returnTo,
+  });
   return { token, sent };
 }

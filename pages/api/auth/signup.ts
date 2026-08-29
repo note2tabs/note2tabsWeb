@@ -4,6 +4,7 @@ import { prisma } from "../../../lib/prisma";
 import { issueAndSendVerificationEmail } from "../../../lib/emailVerification";
 import { STARTING_CREDITS } from "../../../lib/credits";
 import { linkIdentityToUser } from "../../../lib/analyticsV2/identity";
+import { normalizeSafeReturnPath } from "../../../lib/safeReturnPath";
 
 const MIN_PASSWORD = 10;
 
@@ -15,6 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { email, password, name } = req.body || {};
+    const returnTo = normalizeSafeReturnPath(req.body?.returnTo);
     if (!email || typeof email !== "string" || !email.includes("@")) {
       return res.status(400).json({ error: "Enter a valid email address." });
     }
@@ -66,7 +68,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         id: user.id,
         email: user.email,
         name: user.name,
-      });
+      }, { returnTo });
       sent = result.sent;
     } catch (mailError) {
       console.error("Signup verification email error", mailError);

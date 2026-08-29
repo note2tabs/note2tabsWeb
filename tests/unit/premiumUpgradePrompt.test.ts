@@ -3,6 +3,9 @@ import { getInitialPremiumPromptReason } from "../../components/PremiumUpgradePr
 
 describe("PremiumUpgradePrompt", () => {
   it("offers Premium passively only inside the transcriber", () => {
+    expect(getInitialPremiumPromptReason("/transcribe", 9)).toBe(
+      "transcriber_passive"
+    );
     expect(getInitialPremiumPromptReason("/transcriber", 9)).toBe(
       "transcriber_passive"
     );
