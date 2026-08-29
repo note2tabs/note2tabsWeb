@@ -1,5 +1,9 @@
 # Premium trial retention audit — 2026-08-29
 
+## Executive decision
+
+Do not change the seven-day trial, price, credits, or cancellation difficulty from the current five-user sample. Prioritize getting a trial customer from transcription into a saved tab, Practice, and a second-day return; make billing completely predictable; distinguish voluntary cancellation from failed payment; and collect the reason for cancellation.
+
 ## What the current data says
 
 PostHog contains five unique `subscription_started` users in the last 180 days. This is too small for a reliable A/B test or a causal churn conclusion.
@@ -16,6 +20,8 @@ Within seven days of trial start:
 Current PostHog person properties classify three as Free, one as Premium, and one as unknown. These properties can be stale, so Stripe remains authoritative for billing state.
 
 Interpretation: starting and completing a transcription is not the main observed bottleneck. The larger measurable gap is reaching repeatable value after import and returning on another day. Editor telemetry was introduced recently, so older missing editor events must not be treated as proof that no editing happened.
+
+This direction is consistent with Amplitude's finding that seven-day activation and three-month retention are strongly correlated, while still being only correlational evidence rather than a promised uplift for Note2Tabs ([Amplitude Product Benchmark Report](https://info.amplitude.com/rs/138-CDN-550/images/the-product-benchmark-report.pdf)). Published SaaS conversion rates vary by an order of magnitude, so a generic benchmark is not a sound target for a five-customer B2C cohort ([ChartMogul/ProductLed Conversion Report](https://chartmogul.com/reports/saas-conversion-report/)).
 
 ## Change implemented on this branch
 
@@ -35,6 +41,10 @@ The browser's checkout confirmation is recorded separately as
 `subscription_started`, preventing a successful checkout return and its
 webhook from inflating the trial cohort.
 
+Successful checkout now continues into `/home` instead of leaving the customer in Settings. A trial-only activation card shows the real trial/cancellation state and links the latest tab directly into Practice. The CTA and landing are measured separately so we can observe whether this creates editor/practice use and a later return.
+
+When custom trial messaging is enabled, the initial enrollment notice includes the seven-day duration, start and first charge date, $5.99 monthly price, included service, and direct online cancellation. This is required because Visa's current public rules require the amount, transaction date, and easy online cancellation at least seven days before the recurring charge ([Visa Core Rules, pp. 460–461](https://corporate.visa.com/content/dam/VCOM/download/about-visa/visa-rules-public.pdf)); Stripe separately notes that for a trial seven days or shorter, those details belong in the initial confirmation ([Stripe trial requirements](https://docs.stripe.com/billing/subscriptions/trials)). The later three-day message is activation support, not the sole billing notice.
+
 ## Stripe settings that require dashboard authorization
 
 Before adding custom lifecycle email code, verify these in the production Stripe Dashboard so customers do not receive duplicate messages:
@@ -47,6 +57,23 @@ Before adding custom lifecycle email code, verify these in the production Stripe
 4. Branding: confirm Note2Tabs logo, colours, support URL, and statement descriptor.
 
 Stripe documents `customer.subscription.trial_will_end` as arriving about three days before trial end and recommends trial-ending notices. Stripe also recommends Smart Retries and payment-update emails for recoverable payment failures.
+
+Cancellation reasons should include price, missing features, alternative, no longer needed, service, ease of use, quality, and free text—the categories Stripe supports in its portal ([Stripe cancellation page](https://docs.stripe.com/customer-management/cancellation-page)). Do not enable a retention coupon until cancellation reasons show price is a material cause and retained revenue can be measured; otherwise it can train customers to cancel for a discount.
+
+Stripe recommends Smart Retries and currently describes eight attempts over two weeks as its default recommendation; hard declines still require a new payment method ([Stripe Smart Retries](https://docs.stripe.com/billing/revenue-recovery/smart-retries)).
+
+## Full lifecycle audit
+
+1. **Acquisition promise:** Premium value claims match current credits, upload length, and Heavy-model access. Do not claim faster processing without verified priority scheduling.
+2. **Checkout intent:** Source, reason, model, device, offer, and funnel ID are carried into Stripe. Success returns to product activation; preserved large uploads retain their dedicated resume path.
+3. **Enrollment disclosure:** Stripe Checkout collects payment; custom mode sends an immediate, idempotent terms notice. Exactly one native/custom reminder system must be selected.
+4. **First value:** Most observed trial users completed and imported a transcription. This is not the primary measured bottleneck.
+5. **Durable value:** Latest-tab Practice is now the trial-home continuation path. Measure practice, editor active time, and next-day return—not pageviews alone.
+6. **Quality failure:** Segment cancellation by transcription success/model/audio type and Stripe's quality/ease reasons. Do not infer bad transcription from cancellation alone.
+7. **Trial ending:** Show accurate time and cancellation state in-product. Provide direct online management; never hide cancellation.
+8. **Voluntary cancellation:** Capture schedule, reason, feedback, reversal, and final end. Keep access through the paid/trial period while Stripe status remains entitled.
+9. **Involuntary churn:** Capture payment failures and successful renewals; configure Smart Retries and payment-update emails in Stripe.
+10. **Experimentation:** With five users, one person moves the rate by 20 percentage points. Accumulate a stable baseline before feature-flagged tests; compare activation and renewal cohorts, not clicks.
 
 ## Next retention work after lifecycle data is live
 

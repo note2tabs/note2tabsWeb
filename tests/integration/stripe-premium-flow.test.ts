@@ -825,6 +825,68 @@ describe("stripe premium flow", () => {
       });
     });
 
+    it("sends an idempotent initial trial notice with billing terms in custom mode", async () => {
+      process.env.PREMIUM_TRIAL_REMINDER_MODE = "custom";
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        id: "evt_checkout_trial",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            id: "cs_trial",
+            mode: "subscription",
+            metadata: {
+              userId: "user_1",
+              note2tabsPlan: "premium",
+              note2tabsPriceId: "price_test_premium",
+              premiumTrialIncluded: "true",
+            },
+            subscription: premiumSubscription({
+              status: "trialing",
+              created: 1_777_334_400,
+              trial_start: 1_777_334_400,
+              trial_end: 1_777_939_200,
+            }),
+            customer_details: { email: "user@example.com" },
+          },
+        },
+      });
+      prismaMock.user.findFirst.mockResolvedValue({
+        id: "user_1",
+        role: "FREE",
+        tokensRemaining: STARTING_CREDITS,
+      });
+      prismaMock.user.findUnique.mockResolvedValue({
+        email: "user@example.com",
+        name: "Noel",
+      });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const req = buildWebhookReq();
+      const res = createResponse();
+      await handler(req as any, res as any);
+
+      expect(sendEmailMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: "user@example.com",
+          subject: "Your Note2Tabs Premium trial has started",
+          text: expect.stringContaining("renews at $5.99 per month unless you cancel before then"),
+        })
+      );
+      expect(prismaMock.verificationToken.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          identifier: "notice:premium-trial-started:user_1",
+          token: "stripe-event:evt_checkout_trial:trial-started",
+        }),
+      });
+      expect(posthogMock.capture).toHaveBeenCalledWith({
+        distinctId: "user_1",
+        event: "subscription_trial_started_notice_sent",
+        properties: expect.objectContaining({
+          $insert_id: "subscription_trial_started_notice_sent:evt_checkout_trial",
+        }),
+      });
+    });
+
     it("falls back to email lookup when checkout metadata does not include userId", async () => {
       stripeMock.webhooks.constructEvent.mockReturnValue({
         type: "checkout.session.completed",

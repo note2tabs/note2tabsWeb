@@ -25,28 +25,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!stripeClient || !premiumConfig) {
     return res.status(503).json({ error: "Stripe not configured yet." });
   }
+  const stripe = stripeClient;
 
   res.setHeader("Cache-Control", "private, no-store");
 
   try {
-    const customers = await stripeClient.customers.list({
+    const customers = await stripe.customers.list({
       email: session.user.email,
       limit: 10,
     });
-    const subscriptions: Stripe.Subscription[] = [];
-    for (const customer of customers.data) {
-      if (!customer || "deleted" in customer) continue;
-      const result = await stripeClient.subscriptions.list({
-        customer: customer.id,
-        status: "all",
-        limit: 100,
-      });
-      subscriptions.push(
-        ...result.data.filter((subscription) =>
-          stripeSubscriptionMatchesPremium(subscription, premiumConfig)
-        )
-      );
-    }
+    const validCustomers = customers.data.filter(
+      (customer): customer is Stripe.Customer => Boolean(customer && !("deleted" in customer))
+    );
+    const subscriptionPages = await Promise.all(
+      validCustomers.map((customer) =>
+        stripe.subscriptions.list({ customer: customer.id, status: "all", limit: 100 })
+      )
+    );
+    const subscriptions: Stripe.Subscription[] = subscriptionPages.flatMap((result) =>
+      result.data.filter((subscription) =>
+        stripeSubscriptionMatchesPremium(subscription, premiumConfig)
+      )
+    );
 
     const subscription = subscriptions
       .filter((candidate) => VISIBLE_STATUSES.has(candidate.status))

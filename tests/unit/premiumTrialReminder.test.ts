@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  buildPremiumTrialStartedEmail,
   buildPremiumTrialReminderEmail,
   customPremiumTrialReminderEnabled,
 } from "../../lib/premiumTrialReminder";
@@ -33,5 +34,22 @@ describe("Premium trial reminder", () => {
     );
     expect(email.html).toContain("Autumn &lt;Fall&gt;");
     expect(email.html).not.toContain("Autumn <Fall>");
+  });
+
+  it("puts all seven-day trial billing terms in the initial confirmation", () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://www.note2tabs.com";
+    const email = buildPremiumTrialStartedEmail({
+      name: "Noel",
+      trialStartsAt: new Date("2026-08-26T00:00:00.000Z"),
+      trialEndsAt: new Date("2026-09-02T00:00:00.000Z"),
+      latestEditor: null,
+    });
+
+    expect(email.subject).toBe("Your Note2Tabs Premium trial has started");
+    expect(email.text).toContain("7-day trial started on August 26, 2026");
+    expect(email.text).toContain("On September 2, 2026");
+    expect(email.text).toContain("renews at $5.99 per month unless you cancel before then");
+    expect(email.text).toContain("100 monthly transcription credits");
+    expect(email.text).toContain("Review or cancel online at any time");
   });
 });
