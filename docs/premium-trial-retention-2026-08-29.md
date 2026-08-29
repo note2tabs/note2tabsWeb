@@ -43,6 +43,8 @@ webhook from inflating the trial cohort.
 
 Successful checkout now continues into `/home` instead of leaving the customer in Settings. A trial-only activation card shows the real trial/cancellation state and links the latest tab directly into Practice. The CTA and landing are measured separately so we can observe whether this creates editor/practice use and a later return.
 
+Recoverable `past_due` subscriptions now receive a compact Home notice with a direct payment-management action. It returns to Home after Stripe and separately measures notice exposure, recovery attempts, and client failures. The portal return path is restricted to an internal allowlist so the recovery endpoint cannot become an open redirect.
+
 When custom trial messaging is enabled, the initial enrollment notice includes the seven-day duration, start and first charge date, $5.99 monthly price, included service, and direct online cancellation. This is required because Visa's current public rules require the amount, transaction date, and easy online cancellation at least seven days before the recurring charge ([Visa Core Rules, pp. 460–461](https://corporate.visa.com/content/dam/VCOM/download/about-visa/visa-rules-public.pdf)); Stripe separately notes that for a trial seven days or shorter, those details belong in the initial confirmation ([Stripe trial requirements](https://docs.stripe.com/billing/subscriptions/trials)). The later three-day message is activation support, not the sole billing notice.
 
 ## Stripe settings that require dashboard authorization
