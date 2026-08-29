@@ -32,6 +32,7 @@ const FLUSH_MS = 1200;
 let queue: CanonicalEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let fingerprintPromise: Promise<string | undefined> | null = null;
+let resolvedFingerprintId: string | undefined;
 
 function getCookie(name: string): string | undefined {
   if (typeof document === "undefined") return undefined;
@@ -94,6 +95,7 @@ async function getFingerprintId() {
   fingerprintPromise = (async () => {
     try {
       const { fingerprintId } = await generateFingerprint();
+      resolvedFingerprintId = fingerprintId;
       return fingerprintId;
     } catch {
       return undefined;
@@ -145,7 +147,10 @@ export async function track(name: string, props: EventProps = {}) {
   if (!shouldTrack()) return;
 
   const { sessionId, anonId } = ensureIds();
-  const fingerprintId = await getFingerprintId();
+  // Queue navigation events immediately. Waiting for fingerprint generation can
+  // let a link navigation unload the page before the event reaches the queue.
+  // Fingerprinting warms in the background and is attached to later events.
+  void getFingerprintId();
   const eventProps = sanitizeAnalyticsProperties({
     ...getAcquisitionProperties(),
     ...props,
@@ -163,7 +168,7 @@ export async function track(name: string, props: EventProps = {}) {
       : undefined,
     session_id: sessionId,
     anon_id: anonId,
-    fingerprint_id: fingerprintId,
+    fingerprint_id: resolvedFingerprintId,
   };
 
   queue.push(event);
