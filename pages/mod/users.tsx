@@ -8,6 +8,10 @@ import { useState } from "react";
 import NoIndexHead from "../../components/NoIndexHead";
 
 const MODERATION_ROLES = new Set(["ADMIN", "MODERATOR", "MOD"]);
+const timestampFormatter = new Intl.DateTimeFormat("en-SE", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
 
 type UserRow = {
   id: string;
@@ -15,6 +19,8 @@ type UserRow = {
   name: string | null;
   role: string;
   tokensRemaining: number;
+  lastLoginAt: string;
+  lastActiveAt: string;
 };
 
 type Props = {
@@ -76,6 +82,8 @@ export default function UsersAdminPage({ users, canEdit }: Props) {
                   <th>Name</th>
                   <th>Role</th>
                   <th>Tokens</th>
+                  <th>Last login</th>
+                  <th>Last active</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -86,6 +94,8 @@ export default function UsersAdminPage({ users, canEdit }: Props) {
                     <td>{u.name || "-"}</td>
                     <td>{u.role}</td>
                     <td>{u.tokensRemaining}</td>
+                    <td>{timestampFormatter.format(new Date(u.lastLoginAt))}</td>
+                    <td>{timestampFormatter.format(new Date(u.lastActiveAt))}</td>
                     <td>
                       <div className="button-row">
                         {[
@@ -112,7 +122,7 @@ export default function UsersAdminPage({ users, canEdit }: Props) {
                 ))}
                 {list.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="muted text-small table-empty-cell">
+                    <td colSpan={7} className="muted text-small table-empty-cell">
                       No users found.
                     </td>
                   </tr>
@@ -151,12 +161,18 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       name: true,
       role: true,
       tokensRemaining: true,
+      lastLoginAt: true,
+      lastActiveAt: true,
     },
   });
 
   return {
     props: {
-      users: users.map((u) => ({ ...u })),
+      users: users.map((u) => ({
+        ...u,
+        lastLoginAt: u.lastLoginAt.toISOString(),
+        lastActiveAt: u.lastActiveAt.toISOString(),
+      })),
       canEdit: role === "ADMIN",
     },
   };

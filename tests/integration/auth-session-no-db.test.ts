@@ -92,4 +92,26 @@ describe("NextAuth session database usage", () => {
       tokensRemaining: 50,
     });
   });
+
+  it("records login and activity timestamps after a successful sign-in", async () => {
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    const { authOptions } = await import("../../pages/api/auth/[...nextauth]");
+    const signInCallback = authOptions.callbacks?.signIn;
+    expect(signInCallback).toBeTypeOf("function");
+
+    const allowed = await signInCallback!({
+      user: { id: "user_1", email: "player@example.com" },
+      account: { provider: "credentials" },
+    } as never);
+
+    expect(allowed).toBe(true);
+    expect(mocks.updateMany).toHaveBeenCalledTimes(1);
+    expect(mocks.updateMany).toHaveBeenCalledWith({
+      where: { id: "user_1" },
+      data: {
+        lastLoginAt: expect.any(Date),
+        lastActiveAt: expect.any(Date),
+      },
+    });
+  });
 });

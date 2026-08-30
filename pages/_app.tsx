@@ -9,6 +9,7 @@ import FooterBar from "../components/FooterBar";
 import SessionAccountRefresher from "../components/SessionAccountRefresher";
 import RouteLoadingIndicator from "../components/RouteLoadingIndicator";
 import PremiumUpgradePrompt from "../components/PremiumUpgradePrompt";
+import UserActivityTracker from "../components/UserActivityTracker";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { sanitizeAnalyticsPathname } from "../lib/analyticsPrivacy";
 import {
@@ -85,6 +86,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         </div>
         {!isGteEditorPage && !isProductHomePage && <FooterBar />}
         <SessionAccountRefresher />
+        <UserActivityTracker />
         <AnalyticsIdentityLinker />
         <PremiumUpgradePrompt />
       </div>

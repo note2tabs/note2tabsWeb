@@ -13,6 +13,29 @@ import { getAuthSiteUrl } from "../../../lib/siteUrl";
 
 process.env.NEXTAUTH_URL = getAuthSiteUrl();
 
+async function restoreArchivedEditorsOnLogin(userId: string): Promise<void> {
+  const baseUrl = process.env.BACKEND_API_BASE_URL;
+  const backendSecret = process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
+  if (!baseUrl || !backendSecret) return;
+  try {
+    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/v1/maintenance/editor-archive/restore-user`, {
+      method: "POST",
+      headers: {
+        "X-Backend-Secret": backendSecret,
+        "X-User-Id": userId,
+      },
+      signal: AbortSignal.timeout(25_000),
+    });
+    if (!response.ok) {
+      console.error("Failed to restore archived editors on login", response.status);
+    }
+  } catch (error) {
+    // Login should remain available if the archive service is temporarily down;
+    // the editor endpoint still has a per-canvas restore fallback.
+    console.error("Failed to restore archived editors on login", error);
+  }
+}
+
 const providers: NextAuthOptions["providers"] = [
   CredentialsProvider({
     name: "Credentials",
@@ -127,6 +150,22 @@ export const authOptions: NextAuthOptions = {
     },
     async signIn({ user, account }) {
       if (shouldBypassPrismaSync()) return true;
+      if (user?.id) {
+        try {
+          const signedInAt = new Date();
+          await prisma.user.updateMany({
+            where: { id: user.id },
+            data: {
+              lastLoginAt: signedInAt,
+              lastActiveAt: signedInAt,
+            },
+          });
+          await restoreArchivedEditorsOnLogin(user.id);
+        } catch (error) {
+          markPrismaUnavailable(error);
+          console.error("Failed to record user login", error);
+        }
+      }
       if (account?.provider && account.provider !== "credentials" && user?.email) {
         try {
           await prisma.user.updateMany({
