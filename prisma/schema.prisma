@@ -436,6 +436,29 @@ model canvases {
   @@index([user_id, updated_at(sort: Desc)], map: "idx_canvases_user_updated")
 }
 
+model CanvasArchive {
+  userId             String    @map("user_id")
+  canvasId           String    @map("canvas_id")
+  status             String    @default("LIVE")
+  objectKey          String?   @map("object_key")
+  objectGeneration   String?   @map("object_generation")
+  formatVersion      Int       @default(1) @map("format_version")
+  sha256             String?
+  rawBytes           BigInt?   @map("raw_bytes")
+  compressedBytes    BigInt?   @map("compressed_bytes")
+  archivedAt         DateTime? @map("archived_at") @db.Timestamptz(6)
+  restoredAt         DateTime? @map("restored_at") @db.Timestamptz(6)
+  error              String?
+  noteCount          Int       @default(0) @map("note_count")
+  chordCount         Int       @default(0) @map("chord_count")
+  laneCount          Int       @default(0) @map("lane_count")
+  previewNotes       Json      @default("[]") @map("preview_notes")
+
+  @@id([userId, canvasId])
+  @@index([status, archivedAt], map: "idx_canvas_archives_status")
+  @@map("canvas_archives")
+}
+
 model jobs {
   id         String    @id
   type       String

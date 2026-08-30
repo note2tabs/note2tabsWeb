@@ -147,6 +147,7 @@ export type EditorListItem = {
     string: number;
     fret: number;
   }>;
+  storageStatus?: "LIVE" | "ARCHIVING" | "ARCHIVED" | "RESTORING" | "ERROR";
 };
 
 export type CanvasSnapshot = {
