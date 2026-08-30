@@ -10,6 +10,7 @@ import SessionAccountRefresher from "../components/SessionAccountRefresher";
 import RouteLoadingIndicator from "../components/RouteLoadingIndicator";
 import PremiumUpgradePrompt from "../components/PremiumUpgradePrompt";
 import UserActivityTracker from "../components/UserActivityTracker";
+import AffiliateAttributionCapture from "../components/AffiliateAttributionCapture";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { sanitizeAnalyticsPathname } from "../lib/analyticsPrivacy";
 import {
@@ -89,6 +90,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         <UserActivityTracker />
         <AnalyticsIdentityLinker />
         <PremiumUpgradePrompt />
+        <AffiliateAttributionCapture />
       </div>
     </SessionProvider>
   );

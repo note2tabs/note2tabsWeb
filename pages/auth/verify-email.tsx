@@ -55,8 +55,9 @@ export default function VerifyEmailPage() {
         if (!res.ok) {
           throw new Error(data?.error || "This verification link could not be confirmed. It may have expired; request a new email below.");
         }
-        await updateSession().catch(() => null);
+        const refreshedSession = await updateSession().catch(() => null);
         setVerifyState("verified");
+        await router.replace(refreshedSession ? nextHref : loginHref);
       })
       .catch((err: any) => {
         setVerifyError(
@@ -65,7 +66,7 @@ export default function VerifyEmailPage() {
         );
         setVerifyState("error");
       });
-  }, [token, updateSession]);
+  }, [loginHref, nextHref, router, token, updateSession]);
 
   const handleResend = async () => {
     setResendBusy(true);
@@ -75,7 +76,10 @@ export default function VerifyEmailPage() {
       const res = await fetch("/api/auth/resend-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email || undefined }),
+        body: JSON.stringify({
+          email: email || undefined,
+          returnTo: nextHref,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -115,7 +119,7 @@ export default function VerifyEmailPage() {
 
           {verifyState === "verifying" && <div className="notice">Verifying your email...</div>}
           {verifyState === "verified" && (
-            <div className="notice">Email verified. You can now use the transcriber.</div>
+            <div className="notice">Email verified. Taking you back to Note2Tabs…</div>
           )}
           {verifyState === "error" && verifyError && <div className="error" role="alert">{verifyError}</div>}
 

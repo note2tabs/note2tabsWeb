@@ -37,7 +37,9 @@ export function getInitialPremiumPromptReason(
 ): PromptReason | null {
   if (credits === 0) return "no_credits";
   if (credits !== null && credits <= LOW_CREDIT_THRESHOLD) return "low_credits";
-  return pathname === "/transcriber" ? "transcriber_passive" : null;
+  return pathname === "/transcribe" || pathname === "/transcriber"
+    ? "transcriber_passive"
+    : null;
 }
 
 const EXCLUDED_ROUTES = new Set([

@@ -6,12 +6,15 @@ const mocks = vi.hoisted(() => ({
   issueVerification: vi.fn(),
   issueReset: vi.fn(),
   linkIdentity: vi.fn(),
+  trackAffiliate: vi.fn(),
   prisma: {
     user: {
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
     },
+    affiliate: { findFirst: vi.fn() },
+    affiliateAttribution: { upsert: vi.fn() },
     verificationToken: {
       findUnique: vi.fn(),
       delete: vi.fn(),
@@ -42,6 +45,9 @@ vi.mock("../../lib/passwordReset", async () => {
 vi.mock("../../lib/analyticsV2/identity", () => ({
   linkIdentityToUser: (...args: unknown[]) => mocks.linkIdentity(...args),
 }));
+vi.mock("../../lib/affiliateTracking", () => ({
+  trackAffiliateEvent: (...args: unknown[]) => mocks.trackAffiliate(...args),
+}));
 
 describe("account signup, verification, and password-reset lifecycle", () => {
   beforeEach(() => {
@@ -50,6 +56,8 @@ describe("account signup, verification, and password-reset lifecycle", () => {
     mocks.issueVerification.mockResolvedValue({ sent: true, token: "verify-token" });
     mocks.issueReset.mockResolvedValue({ sent: true, token: "reset-token", code: "123456" });
     mocks.linkIdentity.mockResolvedValue(undefined);
+    mocks.trackAffiliate.mockResolvedValue(undefined);
+    mocks.prisma.affiliate.findFirst.mockResolvedValue(null);
     mocks.prisma.user.create.mockResolvedValue({
       id: "user_1",
       email: "player@example.com",
@@ -57,6 +65,38 @@ describe("account signup, verification, and password-reset lifecycle", () => {
     });
     mocks.prisma.user.update.mockResolvedValue({});
     mocks.prisma.verificationToken.delete.mockResolvedValue({});
+  });
+
+  it("durably attributes a signup from an affiliate click and mirrors it to PostHog", async () => {
+    mocks.prisma.user.findUnique.mockResolvedValue(null);
+    mocks.prisma.affiliate.findFirst.mockResolvedValue({ id: "affiliate_1", code: "PLAYER10" });
+    const handler = (await import("../../pages/api/auth/signup")).default;
+    const { req, res } = createMocks({
+      method: "POST",
+      cookies: {
+        n2t_ref: "PLAYER10",
+        n2t_ref_click: "123e4567-e89b-12d3-a456-426614174000",
+      },
+      body: { email: "player@example.com", password: "a-secure-password", name: "Player" },
+    });
+
+    await handler(req as any, res as any);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(mocks.prisma.affiliateAttribution.upsert).toHaveBeenCalledWith({
+      where: { referredUserId: "user_1" },
+      create: {
+        affiliateId: "affiliate_1",
+        referredUserId: "user_1",
+        source: "signup",
+      },
+      update: {},
+    });
+    expect(mocks.trackAffiliate).toHaveBeenCalledWith(expect.objectContaining({
+      distinctId: "user_1",
+      event: "affiliate_signup_completed",
+      properties: expect.objectContaining({ affiliate_click_id: "123e4567-e89b-12d3-a456-426614174000" }),
+    }));
   });
 
   it("creates an account, normalizes its email, and sends verification", async () => {
@@ -69,6 +109,7 @@ describe("account signup, verification, and password-reset lifecycle", () => {
         password: "a-secure-password",
         name: "Player",
         fingerprintId: "browser_1",
+        returnTo: "/transcribe?resumeTranscription=1",
       },
     });
 
@@ -89,11 +130,14 @@ describe("account signup, verification, and password-reset lifecycle", () => {
         emailVerifiedBool: false,
       }),
     });
-    expect(mocks.issueVerification).toHaveBeenCalledWith({
-      id: "user_1",
-      email: "player@example.com",
-      name: "Player",
-    });
+    expect(mocks.issueVerification).toHaveBeenCalledWith(
+      {
+        id: "user_1",
+        email: "player@example.com",
+        name: "Player",
+      },
+      { returnTo: "/transcribe?resumeTranscription=1" }
+    );
   });
 
   it("verifies the account and consumes the one-time token", async () => {

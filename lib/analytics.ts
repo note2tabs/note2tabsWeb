@@ -45,6 +45,7 @@ export const ANALYTICS_EVENTS = {
   uploadSelected: "upload_selected",
   uploadDropped: "upload_dropped",
   uploadValidationFailed: "upload_validation_failed",
+  authHandoffRequired: "auth_handoff_required",
   authHandoffSaved: "auth_handoff_saved",
   authHandoffResumed: "auth_handoff_resumed",
   uploadPresignStarted: "upload_presign_started",

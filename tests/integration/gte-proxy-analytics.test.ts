@@ -3,6 +3,7 @@ import { createMocks } from "node-mocks-http";
 
 const sessionMock = vi.fn();
 const logMock = vi.fn();
+const updateTabJobMock = vi.fn();
 
 vi.mock("next-auth/next", () => ({
   getServerSession: (...args: unknown[]) => sessionMock(...args),
@@ -10,6 +11,10 @@ vi.mock("next-auth/next", () => ({
 
 vi.mock("../../lib/gteAnalytics", () => ({
   logGteAnalyticsEvent: (...args: unknown[]) => logMock(...args),
+}));
+
+vi.mock("../../lib/prisma", () => ({
+  prisma: { tabJob: { updateMany: (...args: unknown[]) => updateTabJobMock(...args) } },
 }));
 
 vi.mock("../../lib/gteTrackInstrumentStore", () => ({
@@ -30,6 +35,8 @@ describe("gte proxy analytics", () => {
   beforeEach(() => {
     sessionMock.mockReset();
     logMock.mockReset();
+    updateTabJobMock.mockReset();
+    updateTabJobMock.mockResolvedValue({ count: 1 });
     sessionMock.mockResolvedValue({ user: { id: "user_1" } });
     vi.stubGlobal(
       "fetch",
@@ -92,6 +99,27 @@ describe("gte proxy analytics", () => {
       event: "gte_editor_imported",
       payload: expect.objectContaining({ editorId: "ed_imported", target: "new" }),
     }));
+  });
+
+  it("links a completed transcription to the editor created by its import", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ editors: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, editorId: "ed_imported" }), { status: 200 }));
+
+    const handler = (await import("../../pages/api/gte/[[...path]]")).default;
+    const { req, res } = createMocks({
+      method: "POST",
+      query: { path: ["transcriber", "import"] },
+      body: { target: "new", sourceJobId: "job_123" },
+    });
+
+    await handler(req as any, res as any);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(updateTabJobMock).toHaveBeenCalledWith({
+      where: { userId: "user_1", backendJobId: "job_123" },
+      data: { gteEditorId: "ed_imported" },
+    });
   });
 
   it("preserves the requested import canvas so BPM stabilization can run", async () => {

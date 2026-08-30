@@ -5,6 +5,14 @@
     {
       "path": "/api/cron/inactive-signup-reminder",
       "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/cron/pay-affiliate-commissions",
+      "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/reconcile-past-due",
+      "schedule": "15 3 * * *"
     }
   ]
 }

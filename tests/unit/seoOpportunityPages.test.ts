@@ -18,6 +18,7 @@ describe("Search Console opportunity pages", () => {
     );
     expect(html).toContain("Try an AI guitar tab generator free");
     expect(html).toContain("What helps the AI capture the most detail?");
+    expect(html).toContain("Try the AI guitar tab generator free on a short section");
     expect(html).toContain("Is the AI guitar tab generator free?");
     expect(html).toContain("/features");
     expect(html).not.toContain("draft");
@@ -37,7 +38,18 @@ describe("Search Console opportunity pages", () => {
 
     expect(html).toContain("YouTube to Guitar Tabs Converter");
     expect(html).toContain("Why the homepage and this converter serve different jobs");
+    expect(html).toContain("Turn a YouTube riff or solo into an editable tab");
     expect(html).toContain("/blog/youtube-to-guitar-tabs-workflow");
+  });
+
+  it("gives free tab-maker searches a substantial standalone editor path", async () => {
+    const { default: FreeGuitarTabMakerPage } = await import("../../pages/free-guitar-tab-maker");
+    const html = renderToStaticMarkup(createElement(FreeGuitarTabMakerPage));
+
+    expect(html).toContain("A free online tab maker built for guitar");
+    expect(html).toContain("Make a tab yourself or generate a starting point");
+    expect(html).toContain('href="/editor"');
+    expect(html).toContain('href="/features"');
   });
 
   it("gives MP3 searches a substantial product page with conversion paths", () => {

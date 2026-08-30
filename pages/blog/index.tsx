@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma";
 import { withPrismaReadRetry } from "../../lib/prismaRetry";
 import { BLOG_PAGE_SIZE, estimateReadingTime, getPublishedWhere } from "../../lib/blog";
 import BlogPostCard from "../../components/blog/BlogPostCard";
+import BlogProductLink from "../../components/blog/BlogProductLink";
 import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 
 type BlogPostCard = {
@@ -105,8 +106,8 @@ export default function BlogIndexPage({
               playable notation.
             </p>
             <div className="blog-product-links" aria-label="Try Note2Tabs">
-              <Link href="/editor" className="button-primary">Try the tab editor</Link>
-              <Link href="/transcribe" className="button-secondary">Transcribe audio</Link>
+              <BlogProductLink href="/editor" cta="blog_editor" placement="blog_index_hero" className="button-primary">Try the tab editor</BlogProductLink>
+              <BlogProductLink href="/transcribe" cta="blog_transcribe" placement="blog_index_hero" className="button-secondary">Transcribe audio</BlogProductLink>
             </div>
           </div>
           <div className="blog-hero-actions">

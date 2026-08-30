@@ -4,6 +4,9 @@ import { prisma } from "../../../lib/prisma";
 import { issueAndSendVerificationEmail } from "../../../lib/emailVerification";
 import { STARTING_CREDITS } from "../../../lib/credits";
 import { linkIdentityToUser } from "../../../lib/analyticsV2/identity";
+import { normalizeSafeReturnPath } from "../../../lib/safeReturnPath";
+import { affiliateClickIdFromRequest, affiliateCodeFromRequest } from "../../../lib/affiliate";
+import { trackAffiliateEvent } from "../../../lib/affiliateTracking";
 
 const MIN_PASSWORD = 10;
 
@@ -15,6 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { email, password, name } = req.body || {};
+    const returnTo = normalizeSafeReturnPath(req.body?.returnTo);
     if (!email || typeof email !== "string" || !email.includes("@")) {
       return res.status(400).json({ error: "Enter a valid email address." });
     }
@@ -42,6 +46,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     try {
+      const clickId = affiliateClickIdFromRequest(req);
+      const affiliateCode = affiliateCodeFromRequest(req);
+      if (clickId && affiliateCode) {
+        const affiliate = await prisma.affiliate.findFirst({
+          where: { code: affiliateCode, status: "ACTIVE" },
+          select: { id: true, code: true },
+        });
+        if (affiliate) {
+          await prisma.affiliateAttribution.upsert({
+            where: { referredUserId: user.id },
+            create: { affiliateId: affiliate.id, referredUserId: user.id, source: "signup" },
+            update: {},
+          });
+          await trackAffiliateEvent({
+            distinctId: user.id,
+            event: "affiliate_signup_completed",
+            insertId: `affiliate-signup:${user.id}`,
+            properties: {
+              affiliate_id: affiliate.id,
+              affiliate_code: affiliate.code,
+              affiliate_click_id: clickId,
+              $anon_distinct_id: clickId,
+            },
+          });
+        }
+      }
+    } catch (affiliateError) {
+      // Signup must remain available if attribution analytics are unavailable.
+      console.warn("affiliate signup attribution warning", affiliateError);
+    }
+
+    try {
       const rawFingerprint =
         typeof req.body?.fingerprintId === "string" ? req.body.fingerprintId : undefined;
       await linkIdentityToUser({
@@ -66,7 +102,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         id: user.id,
         email: user.email,
         name: user.name,
-      });
+      }, { returnTo });
       sent = result.sent;
     } catch (mailError) {
       console.error("Signup verification email error", mailError);

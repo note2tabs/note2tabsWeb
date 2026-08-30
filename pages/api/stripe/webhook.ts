@@ -32,6 +32,9 @@ import {
   buildPremiumTrialReminderEmail,
   customPremiumTrialReminderEnabled,
 } from "../../../lib/premiumTrialReminder";
+import { affiliateCanEarnCommission, commissionAmount } from "../../../lib/affiliate";
+import { buildPaymentFailedEmail } from "../../../lib/paymentRecovery";
+import { trackAffiliateEvent } from "../../../lib/affiliateTracking";
 
 export const config = {
   api: {
@@ -399,6 +402,232 @@ async function sendPremiumTrialStartedNotice(
   });
 }
 
+function checkoutPromotionCodeId(session: Stripe.Checkout.Session) {
+  const discounts = (session.total_details as any)?.breakdown?.discounts || [];
+  for (const entry of discounts) {
+    const promotionCode = entry?.discount?.promotion_code;
+    if (typeof promotionCode === "string") return promotionCode;
+    if (typeof promotionCode?.id === "string") return promotionCode.id;
+  }
+  return null;
+}
+
+async function persistAffiliateAttribution(
+  checkoutSession: Stripe.Checkout.Session,
+  userId: string
+) {
+  let attributionId = checkoutSession.metadata?.note2tabsAffiliateAttributionId || null;
+  if (!attributionId && stripeClient && checkoutSession.id) {
+    const expanded = await stripeClient.checkout.sessions.retrieve(checkoutSession.id, {
+      expand: ["subscription", "total_details.breakdown.discounts.discount.promotion_code"],
+    });
+    if (!expanded) return;
+    const promotionCodeId = checkoutPromotionCodeId(expanded);
+    const affiliate = promotionCodeId
+      ? await prisma.affiliate.findFirst({
+          where: { stripePromotionCodeId: promotionCodeId, status: "ACTIVE", userId: { not: userId } },
+        })
+      : null;
+    if (affiliate) {
+      const attribution = await prisma.affiliateAttribution.upsert({
+        where: { referredUserId: userId },
+        create: { affiliateId: affiliate.id, referredUserId: userId, source: "promotion_code" },
+        update: {},
+      });
+      attributionId = attribution.id;
+    }
+  }
+  if (!attributionId) return;
+  const subscriptionId = stripeSubscriptionId(checkoutSession.subscription as any);
+  const customerId = stripeSubscriptionId(checkoutSession.customer as any);
+  const attribution = await prisma.affiliateAttribution.findUnique({ where: { id: attributionId } });
+  if (!attribution || attribution.referredUserId !== userId) return;
+  await prisma.affiliateAttribution.update({
+    where: { id: attribution.id },
+    data: {
+      ...(customerId ? { stripeCustomerId: customerId } : {}),
+      ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
+    },
+  });
+  if (subscriptionId && stripeClient) {
+    await stripeClient.subscriptions.update(subscriptionId, {
+      metadata: {
+        note2tabsAffiliateId: attribution.affiliateId,
+        note2tabsAffiliateAttributionId: attribution.id,
+      },
+    });
+  }
+}
+
+async function createAffiliateCommission(invoice: Stripe.Invoice, subscription: Stripe.Subscription) {
+  if (!invoice.id || !invoice.amount_paid || invoice.amount_paid <= 0) return;
+  const subscriptionId = stripeSubscriptionId(subscription);
+  const attributionId = subscription.metadata?.note2tabsAffiliateAttributionId;
+  const attribution = await prisma.affiliateAttribution.findFirst({
+    where: attributionId
+      ? { id: attributionId }
+      : subscriptionId
+        ? { stripeSubscriptionId: subscriptionId }
+        : { id: "" },
+    include: { affiliate: true, commissions: { select: { id: true } } },
+  });
+  if (!attribution || !affiliateCanEarnCommission({
+    status: attribution.affiliate.status,
+    deactivatedAt: attribution.affiliate.updatedAt,
+    referralCreatedAt: attribution.createdAt,
+  })) return;
+  const paymentNumber = attribution.commissions.length + 1;
+  if (paymentNumber > attribution.affiliate.commissionMonths) return;
+  const amount = commissionAmount(invoice.amount_paid, attribution.affiliate.commissionPercent);
+  if (amount <= 0) return;
+  const chargeId = typeof invoice.charge === "string" ? invoice.charge : invoice.charge?.id || null;
+  try {
+    await prisma.affiliateCommission.create({
+      data: {
+        affiliateId: attribution.affiliateId,
+        attributionId: attribution.id,
+        stripeInvoiceId: invoice.id,
+        stripeChargeId: chargeId,
+        paymentNumber,
+        grossAmount: invoice.amount_paid,
+        commissionAmount: amount,
+        currency: invoice.currency.toLowerCase(),
+        availableAt: new Date(Date.now() + attribution.affiliate.payoutHoldDays * 86_400_000),
+      },
+    });
+  } catch (error) {
+    if (prismaErrorCode(error) !== "P2002") throw error;
+  }
+}
+
+async function trackAffiliatePayment(
+  invoice: Stripe.Invoice,
+  subscription: Stripe.Subscription,
+  userId: string,
+  renewal: boolean
+) {
+  const attributionId = subscription.metadata?.note2tabsAffiliateAttributionId;
+  const subscriptionId = stripeSubscriptionId(subscription);
+  const attribution = await prisma.affiliateAttribution.findFirst({
+    where: attributionId
+      ? { id: attributionId }
+      : subscriptionId
+        ? { stripeSubscriptionId: subscriptionId }
+        : { id: "" },
+    include: {
+      affiliate: { select: { id: true, code: true } },
+      commissions: { select: { id: true } },
+    },
+  });
+  if (!attribution || !invoice.id) return;
+  await trackAffiliateEvent({
+    distinctId: userId,
+    event: renewal ? "affiliate_subscription_renewed" : "affiliate_payment_succeeded",
+    insertId: `affiliate-payment:${invoice.id}`,
+    properties: {
+      affiliate_id: attribution.affiliate.id,
+      affiliate_code: attribution.affiliate.code,
+      stripe_invoice_id: invoice.id,
+      stripe_subscription_id: subscriptionId || undefined,
+      revenue_amount: invoice.amount_paid,
+      currency: invoice.currency,
+      payment_number: attribution.commissions.length + 1,
+    },
+  });
+}
+
+async function trackAffiliateTrialStarted(userId: string, session: Stripe.Checkout.Session) {
+  const attributionId = session.metadata?.note2tabsAffiliateAttributionId;
+  if (!attributionId) return;
+  const attribution = await prisma.affiliateAttribution.findUnique({
+    where: { id: attributionId },
+    include: { affiliate: { select: { id: true, code: true } } },
+  });
+  if (!attribution) return;
+  await trackAffiliateEvent({
+    distinctId: userId,
+    event: "affiliate_trial_started",
+    insertId: `affiliate-trial:${session.id}`,
+    properties: {
+      affiliate_id: attribution.affiliate.id,
+      affiliate_code: attribution.affiliate.code,
+      checkout_session_id: session.id,
+    },
+  });
+}
+
+async function reverseAffiliateCommission(chargeId: string) {
+  const commissions = await prisma.affiliateCommission.findMany({
+    where: { stripeChargeId: chargeId, status: { in: ["PENDING", "PAID"] } },
+    include: {
+      affiliate: { select: { id: true, code: true } },
+      attribution: { select: { referredUserId: true } },
+    },
+  });
+  for (const commission of commissions) {
+    if (commission.status === "PAID" && commission.stripeTransferId && stripeClient) {
+      await stripeClient.transfers.createReversal(commission.stripeTransferId, {
+        amount: commission.commissionAmount,
+        metadata: { note2tabsCommissionId: commission.id },
+      }, { idempotencyKey: `affiliate-reversal-${commission.id}` });
+    }
+    await prisma.affiliateCommission.update({
+      where: { id: commission.id },
+      data: { status: "REVERSED", reversedAt: new Date() },
+    });
+    await trackAffiliateEvent({
+      distinctId: commission.attribution.referredUserId,
+      event: "affiliate_payment_refunded",
+      insertId: `affiliate-refund:${commission.id}`,
+      properties: {
+        affiliate_id: commission.affiliate.id,
+        affiliate_code: commission.affiliate.code,
+        stripe_charge_id: chargeId,
+        commission_amount: commission.commissionAmount,
+        currency: commission.currency,
+      },
+    });
+  }
+}
+
+async function sendPaymentFailedNotice(
+  userId: string,
+  email: string,
+  invoiceId: string,
+  attemptCount: number
+) {
+  // Set this to "stripe" when Stripe's own failed-payment emails are enabled,
+  // so customers receive one recovery message rather than two.
+  if (process.env.PAYMENT_RECOVERY_EMAIL_MODE === "stripe") return;
+  if (attemptCount !== 1) return;
+  const marker = {
+    identifier: `notice:premium-payment-failed:${userId}`,
+    token: `stripe-invoice:${invoiceId}`,
+  };
+  try {
+    await prisma.verificationToken.create({
+      data: {
+        ...marker,
+        expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      },
+    });
+  } catch (error) {
+    if (prismaErrorCode(error) === "P2002") return;
+    throw error;
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true },
+  });
+  const notice = buildPaymentFailedEmail({ name: user?.name });
+  try {
+    await sendTransactionalEmail({ to: email, ...notice });
+  } catch (error) {
+    await prisma.verificationToken.deleteMany({ where: marker });
+    throw error;
+  }
+}
+
 type RenewalInvoiceDetails = {
   invoiceId: string;
   stripeSubscriptionId: string;
@@ -580,6 +809,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const userId = await setPremiumForIdentifier(identifier);
         if (userId) {
           trackSubscriptionStarted(userId, checkoutSession);
+          await persistAffiliateAttribution(checkoutSession, userId);
+          await trackAffiliateTrialStarted(userId, checkoutSession);
           try {
             await sendPremiumTrialStartedNotice(userId, checkoutSession, event.id);
           } catch (error) {
@@ -697,6 +928,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           : null;
       if (!identifier) return res.status(200).json({ received: true, ignored: "user_not_found" });
       const isRenewal = invoice.billing_reason === "subscription_cycle";
+      await createAffiliateCommission(invoice, premiumSubscription);
+      if (userId) await trackAffiliatePayment(invoice, premiumSubscription, userId, isRenewal);
       if (isRenewal) {
         const subscriptionId = stripeSubscriptionId(premiumSubscription);
         const renewalAt = stripeInvoiceRenewalAt(invoice, premiumConfig);
@@ -716,6 +949,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ received: true, renewal: result });
       }
       await setPremiumForIdentifier(identifier);
+    }
+
+    if (event.type === "charge.refunded") {
+      const charge = event.data.object as Stripe.Charge;
+      if (charge.id) await reverseAffiliateCommission(charge.id);
+    }
+
+    if (event.type === "charge.dispute.created") {
+      const dispute = event.data.object as Stripe.Dispute;
+      const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
+      if (chargeId) await reverseAffiliateCommission(chargeId);
     }
 
     if (event.type === "invoice.payment_failed") {
@@ -741,6 +985,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           attempt_count: invoice.attempt_count || 0,
           billing_reason: invoice.billing_reason || undefined,
         });
+        if (email && invoice.id) {
+          await sendPaymentFailedNotice(
+            userId,
+            email,
+            invoice.id,
+            invoice.attempt_count || 0
+          );
+        }
       }
     }
 

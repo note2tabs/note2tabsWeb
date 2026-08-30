@@ -76,6 +76,7 @@ export default function SignupPage() {
           funnelId: premiumFunnel?.funnelId,
           funnelSource: premiumFunnel?.source,
           funnelReason: premiumFunnel?.reason,
+          returnTo: nextHref,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -92,6 +93,17 @@ export default function SignupPage() {
         destination,
         ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
       });
+      // Keep the newly created account signed in while email verification is
+      // completed. Unverified accounts remain blocked from transcription by
+      // the existing server checks, but the verification link can return the
+      // musician directly to the transcription they already prepared.
+      await signIn("credentials", {
+        redirect: false,
+        email,
+        password,
+        fingerprintId,
+        callbackUrl: nextHref,
+      }).catch(() => null);
       const nextEmail = encodeURIComponent((data?.email as string) || email);
       const sentParam = data?.emailSent === false ? "&sent=0" : "";
       const nextParam = nextHref === "/" ? "" : `&next=${encodeURIComponent(nextHref)}`;

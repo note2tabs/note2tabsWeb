@@ -4,6 +4,7 @@ import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "../../../lib/prisma";
 import { buildUniqueTabJobLabel, deriveTabJobBaseLabel } from "../../../lib/tabJobNames";
 import { normalizePositiveDurationSec } from "../../../lib/transcriptionDuration";
+import { sendTranscriptionCompleteEmailOnce } from "../../../lib/transcriptionCompleteEmail";
 import {
   parseStoredTabPayload,
   normalizeTranscriberTracks,
@@ -675,6 +676,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (tabJobId) {
           persistedTab = true;
           await markBackendJobPersisted(jobId, session.user.id, tabJobId);
+          try {
+            await sendTranscriptionCompleteEmailOnce({
+              userId: session.user.id,
+              jobId,
+              tabJobId,
+            });
+          } catch (error) {
+            // Email is helpful but must never turn a completed transcription
+            // into a failed job response. A later final-status poll can retry.
+            console.error("Transcription completion email delivery failed", {
+              userId: session.user.id,
+              jobId,
+              error,
+            });
+          }
           resolvedTabJobId = tabJobId;
           payload.tab_job_id = tabJobId;
           payload.tabJobId = tabJobId;
@@ -741,19 +757,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         responsePayload.tabJobId = resolvedTabJobId;
         responsePayload.tab_id = resolvedTabJobId;
         responsePayload.tabId = resolvedTabJobId;
+        const savedTab = session?.user?.id
+          ? await prisma.tabJob.findFirst({
+              where: { id: resolvedTabJobId, userId: session.user.id },
+              select: { resultJson: true, gteEditorId: true },
+            })
+          : null;
+        if (savedTab?.gteEditorId) {
+          responsePayload.gte_editor_id = savedTab.gteEditorId;
+        }
         const multipleGuitarsValue = getFirstJobValue(payload, ["multipleGuitars", "multiple_guitars"]);
         if (typeof multipleGuitarsValue === "boolean") {
           responsePayload.multipleGuitars = multipleGuitarsValue;
-        } else if (session?.user?.id) {
-          const savedTab = await prisma.tabJob.findFirst({
-            where: { id: resolvedTabJobId, userId: session.user.id },
-            select: { resultJson: true },
-          });
-          if (savedTab) {
-            const parsedSavedTab = parseStoredTabPayload(savedTab.resultJson);
-            if (typeof parsedSavedTab.multipleGuitars === "boolean") {
-              responsePayload.multipleGuitars = parsedSavedTab.multipleGuitars;
-            }
+        } else if (savedTab) {
+          const parsedSavedTab = parseStoredTabPayload(savedTab.resultJson);
+          if (typeof parsedSavedTab.multipleGuitars === "boolean") {
+            responsePayload.multipleGuitars = parsedSavedTab.multipleGuitars;
           }
         }
       } else {

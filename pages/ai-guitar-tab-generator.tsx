@@ -40,6 +40,13 @@ export default function AiGuitarTabGeneratorPage() {
       }}
       contentSections={[
         {
+          title: "Try the AI guitar tab generator free on a short section",
+          paragraphs: [
+            "You can test Note2Tabs with free monthly credits before processing a longer recording. Start with a clear riff, verse, or solo so you can hear the source and generated tab side by side, inspect the detected notes, and decide how you want to play them.",
+            "The result is not locked into a preview. It becomes an editable tab with playback, alternate string and fret positions, chord shapes, song sections, practice tools, and export options.",
+          ],
+        },
+        {
           title: "What helps the AI capture the most detail?",
           paragraphs: [
             "Clear guitar audio gives the model more musical detail to work with. An isolated guitar, direct recording, lesson clip, or audible cover helps the transcriber focus on the guitar when drums, vocals, and several instruments overlap.",
@@ -76,6 +83,8 @@ export default function AiGuitarTabGeneratorPage() {
         { question: "Does it work for a complete song?", answer: "Premium supports full-length uploaded audio-file transcription. YouTube input is designed for focused clips, and complex songs still benefit from section-by-section review." },
       ]}
       relatedLinks={[
+        { label: "Convert a YouTube clip to guitar tabs", href: "/youtube-to-guitar-tabs", description: "Paste a public video link and select the exact riff or solo you want to generate." },
+        { label: "Convert an MP3 to guitar tabs", href: "/mp3-to-guitar-tabs", description: "Upload an MP3 and turn its notes and timing into an editable tab project." },
         { label: "How to use an AI tab generator", href: "/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes", description: "Follow the full source, generation, review, and editing workflow." },
         { label: "Compare AI guitar-tab tools", href: "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly", description: "See which transcription, editing, playback, and export features matter." },
         { label: "Explore editor features", href: "/features", description: "See the tools for writing, arranging, fingering, playback, practice, import, and export." },

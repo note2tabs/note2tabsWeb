@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "./[...nextauth]";
 import { prisma } from "../../../lib/prisma";
 import { issueAndSendVerificationEmail } from "../../../lib/emailVerification";
+import { normalizeSafeReturnPath } from "../../../lib/safeReturnPath";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -43,7 +44,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ ok: true, alreadyVerified: true });
     }
 
-    const result = await issueAndSendVerificationEmail(user);
+    const result = await issueAndSendVerificationEmail(user, {
+      returnTo: normalizeSafeReturnPath(req.body?.returnTo),
+    });
     return res.status(200).json({ ok: true, sent: result.sent });
   } catch (error) {
     console.error("resend-verification error", error);
