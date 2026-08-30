@@ -64,6 +64,72 @@ model User {
   sessions                    Session[]
   stripeRenewalInvoices       StripeRenewalInvoice[]
   tabs                        TabJob[]
+  affiliateProfile            Affiliate?            @relation("AffiliateOwner")
+  affiliateAttribution        AffiliateAttribution? @relation("ReferredUser")
+}
+
+model Affiliate {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  code                  String   @unique
+  status                String   @default("PENDING")
+  commissionPercent     Int      @default(20)
+  commissionMonths      Int      @default(6)
+  discountPercent       Int      @default(10)
+  discountMonths        Int      @default(3)
+  cookieDays            Int      @default(30)
+  payoutHoldDays        Int      @default(30)
+  stripeAccountId       String?  @unique
+  stripeCouponId        String?
+  stripePromotionCodeId String?  @unique
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  owner                  User     @relation("AffiliateOwner", fields: [userId], references: [id], onDelete: Cascade)
+  attributions          AffiliateAttribution[]
+  commissions           AffiliateCommission[]
+
+  @@index([status])
+}
+
+model AffiliateAttribution {
+  id                   String   @id @default(cuid())
+  affiliateId          String
+  referredUserId       String   @unique
+  source               String   @default("link")
+  stripeCustomerId     String?
+  stripeSubscriptionId String?  @unique
+  createdAt            DateTime @default(now())
+  affiliate            Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Restrict)
+  referredUser         User      @relation("ReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
+  commissions          AffiliateCommission[]
+
+  @@index([affiliateId, createdAt])
+}
+
+model AffiliateCommission {
+  id               String   @id @default(cuid())
+  affiliateId      String
+  attributionId    String
+  stripeInvoiceId  String   @unique
+  stripeChargeId   String?
+  stripeTransferId String?  @unique
+  paymentNumber    Int
+  grossAmount      Int
+  commissionAmount Int
+  currency         String
+  status           String   @default("PENDING")
+  availableAt      DateTime
+  paidAt           DateTime?
+  reversedAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  affiliate        Affiliate            @relation(fields: [affiliateId], references: [id], onDelete: Restrict)
+  attribution      AffiliateAttribution @relation(fields: [attributionId], references: [id], onDelete: Restrict)
+
+  @@unique([attributionId, paymentNumber])
+  @@index([status, availableAt])
+  @@index([affiliateId, createdAt])
+  @@index([stripeChargeId])
 }
 
 /// Product feedback is first-party operational data, not analytics. It keeps

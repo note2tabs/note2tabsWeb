@@ -17,6 +17,8 @@ import {
 } from "../../../lib/premiumFunnel";
 import { normalizePremiumOfferVariant } from "../../../lib/premiumOfferExperiment";
 import { parseUserAgent } from "../../../lib/analyticsV2/ua";
+import { affiliateCodeFromRequest } from "../../../lib/affiliate";
+import { prisma } from "../../../lib/prisma";
 
 const PREMIUM_TRIAL_DAYS = 7;
 const PREMIUM_ACCESS_ROLES = new Set(["PREMIUM", "ADMIN", "MODERATOR", "MOD"]);
@@ -137,6 +139,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const baseUrl = getAppBaseUrl(req);
     const returnPaths = resolveCheckoutReturnPaths(req.body?.returnTo);
+    const referralCode = affiliateCodeFromRequest(req);
+    const referredAffiliate = referralCode
+      ? await prisma.affiliate.findFirst({
+          where: { code: referralCode, status: "ACTIVE", userId: { not: session.user.id } },
+        })
+      : null;
     const customerState = await inspectPremiumCustomerState({
       stripe: stripeClient,
       email: session.user.email,
@@ -163,6 +171,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
+    let attribution = await prisma.affiliateAttribution.findUnique({
+      where: { referredUserId: session.user.id },
+      include: { affiliate: true },
+    });
+    if (!attribution && referredAffiliate) {
+      attribution = await prisma.affiliateAttribution.create({
+        data: { affiliateId: referredAffiliate.id, referredUserId: session.user.id, source: "link" },
+        include: { affiliate: true },
+      });
+    }
+
     const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
     const checkoutStateHash = createHash("sha256")
       .update(
@@ -182,6 +201,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       premiumOfferVariant: offerVariant,
       premiumFunnelModel: model,
       premiumTrialIncluded: customerState.trialEligible ? "true" : "false",
+      ...(attribution
+        ? {
+            note2tabsAffiliateId: attribution.affiliateId,
+            note2tabsAffiliateAttributionId: attribution.id,
+          }
+        : {}),
     };
     const checkout = await stripeClient.checkout.sessions.create(
       {
@@ -196,6 +221,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ...(customerState.trialEligible ? { trial_period_days: PREMIUM_TRIAL_DAYS } : {}),
           metadata: checkoutMetadata,
         },
+        ...(attribution?.affiliate.stripePromotionCodeId
+          ? { discounts: [{ promotion_code: attribution.affiliate.stripePromotionCodeId }] }
+          : { allow_promotion_codes: true }),
         success_url: `${baseUrl}${appendCheckoutSessionId(returnPaths.success)}`,
         cancel_url: `${baseUrl}${returnPaths.cancel}`,
         metadata: checkoutMetadata,

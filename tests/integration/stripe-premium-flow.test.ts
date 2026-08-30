@@ -33,6 +33,21 @@ const { sessionMock, stripeMock, prismaMock, posthogMock, sendEmailMock } = vi.h
       },
     },
     prismaMock: {
+      affiliate: {
+        findFirst: vi.fn(),
+      },
+      affiliateAttribution: {
+        findUnique: vi.fn(),
+        findFirst: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+        upsert: vi.fn(),
+      },
+      affiliateCommission: {
+        create: vi.fn(),
+        findMany: vi.fn(),
+        update: vi.fn(),
+      },
       user: {
         findUnique: vi.fn(),
         findFirst: vi.fn(),
@@ -167,6 +182,10 @@ describe("stripe premium flow", () => {
       data: { object: {} },
     });
     prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.affiliate.findFirst.mockResolvedValue(null);
+    prismaMock.affiliateAttribution.findUnique.mockResolvedValue(null);
+    prismaMock.affiliateAttribution.findFirst.mockResolvedValue(null);
+    prismaMock.affiliateCommission.findMany.mockResolvedValue([]);
     prismaMock.user.findUnique.mockImplementation(async () => {
       const session = await sessionMock();
       return { role: session?.user?.role || "FREE" };
@@ -261,6 +280,50 @@ describe("stripe premium flow", () => {
         expect.objectContaining({
           idempotencyKey: expect.stringMatching(/^premium-checkout-user_1-/),
         })
+      );
+    });
+
+    it("applies an active referral promotion and persists first-touch attribution", async () => {
+      const affiliate = {
+        id: "aff_1",
+        userId: "affiliate_owner",
+        code: "PLAYER10",
+        status: "ACTIVE",
+        stripePromotionCodeId: "promo_affiliate_10",
+      };
+      const attribution = { id: "attr_1", affiliateId: affiliate.id, affiliate };
+      prismaMock.affiliate.findFirst.mockResolvedValue(affiliate);
+      prismaMock.affiliateAttribution.create.mockResolvedValue(attribution);
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({
+        method: "POST",
+        body: { source: "pricing_page", reason: "plan_comparison" },
+        cookies: { n2t_ref: "PLAYER10" },
+        headers: { host: "note2tabs.test", "x-forwarded-proto": "https" },
+      });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(prismaMock.affiliateAttribution.create).toHaveBeenCalledWith({
+        data: { affiliateId: "aff_1", referredUserId: "user_1", source: "link" },
+        include: { affiliate: true },
+      });
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          discounts: [{ promotion_code: "promo_affiliate_10" }],
+          metadata: expect.objectContaining({
+            note2tabsAffiliateId: "aff_1",
+            note2tabsAffiliateAttributionId: "attr_1",
+          }),
+          subscription_data: expect.objectContaining({
+            metadata: expect.objectContaining({
+              note2tabsAffiliateId: "aff_1",
+              note2tabsAffiliateAttributionId: "attr_1",
+            }),
+          }),
+        }),
+        expect.any(Object)
       );
     });
 
