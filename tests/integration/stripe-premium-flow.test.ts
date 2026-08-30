@@ -329,6 +329,15 @@ describe("stripe premium flow", () => {
         }),
         expect.any(Object)
       );
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({
+        distinctId: "user_1",
+        event: "affiliate_checkout_started",
+        properties: expect.objectContaining({
+          affiliate_id: "aff_1",
+          affiliate_code: "PLAYER10",
+          event_source: "note2tabs_server",
+        }),
+      }));
     });
 
     it("does not apply a deactivated affiliate to a future checkout", async () => {

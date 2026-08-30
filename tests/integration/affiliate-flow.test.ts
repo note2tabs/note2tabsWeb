@@ -22,21 +22,23 @@ describe("affiliate flow", () => {
   });
 
   it("captures a valid referral in a short-lived, HttpOnly first-party cookie", async () => {
-    prismaMock.affiliate.findUnique.mockResolvedValue({ status: "ACTIVE", cookieDays: 30 });
+    prismaMock.affiliate.findUnique.mockResolvedValue({ id: "affiliate_1", code: "PLAYER10", status: "ACTIVE", cookieDays: 30 });
     const handler = (await import("../../pages/api/affiliate/capture")).default;
     const { req, res } = createMocks({ method: "POST", body: { code: "player10" } });
 
     await handler(req as any, res as any);
 
     expect(res._getStatusCode()).toBe(200);
-    expect(res.getHeader("Set-Cookie")).toContain("n2t_ref=PLAYER10");
-    expect(res.getHeader("Set-Cookie")).toContain("Max-Age=2592000");
-    expect(res.getHeader("Set-Cookie")).toContain("HttpOnly");
-    expect(res.getHeader("Set-Cookie")).toContain("SameSite=Lax");
+    const cookies = String(res.getHeader("Set-Cookie"));
+    expect(cookies).toContain("n2t_ref=PLAYER10");
+    expect(cookies).toContain("n2t_ref_click=");
+    expect(cookies).toContain("Max-Age=2592000");
+    expect(cookies).toContain("HttpOnly");
+    expect(cookies).toContain("SameSite=Lax");
   });
 
   it("keeps the referral discount functional when optional analytics is denied", async () => {
-    prismaMock.affiliate.findUnique.mockResolvedValue({ status: "ACTIVE", cookieDays: 30 });
+    prismaMock.affiliate.findUnique.mockResolvedValue({ id: "affiliate_1", code: "PLAYER10", status: "ACTIVE", cookieDays: 30 });
     const handler = (await import("../../pages/api/affiliate/capture")).default;
     const { req, res } = createMocks({
       method: "POST",
@@ -47,7 +49,7 @@ describe("affiliate flow", () => {
     await handler(req as any, res as any);
 
     expect(res._getStatusCode()).toBe(200);
-    expect(res.getHeader("Set-Cookie")).toContain("n2t_ref=PLAYER10");
+    expect(String(res.getHeader("Set-Cookie"))).toContain("n2t_ref=PLAYER10");
   });
 
   it("pays an eligible commission through Stripe Connect exactly once", async () => {

@@ -1,6 +1,7 @@
 import type { NextApiRequest } from "next";
 
 export const AFFILIATE_COOKIE = "n2t_ref";
+export const AFFILIATE_CLICK_COOKIE = "n2t_ref_click";
 export const DEFAULT_AFFILIATE_TERMS = {
   commissionPercent: 20,
   commissionMonths: 6,
@@ -18,6 +19,11 @@ export function normalizeAffiliateCode(value: unknown) {
 
 export function affiliateCodeFromRequest(req: NextApiRequest) {
   return normalizeAffiliateCode(req.cookies?.[AFFILIATE_COOKIE]);
+}
+
+export function affiliateClickIdFromRequest(req: NextApiRequest) {
+  const value = req.cookies?.[AFFILIATE_CLICK_COOKIE];
+  return typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value) ? value : null;
 }
 
 export function affiliateCanEarnCommission(input: {

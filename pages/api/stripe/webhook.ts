@@ -34,6 +34,7 @@ import {
 } from "../../../lib/premiumTrialReminder";
 import { affiliateCanEarnCommission, commissionAmount } from "../../../lib/affiliate";
 import { buildPaymentFailedEmail } from "../../../lib/paymentRecovery";
+import { trackAffiliateEvent } from "../../../lib/affiliateTracking";
 
 export const config = {
   api: {
@@ -499,9 +500,69 @@ async function createAffiliateCommission(invoice: Stripe.Invoice, subscription: 
   }
 }
 
+async function trackAffiliatePayment(
+  invoice: Stripe.Invoice,
+  subscription: Stripe.Subscription,
+  userId: string,
+  renewal: boolean
+) {
+  const attributionId = subscription.metadata?.note2tabsAffiliateAttributionId;
+  const subscriptionId = stripeSubscriptionId(subscription);
+  const attribution = await prisma.affiliateAttribution.findFirst({
+    where: attributionId
+      ? { id: attributionId }
+      : subscriptionId
+        ? { stripeSubscriptionId: subscriptionId }
+        : { id: "" },
+    include: {
+      affiliate: { select: { id: true, code: true } },
+      commissions: { select: { id: true } },
+    },
+  });
+  if (!attribution || !invoice.id) return;
+  await trackAffiliateEvent({
+    distinctId: userId,
+    event: renewal ? "affiliate_subscription_renewed" : "affiliate_payment_succeeded",
+    insertId: `affiliate-payment:${invoice.id}`,
+    properties: {
+      affiliate_id: attribution.affiliate.id,
+      affiliate_code: attribution.affiliate.code,
+      stripe_invoice_id: invoice.id,
+      stripe_subscription_id: subscriptionId || undefined,
+      revenue_amount: invoice.amount_paid,
+      currency: invoice.currency,
+      payment_number: attribution.commissions.length + 1,
+    },
+  });
+}
+
+async function trackAffiliateTrialStarted(userId: string, session: Stripe.Checkout.Session) {
+  const attributionId = session.metadata?.note2tabsAffiliateAttributionId;
+  if (!attributionId) return;
+  const attribution = await prisma.affiliateAttribution.findUnique({
+    where: { id: attributionId },
+    include: { affiliate: { select: { id: true, code: true } } },
+  });
+  if (!attribution) return;
+  await trackAffiliateEvent({
+    distinctId: userId,
+    event: "affiliate_trial_started",
+    insertId: `affiliate-trial:${session.id}`,
+    properties: {
+      affiliate_id: attribution.affiliate.id,
+      affiliate_code: attribution.affiliate.code,
+      checkout_session_id: session.id,
+    },
+  });
+}
+
 async function reverseAffiliateCommission(chargeId: string) {
   const commissions = await prisma.affiliateCommission.findMany({
     where: { stripeChargeId: chargeId, status: { in: ["PENDING", "PAID"] } },
+    include: {
+      affiliate: { select: { id: true, code: true } },
+      attribution: { select: { referredUserId: true } },
+    },
   });
   for (const commission of commissions) {
     if (commission.status === "PAID" && commission.stripeTransferId && stripeClient) {
@@ -513,6 +574,18 @@ async function reverseAffiliateCommission(chargeId: string) {
     await prisma.affiliateCommission.update({
       where: { id: commission.id },
       data: { status: "REVERSED", reversedAt: new Date() },
+    });
+    await trackAffiliateEvent({
+      distinctId: commission.attribution.referredUserId,
+      event: "affiliate_payment_refunded",
+      insertId: `affiliate-refund:${commission.id}`,
+      properties: {
+        affiliate_id: commission.affiliate.id,
+        affiliate_code: commission.affiliate.code,
+        stripe_charge_id: chargeId,
+        commission_amount: commission.commissionAmount,
+        currency: commission.currency,
+      },
     });
   }
 }
@@ -737,6 +810,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (userId) {
           trackSubscriptionStarted(userId, checkoutSession);
           await persistAffiliateAttribution(checkoutSession, userId);
+          await trackAffiliateTrialStarted(userId, checkoutSession);
           try {
             await sendPremiumTrialStartedNotice(userId, checkoutSession, event.id);
           } catch (error) {
@@ -855,6 +929,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!identifier) return res.status(200).json({ received: true, ignored: "user_not_found" });
       const isRenewal = invoice.billing_reason === "subscription_cycle";
       await createAffiliateCommission(invoice, premiumSubscription);
+      if (userId) await trackAffiliatePayment(invoice, premiumSubscription, userId, isRenewal);
       if (isRenewal) {
         const subscriptionId = stripeSubscriptionId(premiumSubscription);
         const renewalAt = stripeInvoiceRenewalAt(invoice, premiumConfig);

@@ -11,7 +11,11 @@ export default function AffiliateAttributionCapture() {
     void fetch("/api/affiliate/capture", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({
+        code,
+        landingPath: window.location.pathname,
+        referrer: document.referrer || undefined,
+      }),
       keepalive: true,
     });
   }, [router.isReady, router.query.ref]);

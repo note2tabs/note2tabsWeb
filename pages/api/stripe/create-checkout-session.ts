@@ -17,7 +17,8 @@ import {
 } from "../../../lib/premiumFunnel";
 import { normalizePremiumOfferVariant } from "../../../lib/premiumOfferExperiment";
 import { parseUserAgent } from "../../../lib/analyticsV2/ua";
-import { affiliateCodeFromRequest } from "../../../lib/affiliate";
+import { affiliateClickIdFromRequest, affiliateCodeFromRequest } from "../../../lib/affiliate";
+import { trackAffiliateEvent } from "../../../lib/affiliateTracking";
 import { prisma } from "../../../lib/prisma";
 
 const PREMIUM_TRIAL_DAYS = 7;
@@ -249,6 +250,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       request_id: requestId,
       $insert_id: `checkout-started:${checkout.id}`,
     });
+    if (activeAttribution) {
+      await trackAffiliateEvent({
+        distinctId: session.user.id,
+        event: "affiliate_checkout_started",
+        insertId: `affiliate-checkout:${checkout.id}`,
+        properties: {
+          affiliate_id: activeAttribution.affiliateId,
+          affiliate_code: activeAttribution.affiliate.code,
+          affiliate_click_id: affiliateClickIdFromRequest(req) || undefined,
+          checkout_session_id: checkout.id,
+          trial_included: customerState.trialEligible,
+        },
+      });
+    }
     console.log(JSON.stringify({
       level: "info",
       message: "checkout_session_created",

@@ -5,6 +5,8 @@ import { issueAndSendVerificationEmail } from "../../../lib/emailVerification";
 import { STARTING_CREDITS } from "../../../lib/credits";
 import { linkIdentityToUser } from "../../../lib/analyticsV2/identity";
 import { normalizeSafeReturnPath } from "../../../lib/safeReturnPath";
+import { affiliateClickIdFromRequest, affiliateCodeFromRequest } from "../../../lib/affiliate";
+import { trackAffiliateEvent } from "../../../lib/affiliateTracking";
 
 const MIN_PASSWORD = 10;
 
@@ -42,6 +44,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ...( { emailVerifiedBool: false } as any),
       } as any,
     });
+
+    try {
+      const clickId = affiliateClickIdFromRequest(req);
+      const affiliateCode = affiliateCodeFromRequest(req);
+      if (clickId && affiliateCode) {
+        const affiliate = await prisma.affiliate.findFirst({
+          where: { code: affiliateCode, status: "ACTIVE" },
+          select: { id: true, code: true },
+        });
+        if (affiliate) {
+          await prisma.affiliateAttribution.upsert({
+            where: { referredUserId: user.id },
+            create: { affiliateId: affiliate.id, referredUserId: user.id, source: "signup" },
+            update: {},
+          });
+          await trackAffiliateEvent({
+            distinctId: user.id,
+            event: "affiliate_signup_completed",
+            insertId: `affiliate-signup:${user.id}`,
+            properties: {
+              affiliate_id: affiliate.id,
+              affiliate_code: affiliate.code,
+              affiliate_click_id: clickId,
+              $anon_distinct_id: clickId,
+            },
+          });
+        }
+      }
+    } catch (affiliateError) {
+      // Signup must remain available if attribution analytics are unavailable.
+      console.warn("affiliate signup attribution warning", affiliateError);
+    }
 
     try {
       const rawFingerprint =

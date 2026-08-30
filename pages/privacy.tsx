@@ -50,7 +50,10 @@ export default function PrivacyPage() {
             <li>
               When you follow an affiliate link, a functional referral cookie remembers the referring affiliate for
               up to 30 days so we can apply the advertised discount and attribute any resulting commission. It is not
-              used for advertising, fingerprinting, or session replay.
+              used for advertising, fingerprinting, or session replay. A random referral-click identifier connects
+              PostHog funnel events to an account only if that visitor signs up. Subscription, payment, refund, and
+              commission records are retained in Note2Tabs as needed for attribution, accounting, fraud prevention,
+              and disputes; raw click events are not duplicated into our application database.
             </li>
             <li>An opt-out preference cookie is stored only when you turn analytics off.</li>
           </ul>
