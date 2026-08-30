@@ -47,6 +47,11 @@ export default function PrivacyPage() {
             <li>
               Essential cookies: authentication and session cookies required to sign in and keep your account secure.
             </li>
+            <li>
+              When you follow an affiliate link, a functional referral cookie remembers the referring affiliate for
+              up to 30 days so we can apply the advertised discount and attribute any resulting commission. It is not
+              used for advertising, fingerprinting, or session replay.
+            </li>
             <li>An opt-out preference cookie is stored only when you turn analytics off.</li>
           </ul>
           <p>
