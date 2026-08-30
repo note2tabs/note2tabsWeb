@@ -17,12 +17,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!affiliate?.stripeAccountId || affiliate.status !== "ACTIVE") {
     return res.status(404).json({ error: "No active affiliate account" });
   }
-  const baseUrl = getAppBaseUrl(req);
-  const link = await stripeClient.accountLinks.create({
-    account: affiliate.stripeAccountId,
-    refresh_url: `${baseUrl}/affiliate?onboarding=refresh`,
-    return_url: `${baseUrl}/affiliate?onboarding=complete`,
-    type: "account_onboarding",
-  });
-  return res.status(200).json({ url: link.url });
+  try {
+    const baseUrl = getAppBaseUrl(req);
+    const link = await stripeClient.accountLinks.create({
+      account: affiliate.stripeAccountId,
+      refresh_url: `${baseUrl}/affiliate?onboarding=refresh`,
+      return_url: `${baseUrl}/affiliate?onboarding=complete`,
+      type: "account_onboarding",
+    });
+    return res.status(200).json({ url: link.url });
+  } catch (error) {
+    console.error("Affiliate Stripe onboarding link failed", error);
+    return res.status(502).json({ error: "Stripe payout setup is temporarily unavailable. Please try again." });
+  }
 }

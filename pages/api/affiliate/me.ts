@@ -10,7 +10,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session?.user?.id) return res.status(401).json({ error: "Not authenticated" });
   const affiliate = await prisma.affiliate.findUnique({
     where: { userId: session.user.id },
-    include: { commissions: { orderBy: { createdAt: "desc" }, take: 50 } },
+    include: {
+      commissions: { orderBy: { createdAt: "desc" }, take: 50 },
+      _count: { select: { attributions: true } },
+    },
   });
   if (!affiliate) return res.status(404).json({ error: "No affiliate account" });
   const account = affiliate.stripeAccountId && stripeClient
@@ -33,6 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       discountMonths: affiliate.discountMonths,
       payoutsEnabled: Boolean(account && !("deleted" in account) && account.payouts_enabled),
       detailsSubmitted: Boolean(account && !("deleted" in account) && account.details_submitted),
+      referralCount: affiliate._count.attributions,
       totals,
       commissions: affiliate.commissions.map((item) => ({
         id: item.id,
