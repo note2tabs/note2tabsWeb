@@ -33,6 +33,7 @@ import {
   customPremiumTrialReminderEnabled,
 } from "../../../lib/premiumTrialReminder";
 import { commissionAmount } from "../../../lib/affiliate";
+import { buildPaymentFailedEmail } from "../../../lib/paymentRecovery";
 
 export const config = {
   api: {
@@ -512,6 +513,44 @@ async function reverseAffiliateCommission(chargeId: string) {
   }
 }
 
+async function sendPaymentFailedNotice(
+  userId: string,
+  email: string,
+  invoiceId: string,
+  attemptCount: number
+) {
+  // Set this to "stripe" when Stripe's own failed-payment emails are enabled,
+  // so customers receive one recovery message rather than two.
+  if (process.env.PAYMENT_RECOVERY_EMAIL_MODE === "stripe") return;
+  if (attemptCount !== 1) return;
+  const marker = {
+    identifier: `notice:premium-payment-failed:${userId}`,
+    token: `stripe-invoice:${invoiceId}`,
+  };
+  try {
+    await prisma.verificationToken.create({
+      data: {
+        ...marker,
+        expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      },
+    });
+  } catch (error) {
+    if (prismaErrorCode(error) === "P2002") return;
+    throw error;
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true },
+  });
+  const notice = buildPaymentFailedEmail({ name: user?.name });
+  try {
+    await sendTransactionalEmail({ to: email, ...notice });
+  } catch (error) {
+    await prisma.verificationToken.deleteMany({ where: marker });
+    throw error;
+  }
+}
+
 type RenewalInvoiceDetails = {
   invoiceId: string;
   stripeSubscriptionId: string;
@@ -867,6 +906,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           attempt_count: invoice.attempt_count || 0,
           billing_reason: invoice.billing_reason || undefined,
         });
+        if (email && invoice.id) {
+          await sendPaymentFailedNotice(
+            userId,
+            email,
+            invoice.id,
+            invoice.attempt_count || 0
+          );
+        }
       }
     }
 

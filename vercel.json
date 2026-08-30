@@ -9,6 +9,10 @@
     {
       "path": "/api/cron/pay-affiliate-commissions",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/reconcile-past-due",
+      "schedule": "15 3 * * *"
     }
   ]
 }

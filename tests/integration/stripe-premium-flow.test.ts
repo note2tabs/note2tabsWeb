@@ -26,6 +26,9 @@ const { sessionMock, stripeMock, prismaMock, posthogMock, sendEmailMock } = vi.h
         retrieve: vi.fn(),
         cancel: vi.fn(),
       },
+      invoices: {
+        retrieve: vi.fn(),
+      },
       billingPortal: {
         sessions: {
           create: vi.fn(),
@@ -173,6 +176,7 @@ describe("stripe premium flow", () => {
       Promise.resolve(premiumSubscription({ id }))
     );
     stripeMock.subscriptions.cancel.mockResolvedValue({});
+    stripeMock.invoices.retrieve.mockResolvedValue(premiumInvoice());
     stripeMock.billingPortal.sessions.create.mockResolvedValue({
       url: "https://billing.stripe.test/session_123",
     });
@@ -1489,6 +1493,36 @@ describe("stripe premium flow", () => {
         properties: expect.objectContaining({
           attempt_count: 2,
           $insert_id: "subscription_payment_failed:evt_payment_failed",
+        }),
+      });
+    });
+
+    it("sends one payment recovery notice on the first failed attempt", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        id: "evt_payment_failed_first",
+        type: "invoice.payment_failed",
+        data: { object: premiumInvoice({ attempt_count: 1 }) },
+      });
+      prismaMock.user.findFirst.mockResolvedValue({ id: "user_1" });
+      prismaMock.user.findUnique.mockResolvedValue({ id: "user_1", name: "Noel" });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const req = buildWebhookReq();
+      const res = createResponse();
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(sendEmailMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: "user@example.com",
+          subject: "Please update your Note2Tabs payment method",
+          text: expect.stringContaining("14-day recovery period"),
+        })
+      );
+      expect(prismaMock.verificationToken.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          identifier: "notice:premium-payment-failed:user_1",
+          token: "stripe-invoice:in_premium",
         }),
       });
     });
