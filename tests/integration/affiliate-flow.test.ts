@@ -97,6 +97,13 @@ describe("affiliate flow", () => {
       where: { id: "commission_1" },
       data: expect.objectContaining({ status: "PAID", stripeTransferId: "tr_1" }),
     });
+    expect(prismaMock.affiliateCommission.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          affiliate: expect.objectContaining({ status: { in: ["ACTIVE", "DEACTIVATED"] } }),
+        }),
+      })
+    );
   });
 
   it("holds commissions until Stripe onboarding is complete", async () => {

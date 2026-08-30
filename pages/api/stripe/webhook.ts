@@ -32,7 +32,7 @@ import {
   buildPremiumTrialReminderEmail,
   customPremiumTrialReminderEnabled,
 } from "../../../lib/premiumTrialReminder";
-import { commissionAmount } from "../../../lib/affiliate";
+import { affiliateCanEarnCommission, commissionAmount } from "../../../lib/affiliate";
 import { buildPaymentFailedEmail } from "../../../lib/paymentRecovery";
 
 export const config = {
@@ -470,7 +470,11 @@ async function createAffiliateCommission(invoice: Stripe.Invoice, subscription: 
         : { id: "" },
     include: { affiliate: true, commissions: { select: { id: true } } },
   });
-  if (!attribution || attribution.affiliate.status !== "ACTIVE") return;
+  if (!attribution || !affiliateCanEarnCommission({
+    status: attribution.affiliate.status,
+    deactivatedAt: attribution.affiliate.updatedAt,
+    referralCreatedAt: attribution.createdAt,
+  })) return;
   const paymentNumber = attribution.commissions.length + 1;
   if (paymentNumber > attribution.affiliate.commissionMonths) return;
   const amount = commissionAmount(invoice.amount_paid, attribution.affiliate.commissionPercent);

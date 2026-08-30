@@ -181,6 +181,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         include: { affiliate: true },
       });
     }
+    const activeAttribution = attribution?.affiliate.status === "ACTIVE" ? attribution : null;
 
     const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
     const checkoutStateHash = createHash("sha256")
@@ -201,10 +202,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       premiumOfferVariant: offerVariant,
       premiumFunnelModel: model,
       premiumTrialIncluded: customerState.trialEligible ? "true" : "false",
-      ...(attribution
+      ...(activeAttribution
         ? {
-            note2tabsAffiliateId: attribution.affiliateId,
-            note2tabsAffiliateAttributionId: attribution.id,
+            note2tabsAffiliateId: activeAttribution.affiliateId,
+            note2tabsAffiliateAttributionId: activeAttribution.id,
           }
         : {}),
     };
@@ -221,8 +222,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ...(customerState.trialEligible ? { trial_period_days: PREMIUM_TRIAL_DAYS } : {}),
           metadata: checkoutMetadata,
         },
-        ...(attribution?.affiliate.stripePromotionCodeId
-          ? { discounts: [{ promotion_code: attribution.affiliate.stripePromotionCodeId }] }
+        ...(activeAttribution?.affiliate.stripePromotionCodeId
+          ? { discounts: [{ promotion_code: activeAttribution.affiliate.stripePromotionCodeId }] }
           : { allow_promotion_codes: true }),
         success_url: `${baseUrl}${appendCheckoutSessionId(returnPaths.success)}`,
         cancel_url: `${baseUrl}${returnPaths.cancel}`,

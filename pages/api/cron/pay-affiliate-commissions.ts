@@ -18,7 +18,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       status: "PENDING",
       availableAt: { lte: new Date() },
       stripeChargeId: { not: null },
-      affiliate: { status: "ACTIVE", stripeAccountId: { not: null } },
+      // Deactivation prevents future sales, but does not forfeit commissions
+      // that were already earned and entered the payout queue.
+      affiliate: { status: { in: ["ACTIVE", "DEACTIVATED"] }, stripeAccountId: { not: null } },
     },
     include: { affiliate: true },
     orderBy: { availableAt: "asc" },

@@ -20,6 +20,17 @@ export function affiliateCodeFromRequest(req: NextApiRequest) {
   return normalizeAffiliateCode(req.cookies?.[AFFILIATE_COOKIE]);
 }
 
+export function affiliateCanEarnCommission(input: {
+  status: string;
+  deactivatedAt?: Date | null;
+  referralCreatedAt: Date;
+}) {
+  if (input.status === "ACTIVE") return true;
+  return input.status === "DEACTIVATED" && Boolean(
+    input.deactivatedAt && input.referralCreatedAt.getTime() <= input.deactivatedAt.getTime()
+  );
+}
+
 export function commissionAmount(grossAmount: number, percent: number) {
   if (!Number.isFinite(grossAmount) || grossAmount <= 0) return 0;
   return Math.max(0, Math.round(grossAmount * Math.max(0, Math.min(100, percent)) / 100));

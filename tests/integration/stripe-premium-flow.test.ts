@@ -331,6 +331,34 @@ describe("stripe premium flow", () => {
       );
     });
 
+    it("does not apply a deactivated affiliate to a future checkout", async () => {
+      prismaMock.affiliate.findFirst.mockResolvedValue(null);
+      prismaMock.affiliateAttribution.findUnique.mockResolvedValue({
+        id: "attr_1",
+        affiliateId: "aff_1",
+        affiliate: {
+          id: "aff_1",
+          status: "DEACTIVATED",
+          stripePromotionCodeId: "promo_affiliate_10",
+        },
+      });
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({
+        method: "POST",
+        body: { source: "pricing_page", reason: "plan_comparison" },
+        cookies: { n2t_ref: "PLAYER10" },
+        headers: { host: "note2tabs.test", "x-forwarded-proto": "https" },
+      });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      const checkoutInput = stripeMock.checkout.sessions.create.mock.calls.at(-1)?.[0];
+      expect(checkoutInput).not.toHaveProperty("discounts");
+      expect(checkoutInput.metadata).not.toHaveProperty("note2tabsAffiliateId");
+      expect(checkoutInput.subscription_data.metadata).not.toHaveProperty("note2tabsAffiliateId");
+    });
+
     it("returns 401 when unauthenticated", async () => {
       sessionMock.mockResolvedValue(null);
       const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
