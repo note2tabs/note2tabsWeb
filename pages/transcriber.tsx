@@ -279,7 +279,7 @@ export default function TranscriberPage() {
     if (!router.isReady || inactiveReminderLandingTrackedRef.current) return;
     if (router.query.source !== "inactive_signup_reminder") return;
     const timing = Array.isArray(router.query.timing) ? router.query.timing[0] : router.query.timing;
-    if (timing !== "6h" && timing !== "24h" && timing !== "72h") return;
+    if (timing !== "24h" && timing !== "48h" && timing !== "72h") return;
     inactiveReminderLandingTrackedRef.current = true;
     sendEvent(ANALYTICS_EVENTS.inactiveSignupReminderLanded, { timing_variant: timing });
   }, [router.isReady, router.query.source, router.query.timing]);

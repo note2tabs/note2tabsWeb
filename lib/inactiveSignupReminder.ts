@@ -3,14 +3,16 @@ import crypto from "crypto";
 export const INACTIVE_SIGNUP_REMINDER_IDENTIFIER_PREFIX = "reminder:inactive-transcriber:";
 export const INACTIVE_SIGNUP_REMINDER_HOLDOUT_PREFIX = "experiment:inactive-transcriber-holdout:";
 export const INACTIVE_SIGNUP_REMINDER_MAX_AGE_DAYS = 4;
-export const INACTIVE_SIGNUP_REMINDER_MAX_LATENESS_HOURS = 6;
+// Vercel Hobby supports one cron run per day. A 24-hour delivery window lets
+// every eligible signup be seen by one daily run without allowing a backlog.
+export const INACTIVE_SIGNUP_REMINDER_MAX_LATENESS_HOURS = 24;
 
-export type InactiveSignupReminderVariant = "holdout" | "6h" | "24h" | "72h";
+export type InactiveSignupReminderVariant = "holdout" | "24h" | "48h" | "72h";
 
 export const INACTIVE_SIGNUP_REMINDER_DELAYS: Record<InactiveSignupReminderVariant, number | null> = {
   holdout: null,
-  "6h": 6,
   "24h": 24,
+  "48h": 48,
   "72h": 72,
 };
 
@@ -50,8 +52,8 @@ export function buildInactiveSignupExperimentToken(userId: string, variant: Inac
 export function assignInactiveSignupReminderVariant(userId: string): InactiveSignupReminderVariant {
   const bucket = crypto.createHash("sha256").update(`inactive-signup-reminder:${userId}`).digest().readUInt32BE(0) % 100;
   if (bucket < 20) return "holdout";
-  if (bucket < 47) return "6h";
-  if (bucket < 74) return "24h";
+  if (bucket < 47) return "24h";
+  if (bucket < 74) return "48h";
   return "72h";
 }
 

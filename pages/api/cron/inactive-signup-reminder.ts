@@ -51,7 +51,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const now = new Date();
-  const earliestDelayHours = 6;
+  const earliestDelayHours = 24;
   const cutoff = new Date(now.getTime() - earliestDelayHours * 60 * 60 * 1000);
   const newestAllowed = new Date(now.getTime() - INACTIVE_SIGNUP_REMINDER_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
   const batchSize = getBatchSize();
@@ -88,7 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       heldOut: 0,
       waitingForAssignedDelay: 0,
       skippedExpiredWindow: 0,
-      sentByVariant: { "6h": 0, "24h": 0, "72h": 0 },
+      sentByVariant: { "24h": 0, "48h": 0, "72h": 0 },
       failed: 0,
     });
   }
@@ -100,7 +100,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let skippedExpiredWindow = 0;
   let skippedDeliveryDisabled = 0;
   let failed = 0;
-  const sentByVariant = { "6h": 0, "24h": 0, "72h": 0 };
+  const sentByVariant = { "24h": 0, "48h": 0, "72h": 0 };
 
   for (const user of candidates) {
     const reminderIdentifier = buildInactiveSignupReminderIdentifier(user.id);
