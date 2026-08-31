@@ -127,7 +127,9 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
         defaults: "2026-05-30",
         capture_pageview: false,
         capture_pageleave: true,
-        capture_exceptions: false,
+        // Capture uncaught browser errors and unhandled promise rejections. The
+        // shared before_send hook still removes sensitive URLs and properties.
+        capture_exceptions: true,
         autocapture: true,
         person_profiles: "identified_only",
         disable_persistence: true,

@@ -221,16 +221,40 @@ export function sanitizeAnalyticsProperties(
   return sanitized;
 }
 
+function sanitizeExceptionValue(value: unknown, depth = 0): unknown {
+  if (depth > 12) return undefined;
+  if (typeof value === "string") {
+    return value
+      .replace(/\b[^\s@]+@[^\s@]+\.[^\s@]+\b/g, "[redacted-email]")
+      .replace(/https?:\/\/[^\s)\]]+/g, (url) => sanitizeAnalyticsUrl(url));
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeExceptionValue(item, depth + 1));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .map(([key, item]) => [key, sanitizeExceptionValue(item, depth + 1)])
+        .filter(([, item]) => item !== undefined)
+    );
+  }
+  return value;
+}
+
 export function sanitizePostHogCapture(result: CaptureResult | null): CaptureResult | null {
-  if (!result || result.event === "$exception") return null;
+  if (!result) return null;
   // Session replay payloads contain deeply nested rrweb DOM trees. Running them
   // through the bounded analytics-property sanitizer truncates the tree and makes
   // the recording unusable. Replay URLs and network entries are sanitized by the
   // session_recording.maskCapturedNetworkRequestFn configuration instead.
   if (result.event === "$snapshot") return result;
+  const properties = sanitizeAnalyticsProperties(result.properties);
+  if (result.event === "$exception" && result.properties?.$exception_list) {
+    properties.$exception_list = sanitizeExceptionValue(result.properties.$exception_list);
+  }
   return {
     ...result,
-    properties: sanitizeAnalyticsProperties(result.properties),
+    properties,
     ...(result.$set ? { $set: sanitizeAnalyticsProperties(result.$set) } : {}),
     ...(result.$set_once
       ? { $set_once: sanitizeAnalyticsProperties(result.$set_once) }

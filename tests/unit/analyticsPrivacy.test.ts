@@ -56,7 +56,7 @@ describe("analytics privacy sanitization", () => {
     expect(sanitized).not.toHaveProperty("error");
   });
 
-  it("sanitizes identify properties and drops automatic exception payloads", () => {
+  it("sanitizes identify properties and retains safe automatic exception payloads", () => {
     const identify = sanitizePostHogCapture({
       uuid: "event-id",
       event: "$identify",
@@ -68,13 +68,20 @@ describe("analytics privacy sanitization", () => {
 
     expect(identify?.properties.$current_url).toBe("https://note2tabs.com/settings");
     expect(identify?.$set).toEqual({ plan: "premium" });
-    expect(
-      sanitizePostHogCapture({
+    const exception = sanitizePostHogCapture({
         uuid: "exception-id",
         event: "$exception",
-        properties: { $exception_message: "private error" },
-      })
-    ).toBeNull();
+        properties: {
+          $current_url: "https://note2tabs.com/gte/private-id?token=secret",
+          $exception_message: "private error",
+          $exception_list: [{ type: "TypeError", value: "Failed for person@example.com" }],
+        },
+      });
+    expect(exception?.properties.$current_url).toBe("https://note2tabs.com/gte/[editor_id]");
+    expect(exception?.properties.$exception_message).toBeUndefined();
+    expect(exception?.properties.$exception_list).toEqual([
+      { type: "TypeError", value: "Failed for [redacted-email]" },
+    ]);
   });
 
   it("preserves deeply nested session replay snapshots", () => {

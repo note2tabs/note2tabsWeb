@@ -204,11 +204,38 @@ describe("PostHog client identity lifecycle", () => {
       },
     });
 
-    expect(config.capture_exceptions).toBe(false);
+    expect(config.capture_exceptions).toBe(true);
     expect(config.save_referrer).toBe(false);
     expect(sanitized.properties).toEqual({
       $current_url: "https://note2tabs.com/reset-password/[token]",
     });
+  });
+
+  it("keeps exception events while scrubbing sensitive context", async () => {
+    installBrowserGlobals("granted");
+    const posthog = createPostHogMock();
+    vi.doMock("posthog-js", () => ({ default: posthog }));
+    const analytics = await import("../../lib/posthogClient");
+
+    await analytics.initPostHog();
+    const config = posthog.init.mock.calls[0]?.[1] as {
+      before_send?: (event: any) => any;
+    };
+    const sanitized = config.before_send?.({
+      event: "$exception",
+      properties: {
+        $current_url: "https://note2tabs.com/gte/private-editor?token=secret",
+        email: "private@example.com",
+        $exception_list: [{ type: "TypeError", value: "Cannot read property", stacktrace: { frames: [] } }],
+      },
+    });
+
+    expect(sanitized).not.toBeNull();
+    expect(sanitized.properties.$current_url).toBe("https://note2tabs.com/gte/[editor_id]");
+    expect(sanitized.properties.email).toBeUndefined();
+    expect(sanitized.properties.$exception_list).toEqual([
+      { type: "TypeError", value: "Cannot read property", stacktrace: { frames: [] } },
+    ]);
   });
 
   it("blocks sensitive replay routes while allowing complete editor routes", async () => {
