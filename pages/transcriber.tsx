@@ -195,6 +195,7 @@ export default function TranscriberPage() {
   const [transcriptionModel, setTranscriptionModel] =
     useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
   const transcriptionModelTouchedRef = useRef(false);
+  const inactiveReminderLandingTrackedRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -273,6 +274,15 @@ export default function TranscriberPage() {
     return isFileClipRangeValid(fileStartTime, fileEndTime, fileDuration, isPremiumUser);
   }, [fileDuration, fileEndTime, fileStartTime, isPremiumUser, selectedFile]);
   const shouldDeferEditorSync = Boolean(appendEditorId);
+
+  useEffect(() => {
+    if (!router.isReady || inactiveReminderLandingTrackedRef.current) return;
+    if (router.query.source !== "inactive_signup_reminder") return;
+    const timing = Array.isArray(router.query.timing) ? router.query.timing[0] : router.query.timing;
+    if (timing !== "6h" && timing !== "24h" && timing !== "72h") return;
+    inactiveReminderLandingTrackedRef.current = true;
+    sendEvent(ANALYTICS_EVENTS.inactiveSignupReminderLanded, { timing_variant: timing });
+  }, [router.isReady, router.query.source, router.query.timing]);
 
   useEffect(() => {
     if (sessionStatus === "loading" || transcriptionModelTouchedRef.current) return;

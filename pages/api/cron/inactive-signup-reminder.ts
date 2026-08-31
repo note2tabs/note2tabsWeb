@@ -1,9 +1,13 @@
-import crypto from "crypto";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
 import { sendTransactionalEmail } from "../../../lib/email";
+import { createPostHogServerClient, flushPostHogServerClientInBackground } from "../../../lib/posthogServer";
 import {
-  INACTIVE_SIGNUP_REMINDER_DELAY_HOURS,
+  INACTIVE_SIGNUP_REMINDER_DELAYS,
+  INACTIVE_SIGNUP_REMINDER_MAX_AGE_DAYS,
+  assignInactiveSignupReminderVariant,
+  buildInactiveSignupExperimentToken,
+  buildInactiveSignupHoldoutIdentifier,
   buildInactiveSignupReminderEmail,
   buildInactiveSignupReminderIdentifier,
 } from "../../../lib/inactiveSignupReminder";
@@ -27,6 +31,14 @@ function isAuthorized(req: NextApiRequest) {
   return authHeader === `Bearer ${secret}`;
 }
 
+function experimentEnabled() {
+  return process.env.INACTIVE_SIGNUP_REMINDER_EXPERIMENT_ENABLED === "true";
+}
+
+function isUniqueConstraintFailure(error: unknown) {
+  return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === "P2002");
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", ["GET", "POST"]);
@@ -38,89 +50,91 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const now = new Date();
-  const cutoff = new Date(now.getTime() - INACTIVE_SIGNUP_REMINDER_DELAY_HOURS * 60 * 60 * 1000);
+  const earliestDelayHours = 6;
+  const cutoff = new Date(now.getTime() - earliestDelayHours * 60 * 60 * 1000);
+  const newestAllowed = new Date(now.getTime() - INACTIVE_SIGNUP_REMINDER_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
   const batchSize = getBatchSize();
+  const dryRun = req.query.dryRun === "1" || !experimentEnabled();
 
-  const candidates = await prisma.user.findMany({
-    where: {
-      createdAt: { lte: cutoff },
-      tabs: { none: {} },
-    },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: "asc" },
-    take: batchSize,
-  });
+  // Exclude already-processed and activated accounts before LIMIT. The old
+  // query limited first and then skipped, allowing old rows to starve the queue.
+  const candidates = await prisma.$queryRaw<Array<{ id: string; email: string; name: string | null; createdAt: Date }>>`
+    SELECT u.id, u.email, u.name, u."createdAt"
+    FROM "User" u
+    WHERE u."createdAt" <= ${cutoff}
+      AND u."createdAt" >= ${newestAllowed}
+      AND NOT EXISTS (SELECT 1 FROM "TabJob" t WHERE t."userId" = u.id)
+      AND NOT EXISTS (SELECT 1 FROM canvases c WHERE c.user_id = u.id)
+      AND NOT EXISTS (
+        SELECT 1 FROM "VerificationToken" v
+        WHERE v.identifier IN (
+          'reminder:inactive-transcriber:' || u.id,
+          'experiment:inactive-transcriber-holdout:' || u.id
+        )
+      )
+    ORDER BY u."createdAt" ASC
+    LIMIT ${batchSize}
+  `;
 
   if (candidates.length === 0) {
     return res.status(200).json({
       ok: true,
+      dryRun,
       scanned: 0,
       sent: 0,
-      skippedAlreadySent: 0,
-      skippedEditorCreated: 0,
+      wouldSend: 0,
       skippedDeliveryDisabled: 0,
+      heldOut: 0,
+      waitingForAssignedDelay: 0,
+      sentByVariant: { "6h": 0, "24h": 0, "72h": 0 },
       failed: 0,
     });
   }
 
-  const candidateIds = candidates.map((user) => user.id);
-  const reminderIdentifiers = candidateIds.map((userId) =>
-    buildInactiveSignupReminderIdentifier(userId)
-  );
-
-  const [existingReminderMarkers, editorCanvases] = await Promise.all([
-    prisma.verificationToken.findMany({
-      where: {
-        identifier: {
-          in: reminderIdentifiers,
-        },
-      },
-      select: { identifier: true },
-    }),
-    prisma.canvases.findMany({
-      where: {
-        user_id: {
-          in: candidateIds,
-        },
-      },
-      select: { user_id: true },
-      distinct: ["user_id"],
-    }),
-  ]);
-
-  const reminderSentSet = new Set(existingReminderMarkers.map((marker) => marker.identifier));
-  const editorCreatedSet = new Set<string>();
-  for (const row of editorCanvases) {
-    editorCreatedSet.add(row.user_id);
-  }
-
   let sent = 0;
-  let skippedAlreadySent = 0;
-  let skippedEditorCreated = 0;
+  let wouldSend = 0;
+  let heldOut = 0;
+  let waitingForAssignedDelay = 0;
   let skippedDeliveryDisabled = 0;
   let failed = 0;
+  const sentByVariant = { "6h": 0, "24h": 0, "72h": 0 };
 
   for (const user of candidates) {
     const reminderIdentifier = buildInactiveSignupReminderIdentifier(user.id);
-
-    if (reminderSentSet.has(reminderIdentifier)) {
-      skippedAlreadySent += 1;
+    const variant = assignInactiveSignupReminderVariant(user.id);
+    if (variant === "holdout") {
+      heldOut += 1;
+      if (!dryRun) {
+        await prisma.verificationToken.create({
+          data: {
+            identifier: buildInactiveSignupHoldoutIdentifier(user.id),
+            token: buildInactiveSignupExperimentToken(user.id, variant),
+            expires: new Date(now.getTime() + REMINDER_MARKER_RETENTION_DAYS * 24 * 60 * 60 * 1000),
+          },
+        }).catch((error) => {
+          if (!isUniqueConstraintFailure(error)) throw error;
+        });
+      }
+      continue;
+    }
+    const delayHours = INACTIVE_SIGNUP_REMINDER_DELAYS[variant] || 0;
+    if (user.createdAt.getTime() + delayHours * 60 * 60 * 1000 > now.getTime()) {
+      waitingForAssignedDelay += 1;
       continue;
     }
 
-    if (editorCreatedSet.has(user.id)) {
-      skippedEditorCreated += 1;
-      continue;
-    }
-
-    const email = buildInactiveSignupReminderEmail({ name: user.name });
+    const email = buildInactiveSignupReminderEmail({ name: user.name, variant });
+    wouldSend += 1;
+    if (dryRun) continue;
 
     try {
+      await prisma.verificationToken.create({
+        data: {
+          identifier: reminderIdentifier,
+          token: buildInactiveSignupExperimentToken(user.id, variant),
+          expires: new Date(now.getTime() + REMINDER_MARKER_RETENTION_DAYS * 24 * 60 * 60 * 1000),
+        },
+      });
       const delivered = await sendTransactionalEmail({
         to: user.email,
         subject: email.subject,
@@ -130,20 +144,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (!delivered) {
         skippedDeliveryDisabled += 1;
+        await prisma.verificationToken.deleteMany({ where: { identifier: reminderIdentifier } });
         continue;
       }
 
-      await prisma.verificationToken.create({
-        data: {
-          identifier: reminderIdentifier,
-          token: crypto.randomBytes(32).toString("hex"),
-          expires: new Date(now.getTime() + REMINDER_MARKER_RETENTION_DAYS * 24 * 60 * 60 * 1000),
+      sent += 1;
+      sentByVariant[variant] += 1;
+      const posthog = createPostHogServerClient();
+      posthog?.capture({
+        distinctId: user.id,
+        event: "inactive_signup_reminder_sent",
+        properties: {
+          timing_variant: variant,
+          delay_hours: delayHours,
+          $insert_id: `inactive-signup-reminder:${user.id}`,
         },
       });
-
-      sent += 1;
+      if (posthog) flushPostHogServerClientInBackground(posthog);
     } catch (error) {
+      if (isUniqueConstraintFailure(error)) continue;
       failed += 1;
+      await prisma.verificationToken.deleteMany({ where: { identifier: reminderIdentifier } }).catch(() => {});
       console.error("inactive signup reminder send failed", {
         userId: user.id,
         email: user.email,
@@ -154,11 +175,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(200).json({
     ok: true,
+    dryRun,
     cutoff: cutoff.toISOString(),
     scanned: candidates.length,
     sent,
-    skippedAlreadySent,
-    skippedEditorCreated,
+    wouldSend,
+    heldOut,
+    waitingForAssignedDelay,
+    sentByVariant,
     skippedDeliveryDisabled,
     failed,
   });

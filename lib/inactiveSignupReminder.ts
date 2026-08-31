@@ -1,14 +1,28 @@
-export const INACTIVE_SIGNUP_REMINDER_DELAY_HOURS = 5;
+import crypto from "crypto";
+
 export const INACTIVE_SIGNUP_REMINDER_IDENTIFIER_PREFIX = "reminder:inactive-transcriber:";
+export const INACTIVE_SIGNUP_REMINDER_HOLDOUT_PREFIX = "experiment:inactive-transcriber-holdout:";
+export const INACTIVE_SIGNUP_REMINDER_MAX_AGE_DAYS = 14;
+
+export type InactiveSignupReminderVariant = "holdout" | "6h" | "24h" | "72h";
+
+export const INACTIVE_SIGNUP_REMINDER_DELAYS: Record<InactiveSignupReminderVariant, number | null> = {
+  holdout: null,
+  "6h": 6,
+  "24h": 24,
+  "72h": 72,
+};
 
 type BuildReminderEmailInput = {
   name?: string | null;
+  variant?: Exclude<InactiveSignupReminderVariant, "holdout">;
 };
 
 function baseUrl() {
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
-  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
-  return "http://localhost:3000";
+  return (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000").replace(
+    /\/$/,
+    ""
+  );
 }
 
 function escapeHtml(value: string) {
@@ -24,10 +38,27 @@ export function buildInactiveSignupReminderIdentifier(userId: string) {
   return `${INACTIVE_SIGNUP_REMINDER_IDENTIFIER_PREFIX}${userId}`;
 }
 
+export function buildInactiveSignupHoldoutIdentifier(userId: string) {
+  return `${INACTIVE_SIGNUP_REMINDER_HOLDOUT_PREFIX}${userId}`;
+}
+
+export function buildInactiveSignupExperimentToken(userId: string, variant: InactiveSignupReminderVariant) {
+  return crypto.createHash("sha256").update(`inactive-signup-email:${variant}:${userId}`).digest("hex");
+}
+
+export function assignInactiveSignupReminderVariant(userId: string): InactiveSignupReminderVariant {
+  const bucket = crypto.createHash("sha256").update(`inactive-signup-reminder:${userId}`).digest().readUInt32BE(0) % 100;
+  if (bucket < 20) return "holdout";
+  if (bucket < 47) return "6h";
+  if (bucket < 74) return "24h";
+  return "72h";
+}
+
 export function buildInactiveSignupReminderEmail(input: BuildReminderEmailInput = {}) {
   const firstName = (input.name || "").trim() || "there";
   const safeName = escapeHtml(firstName);
-  const transcriberUrl = `${baseUrl()}/transcribe`;
+  const variant = input.variant || "24h";
+  const transcriberUrl = `${baseUrl()}/transcribe?source=inactive_signup_reminder&timing=${variant}`;
   const subject = "Still interested in transcribing a song?";
   const text = `Hi ${firstName},
 

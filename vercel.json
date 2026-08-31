@@ -4,7 +4,7 @@
   "crons": [
     {
       "path": "/api/cron/inactive-signup-reminder",
-      "schedule": "0 21 * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron/tab-return-reminder",

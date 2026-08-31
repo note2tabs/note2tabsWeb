@@ -41,6 +41,7 @@ export const ANALYTICS_EVENTS = {
   signupCompleted: "signup_completed",
   signupFailed: "signup_failed",
   loginSucceeded: "login_succeeded",
+  inactiveSignupReminderLanded: "inactive_signup_reminder_landed",
   productHomeViewed: "product_home_viewed",
   uploadSelected: "upload_selected",
   uploadDropped: "upload_dropped",
