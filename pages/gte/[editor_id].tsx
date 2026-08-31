@@ -1398,6 +1398,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const previousTrackInstrumentSignatureRef = useRef<string | null>(null);
   const canvasUndoRef = useRef<CanvasSnapshot[]>([]);
   const canvasRedoRef = useRef<CanvasSnapshot[]>([]);
+  const canvasRef = useRef<CanvasSnapshot | null>(null);
+  const canvasRevisionRef = useRef(0);
   const trackSectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const [sharedTimelineBaseScale, setSharedTimelineBaseScale] = useState<number | undefined>(undefined);
 
@@ -1606,6 +1608,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!isGuestMode || !canvas) return;
     writeGuestCanvasDraft(canvas);
   }, [canvas, isGuestMode]);
+
+  useEffect(() => {
+    canvasRef.current = canvas;
+    if (canvas) canvasRevisionRef.current += 1;
+  }, [canvas]);
 
   useEffect(() => {
     if (!editorId) return;
@@ -1863,16 +1870,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const commitCanvasToBackend = useCallback(
     async (options?: { force?: boolean; keepalive?: boolean }) => {
-      if (!canvas) return;
+      const currentCanvas = canvasRef.current;
+      if (!currentCanvas) return;
       if (isGuestMode) {
         if (!options?.force && !hasPendingCommit) return;
         setSavingCanvas(true);
         setSaveError(null);
         try {
-          const res = await gteApi.applySnapshot(editorId, cloneCanvas(canvas));
+          const revisionAtStart = canvasRevisionRef.current;
+          const res = await gteApi.applySnapshot(editorId, cloneCanvas(currentCanvas));
+          if (revisionAtStart !== canvasRevisionRef.current) return;
           const normalized = preserveDrumLoopsAcrossCanvasUpdate(
-            normalizeCanvas((res as any).canvas ?? res.snapshot ?? canvas, editorId),
-            canvas
+            normalizeCanvas((res as any).canvas ?? res.snapshot ?? currentCanvas, editorId),
+            canvasRef.current || currentCanvas
           );
           setCanvas(normalized);
           setLastCommittedAt(normalized.updatedAt || new Date().toISOString());
@@ -1888,10 +1898,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setSavingCanvas(true);
       setSaveError(null);
       try {
+        const revisionAtStart = canvasRevisionRef.current;
         const res = await gteApi.commitEditor(editorId, { keepalive: options?.keepalive });
+        if (revisionAtStart !== canvasRevisionRef.current) return;
         const normalized = preserveDrumLoopsAcrossCanvasUpdate(
           normalizeCanvas(res.snapshot, editorId),
-          canvas
+          canvasRef.current || currentCanvas
         );
         setCanvas(normalized);
         setLastCommittedAt(normalized.updatedAt || new Date().toISOString());
@@ -1902,8 +1914,23 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         setSavingCanvas(false);
       }
     },
-    [canvas, cloneCanvas, editorId, hasPendingCommit, isGuestMode]
+    [cloneCanvas, editorId, hasPendingCommit, isGuestMode]
   );
+
+  const syncLatestCanvasBeforeStructuralMutation = useCallback(async () => {
+    const currentCanvas = canvasRef.current;
+    if (!currentCanvas || isGuestMode) return currentCanvas;
+    const response = await gteApi.applySnapshot(editorId, cloneCanvas(currentCanvas));
+    const synced = normalizeCanvas(
+      (response as any).canvas ?? response.snapshot ?? currentCanvas,
+      editorId
+    );
+    canvasRef.current = synced;
+    setCanvas(synced);
+    setHasPendingCommit(false);
+    setLastCommittedAt(synced.updatedAt || new Date().toISOString());
+    return synced;
+  }, [cloneCanvas, editorId, isGuestMode]);
 
   const syncCanvasDraftToBackend = useCallback(
     async (nextCanvas: CanvasSnapshot, options?: { silent?: boolean }) => {
@@ -1965,6 +1992,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         }
         return merged;
       });
+      canvasRevisionRef.current += 1;
       if (options?.markDirty !== false) {
         setHasPendingCommit(true);
       }
@@ -2253,11 +2281,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [applyCanvasUpdate, barSelection?.barIndices, canvas, editorId, isGuestMode, pendingMeterChange, timeSignatureSaving]);
 
   const handleAddLane = async (kind: "tab" | "chords" | "drums" = "tab") => {
-    if (!canvas || addingLane) return;
+    if (!canvasRef.current || addingLane) return;
     setAddingLane(true);
     setAddTrackMenuOpen(false);
     setError(null);
     try {
+      const latestCanvas = await syncLatestCanvasBeforeStructuralMutation();
+      if (!latestCanvas) return;
       const res = await gteApi.addCanvasEditor(editorId, undefined, {
         editorType: kind,
         trackType: kind,
@@ -2272,9 +2302,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             }
           : {}),
       });
-      const currentTimeSignature = normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8;
-      const currentTimeSignatureBottom = normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4;
-      const currentSecondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
+      const currentTimeSignature = normalizeTimeSignature(latestCanvas.editors[0]?.timeSignature) ?? 8;
+      const currentTimeSignatureBottom = normalizeTimeSignatureBottom(latestCanvas.editors[0]?.timeSignatureBottom) ?? 4;
+      const currentSecondsPerBar = Math.max(0.1, toNumber(latestCanvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
       const createdLaneId =
         res.editor?.id || res.canvas.editors[res.canvas.editors.length - 1]?.id;
       const nextCanvas = normalizeCanvas(
@@ -2566,14 +2596,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [canvas, isGuestMode]);
 
   const commitTrackMerge = useCallback(async () => {
-    if (!canvas || mergeTracksBusy || mergeTrackIds.length < 2) return;
-    const mergePlan = buildTrackMergePlan(canvas.editors, mergeTrackIds);
-    if (!mergePlan) return;
+    if (!canvasRef.current || mergeTracksBusy || mergeTrackIds.length < 2) return;
     setMergeTracksBusy(true);
     setError(null);
     try {
+      const latestCanvas = await syncLatestCanvasBeforeStructuralMutation();
+      if (!latestCanvas) return;
+      const mergePlan = buildTrackMergePlan(latestCanvas.editors, mergeTrackIds);
+      if (!mergePlan) return;
       const response = await gteApi.mergeTracks(editorId, {
-        expectedVersion: Math.max(1, Number(canvas.version) || 1),
+        expectedVersion: Math.max(1, Number(latestCanvas.version) || 1),
         laneIds: mergePlan.laneIds,
         name: mergePlan.name,
         keepOriginals: false,
@@ -2586,7 +2618,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     } finally {
       setMergeTracksBusy(false);
     }
-  }, [applyCanvasUpdate, canvas, editorId, mergeTrackIds, mergeTracksBusy]);
+  }, [applyCanvasUpdate, editorId, mergeTrackIds, mergeTracksBusy, syncLatestCanvasBeforeStructuralMutation]);
 
   const requestDeleteTrack = useCallback(
     (laneId: string) => {
