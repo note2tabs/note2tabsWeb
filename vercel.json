@@ -3,10 +3,6 @@
   "fluid": true,
   "crons": [
     {
-      "path": "/api/cron/inactive-signup-reminder",
-      "schedule": "15 12 * * *"
-    },
-    {
       "path": "/api/cron/tab-return-reminder",
       "schedule": "30 20 * * *"
     },

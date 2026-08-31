@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
 import { sendTransactionalEmail } from "../../../lib/email";
 import { createPostHogServerClient, flushPostHogServerClientInBackground } from "../../../lib/posthogServer";
+import { isAuthorizedSchedulerRequest } from "../../../lib/cloudSchedulerAuth";
 import {
   INACTIVE_SIGNUP_REMINDER_DELAYS,
   INACTIVE_SIGNUP_REMINDER_MAX_AGE_DAYS,
@@ -23,15 +24,6 @@ function getBatchSize() {
   return Math.max(1, Math.min(MAX_BATCH_SIZE, Math.round(raw)));
 }
 
-function isAuthorized(req: NextApiRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return process.env.NODE_ENV !== "production";
-  }
-  const authHeader = req.headers.authorization || "";
-  return authHeader === `Bearer ${secret}`;
-}
-
 function experimentEnabled() {
   return process.env.INACTIVE_SIGNUP_REMINDER_EXPERIMENT_ENABLED === "true";
 }
@@ -46,12 +38,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  if (!isAuthorized(req)) {
+  const authorized =
+    process.env.NODE_ENV !== "production" && !process.env.CRON_SECRET
+      ? true
+      : await isAuthorizedSchedulerRequest(req.headers.authorization);
+  if (!authorized) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
   const now = new Date();
-  const earliestDelayHours = 24;
+  const earliestDelayHours = 6;
   const cutoff = new Date(now.getTime() - earliestDelayHours * 60 * 60 * 1000);
   const newestAllowed = new Date(now.getTime() - INACTIVE_SIGNUP_REMINDER_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
   const batchSize = getBatchSize();
@@ -88,7 +84,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       heldOut: 0,
       waitingForAssignedDelay: 0,
       skippedExpiredWindow: 0,
-      sentByVariant: { "24h": 0, "48h": 0, "72h": 0 },
+      sentByVariant: { "6h": 0, "24h": 0, "72h": 0 },
       failed: 0,
     });
   }
@@ -100,7 +96,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let skippedExpiredWindow = 0;
   let skippedDeliveryDisabled = 0;
   let failed = 0;
-  const sentByVariant = { "24h": 0, "48h": 0, "72h": 0 };
+  const sentByVariant = { "6h": 0, "24h": 0, "72h": 0 };
 
   for (const user of candidates) {
     const reminderIdentifier = buildInactiveSignupReminderIdentifier(user.id);

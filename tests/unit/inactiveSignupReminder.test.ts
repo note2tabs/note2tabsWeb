@@ -12,7 +12,7 @@ describe("inactive signup reminder experiment", () => {
 
   it("assigns each user to one stable timing arm", () => {
     const variant = assignInactiveSignupReminderVariant("user-123");
-    expect(["holdout", "24h", "48h", "72h"]).toContain(variant);
+    expect(["holdout", "6h", "24h", "72h"]).toContain(variant);
     expect(assignInactiveSignupReminderVariant("user-123")).toBe(variant);
     expect(INACTIVE_SIGNUP_REMINDER_DELAYS[variant]).toBeDefined();
     expect(buildInactiveSignupHoldoutIdentifier("user-123")).toBe(

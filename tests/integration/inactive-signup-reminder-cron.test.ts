@@ -27,7 +27,7 @@ vi.mock("../../lib/posthogServer", () => ({
 
 import handler from "../../pages/api/cron/inactive-signup-reminder";
 
-function userForVariant(target: "holdout" | "24h" | "48h" | "72h") {
+function userForVariant(target: "holdout" | "6h" | "24h" | "72h") {
   for (let index = 0; index < 1000; index += 1) {
     const id = `user-${index}`;
     if (assignInactiveSignupReminderVariant(id) === target) return id;
@@ -111,10 +111,10 @@ describe("inactive signup reminder cron experiment", () => {
   it("never sends a reminder after its assigned delivery window", async () => {
     mocks.queryRaw.mockResolvedValue([
       {
-        id: userForVariant("24h"),
+        id: userForVariant("6h"),
         email: "late@example.com",
         name: "Late",
-        createdAt: new Date(Date.now() - 50 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 20 * 60 * 60 * 1000),
       },
     ]);
     const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
