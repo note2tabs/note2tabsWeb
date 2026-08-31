@@ -5,6 +5,7 @@ import {
   sanitizeAnalyticsProperties,
   sanitizeAnalyticsUrl,
   sanitizePostHogCapture,
+  classifyPostHogException,
 } from "../../lib/analyticsPrivacy";
 import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
 
@@ -82,6 +83,29 @@ describe("analytics privacy sanitization", () => {
     expect(exception?.properties.$exception_list).toEqual([
       { type: "TypeError", value: "Failed for [redacted-email]" },
     ]);
+    expect(exception?.properties).toMatchObject({
+      alert_eligible: true,
+      error_classification: "unexpected_application_error",
+    });
+  });
+
+  it("keeps expected user and validation states out of operational alerts", () => {
+    for (const message of [
+      "File is too large",
+      "Fret number is required",
+      "Insufficient credits",
+      "AbortError: user cancelled",
+      "Failed to fetch while offline",
+    ]) {
+      expect(classifyPostHogException([{ type: "Error", value: message }])).toEqual({
+        alertEligible: false,
+        classification: "expected_product_state",
+      });
+    }
+    expect(classifyPostHogException([{ type: "TypeError", value: "Cannot read properties of undefined" }])).toEqual({
+      alertEligible: true,
+      classification: "unexpected_application_error",
+    });
   });
 
   it("preserves deeply nested session replay snapshots", () => {

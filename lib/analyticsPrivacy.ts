@@ -241,6 +241,37 @@ function sanitizeExceptionValue(value: unknown, depth = 0): unknown {
   return value;
 }
 
+const EXPECTED_EXCEPTION_PATTERNS = [
+  /file (?:is )?too large|payload too large|maximum file size|\b413\b/i,
+  /fret (?:number )?(?:is )?(?:missing|required|invalid)/i,
+  /validation|invalid (?:input|email|password|format|time|range|url)/i,
+  /not authenticated|unauthori[sz]ed|forbidden|sign in|required.*account|\b40[13]\b/i,
+  /insufficient credits|quota|limit (?:reached|exceeded)|rate limit|too many requests|\b429\b/i,
+  /aborterror|operation was aborted|user cancelled|user canceled/i,
+  /failed to fetch|networkerror|network request failed|internet connection|offline/i,
+  /resizeobserver loop/i,
+];
+
+function exceptionText(value: unknown, depth = 0): string {
+  if (depth > 8) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map((item) => exceptionText(item, depth + 1)).join(" ");
+  if (value && typeof value === "object") {
+    return Object.values(value as Record<string, unknown>)
+      .map((item) => exceptionText(item, depth + 1))
+      .join(" ");
+  }
+  return "";
+}
+
+export function classifyPostHogException(exceptionList: unknown) {
+  const text = exceptionText(exceptionList);
+  if (EXPECTED_EXCEPTION_PATTERNS.some((pattern) => pattern.test(text))) {
+    return { alertEligible: false, classification: "expected_product_state" } as const;
+  }
+  return { alertEligible: true, classification: "unexpected_application_error" } as const;
+}
+
 export function sanitizePostHogCapture(result: CaptureResult | null): CaptureResult | null {
   if (!result) return null;
   // Session replay payloads contain deeply nested rrweb DOM trees. Running them
@@ -251,6 +282,9 @@ export function sanitizePostHogCapture(result: CaptureResult | null): CaptureRes
   const properties = sanitizeAnalyticsProperties(result.properties);
   if (result.event === "$exception" && result.properties?.$exception_list) {
     properties.$exception_list = sanitizeExceptionValue(result.properties.$exception_list);
+    const classification = classifyPostHogException(result.properties.$exception_list);
+    properties.alert_eligible = classification.alertEligible;
+    properties.error_classification = classification.classification;
   }
   return {
     ...result,
