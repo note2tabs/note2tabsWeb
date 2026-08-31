@@ -41,6 +41,8 @@ Every transcription start, queue, immediate success, and immediate failure now c
 
 The job completion event carries the available model, duration, source mode, separation, and multi-guitar properties. This permits comparable cohorts instead of mixing materially different recordings.
 
+Tab-return reminder landings emit `tab_return_reminder_landed`. Processed treatment and holdout assignments are excluded before the hourly batch limit, preventing old assignments from starving newer eligible users.
+
 The in-product intent prompt emits:
 
 - `retention_intent_prompt_shown`
@@ -55,6 +57,17 @@ Two dashboard tiles should only be created after their source events have arrive
 2. Inactive-signup randomized assignment → first transcription → D7/D14 retention, broken down by `timing_variant`, including the holdout.
 
 Creating these before the events exist would produce an apparently valid but empty report. Their event producers already exist; verify the first events, then add the tiles.
+
+## Suggestions intentionally deferred until results
+
+- Choose the winning inactive-signup reminder timing from the randomized 6h/24h/72h/holdout cohorts.
+- Increase, reduce, or stop the tab-return reminder rollout based on landing, meaningful return, and unsubscribe/complaint signals.
+- Personalize onboarding or lifecycle messaging by stated intent only after each intent has enough activation and retention observations.
+- Change model positioning or defaults only after adjusted Heavy/Light cohorts are large enough; the current comparison is observational.
+- Prioritize acquisition sources using retained-user outcomes after the smaller source cohorts mature.
+- Run qualitative follow-up only with appropriately contactable users and after behavioral segments identify a focused question.
+
+Editor activation-path changes remain outside this branch because that work has been handed to the editor redesign owner.
 
 ## Decision rules
 

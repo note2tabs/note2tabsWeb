@@ -94,6 +94,15 @@ describe("tab return reminder cron", () => {
 
     expect(JSON.parse(res._getData())).toMatchObject({ eligible: 1, heldOut: 1, sent: 0 });
     expect(mocks.sendEmail).not.toHaveBeenCalled();
+    expect(mocks.createMarkers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [expect.objectContaining({
+          identifier: "reminder:return-to-tab:user-1:tab-1",
+          token: expect.stringMatching(/:holdout$/),
+        })],
+        skipDuplicates: true,
+      })
+    );
     expect(mocks.capture).toHaveBeenCalledWith(
       expect.objectContaining({
         event: "tab_return_reminder_assigned",

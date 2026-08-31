@@ -42,6 +42,7 @@ export const ANALYTICS_EVENTS = {
   signupFailed: "signup_failed",
   loginSucceeded: "login_succeeded",
   inactiveSignupReminderLanded: "inactive_signup_reminder_landed",
+  tabReturnReminderLanded: "tab_return_reminder_landed",
   productHomeViewed: "product_home_viewed",
   retentionIntentPromptShown: "retention_intent_prompt_shown",
   retentionIntentSelected: "retention_intent_selected",

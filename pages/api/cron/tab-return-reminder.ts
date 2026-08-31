@@ -79,9 +79,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     INNER JOIN "User" u ON u.id = c.user_id
     WHERE c.updated_at <= ${inactiveBefore}
       AND c.updated_at >= ${oldestEligible}
-      AND u."lastActiveAt" <= ${inactiveBefore}
+      AND (u."lastActiveAt" IS NULL OR u."lastActiveAt" <= ${inactiveBefore})
       AND (u."emailVerifiedBool" = TRUE OR u."emailVerified" IS NOT NULL)
       AND c.draft_revision >= 2
+      AND NOT EXISTS (
+        SELECT 1 FROM "VerificationToken" v
+        WHERE v.expires > ${now}
+          AND v.identifier IN (
+            'reminder:return-to-tab:' || c.user_id || ':' || c.canvas_id,
+            'reminder:return-to-tab-cooldown:' || c.user_id
+          )
+      )
       AND EXISTS (
         SELECT 1 FROM lane_notes n
         WHERE n.user_id = c.user_id AND n.canvas_id = c.canvas_id
@@ -129,6 +137,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
     if (!included) {
       heldOut += 1;
+      await prisma.verificationToken.createMany({
+        data: [{
+          identifier: reminderIdentifier,
+          token: `${buildTabReturnMarkerToken(canvas.user_id, canvas.canvas_id)}:holdout`,
+          expires: new Date(now.getTime() + PER_TAB_MARKER_DAYS * 24 * 60 * 60 * 1000),
+        }],
+        skipDuplicates: true,
+      });
       continue;
     }
 
