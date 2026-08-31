@@ -68,7 +68,7 @@ describe("inactive signup reminder cron experiment", () => {
         id: userForVariant("24h"),
         email: "player@example.com",
         name: "Player",
-        createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 26 * 60 * 60 * 1000),
       },
     ]);
     const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
@@ -86,7 +86,7 @@ describe("inactive signup reminder cron experiment", () => {
         id: userId,
         email: "player@example.com",
         name: "Player",
-        createdAt: new Date(Date.now() - 80 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 76 * 60 * 60 * 1000),
       },
     ]);
     const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
@@ -106,5 +106,21 @@ describe("inactive signup reminder cron experiment", () => {
         properties: expect.objectContaining({ timing_variant: "72h", delay_hours: 72 }),
       })
     );
+  });
+
+  it("never sends a reminder after its assigned delivery window", async () => {
+    mocks.queryRaw.mockResolvedValue([
+      {
+        id: userForVariant("6h"),
+        email: "late@example.com",
+        name: "Late",
+        createdAt: new Date(Date.now() - 20 * 60 * 60 * 1000),
+      },
+    ]);
+    const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
+    await handler(req, res);
+
+    expect(JSON.parse(res._getData())).toMatchObject({ skippedExpiredWindow: 1, sent: 0 });
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 });

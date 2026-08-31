@@ -5,6 +5,7 @@ import { createPostHogServerClient, flushPostHogServerClientInBackground } from 
 import {
   INACTIVE_SIGNUP_REMINDER_DELAYS,
   INACTIVE_SIGNUP_REMINDER_MAX_AGE_DAYS,
+  INACTIVE_SIGNUP_REMINDER_MAX_LATENESS_HOURS,
   assignInactiveSignupReminderVariant,
   buildInactiveSignupExperimentToken,
   buildInactiveSignupHoldoutIdentifier,
@@ -86,6 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       skippedDeliveryDisabled: 0,
       heldOut: 0,
       waitingForAssignedDelay: 0,
+      skippedExpiredWindow: 0,
       sentByVariant: { "6h": 0, "24h": 0, "72h": 0 },
       failed: 0,
     });
@@ -95,6 +97,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let wouldSend = 0;
   let heldOut = 0;
   let waitingForAssignedDelay = 0;
+  let skippedExpiredWindow = 0;
   let skippedDeliveryDisabled = 0;
   let failed = 0;
   const sentByVariant = { "6h": 0, "24h": 0, "72h": 0 };
@@ -118,8 +121,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       continue;
     }
     const delayHours = INACTIVE_SIGNUP_REMINDER_DELAYS[variant] || 0;
-    if (user.createdAt.getTime() + delayHours * 60 * 60 * 1000 > now.getTime()) {
+    const ageHours = (now.getTime() - user.createdAt.getTime()) / (60 * 60 * 1000);
+    if (ageHours < delayHours) {
       waitingForAssignedDelay += 1;
+      continue;
+    }
+    if (ageHours > delayHours + INACTIVE_SIGNUP_REMINDER_MAX_LATENESS_HOURS) {
+      skippedExpiredWindow += 1;
       continue;
     }
 
@@ -182,6 +190,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     wouldSend,
     heldOut,
     waitingForAssignedDelay,
+    skippedExpiredWindow,
     sentByVariant,
     skippedDeliveryDisabled,
     failed,

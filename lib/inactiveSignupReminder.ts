@@ -2,7 +2,8 @@ import crypto from "crypto";
 
 export const INACTIVE_SIGNUP_REMINDER_IDENTIFIER_PREFIX = "reminder:inactive-transcriber:";
 export const INACTIVE_SIGNUP_REMINDER_HOLDOUT_PREFIX = "experiment:inactive-transcriber-holdout:";
-export const INACTIVE_SIGNUP_REMINDER_MAX_AGE_DAYS = 14;
+export const INACTIVE_SIGNUP_REMINDER_MAX_AGE_DAYS = 4;
+export const INACTIVE_SIGNUP_REMINDER_MAX_LATENESS_HOURS = 6;
 
 export type InactiveSignupReminderVariant = "holdout" | "6h" | "24h" | "72h";
 
