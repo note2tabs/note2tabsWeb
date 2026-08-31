@@ -113,6 +113,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }).catch((error) => {
           if (!isUniqueConstraintFailure(error)) throw error;
         });
+        const posthog = createPostHogServerClient();
+        posthog?.capture({
+          distinctId: user.id,
+          event: "inactive_signup_reminder_assigned",
+          properties: {
+            timing_variant: variant,
+            experiment_group: "holdout",
+            $insert_id: `inactive-signup-reminder-assigned:${user.id}`,
+          },
+        });
+        if (posthog) flushPostHogServerClientInBackground(posthog);
       }
       continue;
     }
@@ -155,6 +166,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       sent += 1;
       sentByVariant[variant] += 1;
       const posthog = createPostHogServerClient();
+      posthog?.capture({
+        distinctId: user.id,
+        event: "inactive_signup_reminder_assigned",
+        properties: {
+          timing_variant: variant,
+          delay_hours: delayHours,
+          experiment_group: "treatment",
+          $insert_id: `inactive-signup-reminder-assigned:${user.id}`,
+        },
+      });
       posthog?.capture({
         distinctId: user.id,
         event: "inactive_signup_reminder_sent",

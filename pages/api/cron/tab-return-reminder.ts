@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { sendTransactionalEmail } from "../../../lib/email";
 import { prisma } from "../../../lib/prisma";
+import { isAuthorizedSchedulerRequest } from "../../../lib/cloudSchedulerAuth";
+import { createPostHogServerClient, flushPostHogServerClientInBackground } from "../../../lib/posthogServer";
 import {
   TAB_RETURN_REMINDER_COOLDOWN_DAYS,
   TAB_RETURN_REMINDER_DELAY_HOURS,
@@ -24,12 +26,6 @@ type CandidateCanvas = {
   email: string;
   user_name: string | null;
 };
-
-function isAuthorized(req: NextApiRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return process.env.NODE_ENV !== "production";
-  return req.headers.authorization === `Bearer ${secret}`;
-}
 
 function batchSize() {
   const parsed = Number(process.env.TAB_RETURN_REMINDER_BATCH_SIZE || DEFAULT_BATCH_SIZE);
@@ -56,13 +52,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader("Allow", ["GET", "POST"]);
     return res.status(405).json({ error: "Method not allowed" });
   }
-  if (!isAuthorized(req)) return res.status(401).json({ error: "Unauthorized" });
+  const authorized =
+    process.env.NODE_ENV !== "production" && !process.env.CRON_SECRET
+      ? true
+      : await isAuthorizedSchedulerRequest(req.headers.authorization);
+  if (!authorized) return res.status(401).json({ error: "Unauthorized" });
 
   const now = new Date();
   const inactiveBefore = new Date(now.getTime() - TAB_RETURN_REMINDER_DELAY_HOURS * 60 * 60 * 1000);
   const oldestEligible = new Date(now.getTime() - TAB_RETURN_REMINDER_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
   const dryRun = req.query.dryRun === "1" || !sendingEnabled();
   const rollout = rolloutPercent();
+  const posthog = dryRun ? null : createPostHogServerClient();
 
   // A meaningful candidate has musical content and more than an initial save.
   // DISTINCT ON keeps this to at most one (the most recent) tab per user.
@@ -116,7 +117,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     eligible += 1;
     if (dryRun) continue;
-    if (!isInTabReturnReminderRollout(canvas.user_id, canvas.canvas_id, rollout)) {
+    const included = isInTabReturnReminderRollout(canvas.user_id, canvas.canvas_id, rollout);
+    posthog?.capture({
+      distinctId: canvas.user_id,
+      event: "tab_return_reminder_assigned",
+      properties: {
+        experiment_group: included ? "treatment" : "holdout",
+        rollout_percent: rollout,
+        $insert_id: `tab-return-reminder-assigned:${canvas.user_id}:${canvas.canvas_id}`,
+      },
+    });
+    if (!included) {
       heldOut += 1;
       continue;
     }
@@ -165,6 +176,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue;
       }
       sent += 1;
+      posthog?.capture({
+        distinctId: canvas.user_id,
+        event: "tab_return_reminder_sent",
+        properties: {
+          rollout_percent: rollout,
+          delay_hours: TAB_RETURN_REMINDER_DELAY_HOURS,
+          $insert_id: `tab-return-reminder-sent:${canvas.user_id}:${canvas.canvas_id}`,
+        },
+      });
     } catch (error) {
       failed += 1;
       await prisma.verificationToken.deleteMany({
@@ -173,6 +193,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.error("tab return reminder send failed", { userId: canvas.user_id, canvasId: canvas.canvas_id, error });
     }
   }
+
+  if (posthog) flushPostHogServerClientInBackground(posthog);
 
   return res.status(200).json({
     ok: true,

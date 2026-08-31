@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   createMarkers: vi.fn(),
   deleteMarkers: vi.fn(),
   sendEmail: vi.fn(),
+  capture: vi.fn(),
 }));
 
 vi.mock("../../lib/prisma", () => ({
@@ -21,6 +22,10 @@ vi.mock("../../lib/prisma", () => ({
 }));
 
 vi.mock("../../lib/email", () => ({ sendTransactionalEmail: mocks.sendEmail }));
+vi.mock("../../lib/posthogServer", () => ({
+  createPostHogServerClient: () => ({ capture: mocks.capture }),
+  flushPostHogServerClientInBackground: () => undefined,
+}));
 
 import handler from "../../pages/api/cron/tab-return-reminder";
 
@@ -73,6 +78,9 @@ describe("tab return reminder cron", () => {
     expect(mocks.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({ to: "player@example.com", subject: "Continue working on Autumn fall" })
     );
+    expect(mocks.capture).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "tab_return_reminder_sent" })
+    );
   });
 
   it("keeps excluded users as a measurable holdout", async () => {
@@ -86,5 +94,11 @@ describe("tab return reminder cron", () => {
 
     expect(JSON.parse(res._getData())).toMatchObject({ eligible: 1, heldOut: 1, sent: 0 });
     expect(mocks.sendEmail).not.toHaveBeenCalled();
+    expect(mocks.capture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "tab_return_reminder_assigned",
+        properties: expect.objectContaining({ experiment_group: "holdout" }),
+      })
+    );
   });
 });

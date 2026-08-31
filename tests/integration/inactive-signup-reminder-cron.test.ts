@@ -59,6 +59,12 @@ describe("inactive signup reminder cron experiment", () => {
 
     expect(JSON.parse(res._getData())).toMatchObject({ heldOut: 1, sent: 0 });
     expect(mocks.sendEmail).not.toHaveBeenCalled();
+    expect(mocks.capture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "inactive_signup_reminder_assigned",
+        properties: expect.objectContaining({ experiment_group: "holdout", timing_variant: "holdout" }),
+      })
+    );
   });
 
   it("defaults to a non-sending dry run when the experiment is not enabled", async () => {
