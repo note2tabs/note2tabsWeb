@@ -1857,9 +1857,7 @@ export default function GteDrumWorkspace({
     <div
       data-gte-track="true"
       data-gte-timeline-control="true"
-      className={`relative space-y-2 overflow-hidden rounded-xl border bg-white p-2 ${
-        isActive ? "border-sky-300 ring-1 ring-sky-100" : "border-slate-200"
-      }`}
+      className="relative space-y-2 overflow-visible p-2"
       onMouseDown={onFocusWorkspace}
     >
       {editMenuPortalTarget

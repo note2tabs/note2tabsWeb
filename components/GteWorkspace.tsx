@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -477,6 +478,14 @@ const formatTimelineSecondLabel = (seconds: number) => {
   const minutes = Math.floor(safeSeconds / 60);
   const remainder = safeSeconds % 60;
   return `${minutes}:${String(remainder).padStart(2, "0")}`;
+};
+
+const formatPlaybackTimer = (seconds: number) => {
+  const totalMilliseconds = Math.max(0, Math.round((Number(seconds) || 0) * 1000));
+  const minutes = Math.floor(totalMilliseconds / 60_000);
+  const secondsPart = Math.floor((totalMilliseconds % 60_000) / 1000);
+  const milliseconds = totalMilliseconds % 1000;
+  return `${minutes}:${String(secondsPart).padStart(2, "0")}.${String(milliseconds).padStart(3, "0")}`;
 };
 
 const formatDurationSeconds = (seconds: number) => {
@@ -3092,7 +3101,7 @@ function ChordLaneWorkspace({
                   role="timer"
                   aria-label="Playback time"
                 >
-                  {formatTimelineSecondLabel(effectivePlayheadFrame / chordPlaybackFps)} / {formatTimelineSecondLabel(totalFrames / chordPlaybackFps)}
+                  {formatPlaybackTimer(effectivePlayheadFrame / chordPlaybackFps)} / {formatPlaybackTimer(totalFrames / chordPlaybackFps)}
                 </span>
               )}
               <div
@@ -4495,7 +4504,14 @@ export default function GteWorkspace({
     const labels = getStringLabelsForSnapshot(snapshot);
     return labels.length === 6 ? labels : DEFAULT_STRING_LABELS;
   }, [snapshot]);
-  const barCount = Math.max(1, Math.ceil(Math.max(1, effectiveTotalFrames) / framesPerMeasure));
+  const realBarCount = Math.max(1, Math.ceil(Math.max(1, effectiveTotalFrames) / framesPerMeasure));
+  // Moving the editing cursor just beyond the last stored bar reveals a temporary
+  // bar. It is presentation-only until an event is committed in it.
+  const virtualBarCount =
+    keyboardCursorVisible && keyboardGridCursor
+      ? Math.max(realBarCount, Math.floor(Math.max(0, keyboardGridCursor.time) / framesPerMeasure) + 1)
+      : realBarCount;
+  const barCount = Math.max(realBarCount, virtualBarCount);
   const fallbackBarBpm = secondsPerBarToBpm(secondsPerBar, timeSignature);
   const barBpmTitle = useCallback(
     (barIndex: number) =>
@@ -4512,12 +4528,11 @@ export default function GteWorkspace({
     sharedViewportBarCount !== undefined && Number.isFinite(sharedViewportBarCount)
       ? Math.max(1, Math.round(sharedViewportBarCount))
       : barCount;
-  const viewportBarCount = Math.max(barCount, normalizedSharedViewportBars);
-  const computedTotalFrames = barCount * framesPerMeasure;
+  const viewportBarCount = Math.min(barCount, normalizedSharedViewportBars);
   const viewportTotalFrames = viewportBarCount * framesPerMeasure;
-  const barsPerRow = Math.max(1, barCount);
+  const barsPerRow = Math.max(1, Math.min(barCount, normalizedSharedViewportBars));
   const rowFrames = framesPerMeasure * barsPerRow;
-  const rows = 1;
+  const rows = Math.max(1, Math.ceil(barCount / barsPerRow));
   const isMobileCanvasMode = mobileViewport && mobileMode === "canvas";
   const isMobileEditMode = mobileViewport && mobileMode === "edit";
   const showPlayingCoordinates = !isMobileCanvasMode;
@@ -4536,14 +4551,22 @@ export default function GteWorkspace({
       timelineViewport.scrollLeft + Math.max(14, Math.min(48, timelineViewport.clientWidth * 0.08))
     )
   );
-  const timelineWidth = Math.max(1, computedTotalFrames) * scale;
   const viewportTimelineWidth = Math.max(1, viewportTotalFrames) * scale;
+  const timelineWidth = viewportTimelineWidth;
   const timelineChromeWidth = viewportTimelineWidth + 40;
   const rowHeight = ROW_HEIGHT * 6;
   const coordinateBandHeight = showPlayingCoordinates ? CUT_SEGMENT_OFFSET + CUT_SEGMENT_HEIGHT : 0;
   const rowBlockHeight = rowHeight + coordinateBandHeight;
   const rowStride = rowBlockHeight + ROW_GAP;
-  const timelineHeight = rowBlockHeight;
+  const timelineHeight = rows * rowBlockHeight + Math.max(0, rows - 1) * ROW_GAP;
+  const lastRowIndex = rows - 1;
+  const lastRowBarCount = Math.max(0, barCount - lastRowIndex * barsPerRow);
+  const addBarStartsNewRow = lastRowBarCount >= barsPerRow;
+  const addBarLeft = addBarStartsNewRow ? 0 : lastRowBarCount * framesPerMeasure * scale + 10;
+  const addBarTop =
+    TIMELINE_BAR_HEADER_HEIGHT +
+    (addBarStartsNewRow ? rows * rowStride : lastRowIndex * rowStride) +
+    Math.max(0, Math.round(rowHeight / 2) - 14);
   const timelineEnd = barCount * framesPerMeasure;
   const snapThresholdFrames = Math.max(1, Math.round(4 / Math.max(1, scale)));
   const playbackFps = fps;
@@ -4942,15 +4965,6 @@ export default function GteWorkspace({
     values.add(Math.round(effectivePlaybackSpeed * 100) / 100);
     return [...values].sort((left, right) => left - right);
   }, [effectivePlaybackSpeed]);
-  const timelineSecondMarks = useMemo(() => {
-    if (playbackFps <= 0 || timelineEnd <= 0) return [];
-    const totalSeconds = Math.floor(timelineEnd / playbackFps);
-    return Array.from({ length: totalSeconds + 1 }, (_, second) => ({
-      second,
-      left: second * playbackFps * scale,
-      isLabel: second % 5 === 0,
-    }));
-  }, [playbackFps, scale, timelineEnd]);
   const tabViewSecondMarks = useMemo(() => {
     if (playbackFps <= 0 || framesPerMeasure <= 0 || editorTabView.barCount <= 0) return [];
     const totalFrames = editorTabView.barCount * framesPerMeasure;
@@ -4965,6 +4979,11 @@ export default function GteWorkspace({
     }));
   }, [editorTabView.barCount, editorTabView.barWidth, framesPerMeasure, playbackFps]);
   const timelineRenderWindow = useMemo(() => {
+    // Stacked rows are all visible through page scrolling, not horizontal
+    // scrolling. Do not cull later rows using the first row's scroll window.
+    if (rows > 1) {
+      return { startFrame: 0, endFrame: timelineEnd };
+    }
     const safeScale = Math.max(0.0001, scale);
     const fallbackClientWidth = Math.min(
       viewportTimelineWidth,
@@ -4977,7 +4996,7 @@ export default function GteWorkspace({
       startFrame: Math.max(0, Math.floor(leftPx / safeScale)),
       endFrame: Math.min(timelineEnd, Math.ceil(rightPx / safeScale)),
     };
-  }, [framesPerMeasure, scale, timelineEnd, timelineViewport.clientWidth, timelineViewport.scrollLeft, viewportTimelineWidth]);
+  }, [framesPerMeasure, rows, scale, timelineEnd, timelineViewport.clientWidth, timelineViewport.scrollLeft, viewportTimelineWidth]);
   const selectedNoteIdSet = useMemo(() => new Set(selectedNoteIds), [selectedNoteIds]);
   const selectedChordIdSet = useMemo(() => new Set(selectedChordIds), [selectedChordIds]);
   const pinnedVisibleNoteIds = useMemo(() => {
@@ -5003,18 +5022,23 @@ export default function GteWorkspace({
   }, [pinnedVisibleChordIds, snapshot.chords, timelineRenderWindow]);
   const visibleCanvasBarIndices = useMemo(() => {
     const first = Math.max(0, Math.floor(timelineRenderWindow.startFrame / framesPerMeasure));
-    const last = Math.min(barCount - 1, Math.floor(timelineRenderWindow.endFrame / framesPerMeasure));
+    const last = Math.min(realBarCount - 1, Math.floor(timelineRenderWindow.endFrame / framesPerMeasure));
     const indexes = new Set(
       Array.from({ length: Math.max(0, last - first + 1) }, (_, offset) => first + offset)
     );
     selectedBarIndices.forEach((index) => {
-      if (index >= 0 && index < barCount) indexes.add(index);
+      if (index >= 0 && index < realBarCount) indexes.add(index);
     });
     return [...indexes].sort((left, right) => left - right);
-  }, [barCount, framesPerMeasure, selectedBarIndices, timelineRenderWindow]);
+  }, [framesPerMeasure, realBarCount, selectedBarIndices, timelineRenderWindow]);
   const visibleCanvasBarDropIndices = useMemo(() => {
     const first = Math.max(0, Math.floor(timelineRenderWindow.startFrame / framesPerMeasure));
-    const last = Math.min(barCount, Math.ceil(timelineRenderWindow.endFrame / framesPerMeasure));
+    const last = Math.min(realBarCount, Math.ceil(timelineRenderWindow.endFrame / framesPerMeasure));
+    return Array.from({ length: Math.max(0, last - first + 1) }, (_, offset) => first + offset);
+  }, [framesPerMeasure, realBarCount, timelineRenderWindow]);
+  const visibleGridBarIndices = useMemo(() => {
+    const first = Math.max(0, Math.floor(timelineRenderWindow.startFrame / framesPerMeasure));
+    const last = Math.min(barCount - 1, Math.floor(timelineRenderWindow.endFrame / framesPerMeasure));
     return Array.from({ length: Math.max(0, last - first + 1) }, (_, offset) => first + offset);
   }, [barCount, framesPerMeasure, timelineRenderWindow]);
   const visibleNoteIdSet = useMemo(() => new Set(visibleNotes.map((note) => note.id)), [visibleNotes]);
@@ -5115,16 +5139,6 @@ export default function GteWorkspace({
       setPlayheadFrame(normalized);
     },
     [globalPlaybackTimelineEnd, onGlobalPlaybackFrameChange, timelineEnd, useExternalPlayback]
-  );
-  const handleTimelineRulerMouseDown = useCallback(
-    (event: ReactMouseEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const rect = event.currentTarget.getBoundingClientRect();
-      const localX = Math.max(0, Math.min(event.clientX - rect.left, timelineWidth));
-      setEffectivePlayheadFrame(Math.round(localX / Math.max(0.0001, scale)));
-    },
-    [scale, setEffectivePlayheadFrame, timelineWidth]
   );
   const handleTabViewRulerMouseDown = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -5336,7 +5350,8 @@ export default function GteWorkspace({
     };
   }, []);
 
-  const getRowBarCount = (rowIndex: number) => (rowIndex === 0 ? barsPerRow : 0);
+  const getRowBarCount = (rowIndex: number) =>
+    Math.max(0, Math.min(barsPerRow, barCount - rowIndex * barsPerRow));
 
   const getCurrentPlayheadFrame = useCallback(() => {
     const rawFrame = useExternalPlayback ? readExternalPlaybackFrame() : playheadFrameRef.current;
@@ -5831,20 +5846,23 @@ export default function GteWorkspace({
 
   useEffect(() => {
     const activeId = activeChordIds[0];
-    if (activeId !== undefined) {
-      const resolvedId = activeId < 0 ? chordIdMapRef.current.get(activeId) ?? activeId : activeId;
-      if (resolvedId < 0) {
-        setChordAlternatives([]);
-        return;
-      }
-      void gteApi
-        .getChordAlternatives(editorId, resolvedId)
-        .then((data) => setChordAlternatives(data.alternatives || []))
-        .catch(() => setChordAlternatives([]));
-    } else {
+    if (activeId === undefined) {
       setChordAlternatives([]);
+      return;
     }
-  }, [editorId, activeChordIds]);
+    const resolvedId = activeId < 0 ? chordIdMapRef.current.get(activeId) ?? activeId : activeId;
+    const chord = snapshot.chords.find((item) => item.id === resolvedId);
+    if (!chord) {
+      setChordAlternatives([]);
+      return;
+    }
+    // This mirrors the backend's alternative-fingering search while using the
+    // live client snapshot, so tuning, fret limits, and octave edits are
+    // reflected immediately instead of waiting for a separate API response.
+    const midiContents = getBackendStyleChordMidis(snapshot, chord);
+    const playCoord = getCutCoordAtTime(snapshot, chord.startTime);
+    setChordAlternatives(createBackendStyleChordAlternatives(snapshot, midiContents, playCoord));
+  }, [activeChordIds, snapshot]);
 
   useEffect(() => {
     setSelectedNoteIds((prev) => prev.filter((id) => snapshot.notes.some((note) => note.id === id)));
@@ -8241,19 +8259,11 @@ export default function GteWorkspace({
         const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, 5);
         const rawStartTime = Math.round(current.startX / scale) + rowStart;
         const startTime = clamp(snapStartTimeToGrid(rawStartTime), rowStart, rowStart + availableFrames - 1);
-        const defaultLength = lastAddedNoteLengthRef.current;
-        setDraftNote({
-          stringIndex,
-          startTime,
-          length: defaultLength,
-          fret: null,
-        });
-        if (timelineRef.current) {
-          const rect = timelineRef.current.getBoundingClientRect();
-          setDraftNoteAnchor({ x: rect.left + current.startX, y: rect.top + current.startY });
-        } else {
-          setDraftNoteAnchor({ x: current.startX, y: current.startY });
-        }
+        setKeyboardGridCursor({ time: startTime, stringIndex });
+        setKeyboardCursorVisible(true);
+        setKeyboardAddMode(null);
+        setDraftNote(null);
+        setDraftNoteAnchor(null);
       } else {
         const minX = Math.min(current.startX, current.endX);
         const maxX = Math.max(current.startX, current.endX);
@@ -8932,6 +8942,10 @@ export default function GteWorkspace({
     const rawTab: TabCoord = [draftNote.stringIndex, fret];
     const tab = snapTabToKeyIfEnabled(snapshotRef.current, rawTab);
     const tempId = getTempNoteId();
+    const nextTotalFrames = Math.max(
+      framesPerMeasure,
+      Math.ceil((snapped.startTime + snapped.length) / framesPerMeasure) * framesPerMeasure
+    );
     playNotePreview(tab);
     enqueueOptimisticMutation({
       label: "add-note",
@@ -8945,15 +8959,21 @@ export default function GteWorkspace({
           tab: [tab[0], tab[1]],
           optimals: [],
         });
+        draft.totalFrames = Math.max(Number(draft.totalFrames || 0), nextTotalFrames);
         return draft;
       },
-      commit: () =>
-        gteApi.addNote(editorId, {
+      commit: async () => {
+        const added = await gteApi.addNote(editorId, {
           tab,
           startTime: snapped.startTime,
           length: snapped.length,
           snapToGrid: false,
-        }),
+        });
+        if (!added.snapshot || Number(added.snapshot.totalFrames || 0) >= nextTotalFrames) return added;
+        const expandedSnapshot = cloneSnapshot(added.snapshot);
+        expandedSnapshot.totalFrames = nextTotalFrames;
+        return gteApi.applySnapshot(editorId, expandedSnapshot);
+      },
     });
     setDraftNote(null);
     setDraftNoteAnchor(null);
@@ -11215,7 +11235,9 @@ export default function GteWorkspace({
 
   const getAdjacentKeyboardGridTime = useCallback(
     (time: number, direction: -1 | 1) => {
-      const maxTime = Math.max(0, timelineEnd - 1);
+      // Permit the cursor to land at the next bar boundary. That boundary
+      // materializes a temporary bar; its duration is not stored yet.
+      const maxTime = Math.max(0, timelineEnd);
       const safeTime = clamp(Math.round(time), 0, maxTime);
       const step = cursorSizeDenominatorToFrames(cursorSizeDenominator);
       const current = Math.round(Math.round(safeTime / step) * step);
@@ -11226,7 +11248,7 @@ export default function GteWorkspace({
 
   const snapKeyboardCursorTimeToGrid = useCallback(
     (time: number) => {
-      const maxTime = Math.max(0, timelineEnd - 1);
+      const maxTime = Math.max(0, timelineEnd);
       const safeTime = clamp(Math.round(time), 0, maxTime);
       const step = cursorSizeDenominatorToFrames(cursorSizeDenominator);
       return clamp(Math.round(Math.round(safeTime / step) * step), 0, maxTime);
@@ -11545,6 +11567,10 @@ export default function GteWorkspace({
       const snapped = snapNewNoteToGrid(cursor.time, rawLength);
       const tab = snapTabToKeyIfEnabled(snapshotRef.current, [cursor.stringIndex, fretValue]);
       const tempId = getTempNoteId();
+      const nextTotalFrames = Math.max(
+        framesPerMeasure,
+        Math.ceil((snapped.startTime + snapped.length) / framesPerMeasure) * framesPerMeasure
+      );
       enqueueOptimisticMutation({
         label: "keyboard-add-note",
         createdNotes: [{ tempId, signature: noteSignature(snapped.startTime, snapped.length, tab) }],
@@ -11557,15 +11583,21 @@ export default function GteWorkspace({
             tab: [tab[0], tab[1]],
             optimals: [],
           });
+          draft.totalFrames = Math.max(Number(draft.totalFrames || 0), nextTotalFrames);
           return draft;
         },
-        commit: () =>
-          gteApi.addNote(editorId, {
+        commit: async () => {
+          const added = await gteApi.addNote(editorId, {
             tab,
             startTime: snapped.startTime,
             length: snapped.length,
             snapToGrid: false,
-          }),
+          });
+          if (!added.snapshot || Number(added.snapshot.totalFrames || 0) >= nextTotalFrames) return added;
+          const expandedSnapshot = cloneSnapshot(added.snapshot);
+          expandedSnapshot.totalFrames = nextTotalFrames;
+          return gteApi.applySnapshot(editorId, expandedSnapshot);
+        },
       });
       showKeyboardCursor({ time: snapped.startTime, stringIndex: cursor.stringIndex });
       setKeyboardAddMode({ noteId: tempId, fretText: String(fretValue) });
@@ -11581,6 +11613,7 @@ export default function GteWorkspace({
       setChordMenuDraft(null);
     },
     [
+      cloneSnapshot,
       editorId,
       enqueueOptimisticMutation,
       getTempNoteId,
@@ -12717,10 +12750,10 @@ export default function GteWorkspace({
   const workspaceClass = embedded
     ? practiceMode
       ? "relative w-full min-w-0 max-w-full bg-white"
-      : `relative w-full min-w-0 max-w-full border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${
+      : `relative w-full min-w-0 max-w-full ${
         isMobileEditMode
           ? "flex h-full min-h-0 flex-col p-1.5"
-          : `${compactEmbeddedMobile ? "rounded-lg p-1.5" : "rounded-xl p-2"} space-y-2`
+          : `${compactEmbeddedMobile ? "p-1.5" : "p-2"} space-y-2`
       }`
     : "relative min-w-0 rounded-2xl border border-slate-200 bg-white p-5 space-y-5 -ml-3 w-[calc(100%+0.75rem)]";
 
@@ -13532,13 +13565,6 @@ export default function GteWorkspace({
         onFocusWorkspace?.();
       }}
     >
-      {embedded && isActive && !practiceMode && (
-        <div
-          className={`pointer-events-none absolute inset-0 z-10 border border-sky-300 ${
-            isMobileEditMode ? "" : compactEmbeddedMobile ? "rounded-lg" : "rounded-xl"
-          }`}
-        />
-      )}
       {editMenuPortalTarget
         ? createPortal(renderEditMenuPanel(), editMenuPortalTarget)
         : null}
@@ -14176,7 +14202,7 @@ export default function GteWorkspace({
                 role="timer"
                 aria-label="Playback time"
               >
-                {formatTimelineSecondLabel(effectivePlayheadFrame / playbackFps)} / {formatTimelineSecondLabel(timelineEnd / playbackFps)}
+                {formatPlaybackTimer(effectivePlayheadFrame / playbackFps)} / {formatPlaybackTimer(timelineEnd / playbackFps)}
               </span>
             )}
             {mobileViewport ? (
@@ -15001,7 +15027,7 @@ export default function GteWorkspace({
               }}
             />
           </div>
-          ) : (
+          ) : mobileViewport ? (
           <div
             ref={tabViewScrollRef}
             data-gte-shared-timeline="true"
@@ -15304,6 +15330,327 @@ export default function GteWorkspace({
               </div>}
             </div>
           </div>
+          ) : (
+          <div
+            ref={tabViewScrollRef}
+            data-gte-shared-timeline="true"
+            data-gte-tab-view="true"
+            data-gte-tab-score="true"
+            className="min-w-0 overflow-visible bg-white"
+          >
+            {(() => {
+              const tabRowHeight = TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height;
+              const tabScoreHeight = rows * tabRowHeight + Math.max(0, rows - 1) * ROW_GAP;
+              const lastRowBarCount = Math.max(0, editorTabView.barCount - (rows - 1) * barsPerRow);
+              const addBarStartsNewRow = lastRowBarCount >= barsPerRow;
+              const addBarRowIndex = addBarStartsNewRow ? rows : rows - 1;
+              const addBarLeft = addBarStartsNewRow
+                ? EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH
+                : EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
+                  (editorTabView.barStartXs[editorTabView.barCount] -
+                    editorTabView.barStartXs[(rows - 1) * barsPerRow]) +
+                  8;
+              const addBarTop =
+                addBarRowIndex * (tabRowHeight + ROW_GAP) +
+                TIMELINE_BAR_HEADER_HEIGHT +
+                Math.max(0, Math.round(editorTabView.height / 2) - 14);
+              const safeCursorFrame = clamp(Math.round(effectivePlayheadFrame), 0, timelineEnd);
+              const cursorRowIndex = clamp(Math.floor(safeCursorFrame / rowFrames), 0, rows - 1);
+
+              return (
+                <div
+                  className="relative min-w-full bg-white"
+                  style={{ height: tabScoreHeight + (addBarStartsNewRow ? 40 : 0) }}
+                >
+                  {Array.from({ length: rows }).map((_, rowIndex) => {
+                    const firstBar = rowIndex * barsPerRow;
+                    const endBar = Math.min(editorTabView.barCount, firstBar + barsPerRow);
+                    const rowBarCount = Math.max(0, endBar - firstBar);
+                    const sourceLeft = editorTabView.barStartXs[firstBar];
+                    const sourceRight = editorTabView.barStartXs[endBar];
+                    const rowContentWidth = Math.max(1, sourceRight - sourceLeft);
+                    const rowTop = rowIndex * (tabRowHeight + ROW_GAP);
+                    const rowBarIndices = Array.from({ length: rowBarCount }, (_, offset) => firstBar + offset);
+                    const blankEndBar = Math.min(endBar, trackOffsetBarCount);
+                    const blankWidth =
+                      blankEndBar > firstBar
+                        ? editorTabView.barStartXs[blankEndBar] - sourceLeft
+                        : 0;
+
+                    return (
+                      <div
+                        key={`desktop-tab-row-${rowIndex}`}
+                        className="absolute left-0 right-0"
+                        style={{ top: rowTop, height: tabRowHeight }}
+                      >
+                        {rowBarIndices
+                          .filter((barIndex) => barIndex >= trackOffsetBarCount)
+                          .map((barIndex) => {
+                            const selected = selectedBarIndexSet.has(barIndex);
+                            return (
+                              <button
+                                key={`desktop-tab-bar-${barIndex}`}
+                                type="button"
+                                data-bar-select="true"
+                                data-bar-select-editor={editorId}
+                                data-bar-index={barIndex}
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={(event) => handleBarSelection(barIndex, event)}
+                                onContextMenu={(event) => handleBarContextMenu(barIndex, event)}
+                                draggable={selected}
+                                onDragStart={(event) => handleSelectedBarDragStart(barIndex, event)}
+                                onDragEnd={handleSelectedBarDragEnd}
+                                className={`absolute top-0 z-20 flex items-center border-b px-2 text-[10px] font-medium ${
+                                  selected
+                                    ? "border-sky-200 bg-sky-50 text-sky-900"
+                                    : "border-slate-200 bg-slate-50/80 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                                }`}
+                                style={{
+                                  left:
+                                    EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
+                                    editorTabView.barStartXs[barIndex] -
+                                    sourceLeft,
+                                  width: editorTabView.barWidths[barIndex],
+                                  height: TIMELINE_BAR_HEADER_HEIGHT,
+                                }}
+                                title={barBpmTitle(barIndex)}
+                                aria-label={`Select Bar ${barIndex + 1}`}
+                              >
+                                {showBarNumbers ? <span className="truncate">Bar {barIndex + 1}</span> : null}
+                              </button>
+                            );
+                          })}
+
+                        {rowBarIndices.map((barIndex) => {
+                          const selected = selectedBarIndexSet.has(barIndex);
+                          if (!selected) return null;
+                          return (
+                            <div
+                              key={`desktop-tab-selected-${barIndex}`}
+                              aria-hidden="true"
+                              className="pointer-events-none absolute z-[1] bg-sky-50/70"
+                              style={{
+                                left:
+                                  EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
+                                  editorTabView.barStartXs[barIndex] -
+                                  sourceLeft,
+                                top: TIMELINE_BAR_HEADER_HEIGHT,
+                                width: editorTabView.barWidths[barIndex],
+                                height: editorTabView.height,
+                              }}
+                            />
+                          );
+                        })}
+
+                        {rowBarIndices.map((barIndex) =>
+                          Array.from({ length: Math.max(1, Math.round(timeSignature)) }, (_, beatIndex) => {
+                            const beatWidth = editorTabView.barWidths[barIndex] / Math.max(1, Math.round(timeSignature));
+                            const barLeft =
+                              EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
+                              editorTabView.barStartXs[barIndex] -
+                              sourceLeft;
+                            return (
+                              <Fragment key={`desktop-tab-grid-${barIndex}-${beatIndex}`}>
+                                {beatIndex > 0 ? (
+                                  <div
+                                    className="pointer-events-none absolute z-[2] w-px bg-slate-300/80"
+                                    style={{
+                                      left: barLeft + beatIndex * beatWidth,
+                                      top: TIMELINE_BAR_HEADER_HEIGHT,
+                                      height: editorTabView.height,
+                                    }}
+                                  />
+                                ) : null}
+                                <div
+                                  className="pointer-events-none absolute z-[2] w-px bg-slate-200/75"
+                                  style={{
+                                    left: barLeft + (beatIndex + 0.5) * beatWidth,
+                                    top: TIMELINE_BAR_HEADER_HEIGHT,
+                                    height: editorTabView.height,
+                                  }}
+                                />
+                              </Fragment>
+                            );
+                          })
+                        )}
+
+                        {Array.from({ length: rowBarCount + 1 }, (_, edgeOffset) => {
+                          const barIndex = firstBar + edgeOffset;
+                          return (
+                            <div
+                              key={`desktop-tab-edge-${rowIndex}-${barIndex}`}
+                              className="pointer-events-none absolute z-[3] w-px bg-slate-400"
+                              style={{
+                                left:
+                                  EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
+                                  editorTabView.barStartXs[barIndex] -
+                                  sourceLeft,
+                                top: TIMELINE_BAR_HEADER_HEIGHT,
+                                height: editorTabView.height,
+                              }}
+                            />
+                          );
+                        })}
+
+                        <div
+                          className="pointer-events-none absolute z-10 border-r border-slate-200 bg-white"
+                          style={{
+                            left: 0,
+                            top: TIMELINE_BAR_HEADER_HEIGHT,
+                            width: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
+                            height: editorTabView.height,
+                          }}
+                        >
+                          {editorTabView.strings.map((line, stringIndex) => (
+                            <span
+                              key={`desktop-tab-label-${rowIndex}-${stringIndex}`}
+                              className="absolute left-0 flex w-7 -translate-y-1/2 justify-end pr-1 text-[11px] font-medium text-slate-500"
+                              style={{ top: line.y }}
+                            >
+                              {line.label}
+                            </span>
+                          ))}
+                        </div>
+
+                        {editorTabView.strings.map((line, stringIndex) => (
+                          <div
+                            key={`desktop-tab-string-${rowIndex}-${stringIndex}`}
+                            className="pointer-events-none absolute z-[3] h-px bg-slate-400"
+                            style={{
+                              left: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
+                              width: rowContentWidth,
+                              top: TIMELINE_BAR_HEADER_HEIGHT + line.y,
+                            }}
+                          />
+                        ))}
+
+                        {editorTabView.effects
+                          .filter((effect) => Math.max(effect.x1, effect.x2) >= sourceLeft && Math.min(effect.x1, effect.x2) < sourceRight)
+                          .map((effect) => {
+                            const y = editorTabView.strings[effect.stringIndex]?.y ?? 0;
+                            const effectLeft = Math.max(sourceLeft, Math.min(effect.x1, effect.x2));
+                            const effectRight = Math.min(sourceRight, Math.max(effect.x1, effect.x2));
+                            return (
+                              <div
+                                key={`desktop-tab-effect-${rowIndex}-${effect.key}`}
+                                className="pointer-events-none absolute z-[5]"
+                                style={{
+                                  left: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + effectLeft - sourceLeft,
+                                  top: TIMELINE_BAR_HEADER_HEIGHT + y - 15,
+                                  width: Math.max(12, effectRight - effectLeft),
+                                }}
+                              >
+                                <div className="absolute left-0 right-0 top-2 h-px bg-slate-500" />
+                                <span className="absolute top-0 rounded-sm bg-white px-1 text-[10px] font-semibold text-slate-600">
+                                  {effect.label}
+                                </span>
+                              </div>
+                            );
+                          })}
+
+                        {editorTabView.placements
+                          .filter((placement) => placement.x >= sourceLeft && placement.x < sourceRight)
+                          .map((placement) => {
+                            const y = editorTabView.strings[placement.stringIndex]?.y ?? 0;
+                            return (
+                              <div
+                                key={`desktop-tab-placement-${rowIndex}-${placement.key}`}
+                                className="absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-sm bg-white px-1.5 py-0.5 text-[12px] font-semibold leading-none tabular-nums text-slate-900"
+                                style={{
+                                  left:
+                                    EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
+                                    placement.x -
+                                    sourceLeft,
+                                  top: TIMELINE_BAR_HEADER_HEIGHT + y,
+                                }}
+                              >
+                                {placement.fret}
+                              </div>
+                            );
+                          })}
+
+                        {blankWidth > 0 ? (
+                          <div
+                            data-track-offset-blank="true"
+                            className="absolute z-[30] overflow-hidden border-r border-slate-200 bg-white"
+                            style={{
+                              left: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
+                              top: TIMELINE_BAR_HEADER_HEIGHT,
+                              width: blankWidth,
+                              height: editorTabView.height,
+                            }}
+                          >
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-sky-600 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
+                              →
+                            </span>
+                          </div>
+                        ) : null}
+
+                        {rowBarIndices.flatMap((barIndex) => [barIndex, barIndex + 1]).filter(
+                          (insertIndex, index, values) =>
+                            values.indexOf(insertIndex) === index && insertIndex >= trackOffsetBarCount
+                        ).map((insertIndex) => {
+                          const isActiveDrop =
+                            Boolean(activeBarDrag && onRequestBarDrop) && barDropIndex === insertIndex;
+                          const dragEnabled = Boolean(activeBarDrag && onRequestBarDrop);
+                          return (
+                            <button
+                              key={`desktop-tab-drop-${rowIndex}-${insertIndex}`}
+                              type="button"
+                              aria-hidden={!dragEnabled}
+                              tabIndex={-1}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onDragOver={(event) => handleBarDropTargetDragOver(insertIndex, event)}
+                              onDragEnter={(event) => handleBarDropTargetDragOver(insertIndex, event)}
+                              onDrop={(event) => handleBarDropTargetDrop(insertIndex, event)}
+                              className={`absolute top-0 z-30 w-5 -translate-x-1/2 ${
+                                dragEnabled ? "pointer-events-auto" : "pointer-events-none"
+                              } ${isActiveDrop ? "bg-sky-500" : "bg-transparent"}`}
+                              style={{
+                                left:
+                                  EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
+                                  editorTabView.barStartXs[insertIndex] -
+                                  sourceLeft,
+                                height: tabRowHeight,
+                                opacity: dragEnabled ? (isActiveDrop ? 0.95 : 0.5) : 0,
+                              }}
+                            />
+                          );
+                        })}
+
+                        {rowIndex === cursorRowIndex ? (
+                          <div
+                            ref={tabViewCursorRef}
+                            className="pointer-events-none absolute z-20 w-[2px] rounded-full bg-rose-500"
+                            style={{
+                              left:
+                                EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
+                                editorTabView.cursorX -
+                                sourceLeft,
+                              top: TIMELINE_BAR_HEADER_HEIGHT + 3,
+                              height: Math.max(20, editorTabView.height - 6),
+                              transform: "translateX(-1px)",
+                            }}
+                          />
+                        ) : null}
+                      </div>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={handleAddBar}
+                    className="absolute z-40 flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white/95 text-base font-semibold text-slate-600 shadow-sm hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900"
+                    style={{ left: addBarLeft, top: addBarTop }}
+                    title="Add bar to end"
+                    aria-label="Add bar to end"
+                  >
+                    +
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
           )
         )}
         <div
@@ -15344,13 +15691,15 @@ export default function GteWorkspace({
             <div
               ref={timelineOuterRef}
               data-gte-shared-timeline="true"
-              className="hide-scrollbar min-w-0 overflow-x-auto overflow-y-hidden"
+              className="hide-scrollbar min-w-0 overflow-x-hidden overflow-y-visible"
               onScroll={handleTimelineOuterScroll}
             >
-              <div className="relative" style={{ width: timelineChromeWidth, paddingTop: TIMELINE_BAR_HEADER_HEIGHT }}>
+              <div className="relative" style={{ width: timelineChromeWidth, paddingTop: TIMELINE_BAR_HEADER_HEIGHT, paddingBottom: addBarStartsNewRow ? 40 : 0 }}>
                 {framesPerMeasure > 0 &&
                   visibleCanvasBarIndices.filter((barIndex) => barIndex >= trackOffsetBarCount).map((barIndex) => {
-                    const left = barIndex * framesPerMeasure * scale;
+                    const rowIndex = Math.floor(barIndex / barsPerRow);
+                    const rowTop = rowIndex * rowStride;
+                    const left = (barIndex % barsPerRow) * framesPerMeasure * scale;
                     const width = Math.max(1, framesPerMeasure * scale);
                     const selected = selectedBarIndexSet.has(barIndex);
                     return (
@@ -15379,7 +15728,7 @@ export default function GteWorkspace({
                             ? "bg-slate-200/90 text-slate-800"
                             : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-800"
                         }`}
-                        style={{ left, width, height: TIMELINE_BAR_HEADER_HEIGHT }}
+                        style={{ left, top: rowTop, width, height: TIMELINE_BAR_HEADER_HEIGHT }}
                         title={barBpmTitle(barIndex)}
                         aria-label={`Select Bar ${barIndex + 1}, ${formatTimingBpm(
                           getTimingBarBpm(timingMap, barIndex, fallbackBarBpm)
@@ -15442,8 +15791,8 @@ export default function GteWorkspace({
                   }}
                     className="absolute z-40 flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white/95 text-base font-semibold text-slate-600 shadow-sm hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900"
                     style={{
-                    left: Math.max(0, Math.min(timelineChromeWidth - 28, timelineWidth + 10)),
-                      top: TIMELINE_BAR_HEADER_HEIGHT + Math.max(0, Math.round(rowHeight / 2) - 14),
+                      left: Math.max(0, Math.min(timelineChromeWidth - 28, addBarLeft)),
+                      top: addBarTop,
                     }}
                   title="Add bar to end"
                   aria-label="Add bar to end"
@@ -15501,19 +15850,21 @@ export default function GteWorkspace({
                 )}
                 {selectedBarIndices.map((barIndex) => {
                   if (framesPerMeasure <= 0 || barIndex < 0 || barIndex >= barCount) return null;
-                  const left = barIndex * framesPerMeasure * scale;
+                  const rowIndex = Math.floor(barIndex / barsPerRow);
+                  const left = (barIndex % barsPerRow) * framesPerMeasure * scale;
                   const width = Math.max(1, framesPerMeasure * scale);
                   return (
                     <div
                       key={`bar-highlight-${barIndex}`}
                       className="absolute top-0 pointer-events-none bg-slate-300/28"
-                      style={{ left, width, height: rowHeight }}
+                      style={{ left, top: rowIndex * rowStride, width, height: rowHeight }}
                     />
                   );
                 })}
                 {selectedBarIndices.map((barIndex) => {
                   if (framesPerMeasure <= 0 || barIndex < 0 || barIndex >= barCount) return null;
-                  const left = barIndex * framesPerMeasure * scale;
+                  const rowIndex = Math.floor(barIndex / barsPerRow);
+                  const left = (barIndex % barsPerRow) * framesPerMeasure * scale;
                   const width = Math.max(1, framesPerMeasure * scale);
                   return (
                     <div
@@ -15521,7 +15872,7 @@ export default function GteWorkspace({
                       data-bar-select="true"
                       data-bar-select-editor={editorId}
                       className="absolute top-0 z-20 pointer-events-none bg-transparent"
-                      style={{ left, width, height: rowHeight }}
+                      style={{ left, top: rowIndex * rowStride, width, height: rowHeight }}
                       title={barBpmTitle(barIndex)}
                     />
                   );
@@ -15537,83 +15888,85 @@ export default function GteWorkspace({
                       {[...Array(6)].map((_, idx) => (
                         <div
                           key={`row-${rowIdx}-line-${idx}`}
-                          className="absolute left-0 border-t border-slate-200"
+                          className="absolute left-0 border-t border-slate-300"
                           style={{ top: idx * ROW_HEIGHT, width: rowWidth }}
                         />
                       ))}
                       {framesPerMeasure > 0 &&
                         rowBarCount > 0 &&
                         beatsPerBar > 1 &&
-                        visibleCanvasBarIndices.flatMap((barIndex) =>
+                        visibleGridBarIndices
+                          .filter((barIndex) => barIndex >= rowIdx * barsPerRow && barIndex < (rowIdx + 1) * barsPerRow)
+                          .flatMap((barIndex) =>
                           Array.from({ length: beatsPerBar - 1 }, (_, beatOffset) => {
-                            const beat = barIndex * beatsPerBar + beatOffset + 1;
+                            const beat = (barIndex % barsPerRow) * beatsPerBar + beatOffset + 1;
                             const left = beat * beatWidth;
                             return (
                               <div
                                 key={`row-${rowIdx}-beat-${beat}`}
-                                className="absolute top-0 h-full w-px pointer-events-none bg-slate-200/70"
+                                className="absolute top-0 h-full w-px pointer-events-none bg-slate-300/80"
                                 style={{ left, height: rowHeight }}
                               />
                             );
                           })
                         )}
                       {framesPerMeasure > 0 &&
-                        [...new Set(visibleCanvasBarIndices.flatMap((barIndex) => [barIndex, barIndex + 1]))].map((edgeIdx) => {
-                          const rawDividerX = edgeIdx * framesPerMeasure * scale;
+                        rowBarCount > 0 &&
+                        visibleGridBarIndices
+                          .filter((barIndex) => barIndex >= rowIdx * barsPerRow && barIndex < (rowIdx + 1) * barsPerRow)
+                          .flatMap((barIndex) =>
+                            Array.from({ length: beatsPerBar }, (_, beatOffset) => {
+                              const halfBeat =
+                                (barIndex % barsPerRow) * beatsPerBar + beatOffset + 0.5;
+                              return (
+                                <div
+                                  key={`row-${rowIdx}-half-beat-${barIndex}-${beatOffset}`}
+                                  className="pointer-events-none absolute top-0 h-full w-px bg-slate-200/75"
+                                  style={{ left: halfBeat * beatWidth, height: rowHeight }}
+                                />
+                              );
+                            })
+                          )}
+                      {framesPerMeasure > 0 &&
+                        [...new Set(visibleGridBarIndices.flatMap((barIndex) => [barIndex, barIndex + 1]))].map((edgeIdx) => {
+                          const rowStartBarIndex = rowIdx * barsPerRow;
+                          const rowEndBarIndex = rowStartBarIndex + rowBarCount;
+                          if (edgeIdx < rowStartBarIndex || edgeIdx > rowEndBarIndex) return null;
+                          const rawDividerX = (edgeIdx - rowStartBarIndex) * framesPerMeasure * scale;
                           const dividerX =
-                            edgeIdx === rowBarCount ? Math.max(0, rowWidth - 2) : rawDividerX;
-                          const isOuterEdge = edgeIdx === 0 || edgeIdx === rowBarCount;
+                            edgeIdx === rowEndBarIndex ? Math.max(0, rowWidth - 2) : rawDividerX;
+                          const isOuterEdge = edgeIdx === rowStartBarIndex || edgeIdx === rowEndBarIndex;
                           return (
                             <div
                               key={`row-${rowIdx}-bar-edge-${edgeIdx}`}
                               className={`absolute top-0 w-[2px] pointer-events-none ${
-                                isOuterEdge ? "bg-slate-300/90" : "bg-slate-400"
+                                isOuterEdge ? "bg-slate-400/90" : "bg-slate-500/85"
                               }`}
                               style={{ left: dividerX, height: rowHeight }}
                             />
                           );
                         })}
+                      {Array.from({ length: rowBarCount }, (_, barOffset) => rowIdx * barsPerRow + barOffset)
+                        .filter((barIndex) => barIndex >= realBarCount)
+                        .map((barIndex) => (
+                          <div
+                            key={`virtual-bar-${barIndex}`}
+                            aria-hidden="true"
+                            className="pointer-events-none absolute top-0 bg-white/55"
+                            style={{
+                              left: (barIndex % barsPerRow) * framesPerMeasure * scale,
+                              width: framesPerMeasure * scale,
+                              height: rowHeight,
+                            }}
+                          />
+                        ))}
                       <div
-                        className="absolute left-0 border-b border-slate-200"
+                        className="absolute left-0 border-b border-slate-300"
                         style={{ top: rowHeight, width: rowWidth }}
                       />
                     </div>
                   );
                 })}
-
-                {showPlayingCoordinates && showTimeRuler && (
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    className="absolute left-0 z-10 cursor-pointer border-t border-slate-200 bg-slate-50/80 text-[8px] text-slate-500"
-                    style={{ top: rowHeight, width: timelineWidth, height: CUT_SEGMENT_OFFSET }}
-                    title="Click to jump playback"
-                    aria-label="Timeline seconds ruler, starting at 0:00"
-                    onMouseDown={handleTimelineRulerMouseDown}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" && event.key !== " ") return;
-                      event.preventDefault();
-                      setEffectivePlayheadFrame(effectivePlayheadFrame);
-                    }}
-                  >
-                    {timelineSecondMarks.map(({ second, left, isLabel }) => (
-                      <div
-                        key={`timeline-second-${second}`}
-                        className="absolute bottom-0 border-l border-slate-300"
-                        style={{
-                          left,
-                          height: isLabel ? CUT_SEGMENT_OFFSET : 6,
-                        }}
-                      >
-                        {isLabel ? (
-                          <span className="absolute left-1 top-0.5 whitespace-nowrap font-medium leading-none text-slate-500">
-                            {formatTimelineSecondLabel(second)}
-                          </span>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                )}
 
                 {keyboardCursorMarker && (
                   <div

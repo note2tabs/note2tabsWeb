@@ -589,9 +589,11 @@ const formatBpm = (value: number) => {
 };
 
 const formatPlaybackTime = (seconds: number) => {
-  const safeSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
-  const minutes = Math.floor(safeSeconds / 60);
-  return `${minutes}:${String(safeSeconds % 60).padStart(2, "0")}`;
+  const totalMilliseconds = Math.max(0, Math.round((Number(seconds) || 0) * 1000));
+  const minutes = Math.floor(totalMilliseconds / 60_000);
+  const secondsPart = Math.floor((totalMilliseconds % 60_000) / 1000);
+  const milliseconds = totalMilliseconds % 1000;
+  return `${minutes}:${String(secondsPart).padStart(2, "0")}.${String(milliseconds).padStart(3, "0")}`;
 };
 
 const normalizeTrackVolume = (value: unknown) => {
@@ -1260,6 +1262,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [lastCommittedAt, setLastCommittedAt] = useState<string | null>(null);
   const [addingLane, setAddingLane] = useState(false);
   const [addTrackMenuOpen, setAddTrackMenuOpen] = useState(false);
+  const [desktopTrackMenuOpen, setDesktopTrackMenuOpen] = useState(false);
+  const [desktopTrackAddMenuOpen, setDesktopTrackAddMenuOpen] = useState(false);
+  const [desktopTrackSettingsCollapsed, setDesktopTrackSettingsCollapsed] = useState(false);
   const [deletingLaneId, setDeletingLaneId] = useState<string | null>(null);
   const [confirmDeleteTrackId, setConfirmDeleteTrackId] = useState<string | null>(null);
   const [mergeTracksDialogOpen, setMergeTracksDialogOpen] = useState(false);
@@ -1298,6 +1303,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   );
   const [generatePlayingCoordinatesRequest, setGeneratePlayingCoordinatesRequest] = useState(0);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
+  const desktopBarsPerRow = Math.max(1, Math.min(6, Math.round(400 / timelineZoomPercent)));
+  const setDesktopBarsPerRow = (value: number) => {
+    const nextBarsPerRow = Math.max(1, Math.min(6, Math.round(value)));
+    setTimelineZoomPercent(400 / nextBarsPerRow);
+  };
   const [globalPlaybackFrame, setGlobalPlaybackFrame] = useState(0);
   const [globalPlaybackCounterFrame, setGlobalPlaybackCounterFrame] = useState(0);
   const [globalPlaybackFrameRevision, setGlobalPlaybackFrameRevision] = useState(0);
@@ -1362,7 +1372,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const practiceRootRef = useRef<HTMLElement | null>(null);
   const practiceSettingsHydratedRef = useRef(false);
   const globalPlaybackFrameRef = useRef(0);
-  const globalPlaybackCounterSecondRef = useRef(0);
+  const globalPlaybackCounterTickRef = useRef(0);
   const bpmCommitTimerRef = useRef<number | null>(null);
   const queuedBpmValueRef = useRef<string | number | null>(null);
   const timeSignatureCommitTimerRef = useRef<number | null>(null);
@@ -2756,48 +2766,48 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const handleLaneInstrumentChange = useCallback(
     (laneId: string, instrumentId: string) => {
+      if (!canvas) return;
       const normalizedInstrumentId = normalizeTrackInstrumentId(instrumentId);
-      let didChange = false;
-      setCanvas((prev) => {
-        if (!prev) return prev;
-        const secondsPerBar = Math.max(0.1, toNumber(prev.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
-        const nextEditors = prev.editors.map((lane, index) => {
-          const normalizedLane = normalizeLane(
-            lane,
-            lane.id || `ed-${index + 1}`,
-            secondsPerBar,
-            index
-          );
-          if (normalizedLane.id !== laneId) return normalizedLane;
-          if (normalizedLane.instrumentId === normalizedInstrumentId) return normalizedLane;
-          didChange = true;
-          return normalizeLane(
-            { ...normalizedLane, instrumentId: normalizedInstrumentId },
-            laneId,
-            secondsPerBar,
-            index
-          );
-        });
-        if (!didChange) return prev;
-        const nextCanvas = {
-          ...prev,
+      const secondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
+      const targetLane = canvas.editors.find((lane) => lane.id === laneId);
+      if (!targetLane || normalizeTrackInstrumentId(targetLane.instrumentId) === normalizedInstrumentId) return;
+      const nextCanvas = normalizeCanvas(
+        {
+          ...canvas,
           updatedAt: new Date().toISOString(),
-          editors: nextEditors,
-        };
-        recordCanvasHistory(prev, nextCanvas);
-        return nextCanvas;
-      });
-      if (!didChange) return;
-      setHasPendingCommit(true);
+          editors: canvas.editors.map((lane, index) =>
+            lane.id === laneId
+              ? normalizeLane(
+                  { ...lane, instrumentId: normalizedInstrumentId },
+                  laneId,
+                  secondsPerBar,
+                  index
+                )
+              : lane
+          ),
+        },
+        editorId
+      );
+      applyCanvasUpdate(nextCanvas, { markDirty: true });
       setActiveLaneId(laneId);
       void warmTrackInstrument(normalizedInstrumentId);
       if (!isGuestMode) {
-        void gteApi.setTrackInstrument(editorId, laneId, normalizedInstrumentId).catch((err: any) => {
-          setSaveError(err?.message || "We could not save this track sound. The previous sound remains selected; please try again.");
-        });
+        const revisionAtSave = canvasRevisionRef.current;
+        void Promise.all([
+          gteApi.setTrackInstrument(editorId, laneId, normalizedInstrumentId),
+          gteApi.applySnapshot(editorId, cloneCanvas(nextCanvas)),
+        ])
+          .then(() => {
+            if (canvasRevisionRef.current !== revisionAtSave) return;
+            setHasPendingCommit(false);
+            setLastCommittedAt(nextCanvas.updatedAt || new Date().toISOString());
+          })
+          .catch((err: any) => {
+            setSaveError(err?.message || "We could not save this track sound. It remains selected here and will retry automatically.");
+          });
       }
     },
-    [editorId, isGuestMode, recordCanvasHistory]
+    [applyCanvasUpdate, canvas, cloneCanvas, editorId, isGuestMode]
   );
 
   const commitLaneTuningChange = useCallback(
@@ -3192,8 +3202,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       const bars = getLaneBarCount(lane);
       if (bars > maxBars) maxBars = bars;
     }
-    return maxBars;
-  }, [canvas]);
+    // A row fills the available editor width at the default zoom (four bars).
+    // Zooming in reduces the number of bars per row; zooming out increases it.
+    return Math.max(1, Math.min(maxBars, desktopBarsPerRow));
+  }, [canvas, desktopBarsPerRow]);
 
   useEffect(() => {
     if (isMobileViewport || !canvas) {
@@ -3205,7 +3217,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!container) return;
 
     const computeScale = () => {
-      const availableWidth = Math.max(240, container.clientWidth - 16);
+      const availableWidth = Math.max(
+        240,
+        container.clientWidth - GTE_TIMELINE_GUTTER_WIDTH - GTE_TIMELINE_END_PADDING
+      );
       const rawScale = availableWidth / Math.max(1, FIXED_FRAMES_PER_BAR * 4);
       const nextScale = Math.max(0.5, Math.min(4, rawScale));
       setSharedTimelineBaseScale((prev) =>
@@ -3613,17 +3628,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   useEffect(() => {
     globalPlaybackFrameRef.current = globalPlaybackFrame;
     setGlobalPlaybackCounterFrame(globalPlaybackFrame);
-    globalPlaybackCounterSecondRef.current = Math.floor(
-      globalPlaybackFrame / Math.max(1, globalPlaybackFps)
+    globalPlaybackCounterTickRef.current = Math.floor(
+      (globalPlaybackFrame / Math.max(1, globalPlaybackFps)) * 20
     );
   }, [globalPlaybackFps, globalPlaybackFrame]);
 
   const syncGlobalPlaybackFrame = useCallback((nextFrame: number, options?: { forceReact?: boolean }) => {
     const normalized = Math.max(0, Math.min(canvasTimelineEnd, Math.round(nextFrame)));
     globalPlaybackFrameRef.current = normalized;
-    const counterSecond = Math.floor(normalized / Math.max(1, globalPlaybackFps));
-    if (options?.forceReact || counterSecond !== globalPlaybackCounterSecondRef.current) {
-      globalPlaybackCounterSecondRef.current = counterSecond;
+    const counterTick = Math.floor((normalized / Math.max(1, globalPlaybackFps)) * 20);
+    if (options?.forceReact || counterTick !== globalPlaybackCounterTickRef.current) {
+      globalPlaybackCounterTickRef.current = counterTick;
       setGlobalPlaybackCounterFrame(normalized);
     }
     if (options?.forceReact) {
@@ -6828,7 +6843,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             </details>
             <details className="relative shrink-0">
               <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
-                View · {timelineZoomPercent}%
+                View · {desktopBarsPerRow} bars/row
               </summary>
               <div className="absolute right-0 top-[calc(100%+4px)] z-[10000] grid w-64 gap-1 rounded-lg border border-slate-200 bg-white p-2 text-sm text-slate-700 shadow-xl">
                 {([
@@ -6849,18 +6864,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 ))}
                 <label className="mt-1 grid gap-2 border-t border-slate-100 px-2 pt-2">
                   <span className="flex justify-between">
-                    <span>Timeline zoom</span>
-                    <span>{timelineZoomPercent}%</span>
+                    <span>Bars per row</span>
+                    <span>{desktopBarsPerRow}</span>
                   </span>
                   <input
                     type="range"
                     name="timeline-zoom-menu"
-                    min={TIMELINE_ZOOM_MIN}
-                    max={TIMELINE_ZOOM_MAX}
+                    min={1}
+                    max={6}
                     step={1}
-                    value={timelineZoomPercent}
-                    onChange={(event) => setTimelineZoomPercent(Number(event.target.value))}
-                    aria-label="Timeline zoom"
+                    value={desktopBarsPerRow}
+                    onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
+                    aria-label="Bars per row"
                   />
                 </label>
               </div>
@@ -7250,25 +7265,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </button>
                       <label className="mt-1 grid gap-1 border-t border-slate-100 px-3 py-2 text-sm text-slate-700">
                         <span className="flex items-center justify-between">
-                          <span>Time scale</span>
-                          <span className="text-xs text-slate-500">{timelineZoomPercent}%</span>
+                          <span>Bars per row</span>
+                          <span className="text-xs text-slate-500">{desktopBarsPerRow}</span>
                         </span>
                         <input
                           type="range"
                           name="timeline-zoom"
-                          min={TIMELINE_ZOOM_MIN}
-                          max={TIMELINE_ZOOM_MAX}
+                          min={1}
+                          max={6}
                           step={1}
-                          value={timelineZoomPercent}
-                          onChange={(event) =>
-                            setTimelineZoomPercent(
-                              Math.max(
-                                TIMELINE_ZOOM_MIN,
-                                Math.min(TIMELINE_ZOOM_MAX, Number(event.target.value))
-                              )
-                            )
-                          }
-                          aria-label="Time scale"
+                          value={desktopBarsPerRow}
+                          onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
+                          aria-label="Bars per row"
                         />
                       </label>
                     </div>
@@ -7767,7 +7775,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     <span className="truncate">
                       Note {formatNoteLengthOption(chordOnlyDefaultNoteLengthDenominator)}
                       {" · "}Cursor 1/{chordOnlyCursorSizeDenominator}
-                      {" · "}Grid {globalSnapToGridEnabled ? "on" : "off"}
                     </span>
                     <span className="transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
                   </summary>
@@ -7812,15 +7819,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </label>
                     <button
                       type="button"
-                      onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
-                      aria-pressed={globalSnapToGridEnabled}
-                      className="flex h-8 min-w-28 items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
-                    >
-                      <span>Grid</span>
-                      <span>{globalSnapToGridEnabled ? "On" : "Off"}</span>
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
                       aria-pressed={globalSnapToKeyEnabled}
                       className="flex h-8 min-w-28 items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
@@ -7828,23 +7826,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       <span>Key</span>
                       <span>{globalSnapToKeyEnabled ? "On" : "Off"}</span>
                     </button>
-                    <label className="grid gap-1 text-xs font-medium text-slate-600">
-                      Grid division
-                      <select
-                        value={globalSnapSubdivisionsPerBeat}
-                        name="editor-grid-division"
-                        onChange={(event) =>
-                          setGlobalSnapSubdivisionsPerBeat(Number(event.target.value))
-                        }
-                        className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700"
-                      >
-                        {SNAP_SUBDIVISION_OPTIONS.map((subdivision) => (
-                          <option key={`desktop-grid-${subdivision}`} value={subdivision}>
-                            {subdivision === 1 ? "Beat" : `1/${subdivision}`}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
                   </div>
                 </details>
                 )}
@@ -8510,14 +8491,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           >
             {canvas.editors.map((lane, index) => {
               const laneId = lane.id || `ed-${index + 1}`;
+              const desktopVisibleLaneId = activeLaneId || canvas.editors[0]?.id || "ed-1";
               if (practiceModeEnabled && laneId !== globalControlsLaneId) {
                 return null;
               }
               if (isMobileViewport && mobileEditLaneId && laneId !== mobileEditLaneId) {
                 return null;
               }
+              if (!practiceModeEnabled && !isMobileViewport && laneId !== desktopVisibleLaneId) {
+                return null;
+              }
               const laneEditorRef = buildLaneEditorRef(editorId, laneId);
-              const isActive = laneId === activeLaneId;
+              const isActive = laneId === desktopVisibleLaneId;
               const isTrackMuted = Boolean(trackMuteById[laneId]);
               const isTrackIsolated = isolatedTrackId === laneId;
               const trackVolume = normalizeTrackVolume(trackVolumeById[laneId] ?? 1);
@@ -9218,7 +9203,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     <div className={practiceModeEnabled ? "block" : "flex flex-col gap-3 lg:flex-row"}>
                       {!practiceModeEnabled && (
                       <aside
-                        className="flex w-full shrink-0 flex-col rounded-xl border border-slate-200 bg-white/90 p-2.5 shadow-sm lg:w-36 lg:self-stretch"
+                        className="hidden"
                         data-track-reorder-block="true"
                         onContextMenu={(event) => {
                           event.preventDefault();
@@ -9809,7 +9794,221 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 </section>
               );
             })}
-            {!practiceModeEnabled && (!isMobileViewport || !mobileEditLaneId) && (
+            {!practiceModeEnabled && !isMobileViewport && canvas.editors.length > 0 && (() => {
+              const selectedIndex = Math.max(
+                0,
+                canvas.editors.findIndex((lane, index) => (lane.id || `ed-${index + 1}`) === activeLaneId)
+              );
+              const selectedLane = canvas.editors[selectedIndex];
+              const selectedLaneId = selectedLane.id || `ed-${selectedIndex + 1}`;
+              const selectedDrumLane = isDrumLane(selectedLane);
+              const selectedChordLane = isChordLane(selectedLane);
+              const selectedInstrumentValue = trackInstrumentOptions.some(
+                (option) => option.id === normalizeTrackInstrumentId(selectedLane.instrumentId)
+              )
+                ? normalizeTrackInstrumentId(selectedLane.instrumentId)
+                : DEFAULT_TRACK_INSTRUMENT_ID;
+              const selectedTuning = getSnapshotTuning(selectedLane);
+              const selectedMuted = Boolean(trackMuteById[selectedLaneId]);
+              const selectedIsolated = isolatedTrackId === selectedLaneId;
+              const selectedVolume = normalizeTrackVolume(trackVolumeById[selectedLaneId] ?? 1);
+
+              return (
+                <div className="fixed bottom-5 right-5 z-50" data-gte-floating-ui="true" data-track-menu="true">
+                  <div className="absolute bottom-0 right-[calc(100%+0.75rem)] w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Track settings</div>
+                    <input
+                      key={`${selectedLaneId}:${selectedLane.name || ""}`}
+                      defaultValue={selectedLane.name || `Track ${selectedIndex + 1}`}
+                      maxLength={80}
+                      aria-label={`Track ${selectedIndex + 1} name`}
+                      onBlur={(event) => void handleLaneNameCommit(selectedLaneId, event.currentTarget.value)}
+                      onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+                      className="mt-1 w-full border-0 bg-transparent p-0 text-sm font-semibold text-slate-800 outline-none"
+                    />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDesktopTrackSettingsCollapsed((collapsed) => !collapsed)}
+                        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                        title={desktopTrackSettingsCollapsed ? "Expand track settings" : "Minimize track settings"}
+                        aria-label={desktopTrackSettingsCollapsed ? "Expand track settings" : "Minimize track settings"}
+                        aria-expanded={!desktopTrackSettingsCollapsed}
+                      >
+                        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
+                          <path d={desktopTrackSettingsCollapsed ? "M5 12.5 10 7.5l5 5z" : "M5 7.5 10 12.5l5-5z"} />
+                        </svg>
+                      </button>
+                    </div>
+                    {!desktopTrackSettingsCollapsed && <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+                      {!selectedDrumLane && (
+                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Instrument
+                          <select value={selectedInstrumentValue} onChange={(event) => handleLaneInstrumentChange(selectedLaneId, event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
+                            {trackInstrumentOptions.map((option) => <option key={`${selectedLaneId}-screen-instrument-${option.id}`} value={option.id}>{option.label}</option>)}
+                          </select>
+                        </label>
+                      )}
+                      {!selectedChordLane && !selectedDrumLane && (
+                        <>
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Tuning
+                            <select value={selectedTuning.presetId} onChange={(event) => handleLaneTuningChange(selectedLaneId, event.target.value, selectedTuning.capo)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
+                              {TUNING_PRESETS.map((preset) => <option key={`${selectedLaneId}-screen-tuning-${preset.id}`} value={preset.id}>{preset.label}</option>)}
+                            </select>
+                          </label>
+                          <details className="rounded-lg border border-slate-200 px-3 py-2">
+                            <summary className="cursor-pointer text-xs font-medium text-slate-600">More settings</summary>
+                            <label className="mt-3 flex items-center justify-between gap-3 text-xs font-medium text-slate-600">Capo
+                              <input type="number" min={0} max={12} value={trackCapoDraftById[selectedLaneId] ?? String(selectedTuning.capo)} onChange={(event) => handleLaneCapoDraftChange(selectedLaneId, event.target.value)} onBlur={() => commitLaneCapoDraft(selectedLaneId, selectedTuning.presetId, selectedTuning.capo)} className="h-8 w-16 rounded-md border border-slate-200 px-2 text-xs text-slate-700" aria-label="Track capo" />
+                            </label>
+                          </details>
+                        </>
+                      )}
+                      <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+                        <button type="button" onClick={() => beginTrackOffset(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">Offset track</button>
+                        <button type="button" onClick={() => requestDeleteTrack(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50">Remove</button>
+                      </div>
+                    </div>}
+                  </div>
+                  {desktopTrackMenuOpen && (
+                    <div className="absolute bottom-12 right-0 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
+                      <div className="hidden border-b border-slate-100 px-4 py-3">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Edit track</div>
+                        <input
+                          key={`${selectedLaneId}:${selectedLane.name || ""}`}
+                          name={`desktop-track-${selectedIndex + 1}-name`}
+                          defaultValue={selectedLane.name || `Track ${selectedIndex + 1}`}
+                          maxLength={80}
+                          aria-label={`Track ${selectedIndex + 1} name`}
+                          onBlur={(event) => void handleLaneNameCommit(selectedLaneId, event.currentTarget.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") event.currentTarget.blur();
+                            if (event.key === "Escape") {
+                              event.currentTarget.value = selectedLane.name || `Track ${selectedIndex + 1}`;
+                              event.currentTarget.blur();
+                            }
+                          }}
+                          className="mt-1 w-full border-0 bg-transparent p-0 text-sm font-semibold text-slate-800 outline-none"
+                        />
+                      </div>
+
+                      <div className="max-h-48 overflow-y-auto border-b border-slate-100 p-1.5" role="listbox" aria-label="Choose a track to edit">
+                        {canvas.editors.map((candidate, candidateIndex) => {
+                          const candidateId = candidate.id || `ed-${candidateIndex + 1}`;
+                          const active = candidateId === selectedLaneId;
+                          const type = isDrumLane(candidate) ? "Drums" : isChordLane(candidate) ? "Chords" : "Tab";
+                          const candidateMuted = Boolean(trackMuteById[candidateId]);
+                          const candidateIsolated = isolatedTrackId === candidateId;
+                          const candidateVolume = normalizeTrackVolume(trackVolumeById[candidateId] ?? 1);
+                          return (
+                            <div key={candidateId}
+                              className={`flex items-center gap-1 rounded-lg px-1 py-1 transition ${
+                                active ? "bg-emerald-50 text-emerald-950" : "text-slate-700 hover:bg-slate-50"
+                              }`}>
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={active}
+                              onClick={() => activateLaneForEditing(candidateId)}
+                              className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-1.5 py-1.5 text-left text-xs"
+                            >
+                              <span className="min-w-0 truncate font-semibold">{candidate.name || `Track ${candidateIndex + 1}`}</span>
+                              <span className="shrink-0 text-[10px] font-medium text-slate-400">{type}</span>
+                            </button>
+                            <button type="button" onClick={() => toggleTrackMute(candidateId)} className={`h-7 w-7 rounded-md border text-[10px] font-bold ${candidateMuted ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-500"}`} aria-label={`${candidateMuted ? "Unmute" : "Mute"} ${candidate.name || `Track ${candidateIndex + 1}`}`}>M</button>
+                            <button type="button" onClick={() => toggleTrackIsolation(candidateId)} className={`h-7 w-7 rounded-md border text-[10px] font-bold ${candidateIsolated ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 text-slate-500"}`} aria-label={`${candidateIsolated ? "Stop soloing" : "Solo"} ${candidate.name || `Track ${candidateIndex + 1}`}`}>S</button>
+                            <input type="range" min={0} max={1} step={0.01} value={candidateVolume} onChange={(event) => handleTrackVolumePreview(candidateId, Number(event.target.value))} onPointerUp={() => commitTrackVolume(candidateId)} onPointerCancel={() => commitTrackVolume(candidateId)} onBlur={() => commitTrackVolume(candidateId)} className="w-12 accent-slate-700" aria-label={`Volume for ${candidate.name || `Track ${candidateIndex + 1}`}`} />
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="hidden space-y-3 p-4">
+                        {!selectedDrumLane && (
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                            Instrument
+                            <select
+                              value={selectedInstrumentValue}
+                              onChange={(event) => handleLaneInstrumentChange(selectedLaneId, event.target.value)}
+                              className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700"
+                            >
+                              {trackInstrumentOptions.map((option) => (
+                                <option key={`${selectedLaneId}-desktop-instrument-${option.id}`} value={option.id}>{option.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+                        {!selectedChordLane && !selectedDrumLane && (
+                          <>
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                              Tuning
+                              <select
+                                value={selectedTuning.presetId}
+                                onChange={(event) => handleLaneTuningChange(selectedLaneId, event.target.value, selectedTuning.capo)}
+                                className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700"
+                              >
+                                {TUNING_PRESETS.map((preset) => (
+                                  <option key={`${selectedLaneId}-desktop-tuning-${preset.id}`} value={preset.id}>{preset.label}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <details className="rounded-lg border border-slate-200 px-3 py-2">
+                              <summary className="cursor-pointer text-xs font-medium text-slate-600">More settings</summary>
+                              <label className="mt-3 flex items-center justify-between gap-3 text-xs font-medium text-slate-600">
+                                Capo
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={12}
+                                  value={trackCapoDraftById[selectedLaneId] ?? String(selectedTuning.capo)}
+                                  onChange={(event) => handleLaneCapoDraftChange(selectedLaneId, event.target.value)}
+                                  onBlur={() => commitLaneCapoDraft(selectedLaneId, selectedTuning.presetId, selectedTuning.capo)}
+                                  className="h-8 w-16 rounded-md border border-slate-200 px-2 text-xs text-slate-700"
+                                  aria-label="Track capo"
+                                />
+                              </label>
+                            </details>
+                          </>
+                        )}
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => toggleTrackMute(selectedLaneId)} className={`flex-1 rounded-lg border px-3 py-2 text-xs font-semibold ${selectedMuted ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{selectedMuted ? "Unmute" : "Mute"}</button>
+                          <button type="button" onClick={() => toggleTrackIsolation(selectedLaneId)} className={`flex-1 rounded-lg border px-3 py-2 text-xs font-semibold ${selectedIsolated ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{selectedIsolated ? "Solo on" : "Solo"}</button>
+                        </div>
+                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          Volume <span className="float-right normal-case tracking-normal">{Math.round(selectedVolume * 100)}%</span>
+                          <input type="range" min={0} max={1} step={0.01} value={selectedVolume} onChange={(event) => handleTrackVolumePreview(selectedLaneId, Number(event.target.value))} onPointerUp={() => commitTrackVolume(selectedLaneId)} onPointerCancel={() => commitTrackVolume(selectedLaneId)} onBlur={() => commitTrackVolume(selectedLaneId)} className="mt-1.5 w-full accent-slate-700" aria-label={`Volume for ${selectedLane.name || `Track ${selectedIndex + 1}`}`} />
+                        </label>
+                        <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+                          <button type="button" onClick={() => beginTrackOffset(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">Offset track</button>
+                          <button type="button" onClick={() => requestDeleteTrack(selectedLaneId)} disabled={deletingLaneId === selectedLaneId} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50">{deletingLaneId === selectedLaneId ? "Removing..." : "Remove"}</button>
+                          <button type="button" onClick={() => handleMoveTrackBy(selectedLaneId, -1)} disabled={selectedIndex === 0} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 disabled:text-slate-300">Move up</button>
+                          <button type="button" onClick={() => handleMoveTrackBy(selectedLaneId, 1)} disabled={selectedIndex === canvas.editors.length - 1} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 disabled:text-slate-300">Move down</button>
+                        </div>
+                      </div>
+
+                      <div className="relative border-t border-slate-100 p-2">
+                        {desktopTrackAddMenuOpen && (
+                          <div className="absolute bottom-[calc(100%+0.4rem)] left-2 right-2 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                            {(["tab", "chords", "drums"] as const).map((type) => (
+                              <button key={type} type="button" onClick={() => { setDesktopTrackAddMenuOpen(false); void handleAddLane(type); }} disabled={addingLane} className="block w-full rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">
+                                {type === "tab" ? "Tab" : type === "chords" ? "Chords" : "Drums"}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <button type="button" onClick={() => setDesktopTrackAddMenuOpen((open) => !open)} disabled={addingLane} className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><span className="text-base leading-none">+</span>{addingLane ? "Adding..." : "Add track"}</button>
+                      </div>
+                    </div>
+                  )}
+                  <button type="button" onClick={() => { setDesktopTrackMenuOpen((open) => !open); setDesktopTrackAddMenuOpen(false); }} className="flex h-10 items-center gap-2 rounded-full border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 shadow-lg transition hover:bg-slate-50" aria-expanded={desktopTrackMenuOpen} aria-haspopup="menu">
+                    <span className="max-w-32 truncate">{selectedLane.name || `Track ${selectedIndex + 1}`}</span>
+                    <svg viewBox="0 0 20 20" className={`h-3.5 w-3.5 fill-current transition ${desktopTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true"><path d="M5.5 7.5 10 12l4.5-4.5 1.1 1.1L10 14.2 4.4 8.6z" /></svg>
+                  </button>
+                </div>
+              );
+            })()}
+            {!practiceModeEnabled && isMobileViewport && !mobileEditLaneId && (
               <div className="relative flex justify-center pt-1">
                 <button
                   type="button"
@@ -10133,25 +10332,25 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           <div className="container gte-wide py-1">
             <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-1 shadow-sm">
               <label className="hidden w-48 shrink-0 items-center gap-2 text-xs font-medium text-slate-600 sm:flex">
-                <span>Zoom</span>
+                <span>Bars/row</span>
                 <input
                   type="range"
                   name="bottom-timeline-zoom"
-                  min={TIMELINE_ZOOM_MIN}
-                  max={TIMELINE_ZOOM_MAX}
+                  min={1}
+                  max={6}
                   step={1}
-                  value={timelineZoomPercent}
-                  onChange={(event) => setTimelineZoomPercent(Number(event.target.value))}
+                  value={desktopBarsPerRow}
+                  onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
                   className="min-w-0 flex-1"
-                  aria-label="Timeline zoom"
+                  aria-label="Bars per row"
                 />
-                <span className="w-9 text-right tabular-nums">{timelineZoomPercent}%</span>
+                <span className="w-4 text-right tabular-nums">{desktopBarsPerRow}</span>
               </label>
               <div
                 ref={globalTimelineScrollbarRef}
                 data-gte-timeline-control="true"
                 role="region"
-                className="h-5 min-w-0 flex-1 overflow-x-scroll overflow-y-hidden"
+                className="hidden"
                 onScroll={handleGlobalTimelineScrollbarScroll}
                 tabIndex={0}
                 aria-label="Scroll all tracks horizontally"
