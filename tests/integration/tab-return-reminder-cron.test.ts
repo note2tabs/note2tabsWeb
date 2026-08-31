@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   markers: vi.fn(),
   createMarkers: vi.fn(),
   deleteMarkers: vi.fn(),
+  findUser: vi.fn(),
   sendEmail: vi.fn(),
   capture: vi.fn(),
 }));
@@ -18,6 +19,7 @@ vi.mock("../../lib/prisma", () => ({
       createMany: mocks.createMarkers,
       deleteMany: mocks.deleteMarkers,
     },
+    user: { findUnique: mocks.findUser },
   },
 }));
 
@@ -49,6 +51,7 @@ describe("tab return reminder cron", () => {
     mocks.createMarkers.mockResolvedValue({ count: 2 });
     mocks.deleteMarkers.mockResolvedValue({ count: 2 });
     mocks.sendEmail.mockResolvedValue(true);
+    mocks.findUser.mockResolvedValue({ lastActiveAt: null });
   });
 
   it("defaults to a non-mutating dry run", async () => {
@@ -109,5 +112,15 @@ describe("tab return reminder cron", () => {
         properties: expect.objectContaining({ experiment_group: "holdout" }),
       })
     );
+  });
+
+  it("rechecks activity immediately before sending", async () => {
+    process.env.TAB_RETURN_REMINDER_ENABLED = "true";
+    process.env.TAB_RETURN_REMINDER_ROLLOUT_PERCENT = "100";
+    mocks.findUser.mockResolvedValue({ lastActiveAt: new Date() });
+    const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
+    await handler(req, res);
+    expect(JSON.parse(res._getData())).toMatchObject({ sent: 0 });
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 });

@@ -9,12 +9,16 @@ const mocks = vi.hoisted(() => ({
   deleteMarkers: vi.fn(),
   capture: vi.fn(),
   flush: vi.fn(),
+  tabJobCount: vi.fn(),
+  canvasCount: vi.fn(),
 }));
 
 vi.mock("../../lib/prisma", () => ({
   prisma: {
     $queryRaw: mocks.queryRaw,
     verificationToken: { create: mocks.createMarker, deleteMany: mocks.deleteMarkers },
+    tabJob: { count: mocks.tabJobCount },
+    canvases: { count: mocks.canvasCount },
   },
 }));
 
@@ -43,6 +47,8 @@ describe("inactive signup reminder cron experiment", () => {
     mocks.sendEmail.mockResolvedValue(true);
     mocks.createMarker.mockResolvedValue({});
     mocks.deleteMarkers.mockResolvedValue({ count: 1 });
+    mocks.tabJobCount.mockResolvedValue(0);
+    mocks.canvasCount.mockResolvedValue(0);
   });
 
   it("keeps the control group unemailed", async () => {
@@ -127,6 +133,19 @@ describe("inactive signup reminder cron experiment", () => {
     await handler(req, res);
 
     expect(JSON.parse(res._getData())).toMatchObject({ skippedExpiredWindow: 1, sent: 0 });
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("rechecks activation immediately before sending", async () => {
+    const userId = userForVariant("24h");
+    mocks.queryRaw.mockResolvedValue([{
+      id: userId, email: "active@example.com", name: "Active",
+      createdAt: new Date(Date.now() - 26 * 60 * 60 * 1000),
+    }]);
+    mocks.tabJobCount.mockResolvedValue(1);
+    const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
+    await handler(req, res);
+    expect(JSON.parse(res._getData())).toMatchObject({ sent: 0 });
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 });

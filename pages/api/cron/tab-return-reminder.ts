@@ -3,6 +3,7 @@ import { sendTransactionalEmail } from "../../../lib/email";
 import { prisma } from "../../../lib/prisma";
 import { isAuthorizedSchedulerRequest } from "../../../lib/cloudSchedulerAuth";
 import { createPostHogServerClient, flushPostHogServerClientInBackground } from "../../../lib/posthogServer";
+import { captureReminderDeliveryFailure, captureReminderFailure, captureReminderRun } from "../../../lib/reminderMonitoring";
 import {
   TAB_RETURN_REMINDER_COOLDOWN_DAYS,
   TAB_RETURN_REMINDER_DELAY_HOURS,
@@ -47,7 +48,7 @@ function isUniqueConstraintFailure(error: unknown) {
   return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === "P2002");
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: number) {
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", ["GET", "POST"]);
     return res.status(405).json({ error: "Method not allowed" });
@@ -87,7 +88,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         WHERE v.expires > ${now}
           AND v.identifier IN (
             'reminder:return-to-tab:' || c.user_id || ':' || c.canvas_id,
-            'reminder:return-to-tab-cooldown:' || c.user_id
+            'reminder:return-to-tab-cooldown:' || c.user_id,
+            'email:reminders-unsubscribed:' || c.user_id
           )
       )
       AND EXISTS (
@@ -120,6 +122,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (identifiers.has(cooldownIdentifier)) {
       skippedCooldown += 1;
+      continue;
+    }
+
+    const latestUser = await prisma.user.findUnique({
+      where: { id: canvas.user_id },
+      select: { lastActiveAt: true },
+    });
+    if (latestUser?.lastActiveAt && latestUser.lastActiveAt > inactiveBefore) {
       continue;
     }
 
@@ -176,6 +186,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       name: canvas.user_name,
       editorId: canvas.canvas_id,
       editorName: canvas.name,
+      userId: canvas.user_id,
     });
     try {
       const delivered = await sendTransactionalEmail({
@@ -183,9 +194,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         subject: email.subject,
         html: email.html,
         text: email.text,
+        analyticsCategory: "tab_return_reminder",
       });
       if (!delivered) {
         skippedDeliveryDisabled += 1;
+        captureReminderDeliveryFailure(posthog, "tab_return", canvas.user_id, null);
         await prisma.verificationToken.deleteMany({
           where: { identifier: { in: [reminderIdentifier, cooldownIdentifier] }, token: { startsWith: token } },
         });
@@ -203,6 +216,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     } catch (error) {
       failed += 1;
+      captureReminderDeliveryFailure(posthog, "tab_return", canvas.user_id, error);
       await prisma.verificationToken.deleteMany({
         where: { identifier: { in: [reminderIdentifier, cooldownIdentifier] }, token: { startsWith: token } },
       });
@@ -210,6 +224,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
+  captureReminderRun(posthog, {
+    scheduler: "tab_return", startedAt, scanned: canvases.length, batchSize: batchSize(),
+    eligible, sent, failed, dryRun,
+  });
   if (posthog) flushPostHogServerClientInBackground(posthog);
 
   return res.status(200).json({
@@ -225,4 +243,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     skippedDeliveryDisabled,
     failed,
   });
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const startedAt = Date.now();
+  try {
+    return await runHandler(req, res, startedAt);
+  } catch (error) {
+    const posthog = createPostHogServerClient();
+    captureReminderFailure(posthog, "tab_return", startedAt, error);
+    if (posthog) flushPostHogServerClientInBackground(posthog);
+    console.error("tab return reminder scheduler failed", { error });
+    if (!res.headersSent) return res.status(500).json({ ok: false, error: "Reminder scheduler failed" });
+  }
 }
