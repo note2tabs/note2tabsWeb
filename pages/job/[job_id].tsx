@@ -705,8 +705,12 @@ export default function JobPage() {
     const properties = {
       jobId: job_id,
       mode: modeHint || undefined,
+      duration_sec: durationHintSeconds || undefined,
       durationSec: durationHintSeconds || undefined,
+      transcriptionModel: modelHint || undefined,
       model: modelHint || undefined,
+      separate_guitar: separateGuitarHint,
+      multiple_guitars: loadedMultipleGuitars,
     };
     sendEvent(ANALYTICS_EVENTS.jobCompleted, {
       ...properties,
@@ -716,7 +720,7 @@ export default function JobPage() {
       ...properties,
       $insert_id: `transcription-succeeded:${job_id}`,
     });
-  }, [durationHintSeconds, job_id, modeHint, modelHint, showReviewUi]);
+  }, [durationHintSeconds, job_id, loadedMultipleGuitars, modeHint, modelHint, separateGuitarHint, showReviewUi]);
 
 
   const fetchJob = async (
