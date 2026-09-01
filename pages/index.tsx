@@ -11,6 +11,7 @@ import {
   sendTranscriptionStartedEvents,
   trackCtaClick,
 } from "../lib/analytics";
+import { buildTranscriptionResearchProperties } from "../lib/retentionResearch";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
@@ -839,15 +840,16 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     setTranscriberSegments(null);
     setStatus(mode === "FILE" ? "Uploading audio..." : "Preparing YouTube download...");
     setLoading(true);
-    sendTranscriptionStartedEvents(transcriptionModel, {
+    const researchProperties = buildTranscriptionResearchProperties({
       mode,
-      sourceType: mode,
+      transcriptionModel,
       separateGuitar,
       multipleGuitars,
-      fileSize: selectedFile?.size,
+      fileSizeBytes: selectedFile?.size,
       durationSec: mode === "YOUTUBE" ? resolvedYtDuration : resolvedFileDuration,
-      hasAppendEditorId: Boolean(appendEditorId),
+      appendingToExistingEditor: Boolean(appendEditorId),
     });
+    sendTranscriptionStartedEvents(transcriptionModel, researchProperties);
 
     try {
       let response: Response | null = null;
@@ -968,7 +970,11 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           await updateSession().catch(() => null);
         }
         setStatus("Getting things started. Opening progress screen...");
-        sendEvent(ANALYTICS_EVENTS.tabGenerationQueued, { mode, jobId: data.jobId, status: data.status || "queued" });
+        sendEvent(ANALYTICS_EVENTS.tabGenerationQueued, {
+          ...researchProperties,
+          jobId: data.jobId,
+          status: data.status || "queued",
+        });
         const jobParams = new URLSearchParams();
         jobParams.set("mode", mode);
         jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
@@ -1006,7 +1012,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         }
         setError(data?.error || "We could not start this transcription. Your selection is still here, so you can try again.");
         sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
-          mode,
+          ...researchProperties,
           error_code: categorizeAnalyticsError(data?.error, "transcription_failed"),
           http_status_class: analyticsHttpStatusClass(response.status),
         });
@@ -1015,7 +1021,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       if (!data.tabs || !Array.isArray(data.tabs)) {
         setError("The transcription finished without a usable tab. Try a clearer section or switch models.");
         sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
-          mode,
+          ...researchProperties,
           error_code: "no_tabs",
         });
         return;
@@ -1031,7 +1037,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         await updateSession().catch(() => null);
       }
       sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
-        mode,
+        ...researchProperties,
         jobId: data.jobId,
         tabJobId: data.tabJobId,
         segmentGroups: Array.isArray(data.transcriberSegments) ? data.transcriberSegments.length : undefined,
@@ -1061,7 +1067,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     } catch (err: any) {
       setError(err?.message || "We could not reach the transcription service. Check your connection and try again.");
       sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
-        mode,
+        ...researchProperties,
         error_code: categorizeAnalyticsError(err, "transcription_failed"),
       });
     } finally {

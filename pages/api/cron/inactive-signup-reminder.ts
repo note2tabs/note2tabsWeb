@@ -3,6 +3,7 @@ import { prisma } from "../../../lib/prisma";
 import { sendTransactionalEmail } from "../../../lib/email";
 import { createPostHogServerClient, flushPostHogServerClientInBackground } from "../../../lib/posthogServer";
 import { isAuthorizedSchedulerRequest } from "../../../lib/cloudSchedulerAuth";
+import { captureReminderDeliveryFailure, captureReminderFailure, captureReminderRun } from "../../../lib/reminderMonitoring";
 import {
   INACTIVE_SIGNUP_REMINDER_DELAYS,
   INACTIVE_SIGNUP_REMINDER_MAX_AGE_DAYS,
@@ -32,7 +33,7 @@ function isUniqueConstraintFailure(error: unknown) {
   return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === "P2002");
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: number) {
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", ["GET", "POST"]);
     return res.status(405).json({ error: "Method not allowed" });
@@ -66,7 +67,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         SELECT 1 FROM "VerificationToken" v
         WHERE v.identifier IN (
           'reminder:inactive-transcriber:' || u.id,
-          'experiment:inactive-transcriber-holdout:' || u.id
+          'experiment:inactive-transcriber-holdout:' || u.id,
+          'email:reminders-unsubscribed:' || u.id
         )
       )
     ORDER BY u."createdAt" ASC
@@ -74,6 +76,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   `;
 
   if (candidates.length === 0) {
+    const posthog = dryRun ? null : createPostHogServerClient();
+    captureReminderRun(posthog, {
+      scheduler: "inactive_signup", startedAt, scanned: 0, batchSize, eligible: 0, sent: 0, failed: 0, dryRun,
+    });
+    if (posthog) flushPostHogServerClientInBackground(posthog);
     return res.status(200).json({
       ok: true,
       dryRun,
@@ -138,10 +145,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       continue;
     }
 
-    const email = buildInactiveSignupReminderEmail({ name: user.name, variant });
+    const email = buildInactiveSignupReminderEmail({ name: user.name, variant, userId: user.id });
     wouldSend += 1;
     if (dryRun) continue;
 
+    const [tabJobs, canvases] = await Promise.all([
+      prisma.tabJob.count({ where: { userId: user.id } }),
+      prisma.canvases.count({ where: { user_id: user.id } }),
+    ]);
+    if (tabJobs > 0 || canvases > 0) continue;
+
+    const deliveryPosthog = createPostHogServerClient();
     try {
       await prisma.verificationToken.create({
         data: {
@@ -155,18 +169,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         subject: email.subject,
         html: email.html,
         text: email.text,
+        analyticsCategory: "inactive_signup_reminder",
       });
 
       if (!delivered) {
         skippedDeliveryDisabled += 1;
+        captureReminderDeliveryFailure(deliveryPosthog, "inactive_signup", user.id, null);
         await prisma.verificationToken.deleteMany({ where: { identifier: reminderIdentifier } });
         continue;
       }
 
       sent += 1;
       sentByVariant[variant] += 1;
-      const posthog = createPostHogServerClient();
-      posthog?.capture({
+      deliveryPosthog?.capture({
         distinctId: user.id,
         event: "inactive_signup_reminder_assigned",
         properties: {
@@ -176,7 +191,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           $insert_id: `inactive-signup-reminder-assigned:${user.id}`,
         },
       });
-      posthog?.capture({
+      deliveryPosthog?.capture({
         distinctId: user.id,
         event: "inactive_signup_reminder_sent",
         properties: {
@@ -185,10 +200,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           $insert_id: `inactive-signup-reminder:${user.id}`,
         },
       });
-      if (posthog) flushPostHogServerClientInBackground(posthog);
+      if (deliveryPosthog) flushPostHogServerClientInBackground(deliveryPosthog);
     } catch (error) {
       if (isUniqueConstraintFailure(error)) continue;
       failed += 1;
+      const posthog = createPostHogServerClient();
+      captureReminderDeliveryFailure(posthog, "inactive_signup", user.id, error);
+      if (posthog) flushPostHogServerClientInBackground(posthog);
       await prisma.verificationToken.deleteMany({ where: { identifier: reminderIdentifier } }).catch(() => {});
       console.error("inactive signup reminder send failed", {
         userId: user.id,
@@ -197,6 +215,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
   }
+
+  const posthog = dryRun ? null : createPostHogServerClient();
+  captureReminderRun(posthog, {
+    scheduler: "inactive_signup", startedAt, scanned: candidates.length, batchSize,
+    eligible: wouldSend, sent, failed, dryRun,
+  });
+  if (posthog) flushPostHogServerClientInBackground(posthog);
 
   return res.status(200).json({
     ok: true,
@@ -212,4 +237,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     skippedDeliveryDisabled,
     failed,
   });
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const startedAt = Date.now();
+  try {
+    return await runHandler(req, res, startedAt);
+  } catch (error) {
+    const posthog = createPostHogServerClient();
+    captureReminderFailure(posthog, "inactive_signup", startedAt, error);
+    if (posthog) flushPostHogServerClientInBackground(posthog);
+    console.error("inactive signup reminder scheduler failed", { error });
+    if (!res.headersSent) return res.status(500).json({ ok: false, error: "Reminder scheduler failed" });
+  }
 }
