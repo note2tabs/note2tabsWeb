@@ -83,4 +83,10 @@ describe("gte tuning", () => {
   it("reads normalized tuning defaults", () => {
     expect(getSnapshotTuning(baseSnapshot())).toEqual({ presetId: "standard", capo: 0 });
   });
+
+  it("supports standard four-string bass tuning", () => {
+    const bass = applyTuningToSnapshot(baseSnapshot(), "bass-standard", 0);
+    expect(bass.tuning?.openStringMidi).toEqual([43, 38, 33, 28]);
+    expect(getSnapshotTuning(bass)).toEqual({ presetId: "bass-standard", capo: 0 });
+  });
 });

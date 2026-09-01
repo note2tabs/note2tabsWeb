@@ -2,10 +2,16 @@ import type { ComponentProps } from "react";
 import dynamic from "next/dynamic";
 import GteWorkspace from "./GteWorkspace";
 import { isDrumTrackType } from "../lib/gteDrums";
+import { getSnapshotTrackType } from "../lib/gteTrackTypes";
 
 const GteDrumWorkspace = dynamic(() => import("./GteDrumWorkspace"), {
   loading: () => (
     <div className="gte-workspace-loading" role="status" aria-label="Loading drum editor" />
+  ),
+});
+const GteNotationWorkspace = dynamic(() => import("./GteNotationWorkspace"), {
+  loading: () => (
+    <div className="gte-workspace-loading" role="status" aria-label="Loading notation view" />
   ),
 });
 
@@ -14,8 +20,8 @@ type Props = ComponentProps<typeof GteWorkspace>;
 const LANE_DELIMITER = "__ed__";
 
 export default function GteTrackWorkspace(props: Props) {
-  const trackType =
-    props.snapshot.editorType ?? props.snapshot.trackType ?? props.snapshot.type;
+  const trackType = getSnapshotTrackType(props.snapshot);
+  if (trackType === "notation") return <GteNotationWorkspace {...props} />;
   if (!isDrumTrackType(trackType)) return <GteWorkspace {...props} />;
 
   const delimiterIndex = props.editorId.indexOf(LANE_DELIMITER);

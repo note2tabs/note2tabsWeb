@@ -6,6 +6,7 @@ import {
 } from "./gteInstrumentManifest";
 import { normalizeDrumLoops } from "./gteDrumLoops";
 import { getTuningPreset, normalizeCapo } from "./gteTuning";
+import { normalizeGteTrackType } from "./gteTrackTypes";
 
 export const GTE_GUEST_EDITOR_ID = "local";
 export const GTE_GUEST_DRAFT_STORAGE_KEY = "note2tabs:gte:guest-draft:v1";
@@ -107,7 +108,7 @@ const normalizeTuning = (value: unknown, legacyTabRef: unknown): EditorSnapshot[
         Array.isArray(stringValues) ? toFiniteNumber(stringValues[0], NaN) : NaN
       )
     : [];
-  const openStringMidi = fromRaw.length === 6
+  const openStringMidi = fromRaw.length >= 1 && fromRaw.length <= 12
     ? fromRaw.map((item) => Math.round(item))
     : legacyOpenStrings.length === 6 && legacyOpenStrings.every(Number.isFinite)
       ? legacyOpenStrings.map((item) => Math.round(item))
@@ -122,7 +123,7 @@ const normalizeTuning = (value: unknown, legacyTabRef: unknown): EditorSnapshot[
 
 const normalizeTab = (value: unknown): TabCoord | null => {
   if (!Array.isArray(value) || value.length < 2) return null;
-  const stringIndex = clampInt(value[0], 0, 0, 5);
+  const stringIndex = clampInt(value[0], 0, 0, 11);
   const fret = clampInt(value[1], 0, 0, DEFAULT_MAX_FRET);
   return [stringIndex, fret];
 };
@@ -165,10 +166,7 @@ const normalizeNoteEffects = (value: unknown): NonNullable<EditorSnapshot["noteE
 };
 
 const normalizeEditorType = (value: unknown) => {
-  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
-  if (raw === "drum" || raw === "drums" || raw === "percussion") return "drums";
-  if (raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor") return "chords";
-  return "tab";
+  return normalizeGteTrackType(value);
 };
 
 const normalizeChordEditor = (value: unknown) =>
@@ -197,9 +195,9 @@ export const createGuestSnapshot = (editorId: string = GTE_GUEST_EDITOR_ID): Edi
   return {
     id: editorId,
     name: "Untitled",
-    editorType: "tab",
-    type: "tab",
-    trackType: "tab",
+    editorType: "guitar",
+    type: "guitar",
+    trackType: "guitar",
     instrumentId: DEFAULT_TRACK_INSTRUMENT_ID,
     schemaVersion: 1,
     version: 1,

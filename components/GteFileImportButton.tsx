@@ -7,7 +7,7 @@ import {
   parseTabImportFile,
   type ParsedTabFileImport,
 } from "../lib/gteTabImport";
-import type { CanvasSnapshot, EditorSnapshot, Note, TabCoord } from "../types/gte";
+import type { CanvasSnapshot, EditorSnapshot, GteTrackType, Note, TabCoord } from "../types/gte";
 import {
   DEFAULT_TRACK_INSTRUMENT_ID,
   prepareTrackInstrument,
@@ -15,12 +15,16 @@ import {
 } from "../lib/gteSamplePlayback";
 import { createPlaybackLookaheadScheduler } from "../lib/gtePlaybackLookahead";
 import { buildImportTrackPreviewEvents } from "../lib/gteImportTrackPreview";
-import { getTabMidi as getSnapshotTabMidi } from "../lib/gteTuning";
+import {
+  getAllTabsForMidi,
+  getTabMidi as getSnapshotTabMidi,
+} from "../lib/gteTuning";
+import { getTrackTypeLabel, normalizeGteTrackType } from "../lib/gteTrackTypes";
 
 type Props = {
   editorId?: string;
   createEditor?: (name: string) => Promise<{ editorId: string; laneId: string }>;
-  onImported: (editorId: string) => void | Promise<void>;
+  onImported: (editorId: string, result?: ImportResult) => void | Promise<void>;
   onError: (message: string) => void;
   className: string;
   disabled?: boolean;
@@ -32,9 +36,23 @@ type Props = {
 type ImportTrack = {
   name?: string;
   stamps: Array<[number, TabCoord, number]>;
+  midiNotes?: number[];
   framesPerMessure?: number;
   fps?: number;
   totalFrames?: number;
+  representation?: GteTrackType;
+  detectionConfidence?: "high" | "medium" | "low";
+  midiProgram?: number;
+};
+
+export type ImportResult = {
+  firstLaneId: string;
+  tracks: Array<{
+    laneId: string;
+    name: string;
+    representation: GteTrackType;
+    detectionConfidence: "high" | "medium" | "low";
+  }>;
 };
 
 type SelectableImportFormat = "MIDI" | "MusicXML";
@@ -90,18 +108,42 @@ const buildDefaultCuts = (lane: EditorSnapshot, totalFrames: number, framesPerBa
 };
 
 const applyImportTrackToLane = (lane: EditorSnapshot, track: ImportTrack): EditorSnapshot => {
+  const representation = normalizeGteTrackType(track.representation);
+  const representedLane: EditorSnapshot = {
+    ...lane,
+    editorType: representation,
+    trackType: representation,
+    type: representation,
+    ...(representation === "bass"
+      ? {
+          tuning: {
+            presetId: "bass-standard",
+            label: "Standard bass",
+            openStringMidi: [43, 38, 33, 28],
+            capo: 0,
+          },
+        }
+      : {}),
+  };
   const framesPerBar = Math.max(1, Math.round(Number(track.framesPerMessure ?? lane.framesPerMessure ?? 480)));
   const notes: Note[] = track.stamps.map((entry, index) => {
-    const tab = clampTab(entry[1]);
+    const sourceMidi = Number(track.midiNotes?.[index]);
+    const importedMidi = Number.isFinite(sourceMidi)
+      ? Math.round(sourceMidi)
+      : getTabMidi(representedLane, clampTab(entry[1]));
+    const possibleTabs = getAllTabsForMidi(representedLane, importedMidi);
+    const tab = representation === "bass" && possibleTabs.length
+      ? [...possibleTabs].sort((left, right) => left[1] - right[1] || left[0] - right[0])[0]
+      : clampTab(entry[1]);
     const startTime = Math.max(0, Math.round(Number(entry[0] ?? 0)));
     const length = Math.max(1, Math.round(Number(entry[2] ?? Math.round(framesPerBar / 16))));
     return {
       id: index + 1,
       startTime,
       length,
-      midiNum: getTabMidi(lane, tab),
+      midiNum: importedMidi,
       tab,
-      optimals: [],
+      optimals: possibleTabs,
     };
   });
   const totalFrames = Math.max(
@@ -110,7 +152,7 @@ const applyImportTrackToLane = (lane: EditorSnapshot, track: ImportTrack): Edito
     ...notes.map((note) => note.startTime + note.length)
   );
   return {
-    ...lane,
+    ...representedLane,
     name: track.name || lane.name,
     framesPerMessure: framesPerBar,
     fps: Math.max(1, Math.round(Number(track.fps ?? lane.fps ?? 240))),
@@ -290,6 +332,10 @@ export default function GteFileImportButton({
                 framesPerMessure: parsed.framesPerMessure,
                 fps: parsed.fps,
                 totalFrames: parsed.totalFrames,
+                midiNotes: parsed.midiNotes,
+                representation: parsed.representation,
+                detectionConfidence: parsed.detectionConfidence,
+                midiProgram: parsed.midiProgram,
               },
             ];
       const selectableFormat = getSelectableImportFormat(parsed.fileName);
@@ -313,7 +359,26 @@ export default function GteFileImportButton({
       let currentCanvas: CanvasSnapshot | null = null;
 
       if (targetEditorId) {
-        const added = await gteApi.addCanvasEditor(targetEditorId, importTracks[0]?.name || parsed.name);
+        const firstRepresentation = normalizeGteTrackType(importTracks[0]?.representation);
+        const added = await gteApi.addCanvasEditor(
+          targetEditorId,
+          importTracks[0]?.name || parsed.name,
+          {
+            editorType: firstRepresentation,
+            trackType: firstRepresentation,
+            type: firstRepresentation,
+            ...(firstRepresentation === "bass"
+              ? {
+                  tuning: {
+                    presetId: "bass-standard",
+                    label: "Standard bass",
+                    openStringMidi: [43, 38, 33, 28],
+                    capo: 0,
+                  },
+                }
+              : {}),
+          }
+        );
         firstLaneId = added.editor.id;
         currentCanvas = added.canvas;
         addedLaneIds.push(firstLaneId);
@@ -335,7 +400,26 @@ export default function GteFileImportButton({
       for (let index = 0; index < importTracks.length; index += 1) {
         const track = importTracks[index];
         if (index > 0) {
-          const added = await gteApi.addCanvasEditor(targetEditorId, track.name || `${parsed.name} ${index + 1}`);
+          const representation = normalizeGteTrackType(track.representation);
+          const added = await gteApi.addCanvasEditor(
+            targetEditorId,
+            track.name || `${parsed.name} ${index + 1}`,
+            {
+              editorType: representation,
+              trackType: representation,
+              type: representation,
+              ...(representation === "bass"
+                ? {
+                    tuning: {
+                      presetId: "bass-standard",
+                      label: "Standard bass",
+                      openStringMidi: [43, 38, 33, 28],
+                      capo: 0,
+                    },
+                  }
+                : {}),
+            }
+          );
           currentCanvas = added.canvas;
           laneIds.push(added.editor.id);
           addedLaneIds.push(added.editor.id);
@@ -349,7 +433,15 @@ export default function GteFileImportButton({
         }),
       };
       await gteApi.applySnapshot(targetEditorId, nextCanvas);
-      await onImported(targetEditorId);
+      await onImported(targetEditorId, {
+        firstLaneId,
+        tracks: importTracks.map((track, index) => ({
+          laneId: laneIds[index],
+          name: track.name || `${parsed.name} ${index + 1}`,
+          representation: normalizeGteTrackType(track.representation),
+          detectionConfidence: track.detectionConfidence || "low",
+        })),
+      });
     } catch (err: unknown) {
       if (editorId && addedLaneIds.length) {
         await Promise.all(addedLaneIds.map((laneId) => gteApi.deleteCanvasEditor(editorId, laneId).catch(() => {})));
@@ -371,6 +463,20 @@ export default function GteFileImportButton({
       if (selectedIndexes.has(index)) selectedIndexes.delete(index);
       else selectedIndexes.add(index);
       return { ...current, selectedIndexes };
+    });
+  };
+
+  const setTrackRepresentation = (index: number, representation: GteTrackType) => {
+    setPendingTrackSelection((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        tracks: current.tracks.map((track, trackIndex) =>
+          trackIndex === index
+            ? { ...track, representation, detectionConfidence: "high" }
+            : track
+        ),
+      };
     });
   };
 
@@ -463,6 +569,18 @@ export default function GteFileImportButton({
                   <span className="shrink-0 text-xs text-slate-400">
                     {track.stamps.length} {track.stamps.length === 1 ? "note" : "notes"}
                   </span>
+                  <select
+                    value={normalizeGteTrackType(track.representation)}
+                    onChange={(event) =>
+                      setTrackRepresentation(index, event.target.value as GteTrackType)
+                    }
+                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-600"
+                    aria-label={`Representation for ${track.name || `track ${index + 1}`}`}
+                  >
+                    {(["guitar", "bass", "drums", "notation", "chords"] as const).map((type) => (
+                      <option key={type} value={type}>{getTrackTypeLabel(type)}</option>
+                    ))}
+                  </select>
                   <button
                     type="button"
                     onClick={() => void playTrackPreview(track, index)}

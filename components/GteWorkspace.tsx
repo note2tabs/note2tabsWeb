@@ -646,22 +646,26 @@ const cloneTabCoord = (tab: TabCoord): TabCoord => [tab[0], tab[1]];
 const getMaxFret = (snapshot: Pick<EditorSnapshot, "maxFret">) =>
   getMaxFretFromSnapshot(snapshot);
 
-const isTabCoordValidForSnapshot = (snapshot: Pick<EditorSnapshot, "maxFret">, tab: TabCoord) => {
+const isTabCoordValidForSnapshot = (snapshot: Pick<EditorSnapshot, "maxFret" | "tuning">, tab: TabCoord) => {
   const maxFret = getMaxFret(snapshot);
+  const maxStringIndex = Math.max(0, getOpenStringMidiFromSnapshot(snapshot).length - 1);
   return (
     Number.isInteger(tab[0]) &&
     Number.isInteger(tab[1]) &&
     tab[0] >= 0 &&
-    tab[0] <= 5 &&
+    tab[0] <= maxStringIndex &&
     tab[1] >= 0 &&
     tab[1] <= maxFret
   );
 };
 
-const clampTabCoordInSnapshot = (snapshot: Pick<EditorSnapshot, "maxFret">, tab?: TabCoord | null): TabCoord => {
+const clampTabCoordInSnapshot = (snapshot: Pick<EditorSnapshot, "maxFret" | "tuning">, tab?: TabCoord | null): TabCoord => {
   const maxFret = getMaxFret(snapshot);
+  const maxStringIndex = Math.max(0, getOpenStringMidiFromSnapshot(snapshot).length - 1);
   const source = tab ?? DEFAULT_CUT_COORD;
-  const stringIndex = Number.isFinite(source[0]) ? Math.max(0, Math.min(5, Math.round(source[0]))) : 0;
+  const stringIndex = Number.isFinite(source[0])
+    ? Math.max(0, Math.min(maxStringIndex, Math.round(source[0])))
+    : 0;
   const fret = Number.isFinite(source[1])
     ? Math.max(0, Math.min(maxFret, Math.round(source[1])))
     : Math.min(maxFret, DEFAULT_CUT_COORD[1]);
@@ -1007,7 +1011,7 @@ type FingeringOptimizationResult = {
   createdChordIds: number[];
 };
 
-export const generateOctaveCombos = (baseMidis: number[]) => {
+export const generateOctaveCombos = (baseMidis: number[], maxComboSize: number = 6) => {
   const baseList = baseMidis.map((midi) => Math.trunc(Number(midi)));
   const additionalList = baseList.map((midi) => midi + 12);
   const result: number[][] = [];
@@ -1015,7 +1019,7 @@ export const generateOctaveCombos = (baseMidis: number[]) => {
   const collectCombinations = (startIndex: number, targetSize: number) => {
     if (selected.length === targetSize) {
       const combo = [...baseList, ...selected];
-      if (combo.length <= 6) result.push(combo);
+      if (combo.length <= maxComboSize) result.push(combo);
       return;
     }
     for (let index = startIndex; index < additionalList.length; index += 1) {
@@ -1111,7 +1115,8 @@ export const createBackendStyleChordAlternatives = (
       return true;
     })
     .filter((midi) => !seen.has(midi - 12));
-  const octaveCombos = generateOctaveCombos(midis);
+  const stringCount = Math.max(1, getOpenStringMidiFromSnapshot(snapshot).length);
+  const octaveCombos = generateOctaveCombos(midis, stringCount);
   const normalAndOctaves = [...midis, ...midis.map((midi) => midi + 12)];
   const midiToFret = new Map<number, TabCoord[]>();
   normalAndOctaves.forEach((midi) => {
@@ -1194,10 +1199,12 @@ export const optimizeTrackFingeringInSnapshot = (
   const chordizedNoteIds = new Set<number>();
   let nextChordId = draft.chords.reduce((max, chord) => Math.max(max, chord.id), 0) + 1;
 
+  const maxChordSize = Math.max(2, getOpenStringMidiFromSnapshot(draft).length);
   chordGroups.forEach((group) => {
-    // A guitar has six strings. Keep oversized onset clusters as notes rather
-    // than silently dropping pitches or generating an impossible chord.
-    if (group.notes.length < 2 || group.notes.length > 6) return;
+    // A chord can't use more notes than the instrument has strings. Keep
+    // oversized onset clusters as notes rather than silently dropping
+    // pitches or generating an impossible chord.
+    if (group.notes.length < 2 || group.notes.length > maxChordSize) return;
     const chordNotes = group.notes;
     const chord = buildChordFromCluster(draft, chordNotes, nextChordId);
     draft.chords.push(chord);
@@ -4809,8 +4816,10 @@ export default function GteWorkspace({
   const maxFret = getMaxFret(snapshot);
   const stringLabels = useMemo(() => {
     const labels = getStringLabelsForSnapshot(snapshot);
-    return labels.length === 6 ? labels : DEFAULT_STRING_LABELS;
+    return labels.length ? labels : DEFAULT_STRING_LABELS;
   }, [snapshot]);
+  const stringCount = stringLabels.length;
+  const maxStringIndex = stringCount - 1;
   const realBarCount = Math.max(1, Math.ceil(Math.max(1, effectiveTotalFrames) / framesPerMeasure));
   // Moving the editing cursor just beyond the last stored bar reveals a temporary
   // bar. It is presentation-only until an event is committed in it.
@@ -4861,7 +4870,7 @@ export default function GteWorkspace({
   const viewportTimelineWidth = Math.max(1, viewportTotalFrames) * scale;
   const timelineWidth = viewportTimelineWidth;
   const timelineChromeWidth = viewportTimelineWidth + 40;
-  const rowHeight = ROW_HEIGHT * 6;
+  const rowHeight = ROW_HEIGHT * stringCount;
   const coordinateBandHeight = showPlayingCoordinates
     ? PLAYING_COORDINATE_OFFSET + CUT_SEGMENT_HEIGHT
     : 0;
@@ -8113,7 +8122,7 @@ export default function GteWorkspace({
         const localY = y - rowIndex * rowStride;
         const stringIndex = multiTrackSelectionActive
           ? dragging.stringIndex
-          : clamp(Math.floor(localY / ROW_HEIGHT), 0, 5);
+          : clamp(Math.floor(localY / ROW_HEIGHT), 0, maxStringIndex);
         const next = { startTime, stringIndex };
         dragPreviewRef.current = next;
         setDragPreview(next);
@@ -8611,7 +8620,7 @@ export default function GteWorkspace({
       const y = clamp(event.clientY - rect.top, 0, timelineHeight);
       const rowIndex = clamp(Math.floor(y / rowStride), 0, rows - 1);
       const localY = y - rowIndex * rowStride;
-      const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, 5);
+      const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, maxStringIndex);
       if (Math.abs(event.clientY - chordNoteDragStartYRef.current) > 3) {
         chordNoteDragMovedRef.current = true;
       }
@@ -8692,7 +8701,7 @@ export default function GteWorkspace({
         const rowStart = rowIndex * rowFrames;
         const rowBarCount = getRowBarCount(rowIndex);
         const availableFrames = Math.max(1, rowBarCount * framesPerMeasure);
-        const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, 5);
+        const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, maxStringIndex);
         const rawStartTime = Math.round(current.startX / scale) + rowStart;
         const startTime = clamp(snapStartTimeToGrid(rawStartTime), rowStart, rowStart + availableFrames - 1);
         setKeyboardGridCursor({ time: startTime, stringIndex });
@@ -8896,7 +8905,7 @@ export default function GteWorkspace({
         timelineHeight
       );
       const rowTop = target.rowIndex * rowStride;
-      const stringIndex = clamp(Math.floor((y - rowTop) / ROW_HEIGHT), 0, 5);
+      const stringIndex = clamp(Math.floor((y - rowTop) / ROW_HEIGHT), 0, maxStringIndex);
       hideKeyboardCursor({ time: target.time, stringIndex });
     } else {
       hideKeyboardCursor();
@@ -9075,7 +9084,7 @@ export default function GteWorkspace({
     event.stopPropagation();
     hideKeyboardCursor({
       time: snapKeyboardCursorTimeToGrid(startTime),
-      stringIndex: clamp(Math.round(stringIndex), 0, 5),
+      stringIndex: clamp(Math.round(stringIndex), 0, maxStringIndex),
     });
     const shiftKey = Boolean(event.shiftKey);
     if (sliceToolActive && !shiftKey) {
@@ -9156,7 +9165,7 @@ export default function GteWorkspace({
     event.stopPropagation();
     hideKeyboardCursor({
       time: snapKeyboardCursorTimeToGrid(startTime),
-      stringIndex: clamp(Math.round(stringIndex), 0, 5),
+      stringIndex: clamp(Math.round(stringIndex), 0, maxStringIndex),
     });
     const shiftKey = Boolean(event.shiftKey);
     if (sliceToolActive && !shiftKey) {
@@ -11066,7 +11075,7 @@ export default function GteWorkspace({
   const handleAssignAlt = (tab: TabCoord) => {
     if (!selectedNote) return;
     if (!isTabCoordValidForSnapshot(snapshot, tab)) {
-      setError(`Tab must stay within strings 0-5 and frets 0-${maxFret}.`);
+      setError(`Tab must stay within strings 0-${maxStringIndex} and frets 0-${maxFret}.`);
       return;
     }
     const fingeringUpdates = getEffectAwareFingeringUpdates(snapshotRef.current, [
@@ -11107,7 +11116,7 @@ export default function GteWorkspace({
     }
     const normalized = tabs.map((tab) => [tab[0] as number, tab[1] as number]) as TabCoord[];
     if (normalized.some((tab) => !isTabCoordValidForSnapshot(snapshot, tab))) {
-      setError(`Chord tabs must stay within strings 0-5 and frets 0-${maxFret}.`);
+      setError(`Chord tabs must stay within strings 0-${maxStringIndex} and frets 0-${maxFret}.`);
       return;
     }
     void runMutation(() => gteApi.setChordTabs(editorId, selectedChord.id, normalized), {
@@ -11732,7 +11741,7 @@ export default function GteWorkspace({
     if (current) {
       return {
         time: snapKeyboardCursorTimeToGrid(current.time),
-        stringIndex: clamp(Math.round(current.stringIndex), 0, 5),
+        stringIndex: clamp(Math.round(current.stringIndex), 0, maxStringIndex),
       };
     }
     const selectedId = selectedNoteIdsRef.current[0];
@@ -11742,7 +11751,7 @@ export default function GteWorkspace({
       if (selected) {
         return {
           time: snapKeyboardCursorTimeToGrid(selected.startTime),
-          stringIndex: clamp(Math.round(selected.tab[0]), 0, 5),
+          stringIndex: clamp(Math.round(selected.tab[0]), 0, maxStringIndex),
         };
       }
     }
@@ -11753,7 +11762,7 @@ export default function GteWorkspace({
       if (selected && tab) {
         return {
           time: snapKeyboardCursorTimeToGrid(selected.startTime),
-          stringIndex: clamp(Math.round(tab[0]), 0, 5),
+          stringIndex: clamp(Math.round(tab[0]), 0, maxStringIndex),
         };
       }
     }
@@ -12114,7 +12123,7 @@ export default function GteWorkspace({
       }
       return {
         time: clamp(time, 0, maxTime),
-        stringIndex: clamp(Math.round(note.tab[0]), 0, 5),
+        stringIndex: clamp(Math.round(note.tab[0]), 0, maxStringIndex),
       };
     },
     [clamp, getAdjacentKeyboardGridTime, snapKeyboardCursorTimeToGrid, timelineEnd]
@@ -12702,7 +12711,7 @@ export default function GteWorkspace({
               const deltaString = event.key === "ArrowUp" ? -1 : 1;
               const requestedUpdates = selectedNoteGroup
                 .map((note) => {
-                  const nextString = clamp(note.tab[0] + deltaString, 0, 5);
+                  const nextString = clamp(note.tab[0] + deltaString, 0, maxStringIndex);
                   const tab = snapTabToKeyIfEnabled(snapshotRef.current, [nextString, note.tab[1]]);
                   return { id: note.id, tab };
                 })
@@ -12736,7 +12745,7 @@ export default function GteWorkspace({
               const cursor = resolveKeyboardCursor();
               showKeyboardCursor({
                 time: cursor.time,
-                stringIndex: clamp(cursor.stringIndex + deltaString, 0, 5),
+                stringIndex: clamp(cursor.stringIndex + deltaString, 0, maxStringIndex),
               });
               return;
             }
@@ -12791,7 +12800,7 @@ export default function GteWorkspace({
             if (!selected) return;
             if (event.key === "ArrowUp" || event.key === "ArrowDown") {
               const deltaString = event.key === "ArrowUp" ? -1 : 1;
-              const nextString = clamp(selected.tab[0] + deltaString, 0, 5);
+              const nextString = clamp(selected.tab[0] + deltaString, 0, maxStringIndex);
               if (nextString === selected.tab[0]) return;
               const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [nextString, selected.tab[1]]);
               if (isSameTabCoord(selected.tab, nextTab)) return;
@@ -12866,9 +12875,9 @@ export default function GteWorkspace({
             nextCursor.time = getAdjacentKeyboardGridTime(baseCursor.time, 1);
           }
           if (event.key === "ArrowUp") {
-            nextCursor.stringIndex = clamp(baseCursor.stringIndex - 1, 0, 5);
+            nextCursor.stringIndex = clamp(baseCursor.stringIndex - 1, 0, maxStringIndex);
           } else if (event.key === "ArrowDown") {
-            nextCursor.stringIndex = clamp(baseCursor.stringIndex + 1, 0, 5);
+            nextCursor.stringIndex = clamp(baseCursor.stringIndex + 1, 0, maxStringIndex);
           }
           showKeyboardCursor(nextCursor);
           setSelectedCutBoundaryIndex(null);
@@ -13284,7 +13293,7 @@ export default function GteWorkspace({
     const rowWidth = availableFrames * scale;
     const cellWidth = Math.max(8, step * scale);
     const left = clamp((safeTime - rowStart) * scale, 0, Math.max(0, rowWidth - cellWidth));
-    const stringIndex = clamp(Math.round(keyboardGridCursor.stringIndex), 0, 5);
+    const stringIndex = clamp(Math.round(keyboardGridCursor.stringIndex), 0, maxStringIndex);
     const top = rowIndex * rowStride + stringIndex * ROW_HEIGHT;
     return { left, top, width: cellWidth, height: ROW_HEIGHT };
   }, [
@@ -16479,7 +16488,7 @@ export default function GteWorkspace({
                   const beatWidth = framesPerMeasure > 0 ? (framesPerMeasure / beatsPerBar) * scale : 0;
                   return (
                     <div key={`row-${rowIdx}`} className="absolute left-0" style={{ top: rowTop, width: rowWidth }}>
-                      {[...Array(6)].map((_, idx) => (
+                      {Array.from({ length: stringCount }, (_, idx) => (
                         <div
                           key={`row-${rowIdx}-line-${idx}`}
                           className="absolute left-0 border-t border-slate-300"

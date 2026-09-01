@@ -30,6 +30,26 @@ const baseSnapshot = (): EditorSnapshot => ({
 });
 
 describe("gte editor tab view", () => {
+  it("uses the configured four-string bass layout", () => {
+    const snapshot = baseSnapshot();
+    snapshot.editorType = "bass";
+    snapshot.tuning = {
+      presetId: "bass-standard",
+      openStringMidi: [43, 38, 33, 28],
+      capo: 0,
+    };
+    snapshot.notes = [{ id: 1, startTime: 0, length: 120, midiNum: 43, tab: [0, 0], optimals: [] }];
+    snapshot.chords = [];
+    const view = buildEditorTabView(snapshot, {
+      framesPerBar: 480,
+      beatsPerBar: 4,
+      scale: 1,
+      playheadFrame: 0,
+    });
+    expect(view.strings.map((string) => string.label)).toEqual(["G", "D", "A", "E"]);
+    expect(view.placements[0]).toMatchObject({ stringIndex: 0, fret: 0 });
+  });
+
   it("uses the same per-bar width as the frame timeline scale", () => {
     const framesPerBar = 480;
     const scale = 3.37;

@@ -17,6 +17,7 @@ import { authOptions } from "../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
 import { buildLaneEditorRef, gteApi, normalizeEditorName } from "../../lib/gteApi";
+import { sendEvent } from "../../lib/analytics";
 import { buildTrackMergePlan } from "../../lib/gteTrackMerge";
 import {
   PLAYBACK_SPEED_OPTIONS,
@@ -77,10 +78,15 @@ import {
   normalizeDrumLoops,
   preserveDrumLoopsAcrossCanvasUpdate,
 } from "../../lib/gteDrumLoops";
-import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
+import type { CanvasSnapshot, EditorSnapshot, GteTrackType } from "../../types/gte";
+import {
+  getSnapshotTrackType,
+  getTrackTypeLabel,
+  normalizeGteTrackType,
+} from "../../lib/gteTrackTypes";
 import { getChordEditorMidiNotes } from "../../lib/gteChordEditor";
 import { buildChordPlaybackWindows } from "../../lib/gteChordPlayback";
-import GteFileImportButton from "../../components/GteFileImportButton";
+import GteFileImportButton, { type ImportResult } from "../../components/GteFileImportButton";
 import { EditorLoadingState } from "../../components/EditorLoadingState";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
@@ -372,11 +378,7 @@ const isCanvasSnapshot = (value: unknown): value is CanvasSnapshot =>
   Boolean(value && typeof value === "object" && Array.isArray((value as CanvasSnapshot).editors));
 
 const normalizeEditorKind = (value: unknown) => {
-  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
-  if (isDrumTrackType(raw)) return "drums";
-  return raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor"
-    ? "chords"
-    : "tab";
+  return normalizeGteTrackType(value);
 };
 
 const isChordLane = (lane: Pick<EditorSnapshot, "editorType" | "trackType" | "type">) =>
@@ -393,10 +395,9 @@ const normalizeLane = (
   const safeSeconds = Math.max(0.1, toNumber(secondsPerBar, toNumber(lane.secondsPerBar, DEFAULT_SECONDS_PER_BAR)));
   const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)));
   const rawName = typeof lane.name === "string" ? lane.name.trim() : "";
-  const defaultNamePattern = /^(editor|transcription|tab|chords?|drums?)\s+\d+$/i;
+  const defaultNamePattern = /^(editor|transcription|tab|guitar|bass|notation|chords?|drums?)\s+\d+$/i;
   const editorKind = normalizeEditorKind(lane.editorType ?? lane.trackType ?? lane.type);
-  const laneTypeLabel =
-    editorKind === "chords" ? "Chords" : editorKind === "drums" ? "Drums" : "Tab";
+  const laneTypeLabel = getTrackTypeLabel(editorKind);
   const laneName =
     !rawName || defaultNamePattern.test(rawName)
       ? `${laneTypeLabel} ${index + 1}`
@@ -408,6 +409,16 @@ const normalizeLane = (
     editorType: editorKind,
     type: editorKind,
     trackType: editorKind,
+    ...(editorKind === "bass" && !lane.tuning?.openStringMidi?.length
+      ? {
+          tuning: {
+            presetId: "bass-standard",
+            label: "Standard bass",
+            openStringMidi: [43, 38, 33, 28],
+            capo: 0,
+          },
+        }
+      : {}),
     instrumentId: normalizeTrackInstrumentId(lane.instrumentId),
     playbackVolume: normalizeTrackVolume(lane.playbackVolume ?? 1),
     playbackMuted: lane.playbackMuted === true,
@@ -1321,6 +1332,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [hasPendingCommit, setHasPendingCommit] = useState(false);
   const [lastCommittedAt, setLastCommittedAt] = useState<string | null>(null);
+  const [postImportResult, setPostImportResult] = useState<ImportResult | null>(null);
+  const [transcriptionReportOpen, setTranscriptionReportOpen] = useState(false);
+  const [transcriptionReportReason, setTranscriptionReportReason] = useState("Wrong notes");
+  const [transcriptionReportDetails, setTranscriptionReportDetails] = useState("");
   const [addingLane, setAddingLane] = useState(false);
   const [addTrackMenuOpen, setAddTrackMenuOpen] = useState(false);
   const [desktopTrackMenuOpen, setDesktopTrackMenuOpen] = useState(false);
@@ -1349,7 +1364,52 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [openMobileBarMenuLaneId, setOpenMobileBarMenuLaneId] = useState<string | null>(null);
   const [editMenuPortalTarget, setEditMenuPortalTarget] = useState<HTMLDivElement | null>(null);
   const [editorMode, setEditorMode] = useState<"canvas" | "tab" | "practice">("canvas");
+  const [guidanceCompleted, setGuidanceCompleted] = useState<Record<"play" | "edit" | "practice", boolean>>({
+    play: false,
+    edit: false,
+    practice: false,
+  });
+  const [guidanceHydrated, setGuidanceHydrated] = useState(false);
+  const guidanceStorageKey = `note2tabs:gte-guidance:${editorId}:v1`;
+  const markGuidanceComplete = useCallback((step: "play" | "edit" | "practice") => {
+    setGuidanceCompleted((current) => {
+      if (current[step]) return current;
+      const next = { ...current, [step]: true };
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(guidanceStorageKey, JSON.stringify(next));
+      }
+      return next;
+    });
+  }, [guidanceStorageKey]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(guidanceStorageKey) || "{}");
+      setGuidanceCompleted({
+        play: saved.play === true,
+        edit: saved.edit === true,
+        practice: saved.practice === true,
+      });
+    } catch {
+      // Ignore malformed guidance state.
+    } finally {
+      setGuidanceHydrated(true);
+    }
+  }, [guidanceStorageKey]);
+  const activeGuidanceStep = !guidanceHydrated
+    ? null
+    : !guidanceCompleted.play
+    ? "play"
+    : !guidanceCompleted.edit
+      ? "edit"
+      : !guidanceCompleted.practice
+        ? "practice"
+        : null;
   const practiceModeEnabled = editorMode === "practice";
+  const selectEditorMode = useCallback((mode: "canvas" | "tab" | "practice") => {
+    setEditorMode(mode);
+    if (mode === "practice") markGuidanceComplete("practice");
+  }, [markGuidanceComplete]);
   const tabViewEnabled = editorMode !== "canvas";
   const [globalSnapToGridEnabled, setGlobalSnapToGridEnabled] = useState(true);
   const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabledState] = useState(false);
@@ -1474,6 +1534,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [speedTrainerTarget, setSpeedTrainerTarget] = useState(1.5);
   const [speedTrainerStep, setSpeedTrainerStep] = useState(0.05);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [practiceContinuation, setPracticeContinuation] = useState<{
+    startBar: number;
+    endBar: number;
+    speed: number;
+  } | null>(null);
   const [practiceRatingReplays, setPracticeRatingReplays] = useState<PracticeRatingReplay[]>([]);
   const [selectedPracticeRatingId, setSelectedPracticeRatingId] = useState<string | null>(null);
   const [practiceReplayPlayingId, setPracticeReplayPlayingId] = useState<string | null>(null);
@@ -2016,6 +2081,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const handleMainMouseDownCapture = useCallback((event: ReactMouseEvent<HTMLElement>) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
+    if (!target.closest("[data-post-import-panel='true']")) {
+      setPostImportResult(null);
+    }
     if (target.closest("[data-desktop-track-selector='true']")) return;
     setDesktopTrackMenuOpen(false);
     setDesktopTrackAddMenuOpen(false);
@@ -2441,7 +2509,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
   }, [applyCanvasUpdate, barSelection?.barIndices, canvas, editorId, isGuestMode, pendingMeterChange, timeSignatureSaving]);
 
-  const handleAddLane = async (kind: "tab" | "chords" | "drums" = "tab") => {
+  const handleAddLane = async (kind: GteTrackType = "guitar") => {
     if (!canvasRef.current || addingLane) return;
     setAddingLane(true);
     setAddTrackMenuOpen(false);
@@ -2453,6 +2521,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         editorType: kind,
         trackType: kind,
         type: kind,
+        ...(kind === "bass"
+          ? {
+              tuning: {
+                presetId: "bass-standard",
+                label: "Standard bass",
+                openStringMidi: [43, 38, 33, 28],
+                capo: 0,
+              },
+            }
+          : {}),
         ...(kind === "chords"
           ? {
               chordEditor: {
@@ -2872,6 +2950,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     nextLaneSnapshot: EditorSnapshot,
     options?: { recordHistory?: boolean; markDirty?: boolean }
   ) => {
+    const previousLaneSnapshot = canvasRef.current?.editors.find((lane) => lane.id === laneId);
+    if (
+      previousLaneSnapshot &&
+      JSON.stringify(previousLaneSnapshot.notes) !== JSON.stringify(nextLaneSnapshot.notes)
+    ) {
+      markGuidanceComplete("edit");
+    }
     setCanvas((prev) => {
       if (!prev) return prev;
       const secondsPerBar = Math.max(
@@ -3196,6 +3281,41 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [applyCanvasBarUpdate, canvas, clearBarSelectionState, editorId, isGuestMode]
   );
 
+  const handleLaneRepresentationChange = useCallback(
+    (laneId: string, representation: GteTrackType) => {
+      if (!canvas) return;
+      const laneIndex = canvas.editors.findIndex((lane) => lane.id === laneId);
+      if (laneIndex < 0) return;
+      const currentLane = canvas.editors[laneIndex];
+      if (getSnapshotTrackType(currentLane) === representation) return;
+      const secondsPerBar = Math.max(0.1, toNumber(canvas.secondsPerBar, DEFAULT_SECONDS_PER_BAR));
+      let nextLane: EditorSnapshot = {
+        ...currentLane,
+        editorType: representation,
+        trackType: representation,
+        type: representation,
+      };
+      if (representation === "bass") {
+        nextLane = applyTuningToSnapshotPreservingSound(nextLane, "bass-standard", 0);
+      } else if (representation === "guitar" && getOpenStringMidiFromSnapshot(nextLane).length !== 6) {
+        nextLane = applyTuningToSnapshotPreservingSound(nextLane, "standard", 0);
+      }
+      const nextCanvas = normalizeCanvas(
+        {
+          ...canvas,
+          updatedAt: new Date().toISOString(),
+          editors: canvas.editors.map((lane, index) =>
+            index === laneIndex ? normalizeLane(nextLane, laneId, secondsPerBar, index) : lane
+          ),
+        },
+        editorId
+      );
+      applyCanvasUpdate(nextCanvas, { markDirty: true });
+      setActiveLaneId(laneId);
+    },
+    [applyCanvasUpdate, canvas, editorId]
+  );
+
   const handleMoveSelectedBars = useCallback(
     async (
       sourceLaneId: string,
@@ -3341,15 +3461,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, [activeLaneId, handleCanvasRedo, handleCanvasUndo]);
 
   const saveStatus = useMemo(() => {
-    if (savingCanvas || hasPendingCommit) return "Unsaved changes";
-    if (lastCommittedAt) {
-      return `Saved ${new Date(lastCommittedAt).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      })}`;
-    }
-    return "Unsaved changes";
-  }, [hasPendingCommit, lastCommittedAt, savingCanvas]);
+    if (saveError) return "Save failed";
+    if (savingCanvas) return "Saving";
+    if (hasPendingCommit) return "Unsaved changes";
+    if (isGuestMode) return "Saved on this device";
+    return "Saved";
+  }, [hasPendingCommit, isGuestMode, saveError, savingCanvas]);
 
   const sharedViewportBarCount = useMemo(() => {
     if (!canvas) return 1;
@@ -3646,7 +3763,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     [canvasTimelineEnd, selectedPracticePlaybackRange]
   );
   const normalizedPlaybackSpeed = normalizePlaybackSpeed(playbackSpeed);
-  const practiceSettingsStorageKey = `note2tabs:practice:${editorId}:v1`;
+  const editorSessionStorageKey = `note2tabs:editor-session:${editorId}:v1`;
+  const legacyPracticeSettingsStorageKey = `note2tabs:practice:${editorId}:v1`;
   const practiceRatingsStorageKey = `note2tabs:practice-ratings:${editorId}:v1`;
 
   useEffect(() => {
@@ -3683,10 +3801,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!canvas || practiceSettingsHydratedRef.current || typeof window === "undefined") return;
     practiceSettingsHydratedRef.current = true;
     try {
-      const raw = window.localStorage.getItem(practiceSettingsStorageKey);
+      const raw =
+        window.localStorage.getItem(editorSessionStorageKey) ||
+        window.localStorage.getItem(legacyPracticeSettingsStorageKey);
       if (!raw) return;
       const saved = JSON.parse(raw) as Record<string, unknown>;
       if (typeof saved.activeLaneId === "string") setActiveLaneId(saved.activeLaneId);
+      if (saved.editorMode === "canvas" || saved.editorMode === "tab" || saved.editorMode === "practice") {
+        setEditorMode(saved.editorMode);
+      }
       setPlaybackSpeed(normalizePlaybackSpeed(saved.playbackSpeed));
       if (typeof saved.practiceLoopEnabled === "boolean") setPracticeLoopEnabled(saved.practiceLoopEnabled);
       if (typeof saved.metronomeEnabled === "boolean") setMetronomeEnabled(saved.metronomeEnabled);
@@ -3708,10 +3831,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setSpeedTrainerTarget(normalizePlaybackSpeed(saved.speedTrainerTarget));
       setSpeedTrainerStep(Math.max(0.01, Number(saved.speedTrainerStep) || 0.05));
       if (Array.isArray(saved.barIndices) && typeof saved.barLaneId === "string") {
+        const savedBars = saved.barIndices.map(Number).filter(Number.isFinite);
         setBarSelection({
           laneId: saved.barLaneId,
-          barIndices: saved.barIndices.map(Number).filter(Number.isFinite),
+          barIndices: savedBars,
         });
+        if (savedBars.length) {
+          setPracticeContinuation({
+            startBar: Math.min(...savedBars) + 1,
+            endBar: Math.max(...savedBars) + 1,
+            speed: normalizePlaybackSpeed(saved.playbackSpeed),
+          });
+        }
       }
       const savedFrame = Number(saved.playbackFrame);
       if (Number.isFinite(savedFrame)) {
@@ -3720,16 +3851,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         setGlobalPlaybackFrame(frame);
         setGlobalPlaybackFrameRevision((revision) => revision + 1);
       }
+      window.localStorage.removeItem(legacyPracticeSettingsStorageKey);
     } catch {
       // Ignore malformed local settings and continue with defaults.
     }
-  }, [canvas, canvasTimelineEnd, practiceSettingsStorageKey]);
+  }, [canvas, canvasTimelineEnd, editorSessionStorageKey, legacyPracticeSettingsStorageKey]);
 
   useEffect(() => {
     if (!canvas || !practiceSettingsHydratedRef.current || typeof window === "undefined") return;
     const timer = window.setTimeout(() => {
       window.localStorage.setItem(
-        practiceSettingsStorageKey,
+        editorSessionStorageKey,
         JSON.stringify({
           activeLaneId: globalControlsLaneId,
           playbackSpeed:
@@ -3737,6 +3869,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               ? speedTrainerOriginalSpeedRef.current
               : normalizedPlaybackSpeed,
           playbackFrame: globalPlaybackFrameRef.current,
+          editorMode,
           practiceLoopEnabled,
           metronomeEnabled,
           metronomeVolume,
@@ -3762,6 +3895,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     countInBars,
     countInEnabled,
     countInEveryLoop,
+    editorMode,
+    editorSessionStorageKey,
     globalControlsLaneId,
     globalPlaybackFrameRevision,
     metronomeEnabled,
@@ -3771,7 +3906,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     practiceChordFingeringsVisible,
     practiceChordOverlayLaneId,
     practiceLoopEnabled,
-    practiceSettingsStorageKey,
     speedTrainerEnabled,
     speedTrainerStart,
     speedTrainerStep,
@@ -4207,6 +4341,18 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setGlobalPlaybackIsPlaying(false);
     if (!options?.preserveSpeedTrainerSession) resetSpeedTrainerSession();
   }, [resetSpeedTrainerSession, stopGlobalPlaybackAudio]);
+
+  const handleImportComplete = useCallback(async (_importedEditorId: string, result?: ImportResult) => {
+    await loadEditor();
+    if (!result) return;
+    stopGlobalPlayback();
+    globalPlaybackFrameRef.current = 0;
+    setGlobalPlaybackFrame(0);
+    setGlobalPlaybackCounterFrame(0);
+    setGlobalPlaybackFrameRevision((revision) => revision + 1);
+    setActiveLaneId(result.firstLaneId);
+    setPostImportResult(result);
+  }, [loadEditor, stopGlobalPlayback]);
 
   useEffect(() => {
     if (practiceLoopEnabled || !speedTrainerEnabled) return;
@@ -5104,6 +5250,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       stopGlobalPlayback();
       return;
     }
+    markGuidanceComplete("play");
     if (speedTrainerEnabled && globalPracticeLoopRange) {
       const startSpeed = beginSpeedTrainerSession();
       void startGlobalPlayback(globalPracticeLoopRange.startFrame, startSpeed).then((started) => {
@@ -5118,6 +5265,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     canvasTimelineEnd,
     globalPracticeLoopRange,
     globalPlaybackIsPlaying,
+    markGuidanceComplete,
     resetSpeedTrainerSession,
     speedTrainerEnabled,
     startGlobalPlayback,
@@ -5539,7 +5687,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         />
         <button
           type="button"
-          onClick={() => setEditorMode("canvas")}
+          onClick={() => selectEditorMode("canvas")}
           aria-pressed={editorMode === "canvas"}
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
             editorMode === "canvas" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
@@ -5549,7 +5697,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         </button>
         <button
           type="button"
-          onClick={() => setEditorMode("tab")}
+          onClick={() => selectEditorMode("tab")}
           aria-pressed={editorMode === "tab"}
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
             editorMode === "tab" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
@@ -5559,7 +5707,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         </button>
         <button
           type="button"
-          onClick={() => setEditorMode("practice")}
+          onClick={() => selectEditorMode("practice")}
           aria-pressed={practiceModeEnabled}
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${
             practiceModeEnabled ? "text-emerald-800" : "text-slate-600 hover:text-slate-800"
@@ -6460,6 +6608,161 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         }
         onMouseDownCapture={handleMainMouseDownCapture}
       >
+      {postImportResult && !isMobileViewport && (
+        <aside
+          data-gte-floating-ui="true"
+          data-post-import-panel="true"
+          className="fixed right-5 top-24 z-[75] w-80 rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600 shadow-lg"
+          aria-live="polite"
+        >
+          <div className="font-semibold text-slate-900">
+            Imported {postImportResult.tracks.length} {postImportResult.tracks.length === 1 ? "track" : "tracks"}
+          </div>
+          <div className="mt-2 space-y-1">
+            {postImportResult.tracks.map((track) => (
+              <div key={track.laneId} className="flex items-center justify-between gap-2">
+                <span className="truncate">{track.name}</span>
+                <span className="shrink-0 font-medium text-slate-700">
+                  {getTrackTypeLabel(track.representation)}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => { setPostImportResult(null); toggleGlobalPlayback(); }}
+              className="rounded-full bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-700"
+            >
+              Play
+            </button>
+            <button
+              type="button"
+              onClick={() => { setPostImportResult(null); selectEditorMode("practice"); }}
+              className="rounded-full border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Practice
+            </button>
+            {postImportResult.tracks.some((track) => track.detectionConfidence !== "high") && (
+              <button
+                type="button"
+                onClick={() => {
+                  const uncertain = postImportResult.tracks.find((track) => track.detectionConfidence !== "high");
+                  if (uncertain) setActiveLaneId(uncertain.laneId);
+                  setDesktopTrackSettingsCollapsed(false);
+                  setPostImportResult(null);
+                }}
+                className="rounded-full border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Change instrument
+              </button>
+            )}
+          </div>
+        </aside>
+      )}
+      {practiceContinuation && !postImportResult && !isMobileViewport && (
+        <aside
+          data-gte-floating-ui="true"
+          className="fixed right-5 top-24 z-[72] flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-md backdrop-blur"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setPlaybackSpeed(practiceContinuation.speed);
+              selectEditorMode("practice");
+              setPracticeContinuation(null);
+            }}
+            className="font-semibold text-slate-700 hover:text-slate-950"
+          >
+            Continue bars {practiceContinuation.startBar} to {practiceContinuation.endBar} at {Math.round(practiceContinuation.speed * 100)}%
+          </button>
+          <button type="button" onClick={() => setPracticeContinuation(null)} className="flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Dismiss practice continuation">×</button>
+        </aside>
+      )}
+      {activeGuidanceStep && !postImportResult && !practiceContinuation && !isMobileViewport && (
+        <aside
+          data-gte-floating-ui="true"
+          className="fixed right-5 top-24 z-[70] flex items-center gap-3 rounded-full border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-600 shadow-md backdrop-blur"
+          aria-live="polite"
+        >
+          <span>
+            {activeGuidanceStep === "play"
+              ? "Start by listening to the song."
+              : activeGuidanceStep === "edit"
+                ? "Make one note your own."
+                : "Try Practice mode when you are ready."}
+          </span>
+          {activeGuidanceStep !== "edit" && (
+            <button
+              type="button"
+              onClick={() => {
+                if (activeGuidanceStep === "play") toggleGlobalPlayback();
+                else selectEditorMode("practice");
+              }}
+              className="rounded-full bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-700"
+            >
+              {activeGuidanceStep === "play" ? "Play" : "Practice"}
+            </button>
+          )}
+        </aside>
+      )}
+      {transcriptionReportOpen && (
+        <div
+          className="fixed inset-0 z-[11000] flex items-center justify-center bg-slate-900/20 px-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setTranscriptionReportOpen(false);
+          }}
+        >
+          <div role="dialog" aria-modal="true" aria-labelledby="transcription-report-title" className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+            <h2 id="transcription-report-title" className="text-sm font-semibold text-slate-900">Report inaccurate transcription</h2>
+            <div className="mt-4 grid gap-2">
+              {["Wrong notes", "Timing is off", "Wrong instrument", "Missing notes", "Too many notes", "Other"].map((reason) => (
+                <label key={reason} className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="radio"
+                    name="transcription-report-reason"
+                    value={reason}
+                    checked={transcriptionReportReason === reason}
+                    onChange={() => setTranscriptionReportReason(reason)}
+                    className="accent-slate-900"
+                  />
+                  {reason}
+                </label>
+              ))}
+            </div>
+            {transcriptionReportReason === "Other" && (
+              <textarea
+                value={transcriptionReportDetails}
+                onChange={(event) => setTranscriptionReportDetails(event.target.value.slice(0, 500))}
+                className="mt-3 min-h-20 w-full rounded-lg border border-slate-200 p-2 text-sm text-slate-700 outline-none focus:border-slate-400"
+                placeholder="What went wrong?"
+                aria-label="Transcription report details"
+              />
+            )}
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setTranscriptionReportOpen(false)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button
+                type="button"
+                onClick={() => {
+                  const lane = canvas?.editors.find((item) => item.id === activeLaneId) || canvas?.editors[0];
+                  sendEvent("gte_transcription_issue_reported", {
+                    editorId,
+                    laneId: lane?.id,
+                    reason: transcriptionReportReason,
+                    details: transcriptionReportDetails || undefined,
+                    representation: lane ? getSnapshotTrackType(lane) : undefined,
+                  });
+                  setTranscriptionReportOpen(false);
+                  setTranscriptionReportDetails("");
+                }}
+                className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700"
+              >
+                Send report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {PRACTICE_RATING_UI_ENABLED && practiceRatingState === "countdown" && (
         <div
           className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center"
@@ -6543,9 +6846,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             </button>
                             <GteFileImportButton
                               editorId={editorId}
-                              onImported={async () => {
-                                await loadEditor();
-                              }}
+                              onImported={handleImportComplete}
                               onError={(message) => setError(message || null)}
                               className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm text-slate-700"
                               busyLabel="Importing..."
@@ -7180,9 +7481,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       {!isGuestMode && (
                         <GteFileImportButton
                           editorId={editorId}
-                          onImported={async () => {
-                            await loadEditor();
-                          }}
+                          onImported={handleImportComplete}
                           onError={(message) => setError(message || null)}
                           className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                           busyLabel="Importing..."
@@ -8255,9 +8554,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 {!isGuestMode && (
                   <GteFileImportButton
                     editorId={editorId}
-                    onImported={async () => {
-                      await loadEditor();
-                    }}
+                    onImported={handleImportComplete}
                     onError={(message) => setError(message || null)}
                     className="button-secondary button-small min-h-[34px]"
                     busyLabel="Importing..."
@@ -8722,11 +9019,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               const trackPan = normalizeTrackPan(trackPanById[laneId] ?? 0);
               const laneBarCount = getLaneBarCount(lane);
               const drumLane = isDrumLane(lane);
-              const laneTypeLabel = isChordLane(lane)
-                ? "Chords"
-                : drumLane
-                  ? "Drums"
-                  : "Tab";
+              const laneTypeLabel = getTrackTypeLabel(getSnapshotTrackType(lane));
               const instrumentValue = trackInstrumentOptions.some(
                 (option) => option.id === normalizeTrackInstrumentId(lane.instrumentId)
               )
@@ -9483,7 +9776,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               title="Track tuning"
                               aria-label="Track tuning"
                             >
-                              {TUNING_PRESETS.map((preset) => (
+                              {TUNING_PRESETS.filter((preset) =>
+                                getSnapshotTrackType(lane) === "bass"
+                                  ? preset.openStringMidi.length === 4
+                                  : preset.openStringMidi.length === 6
+                              ).map((preset) => (
                                 <option key={`${laneId}-tuning-${preset.id}`} value={preset.id}>
                                   {preset.label}
                                 </option>
@@ -10017,6 +10314,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               );
               const selectedLane = canvas.editors[selectedIndex];
               const selectedLaneId = selectedLane.id || `ed-${selectedIndex + 1}`;
+              const selectedTrackType = getSnapshotTrackType(selectedLane);
               const selectedDrumLane = isDrumLane(selectedLane);
               const selectedChordLane = isChordLane(selectedLane);
               const selectedInstrumentValue = trackInstrumentOptions.some(
@@ -10064,6 +10362,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </button>
                     </div>
                     {!desktopTrackSettingsCollapsed && <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
+                      <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        Representation
+                        <select
+                          id={`track-representation-${selectedLaneId}`}
+                          value={selectedTrackType}
+                          onChange={(event) =>
+                            handleLaneRepresentationChange(
+                              selectedLaneId,
+                              event.target.value as GteTrackType
+                            )
+                          }
+                          className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700"
+                        >
+                          {(["guitar", "bass", "notation"] as const).map((type) => (
+                            <option key={type} value={type}>{getTrackTypeLabel(type)}</option>
+                          ))}
+                        </select>
+                      </label>
                       {!selectedDrumLane && (
                         <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Instrument
                           <select value={selectedInstrumentValue} onChange={(event) => handleLaneInstrumentChange(selectedLaneId, event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
@@ -10071,11 +10387,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           </select>
                         </label>
                       )}
-                      {!selectedChordLane && !selectedDrumLane && (
+                      {(selectedTrackType === "guitar" || selectedTrackType === "bass") && (
                         <div className="contents">
                           <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Tuning
                             <select value={selectedTuning.presetId} onChange={(event) => handleLaneTuningChange(selectedLaneId, event.target.value, selectedTuning.capo)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
-                              {TUNING_PRESETS.map((preset) => <option key={`${selectedLaneId}-screen-tuning-${preset.id}`} value={preset.id}>{preset.label}</option>)}
+                              {TUNING_PRESETS.filter((preset) =>
+                                selectedTrackType === "bass"
+                                  ? preset.openStringMidi.length === 4
+                                  : preset.openStringMidi.length === 6
+                              ).map((preset) => <option key={`${selectedLaneId}-screen-tuning-${preset.id}`} value={preset.id}>{preset.label}</option>)}
                             </select>
                           </label>
                           <details className="rounded-lg border border-slate-200 px-3 py-2">
@@ -10090,6 +10410,25 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <button type="button" onClick={() => beginTrackOffset(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">Offset track</button>
                         <button type="button" onClick={() => requestDeleteTrack(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50">Remove</button>
                       </div>
+                      <details className="col-span-2 rounded-lg border border-slate-200 px-3 py-2">
+                        <summary className="cursor-pointer text-xs font-medium text-slate-600">Fix transcription</summary>
+                        <div className="mt-2 grid gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setTranscriptionReportOpen(true)}
+                            className="rounded-md px-2 py-1.5 text-left text-xs text-slate-600 hover:bg-slate-50"
+                          >
+                            Report inaccurate transcription
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => document.getElementById(`track-representation-${selectedLaneId}`)?.focus()}
+                            className="rounded-md px-2 py-1.5 text-left text-xs text-slate-600 hover:bg-slate-50"
+                          >
+                            Change detected instrument
+                          </button>
+                        </div>
+                      </details>
                     </div>}
                   </div>
                   {desktopTrackMenuOpen && (
@@ -10169,7 +10508,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                 onChange={(event) => handleLaneTuningChange(selectedLaneId, event.target.value, selectedTuning.capo)}
                                 className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700"
                               >
-                                {TUNING_PRESETS.map((preset) => (
+                                {TUNING_PRESETS.filter((preset) =>
+                                  selectedTrackType === "bass"
+                                    ? preset.openStringMidi.length === 4
+                                    : preset.openStringMidi.length === 6
+                                ).map((preset) => (
                                   <option key={`${selectedLaneId}-desktop-tuning-${preset.id}`} value={preset.id}>{preset.label}</option>
                                 ))}
                               </select>
@@ -10211,9 +10554,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       <div className="relative border-t border-slate-100 p-2">
                         {desktopTrackAddMenuOpen && (
                           <div className="absolute bottom-[calc(100%+0.4rem)] left-2 right-2 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
-                            {(["tab", "chords", "drums"] as const).map((type) => (
+                            {(["guitar", "bass", "chords", "drums", "notation"] as const).map((type) => (
                               <button key={type} type="button" onClick={() => { setDesktopTrackAddMenuOpen(false); void handleAddLane(type); }} disabled={addingLane} className="block w-full rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">
-                                {type === "tab" ? "Tab" : type === "chords" ? "Chords" : "Drums"}
+                                {getTrackTypeLabel(type)}
                               </button>
                             ))}
                           </div>
@@ -10254,7 +10597,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       type="button"
                       role="menuitem"
                       className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
-                      onClick={() => void handleAddLane("tab")}
+                      onClick={() => void handleAddLane("guitar")}
                       disabled={addingLane}
                     >
                       <span>Tab</span>

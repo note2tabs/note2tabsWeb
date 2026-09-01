@@ -85,7 +85,7 @@ const getCanonicalNoteEffectForSnapshot = (
   };
 };
 
-const collectEvents = (snapshot: EditorSnapshot): TabEvent[] => {
+const collectEvents = (snapshot: EditorSnapshot, stringCount: number): TabEvent[] => {
   const events: TabEvent[] = [];
 
   snapshot.chords.forEach((chord) => {
@@ -93,7 +93,7 @@ const collectEvents = (snapshot: EditorSnapshot): TabEvent[] => {
     chord.currentTabs.forEach((tab) => {
       const stringIndex = toSafeInt(tab?.[0], -1);
       const fret = toSafeInt(tab?.[1], -1);
-      if (stringIndex < 0 || stringIndex > 5 || fret < 0) return;
+      if (stringIndex < 0 || stringIndex >= stringCount || fret < 0) return;
       events.push({ start, stringIndex, fret });
     });
   });
@@ -103,13 +103,13 @@ const collectEvents = (snapshot: EditorSnapshot): TabEvent[] => {
   );
 };
 
-const collectNoteEvents = (snapshot: EditorSnapshot): NoteEvent[] =>
+const collectNoteEvents = (snapshot: EditorSnapshot, stringCount: number): NoteEvent[] =>
   snapshot.notes
     .map((note) => {
       const stringIndex = toSafeInt(note.tab?.[0], -1);
       const fret = toSafeInt(note.tab?.[1], -1);
       const start = toSafeInt(note.startTime, 0);
-      if (stringIndex < 0 || stringIndex > 5 || fret < 0) return null;
+      if (stringIndex < 0 || stringIndex >= stringCount || fret < 0) return null;
       return { id: note.id, start, stringIndex, fret };
     })
     .filter((event): event is NoteEvent => event !== null)
@@ -212,8 +212,10 @@ export function buildTabTextFromSnapshot(
   const safeBarsPerRow = Math.max(1, Math.round(barsPerRow));
   const safeBarWidth = Math.max(8, Math.round(barWidth));
   const framesPerBar = Math.max(1, toSafeInt(snapshot.framesPerMessure, 480));
-  const events = collectEvents(snapshot);
-  const noteEvents = collectNoteEvents(snapshot);
+  const stringLabels = getStringLabelsForSnapshot(snapshot);
+  const stringCount = stringLabels.length;
+  const events = collectEvents(snapshot, stringCount);
+  const noteEvents = collectNoteEvents(snapshot, stringCount);
   const notePlacements = new Map<number, NotePlacement>();
   const latestEventStart = [...events, ...noteEvents].length
     ? Math.max(...[...events, ...noteEvents].map((event) => event.start))
@@ -226,7 +228,7 @@ export function buildTabTextFromSnapshot(
   const totalBars = Math.max(1, Math.ceil(baseTotalFrames / framesPerBar));
 
   const bars = Array.from({ length: totalBars }, () =>
-    Array.from({ length: 6 }, () => Array.from({ length: safeBarWidth }, () => "-"))
+    Array.from({ length: stringCount }, () => Array.from({ length: safeBarWidth }, () => "-"))
   );
 
   events.forEach((event) => {
@@ -268,7 +270,6 @@ export function buildTabTextFromSnapshot(
   });
 
   const rows: string[] = [];
-  const stringLabels = getStringLabelsForSnapshot(snapshot);
   for (let rowStart = 0; rowStart < totalBars; rowStart += safeBarsPerRow) {
     const rowEnd = Math.min(totalBars, rowStart + safeBarsPerRow);
     for (let stringIndex = 0; stringIndex < stringLabels.length; stringIndex += 1) {

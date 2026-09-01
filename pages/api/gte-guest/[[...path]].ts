@@ -6,6 +6,7 @@ import {
   normalizeGuestSnapshot,
 } from "../../../lib/gteGuestDraft";
 import type { CanvasSnapshot, CutWithCoord, EditorSnapshot, NoteEffect, TabCoord } from "../../../types/gte";
+import { normalizeGteTrackType } from "../../../lib/gteTrackTypes";
 
 const COOKIE_NAME = "note2tabs_gte_guest_session";
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
@@ -40,17 +41,15 @@ const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const clampEventLength = (value: number) => clamp(Math.round(toNumber(value, 1)), 1, MAX_EVENT_LENGTH_FRAMES);
 const getStoreKey = (sessionId: string, canvasId: string) => `${sessionId}:${canvasId}`;
 const normalizeEditorType = (value: unknown) => {
-  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
-  if (raw === "drum" || raw === "drums" || raw === "percussion") return "drums";
-  if (raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor") return "chords";
-  return "tab";
+  return normalizeGteTrackType(value);
 };
 const getLaneOpenStringMidi = (lane: Pick<EditorSnapshot, "tuning">) => {
   const tuningOpen =
     Array.isArray(lane.tuning?.openStringMidi) &&
-    lane.tuning.openStringMidi.length >= 6 &&
+    lane.tuning.openStringMidi.length >= 1 &&
+    lane.tuning.openStringMidi.length <= 12 &&
     lane.tuning.openStringMidi.every((value) => Number.isFinite(Number(value)))
-      ? lane.tuning.openStringMidi.slice(0, 6).map((value) => Number(value))
+      ? lane.tuning.openStringMidi.slice(0, 12).map((value) => Number(value))
       : null;
   const capo = Number.isFinite(Number(lane.tuning?.capo)) ? Math.max(0, Math.round(Number(lane.tuning?.capo))) : 0;
   if (tuningOpen) {
@@ -60,14 +59,15 @@ const getLaneOpenStringMidi = (lane: Pick<EditorSnapshot, "tuning">) => {
 };
 const getMaxFret = (lane: Pick<EditorSnapshot, "maxFret">) =>
   clamp(Math.round(toNumber(lane.maxFret, DEFAULT_MAX_FRET)), 1, 36);
-const clampTab = (lane: Pick<EditorSnapshot, "maxFret">, tab?: TabCoord | null): TabCoord => {
+const clampTab = (lane: Pick<EditorSnapshot, "maxFret" | "tuning">, tab?: TabCoord | null): TabCoord => {
   const source = tab ?? DEFAULT_CUT_COORD;
+  const maxStringIndex = Math.max(0, getLaneOpenStringMidi(lane).length - 1);
   return [
-    clamp(Math.round(toNumber(source[0], 0)), 0, 5),
+    clamp(Math.round(toNumber(source[0], 0)), 0, maxStringIndex),
     clamp(Math.round(toNumber(source[1], 0)), 0, getMaxFret(lane)),
   ];
 };
-const buildDefaultCuts = (lane: Pick<EditorSnapshot, "maxFret" | "totalFrames">): CutWithCoord[] => [
+const buildDefaultCuts = (lane: Pick<EditorSnapshot, "maxFret" | "totalFrames" | "tuning">): CutWithCoord[] => [
   [[0, Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)))], clampTab(lane)],
 ];
 const isSameTab = (left: TabCoord, right: TabCoord) => left[0] === right[0] && left[1] === right[1];
@@ -447,11 +447,12 @@ const getAllTabsForMidi = (lane: EditorSnapshot, midi: number) => {
 };
 
 const buildAsciiTabText = (lane: EditorSnapshot) => {
+  const stringCount = getLaneOpenStringMidi(lane).length;
   const beatsPerBar = clamp(Math.round(toNumber(lane.timeSignature, 8)), 1, 64);
   const charactersPerBar = beatsPerBar * 4;
   const totalBars = Math.max(1, Math.ceil(Math.max(FIXED_FRAMES_PER_BAR, lane.totalFrames) / FIXED_FRAMES_PER_BAR));
   const bars = Array.from({ length: totalBars }, () =>
-    Array.from({ length: 6 }, () => Array.from({ length: charactersPerBar }, () => "-"))
+    Array.from({ length: stringCount }, () => Array.from({ length: charactersPerBar }, () => "-"))
   );
 
   const writeAt = (stringIndex: number, startTime: number, fret: number) => {
@@ -464,7 +465,7 @@ const buildAsciiTabText = (lane: EditorSnapshot) => {
     );
     const fretValue = Math.max(0, Math.round(toNumber(fret, 0)));
     const text = fretValue >= 10 ? String(fretValue).slice(0, 2) : `${fretValue}-`;
-    const line = bars[barIndex][clamp(Math.round(toNumber(stringIndex, 0)), 0, 5)];
+    const line = bars[barIndex][clamp(Math.round(toNumber(stringIndex, 0)), 0, stringCount - 1)];
     for (let idx = 0; idx < text.length && col + idx < line.length; idx += 1) {
       line[col + idx] = text[idx];
     }
@@ -475,9 +476,9 @@ const buildAsciiTabText = (lane: EditorSnapshot) => {
     chord.currentTabs.forEach((tab) => writeAt(tab?.[0] ?? 0, chord.startTime, tab?.[1] ?? 0));
   });
 
-  const lines = Array.from({ length: 6 }, () => "");
+  const lines = Array.from({ length: stringCount }, () => "");
   bars.forEach((bar) => {
-    for (let stringIndex = 0; stringIndex < 6; stringIndex += 1) {
+    for (let stringIndex = 0; stringIndex < stringCount; stringIndex += 1) {
       lines[stringIndex] += `${bar[stringIndex].join("")}|`;
     }
   });

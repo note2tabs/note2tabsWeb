@@ -75,8 +75,6 @@ type CanonicalNoteEffect = {
   noteEffectLabel: string;
 };
 
-const DEFAULT_LABELS = ["E", "B", "G", "D", "A", "E"];
-const STRING_COUNT = 6;
 export const EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH = GTE_TIMELINE_GUTTER_WIDTH;
 const LEFT_LABEL_WIDTH = EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
 const RIGHT_PADDING = GTE_TIMELINE_END_PADDING;
@@ -93,10 +91,10 @@ const toSafeInt = (value: unknown, fallback: number) => {
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-const normalizeTab = (tab: TabCoord | undefined): TabCoord | null => {
+const normalizeTab = (tab: TabCoord | undefined, stringCount: number): TabCoord | null => {
   const stringIndex = toSafeInt(tab?.[0], -1);
   const fret = toSafeInt(tab?.[1], -1);
-  if (stringIndex < 0 || stringIndex >= STRING_COUNT || fret < 0) return null;
+  if (stringIndex < 0 || stringIndex >= stringCount || fret < 0) return null;
   return [stringIndex, fret];
 };
 
@@ -220,7 +218,8 @@ export const buildEditorTabView = (
     Math.round(subdivisionsPerBar ?? safeBeatsPerBar * 2)
   );
   const labels = getStringLabelsForSnapshot(snapshot);
-  const stringLabels = labels.length === STRING_COUNT ? labels : DEFAULT_LABELS;
+  const stringLabels = labels.length ? labels : ["E", "B", "G", "D", "A", "E"];
+  const stringCount = stringLabels.length;
   const baseBarWidth = safeFramesPerBar * Math.max(0.1, scale);
   const maxNoteFrame = snapshot.notes.reduce((max, note) => Math.max(max, toSafeInt(note.startTime, 0)), 0);
   const maxChordFrame = snapshot.chords.reduce((max, chord) => Math.max(max, toSafeInt(chord.startTime, 0)), 0);
@@ -304,7 +303,7 @@ export const buildEditorTabView = (
     barStartXs.push(barStartXs[barStartXs.length - 1] + currentBarWidth);
   });
   const width = barStartXs[barStartXs.length - 1] + RIGHT_PADDING;
-  const height = TOP_PADDING * 2 + (STRING_COUNT - 1) * STRING_GAP;
+  const height = TOP_PADDING * 2 + (stringCount - 1) * STRING_GAP;
   const strings = stringLabels.map((label, stringIndex) => ({
     label,
     y: TOP_PADDING + stringIndex * STRING_GAP,
@@ -336,7 +335,7 @@ export const buildEditorTabView = (
   };
 
   snapshot.notes.forEach((note) => {
-    const tab = normalizeTab(note.tab);
+    const tab = normalizeTab(note.tab, stringCount);
     if (!tab) return;
     const startTime = Math.max(0, toSafeInt(note.startTime, 0));
     const placement: NotePlacement = {
@@ -355,7 +354,7 @@ export const buildEditorTabView = (
     const startTime = Math.max(0, toSafeInt(chord.startTime, 0));
     const x = getPlacementX(startTime);
     chord.currentTabs.forEach((rawTab, tabIndex) => {
-      const tab = normalizeTab(rawTab);
+      const tab = normalizeTab(rawTab, stringCount);
       if (!tab) return;
       placements.push({
         key: `chord-${chord.id}-${tabIndex}`,

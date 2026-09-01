@@ -1,4 +1,6 @@
 import { unzipSync } from "fflate";
+import { classifyImportedInstrument } from "./gteInstrumentClassification";
+import type { GteTrackType } from "../types/gte";
 
 const STANDARD_TUNING_MIDI_HIGH_TO_LOW = [64, 59, 55, 50, 45, 40];
 const ASCII_LINE_LABELS = ["e", "B", "G", "D", "A", "E"];
@@ -59,11 +61,15 @@ type ParsedTabImport = {
   name?: string;
   text: string;
   stamps: Array<[number, [number, number], number]>;
+  midiNotes?: number[];
   framesPerMessure: number;
   fps: number;
   totalFrames: number;
   warning?: string;
   tracks?: ParsedTabTrackImport[];
+  representation?: GteTrackType;
+  detectionConfidence?: "high" | "medium" | "low";
+  midiProgram?: number;
 };
 
 export type ParsedTabFileImport = ParsedTabImport & {
@@ -80,6 +86,15 @@ type TabPosition = {
   stringIndex: number;
   fret: number;
   length?: number;
+  midi?: number;
+};
+
+type ClassifiedPositionTrack = {
+  name?: string;
+  positions: TabPosition[];
+  representation: GteTrackType;
+  detectionConfidence: "high" | "medium" | "low";
+  midiProgram?: number;
 };
 
 export function getTabImportExtension(fileName: string) {
@@ -217,6 +232,8 @@ export function parseMusicXmlTabImport(xml: string): ParsedTabImport {
     buildParsedImportFromPositions(track.positions, undefined, {
       warning: "Imported MusicXML timing is approximated for the editor grid.",
       name: track.name || `MusicXML part ${index + 1}`,
+      representation: track.representation,
+      detectionConfidence: track.detectionConfidence,
     })
   );
   const combined = buildParsedImportFromPositions(tracks.flatMap((track) => track.positions), undefined, {
@@ -263,6 +280,9 @@ export function parseMidiTabImport(buffer: ArrayBuffer): ParsedTabImport {
     buildParsedImportFromPositions(track.positions, undefined, {
       warning: "MIDI does not store guitar string choices, so string and fret positions were estimated.",
       name: track.name || `MIDI track ${index + 1}`,
+      representation: track.representation,
+      detectionConfidence: track.detectionConfidence,
+      midiProgram: track.midiProgram,
     })
   );
   const combined = buildParsedImportFromPositions(
@@ -378,7 +398,26 @@ function midiToTab(midi: number): { stringIndex: number; fret: number } | null {
   return best;
 }
 
-function extractMusicXmlTrackNotes(partXml: string): TabPosition[] {
+function midiToBassTab(midi: number): { stringIndex: number; fret: number } | null {
+  let best: { stringIndex: number; fret: number } | null = null;
+  [43, 38, 33, 28].forEach((openMidi, stringIndex) => {
+    const fret = Math.round(midi - openMidi);
+    if (fret < 0 || fret > 24) return;
+    if (!best || fret < best.fret) best = { stringIndex, fret };
+  });
+  return best;
+}
+
+function midiDrumToVoiceIndex(midi: number) {
+  if (midi === 35 || midi === 36) return 4;
+  if (midi >= 37 && midi <= 40) return 5;
+  if (midi === 41 || midi === 43 || midi === 45 || midi === 47) return 3;
+  if (midi === 42 || midi === 44) return 1;
+  if (midi === 46) return 2;
+  return 0;
+}
+
+function extractMusicXmlTrackNotes(partXml: string, representation: GteTrackType): TabPosition[] {
   const positions: TabPosition[] = [];
     const state = { divisions: 1, beats: 4, beatType: 4 };
     const measures = getTagBlocks(partXml, "measure");
@@ -408,6 +447,8 @@ function extractMusicXmlTrackNotes(partXml: string): TabPosition[] {
         if (!isChord) lastNoteStartFrame = noteStartFrame;
 
         if (!isRest) {
+          const midi = pitchToMidi(token) ??
+            (representation === "drums" && /<unpitched\b/i.test(token) ? 38 : null);
           const technical = token.match(/<technical\b(?:\s[^>]*)?>([\s\S]*?)<\/technical>/i)?.[1] || "";
           const musicXmlString = getOptionalTagNumber(technical, "string");
           const fret = getOptionalTagNumber(technical, "fret");
@@ -417,12 +458,24 @@ function extractMusicXmlTrackNotes(partXml: string): TabPosition[] {
               stringIndex: Math.max(0, Math.min(5, Math.round(musicXmlString) - 1)),
               fret: Math.max(0, Math.min(24, Math.round(fret))),
               length,
+              ...(midi === null ? {} : { midi }),
             });
           } else {
-            const midi = pitchToMidi(token);
-            const tab = midi === null ? null : midiToTab(midi);
+            const tab = midi === null
+              ? null
+              : representation === "drums"
+                ? { stringIndex: midiDrumToVoiceIndex(midi), fret: 0 }
+                : representation === "bass"
+                ? midiToBassTab(midi)
+                : midiToTab(midi) ?? (representation === "notation" ? { stringIndex: 0, fret: 0 } : null);
             if (tab) {
-              positions.push({ column: noteStartFrame, stringIndex: tab.stringIndex, fret: tab.fret, length });
+              positions.push({
+                column: noteStartFrame,
+                stringIndex: tab.stringIndex,
+                fret: tab.fret,
+                length,
+                midi: midi ?? undefined,
+              });
             }
           }
         }
@@ -438,7 +491,7 @@ function extractMusicXmlTrackNotes(partXml: string): TabPosition[] {
   );
 }
 
-function extractMusicXmlTracks(xml: string): Array<{ name?: string; positions: TabPosition[] }> {
+function extractMusicXmlTracks(xml: string): ClassifiedPositionTrack[] {
   const namesByPartId = new Map<string, string>();
   getTagBlocks(xml, "score-part").forEach((scorePart) => {
     const id = scorePart.match(/<score-part\b[^>]*\bid=(["'])(.*?)\1/i)?.[2] || "";
@@ -449,11 +502,18 @@ function extractMusicXmlTracks(xml: string): Array<{ name?: string; positions: T
   const sources = parts.length ? parts : [xml];
   return sources.flatMap((partXml, index) => {
     const id = partXml.match(/<part\b[^>]*\bid=(["'])(.*?)\1/i)?.[2] || "";
-    const positions = extractMusicXmlTrackNotes(partXml);
+    const name = namesByPartId.get(decodeXmlEntities(id)) || `MusicXML part ${index + 1}`;
+    const classification = classifyImportedInstrument({
+      name,
+      explicitTablature: /<technical\b[\s\S]*?<string\b/i.test(partXml),
+    });
+    const positions = extractMusicXmlTrackNotes(partXml, classification.representation);
     if (!positions.length) return [];
     return [{
-      name: namesByPartId.get(decodeXmlEntities(id)) || `MusicXML part ${index + 1}`,
+      name,
       positions,
+      representation: classification.representation,
+      detectionConfidence: classification.confidence,
     }];
   });
 }
@@ -549,19 +609,25 @@ function getMidiChannelTrackName(trackName: string, channel: number, program?: n
 
 function midiNoteEventsToPositions(
   noteEvents: { startTick: number; endTick: number; midi: number }[],
-  ticksPerBar: number
+  ticksPerBar: number,
+  representation: GteTrackType
 ) {
   return limitTabPositions(
     noteEvents
       .sort((left, right) => left.startTick - right.startTick || left.midi - right.midi)
       .flatMap((note) => {
-        const tab = midiToTab(note.midi);
+        const tab = representation === "drums"
+          ? { stringIndex: midiDrumToVoiceIndex(note.midi), fret: 0 }
+          : representation === "bass"
+            ? midiToBassTab(note.midi)
+            : midiToTab(note.midi) ?? (representation === "notation" ? { stringIndex: 0, fret: 0 } : null);
         return tab
           ? [
               {
                 column: Math.round((note.startTick / ticksPerBar) * FIXED_FRAMES_PER_BAR),
                 stringIndex: tab.stringIndex,
                 fret: tab.fret,
+                midi: note.midi,
                 length: Math.max(1, Math.round(((note.endTick - note.startTick) / ticksPerBar) * FIXED_FRAMES_PER_BAR)),
               },
             ]
@@ -570,7 +636,7 @@ function midiNoteEventsToPositions(
   );
 }
 
-function extractMidiTracks(buffer: ArrayBuffer): Array<{ name?: string; positions: TabPosition[] }> {
+function extractMidiTracks(buffer: ArrayBuffer): ClassifiedPositionTrack[] {
   const view = new DataView(buffer);
   if (view.byteLength < 14 || readAscii(view, 0, 4) !== "MThd") {
     throw new Error("This does not look like a valid MIDI file.");
@@ -579,7 +645,7 @@ function extractMidiTracks(buffer: ArrayBuffer): Array<{ name?: string; position
   const ticksPerQuarter = Math.max(1, view.getUint16(12) & 0x7fff);
   const ticksPerBar = Math.max(1, ticksPerQuarter * 4);
   let offset = 8 + headerLength;
-  const tracks: Array<{ name?: string; positions: TabPosition[] }> = [];
+  const tracks: ClassifiedPositionTrack[] = [];
 
   while (offset + 8 <= view.byteLength) {
     const chunkType = readAscii(view, offset, 4);
@@ -639,7 +705,6 @@ function extractMidiTracks(buffer: ArrayBuffer): Array<{ name?: string; position
       const midi = view.getUint8(offset);
       const velocity = view.getUint8(offset + 1);
       offset += 2;
-      if (channel === 9) continue;
       const key = `${channel}:${midi}`;
       if (eventType === 0x90 && velocity > 0) {
         active.set(key, { tick, midi, channel });
@@ -672,11 +737,24 @@ function extractMidiTracks(buffer: ArrayBuffer): Array<{ name?: string; position
     });
     const channelEntries = Array.from(eventsByChannel.entries()).sort((a, b) => a[0] - b[0]);
     for (const [channel, channelEvents] of channelEntries) {
-      const positions = midiNoteEventsToPositions(channelEvents, ticksPerBar);
+      const midiProgram = programsByChannel.get(channel);
+      const classification = classifyImportedInstrument({
+        name: trackName,
+        midiProgram,
+        percussion: channel === 9,
+      });
+      const positions = midiNoteEventsToPositions(
+        channelEvents,
+        ticksPerBar,
+        classification.representation
+      );
       if (positions.length) {
         tracks.push({
           name: getMidiChannelTrackName(trackName, channel, programsByChannel.get(channel)),
           positions,
+          representation: classification.representation,
+          detectionConfidence: classification.confidence,
+          midiProgram,
         });
       }
     }
@@ -746,11 +824,23 @@ function extractAsciiTabNotes(text: string): TabPosition[] {
 function buildParsedImportFromPositions(
   positions: TabPosition[],
   sourceText?: string,
-  options?: { warning?: string; name?: string }
+  options?: {
+    warning?: string;
+    name?: string;
+    representation?: GteTrackType;
+    detectionConfidence?: "high" | "medium" | "low";
+    midiProgram?: number;
+  }
 ): ParsedTabImport {
   const safePositions = limitTabPositions(positions);
+  const orderedPositions = [...safePositions].sort(
+    (left, right) =>
+      left.column - right.column ||
+      left.stringIndex - right.stringIndex ||
+      left.fret - right.fret
+  );
   const stamps = limitStamps(
-    safePositions
+    orderedPositions
       .map((position) => {
         const start = Math.max(0, Math.round(position.column));
         const length = Math.max(1, Math.round(position.length ?? Math.round(FIXED_FRAMES_PER_BAR / 16)));
@@ -760,7 +850,6 @@ function buildParsedImportFromPositions(
         ];
         return [start, tab, length] as [number, [number, number], number];
       })
-      .sort((left, right) => left[0] - right[0] || left[1][0] - right[1][0] || left[1][1] - right[1][1])
   );
   const totalFrames = Math.max(
     FIXED_FRAMES_PER_BAR,
@@ -774,6 +863,16 @@ function buildParsedImportFromPositions(
     totalFrames,
     warning: options?.warning,
     name: options?.name,
+    midiNotes: orderedPositions.some((position) => Number.isFinite(Number(position.midi)))
+      ? orderedPositions.map((position) =>
+          Number.isFinite(Number(position.midi))
+            ? Math.round(Number(position.midi))
+            : 0
+        )
+      : undefined,
+    representation: options?.representation,
+    detectionConfidence: options?.detectionConfidence,
+    midiProgram: options?.midiProgram,
   };
 }
 

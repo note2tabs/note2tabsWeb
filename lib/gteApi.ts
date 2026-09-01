@@ -3,6 +3,7 @@ import type {
   ChordFingering,
   EditorListItem,
   EditorSnapshot,
+  GteTrackType,
   TabCoord,
   TimingMapV2,
 } from "../types/gte";
@@ -749,10 +750,11 @@ export const gteApi = {
     editorId: string,
     name?: string,
     options?: {
-      editorType?: "tab" | "chords" | "drums" | string;
-      trackType?: "tab" | "chords" | "drums" | string;
-      type?: "tab" | "chords" | "drums" | string;
+      editorType?: GteTrackType | string;
+      trackType?: GteTrackType | string;
+      type?: GteTrackType | string;
       chordEditor?: Record<string, unknown>;
+      tuning?: EditorSnapshot["tuning"];
     }
   ) =>
     requestForEditor<{ ok: true; canvas: CanvasSnapshot; editor: EditorSnapshot }>(

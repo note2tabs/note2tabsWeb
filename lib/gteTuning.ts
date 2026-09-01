@@ -11,6 +11,7 @@ export const DEFAULT_MAX_FRET = 22;
 
 export const TUNING_PRESETS: TuningPreset[] = [
   { id: "standard", label: "Standard", openStringMidi: [64, 59, 55, 50, 45, 40] },
+  { id: "bass-standard", label: "Standard bass", openStringMidi: [43, 38, 33, 28] },
   { id: "drop-d", label: "Drop D", openStringMidi: [64, 59, 55, 50, 45, 38] },
   { id: "half-step-down", label: "Eb standard", openStringMidi: [63, 58, 54, 49, 44, 39] },
   { id: "dadgad", label: "DADGAD", openStringMidi: [62, 57, 55, 50, 45, 38] },
@@ -20,6 +21,7 @@ const NOTE_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", 
 const DEFAULT_TUNING_ID = "standard";
 export const TUNING_STRING_LABELS: Record<string, string[]> = {
   standard: ["E", "B", "G", "D", "A", "E"],
+  "bass-standard": ["G", "D", "A", "E"],
   "drop-d": ["E", "B", "G", "D", "A", "D"],
   "half-step-down": ["Eb", "Bb", "Gb", "Db", "Ab", "Eb"],
   dadgad: ["D", "A", "G", "D", "A", "D"],
@@ -89,7 +91,7 @@ const getCutCoordAtTime = (snapshot: Pick<EditorSnapshot, "cutPositionsWithCoord
   const hit = cuts.find((entry) => roundedTime >= entry[0]?.[0] && roundedTime < entry[0]?.[1]);
   const tab = hit?.[1] ?? fallback;
   return [
-    Math.max(0, Math.min(5, Math.round(Number(tab[0]) || 0))),
+    Math.max(0, Math.round(Number(tab[0]) || 0)),
     Math.max(0, Math.min(getMaxFretFromSnapshot(snapshot), Math.round(Number(tab[1]) || 0))),
   ] as [number, number];
 };
@@ -250,16 +252,17 @@ export const getOpenStringMidiFromSnapshot = (
   const capo = normalizeCapo(snapshot.tuning?.capo);
   if (
     Array.isArray(snapshot.tuning?.openStringMidi) &&
-    snapshot.tuning.openStringMidi.length >= 6 &&
+    snapshot.tuning.openStringMidi.length >= 1 &&
+    snapshot.tuning.openStringMidi.length <= 12 &&
     snapshot.tuning.openStringMidi.every((value) => Number.isFinite(Number(value)))
   ) {
     const fallbackCapo = normalizeCapo(snapshot.tuning?.capo);
     return snapshot.tuning.openStringMidi
-      .slice(0, 6)
+      .slice(0, 12)
       .map((value) => Math.round(Number(value)) + fallbackCapo);
   }
-  if (preset?.openStringMidi?.length >= 6) {
-    return preset.openStringMidi.slice(0, 6).map((value) => Math.round(Number(value)) + capo);
+  if (preset?.openStringMidi?.length >= 1) {
+    return preset.openStringMidi.slice(0, 12).map((value) => Math.round(Number(value)) + capo);
   }
   return [...TUNING_PRESETS[0].openStringMidi];
 };
@@ -274,7 +277,7 @@ export const getStringLabelFromMidi = (midi: number) => {
 export const getStringLabelsForSnapshot = (snapshot: Pick<EditorSnapshot, "tuning">) => {
   const presetId = snapshot.tuning?.presetId || DEFAULT_TUNING_ID;
   const baseLabels = TUNING_STRING_LABELS[presetId];
-  if (Array.isArray(baseLabels) && baseLabels.length === 6) {
+  if (Array.isArray(baseLabels) && baseLabels.length === getOpenStringMidiFromSnapshot(snapshot).length) {
     // Labels are anchored to the selected tuning preset and are intentionally
     // not transposed from previous state/capo display to avoid cumulative drift.
     return [...baseLabels];

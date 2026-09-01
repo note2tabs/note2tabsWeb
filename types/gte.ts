@@ -11,7 +11,7 @@ export type Note = {
   pitchBend?: number[];
 };
 
-export type GteTrackType = "tab" | "chords" | "drums";
+export type GteTrackType = "guitar" | "bass" | "drums" | "notation" | "chords";
 
 export type TimingAnchor = {
   tick: number;
