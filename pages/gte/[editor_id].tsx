@@ -129,6 +129,11 @@ import {
   GTE_TIMELINE_END_PADDING,
   GTE_TIMELINE_GUTTER_WIDTH,
 } from "../../lib/gteTimelineGeometry";
+import {
+  getFullscreenElement,
+  supportsElementFullscreen,
+  toggleElementFullscreen,
+} from "../../lib/fullscreen";
 
 const GteWorkspace = dynamic(() => import("../../components/GteTrackWorkspace"), {
   loading: () => (
@@ -1315,6 +1320,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [practiceChordOverlayLaneId, setPracticeChordOverlayLaneId] = useState<string | null>(null);
   const [practiceChordFingeringsVisible, setPracticeChordFingeringsVisible] = useState(false);
   const [practiceFullscreen, setPracticeFullscreen] = useState(false);
+  const [practiceFullscreenSupported, setPracticeFullscreenSupported] = useState(false);
   const [speedTrainerEnabled, setSpeedTrainerEnabled] = useState(false);
   const [speedTrainerSessionActive, setSpeedTrainerSessionActive] = useState(false);
   const [speedTrainerStart, setSpeedTrainerStart] = useState(0.75);
@@ -4986,10 +4992,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setPracticeFullscreen(document.fullscreenElement === practiceRootRef.current);
+      setPracticeFullscreen(getFullscreenElement(document) === practiceRootRef.current);
     };
+    setPracticeFullscreenSupported(supportsElementFullscreen(practiceRootRef.current));
     document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+    };
   }, []);
 
   const seekGlobalPlayback = useCallback(
@@ -6126,17 +6137,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   aria-label="Practice metronome volume"
                 />
               </label>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (document.fullscreenElement) await document.exitFullscreen();
-                  else await practiceRootRef.current?.requestFullscreen();
-                }}
-                className="flex h-9 w-full items-center justify-between rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                <span>Fullscreen</span>
-                <span>{practiceFullscreen ? "Exit" : "Open"}</span>
-              </button>
+              {practiceFullscreenSupported && (
+                <button
+                  type="button"
+                  onClick={() => void toggleElementFullscreen(practiceRootRef.current, document)}
+                  className="flex h-9 w-full items-center justify-between rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  <span>Fullscreen</span>
+                  <span>{practiceFullscreen ? "Exit" : "Open"}</span>
+                </button>
+              )}
               <div className="border-t border-slate-100 pt-3">
                 <button
                   type="button"

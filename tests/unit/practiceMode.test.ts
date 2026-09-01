@@ -154,7 +154,8 @@ describe("editor practice mode", () => {
   it("provides focused, persistent practice utilities", () => {
     expect(editorPage).toContain("note2tabs:practice:");
     expect(editorPage).toContain("Bluetooth pedals that send arrow or Page keys");
-    expect(editorPage).toContain("requestFullscreen()");
+    expect(editorPage).toContain("supportsElementFullscreen");
+    expect(editorPage).toContain("toggleElementFullscreen");
     expect(editorPage).toContain("Count-in bars");
     expect(editorPage).toContain("Metronome volume");
     expect(editorPage).not.toContain("<PracticeFretboard");
