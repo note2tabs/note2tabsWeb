@@ -2134,6 +2134,7 @@ function ChordLaneWorkspace({
   const [fingeringOptionsByChordKey, setFingeringOptionsByChordKey] = useState<Record<string, ChordFingering[]>>({});
   const [dragRevision, setDragRevision] = useState(0);
   const isMobileCanvasMode = mobileViewport && mobileMode === "canvas";
+  const stackedChordScore = tabViewEnabled || !mobileViewport;
   // Practice mode drives fingering visibility from the shared practice panel so
   // the toggle applies to whichever chord track is being practised.
   const chordFingeringsVisible = practiceMode ? practiceFingeringsVisible : fingeringsVisible;
@@ -2169,9 +2170,11 @@ function ChordLaneWorkspace({
       }),
     [barCount, beatsPerBar, readExternalPlaybackFrame, scale, snapshot]
   );
-  const pxPerFrame = tabViewEnabled
-    ? editorTabView.barWidth / FIXED_FRAMES_PER_BAR
-    : scale;
+  // Dense chord content may ask the generic tab model for wider bars. In the
+  // stacked score that would defeat bars-per-row and push later bars offscreen,
+  // so the row width is governed exclusively by the fitted shared scale.
+  const stackedChordBarWidth = FIXED_FRAMES_PER_BAR * scale;
+  const pxPerFrame = scale;
   const timelineContentOffset = CHORD_EDITOR_LABEL_GUTTER_WIDTH;
   const chordBarsPerRow = Math.max(
     1,
@@ -2187,9 +2190,9 @@ function ChordLaneWorkspace({
   const trackOffsetFrames = Math.max(0, Math.round(Number(snapshot.timelineOffsetFrames) || 0));
   const trackOffsetBarCount = Math.floor(trackOffsetFrames / FIXED_FRAMES_PER_BAR);
   const trackOffsetWidth = trackOffsetFrames * pxPerFrame;
-  const timelineWidth = tabViewEnabled
+  const timelineWidth = stackedChordScore
     ? timelineContentOffset +
-      Math.min(chordBarsPerRow, barCount) * editorTabView.barWidth
+      Math.min(chordBarsPerRow, barCount) * stackedChordBarWidth
     : Math.max(
         320,
         Math.round(
@@ -2222,12 +2225,12 @@ function ChordLaneWorkspace({
       const element = chordLanePlayheadRef.current;
       if (!element) return;
       const safeFrame = Math.max(0, Math.min(totalFrames, Math.round(frame)));
-      const rowIndex = tabViewEnabled
+      const rowIndex = stackedChordScore
         ? Math.max(0, Math.min(chordTabRowCount - 1, Math.floor(safeFrame / chordRowFrames)))
         : 0;
-      const rowFrame = tabViewEnabled ? safeFrame - rowIndex * chordRowFrames : safeFrame;
+      const rowFrame = stackedChordScore ? safeFrame - rowIndex * chordRowFrames : safeFrame;
       const x = timelineContentOffset + rowFrame * pxPerFrame;
-      const y = tabViewEnabled ? rowIndex * chordTabRowStride + TIMELINE_BAR_HEADER_HEIGHT : 0;
+      const y = stackedChordScore ? rowIndex * chordTabRowStride + TIMELINE_BAR_HEADER_HEIGHT : 0;
       element.style.transform = `translate3d(${x}px, ${y}px, 0) translateX(-1px)`;
     },
     [
@@ -2235,7 +2238,7 @@ function ChordLaneWorkspace({
       chordTabRowCount,
       chordTabRowStride,
       pxPerFrame,
-      tabViewEnabled,
+      stackedChordScore,
       timelineContentOffset,
       totalFrames,
     ]
@@ -2853,6 +2856,18 @@ function ChordLaneWorkspace({
     setSelectedChordIds([]);
   }, [commitSnapshot, selectedChordIds, snapshot]);
 
+  const appendChordBar = useCallback(() => {
+    commitSnapshot(
+      {
+        ...snapshot,
+        totalFrames:
+          Math.max(FIXED_FRAMES_PER_BAR, Math.ceil(snapshot.totalFrames / FIXED_FRAMES_PER_BAR) * FIXED_FRAMES_PER_BAR) +
+          FIXED_FRAMES_PER_BAR,
+      },
+      { recordHistory: true }
+    );
+  }, [commitSnapshot, snapshot]);
+
   useEffect(() => {
     if (!isActive) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -3047,6 +3062,21 @@ function ChordLaneWorkspace({
     if (!element) return 0;
     const rect = element.getBoundingClientRect();
     return Math.max(0, Math.round((clientX - rect.left + element.scrollLeft - timelineContentOffset) / pxPerFrame));
+  };
+
+  const getStackedFrameFromPointer = (clientX: number, clientY: number) => {
+    const element = timelineRef.current;
+    if (!element) return 0;
+    const rect = element.getBoundingClientRect();
+    const rowIndex = Math.max(
+      0,
+      Math.min(chordTabRowCount - 1, Math.floor((clientY - rect.top) / chordTabRowStride))
+    );
+    const rowX = Math.max(0, clientX - rect.left - timelineContentOffset);
+    return Math.max(
+      0,
+      Math.min(totalFrames, Math.round(rowIndex * chordRowFrames + rowX / pxPerFrame))
+    );
   };
 
   const handleTimelineDrop = (event: ReactDragEvent<HTMLDivElement>) => {
@@ -3280,13 +3310,66 @@ function ChordLaneWorkspace({
     );
   }
 
-  if (tabViewEnabled) {
+  if (stackedChordScore) {
+    const chordAddStartsNewRow = barCount % chordBarsPerRow === 0;
     const tabScoreHeight =
       chordTabRowCount * (TIMELINE_BAR_HEADER_HEIGHT + timelineRowHeight) +
-      Math.max(0, chordTabRowCount - 1) * ROW_GAP;
+      Math.max(0, chordTabRowCount - 1) * ROW_GAP +
+      (chordAddStartsNewRow ? 40 : 0);
 
     return (
       <div className="w-full bg-white" onMouseDown={onFocusWorkspace}>
+        {chordMenuOpen ? (
+          <aside
+            data-gte-floating-ui="true"
+            className="fixed right-5 top-1/2 z-[9998] max-h-[70vh] w-72 -translate-y-1/2 overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-2xl backdrop-blur"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[.14em] text-emerald-700">Chord palette</div>
+                <div className="text-xs text-slate-500">Drag a chord onto the score</div>
+              </div>
+              <button type="button" onClick={() => setChordMenuOpen(false)} className="h-7 w-7 rounded-full hover:bg-slate-100" aria-label="Close chord palette">×</button>
+            </div>
+            <div className="space-y-3">
+              {CHORD_EDITOR_QUALITIES.map((quality) => (
+                <div key={`stacked-${quality.name}`}>
+                  <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">{quality.name}</div>
+                  <div className="grid grid-cols-4 gap-1">
+                    {CHORD_EDITOR_ROOTS.map((root) => {
+                      const label = getChordEditorLabel(root, quality.name, chordPaletteExtension);
+                      const payload = { root, quality: quality.name, extension: chordPaletteExtension, label };
+                      return (
+                        <button
+                          key={`${quality.name}-${root}`}
+                          type="button"
+                          draggable
+                          onDragStart={(event) => handlePaletteDragStart(event, payload)}
+                          onClick={() => void playChordPalettePreview(payload)}
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 hover:border-emerald-400 hover:bg-emerald-50"
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </aside>
+        ) : null}
+        <button
+          type="button"
+          data-gte-floating-ui="true"
+          onClick={(event) => {
+            event.stopPropagation();
+            setChordMenuOpen((open) => !open);
+          }}
+          className="fixed bottom-28 right-5 z-[9997] rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-900 shadow-lg"
+        >
+          + Chord
+        </button>
         <div className="flex items-center justify-end border-b border-slate-100 px-3 py-2">
           <button
             type="button"
@@ -3311,6 +3394,19 @@ function ChordLaneWorkspace({
           data-gte-chord-score="true"
           className="relative min-w-0 overflow-visible bg-white"
           style={{ height: tabScoreHeight }}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault();
+            const raw = event.dataTransfer.getData("application/x-gte-chord");
+            if (!raw) return;
+            try {
+              const payload = JSON.parse(raw) as ChordPalettePayload;
+              if (!payload.root || !payload.quality || !payload.label) return;
+              addChordAtFrame(payload, getStackedFrameFromPointer(event.clientX, event.clientY));
+            } catch {
+              return;
+            }
+          }}
           onMouseDown={(event) => {
             if (event.currentTarget !== event.target) return;
             setSelectedChordIds([]);
@@ -3339,7 +3435,7 @@ function ChordLaneWorkspace({
                     const selected = selectedBarIndices.includes(barIndex);
                     const barLeft =
                       timelineContentOffset +
-                      (barIndex - firstBar) * editorTabView.barWidth;
+                      (barIndex - firstBar) * stackedChordBarWidth;
                     return (
                       <Fragment key={`chord-tab-bar-${barIndex}`}>
                         <button
@@ -3356,7 +3452,7 @@ function ChordLaneWorkspace({
                           }`}
                           style={{
                             left: barLeft,
-                            width: editorTabView.barWidth,
+                            width: stackedChordBarWidth,
                             height: TIMELINE_BAR_HEADER_HEIGHT,
                           }}
                           aria-label={`Select Bar ${barIndex + 1}`}
@@ -3370,7 +3466,7 @@ function ChordLaneWorkspace({
                             style={{
                               left: barLeft,
                               top: TIMELINE_BAR_HEADER_HEIGHT,
-                              width: editorTabView.barWidth,
+                              width: stackedChordBarWidth,
                               height: timelineRowHeight,
                             }}
                           />
@@ -3384,7 +3480,7 @@ function ChordLaneWorkspace({
                             style={{
                               left:
                                 barLeft +
-                                (beatIndex * editorTabView.barWidth) / beatsPerBar,
+                                (beatIndex * stackedChordBarWidth) / beatsPerBar,
                               top: TIMELINE_BAR_HEADER_HEIGHT,
                               height: timelineRowHeight,
                             }}
@@ -3397,7 +3493,7 @@ function ChordLaneWorkspace({
                 <div
                   className="pointer-events-none absolute z-[3] w-px bg-slate-500"
                   style={{
-                    left: timelineContentOffset + rowBarCount * editorTabView.barWidth,
+                    left: timelineContentOffset + rowBarCount * stackedChordBarWidth,
                     top: TIMELINE_BAR_HEADER_HEIGHT,
                     height: timelineRowHeight,
                   }}
@@ -3478,8 +3574,32 @@ function ChordLaneWorkspace({
                         ) : null}
                       </button>
                     );
-                  })}
-              </div>
+          })}
+          <button
+            type="button"
+            data-gte-editor-control="true"
+            onClick={appendChordBar}
+            className="absolute z-30 flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white text-base font-semibold text-slate-600 shadow-sm hover:border-slate-400 hover:bg-slate-100"
+            style={{
+              left:
+                timelineContentOffset +
+                (chordAddStartsNewRow
+                  ? 0
+                  : ((barCount - 1) % chordBarsPerRow + 1) * stackedChordBarWidth) +
+                6,
+              top:
+                chordAddStartsNewRow
+                  ? chordTabRowCount * chordTabRowStride
+                  : (chordTabRowCount - 1) * chordTabRowStride +
+                    TIMELINE_BAR_HEADER_HEIGHT +
+                    Math.max(4, timelineRowHeight / 2 - 14),
+            }}
+            title="Add bar to end"
+            aria-label="Add bar to end"
+          >
+            +
+          </button>
+        </div>
             );
           })}
           <div

@@ -2484,11 +2484,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         },
         editorId
       );
-      if (kind !== "drums") {
-        await gteApi.applySnapshot(editorId, nextCanvas);
-      }
+      await gteApi.applySnapshot(editorId, nextCanvas);
       applyCanvasUpdate(nextCanvas, {
-        markDirty: kind === "drums" ? isGuestMode : !isGuestMode,
+        markDirty: !isGuestMode,
       });
       setActiveLaneId(res.editor?.id || nextCanvas.editors[nextCanvas.editors.length - 1]?.id || null);
     } catch (err: any) {
@@ -3574,11 +3572,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   );
   const editMenuOwnerLaneId = activeEditableLaneId ?? fallbackEditableLaneId;
   const editMenuDisabled = activeEditableLaneId === null;
-  const chordOnlyCanvas = useMemo(
-    () => Boolean(canvas?.editors.length) && canvas!.editors.every((lane) => isChordLane(lane)),
-    [canvas]
-  );
-
   useEffect(() => {
     synchronizeSharedTimelineScroll(sharedTimelineScrollRatioRef.current);
   }, [canvas?.editors.length, editorId, globalTimelineTrackWidth, synchronizeSharedTimelineScroll, tabViewEnabled]);
@@ -9867,7 +9860,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           embedded
                           isActive={isActive}
                           mobileViewport={isMobileViewport}
-                          playbackUiVisible={laneId === globalControlsLaneId}
+                          playbackUiVisible={isMobileViewport && laneId === globalControlsLaneId}
                           onFocusWorkspace={
                             practiceModeEnabled ? undefined : () => activateLaneForEditing(laneId)
                           }
@@ -10093,7 +10086,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>}
                   </div>
                   {desktopTrackMenuOpen && (
-                    <div className="absolute bottom-12 left-0 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
+                    <div className="absolute bottom-12 left-0 w-[min(22rem,calc(100vw-2.5rem))] overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
                       <div className="hidden border-b border-slate-100 px-4 py-3">
                         <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Edit track</div>
                         <input
@@ -10114,7 +10107,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         />
                       </div>
 
-                      <div className="max-h-48 overflow-y-auto border-b border-slate-100 p-1.5" role="listbox" aria-label="Choose a track to edit">
+                      <div className="border-b border-slate-100 p-1.5" role="listbox" aria-label="Choose a track to edit">
                         {canvas.editors.map((candidate, candidateIndex) => {
                           const candidateId = candidate.id || `ed-${candidateIndex + 1}`;
                           const active = candidateId === selectedLaneId;
@@ -10203,14 +10196,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
                           <button type="button" onClick={() => beginTrackOffset(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">Offset track</button>
                           <button type="button" onClick={() => requestDeleteTrack(selectedLaneId)} disabled={deletingLaneId === selectedLaneId} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50">{deletingLaneId === selectedLaneId ? "Removing..." : "Remove"}</button>
-                          <button type="button" onClick={() => handleMoveTrackBy(selectedLaneId, -1)} disabled={selectedIndex === 0} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 disabled:text-slate-300">Move up</button>
-                          <button type="button" onClick={() => handleMoveTrackBy(selectedLaneId, 1)} disabled={selectedIndex === canvas.editors.length - 1} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 disabled:text-slate-300">Move down</button>
                         </div>
                       </div>
 
                       <div className="relative border-t border-slate-100 p-2">
                         {desktopTrackAddMenuOpen && (
-                          <div className="absolute bottom-[calc(100%+0.4rem)] left-2 right-2 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                          <div className="mb-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
                             {(["tab", "chords", "drums"] as const).map((type) => (
                               <button key={type} type="button" onClick={() => { setDesktopTrackAddMenuOpen(false); void handleAddLane(type); }} disabled={addingLane} className="block w-full rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">
                                 {type === "tab" ? "Tab" : type === "chords" ? "Chords" : "Drums"}
@@ -10225,6 +10216,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   <button type="button" onClick={() => { setDesktopTrackMenuOpen((open) => !open); setDesktopTrackAddMenuOpen(false); }} className="flex h-10 items-center gap-2 rounded-full border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 shadow-lg transition hover:bg-slate-50" aria-expanded={desktopTrackMenuOpen} aria-haspopup="menu">
                     <span className="max-w-32 truncate">{selectedLane.name || `Track ${selectedIndex + 1}`}</span>
                     <svg viewBox="0 0 20 20" className={`h-3.5 w-3.5 fill-current transition ${desktopTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true"><path d="M5.5 7.5 10 12l4.5-4.5 1.1 1.1L10 14.2 4.4 8.6z" /></svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDesktopTrackMenuOpen(true);
+                      setDesktopTrackAddMenuOpen(true);
+                    }}
+                    disabled={addingLane}
+                    className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-xl font-medium leading-none text-slate-700 shadow-lg transition hover:bg-slate-50 disabled:opacity-50"
+                    title="Add track"
+                    aria-label="Add track"
+                  >
+                    +
                   </button>
                 </div>
               );
@@ -10459,7 +10463,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </div>
         </div>
       )}
-      {!isMobileViewport && chordOnlyCanvas && (
+      {!isMobileViewport && canvas && (
         <div
           data-gte-floating-ui="true"
           className="pointer-events-none fixed bottom-16 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2"

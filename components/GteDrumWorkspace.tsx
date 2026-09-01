@@ -156,19 +156,19 @@ const formatTimelineSecondLabel = (seconds: number) => {
 };
 
 const symbolForVoice = (voiceId: string) => {
-  if (voiceId === "cymbal") return "✕";
-  if (voiceId === "closed_hi_hat") return "×";
+  if (voiceId === "crash" || voiceId === "ride" || voiceId === "closed_hi_hat") return "×";
   if (voiceId === "open_hi_hat") return "○";
-  if (voiceId === "snare") return "S";
-  if (voiceId === "kick") return "K";
-  return "B";
+  return "●";
 };
 
 const shortLabelForVoice = (voiceId: string) => {
-  if (voiceId === "cymbal") return "Cymbal";
+  if (voiceId === "crash") return "Crash";
+  if (voiceId === "ride") return "Ride";
   if (voiceId === "closed_hi_hat") return "Closed HH";
   if (voiceId === "open_hi_hat") return "Open HH";
-  if (voiceId === "bass") return "Bass";
+  if (voiceId === "high_tom") return "High tom";
+  if (voiceId === "mid_tom") return "Mid tom";
+  if (voiceId === "floor_tom") return "Floor tom";
   if (voiceId === "kick") return "Kick";
   if (voiceId === "snare") return "Snare";
   return "Drum";
@@ -1052,11 +1052,15 @@ export default function GteDrumWorkspace({
         },
         {
           recordHistory: options?.recordHistory ?? true,
-          markDirty: options?.markDirty ?? !tableBacked,
+          // Keep the canvas snapshot authoritative as well as the drum-hit table.
+          // This makes newly placed hits survive a track switch/reload even when
+          // the dedicated drum endpoint has not yet been reflected by the next
+          // canvas fetch.
+          markDirty: options?.markDirty ?? true,
         }
       );
     },
-    [drumLoops, onSnapshotChange, snapshot, tableBacked]
+    [drumLoops, onSnapshotChange, snapshot]
   );
 
   const addHit = useCallback(
@@ -1852,6 +1856,197 @@ export default function GteDrumWorkspace({
       ),
     [selectedLoopId, timelineRenderWindow, visualLoops]
   );
+
+  const appendDrumBar = useCallback(() => {
+    const currentFrames = Math.max(
+      FRAMES_PER_BAR,
+      Math.ceil(snapshot.totalFrames / FRAMES_PER_BAR) * FRAMES_PER_BAR
+    );
+    onSnapshotChange(
+      {
+        ...snapshot,
+        editorType: "drums",
+        type: "drums",
+        trackType: "drums",
+        totalFrames: currentFrames + FRAMES_PER_BAR,
+        updatedAt: new Date().toISOString(),
+      },
+      { recordHistory: true, markDirty: true }
+    );
+  }, [onSnapshotChange, snapshot]);
+
+  if (!mobileViewport) {
+    const barsPerRow = Math.max(
+      1,
+      Math.min(6, Math.round(Number(sharedViewportBarCount) || 4))
+    );
+    const scoreRowCount = Math.max(1, Math.ceil(barCount / barsPerRow));
+    const displayedNotes = loopPreview?.notes ?? toolPreviewNotes ?? dragPreviewNotes ?? snapshot.notes;
+    const playheadBar = Math.max(0, Math.min(barCount - 1, Math.floor(globalPlaybackFrame / FRAMES_PER_BAR)));
+
+    return (
+      <div
+        data-gte-track="true"
+        data-gte-drum-score="true"
+        className="gte-drum-score min-w-0 w-full overflow-x-hidden space-y-5 py-2"
+        onMouseDown={onFocusWorkspace}
+      >
+        <div className="flex min-h-10 items-center justify-between gap-3 border-b border-slate-200 px-1 pb-2">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700">Drum notation</div>
+            <div className="text-xs text-slate-500">Click a subdivision to place a hit. × marks metal; ● marks drums.</div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={openQuantizeTool}
+              disabled={!selectedNoteIds.size}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:border-emerald-300 disabled:opacity-40"
+            >
+              Quantize
+            </button>
+            <button
+              type="button"
+              onClick={() => void deleteHits(selectedNoteIds)}
+              disabled={!selectedNoteIds.size}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm hover:border-rose-300 disabled:opacity-40"
+            >
+              Delete {selectedNoteIds.size || "hit"}
+            </button>
+          </div>
+        </div>
+
+        {Array.from({ length: scoreRowCount }, (_, scoreRowIndex) => {
+          const firstBar = scoreRowIndex * barsPerRow;
+          const rowBarCount = Math.min(barsPerRow, barCount - firstBar);
+          const rowStart = firstBar * FRAMES_PER_BAR;
+          const rowFrames = rowBarCount * FRAMES_PER_BAR;
+          const rowEnd = rowStart + rowFrames;
+          const rowPlayheadFrame = globalPlaybackFrame - rowStart;
+          return (
+            <section key={`drum-score-row-${scoreRowIndex}`} className="gte-drum-score-row">
+              <div className="gte-drum-score-gutter" aria-hidden="true">KIT</div>
+              <div className="gte-drum-bar-headings">
+                {Array.from({ length: rowBarCount }, (_, offset) => {
+                  const barIndex = firstBar + offset;
+                  const selected = selectedBarIndices.includes(barIndex);
+                  return (
+                    <button
+                      key={`drum-score-bar-${barIndex}`}
+                      type="button"
+                      onClick={(event) => handleBarSelection(barIndex, event)}
+                      onContextMenu={(event) => handleBarContextMenu(barIndex, event)}
+                      className={selected ? "is-selected" : ""}
+                    >
+                      {showBarNumbers ? `Bar ${barIndex + 1}` : ""}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="gte-drum-staff">
+                {DRUM_VOICES.map((voice, voiceIndex) => (
+                  <div key={voice.id} className="gte-drum-staff-line">
+                    <button
+                      type="button"
+                      className="gte-drum-voice-label"
+                      title={`${voice.label} · key ${voice.key}`}
+                      onClick={() => void previewDrumVoice(voice.id).catch(() => {})}
+                    >
+                      <strong>{voice.shortLabel}</strong>
+                      <span>{voice.label}</span>
+                    </button>
+                    <div
+                      className="gte-drum-grid"
+                      style={{
+                        gridTemplateColumns: `repeat(${rowBarCount * subdivisionsPerBar}, minmax(0, 1fr))`,
+                      }}
+                    >
+                      {Array.from(
+                        { length: rowBarCount * subdivisionsPerBar },
+                        (_, subdivisionIndex) => {
+                          const frame =
+                            rowStart +
+                            (subdivisionIndex * FRAMES_PER_BAR) / subdivisionsPerBar;
+                          const inBeat = subdivisionIndex % subdivisionsPerBeat;
+                          const isBar = subdivisionIndex % subdivisionsPerBar === 0;
+                          const isBeat = inBeat === 0;
+                          return (
+                            <button
+                              key={`${voice.id}-${subdivisionIndex}`}
+                              type="button"
+                              className={`${isBar ? "is-bar" : isBeat ? "is-beat" : "is-subdivision"} ${
+                                cursor.voiceIndex === voiceIndex && cursor.time === Math.round(frame)
+                                  ? "is-cursor"
+                                  : ""
+                              }`}
+                              onClick={() => void addHit(voiceIndex, frame)}
+                              aria-label={`Add ${voice.label} in bar ${Math.floor(frame / FRAMES_PER_BAR) + 1}`}
+                            />
+                          );
+                        }
+                      )}
+                      {displayedNotes
+                        .filter((note) => note.startTime >= rowStart && note.startTime < rowEnd)
+                        .filter((note) => getDrumVoiceForNote(note).id === voice.id)
+                        .map((note) => {
+                          const selected = selectedNoteIds.has(note.id);
+                          return (
+                            <button
+                              key={`drum-score-hit-${note.id}`}
+                              type="button"
+                              data-drum-hit="true"
+                              aria-pressed={selected}
+                              className={`gte-drum-hit ${selected ? "is-selected" : ""}`}
+                              style={{ left: `${((note.startTime - rowStart) / rowFrames) * 100}%` }}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                replaceSelection(
+                                  event.shiftKey
+                                    ? new Set([...selectedNoteIds, note.id])
+                                    : new Set([note.id])
+                                );
+                                setCursor({ time: note.startTime, voiceIndex });
+                                void previewDrumVoice(voice.id).catch(() => {});
+                              }}
+                              onDoubleClick={(event) => {
+                                event.stopPropagation();
+                                void deleteHits([note.id]);
+                              }}
+                              title={`${voice.label} · double-click to remove`}
+                            >
+                              {symbolForVoice(voice.id)}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                ))}
+                {playheadBar >= firstBar && playheadBar < firstBar + rowBarCount ? (
+                  <div
+                    className="gte-drum-playhead"
+                    style={{ left: `calc(4.5rem + ${(rowPlayheadFrame / rowFrames) * 100}% - ${(rowPlayheadFrame / rowFrames) * 4.5}rem)` }}
+                    aria-hidden="true"
+                  />
+                ) : null}
+              </div>
+            </section>
+          );
+        })}
+        <button
+          type="button"
+          data-gte-editor-control="true"
+          onClick={appendDrumBar}
+          className="ml-[4.5rem] flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white text-base font-semibold text-slate-600 shadow-sm hover:border-slate-400 hover:bg-slate-100"
+          title="Add bar to end"
+          aria-label="Add bar to end"
+        >
+          +
+        </button>
+        {saveError ? <div className="text-xs font-medium text-rose-700">{saveError}</div> : null}
+      </div>
+    );
+  }
 
   return (
     <div
