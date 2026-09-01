@@ -474,6 +474,7 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
         numerator: firstEditor?.timeSignature,
         denominator: firstEditor?.timeSignatureBottom,
       }),
+      editorInputSettings: normalizeEditorInputSettings(raw.editorInputSettings),
       editors: normalizedEditors.length
         ? normalizedEditors
         : [normalizeLane(createGuestSnapshot("ed-1"), "ed-1", safeSeconds, 0)],
@@ -504,6 +505,7 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
       numerator: lane.timeSignature,
       denominator: lane.timeSignatureBottom,
     }),
+    editorInputSettings: normalizeEditorInputSettings(undefined),
     editors: [lane],
   };
 };
@@ -1023,7 +1025,11 @@ const insertBarsIntoLane = (
   );
 };
 
-const removeSingleBarFromLane = (lane: EditorSnapshot, index: number): EditorSnapshot | null => {
+const removeSingleBarFromLane = (
+  lane: EditorSnapshot,
+  index: number,
+  options?: { normalize?: boolean }
+): EditorSnapshot | null => {
   const totalBars = getLaneBarCount(lane);
   if (totalBars <= 1) return null;
 
@@ -1090,15 +1096,18 @@ const removeSingleBarFromLane = (lane: EditorSnapshot, index: number): EditorSna
     Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)) - FIXED_FRAMES_PER_BAR
   );
 
+  const nextLane = {
+    ...lane,
+    totalFrames: nextTotalFrames,
+    notes: nextNotes,
+    chords: nextChords,
+    noteEffects: nextNoteEffects,
+    cutPositionsWithCoords: nextCuts.length ? nextCuts : buildDefaultCutRegions(nextTotalFrames),
+  };
+
+  if (options?.normalize === false) return nextLane;
   return normalizeLane(
-    {
-      ...lane,
-      totalFrames: nextTotalFrames,
-      notes: nextNotes,
-      chords: nextChords,
-      noteEffects: nextNoteEffects,
-      cutPositionsWithCoords: nextCuts.length ? nextCuts : buildDefaultCutRegions(nextTotalFrames),
-    },
+    nextLane,
     lane.id,
     Math.max(0.1, toNumber(lane.secondsPerBar, DEFAULT_SECONDS_PER_BAR)),
     0
@@ -1110,11 +1119,28 @@ const deleteBarsFromLane = (lane: EditorSnapshot, barIndices: number[]): EditorS
   if (!normalized.length || normalized.length >= getLaneBarCount(lane)) return null;
   let nextLane: EditorSnapshot = lane;
   for (const barIndex of normalized) {
-    const updated = removeSingleBarFromLane(nextLane, barIndex);
+    const updated = removeSingleBarFromLane(nextLane, barIndex, { normalize: false });
     if (!updated) return null;
     nextLane = updated;
   }
-  return nextLane;
+  return normalizeLane(
+    nextLane,
+    lane.id,
+    Math.max(0.1, toNumber(lane.secondsPerBar, DEFAULT_SECONDS_PER_BAR)),
+    0
+  );
+};
+
+const normalizeEditorInputSettings = (value: unknown) => {
+  const source = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const noteSize = Number(source.defaultNoteLengthDenominator);
+  const cursorSize = Number(source.cursorSizeDenominator);
+  return {
+    defaultNoteLengthDenominator: NOTE_LENGTH_FRACTION_DENOMINATORS.includes(noteSize)
+      ? noteSize
+      : 4,
+    cursorSizeDenominator: CURSOR_SIZE_FRACTION_DENOMINATORS.includes(cursorSize) ? cursorSize : 4,
+  };
 };
 
 const insertBarsIntoCanvas = (
@@ -1332,6 +1358,34 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [chordOnlyDefaultNoteLengthDenominator, setChordOnlyDefaultNoteLengthDenominator] = useState(4);
   const [chordOnlyCursorSizeDenominator, setChordOnlyCursorSizeDenominator] = useState(4);
   const [noteCursorSizesLinked, setNoteCursorSizesLinked] = useState(false);
+  const inputSettingsSaveTimerRef = useRef<number | null>(null);
+  const inputSettingsHydratedRef = useRef(false);
+
+  const queueEditorInputSettingsSave = useCallback(
+    (settings: { defaultNoteLengthDenominator: number; cursorSizeDenominator: number }) => {
+      if (isGuestMode || !inputSettingsHydratedRef.current) return;
+      setError(null);
+      if (inputSettingsSaveTimerRef.current !== null) {
+        window.clearTimeout(inputSettingsSaveTimerRef.current);
+      }
+      inputSettingsSaveTimerRef.current = window.setTimeout(() => {
+        inputSettingsSaveTimerRef.current = null;
+        void gteApi.setEditorInputSettings(editorId, settings).catch(() => {
+          setError("We could not save your note and cursor sizes. Please try changing them again.");
+        });
+      }, CONTROL_COMMIT_DEBOUNCE_MS);
+    },
+    [editorId, isGuestMode]
+  );
+
+  useEffect(
+    () => () => {
+      if (inputSettingsSaveTimerRef.current !== null) {
+        window.clearTimeout(inputSettingsSaveTimerRef.current);
+      }
+    },
+    []
+  );
   const [findKeyDialogOpen, setFindKeyDialogOpen] = useState(false);
   const [selectedKeyCandidate, setSelectedKeyCandidate] = useState("");
   const [displayPreferences, setDisplayPreferences] = useState<GteDisplayPreferences>(
@@ -1346,11 +1400,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         const linkedSize = getNearestCursorSizeDenominator(nextNoteSize);
         setChordOnlyDefaultNoteLengthDenominator(linkedSize);
         setChordOnlyCursorSizeDenominator(linkedSize);
+        queueEditorInputSettingsSave({
+          defaultNoteLengthDenominator: linkedSize,
+          cursorSizeDenominator: linkedSize,
+        });
         return;
       }
       setChordOnlyDefaultNoteLengthDenominator(nextNoteSize);
+      queueEditorInputSettingsSave({
+        defaultNoteLengthDenominator: nextNoteSize,
+        cursorSizeDenominator: chordOnlyCursorSizeDenominator,
+      });
     },
-    [noteCursorSizesLinked]
+    [chordOnlyCursorSizeDenominator, noteCursorSizesLinked, queueEditorInputSettingsSave]
   );
 
   const handleCursorSizeDenominatorChange = useCallback(
@@ -1360,8 +1422,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (noteCursorSizesLinked) {
         setChordOnlyDefaultNoteLengthDenominator(nextCursorSize);
       }
+      queueEditorInputSettingsSave({
+        defaultNoteLengthDenominator: noteCursorSizesLinked
+          ? nextCursorSize
+          : chordOnlyDefaultNoteLengthDenominator,
+        cursorSizeDenominator: nextCursorSize,
+      });
     },
-    [noteCursorSizesLinked]
+    [chordOnlyDefaultNoteLengthDenominator, noteCursorSizesLinked, queueEditorInputSettingsSave]
   );
 
   const toggleNoteCursorSizeLink = useCallback(() => {
@@ -1369,10 +1437,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       const nextLinked = !linked;
       if (nextLinked) {
         setChordOnlyDefaultNoteLengthDenominator(chordOnlyCursorSizeDenominator);
+        queueEditorInputSettingsSave({
+          defaultNoteLengthDenominator: chordOnlyCursorSizeDenominator,
+          cursorSizeDenominator: chordOnlyCursorSizeDenominator,
+        });
       }
       return nextLinked;
     });
-  }, [chordOnlyCursorSizeDenominator]);
+  }, [chordOnlyCursorSizeDenominator, queueEditorInputSettingsSave]);
   const [generatePlayingCoordinatesRequest, setGeneratePlayingCoordinatesRequest] = useState(0);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
   const desktopBarsPerRow = Math.max(1, Math.min(6, Math.round(400 / timelineZoomPercent)));
@@ -1593,6 +1665,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setCanvasRedoCount(0);
   }, []);
 
+  const hydrateEditorInputSettings = useCallback((loadedCanvas: CanvasSnapshot) => {
+    const settings = normalizeEditorInputSettings(loadedCanvas.editorInputSettings);
+    setChordOnlyDefaultNoteLengthDenominator(settings.defaultNoteLengthDenominator);
+    setChordOnlyCursorSizeDenominator(settings.cursorSizeDenominator);
+    inputSettingsHydratedRef.current = true;
+  }, []);
+
   const recordCanvasHistory = useCallback(
     (previous: CanvasSnapshot, next: CanvasSnapshot) => {
       if (previous === next) return;
@@ -1617,6 +1696,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       const data = await gteApi.getEditor(editorId);
       const normalized = normalizeCanvas(data, editorId);
       setCanvas(normalized);
+      hydrateEditorInputSettings(normalized);
       resetCanvasHistory();
       setActiveLaneId((prev) =>
         prev && normalized.editors.some((lane) => lane.id === prev) ? prev : normalized.editors[0]?.id || null
@@ -1668,6 +1748,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             }
           }
           setCanvas(normalized);
+          hydrateEditorInputSettings(normalized);
           resetCanvasHistory();
           setActiveLaneId((prev) =>
             prev && normalized.editors.some((lane) => lane.id === prev) ? prev : normalized.editors[0]?.id || null
@@ -1933,19 +2014,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   }, []);
 
   const handleMainMouseDownCapture = useCallback((event: ReactMouseEvent<HTMLElement>) => {
-    if (practiceModeEnabled) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
-    if (isMobileViewport && mobileEditLaneId) return;
-    if (target.closest("[data-gte-track='true']")) return;
-    if (target.closest("[data-gte-timeline-control='true']")) return;
-    if (target.closest("[data-gte-floating-ui='true']")) return;
-    if (target.closest("button, a, input, textarea, select, label, [role='button']")) return;
-    setActiveLaneId(null);
-  }, [isMobileViewport, mobileEditLaneId, practiceModeEnabled]);
+    if (target.closest("[data-desktop-track-selector='true']")) return;
+    setDesktopTrackMenuOpen(false);
+    setDesktopTrackAddMenuOpen(false);
+  }, []);
 
   const activateLaneForEditing = useCallback((laneId: string) => {
     setActiveLaneId(laneId);
+    setDesktopTrackMenuOpen(false);
+    setDesktopTrackAddMenuOpen(false);
     setOpenMobileBarMenuLaneId(null);
     setMobileEditLaneId((prev) => (isMobileViewport ? laneId : prev));
   }, [isMobileViewport]);
@@ -3090,24 +3169,29 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   );
 
   const handleDeleteSelectedBars = useCallback(
-    async (laneId: string, barIndices: number[]) => {
+    (laneId: string, barIndices: number[]) => {
       if (!canvas || !barIndices.length) return;
       setError(null);
-      try {
-        if (isGuestMode) {
-          const nextCanvas = deleteBarsFromCanvas(canvas, laneId, barIndices);
-          if (!nextCanvas) {
-            throw new Error("Unable to delete bars.");
-          }
-          applyCanvasBarUpdate(nextCanvas);
-        } else {
-          const res = await gteApi.deleteCanvasBars(editorId, laneId, barIndices);
-          applyCanvasBarUpdate(res.canvas);
-        }
-        clearBarSelectionState();
-      } catch (err: any) {
-        setError(err?.message || "We could not delete the selected bars. Your tab is unchanged; please try again.");
+      const nextCanvas = deleteBarsFromCanvas(canvas, laneId, barIndices);
+      if (!nextCanvas) {
+        setError("Unable to delete those bars.");
+        return;
       }
+
+      // The local canvas is the source of truth for the interaction. Updating
+      // it before the structural request prevents the row from waiting on a
+      // network round trip, while applyCanvasBarUpdate queues the same result
+      // for the normal autosave path.
+      applyCanvasBarUpdate(nextCanvas);
+      clearBarSelectionState();
+
+      if (isGuestMode) return;
+      void gteApi.deleteCanvasBars(editorId, laneId, barIndices).catch((err: any) => {
+        setError(
+          err?.message ||
+            "We could not confirm the bar deletion yet. It remains in this editor and will retry through autosave."
+        );
+      });
     },
     [applyCanvasBarUpdate, canvas, clearBarSelectionState, editorId, isGuestMode]
   );
@@ -5784,11 +5868,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const renderPracticeControls = () => (
     <section
-      className="mx-auto w-full max-w-[900px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm min-[1400px]:fixed min-[1400px]:left-[max(1rem,calc(50vw-700px))] min-[1400px]:top-28 min-[1400px]:z-40 min-[1400px]:w-56 min-[1400px]:max-w-none min-[1400px]:p-3"
+      className="mx-auto w-full max-w-[1100px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm lg:fixed lg:left-4 lg:top-28 lg:z-40 lg:w-56 lg:max-w-none lg:p-3"
       aria-labelledby="practice-mode-title"
     >
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center min-[1400px]:block">
-        <div className="flex min-w-36 items-center gap-2 border-b border-slate-100 pb-2 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3 min-[1400px]:border-b min-[1400px]:border-r-0 min-[1400px]:pb-2 min-[1400px]:pr-0">
+      <div className="flex flex-col gap-2 lg:block">
+        <div className="flex min-w-36 items-center gap-2 border-b border-slate-100 pb-2 lg:border-r-0 lg:pr-0">
           <h2 id="practice-mode-title" className="text-sm font-semibold text-slate-900">Practice</h2>
           <span className="text-xs text-slate-500">
             {barSelection?.barIndices.length
@@ -5797,7 +5881,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           </span>
         </div>
         <div
-          className="flex flex-1 flex-wrap items-center gap-1.5 min-[1400px]:mt-3 min-[1400px]:flex-col min-[1400px]:items-stretch"
+          className="flex flex-1 flex-wrap items-center gap-1.5 lg:mt-3 lg:flex-col lg:items-stretch"
           role="group"
           aria-label="Practice controls"
         >
@@ -6075,7 +6159,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   {trackInstrumentOptions.find((option) => option.id === practiceInstrumentValue)?.label || "Guitar"}
                 </span>
               </summary>
-              <div className="absolute right-0 top-11 z-50 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl min-[1400px]:static min-[1400px]:mt-2 min-[1400px]:w-full min-[1400px]:shadow-sm">
+              <div className="absolute right-0 top-11 z-50 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl lg:static lg:mt-2 lg:w-full lg:shadow-sm">
                 <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                   Instrument
                   <select
@@ -6166,7 +6250,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               )}
               <span className="text-[10px] text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
             </summary>
-            <div className="absolute right-0 top-11 z-50 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl min-[1400px]:static min-[1400px]:mt-2 min-[1400px]:w-full min-[1400px]:shadow-sm">
+            <div className="absolute right-0 top-11 z-50 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl lg:static lg:mt-2 lg:w-full lg:shadow-sm">
               <button
                 type="button"
                 onClick={() => setCountInEnabled((enabled) => !enabled)}
@@ -6333,7 +6417,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   );
 
   const renderPracticeHelp = () => (
-    <aside className="mx-auto w-full max-w-[900px] rounded-xl border border-slate-200 bg-white p-3 text-[11px] leading-4 text-slate-500 shadow-sm min-[1400px]:fixed min-[1400px]:right-[max(1rem,calc(50vw-700px))] min-[1400px]:top-28 min-[1400px]:z-40 min-[1400px]:w-56 min-[1400px]:max-w-none">
+    <aside className="mx-auto w-full max-w-[1100px] rounded-xl border border-slate-200 bg-white p-3 text-[11px] leading-4 text-slate-500 shadow-sm lg:fixed lg:right-4 lg:top-28 lg:z-40 lg:w-56 lg:max-w-none">
       <h2 className="text-xs font-semibold text-slate-800">Practice shortcuts</h2>
       <div className="mt-2 space-y-1">
         <p><span className="font-semibold text-slate-700">Space</span> Play or pause</p>
@@ -8614,7 +8698,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               isMobileEditMode
                 ? "gte-editor-stage--mobile-edit flex-1 min-h-0 space-y-0"
                 : practiceModeEnabled
-                ? "mx-auto min-h-[1050px] w-full max-w-[900px] space-y-5 rounded-[3px] border border-slate-200 bg-white px-8 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.12)] max-sm:min-h-0 max-sm:px-3 max-sm:py-5"
+                ? "mx-auto min-h-[1050px] w-full max-w-[1100px] space-y-5 rounded-[3px] border border-slate-200 bg-white px-8 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.12)] lg:max-w-[calc(100vw-32rem)] min-[1612px]:max-w-[1100px] max-sm:min-h-0 max-sm:px-3 max-sm:py-5"
                 : "space-y-2"
             }`}
           >
@@ -8893,7 +8977,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
                                 practiceModeEnabled
-                                  ? Math.min(timelineZoomPercent / 100, 1)
+                                  ? Math.min(timelineZoomPercent / 100, 0.75)
                                   : timelineZoomPercent / 100
                               }
                               historyUndoCount={canvasUndoCount}
@@ -9254,7 +9338,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
                                 practiceModeEnabled
-                                  ? Math.min(timelineZoomPercent / 100, 1)
+                                  ? Math.min(timelineZoomPercent / 100, 0.75)
                                   : timelineZoomPercent / 100
                               }
                               historyUndoCount={canvasUndoCount}
@@ -9818,7 +9902,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                           timelineZoomFactor={
                             practiceModeEnabled
-                              ? Math.min(timelineZoomPercent / 100, 1)
+                              ? Math.min(timelineZoomPercent / 100, 0.75)
                               : timelineZoomPercent / 100
                           }
                           historyUndoCount={canvasUndoCount}
@@ -9946,8 +10030,13 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               const selectedVolume = normalizeTrackVolume(trackVolumeById[selectedLaneId] ?? 1);
 
               return (
-                <div className="fixed bottom-5 left-5 z-50" data-gte-floating-ui="true" data-track-menu="true">
-                  <div className="absolute bottom-0 left-[calc(100%+0.75rem)] w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
+                <div
+                  className="fixed bottom-16 left-[calc(1.25rem+28rem+0.75rem)] z-50"
+                  data-gte-floating-ui="true"
+                  data-track-menu="true"
+                  data-desktop-track-selector="true"
+                >
+                  <div className="absolute bottom-0 right-[calc(100%+0.75rem)] w-[28rem] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
                     <div className="flex items-start gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Track settings</div>
@@ -9974,7 +10063,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         </svg>
                       </button>
                     </div>
-                    {!desktopTrackSettingsCollapsed && <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+                    {!desktopTrackSettingsCollapsed && <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
                       {!selectedDrumLane && (
                         <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Instrument
                           <select value={selectedInstrumentValue} onChange={(event) => handleLaneInstrumentChange(selectedLaneId, event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
@@ -9983,7 +10072,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         </label>
                       )}
                       {!selectedChordLane && !selectedDrumLane && (
-                        <>
+                        <div className="contents">
                           <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Tuning
                             <select value={selectedTuning.presetId} onChange={(event) => handleLaneTuningChange(selectedLaneId, event.target.value, selectedTuning.capo)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
                               {TUNING_PRESETS.map((preset) => <option key={`${selectedLaneId}-screen-tuning-${preset.id}`} value={preset.id}>{preset.label}</option>)}
@@ -9995,9 +10084,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               <input type="number" min={0} max={12} value={trackCapoDraftById[selectedLaneId] ?? String(selectedTuning.capo)} onChange={(event) => handleLaneCapoDraftChange(selectedLaneId, event.target.value)} onBlur={() => commitLaneCapoDraft(selectedLaneId, selectedTuning.presetId, selectedTuning.capo)} className="h-8 w-16 rounded-md border border-slate-200 px-2 text-xs text-slate-700" aria-label="Track capo" />
                             </label>
                           </details>
-                        </>
+                        </div>
                       )}
-                      <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+                      <div className="col-span-2 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
                         <button type="button" onClick={() => beginTrackOffset(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">Offset track</button>
                         <button type="button" onClick={() => requestDeleteTrack(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50">Remove</button>
                       </div>

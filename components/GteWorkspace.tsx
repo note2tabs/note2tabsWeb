@@ -329,6 +329,8 @@ const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 3, 4, 8, 16, 32, 64];
 const DEFAULT_CUT_COORD: TabCoord = [2, 0];
 const CUT_SEGMENT_HEIGHT = 20;
 const PLAYING_COORDINATE_OFFSET = 0;
+const PRACTICE_EMPTY_BAR_WIDTH = 18;
+const PRACTICE_EMPTY_RUN_MIN_WIDTH = 48;
 const CUT_SEGMENT_OFFSET = 20;
 const CUT_SEGMENT_MIN_WIDTH = 28;
 const CUT_BOUNDARY_OVERHANG = 12;
@@ -1765,6 +1767,7 @@ const chooseClosestTabForMidi = (snapshot: EditorSnapshot, midi: number, current
 type MoveSession = {
   anchorX: number;
   anchorStart: number;
+  anchorPointerFrame: number;
   notes: ScaleEntityBase[];
   chords: ScaleEntityBase[];
 };
@@ -2170,11 +2173,23 @@ function ChordLaneWorkspace({
     ? editorTabView.barWidth / FIXED_FRAMES_PER_BAR
     : scale;
   const timelineContentOffset = CHORD_EDITOR_LABEL_GUTTER_WIDTH;
+  const chordBarsPerRow = Math.max(
+    1,
+    Math.min(
+      barCount,
+      sharedViewportBarCount !== undefined && Number.isFinite(sharedViewportBarCount)
+        ? Math.round(sharedViewportBarCount)
+        : barCount
+    )
+  );
+  const chordRowFrames = chordBarsPerRow * FIXED_FRAMES_PER_BAR;
+  const chordTabRowCount = Math.max(1, Math.ceil(barCount / chordBarsPerRow));
   const trackOffsetFrames = Math.max(0, Math.round(Number(snapshot.timelineOffsetFrames) || 0));
   const trackOffsetBarCount = Math.floor(trackOffsetFrames / FIXED_FRAMES_PER_BAR);
   const trackOffsetWidth = trackOffsetFrames * pxPerFrame;
   const timelineWidth = tabViewEnabled
-    ? editorTabView.width
+    ? timelineContentOffset +
+      Math.min(chordBarsPerRow, barCount) * editorTabView.barWidth
     : Math.max(
         320,
         Math.round(
@@ -2189,6 +2204,7 @@ function ChordLaneWorkspace({
     CHORD_EDITOR_ROW_HEIGHT +
     (chordFingeringsVisible ? CHORD_FINGERING_ROW_HEIGHT : 0) +
     (strumEditor ? CHORD_STRUM_EDITOR_HEIGHT + 12 : 0);
+  const chordTabRowStride = TIMELINE_BAR_HEADER_HEIGHT + timelineRowHeight + ROW_GAP;
   const chordPlaybackFps = fpsFromSecondsPerBar(
     Math.max(0.1, Number(snapshot.secondsPerBar) || DEFAULT_SECONDS_PER_BAR)
   );
@@ -2206,10 +2222,23 @@ function ChordLaneWorkspace({
       const element = chordLanePlayheadRef.current;
       if (!element) return;
       const safeFrame = Math.max(0, Math.min(totalFrames, Math.round(frame)));
-      const x = timelineContentOffset + safeFrame * pxPerFrame;
-      element.style.transform = `translate3d(${x}px, 0, 0) translateX(-1px)`;
+      const rowIndex = tabViewEnabled
+        ? Math.max(0, Math.min(chordTabRowCount - 1, Math.floor(safeFrame / chordRowFrames)))
+        : 0;
+      const rowFrame = tabViewEnabled ? safeFrame - rowIndex * chordRowFrames : safeFrame;
+      const x = timelineContentOffset + rowFrame * pxPerFrame;
+      const y = tabViewEnabled ? rowIndex * chordTabRowStride + TIMELINE_BAR_HEADER_HEIGHT : 0;
+      element.style.transform = `translate3d(${x}px, ${y}px, 0) translateX(-1px)`;
     },
-    [pxPerFrame, timelineContentOffset, totalFrames]
+    [
+      chordRowFrames,
+      chordTabRowCount,
+      chordTabRowStride,
+      pxPerFrame,
+      tabViewEnabled,
+      timelineContentOffset,
+      totalFrames,
+    ]
   );
 
   useEffect(() => {
@@ -2731,6 +2760,15 @@ function ChordLaneWorkspace({
         .sort((left, right) => left.start - right.start || left.chord.id - right.chord.id),
     [fingeringOptionsByChordKey, getChordFingeringLookup, snapshot.chords]
   );
+  const practiceChordItemsByBar = useMemo(() => {
+    const itemsByBar = new Map<number, typeof practiceChordItems>();
+    practiceChordItems.forEach((item) => {
+      const items = itemsByBar.get(item.bar) ?? [];
+      items.push(item);
+      itemsByBar.set(item.bar, items);
+    });
+    return itemsByBar;
+  }, [practiceChordItems]);
   const [activePracticeChordId, setActivePracticeChordId] = useState<number | null>(null);
   useEffect(() => {
     if (!practiceMode) return;
@@ -3057,47 +3095,69 @@ function ChordLaneWorkspace({
     };
     return (
       <div className="w-full" onMouseDown={onFocusWorkspace}>
-        <div className="flex flex-wrap content-start gap-x-1.5 gap-y-2 bg-white px-3 py-3">
+        <div className="space-y-6 bg-white py-3">
           {practiceChordItems.length ? (
-            practiceChordItems.map((item, index) => {
-              const active = activePracticeChordId === item.chord.id;
-              const startsBar = index === 0 || practiceChordItems[index - 1].bar !== item.bar;
+            Array.from({ length: chordTabRowCount }, (_, rowIndex) => {
+              const firstBar = rowIndex * chordBarsPerRow;
+              const endBar = Math.min(barCount, firstBar + chordBarsPerRow);
               return (
-                <button
-                  key={`practice-chord-${item.chord.id}`}
-                  type="button"
-                  onClick={() => seekToChord(item.start)}
-                  aria-current={active ? "true" : undefined}
-                  aria-label={`Play from ${item.label} in bar ${item.bar}`}
-                  className={`relative flex flex-col items-center rounded-md border px-1.5 py-1 transition ${
-                    chordFingeringsVisible ? "w-[92px]" : "min-w-[52px]"
-                  } ${
-                    active
-                      ? "border-emerald-500 bg-emerald-50 text-emerald-900 shadow-sm"
-                      : "border-slate-200 bg-white text-slate-800 hover:border-sky-300 hover:bg-sky-50"
-                  }`}
+                <div
+                  key={`practice-chord-row-${rowIndex}`}
+                  className="grid min-w-0 border-b border-slate-300"
+                  style={{ gridTemplateColumns: `repeat(${endBar - firstBar}, minmax(0, 1fr))` }}
                 >
-                  {startsBar ? (
-                    <span className="absolute -top-2 left-1 rounded bg-slate-100 px-1 text-[8px] font-bold leading-tight text-slate-500">
-                      {item.bar}
-                    </span>
-                  ) : null}
-                  <span className="max-w-full truncate text-xs font-bold leading-tight">
-                    {item.label}
-                  </span>
-                  {chordFingeringsVisible ? (
-                    item.fingering ? (
-                      <ChordFingeringDiagram
-                        fingering={item.fingering}
-                        leftHanded={leftHandedChordDiagrams}
-                      />
-                    ) : (
-                      <div className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">
-                        No shape
+                  {Array.from({ length: endBar - firstBar }, (_, offset) => {
+                    const barIndex = firstBar + offset;
+                    const barItems = practiceChordItemsByBar.get(barIndex + 1) ?? [];
+                    return (
+                      <div
+                        key={`practice-chord-bar-${barIndex}`}
+                        className="min-w-0 border-l border-slate-400 px-1.5 pb-2 pt-1 last:border-r"
+                      >
+                        <div className="mb-1 text-[9px] font-semibold text-slate-500">
+                          Bar {barIndex + 1}
+                        </div>
+                        <div className="flex min-h-9 flex-wrap content-start gap-1.5">
+                          {barItems.map((item) => {
+                            const active = activePracticeChordId === item.chord.id;
+                            return (
+                              <button
+                                key={`practice-chord-${item.chord.id}`}
+                                type="button"
+                                onClick={() => seekToChord(item.start)}
+                                aria-current={active ? "true" : undefined}
+                                aria-label={`Play from ${item.label} in bar ${item.bar}`}
+                                className={`flex max-w-full flex-col items-center rounded-md border px-1.5 py-1 transition ${
+                                  chordFingeringsVisible ? "w-[92px]" : "min-w-[52px]"
+                                } ${
+                                  active
+                                    ? "border-emerald-500 bg-emerald-50 text-emerald-900 shadow-sm"
+                                    : "border-slate-200 bg-white text-slate-800 hover:border-sky-300 hover:bg-sky-50"
+                                }`}
+                              >
+                                <span className="max-w-full truncate text-xs font-bold leading-tight">
+                                  {item.label}
+                                </span>
+                                {chordFingeringsVisible ? (
+                                  item.fingering ? (
+                                    <ChordFingeringDiagram
+                                      fingering={item.fingering}
+                                      leftHanded={leftHandedChordDiagrams}
+                                    />
+                                  ) : (
+                                    <span className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">
+                                      No shape
+                                    </span>
+                                  )
+                                ) : null}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    )
-                  ) : null}
-                </button>
+                    );
+                  })}
+                </div>
               );
             })
           ) : (
@@ -3216,6 +3276,231 @@ function ChordLaneWorkspace({
             </div>
           </div>
         )}
+      </div>
+    );
+  }
+
+  if (tabViewEnabled) {
+    const tabScoreHeight =
+      chordTabRowCount * (TIMELINE_BAR_HEADER_HEIGHT + timelineRowHeight) +
+      Math.max(0, chordTabRowCount - 1) * ROW_GAP;
+
+    return (
+      <div className="w-full bg-white" onMouseDown={onFocusWorkspace}>
+        <div className="flex items-center justify-end border-b border-slate-100 px-3 py-2">
+          <button
+            type="button"
+            data-gte-editor-control="true"
+            onClick={(event) => {
+              event.stopPropagation();
+              setFingeringsVisible((visible) => !visible);
+            }}
+            className={`rounded-full border px-3 py-1 text-xs font-semibold shadow-sm transition ${
+              fingeringsVisible
+                ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            Fingerings
+          </button>
+        </div>
+        <div
+          ref={timelineRef}
+          data-gte-shared-timeline="true"
+          data-gte-tab-view="true"
+          data-gte-chord-score="true"
+          className="relative min-w-0 overflow-visible bg-white"
+          style={{ height: tabScoreHeight }}
+          onMouseDown={(event) => {
+            if (event.currentTarget !== event.target) return;
+            setSelectedChordIds([]);
+            setSelectedBarIndices([]);
+          }}
+        >
+          {Array.from({ length: chordTabRowCount }, (_, rowIndex) => {
+            const firstBar = rowIndex * chordBarsPerRow;
+            const endBar = Math.min(barCount, firstBar + chordBarsPerRow);
+            const rowBarCount = Math.max(0, endBar - firstBar);
+            const rowStartFrame = firstBar * FIXED_FRAMES_PER_BAR;
+            const rowEndFrame = endBar * FIXED_FRAMES_PER_BAR;
+            const rowTop = rowIndex * chordTabRowStride;
+
+            return (
+              <div
+                key={`chord-tab-row-${rowIndex}`}
+                className="absolute left-0 right-0"
+                style={{
+                  top: rowTop,
+                  height: TIMELINE_BAR_HEADER_HEIGHT + timelineRowHeight,
+                }}
+              >
+                {Array.from({ length: rowBarCount }, (_, offset) => firstBar + offset).map(
+                  (barIndex) => {
+                    const selected = selectedBarIndices.includes(barIndex);
+                    const barLeft =
+                      timelineContentOffset +
+                      (barIndex - firstBar) * editorTabView.barWidth;
+                    return (
+                      <Fragment key={`chord-tab-bar-${barIndex}`}>
+                        <button
+                          type="button"
+                          data-bar-select="true"
+                          data-bar-select-editor={editorId}
+                          data-bar-index={barIndex}
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onClick={(event) => toggleBarSelection(barIndex, event)}
+                          className={`absolute top-0 z-20 flex items-center border-b px-2 text-[10px] font-medium ${
+                            selected
+                              ? "border-sky-200 bg-sky-50 text-sky-900"
+                              : "border-slate-200 bg-slate-50/80 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                          }`}
+                          style={{
+                            left: barLeft,
+                            width: editorTabView.barWidth,
+                            height: TIMELINE_BAR_HEADER_HEIGHT,
+                          }}
+                          aria-label={`Select Bar ${barIndex + 1}`}
+                        >
+                          {showBarNumbers ? `Bar ${barIndex + 1}` : null}
+                        </button>
+                        {selected ? (
+                          <div
+                            aria-hidden="true"
+                            className="pointer-events-none absolute z-[1] bg-sky-50/70"
+                            style={{
+                              left: barLeft,
+                              top: TIMELINE_BAR_HEADER_HEIGHT,
+                              width: editorTabView.barWidth,
+                              height: timelineRowHeight,
+                            }}
+                          />
+                        ) : null}
+                        {Array.from({ length: beatsPerBar }, (_, beatIndex) => (
+                          <div
+                            key={`chord-tab-beat-${barIndex}-${beatIndex}`}
+                            className={`pointer-events-none absolute z-[2] w-px ${
+                              beatIndex === 0 ? "bg-slate-500" : "bg-slate-300"
+                            }`}
+                            style={{
+                              left:
+                                barLeft +
+                                (beatIndex * editorTabView.barWidth) / beatsPerBar,
+                              top: TIMELINE_BAR_HEADER_HEIGHT,
+                              height: timelineRowHeight,
+                            }}
+                          />
+                        ))}
+                      </Fragment>
+                    );
+                  }
+                )}
+                <div
+                  className="pointer-events-none absolute z-[3] w-px bg-slate-500"
+                  style={{
+                    left: timelineContentOffset + rowBarCount * editorTabView.barWidth,
+                    top: TIMELINE_BAR_HEADER_HEIGHT,
+                    height: timelineRowHeight,
+                  }}
+                />
+                {snapshot.chords
+                  .filter((chord) => {
+                    const start = Math.max(0, Math.round(chord.startTime));
+                    const end = start + clampEventLength(chord.length);
+                    return start < rowEndFrame && end > rowStartFrame;
+                  })
+                  .map((chord) => {
+                    const start = Math.max(0, Math.round(chord.startTime));
+                    const end = start + clampEventLength(chord.length);
+                    const visibleStart = Math.max(start, rowStartFrame);
+                    const visibleEnd = Math.min(end, rowEndFrame);
+                    const isSelected = selectedChordIds.includes(chord.id);
+                    const label = getPracticeChordLabel(chord);
+                    const fingeringLookup = getChordFingeringLookup(chord);
+                    const fingering = getPracticeChordFingering(
+                      chord,
+                      fingeringOptionsByChordKey[fingeringLookup.key]
+                    );
+                    return (
+                      <button
+                        key={`chord-tab-${rowIndex}-${chord.id}`}
+                        type="button"
+                        data-track-reorder-block="true"
+                        aria-pressed={isSelected}
+                        onMouseDown={(event) => {
+                          event.stopPropagation();
+                          setSelectedBarIndices([]);
+                        }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedChordIds((selectedIds) =>
+                            event.shiftKey
+                              ? selectedIds.includes(chord.id)
+                                ? selectedIds.filter((id) => id !== chord.id)
+                                : [...selectedIds, chord.id]
+                              : [chord.id]
+                          );
+                        }}
+                        onDoubleClick={(event) => {
+                          event.stopPropagation();
+                          onGlobalPlaybackFrameChange?.(start);
+                        }}
+                        className={`absolute z-10 flex h-8 items-center justify-center rounded border px-2 text-sm font-semibold shadow-sm ${
+                          isSelected
+                            ? "border-sky-500 bg-sky-100 text-sky-950"
+                            : "border-slate-300 bg-emerald-50 text-slate-900"
+                        }`}
+                        style={{
+                          left:
+                            timelineContentOffset +
+                            (visibleStart - rowStartFrame) * pxPerFrame,
+                          top: TIMELINE_BAR_HEADER_HEIGHT + 12,
+                          width: Math.max(
+                            CHORD_EDITOR_MIN_BLOCK_WIDTH,
+                            (visibleEnd - visibleStart) * pxPerFrame
+                          ),
+                        }}
+                        aria-label={`${label} chord`}
+                      >
+                        <span className="max-w-full truncate">{label}</span>
+                        {chordFingeringsVisible && start >= rowStartFrame ? (
+                          <span className="absolute left-1/2 top-10 flex w-[92px] -translate-x-1/2 justify-center rounded-md border border-slate-200 bg-white p-1 shadow-sm">
+                            {fingering ? (
+                              <ChordFingeringDiagram
+                                fingering={fingering}
+                                leftHanded={leftHandedChordDiagrams}
+                              />
+                            ) : (
+                              <span className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">
+                                No shape
+                              </span>
+                            )}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+              </div>
+            );
+          })}
+          <div
+            ref={chordLanePlayheadRef}
+            className="pointer-events-none absolute left-0 top-0 z-30 w-[2px] rounded-full bg-rose-500"
+            style={{
+              height: Math.max(20, timelineRowHeight - 6),
+              transform: (() => {
+                const safeFrame = Math.max(0, Math.min(totalFrames, effectivePlayheadFrame));
+                const rowIndex = Math.max(
+                  0,
+                  Math.min(chordTabRowCount - 1, Math.floor(safeFrame / chordRowFrames))
+                );
+                const rowFrame = safeFrame - rowIndex * chordRowFrames;
+                return `translate3d(${timelineContentOffset + rowFrame * pxPerFrame}px, ${
+                  rowIndex * chordTabRowStride + TIMELINE_BAR_HEADER_HEIGHT + 3
+                }px, 0) translateX(-1px)`;
+              })(),
+            }}
+          />
+        </div>
       </div>
     );
   }
@@ -4315,6 +4600,8 @@ export default function GteWorkspace({
   const [shiftBoundaryTime, setShiftBoundaryTime] = useState<OptionalNumber>(null);
   const [deleteBoundaryIndex, setDeleteBoundaryIndex] = useState<OptionalNumber>(null);
   const [showGenerateCutsConfirm, setShowGenerateCutsConfirm] = useState(false);
+  const [addBarsDialogOpen, setAddBarsDialogOpen] = useState(false);
+  const [addBarsCountInput, setAddBarsCountInput] = useState("1");
   const lastGeneratePlayingCoordinatesRequestRef = useRef(generatePlayingCoordinatesRequest);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackPreparing, setPlaybackPreparing] = useState(false);
@@ -4484,7 +4771,9 @@ export default function GteWorkspace({
   const keyboardAddModeRef = useRef<KeyboardAddMode | null>(null);
   const noteFretTypingBufferRef = useRef("");
   const noteFretTypingAtRef = useRef(0);
-  const defaultNoteLengthUserChangedRef = useRef(false);
+  // A controlled value comes from the editor-level preference store, so it
+  // must not be overwritten by the time-signature default during hydration.
+  const defaultNoteLengthUserChangedRef = useRef(controlledDefaultNoteLengthDenominator !== undefined);
   const previousTimeSignatureRef = useRef(8);
   const previousTimeSignatureBottomRef = useRef(4);
   // Only a time signature the user committed here should rescale the cursor
@@ -4739,7 +5028,7 @@ export default function GteWorkspace({
         subdivisionsPerBar: practiceMode
           ? Math.max(1, Math.round((timeSignature * 32) / Math.max(1, timeSignatureBottom)))
           : undefined,
-        minimumPlacementSpacing: practiceMode ? 18 : undefined,
+        minimumPlacementSpacing: practiceMode ? 12 : undefined,
       }),
     [
       effectivePlayheadFrame,
@@ -4788,13 +5077,14 @@ export default function GteWorkspace({
     const segments: Array<{
       startBar: number;
       endBar: number;
-      collapsed: boolean;
+      empty: boolean;
       width: number;
     }> = [];
     let startBar = practiceDisplayStartBar;
     while (startBar < practiceDisplayEndBar) {
       let endBar = startBar + 1;
-      if (!practiceOccupiedBarIndexSet.has(startBar)) {
+      const empty = !practiceOccupiedBarIndexSet.has(startBar);
+      if (empty) {
         while (
           endBar < practiceDisplayEndBar &&
           !practiceOccupiedBarIndexSet.has(endBar)
@@ -4802,14 +5092,16 @@ export default function GteWorkspace({
           endBar += 1;
         }
       }
-      const collapsed = endBar - startBar > 1;
-      if (!collapsed) endBar = startBar + 1;
+      const barCount = endBar - startBar;
+      const sourceWidth =
+        editorTabView.barStartXs[endBar] - editorTabView.barStartXs[startBar];
       segments.push({
         startBar,
         endBar,
-        collapsed,
-        width:
-          editorTabView.barStartXs[endBar] - editorTabView.barStartXs[startBar],
+        empty,
+        width: empty
+          ? Math.max(PRACTICE_EMPTY_RUN_MIN_WIDTH, barCount * PRACTICE_EMPTY_BAR_WIDTH)
+          : sourceWidth,
       });
       startBar = endBar;
     }
@@ -4865,6 +5157,22 @@ export default function GteWorkspace({
     practiceScoreWidth,
   ]);
   const practiceRowCount = practiceRows.length;
+  const getPracticeRowX = useCallback(
+    (segments: typeof practiceBarSegments, sourceX: number) => {
+      let displayX = EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
+      for (const segment of segments) {
+        const sourceStart = editorTabView.barStartXs[segment.startBar];
+        const sourceEnd = editorTabView.barStartXs[segment.endBar];
+        if (sourceX <= sourceEnd) {
+          const progress = (sourceX - sourceStart) / Math.max(1, sourceEnd - sourceStart);
+          return displayX + Math.max(0, Math.min(1, progress)) * segment.width;
+        }
+        displayX += segment.width;
+      }
+      return displayX;
+    },
+    [editorTabView.barStartXs]
+  );
   const getPracticePosition = useCallback(
     (sourceX: number) => {
       const clampedSourceX = Math.max(
@@ -4886,18 +5194,17 @@ export default function GteWorkspace({
           (row) => barIndex >= row.firstBar && barIndex < row.lastBar
         )
       );
-      const rowFirstBar = practiceRows[rowIndex]?.firstBar ?? practiceDisplayStartBar;
+      const rowSegments = practiceRows[rowIndex]?.segments ?? practiceBarSegments;
       return {
         rowIndex,
-        x:
-          EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
-          clampedSourceX -
-          editorTabView.barStartXs[rowFirstBar],
+        x: getPracticeRowX(rowSegments, clampedSourceX),
         y: rowIndex * practiceRowHeight,
       };
     },
     [
       editorTabView.barStartXs,
+      getPracticeRowX,
+      practiceBarSegments,
       practiceDisplayEndBar,
       practiceDisplayStartBar,
       practiceRowHeight,
@@ -7015,6 +7322,19 @@ export default function GteWorkspace({
     resolveNoteId,
   ]);
 
+  const getMovePointerFrame = useCallback(
+    (clientX: number, clientY: number) => {
+      const timeline = timelineRef.current;
+      if (!timeline) return null;
+      const rect = timeline.getBoundingClientRect();
+      const rowIndex = Math.max(0, Math.floor((clientY - rect.top) / Math.max(1, rowStride)));
+      const rowWidth = Math.max(1, rowFrames * scale);
+      const localX = clamp(clientX - rect.left, 0, rowWidth);
+      return rowIndex * rowFrames + localX / Math.max(scale, 0.0001);
+    },
+    [clamp, rowFrames, rowStride, scale]
+  );
+
   const computeMovePreview = useCallback(
     (session: MoveSession, deltaFrames: number) => {
       const rawDelta = Math.round(deltaFrames);
@@ -7072,6 +7392,31 @@ export default function GteWorkspace({
     moveSessionRef.current = null;
   }, []);
 
+  const nudgeMovePreview = useCallback(
+    (direction: -1 | 1) => {
+      const session = moveSessionRef.current;
+      if (!session) return;
+      const anchorNote = session.notes.find((note) => note.startTime === session.anchorStart);
+      const anchorChord = anchorNote
+        ? undefined
+        : session.chords.find((chord) => chord.startTime === session.anchorStart);
+      const currentPreview = anchorNote
+        ? movePreviewRef.current.notes[anchorNote.id]
+        : anchorChord
+        ? movePreviewRef.current.chords[anchorChord.id]
+        : undefined;
+      const currentDelta = currentPreview
+        ? currentPreview.startTime - session.anchorStart
+        : 0;
+      const gridStep = Math.max(
+        1,
+        Math.round(FIXED_FRAMES_PER_BAR / Math.max(1, timeSignature * normalizedSnapSubdivisionsPerBeat))
+      );
+      applyMovePreview(currentDelta + direction * (snapToGridEnabled ? gridStep : 1));
+    },
+    [applyMovePreview, normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
+  );
+
   const activateMoveTool = useCallback(
     (anchor?: { x: number; y: number }) => {
       const notes = snapshot.notes
@@ -7090,9 +7435,11 @@ export default function GteWorkspace({
         ...chords.map((item) => item.startTime)
       );
       const nextAnchor = anchor ?? mousePosRef.current;
+      const anchorPointerFrame = getMovePointerFrame(nextAnchor.x, nextAnchor.y) ?? anchorStart;
       moveSessionRef.current = {
         anchorX: nextAnchor.x,
         anchorStart: Number.isFinite(anchorStart) ? anchorStart : 0,
+        anchorPointerFrame,
         notes,
         chords,
       };
@@ -7110,6 +7457,7 @@ export default function GteWorkspace({
       applyMovePreview,
       deactivateQuantizeTool,
       deactivateScaleTool,
+      getMovePointerFrame,
       selectedChordIds,
       selectedNoteIds,
       snapshot.chords,
@@ -7260,13 +7608,47 @@ export default function GteWorkspace({
     const handleMove = (event: globalThis.MouseEvent) => {
       const session = moveSessionRef.current;
       if (!session) return;
-      applyMovePreview((event.clientX - session.anchorX) / Math.max(scale, 0.0001));
+      const pointerFrame = getMovePointerFrame(event.clientX, event.clientY);
+      applyMovePreview(
+        pointerFrame === null
+          ? (event.clientX - session.anchorX) / Math.max(scale, 0.0001)
+          : pointerFrame - session.anchorPointerFrame
+      );
     };
     window.addEventListener("mousemove", handleMove);
     return () => {
       window.removeEventListener("mousemove", handleMove);
     };
-  }, [applyMovePreview, moveToolActive, scale]);
+  }, [applyMovePreview, getMovePointerFrame, moveToolActive, scale]);
+
+  useEffect(() => {
+    if (!moveToolActive) return;
+    let animationFrame: number | null = null;
+    const edgeSize = 56;
+    const scrollStep = 18;
+    const tick = () => {
+      const pointer = mousePosRef.current;
+      const scrollDelta =
+        pointer.y >= window.innerHeight - edgeSize
+          ? scrollStep
+          : pointer.y <= edgeSize
+          ? -scrollStep
+          : 0;
+      if (scrollDelta !== 0) {
+        window.scrollBy({ top: scrollDelta, behavior: "auto" });
+        const session = moveSessionRef.current;
+        const pointerFrame = session ? getMovePointerFrame(pointer.x, pointer.y) : null;
+        if (session && pointerFrame !== null) {
+          applyMovePreview(pointerFrame - session.anchorPointerFrame);
+        }
+      }
+      animationFrame = window.requestAnimationFrame(tick);
+    };
+    animationFrame = window.requestAnimationFrame(tick);
+    return () => {
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+    };
+  }, [applyMovePreview, getMovePointerFrame, moveToolActive]);
 
   useEffect(() => {
     if (!scaleToolActive) return;
@@ -7297,7 +7679,12 @@ export default function GteWorkspace({
       event.stopPropagation();
       const session = moveSessionRef.current;
       if (session) {
-        applyMovePreview((event.clientX - session.anchorX) / Math.max(scale, 0.0001));
+        const pointerFrame = getMovePointerFrame(event.clientX, event.clientY);
+        applyMovePreview(
+          pointerFrame === null
+            ? (event.clientX - session.anchorX) / Math.max(scale, 0.0001)
+            : pointerFrame - session.anchorPointerFrame
+        );
       }
       commitMoveTool();
     };
@@ -7305,7 +7692,7 @@ export default function GteWorkspace({
     return () => {
       window.removeEventListener("mousedown", handleMouseDownCapture, true);
     };
-  }, [applyMovePreview, commitMoveTool, moveToolActive, scale]);
+  }, [applyMovePreview, commitMoveTool, getMovePointerFrame, moveToolActive, scale]);
 
   useEffect(() => {
     if (!floatingPanelDrag) return;
@@ -7469,7 +7856,11 @@ export default function GteWorkspace({
     [applyScalePreview, scaleToolMode]
   );
 
-  const getPointerFrame = (clientX: number, clientY: number) => {
+  const getPointerFrame = (
+    clientX: number,
+    clientY: number,
+    options?: { snapToCursorSize?: boolean }
+  ) => {
     if (!timelineRef.current) return null;
     const rect = timelineRef.current.getBoundingClientRect();
     const x = clamp(clientX - rect.left, 0, timelineWidth);
@@ -7480,8 +7871,22 @@ export default function GteWorkspace({
     const rowStart = rowIndex * rowFrames;
     const rowWidth = availableFrames * scale;
     const localX = clamp(x, 0, rowWidth);
-    const rawTime = rowStart + Math.round(localX / scale);
-    const snappedTime = getSnapTime(rawTime, { min: rowStart, max: rowStart + availableFrames });
+    const rawTime =
+      rowStart +
+      (options?.snapToCursorSize
+        ? Math.floor(localX / scale)
+        : Math.round(localX / scale));
+    const cursorStep = options?.snapToCursorSize
+      ? cursorSizeDenominatorToFrames(cursorSizeDenominator)
+      : null;
+    const snappedTime = options?.snapToCursorSize
+      ? rowStart +
+        Math.floor(
+          (clamp(rawTime, rowStart, rowStart + availableFrames) - rowStart) /
+            cursorStep!
+        ) *
+          cursorStep!
+      : getSnapTime(rawTime, { min: rowStart, max: rowStart + availableFrames });
     const time = clamp(snappedTime, rowStart, rowStart + availableFrames);
     return { time, rowIndex };
   };
@@ -8477,7 +8882,9 @@ export default function GteWorkspace({
     if (event.button !== 0) return;
     event.preventDefault();
     setContextMenu(null);
-    const target = getPointerFrame(event.clientX, event.clientY);
+    const target = getPointerFrame(event.clientX, event.clientY, {
+      snapToCursorSize: true,
+    });
     if (target) {
       const rect = event.currentTarget.getBoundingClientRect();
       const y = clamp(event.clientY - rect.top, 0, timelineHeight);
@@ -10313,9 +10720,10 @@ export default function GteWorkspace({
     setSelectedCutBoundaryIndex(null);
   };
 
-  const handleAddBar = () => {
+  const handleAddBars = (count: number) => {
+    const safeCount = Math.max(1, Math.min(10, Math.round(count)));
     void runMutation(async () => {
-      const added = await gteApi.addBars(editorId, 1);
+      const added = await gteApi.addBars(editorId, safeCount);
       if (!added.snapshot) return added;
       const cleanedSnapshot = cloneSnapshot(added.snapshot);
       applyBarOperationCleanupInSnapshot(cleanedSnapshot);
@@ -10325,10 +10733,22 @@ export default function GteWorkspace({
       return gteApi.applyManualCuts(editorId, cloneCutRegionsPayload(cleanedSnapshot.cutPositionsWithCoords));
     }, {
       localApply: (draft) => {
-        addBarsInSnapshot(draft, 1);
+        addBarsInSnapshot(draft, safeCount);
         applyBarOperationCleanupInSnapshot(draft);
       },
     });
+  };
+
+  const openAddBarsDialog = () => {
+    setAddBarsCountInput("1");
+    setAddBarsDialogOpen(true);
+  };
+
+  const submitAddBarsDialog = () => {
+    const parsedCount = Number(addBarsCountInput);
+    if (!Number.isFinite(parsedCount)) return;
+    handleAddBars(parsedCount);
+    setAddBarsDialogOpen(false);
   };
 
   const handleRemoveBar = (index: number) => {
@@ -11826,6 +12246,19 @@ export default function GteWorkspace({
         }
         return;
       }
+      if (
+        moveToolActive &&
+        !isTyping &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !event.shiftKey &&
+        (event.key === "ArrowLeft" || event.key === "ArrowRight")
+      ) {
+        event.preventDefault();
+        nudgeMovePreview(event.key === "ArrowLeft" ? -1 : 1);
+        return;
+      }
       if (tabViewEnabled) {
         if (event.code === "Space" && !isTyping) {
           event.preventDefault();
@@ -12683,6 +13116,7 @@ export default function GteWorkspace({
     commitScaleTool,
     commitQuantizeTool,
     commitMoveTool,
+    nudgeMovePreview,
     deactivateScaleTool,
     deactivateQuantizeTool,
     deactivateMoveTool,
@@ -13905,6 +14339,64 @@ export default function GteWorkspace({
           </div>
         </div>
       )}
+      {addBarsDialogOpen && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gte-add-bars-dialog-title"
+          className="fixed left-1/2 top-1/2 z-[10000] w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-900/15"
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitAddBarsDialog();
+            }}
+          >
+            <h2 id="gte-add-bars-dialog-title" className="m-0 text-sm font-semibold text-slate-900">
+              Add bars
+            </h2>
+            <label className="mt-3 grid gap-1 text-[11px] font-semibold text-slate-600">
+              Number of bars
+              <input
+                type="number"
+                min={1}
+                max={10}
+                step={1}
+                autoFocus
+                value={addBarsCountInput}
+                onChange={(event) => setAddBarsCountInput(event.target.value)}
+                onBlur={() => {
+                  const parsedCount = Number(addBarsCountInput);
+                  if (Number.isFinite(parsedCount)) {
+                    setAddBarsCountInput(String(Math.max(1, Math.min(10, Math.round(parsedCount)))));
+                  }
+                }}
+                className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none focus:border-sky-400"
+              />
+            </label>
+            <p className="mt-1.5 text-[11px] text-slate-500">Enter a whole number from 1 to 10.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setAddBarsDialogOpen(false)}
+                className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="h-8 rounded-lg bg-sky-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-sky-500"
+              >
+                OK
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
       {contextMenu && (
         <div
           ref={contextMenuRef}
@@ -14812,7 +15304,7 @@ export default function GteWorkspace({
                 editorTabView.barStartXs[firstBar] - EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
               const sourceRight =
                 editorTabView.barStartXs[lastBar] - EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
-              const rowContentWidth = sourceRight - sourceLeft;
+              const rowContentWidth = segments.reduce((total, segment) => total + segment.width, 0);
               const rowTop = rowIndex * practiceRowHeight;
               return (
                 <div
@@ -14836,8 +15328,13 @@ export default function GteWorkspace({
                     const partiallySelected =
                       !selected &&
                       barIndices.some((barIndex) => selectedBarIndexSet.has(barIndex));
-                    const label = segment.collapsed
-                      ? `Bar ${segment.startBar + 1}–${segment.endBar}`
+                    const segmentBarCount = segment.endBar - segment.startBar;
+                    const segmentBarRange =
+                      segmentBarCount === 1
+                        ? `${segment.startBar + 1}`
+                        : `${segment.startBar + 1}-${segment.endBar}`;
+                    const label = segment.empty
+                      ? segmentBarRange
                       : `Bar ${segment.startBar + 1}`;
                     return (
                       <button
@@ -14862,27 +15359,15 @@ export default function GteWorkspace({
                             : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                         }`}
                         style={{
-                          left:
-                            EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
-                            editorTabView.barStartXs[segment.startBar] -
-                            editorTabView.barStartXs[firstBar],
+                          left: getPracticeRowX(
+                            segments,
+                            editorTabView.barStartXs[segment.startBar]
+                          ),
                           width: segment.width,
                           height: TIMELINE_BAR_HEADER_HEIGHT,
                         }}
-                        aria-label={`Select ${label}`}
-                        title={
-                          segment.collapsed
-                            ? buildTimingBpmSegments(timingMap, barIndices, fallbackBarBpm)
-                                .map((tempoSegment) => {
-                                  const range =
-                                    tempoSegment.startBarIndex === tempoSegment.endBarIndex
-                                      ? `Bar ${tempoSegment.startBarIndex + 1}`
-                                      : `Bars ${tempoSegment.startBarIndex + 1}–${tempoSegment.endBarIndex + 1}`;
-                                  return `${range}: ${formatTimingBpm(tempoSegment.bpm)} BPM`;
-                                })
-                                .join(" · ")
-                            : barBpmTitle(segment.startBar)
-                        }
+                        aria-label={`Select ${segment.empty ? `empty bars ${label}` : label}`}
+                        title={segment.empty ? `Empty bars ${label}` : barBpmTitle(segment.startBar)}
                       >
                         {label}
                       </button>
@@ -14906,7 +15391,7 @@ export default function GteWorkspace({
                           key={`practice-chord-overlay-${rowIndex}-${item.chord.id}`}
                           className="group absolute z-40 -translate-x-1/2"
                           style={{
-                            left: sourceX - sourceLeft,
+                            left: getPracticeRowX(segments, sourceX),
                             top: TIMELINE_BAR_HEADER_HEIGHT + practiceTabHeight - 4,
                           }}
                         >
@@ -14935,15 +15420,18 @@ export default function GteWorkspace({
                         </div>
                       );
                     })}
-                  {[...segments.map((segment) => segment.startBar), lastBar].map((barIndex) => (
+                  {Array.from(
+                    { length: lastBar - firstBar + 1 },
+                    (_, offset) => firstBar + offset
+                  ).map((barIndex) => (
                     <div
                       key={`practice-bar-line-${rowIndex}-${barIndex}`}
                       className="absolute w-px bg-slate-400"
                       style={{
-                        left:
-                          EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
-                          editorTabView.barStartXs[barIndex] -
-                          editorTabView.barStartXs[firstBar],
+                        left: getPracticeRowX(
+                          segments,
+                          editorTabView.barStartXs[barIndex]
+                        ),
                         top: TIMELINE_BAR_HEADER_HEIGHT,
                         height: practiceTabHeight,
                       }}
@@ -15006,7 +15494,7 @@ export default function GteWorkspace({
                           onClick={() => onPracticeNotePlay?.(placement.startTime)}
                           className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer px-0.5 text-[11px] font-bold leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${ratingClass}`}
                           style={{
-                            left: placement.x - sourceLeft,
+                            left: getPracticeRowX(segments, placement.x),
                             top:
                               TIMELINE_BAR_HEADER_HEIGHT +
                               y * practiceVerticalScale,
@@ -15041,7 +15529,7 @@ export default function GteWorkspace({
                           key={`practice-false-${rowIndex}-${falseIndex}-${falseNote.frame}`}
                           className="pointer-events-none absolute z-30 -translate-x-1/2 text-sm font-black text-rose-600"
                           style={{
-                            left: sourceX - sourceLeft,
+                            left: getPracticeRowX(segments, sourceX),
                             top: TIMELINE_BAR_HEADER_HEIGHT + 1,
                           }}
                           title={`Unexpected MIDI note ${falseNote.pitchMidi}`}
@@ -15060,11 +15548,11 @@ export default function GteWorkspace({
                       const y = editorTabView.strings[effect.stringIndex]?.y ?? 0;
                       const left = Math.max(
                         EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
-                        Math.min(effect.x1, effect.x2) - sourceLeft
+                        getPracticeRowX(segments, Math.min(effect.x1, effect.x2))
                       );
                       const right = Math.min(
                         EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + rowContentWidth,
-                        Math.max(effect.x1, effect.x2) - sourceLeft
+                        getPracticeRowX(segments, Math.max(effect.x1, effect.x2))
                       );
                       return (
                         <div
@@ -15416,9 +15904,29 @@ export default function GteWorkspace({
           >
             {(() => {
               const tabRowHeight = TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height;
-              const tabScoreHeight = rows * tabRowHeight + Math.max(0, rows - 1) * ROW_GAP;
+              const lastTabRowIndex = rows - 1;
+              const lastTabRowBarCount = Math.max(0, barCount - lastTabRowIndex * barsPerRow);
+              const tabAddBarStartsNewRow = lastTabRowBarCount >= barsPerRow;
+              const tabScoreHeight =
+                rows * tabRowHeight +
+                Math.max(0, rows - 1) * ROW_GAP +
+                (tabAddBarStartsNewRow ? tabRowHeight + ROW_GAP : 0);
               const safeCursorFrame = clamp(Math.round(effectivePlayheadFrame), 0, timelineEnd);
               const cursorRowIndex = clamp(Math.floor(safeCursorFrame / rowFrames), 0, rows - 1);
+              const tabAddBarRowIndex = tabAddBarStartsNewRow ? rows : lastTabRowIndex;
+              const tabAddBarSourceLeft = tabAddBarStartsNewRow
+                ? 0
+                : editorTabView.barStartXs[lastTabRowIndex * barsPerRow];
+              const tabAddBarLeft = tabAddBarStartsNewRow
+                ? EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + 10
+                : EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
+                  editorTabView.barStartXs[Math.min(barCount, editorTabView.barCount)] -
+                    tabAddBarSourceLeft +
+                  10;
+              const tabAddBarTop =
+                tabAddBarRowIndex * (tabRowHeight + ROW_GAP) +
+                TIMELINE_BAR_HEADER_HEIGHT +
+                Math.max(0, Math.round(editorTabView.height / 2) - 14);
 
               return (
                 <div
@@ -15514,7 +16022,7 @@ export default function GteWorkspace({
                               sourceLeft;
                             return (
                               <Fragment key={`desktop-tab-grid-${barIndex}-${beatIndex}`}>
-                                {beatIndex === 0 && barIndex > rowIdx * barsPerRow ? (
+                                {beatIndex === 0 && barIndex > rowIndex * barsPerRow ? (
                                   <div
                                     className="pointer-events-none absolute z-[4] w-[3px] bg-slate-500/85"
                                     style={{
@@ -15710,6 +16218,22 @@ export default function GteWorkspace({
                     );
                   })}
 
+                  <button
+                    type="button"
+                    data-gte-editor-control="true"
+                    onClick={openAddBarsDialog}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
+                    className="absolute z-40 flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white/95 text-base font-semibold text-slate-600 shadow-sm hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900"
+                    style={{ left: tabAddBarLeft, top: tabAddBarTop }}
+                    title="Add bars to end"
+                    aria-label="Add bars to end"
+                  >
+                    +
+                  </button>
+
                 </div>
               );
             })()}
@@ -15847,7 +16371,7 @@ export default function GteWorkspace({
                   })}
                 <button
                   type="button"
-                  onClick={handleAddBar}
+                  onClick={openAddBarsDialog}
                   onMouseDown={(event) => {
                     event.preventDefault();
                     event.stopPropagation();

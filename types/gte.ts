@@ -164,5 +164,9 @@ export type CanvasSnapshot = {
   secondsPerBar?: number;
   timingVersion?: number;
   timingMap?: TimingMapV2;
+  editorInputSettings?: {
+    defaultNoteLengthDenominator: number;
+    cursorSizeDenominator: number;
+  };
   editors: EditorSnapshot[];
 };

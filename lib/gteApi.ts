@@ -733,6 +733,18 @@ export const gteApi = {
       body: JSON.stringify({ name }),
       }
     ),
+  setEditorInputSettings: (
+    editorId: string,
+    settings: { defaultNoteLengthDenominator: number; cursorSizeDenominator: number }
+  ) =>
+    requestForEditor<{
+      ok: true;
+      settings: { defaultNoteLengthDenominator: number; cursorSizeDenominator: number };
+    }>(editorId, `/editors/${editorId}/input-settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ settings }),
+    }),
   addCanvasEditor: (
     editorId: string,
     name?: string,

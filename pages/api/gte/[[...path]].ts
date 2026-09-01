@@ -14,6 +14,10 @@ import {
   hydrateDrumLoopsFromStore,
   persistDrumLoopsFromSnapshot,
 } from "../../../lib/gteDrumLoopStore";
+import {
+  hydrateGteEditorInputSettingsFromStore,
+  saveGteEditorInputSettings,
+} from "../../../lib/gteEditorInputSettingsStore";
 import type { GteAnalyticsEvent } from "../../../lib/gteAnalytics";
 import { parseTextTabImport } from "../../../lib/gteTabImport";
 import { prisma } from "../../../lib/prisma";
@@ -174,6 +178,12 @@ function isAsciiTabImportRequest(method: string, path: string) {
   return method === "POST" && /^editors\/[^/]+\/canvas\/import_ascii$/.test(path);
 }
 
+function getEditorInputSettingsRef(method: string, path: string) {
+  if (method !== "POST") return null;
+  const match = path.match(/^editors\/([^/]+)\/input-settings$/);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
+
 function getRenameEditorId(method: string, path: string) {
   if (method !== "POST") return undefined;
   const match = path.match(/^editors\/([^/]+)\/name$/);
@@ -269,6 +279,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const method = req.method || "GET";
   const path = getPath(req);
   const editorRef = getGteEditorRefFromPath(path);
+  const editorInputSettingsRef = getEditorInputSettingsRef(method, path);
+  if (editorInputSettingsRef) {
+    const settings = await saveGteEditorInputSettings(
+      session.user.id,
+      editorInputSettingsRef,
+      (req.body as { settings?: unknown } | undefined)?.settings
+    );
+    if (!settings) {
+      return res.status(503).json({ error: "Editor input settings could not be saved yet." });
+    }
+    return res.status(200).json({ ok: true, settings });
+  }
   const isSnapshotSave = isSnapshotSaveRequest(method, path);
   const isTranscriberImport = method === "POST" && path === "transcriber/import";
   const cacheKey = `${session.user.id}:${path}`;
@@ -384,6 +406,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         hydrateTrackInstrumentsFromStore(session.user.id, editorRef, parsed),
         hydrateTrackPlaybackFromStore(session.user.id, editorRef, parsed),
         hydrateDrumLoopsFromStore(session.user.id, editorRef, parsed),
+        ...(method === "GET"
+          ? [hydrateGteEditorInputSettingsFromStore(session.user.id, editorRef, parsed)]
+          : []),
       ]);
       preferenceHydrationDurationMs = Date.now() - preferenceHydrationStartedAt;
       responseText = JSON.stringify(parsed);
