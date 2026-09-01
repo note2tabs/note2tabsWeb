@@ -12215,6 +12215,10 @@ input[type="number"] {
     accent-color: var(--gte-accent);
   }
 
+  [data-gte-floating-ui="true"] input[aria-label="Playback volume"] {
+    accent-color: var(--accent-strong);
+  }
+
   .gte-drum-score {
     color: var(--gte-ink);
   }

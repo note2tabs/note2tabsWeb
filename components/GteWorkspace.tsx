@@ -3506,7 +3506,8 @@ function ChordLaneWorkspace({
                   })
                   .map((chord) => {
                     const start = Math.max(0, Math.round(chord.startTime));
-                    const end = start + clampEventLength(chord.length);
+                    const chordLength = clampEventLength(chord.length);
+                    const end = start + chordLength;
                     const visibleStart = Math.max(start, rowStartFrame);
                     const visibleEnd = Math.min(end, rowEndFrame);
                     const isSelected = selectedChordIds.includes(chord.id);
@@ -3516,64 +3517,263 @@ function ChordLaneWorkspace({
                       chord,
                       fingeringOptionsByChordKey[fingeringLookup.key]
                     );
-                    return (
-                      <button
-                        key={`chord-tab-${rowIndex}-${chord.id}`}
-                        type="button"
-                        data-track-reorder-block="true"
-                        aria-pressed={isSelected}
-                        onMouseDown={(event) => {
-                          event.stopPropagation();
-                          setSelectedBarIndices([]);
-                        }}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setSelectedChordIds((selectedIds) =>
-                            event.shiftKey
-                              ? selectedIds.includes(chord.id)
-                                ? selectedIds.filter((id) => id !== chord.id)
-                                : [...selectedIds, chord.id]
-                              : [chord.id]
-                          );
-                        }}
-                        onDoubleClick={(event) => {
-                          event.stopPropagation();
-                          onGlobalPlaybackFrameChange?.(start);
-                        }}
-                        className={`absolute z-10 flex h-8 items-center justify-center rounded border px-2 text-sm font-semibold shadow-sm ${
-                          isSelected
-                            ? "border-sky-500 bg-sky-100 text-sky-950"
-                            : "border-slate-300 bg-emerald-50 text-slate-900"
-                        }`}
-                        style={{
-                          left:
-                            timelineContentOffset +
-                            (visibleStart - rowStartFrame) * pxPerFrame,
-                          top: TIMELINE_BAR_HEADER_HEIGHT + 12,
-                          width: Math.max(
-                            CHORD_EDITOR_MIN_BLOCK_WIDTH,
-                            (visibleEnd - visibleStart) * pxPerFrame
-                          ),
-                        }}
-                        aria-label={`${label} chord`}
-                      >
-                        <span className="max-w-full truncate">{label}</span>
-                        {chordFingeringsVisible && start >= rowStartFrame ? (
-                          <span className="absolute left-1/2 top-10 flex w-[92px] -translate-x-1/2 justify-center rounded-md border border-slate-200 bg-white p-1 shadow-sm">
-                            {fingering ? (
-                              <ChordFingeringDiagram
-                                fingering={fingering}
-                                leftHanded={leftHandedChordDiagrams}
-                              />
-                            ) : (
-                              <span className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">
-                                No shape
-                              </span>
-                            )}
-                          </span>
-                        ) : null}
-                      </button>
+                    const isStrumEditing = strumEditor?.chordId === chord.id;
+                    const strumGridStep = getStrumGridStep(chordLength);
+                    const beatGridStep = Math.max(
+                      1,
+                      Math.round(FIXED_FRAMES_PER_BAR / Math.max(1, beatsPerBar))
                     );
+                    const chordBlockLeft =
+                      timelineContentOffset + (visibleStart - rowStartFrame) * pxPerFrame;
+                    const chordBlockWidth = Math.max(
+                      CHORD_EDITOR_MIN_BLOCK_WIDTH,
+                      (visibleEnd - visibleStart) * pxPerFrame
+                    );
+                    return (
+                      <Fragment key={`chord-tab-${rowIndex}-${chord.id}`}>
+                        <button
+                          type="button"
+                          data-track-reorder-block="true"
+                          aria-pressed={isSelected}
+                          onMouseDown={(event) => {
+                            event.stopPropagation();
+                            setSelectedBarIndices([]);
+                          }}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedChordIds((selectedIds) =>
+                              event.shiftKey
+                                ? selectedIds.includes(chord.id)
+                                  ? selectedIds.filter((id) => id !== chord.id)
+                                  : [...selectedIds, chord.id]
+                                : [chord.id]
+                            );
+                          }}
+                          onDoubleClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            openStrumEditor(chord);
+                          }}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setChordContextMenu({
+                              chordId: chord.id,
+                              x: event.clientX,
+                              y: event.clientY,
+                            });
+                            setSelectedBarIndices([]);
+                            if (!selectedChordIds.includes(chord.id)) {
+                              setSelectedChordIds([chord.id]);
+                            }
+                          }}
+                          className={`absolute z-10 flex h-8 items-center justify-center rounded border px-2 text-sm font-semibold shadow-sm ${
+                            isSelected
+                              ? "border-sky-500 bg-sky-100 text-sky-950"
+                              : "border-slate-300 bg-emerald-50 text-slate-900"
+                          }`}
+                          style={{
+                            left: chordBlockLeft,
+                            top: TIMELINE_BAR_HEADER_HEIGHT + 12,
+                            width: chordBlockWidth,
+                          }}
+                          aria-label={`${label} chord`}
+                        >
+                          <span className="max-w-full truncate">{label}</span>
+                          {chordFingeringsVisible && start >= rowStartFrame ? (
+                            <span className="absolute left-1/2 top-10 flex w-[92px] -translate-x-1/2 justify-center rounded-md border border-slate-200 bg-white p-1 shadow-sm">
+                              {fingering ? (
+                                <ChordFingeringDiagram
+                                  fingering={fingering}
+                                  leftHanded={leftHandedChordDiagrams}
+                                />
+                              ) : (
+                                <span className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">
+                                  No shape
+                                </span>
+                              )}
+                            </span>
+                          ) : null}
+                        </button>
+                        {isStrumEditing && strumEditor && start >= rowStartFrame ? (
+                          <div
+                            data-track-reorder-block="true"
+                            className="absolute z-50 rounded-md border border-slate-300 bg-white shadow-lg"
+                            style={{
+                              left: chordBlockLeft,
+                              top: TIMELINE_BAR_HEADER_HEIGHT + strumEditorTop,
+                              width: chordBlockWidth,
+                              minWidth: 80,
+                              height: CHORD_STRUM_EDITOR_HEIGHT,
+                            }}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              chordMouseDownSelectionRef.current = null;
+                            }}
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="absolute right-1 top-1 z-20 grid h-5 w-5 place-items-center rounded border border-slate-200 bg-white text-[11px] font-bold text-slate-500 hover:bg-slate-50"
+                              onClick={closeStrumEditor}
+                              aria-label="Close strum editor"
+                            >
+                              x
+                            </button>
+                            <div
+                              className="absolute bottom-2 left-2 right-2 top-7 rounded border border-slate-200 bg-slate-50"
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (event.currentTarget !== event.target) return;
+                                const rect = event.currentTarget.getBoundingClientRect();
+                                const rawTime =
+                                  ((event.clientX - rect.left) / Math.max(1, rect.width)) *
+                                  chordLength;
+                                const time = snapStrumTime(rawTime, chordLength);
+                                setStrumEditor((prev) =>
+                                  prev && prev.chordId === chord.id
+                                    ? {
+                                        ...prev,
+                                        selectedIds: [],
+                                        menu: {
+                                          time,
+                                          x: Math.max(
+                                            6,
+                                            Math.min(
+                                              rect.width - 6,
+                                              (time / Math.max(1, chordLength)) * rect.width
+                                            )
+                                          ),
+                                          y: 10,
+                                        },
+                                      }
+                                    : prev
+                                );
+                              }}
+                            >
+                              {Array.from(
+                                { length: Math.floor(chordLength / strumGridStep) + 1 },
+                                (_, index) => {
+                                  const time = Math.min(chordLength, index * strumGridStep);
+                                  const isBeat = time % beatGridStep === 0;
+                                  return (
+                                    <span
+                                      key={`strum-grid-${chord.id}-${index}`}
+                                      className={`pointer-events-none absolute bottom-0 top-0 border-l ${
+                                        isBeat ? "border-slate-700" : "border-slate-300"
+                                      }`}
+                                      style={{
+                                        left: `${(time / Math.max(1, chordLength)) * 100}%`,
+                                        opacity: isBeat ? 0.9 : 0.55,
+                                      }}
+                                    />
+                                  );
+                                }
+                              )}
+                              {strumEditor.draft.map((strum) => {
+                                const markerSelected = strumEditor.selectedIds.includes(strum.id);
+                                return (
+                                  <button
+                                    key={`strum-editor-${chord.id}-${strum.id}`}
+                                    type="button"
+                                    className={`absolute top-1/2 z-10 grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border text-sm font-bold shadow-sm ${
+                                      markerSelected
+                                        ? "border-sky-500 bg-sky-100 text-sky-900"
+                                        : "border-slate-300 bg-white text-slate-700"
+                                    }`}
+                                    style={{
+                                      left: `${(strum.time / Math.max(1, chordLength)) * 100}%`,
+                                    }}
+                                    onMouseDown={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      setStrumEditor((prev) => {
+                                        if (!prev || prev.chordId !== chord.id) return prev;
+                                        const nextSelected = event.shiftKey
+                                          ? prev.selectedIds.includes(strum.id)
+                                            ? prev.selectedIds.filter((id) => id !== strum.id)
+                                            : [...prev.selectedIds, strum.id]
+                                          : [strum.id];
+                                        return {
+                                          ...prev,
+                                          selectedIds: nextSelected,
+                                          menu: null,
+                                          drag: {
+                                            strumId: strum.id,
+                                            anchorX: event.clientX,
+                                            originalTime: strum.time,
+                                          },
+                                        };
+                                      });
+                                    }}
+                                  >
+                                    {strum.direction === "mute"
+                                      ? "x"
+                                      : strum.direction === "up"
+                                      ? "↑"
+                                      : "↓"}
+                                  </button>
+                                );
+                              })}
+                              {strumEditor.menu ? (
+                                <div
+                                  className="absolute z-20 flex -translate-x-1/2 -translate-y-full items-center gap-1 rounded-md border border-slate-200 bg-white p-1 shadow-md"
+                                  style={{ left: strumEditor.menu.x, top: strumEditor.menu.y }}
+                                  onMouseDown={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                  }}
+                                >
+                                  {(
+                                    [
+                                      ["down", "↓"],
+                                      ["up", "↑"],
+                                      ["mute", "x"],
+                                    ] as const
+                                  ).map(([direction, label]) => (
+                                    <button
+                                      key={direction}
+                                      type="button"
+                                      className="grid h-7 w-7 place-items-center rounded border border-slate-200 bg-white text-sm font-bold text-slate-700 hover:bg-slate-50"
+                                      onClick={() => {
+                                        setStrumEditor((prev) => {
+                                          if (!prev || !prev.menu || prev.chordId !== chord.id) return prev;
+                                          const id =
+                                            Math.max(0, ...prev.draft.map((item) => item.id)) + 1;
+                                          return {
+                                            ...prev,
+                                            draft: [
+                                              ...prev.draft,
+                                              {
+                                                id,
+                                                time: prev.menu.time,
+                                                direction,
+                                              },
+                                            ].sort(
+                                              (left, right) =>
+                                                left.time - right.time || left.id - right.id
+                                            ),
+                                            selectedIds: [id],
+                                            menu: null,
+                                          };
+                                        });
+                                      }}
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        ) : null}
+                      </Fragment>
+                    );
+          })}
+        </div>
+            );
           })}
           <button
             type="button"
@@ -3599,9 +3799,6 @@ function ChordLaneWorkspace({
           >
             +
           </button>
-        </div>
-            );
-          })}
           <div
             ref={chordLanePlayheadRef}
             className="pointer-events-none absolute left-0 top-0 z-30 w-[2px] rounded-full bg-rose-500"
@@ -3621,6 +3818,136 @@ function ChordLaneWorkspace({
             }}
           />
         </div>
+        {chordContextMenu
+          ? (() => {
+              const chord = snapshot.chords.find((item) => item.id === chordContextMenu.chordId);
+              if (!chord) return null;
+              const targetChordIds = getContextTargetChordIds(chord.id);
+              const currentExtension = getChordEditorExtension(chord.extension).name;
+              const inferredChord = inferChordEditorMetadataFromMidi(chord.originalMidi);
+              const contextChordRoot = chord.root || inferredChord?.root || "C";
+              const contextChordQuality = chord.quality || inferredChord?.quality || "major";
+              const menuItemClass =
+                "block w-full rounded px-3 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300";
+              return (
+                <div
+                  ref={chordContextMenuRef}
+                  data-gte-floating-ui="true"
+                  data-gte-editor-control="true"
+                  className="fixed z-[10000] w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl"
+                  style={{ left: chordContextMenu.x, top: chordContextMenu.y }}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => event.stopPropagation()}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                >
+                  <button
+                    type="button"
+                    className={menuItemClass}
+                    onClick={() => {
+                      copyChordIds(targetChordIds);
+                      setChordContextMenu(null);
+                    }}
+                  >
+                    Copy
+                  </button>
+                  <button
+                    type="button"
+                    className={menuItemClass}
+                    disabled={!chordClipboard.length}
+                    onClick={() => pasteChordsAtFrame(readExternalPlaybackFrame())}
+                  >
+                    Paste
+                  </button>
+                  {targetChordIds.length === 1 ? (
+                    <>
+                      <div className="my-1 border-t border-slate-100" />
+                      <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                        Extension
+                      </div>
+                      <div className="grid grid-cols-3 gap-1 px-1 pb-1">
+                        {CHORD_PALETTE_EXTENSIONS.map((extension) => {
+                          const active = currentExtension === extension.value;
+                          const extensionInKey =
+                            extension.value === "" ||
+                            !snapToKeyEnabled ||
+                            getChordEditorMidiNotes({
+                              root: contextChordRoot,
+                              quality: contextChordQuality,
+                              extension: extension.value,
+                            }).every((midi) => isMidiInKey(midi, canvasKeyBase, canvasKeyType));
+                          return (
+                            <button
+                              key={extension.value || "none"}
+                              type="button"
+                              aria-pressed={active}
+                              disabled={!extensionInKey}
+                              title={
+                                extensionInKey
+                                  ? `Set extension to ${extension.label}`
+                                  : `${getChordEditorLabel(
+                                      contextChordRoot,
+                                      contextChordQuality,
+                                      extension.value
+                                    )} is outside the current key`
+                              }
+                              className={`rounded border px-1.5 py-1 text-xs font-semibold transition ${
+                                !extensionInKey
+                                  ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-60"
+                                  : active
+                                  ? "border-sky-500 bg-sky-100 text-sky-900"
+                                  : "border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:bg-sky-50"
+                              }`}
+                              onClick={() => applyChordExtension(chord.id, extension.value)}
+                            >
+                              {extension.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : null}
+                  <div className="my-1 border-t border-slate-100" />
+                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                    Quick strumming
+                  </div>
+                  <button
+                    type="button"
+                    className={menuItemClass}
+                    onClick={() => applyQuickStrumming(targetChordIds, "whole")}
+                  >
+                    Whole beat strum
+                  </button>
+                  <button
+                    type="button"
+                    className={menuItemClass}
+                    onClick={() => applyQuickStrumming(targetChordIds, "half")}
+                  >
+                    Half beat strum
+                  </button>
+                  <button
+                    type="button"
+                    className={menuItemClass}
+                    onClick={() => applyQuickStrumming(targetChordIds, "quarter")}
+                  >
+                    Quarter beat strum
+                  </button>
+                  <button
+                    type="button"
+                    className={menuItemClass}
+                    onClick={() => applyQuickStrumming(targetChordIds, "clear")}
+                  >
+                    Clear
+                  </button>
+                </div>
+              );
+            })()
+          : null}
       </div>
     );
   }

@@ -18,6 +18,10 @@ import {
   hydrateGteEditorInputSettingsFromStore,
   saveGteEditorInputSettings,
 } from "../../../lib/gteEditorInputSettingsStore";
+import {
+  hydrateGteActiveLaneFromStore,
+  saveGteActiveLane,
+} from "../../../lib/gteActiveLaneStore";
 import type { GteAnalyticsEvent } from "../../../lib/gteAnalytics";
 import { parseTextTabImport } from "../../../lib/gteTabImport";
 import { prisma } from "../../../lib/prisma";
@@ -184,6 +188,12 @@ function getEditorInputSettingsRef(method: string, path: string) {
   return match?.[1] ? decodeURIComponent(match[1]) : null;
 }
 
+function getActiveLaneRef(method: string, path: string) {
+  if (method !== "POST") return null;
+  const match = path.match(/^editors\/([^/]+)\/active-lane$/);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
+
 function getRenameEditorId(method: string, path: string) {
   if (method !== "POST") return undefined;
   const match = path.match(/^editors\/([^/]+)\/name$/);
@@ -290,6 +300,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(503).json({ error: "Editor input settings could not be saved yet." });
     }
     return res.status(200).json({ ok: true, settings });
+  }
+  const activeLaneRef = getActiveLaneRef(method, path);
+  if (activeLaneRef) {
+    const laneId = await saveGteActiveLane(
+      session.user.id,
+      activeLaneRef,
+      (req.body as { laneId?: unknown } | undefined)?.laneId
+    );
+    if (!laneId) {
+      return res.status(503).json({ error: "The active track could not be saved yet." });
+    }
+    return res.status(200).json({ ok: true, laneId });
   }
   const isSnapshotSave = isSnapshotSaveRequest(method, path);
   const isTranscriberImport = method === "POST" && path === "transcriber/import";
@@ -407,7 +429,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         hydrateTrackPlaybackFromStore(session.user.id, editorRef, parsed),
         hydrateDrumLoopsFromStore(session.user.id, editorRef, parsed),
         ...(method === "GET"
-          ? [hydrateGteEditorInputSettingsFromStore(session.user.id, editorRef, parsed)]
+          ? [
+              hydrateGteEditorInputSettingsFromStore(session.user.id, editorRef, parsed),
+              hydrateGteActiveLaneFromStore(session.user.id, editorRef, parsed),
+            ]
           : []),
       ]);
       preferenceHydrationDurationMs = Date.now() - preferenceHydrationStartedAt;

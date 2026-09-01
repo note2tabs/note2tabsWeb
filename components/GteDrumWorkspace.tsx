@@ -1926,7 +1926,10 @@ export default function GteDrumWorkspace({
           return (
             <section key={`drum-score-row-${scoreRowIndex}`} className="gte-drum-score-row">
               <div className="gte-drum-score-gutter" aria-hidden="true">KIT</div>
-              <div className="gte-drum-bar-headings">
+              <div
+                className="gte-drum-bar-headings"
+                style={{ gridTemplateColumns: `repeat(${barsPerRow}, minmax(0, 1fr))` }}
+              >
                 {Array.from({ length: rowBarCount }, (_, offset) => {
                   const barIndex = firstBar + offset;
                   const selected = selectedBarIndices.includes(barIndex);
@@ -1959,7 +1962,7 @@ export default function GteDrumWorkspace({
                     <div
                       className="gte-drum-grid"
                       style={{
-                        gridTemplateColumns: `repeat(${rowBarCount * subdivisionsPerBar}, minmax(0, 1fr))`,
+                        gridTemplateColumns: `repeat(${barsPerRow * subdivisionsPerBar}, minmax(0, 1fr))`,
                       }}
                     >
                       {Array.from(

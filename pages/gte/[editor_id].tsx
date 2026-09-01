@@ -475,6 +475,7 @@ const normalizeCanvas = (raw: unknown, fallbackCanvasId: string): CanvasSnapshot
         denominator: firstEditor?.timeSignatureBottom,
       }),
       editorInputSettings: normalizeEditorInputSettings(raw.editorInputSettings),
+      activeLaneId: typeof raw.activeLaneId === "string" ? raw.activeLaneId : undefined,
       editors: normalizedEditors.length
         ? normalizedEditors
         : [normalizeLane(createGuestSnapshot("ed-1"), "ed-1", safeSeconds, 0)],
@@ -1296,6 +1297,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [timingApplyToAll, setTimingApplyToAll] = useState(false);
   const [timingSaving, setTimingSaving] = useState(false);
   const [activeLaneId, setActiveLaneId] = useState<string | null>(null);
+  const activeLaneHydratedRef = useRef(false);
+  const activeLaneSaveTimerRef = useRef<number | null>(null);
   const [mobileEditLaneId, setMobileEditLaneId] = useState<string | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
@@ -1386,6 +1389,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     },
     []
   );
+
+  useEffect(() => {
+    if (isGuestMode || !activeLaneId || !activeLaneHydratedRef.current) return;
+    if (activeLaneSaveTimerRef.current !== null) {
+      window.clearTimeout(activeLaneSaveTimerRef.current);
+    }
+    activeLaneSaveTimerRef.current = window.setTimeout(() => {
+      activeLaneSaveTimerRef.current = null;
+      void gteApi.setActiveLane(editorId, activeLaneId).catch(() => {});
+    }, CONTROL_COMMIT_DEBOUNCE_MS);
+    return () => {
+      if (activeLaneSaveTimerRef.current !== null) {
+        window.clearTimeout(activeLaneSaveTimerRef.current);
+      }
+    };
+  }, [activeLaneId, editorId, isGuestMode]);
   const [findKeyDialogOpen, setFindKeyDialogOpen] = useState(false);
   const [selectedKeyCandidate, setSelectedKeyCandidate] = useState("");
   const [displayPreferences, setDisplayPreferences] = useState<GteDisplayPreferences>(
@@ -1672,6 +1691,20 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     inputSettingsHydratedRef.current = true;
   }, []);
 
+  const resolveActiveLaneId = useCallback(
+    (prev: string | null, loadedCanvas: CanvasSnapshot) => {
+      if (prev && loadedCanvas.editors.some((lane) => lane.id === prev)) return prev;
+      if (
+        loadedCanvas.activeLaneId &&
+        loadedCanvas.editors.some((lane) => lane.id === loadedCanvas.activeLaneId)
+      ) {
+        return loadedCanvas.activeLaneId;
+      }
+      return loadedCanvas.editors[0]?.id || null;
+    },
+    []
+  );
+
   const recordCanvasHistory = useCallback(
     (previous: CanvasSnapshot, next: CanvasSnapshot) => {
       if (previous === next) return;
@@ -1698,9 +1731,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       setCanvas(normalized);
       hydrateEditorInputSettings(normalized);
       resetCanvasHistory();
-      setActiveLaneId((prev) =>
-        prev && normalized.editors.some((lane) => lane.id === prev) ? prev : normalized.editors[0]?.id || null
-      );
+      setActiveLaneId((prev) => resolveActiveLaneId(prev, normalized));
+      activeLaneHydratedRef.current = true;
       setLastCommittedAt(normalized.updatedAt || null);
       setHasPendingCommit(false);
     } catch (err: any) {
@@ -1750,9 +1782,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
           setCanvas(normalized);
           hydrateEditorInputSettings(normalized);
           resetCanvasHistory();
-          setActiveLaneId((prev) =>
-            prev && normalized.editors.some((lane) => lane.id === prev) ? prev : normalized.editors[0]?.id || null
-          );
+          setActiveLaneId((prev) => resolveActiveLaneId(prev, normalized));
           setLastCommittedAt(normalized.updatedAt || null);
           setHasPendingCommit(false);
         } catch (err: any) {
@@ -3679,7 +3709,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       const raw = window.localStorage.getItem(practiceSettingsStorageKey);
       if (!raw) return;
       const saved = JSON.parse(raw) as Record<string, unknown>;
-      if (typeof saved.activeLaneId === "string") setActiveLaneId(saved.activeLaneId);
       setPlaybackSpeed(normalizePlaybackSpeed(saved.playbackSpeed));
       if (typeof saved.practiceLoopEnabled === "boolean") setPracticeLoopEnabled(saved.practiceLoopEnabled);
       if (typeof saved.metronomeEnabled === "boolean") setMetronomeEnabled(saved.metronomeEnabled);
@@ -3724,7 +3753,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       window.localStorage.setItem(
         practiceSettingsStorageKey,
         JSON.stringify({
-          activeLaneId: globalControlsLaneId,
           playbackSpeed:
             speedTrainerSessionActiveRef.current && speedTrainerOriginalSpeedRef.current !== null
               ? speedTrainerOriginalSpeedRef.current
@@ -3755,7 +3783,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     countInBars,
     countInEnabled,
     countInEveryLoop,
-    globalControlsLaneId,
     globalPlaybackFrameRevision,
     metronomeEnabled,
     metronomeVolume,
@@ -10086,7 +10113,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>}
                   </div>
                   {desktopTrackMenuOpen && (
-                    <div className="absolute bottom-12 left-0 w-[min(22rem,calc(100vw-2.5rem))] overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
+                    <div className="absolute bottom-12 right-0 w-[min(22rem,calc(100vw-2.5rem))] overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
                       <div className="hidden border-b border-slate-100 px-4 py-3">
                         <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Edit track</div>
                         <input
@@ -10216,19 +10243,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   <button type="button" onClick={() => { setDesktopTrackMenuOpen((open) => !open); setDesktopTrackAddMenuOpen(false); }} className="flex h-10 items-center gap-2 rounded-full border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 shadow-lg transition hover:bg-slate-50" aria-expanded={desktopTrackMenuOpen} aria-haspopup="menu">
                     <span className="max-w-32 truncate">{selectedLane.name || `Track ${selectedIndex + 1}`}</span>
                     <svg viewBox="0 0 20 20" className={`h-3.5 w-3.5 fill-current transition ${desktopTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true"><path d="M5.5 7.5 10 12l4.5-4.5 1.1 1.1L10 14.2 4.4 8.6z" /></svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDesktopTrackMenuOpen(true);
-                      setDesktopTrackAddMenuOpen(true);
-                    }}
-                    disabled={addingLane}
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-xl font-medium leading-none text-slate-700 shadow-lg transition hover:bg-slate-50 disabled:opacity-50"
-                    title="Add track"
-                    aria-label="Add track"
-                  >
-                    +
                   </button>
                 </div>
               );

@@ -745,6 +745,12 @@ export const gteApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ settings }),
     }),
+  setActiveLane: (editorId: string, laneId: string) =>
+    requestForEditor<{ ok: true; laneId: string }>(editorId, `/editors/${editorId}/active-lane`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ laneId }),
+    }),
   addCanvasEditor: (
     editorId: string,
     name?: string,
