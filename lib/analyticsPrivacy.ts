@@ -244,7 +244,7 @@ function sanitizeExceptionValue(value: unknown, depth = 0): unknown {
 const EXPECTED_EXCEPTION_PATTERNS = [
   /file (?:is )?too large|payload too large|maximum file size|\b413\b/i,
   /fret (?:number )?(?:is )?(?:missing|required|invalid)/i,
-  /validation|invalid (?:input|email|password|format|time|range|url)/i,
+  /invalid (?:input|email|password|format|time|range|url)|(?:field|value) is required/i,
   /not authenticated|unauthori[sz]ed|forbidden|sign in|required.*account|\b40[13]\b/i,
   /insufficient credits|quota|limit (?:reached|exceeded)|rate limit|too many requests|\b429\b/i,
   /aborterror|operation was aborted|user cancelled|user canceled/i,

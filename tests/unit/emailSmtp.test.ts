@@ -71,4 +71,21 @@ describe("SMTP email delivery", () => {
       text: "Your transcription is ready.",
     });
   });
+
+  it("tags reminder emails without changing ordinary email delivery", async () => {
+    vi.stubEnv("SES_SMTP_HOST", "smtp.example.com");
+    vi.stubEnv("SES_SMTP_USERNAME", "smtp-user");
+    vi.stubEnv("SES_SMTP_PASSWORD", "smtp-password");
+
+    await sendTransactionalEmail({
+      to: "customer@example.com",
+      subject: "Continue your tab",
+      html: "<p>Continue</p>",
+      analyticsCategory: "tab_return_reminder",
+    });
+
+    expect(smtpMocks.sendMail).toHaveBeenCalledWith(expect.objectContaining({
+      headers: { "X-SES-MESSAGE-TAGS": "email_category=tab_return_reminder" },
+    }));
+  });
 });
