@@ -1,28 +1,14 @@
-import SeoLandingPage from "../components/SeoLandingPage";
+import type { GetServerSideProps } from "next";
 
-export default function OnlineGuitarTabEditorPage() {
-  return (
-    <SeoLandingPage
-      title="Online Guitar Tab Editor"
-      metaTitle="Online Guitar Tab Editor | Note2Tabs"
-      description="Write, edit, organize, and refine guitar tabs online with controls for timing, chord shapes, and playable fingerings."
-      canonicalPath="/online-guitar-tab-editor"
-      primaryCta={{ label: "Open editor", href: "/gte" }}
-      secondaryCta={{ label: "Start transcribing", href: "/transcribe" }}
-      steps={[
-        {
-          title: "Choose a starting point",
-          body: "Write from a blank tab, import a supported file, or open a tab created from audio.",
-        },
-        {
-          title: "Shape the song",
-          body: "Adjust notes, chords, sections, and timing in one workspace.",
-        },
-        {
-          title: "Save your work",
-          body: "Keep tabs organized in your library when you are signed in.",
-        },
-      ]}
-    />
-  );
+// Preserve old links while consolidating general editor search intent and
+// product information on the complete editor landing page.
+export default function OnlineGuitarTabEditorRedirect() {
+  return null;
 }
+
+export const getServerSideProps: GetServerSideProps = async () => ({
+  redirect: {
+    destination: "/editor",
+    permanent: true,
+  },
+});

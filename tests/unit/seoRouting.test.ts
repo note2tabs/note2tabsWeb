@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
+import { getServerSideProps as getLegacyEditorRedirect } from "../../pages/online-guitar-tab-editor";
 
 const require = createRequire(import.meta.url);
 const nextConfig = require("../../next.config.js");
@@ -22,6 +23,15 @@ describe("SEO routing", () => {
     expect(headers).toContainEqual({
       source: "/gte/:path*",
       headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
+    });
+  });
+
+  it("permanently consolidates the legacy editor landing page onto /editor", async () => {
+    await expect(getLegacyEditorRedirect({} as never)).resolves.toEqual({
+      redirect: {
+        destination: "/editor",
+        permanent: true,
+      },
     });
   });
 });

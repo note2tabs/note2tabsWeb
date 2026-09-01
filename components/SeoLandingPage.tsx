@@ -28,6 +28,12 @@ type SeoLandingPageProps = {
     paragraphs: string[];
     bullets?: string[];
   }>;
+  productEvidence?: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    items: Array<{ label: string; value: string }>;
+  };
   faqs?: Array<{ question: string; answer: string }>;
   relatedLinks?: Array<{
     label: string;
@@ -46,6 +52,7 @@ export default function SeoLandingPage({
   steps,
   detail,
   contentSections = [],
+  productEvidence,
   faqs = [],
   relatedLinks = [],
 }: SeoLandingPageProps) {
@@ -166,6 +173,26 @@ export default function SeoLandingPage({
                   </article>
                 ))}
               </div>
+            </div>
+          </section>
+        )}
+
+        {productEvidence && (
+          <section className="seo-landing-evidence" aria-labelledby="seo-evidence-title">
+            <div className="container seo-landing-evidence-card">
+              <div className="seo-landing-evidence-copy">
+                <span>{productEvidence.eyebrow}</span>
+                <h2 id="seo-evidence-title">{productEvidence.title}</h2>
+                <p>{productEvidence.description}</p>
+              </div>
+              <dl className="seo-landing-evidence-list">
+                {productEvidence.items.map((item) => (
+                  <div key={item.label}>
+                    <dt>{item.label}</dt>
+                    <dd>{item.value}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
           </section>
         )}

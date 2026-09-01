@@ -35,6 +35,17 @@ export default function YoutubeToGuitarTabsPage() {
           { title: "Complete editor included", body: "Open the tab to write, arrange, play, practise, and choose guitar positions." },
         ],
       }}
+      productEvidence={{
+        eyebrow: "What Note2Tabs creates",
+        title: "A timed editor project, not a static tab image",
+        description:
+          "The selected YouTube audio is converted into structured musical events that open directly in the Note2Tabs editor. The source clip and the editable result stay connected through timing, so you can check a phrase against the performance and continue working on it.",
+        items: [
+          { label: "Input", value: "Public YouTube URL plus exact start and end timestamps" },
+          { label: "Result", value: "Timed notes, chords, tracks, and guitar string/fret positions" },
+          { label: "Next step", value: "Play, correct, rearrange, practise, save, or export in the editor" },
+        ],
+      }}
       contentSections={[
         {
           title: "Turn a YouTube riff or solo into an editable tab",

@@ -49,6 +49,8 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
   const ogImage = post.coverImageUrl || absoluteUrl(`/api/og?title=${encodeURIComponent(title)}`);
   const published = post.publishedAt || post.publishAt || undefined;
   const displayDate = formatBlogDate(post.publishedAt ?? post.publishAt);
+  const updatedDate = formatBlogDate(post.updatedAt);
+  const wasUpdated = Boolean(updatedDate && displayDate && updatedDate !== displayDate);
   const hasTaxonomy = post.categories.length > 0 || post.tags.length > 0 || post.clusters.length > 0;
   const pageTitle = /\bNote2Tabs\b/i.test(title) ? title : `${title} | Note2Tabs`;
   const isTranscriptionGuide = /\b(audio|ai|youtube|mp3|wav|transcri|song-to)\b/i.test(
@@ -135,6 +137,15 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
             <span>{readingMinutes} min read</span>
           </p>
           <p className="post-lead">{post.excerpt}</p>
+          <div className="post-editorial-note" aria-label="About this guide">
+            <div>
+              <strong>Written for the Note2Tabs workflow</strong>
+              <span>
+                By <Link href="/about">{post.authorName}</Link>, with direct links to the current Note2Tabs tools and their documented workflows.
+              </span>
+            </div>
+            {wasUpdated && <span>Updated {updatedDate}</span>}
+          </div>
         </header>
 
         {post.coverImageUrl && (
