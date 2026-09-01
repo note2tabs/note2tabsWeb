@@ -1888,7 +1888,7 @@ export default function GteDrumWorkspace({
       <div
         data-gte-track="true"
         data-gte-drum-score="true"
-        className="gte-drum-score min-w-0 w-full overflow-x-hidden space-y-5 py-2"
+        className="gte-drum-score min-w-0 w-full overflow-x-hidden space-y-5 px-8 py-2"
         onMouseDown={onFocusWorkspace}
       >
         <div className="flex min-h-10 items-center justify-between gap-3 border-b border-slate-200 px-1 pb-2">

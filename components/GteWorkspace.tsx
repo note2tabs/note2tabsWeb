@@ -310,7 +310,7 @@ const DEFAULT_MAX_FRET = 22;
 const MAX_EVENT_LENGTH_FRAMES = 800;
 const FIXED_FRAMES_PER_BAR = 480;
 const DEFAULT_SECONDS_PER_BAR = 2;
-const CHORD_EDITOR_ROW_HEIGHT = 70;
+const CHORD_EDITOR_ROW_HEIGHT = 54;
 const CHORD_EDITOR_MIN_BLOCK_WIDTH = 24;
 const CHORD_EDITOR_LABEL_GUTTER_WIDTH = GTE_TIMELINE_GUTTER_WIDTH;
 const CHORD_TIME_RULER_HEIGHT = 18;
@@ -2121,6 +2121,7 @@ function ChordLaneWorkspace({
     Awaited<ReturnType<typeof gteApi.applySnapshot>>
   > | null>(null);
   const [autoBaseScale, setAutoBaseScale] = useState(4);
+  const [stackedTimelineWidth, setStackedTimelineWidth] = useState(0);
   const [selectedChordIds, setSelectedChordIds] = useState<number[]>([]);
   const [selectedBarIndices, setSelectedBarIndices] = useState<number[]>([]);
   const [snapDenominator, setSnapDenominator] = useState<(typeof CHORD_EDITOR_SNAP_DENOMINATORS)[number]>(4);
@@ -2170,11 +2171,6 @@ function ChordLaneWorkspace({
       }),
     [barCount, beatsPerBar, readExternalPlaybackFrame, scale, snapshot]
   );
-  // Dense chord content may ask the generic tab model for wider bars. In the
-  // stacked score that would defeat bars-per-row and push later bars offscreen,
-  // so the row width is governed exclusively by the fitted shared scale.
-  const stackedChordBarWidth = FIXED_FRAMES_PER_BAR * scale;
-  const pxPerFrame = scale;
   const timelineContentOffset = CHORD_EDITOR_LABEL_GUTTER_WIDTH;
   const chordBarsPerRow = Math.max(
     1,
@@ -2185,6 +2181,13 @@ function ChordLaneWorkspace({
         : barCount
     )
   );
+  // The stacked (desktop) score fits bars to the measured, padded row width, so
+  // each bar is exactly containerWidth / barsPerRow instead of a fixed pixel size.
+  const stackedChordBarWidth =
+    stackedChordScore && stackedTimelineWidth > 0
+      ? Math.max(1, (stackedTimelineWidth - timelineContentOffset) / chordBarsPerRow)
+      : FIXED_FRAMES_PER_BAR * scale;
+  const pxPerFrame = stackedChordScore ? stackedChordBarWidth / FIXED_FRAMES_PER_BAR : scale;
   const chordRowFrames = chordBarsPerRow * FIXED_FRAMES_PER_BAR;
   const chordTabRowCount = Math.max(1, Math.ceil(barCount / chordBarsPerRow));
   const trackOffsetFrames = Math.max(0, Math.round(Number(snapshot.timelineOffsetFrames) || 0));
@@ -2843,6 +2846,22 @@ function ChordLaneWorkspace({
     return () => observer.disconnect();
   }, [sharedTimelineBaseScale]);
 
+  useEffect(() => {
+    if (!stackedChordScore) return;
+    const container = timelineRef.current;
+    if (!container) return;
+
+    const measure = () => {
+      const width = container.clientWidth;
+      setStackedTimelineWidth((prev) => (Math.abs(prev - width) < 1 ? prev : width));
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [stackedChordScore]);
+
   const deleteSelectedChords = useCallback(() => {
     if (!selectedChordIds.length) return;
     const selectedIds = new Set(selectedChordIds);
@@ -3387,6 +3406,7 @@ function ChordLaneWorkspace({
             Fingerings
           </button>
         </div>
+        <div className="px-8">
         <div
           ref={timelineRef}
           data-gte-shared-timeline="true"
@@ -3817,6 +3837,7 @@ function ChordLaneWorkspace({
               })(),
             }}
           />
+        </div>
         </div>
         {chordContextMenu
           ? (() => {

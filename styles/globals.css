@@ -12247,7 +12247,7 @@ input[type="number"] {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
-    height: 1.65rem;
+    height: 1.3rem;
   }
 
   .gte-drum-bar-headings button {
@@ -12275,7 +12275,7 @@ input[type="number"] {
   .gte-drum-staff-line {
     display: grid;
     grid-template-columns: 4.5rem minmax(0, 1fr);
-    min-height: 1.72rem;
+    min-height: 1.35rem;
   }
 
   .gte-drum-voice-label {
