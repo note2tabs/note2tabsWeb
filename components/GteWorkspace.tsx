@@ -186,6 +186,7 @@ type Props = {
   onDefaultNoteLengthDenominatorChange?: (denominator: number) => void;
   cursorSizeDenominator?: number;
   onCursorSizeDenominatorChange?: (denominator: number) => void;
+  noteCursorSizesLinked?: boolean;
   leftHandedChordDiagrams?: boolean;
   editMenuPortalTarget?: HTMLElement | null;
   editMenuDisabled?: boolean;
@@ -302,7 +303,7 @@ type ContextMenuState =
 
 const DEFAULT_STRING_LABELS = ["E", "B", "G", "D", "A", "E"];
 const ROW_HEIGHT = 24;
-const ROW_GAP = 80;
+const ROW_GAP = 32;
 const BARS_PER_ROW = 3;
 const DEFAULT_NOTE_LENGTH = 20;
 const DEFAULT_MAX_FRET = 22;
@@ -323,10 +324,11 @@ const CHORD_PALETTE_EXTENSIONS = [
 ] as const;
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
-const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32];
+const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32, 64];
 const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 3, 4, 8, 16, 32, 64];
 const DEFAULT_CUT_COORD: TabCoord = [2, 0];
 const CUT_SEGMENT_HEIGHT = 20;
+const PLAYING_COORDINATE_OFFSET = 0;
 const CUT_SEGMENT_OFFSET = 20;
 const CUT_SEGMENT_MIN_WIDTH = 28;
 const CUT_BOUNDARY_OVERHANG = 12;
@@ -339,6 +341,7 @@ const NOTE_FRET_ARROW_COMMIT_DEBOUNCE_MS = 300;
 const TOUCH_DRAG_HOLD_MS = 110;
 const KEYBOARD_FRET_TYPE_TIMEOUT_MS = 1200;
 const TARGET_VISIBLE_BARS = 4;
+const TRACK_HORIZONTAL_SCROLL_ENABLED = false;
 const MIN_TIMELINE_ZOOM = 0.1;
 const MAX_TIMELINE_ZOOM = 2;
 const STREAMLINE_TOOLBAR_ICONS = {
@@ -351,14 +354,15 @@ const STREAMLINE_TOOLBAR_ICONS = {
   cut: "/icons/toolbar/cut.png",
   merge: "/icons/toolbar/merge.png",
 } as const;
-const SCALE_TOOL_MODE_STORAGE_KEY = "gte-scale-tool-mode-v1";
+const SCALE_TOOL_MODE_STORAGE_KEY = "gte-scale-tool-mode-v2";
+const SCALE_TOOL_MODE_RESET_MS = 60_000;
 const SCALE_FACTOR_MIN = 0.1;
 const SCALE_FACTOR_MAX = 8;
 const SCALE_FACTOR_DRAG_PIXELS = 240;
 const QUANTIZE_SUBDIVISION_MIN = 1;
 const QUANTIZE_SUBDIVISION_MAX = 64;
 const SINGLE_DRAG_ACTIVATION_DISTANCE_PX = 3;
-const SCALE_TOOL_MODES = ["length", "start", "both"] as const;
+const SCALE_TOOL_MODES = ["both", "length", "start"] as const;
 const KEY_SCALE_INTERVALS = [
   [0, 2, 4, 5, 7, 9, 11],
   [0, 2, 3, 5, 7, 8, 10],
@@ -457,6 +461,19 @@ const getNearestNoteLengthDenominator = (value: number) => {
   return NOTE_LENGTH_FRACTION_DENOMINATORS.reduce((best, candidate) =>
     Math.abs(candidate - safeValue) < Math.abs(best - safeValue) ? candidate : best
   );
+};
+
+const stepSizeDenominator = (
+  options: readonly number[],
+  current: number,
+  indexDelta: -1 | 1
+) => {
+  const currentIndex = options.reduce(
+    (bestIndex, option, index) =>
+      Math.abs(option - current) < Math.abs(options[bestIndex] - current) ? index : bestIndex,
+    0
+  );
+  return options[Math.max(0, Math.min(options.length - 1, currentIndex + indexDelta))];
 };
 
 const formatNoteLengthOption = (denominator: number) => {
@@ -3342,7 +3359,7 @@ function ChordLaneWorkspace({
       <div
         ref={timelineRef}
         data-gte-shared-timeline="true"
-        className="hide-scrollbar relative overflow-x-auto bg-white"
+        className="hide-scrollbar relative overflow-x-hidden bg-white"
         onScroll={handleTimelineScroll}
         onDragOver={(event) => event.preventDefault()}
         onDrop={handleTimelineDrop}
@@ -4058,6 +4075,7 @@ export default function GteWorkspace({
   onDefaultNoteLengthDenominatorChange,
   cursorSizeDenominator: controlledCursorSizeDenominator,
   onCursorSizeDenominatorChange,
+  noteCursorSizesLinked = false,
   leftHandedChordDiagrams = false,
   editMenuPortalTarget,
   editMenuDisabled = false,
@@ -4358,7 +4376,7 @@ export default function GteWorkspace({
   const [cutCursor, setCutCursor] = useState<{ time: number; rowIndex: number } | null>(null);
   const [cutToolActive, setCutToolActive] = useState(false);
   const [scaleToolActive, setScaleToolActive] = useState(false);
-  const [scaleToolMode, setScaleToolMode] = useState<ScaleToolMode>("length");
+  const [scaleToolMode, setScaleToolMode] = useState<ScaleToolMode>("both");
   const [scaleFactor, setScaleFactor] = useState(1);
   const [scaleFactorInput, setScaleFactorInput] = useState("1");
   const [scaleHudPosition, setScaleHudPosition] = useState<{ x: number; y: number } | null>(null);
@@ -4555,7 +4573,9 @@ export default function GteWorkspace({
   const timelineWidth = viewportTimelineWidth;
   const timelineChromeWidth = viewportTimelineWidth + 40;
   const rowHeight = ROW_HEIGHT * 6;
-  const coordinateBandHeight = showPlayingCoordinates ? CUT_SEGMENT_OFFSET + CUT_SEGMENT_HEIGHT : 0;
+  const coordinateBandHeight = showPlayingCoordinates
+    ? PLAYING_COORDINATE_OFFSET + CUT_SEGMENT_HEIGHT
+    : 0;
   const rowBlockHeight = rowHeight + coordinateBandHeight;
   const rowStride = rowBlockHeight + ROW_GAP;
   const timelineHeight = rows * rowBlockHeight + Math.max(0, rows - 1) * ROW_GAP;
@@ -4716,8 +4736,9 @@ export default function GteWorkspace({
         scale,
         playheadFrame: effectivePlayheadFrame,
         minBarCount: viewportBarCount,
-        variableBarWidths: practiceMode,
-        collapseConsecutiveEmptyBars: practiceMode,
+        subdivisionsPerBar: practiceMode
+          ? Math.max(1, Math.round((timeSignature * 32) / Math.max(1, timeSignatureBottom)))
+          : undefined,
       }),
     [
       effectivePlayheadFrame,
@@ -4726,6 +4747,7 @@ export default function GteWorkspace({
       scale,
       snapshot,
       timeSignature,
+      timeSignatureBottom,
       viewportBarCount,
     ]
   );
@@ -6020,12 +6042,9 @@ export default function GteWorkspace({
       setIsAutosaving(state.saving);
     },
     onSaved: (res, context) => {
-      if (context.isLatest && allowBackend && res.snapshot) {
-        applySnapshot(res.snapshot as EditorSnapshot, {
-          recordUndo: false,
-          recordHistory: false,
-        });
-      }
+      // Keep the optimistic local snapshot visible while the save is being
+      // acknowledged. The response can be an older server representation,
+      // and applying it here causes a visible rollback before the next save.
       const updatedAt = (res.snapshot as EditorSnapshot | undefined)?.updatedAt;
       setLastSavedAt(updatedAt || new Date().toISOString());
     },
@@ -7190,6 +7209,14 @@ export default function GteWorkspace({
   }, [scaleToolMode]);
 
   useEffect(() => {
+    if (typeof window === "undefined" || scaleToolMode === "both") return;
+    const timer = window.setTimeout(() => {
+      setScaleToolMode("both");
+    }, SCALE_TOOL_MODE_RESET_MS);
+    return () => window.clearTimeout(timer);
+  }, [scaleFactor, scaleToolActive, scaleToolMode]);
+
+  useEffect(() => {
     if (!scaleToolActive) return;
     if (!scaleSessionRef.current) return;
     applyScalePreview(scaleFactor, { mode: scaleToolMode, syncInput: false });
@@ -7465,7 +7492,7 @@ export default function GteWorkspace({
     const y = clamp(clientY - rect.top, 0, timelineHeight);
     const rowIndex = clamp(Math.floor(y / rowStride), 0, rows - 1);
     const localY = y - rowIndex * rowStride;
-    const bandTop = rowHeight + CUT_SEGMENT_OFFSET;
+    const bandTop = rowHeight + PLAYING_COORDINATE_OFFSET;
     const bandBottom = bandTop + CUT_SEGMENT_HEIGHT;
     if (localY < bandTop || localY > bandBottom) return null;
 
@@ -8998,12 +9025,14 @@ export default function GteWorkspace({
           generatePlayingCoordinates: false,
         });
         finalizeOptimizedTrackFingeringInSnapshot(optimized);
+        mergeRedundantCutRegionsInSnapshot(optimized);
         return gteApi.applySnapshot(editorId, optimized);
       },
       {
         localApply: (draft) => {
           optimizeTrackFingeringInSnapshot(draft);
           finalizeOptimizedTrackFingeringInSnapshot(draft);
+          mergeRedundantCutRegionsInSnapshot(draft);
         },
         serverMode: "immediate",
       }
@@ -11757,6 +11786,45 @@ export default function GteWorkspace({
         requestRedo();
         return;
       }
+      if (
+        !practiceMode &&
+        !isTyping &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !event.shiftKey &&
+        (event.key === "," || event.key === "." || event.code === "KeyN" || event.code === "KeyM")
+      ) {
+        event.preventDefault();
+        const changesNoteSize = event.key === "," || event.key === ".";
+        const indexDelta: -1 | 1 = event.key === "," || event.code === "KeyM" ? 1 : -1;
+        if (noteCursorSizesLinked) {
+          const next = stepSizeDenominator(
+            CURSOR_SIZE_FRACTION_DENOMINATORS,
+            cursorSizeDenominator,
+            indexDelta
+          );
+          setCursorSizeDenominator(next);
+          setDefaultNoteLengthDenominator(next);
+        } else if (changesNoteSize) {
+          setDefaultNoteLengthDenominator(
+            stepSizeDenominator(
+              NOTE_LENGTH_FRACTION_DENOMINATORS,
+              defaultNoteLengthDenominator,
+              indexDelta
+            )
+          );
+        } else {
+          setCursorSizeDenominator(
+            stepSizeDenominator(
+              CURSOR_SIZE_FRACTION_DENOMINATORS,
+              cursorSizeDenominator,
+              indexDelta
+            )
+          );
+        }
+        return;
+      }
       if (tabViewEnabled) {
         if (event.code === "Space" && !isTyping) {
           event.preventDefault();
@@ -12587,6 +12655,12 @@ export default function GteWorkspace({
     };
   }, [
     isActive,
+    practiceMode,
+    noteCursorSizesLinked,
+    cursorSizeDenominator,
+    defaultNoteLengthDenominator,
+    setCursorSizeDenominator,
+    setDefaultNoteLengthDenominator,
     selectedNoteIds,
     selectedChordIds,
     activeChordIds,
@@ -12787,7 +12861,7 @@ export default function GteWorkspace({
   ]);
 
   useEffect(() => {
-    if (mobileViewport || !isActive || !keyboardCursorMarker) return;
+    if (!TRACK_HORIZONTAL_SCROLL_ENABLED || mobileViewport || !isActive || !keyboardCursorMarker) return;
     const container = timelineOuterRef.current;
     if (!container) return;
     const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
@@ -12820,6 +12894,7 @@ export default function GteWorkspace({
     // The canvas owns external playback scrolling so track remounts or selection
     // changes cannot interrupt the camera. Keep this loop only for standalone use.
     if (
+      !TRACK_HORIZONTAL_SCROLL_ENABLED ||
       mobileViewport ||
       !effectiveIsPlaying ||
       !isActive ||
@@ -13247,9 +13322,9 @@ export default function GteWorkspace({
                   title="Scale mode - Shortcut: D"
                   aria-label="Scale mode"
                 >
+                  <option value="both">Start + length</option>
                   <option value="length">Length scaling</option>
                   <option value="start">Start-time scaling</option>
-                  <option value="both">Start + length</option>
                 </select>
 
                 <button
@@ -15035,8 +15110,8 @@ export default function GteWorkspace({
               practiceMode ? "rounded-none border-0" : "rounded-xl border border-slate-200"
             } ${
               embedded && !mobileViewport
-                ? "hide-scrollbar overflow-x-auto"
-                : "overflow-x-auto"
+                ? "hide-scrollbar overflow-x-hidden"
+                : "overflow-x-hidden"
             } ${
               isMobileEditMode ? "min-h-0 flex-1" : ""
             } shadow-[0_1px_2px_rgba(15,23,42,0.035)] max-sm:rounded-lg`}
@@ -15341,26 +15416,13 @@ export default function GteWorkspace({
             {(() => {
               const tabRowHeight = TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height;
               const tabScoreHeight = rows * tabRowHeight + Math.max(0, rows - 1) * ROW_GAP;
-              const lastRowBarCount = Math.max(0, editorTabView.barCount - (rows - 1) * barsPerRow);
-              const addBarStartsNewRow = lastRowBarCount >= barsPerRow;
-              const addBarRowIndex = addBarStartsNewRow ? rows : rows - 1;
-              const addBarLeft = addBarStartsNewRow
-                ? EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH
-                : EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
-                  (editorTabView.barStartXs[editorTabView.barCount] -
-                    editorTabView.barStartXs[(rows - 1) * barsPerRow]) +
-                  8;
-              const addBarTop =
-                addBarRowIndex * (tabRowHeight + ROW_GAP) +
-                TIMELINE_BAR_HEADER_HEIGHT +
-                Math.max(0, Math.round(editorTabView.height / 2) - 14);
               const safeCursorFrame = clamp(Math.round(effectivePlayheadFrame), 0, timelineEnd);
               const cursorRowIndex = clamp(Math.floor(safeCursorFrame / rowFrames), 0, rows - 1);
 
               return (
                 <div
                   className="relative min-w-full bg-white"
-                  style={{ height: tabScoreHeight + (addBarStartsNewRow ? 40 : 0) }}
+                  style={{ height: tabScoreHeight }}
                 >
                   {Array.from({ length: rows }).map((_, rowIndex) => {
                     const firstBar = rowIndex * barsPerRow;
@@ -15451,6 +15513,16 @@ export default function GteWorkspace({
                               sourceLeft;
                             return (
                               <Fragment key={`desktop-tab-grid-${barIndex}-${beatIndex}`}>
+                                {beatIndex === 0 && barIndex > rowIdx * barsPerRow ? (
+                                  <div
+                                    className="pointer-events-none absolute z-[4] w-[3px] bg-slate-500/85"
+                                    style={{
+                                      left: barLeft - 1,
+                                      top: TIMELINE_BAR_HEADER_HEIGHT,
+                                      height: editorTabView.height,
+                                    }}
+                                  />
+                                ) : null}
                                 {beatIndex > 0 ? (
                                   <div
                                     className="pointer-events-none absolute z-[2] w-px bg-slate-300/80"
@@ -15637,16 +15709,6 @@ export default function GteWorkspace({
                     );
                   })}
 
-                  <button
-                    type="button"
-                    onClick={handleAddBar}
-                    className="absolute z-40 flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white/95 text-base font-semibold text-slate-600 shadow-sm hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900"
-                    style={{ left: addBarLeft, top: addBarTop }}
-                    title="Add bar to end"
-                    aria-label="Add bar to end"
-                  >
-                    +
-                  </button>
                 </div>
               );
             })()}
@@ -15999,7 +16061,7 @@ export default function GteWorkspace({
                 {cutToolActive && cutCursor && (() => {
                   const rowStart = cutCursor.rowIndex * rowFrames;
                   const left = (cutCursor.time - rowStart) * scale;
-                  const top = cutCursor.rowIndex * rowStride + rowHeight + CUT_SEGMENT_OFFSET;
+                  const top = cutCursor.rowIndex * rowStride + rowHeight + PLAYING_COORDINATE_OFFSET;
                   return (
                     <div
                       className="absolute pointer-events-none"
@@ -16063,7 +16125,7 @@ export default function GteWorkspace({
                   const rowStart = rowIndex * rowFrames;
                   const boundaryTime = clamp(boundary.time, rowStart, rowStart + availableFrames);
                   const left = (boundaryTime - rowStart) * scale;
-                  const segmentTop = rowIndex * rowStride + rowHeight + CUT_SEGMENT_OFFSET;
+                  const segmentTop = rowIndex * rowStride + rowHeight + PLAYING_COORDINATE_OFFSET;
                   const top = segmentTop;
                   const height = CUT_SEGMENT_HEIGHT + CUT_BOUNDARY_OVERHANG;
                   const selected = selectedCutBoundaryIndex === boundary.index;
@@ -16120,7 +16182,7 @@ export default function GteWorkspace({
                     if (segEnd <= segStart) continue;
                     const left = (segStart - rowStart) * scale;
                     const width = Math.max(CUT_SEGMENT_MIN_WIDTH, (segEnd - segStart) * scale);
-                    const top = rowIdx * rowStride + rowHeight + CUT_SEGMENT_OFFSET;
+                    const top = rowIdx * rowStride + rowHeight + PLAYING_COORDINATE_OFFSET;
                     const rowPixelWidth = availableFrames * scale;
                     const viewportLeft = timelineViewport.scrollLeft;
                     const viewportRight = viewportLeft + Math.max(1, timelineViewport.clientWidth);

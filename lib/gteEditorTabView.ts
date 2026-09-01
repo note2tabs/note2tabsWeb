@@ -53,6 +53,7 @@ type BuildEditorTabViewOptions = {
   scale: number;
   playheadFrame: number;
   minBarCount?: number;
+  subdivisionsPerBar?: number;
   variableBarWidths?: boolean;
   collapseConsecutiveEmptyBars?: boolean;
 };
@@ -205,13 +206,17 @@ export const buildEditorTabView = (
     scale,
     playheadFrame,
     minBarCount,
+    subdivisionsPerBar,
     variableBarWidths = false,
     collapseConsecutiveEmptyBars = false,
   }: BuildEditorTabViewOptions
 ): EditorTabViewModel => {
   const safeFramesPerBar = Math.max(1, Math.round(framesPerBar));
   const safeBeatsPerBar = Math.max(1, Math.round(beatsPerBar));
-  const slotsPerBar = safeBeatsPerBar * 2;
+  const slotsPerBar = Math.max(
+    1,
+    Math.round(subdivisionsPerBar ?? safeBeatsPerBar * 2)
+  );
   const labels = getStringLabelsForSnapshot(snapshot);
   const stringLabels = labels.length === STRING_COUNT ? labels : DEFAULT_LABELS;
   const barWidth = safeFramesPerBar * Math.max(0.1, scale);

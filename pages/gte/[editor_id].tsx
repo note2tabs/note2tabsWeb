@@ -171,7 +171,7 @@ const CHORD_DIAGRAM_HANDEDNESS_STORAGE_PREFIX = "note2tabs:gte:chord-diagram-lef
 const CONTROL_COMMIT_DEBOUNCE_MS = 350;
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
-const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32];
+const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32, 64];
 const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 3, 4, 8, 16, 32, 64];
 const SNAP_SUBDIVISION_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 const TOOL_SHORTCUT_HELP = [
@@ -332,6 +332,34 @@ const getNearestCursorSizeDenominator = (value: unknown) => {
 
 const formatNoteLengthOption = (denominator: number) =>
   denominator === 0.5 ? "2/1" : denominator === 1 ? "1/1" : `1/${denominator}`;
+
+const SizeLinkToggle = ({
+  linked,
+  onToggle,
+  className = "",
+}: {
+  linked: boolean;
+  onToggle: () => void;
+  className?: string;
+}) => (
+  <button
+    type="button"
+    onClick={onToggle}
+    aria-pressed={linked}
+    aria-label={linked ? "Unlink note and cursor sizes" : "Link note and cursor sizes"}
+    title={linked ? "Note and cursor sizes are linked" : "Link note and cursor sizes"}
+    className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition ${
+      linked
+        ? "border-sky-300 bg-sky-50 text-sky-600 hover:bg-sky-100"
+        : "border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+    } ${className}`}
+  >
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth="2" aria-hidden="true">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  </button>
+);
 
 const isCanvasSnapshot = (value: unknown): value is CanvasSnapshot =>
   Boolean(value && typeof value === "object" && Array.isArray((value as CanvasSnapshot).editors));
@@ -1296,11 +1324,48 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [leftHandedChordDiagrams, setLeftHandedChordDiagramsState] = useState(false);
   const [chordOnlyDefaultNoteLengthDenominator, setChordOnlyDefaultNoteLengthDenominator] = useState(4);
   const [chordOnlyCursorSizeDenominator, setChordOnlyCursorSizeDenominator] = useState(4);
+  const [noteCursorSizesLinked, setNoteCursorSizesLinked] = useState(false);
   const [findKeyDialogOpen, setFindKeyDialogOpen] = useState(false);
   const [selectedKeyCandidate, setSelectedKeyCandidate] = useState("");
   const [displayPreferences, setDisplayPreferences] = useState<GteDisplayPreferences>(
     DEFAULT_GTE_DISPLAY_PREFERENCES
   );
+
+  const handleDefaultNoteLengthDenominatorChange = useCallback(
+    (value: number) => {
+      const nextNoteSize = Number(value);
+      if (!Number.isFinite(nextNoteSize)) return;
+      if (noteCursorSizesLinked) {
+        const linkedSize = getNearestCursorSizeDenominator(nextNoteSize);
+        setChordOnlyDefaultNoteLengthDenominator(linkedSize);
+        setChordOnlyCursorSizeDenominator(linkedSize);
+        return;
+      }
+      setChordOnlyDefaultNoteLengthDenominator(nextNoteSize);
+    },
+    [noteCursorSizesLinked]
+  );
+
+  const handleCursorSizeDenominatorChange = useCallback(
+    (value: number) => {
+      const nextCursorSize = getNearestCursorSizeDenominator(value);
+      setChordOnlyCursorSizeDenominator(nextCursorSize);
+      if (noteCursorSizesLinked) {
+        setChordOnlyDefaultNoteLengthDenominator(nextCursorSize);
+      }
+    },
+    [noteCursorSizesLinked]
+  );
+
+  const toggleNoteCursorSizeLink = useCallback(() => {
+    setNoteCursorSizesLinked((linked) => {
+      const nextLinked = !linked;
+      if (nextLinked) {
+        setChordOnlyDefaultNoteLengthDenominator(chordOnlyCursorSizeDenominator);
+      }
+      return nextLinked;
+    });
+  }, [chordOnlyCursorSizeDenominator]);
   const [generatePlayingCoordinatesRequest, setGeneratePlayingCoordinatesRequest] = useState(0);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
   const desktopBarsPerRow = Math.max(1, Math.min(6, Math.round(400 / timelineZoomPercent)));
@@ -3202,8 +3267,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       const bars = getLaneBarCount(lane);
       if (bars > maxBars) maxBars = bars;
     }
-    // A row fills the available editor width at the default zoom (four bars).
-    // Zooming in reduces the number of bars per row; zooming out increases it.
+    // The selected number of bars fills the available editor width at default zoom.
+    // Zooming in reduces the visible span; zooming out increases it.
     return Math.max(1, Math.min(maxBars, desktopBarsPerRow));
   }, [canvas, desktopBarsPerRow]);
 
@@ -3217,22 +3282,40 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!container) return;
 
     const computeScale = () => {
+      const containerRect = container.getBoundingClientRect();
+      const viewportWidth = document.documentElement.clientWidth;
+      const viewportAvailableWidth = Math.max(0, viewportWidth - containerRect.left - 24);
+      const measuredWidth = practiceModeEnabled
+        ? container.clientWidth
+        : Math.max(container.clientWidth, viewportAvailableWidth);
       const availableWidth = Math.max(
         240,
-        container.clientWidth - GTE_TIMELINE_GUTTER_WIDTH - GTE_TIMELINE_END_PADDING
+        measuredWidth - GTE_TIMELINE_GUTTER_WIDTH - GTE_TIMELINE_END_PADDING
       );
-      const rawScale = availableWidth / Math.max(1, FIXED_FRAMES_PER_BAR * 4);
-      const nextScale = Math.max(0.5, Math.min(4, rawScale));
+      const rawScale =
+        availableWidth / Math.max(1, FIXED_FRAMES_PER_BAR * sharedViewportBarCount);
+      const nextScale = Math.max(0.1, rawScale);
       setSharedTimelineBaseScale((prev) =>
         prev !== undefined && Math.abs(prev - nextScale) < 0.01 ? prev : nextScale
       );
     };
 
-    computeScale();
-    const observer = new ResizeObserver(computeScale);
+    let animationFrame = 0;
+    const scheduleScaleComputation = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(computeScale);
+    };
+
+    scheduleScaleComputation();
+    const observer = new ResizeObserver(scheduleScaleComputation);
     observer.observe(container);
-    return () => observer.disconnect();
-  }, [canvas, isMobileViewport]);
+    window.addEventListener("resize", scheduleScaleComputation);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      observer.disconnect();
+      window.removeEventListener("resize", scheduleScaleComputation);
+    };
+  }, [activeLaneId, canvas, isMobileViewport, practiceModeEnabled, sharedViewportBarCount]);
 
   const synchronizeSharedTimelineScroll = useCallback((next: number, scrollLeft?: number) => {
     const clamped = Math.max(0, Math.min(1, next));
@@ -6276,7 +6359,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       <NoIndexHead title="Guitar Tab Editor Workspace | Note2Tabs" canonicalPath={`/gte/${editorId}`} />
       <main
         ref={practiceRootRef}
-        className={`page page-tight ${
+        className={`page page-tight overflow-x-clip ${
           isMobileEditMode ? "h-[100dvh] overflow-hidden overscroll-none py-3" : ""
         } ${practiceFullscreen ? "gte-practice-fullscreen overflow-y-auto" : ""}`}
   style={
@@ -6298,7 +6381,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         </div>
       )}
       <div
-        className={`container gte-wide ${
+        className={`w-full ${
           isMobileEditMode
             ? "flex h-full min-h-0 flex-col gap-3 overflow-hidden overscroll-none pb-0"
             : `stack ${isMobileCanvasMode ? "pb-24" : "pb-28"}`
@@ -6640,32 +6723,39 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </span>
                     </summary>
                     <div className="grid grid-cols-2 gap-2 border-t border-slate-200 p-2">
+                      <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2">
                       <label className="grid gap-1 text-xs font-medium text-slate-600">
                         Add note size
                         <select
                           value={chordOnlyDefaultNoteLengthDenominator}
                           onKeyDown={blockSizeSelectKeyboardChange}
                           onChange={(event) =>
-                            setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))
+                            handleDefaultNoteLengthDenominatorChange(Number(event.target.value))
                           }
                           className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
                         >
-                          {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+                          {(noteCursorSizesLinked
+                            ? CURSOR_SIZE_FRACTION_DENOMINATORS
+                            : NOTE_LENGTH_FRACTION_DENOMINATORS
+                          ).map((denominator) => (
                             <option key={`mobile-note-size-${denominator}`} value={denominator}>
                               {formatNoteLengthOption(denominator)}
                             </option>
                           ))}
                         </select>
                       </label>
+                      <SizeLinkToggle
+                        linked={noteCursorSizesLinked}
+                        onToggle={toggleNoteCursorSizeLink}
+                        className="mb-1 self-end"
+                      />
                       <label className="grid gap-1 text-xs font-medium text-slate-600">
                         Cursor size
                         <select
                           value={chordOnlyCursorSizeDenominator}
                           onKeyDown={blockSizeSelectKeyboardChange}
                           onChange={(event) =>
-                            setChordOnlyCursorSizeDenominator(
-                              getNearestCursorSizeDenominator(event.target.value)
-                            )
+                            handleCursorSizeDenominatorChange(Number(event.target.value))
                           }
                           className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
                         >
@@ -6676,6 +6766,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           ))}
                         </select>
                       </label>
+                      </div>
                       <button
                         type="button"
                         onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
@@ -6789,27 +6880,31 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     value={chordOnlyDefaultNoteLengthDenominator}
                     onKeyDown={blockSizeSelectKeyboardChange}
                     onChange={(event) =>
-                      setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))
+                      handleDefaultNoteLengthDenominatorChange(Number(event.target.value))
                     }
                     className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm font-semibold"
                     aria-label="Add note size"
                   >
-                    {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+                    {(noteCursorSizesLinked
+                      ? CURSOR_SIZE_FRACTION_DENOMINATORS
+                      : NOTE_LENGTH_FRACTION_DENOMINATORS
+                    ).map((denominator) => (
                       <option key={denominator} value={denominator}>
                         {formatNoteLengthOption(denominator)}
                       </option>
                     ))}
                   </select>
                 </label>
+                <div className="flex justify-center py-1">
+                  <SizeLinkToggle linked={noteCursorSizesLinked} onToggle={toggleNoteCursorSizeLink} />
+                </div>
                 <label className="flex min-h-11 items-center justify-between gap-3 rounded-md px-2 text-sm text-slate-700">
                   <span>Cursor size</span>
                   <select
                     value={chordOnlyCursorSizeDenominator}
                     onKeyDown={blockSizeSelectKeyboardChange}
                     onChange={(event) =>
-                      setChordOnlyCursorSizeDenominator(
-                        getNearestCursorSizeDenominator(event.target.value)
-                      )
+                      handleCursorSizeDenominatorChange(Number(event.target.value))
                     }
                     className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm font-semibold"
                     aria-label="Cursor size"
@@ -6961,7 +7056,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               <div className="mt-1 space-y-1">
                 <div
                   data-gte-floating-ui="true"
-                  className={`gte-top-menu-bar relative flex flex-wrap items-center gap-0.5 border-y border-slate-200 py-0.5 ${
+                  className={`gte-top-menu-bar relative z-[9991] flex flex-wrap items-center gap-0.5 border-y border-slate-200 bg-[#fbf8f1]/95 py-0.5 backdrop-blur-sm ${
                     practiceModeEnabled ? "[&>details]:hidden" : ""
                   }`}
                 >
@@ -7308,19 +7403,25 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           name="add-note-size"
                           onKeyDown={blockSizeSelectKeyboardChange}
                           onChange={(event) =>
-                            setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))
+                            handleDefaultNoteLengthDenominatorChange(Number(event.target.value))
                           }
                           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
                           title="Add note size"
                           aria-label="Add note size"
                         >
-                          {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+                          {(noteCursorSizesLinked
+                            ? CURSOR_SIZE_FRACTION_DENOMINATORS
+                            : NOTE_LENGTH_FRACTION_DENOMINATORS
+                          ).map((denominator) => (
                             <option key={denominator} value={denominator}>
                               {formatNoteLengthOption(denominator)}
                             </option>
                           ))}
                         </select>
                       </label>
+                      <div className="flex justify-center py-1">
+                        <SizeLinkToggle linked={noteCursorSizesLinked} onToggle={toggleNoteCursorSizeLink} />
+                      </div>
                       <label className="flex items-center justify-between gap-3 rounded-md px-2 py-2 text-sm text-slate-700">
                         <span>Cursor size</span>
                         <select
@@ -7328,9 +7429,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           name="cursor-size"
                           onKeyDown={blockSizeSelectKeyboardChange}
                           onChange={(event) =>
-                            setChordOnlyCursorSizeDenominator(
-                              getNearestCursorSizeDenominator(event.target.value)
-                            )
+                            handleCursorSizeDenominatorChange(Number(event.target.value))
                           }
                           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
                           title="Cursor size"
@@ -7786,17 +7885,25 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         name="editor-add-note-size"
                         onKeyDown={blockSizeSelectKeyboardChange}
                         onChange={(event) =>
-                          setChordOnlyDefaultNoteLengthDenominator(Number(event.target.value))
+                          handleDefaultNoteLengthDenominatorChange(Number(event.target.value))
                         }
                         className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700"
                       >
-                        {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
+                        {(noteCursorSizesLinked
+                          ? CURSOR_SIZE_FRACTION_DENOMINATORS
+                          : NOTE_LENGTH_FRACTION_DENOMINATORS
+                        ).map((denominator) => (
                           <option key={`desktop-note-size-${denominator}`} value={denominator}>
                             {formatNoteLengthOption(denominator)}
                           </option>
                         ))}
                       </select>
                     </label>
+                    <SizeLinkToggle
+                      linked={noteCursorSizesLinked}
+                      onToggle={toggleNoteCursorSizeLink}
+                      className="self-end"
+                    />
                     <label className="grid gap-1 text-xs font-medium text-slate-600">
                       Cursor size
                       <select
@@ -7804,9 +7911,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         name="editor-cursor-size"
                         onKeyDown={blockSizeSelectKeyboardChange}
                         onChange={(event) =>
-                          setChordOnlyCursorSizeDenominator(
-                            getNearestCursorSizeDenominator(event.target.value)
-                          )
+                          handleCursorSizeDenominatorChange(Number(event.target.value))
                         }
                         className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700"
                       >
@@ -8744,10 +8849,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               generatePlayingCoordinatesRequest={generatePlayingCoordinatesRequest}
                               defaultNoteLengthDenominator={chordOnlyDefaultNoteLengthDenominator}
                               onDefaultNoteLengthDenominatorChange={
-                                setChordOnlyDefaultNoteLengthDenominator
+                                handleDefaultNoteLengthDenominatorChange
                               }
                               cursorSizeDenominator={chordOnlyCursorSizeDenominator}
-                              onCursorSizeDenominatorChange={setChordOnlyCursorSizeDenominator}
+                              onCursorSizeDenominatorChange={handleCursorSizeDenominatorChange}
+                              noteCursorSizesLinked={noteCursorSizesLinked}
                               leftHandedChordDiagrams={leftHandedChordDiagrams}
                               editMenuPortalTarget={
                                 laneId === editMenuOwnerLaneId ? editMenuPortalTarget : null
@@ -9104,10 +9210,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               generatePlayingCoordinatesRequest={generatePlayingCoordinatesRequest}
                               defaultNoteLengthDenominator={chordOnlyDefaultNoteLengthDenominator}
                               onDefaultNoteLengthDenominatorChange={
-                                setChordOnlyDefaultNoteLengthDenominator
+                                handleDefaultNoteLengthDenominatorChange
                               }
                               cursorSizeDenominator={chordOnlyCursorSizeDenominator}
-                              onCursorSizeDenominatorChange={setChordOnlyCursorSizeDenominator}
+                              onCursorSizeDenominatorChange={handleCursorSizeDenominatorChange}
+                              noteCursorSizesLinked={noteCursorSizesLinked}
                               leftHandedChordDiagrams={leftHandedChordDiagrams}
                               editMenuPortalTarget={
                                 laneId === editMenuOwnerLaneId ? editMenuPortalTarget : null
@@ -9667,9 +9774,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onGlobalSnapToKeyEnabledChange={setGlobalSnapToKeyEnabled}
                           generatePlayingCoordinatesRequest={generatePlayingCoordinatesRequest}
                           defaultNoteLengthDenominator={chordOnlyDefaultNoteLengthDenominator}
-                          onDefaultNoteLengthDenominatorChange={setChordOnlyDefaultNoteLengthDenominator}
+                          onDefaultNoteLengthDenominatorChange={handleDefaultNoteLengthDenominatorChange}
                           cursorSizeDenominator={chordOnlyCursorSizeDenominator}
-                          onCursorSizeDenominatorChange={setChordOnlyCursorSizeDenominator}
+                          onCursorSizeDenominatorChange={handleCursorSizeDenominatorChange}
+                          noteCursorSizesLinked={noteCursorSizesLinked}
                           leftHandedChordDiagrams={leftHandedChordDiagrams}
                           editMenuPortalTarget={
                             laneId === editMenuOwnerLaneId ? editMenuPortalTarget : null
@@ -9814,8 +9922,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               const selectedVolume = normalizeTrackVolume(trackVolumeById[selectedLaneId] ?? 1);
 
               return (
-                <div className="fixed bottom-5 right-5 z-50" data-gte-floating-ui="true" data-track-menu="true">
-                  <div className="absolute bottom-0 right-[calc(100%+0.75rem)] w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
+                <div className="fixed bottom-5 left-5 z-50" data-gte-floating-ui="true" data-track-menu="true">
+                  <div className="absolute bottom-0 left-[calc(100%+0.75rem)] w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
                     <div className="flex items-start gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Track settings</div>
@@ -9872,7 +9980,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     </div>}
                   </div>
                   {desktopTrackMenuOpen && (
-                    <div className="absolute bottom-12 right-0 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
+                    <div className="absolute bottom-12 left-0 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
                       <div className="hidden border-b border-slate-100 px-4 py-3">
                         <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Edit track</div>
                         <input
