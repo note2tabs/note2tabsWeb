@@ -626,11 +626,11 @@ const formatBpm = (value: number) => {
 };
 
 const formatPlaybackTime = (seconds: number) => {
-  const totalMilliseconds = Math.max(0, Math.round((Number(seconds) || 0) * 1000));
-  const minutes = Math.floor(totalMilliseconds / 60_000);
-  const secondsPart = Math.floor((totalMilliseconds % 60_000) / 1000);
-  const milliseconds = totalMilliseconds % 1000;
-  return `${minutes}:${String(secondsPart).padStart(2, "0")}.${String(milliseconds).padStart(3, "0")}`;
+  const totalHundredths = Math.max(0, Math.round((Number(seconds) || 0) * 100));
+  const minutes = Math.floor(totalHundredths / 6_000);
+  const secondsPart = Math.floor((totalHundredths % 6_000) / 100);
+  const hundredths = totalHundredths % 100;
+  return `${minutes}:${String(secondsPart).padStart(2, "0")}.${String(hundredths).padStart(2, "0")}`;
 };
 
 const normalizeTrackVolume = (value: unknown) => {
@@ -10031,7 +10031,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
               return (
                 <div
-                  className="fixed bottom-16 left-[calc(1.25rem+28rem+0.75rem)] z-50"
+                  className="fixed bottom-12 left-[calc(1.25rem+28rem+0.75rem)] z-50"
                   data-gte-floating-ui="true"
                   data-track-menu="true"
                   data-desktop-track-selector="true"

@@ -500,11 +500,11 @@ const formatTimelineSecondLabel = (seconds: number) => {
 };
 
 const formatPlaybackTimer = (seconds: number) => {
-  const totalMilliseconds = Math.max(0, Math.round((Number(seconds) || 0) * 1000));
-  const minutes = Math.floor(totalMilliseconds / 60_000);
-  const secondsPart = Math.floor((totalMilliseconds % 60_000) / 1000);
-  const milliseconds = totalMilliseconds % 1000;
-  return `${minutes}:${String(secondsPart).padStart(2, "0")}.${String(milliseconds).padStart(3, "0")}`;
+  const totalHundredths = Math.max(0, Math.round((Number(seconds) || 0) * 100));
+  const minutes = Math.floor(totalHundredths / 6_000);
+  const secondsPart = Math.floor((totalHundredths % 6_000) / 100);
+  const hundredths = totalHundredths % 100;
+  return `${minutes}:${String(secondsPart).padStart(2, "0")}.${String(hundredths).padStart(2, "0")}`;
 };
 
 const formatDurationSeconds = (seconds: number) => {
@@ -7863,8 +7863,11 @@ export default function GteWorkspace({
   ) => {
     if (!timelineRef.current) return null;
     const rect = timelineRef.current.getBoundingClientRect();
-    const x = clamp(clientX - rect.left, 0, timelineWidth);
-    const y = clamp(clientY - rect.top, 0, timelineHeight);
+    // Absolute grid content starts inside the timeline border. Measuring from
+    // the outer rect makes every hit test one border-width too far right/down,
+    // which is noticeable with narrow cursor cells such as 1/8 notes.
+    const x = clamp(clientX - rect.left - timelineRef.current.clientLeft, 0, timelineWidth);
+    const y = clamp(clientY - rect.top - timelineRef.current.clientTop, 0, timelineHeight);
     const rowIndex = clamp(Math.floor(y / rowStride), 0, rows - 1);
     const rowBarCount = getRowBarCount(rowIndex);
     const availableFrames = Math.max(1, rowBarCount * framesPerMeasure);
@@ -8887,7 +8890,11 @@ export default function GteWorkspace({
     });
     if (target) {
       const rect = event.currentTarget.getBoundingClientRect();
-      const y = clamp(event.clientY - rect.top, 0, timelineHeight);
+      const y = clamp(
+        event.clientY - rect.top - event.currentTarget.clientTop,
+        0,
+        timelineHeight
+      );
       const rowTop = target.rowIndex * rowStride;
       const stringIndex = clamp(Math.floor((y - rowTop) / ROW_HEIGHT), 0, 5);
       hideKeyboardCursor({ time: target.time, stringIndex });
