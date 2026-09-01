@@ -15,6 +15,7 @@ import { hasPremiumEntitlement } from "../lib/premiumEntitlement";
 import { getEditorThumbnail } from "../lib/editorThumbnail";
 import {
   RETENTION_INTENT_OPTIONS,
+  RETENTION_INTENT_RESEARCH_ENABLED,
   RETENTION_INTENT_PROMPT_DELAY_MS,
   RETENTION_INTENT_PROMPT_VERSION,
   retentionIntentPromptState,
@@ -282,6 +283,7 @@ export default function ProductHome({
   }, [isPremium, loading, recentEditors.length]);
 
   useEffect(() => {
+    if (!RETENTION_INTENT_RESEARCH_ENABLED) return;
     if (loading || loadError || recentEditors.length > 0 || localPreview) return;
 
     const storageKey = retentionIntentStorageKey(userId);
@@ -552,7 +554,7 @@ export default function ProductHome({
 
           {loadError && recentEditors.length === 0 && <div className="product-home__error" role="alert"><span>{loadError}</span><button type="button" onClick={() => void loadEditors(true)}>Try again</button></div>}
 
-          {showIntentPrompt && recentEditors.length === 0 && (
+          {RETENTION_INTENT_RESEARCH_ENABLED && showIntentPrompt && recentEditors.length === 0 && (
             <aside className="product-studio__intent" aria-labelledby="retention-intent-title">
               {intentAnswered ? (
                 <div className="product-studio__intent-thanks" role="status">

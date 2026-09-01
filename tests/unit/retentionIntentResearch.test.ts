@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  RETENTION_INTENT_RESEARCH_ENABLED,
   RETENTION_INTENT_DISMISSAL_MS,
   retentionIntentPromptState,
   retentionIntentStorageKey,
@@ -8,6 +9,10 @@ import {
 
 describe("retention intent research prompt", () => {
   const now = new Date("2026-08-31T12:00:00.000Z").getTime();
+
+  it("is disabled unless an explicit public rollout flag enables it", () => {
+    expect(RETENTION_INTENT_RESEARCH_ENABLED).toBe(false);
+  });
 
   it("offers the question when the user has not seen it", () => {
     expect(shouldOfferRetentionIntentPrompt(null, now)).toBe(true);

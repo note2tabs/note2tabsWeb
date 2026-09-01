@@ -1,6 +1,8 @@
 export const RETENTION_INTENT_PROMPT_VERSION = "unactivated_home_v1";
 export const RETENTION_INTENT_PROMPT_DELAY_MS = 20_000;
 export const RETENTION_INTENT_DISMISSAL_MS = 30 * 24 * 60 * 60 * 1000;
+export const RETENTION_INTENT_RESEARCH_ENABLED =
+  process.env.NEXT_PUBLIC_RETENTION_INTENT_RESEARCH_ENABLED === "true";
 
 export const RETENTION_INTENT_OPTIONS = [
   { value: "transcribe_recording", label: "Turn a recording into tabs" },
