@@ -10057,8 +10057,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   data-desktop-track-selector="true"
                 >
                   <div className="absolute bottom-0 right-[calc(100%+0.75rem)] w-[28rem] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
-                    <div className="flex items-start gap-2">
-                      <div className="min-w-0 flex-1">
+                    <div className="flex items-stretch gap-2">
+                      <div className="w-1/4 min-w-0 shrink-0">
                         <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Track settings</div>
                     <input
                       key={`${selectedLaneId}:${selectedLane.name || ""}`}
@@ -10073,12 +10073,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       <button
                         type="button"
                         onClick={() => setDesktopTrackSettingsCollapsed((collapsed) => !collapsed)}
-                        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                        className="flex flex-1 items-start justify-end rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
                         title={desktopTrackSettingsCollapsed ? "Expand track settings" : "Minimize track settings"}
                         aria-label={desktopTrackSettingsCollapsed ? "Expand track settings" : "Minimize track settings"}
                         aria-expanded={!desktopTrackSettingsCollapsed}
                       >
-                        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
+                        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 fill-current" aria-hidden="true">
                           <path d={desktopTrackSettingsCollapsed ? "M5 12.5 10 7.5l5 5z" : "M5 7.5 10 12.5l5-5z"} />
                         </svg>
                       </button>

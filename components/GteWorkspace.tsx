@@ -9130,8 +9130,16 @@ export default function GteWorkspace({
     const handleMove = (event: globalThis.MouseEvent) => {
       if (!timelineRef.current) return;
       const rect = timelineRef.current.getBoundingClientRect();
-      const x = clamp(event.clientX - rect.left, 0, timelineWidth);
-      const y = clamp(event.clientY - rect.top, 0, timelineHeight);
+      const x = clamp(
+        event.clientX - rect.left - timelineRef.current.clientLeft,
+        0,
+        timelineWidth
+      );
+      const y = clamp(
+        event.clientY - rect.top - timelineRef.current.clientTop,
+        0,
+        timelineHeight
+      );
       setSelection((prev) => {
         if (!prev) return prev;
         const next = { ...prev, endX: x, endY: y };
@@ -9416,8 +9424,21 @@ export default function GteWorkspace({
     setDraftNote(null);
     setDraftNoteAnchor(null);
     const rect = event.currentTarget.getBoundingClientRect();
-    const x = clamp(event.clientX - rect.left, 0, timelineWidth);
-    const y = clamp(event.clientY - rect.top, 0, timelineHeight);
+    // Match getPointerFrame: the grid content starts inside the timeline's own
+    // border, so measuring from the outer rect alone is one border-width too
+    // far right/down. That is enough to misplace the click on narrow cells
+    // (e.g. 1/8 notes), landing in the next subdivision instead of the one
+    // actually clicked.
+    const x = clamp(
+      event.clientX - rect.left - event.currentTarget.clientLeft,
+      0,
+      timelineWidth
+    );
+    const y = clamp(
+      event.clientY - rect.top - event.currentTarget.clientTop,
+      0,
+      timelineHeight
+    );
     const nextSelection = {
       startX: x,
       startY: y,
@@ -12176,7 +12197,10 @@ export default function GteWorkspace({
       const maxTime = Math.max(0, timelineEnd);
       const safeTime = clamp(Math.round(time), 0, maxTime);
       const step = cursorSizeDenominatorToFrames(cursorSizeDenominator);
-      return clamp(Math.round(Math.round(safeTime / step) * step), 0, maxTime);
+      // Floor (not round) to the cursor grid so the displayed cell is always
+      // the one containing `time` — e.g. the subdivision that was actually
+      // clicked — rather than possibly the next one over.
+      return clamp(Math.floor(safeTime / step) * step, 0, maxTime);
     },
     [clamp, cursorSizeDenominator, cursorSizeDenominatorToFrames, timelineEnd]
   );
