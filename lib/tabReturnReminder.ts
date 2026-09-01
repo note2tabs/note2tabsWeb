@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { reminderUnsubscribeUrl } from "./reminderUnsubscribe";
 
 export const TAB_RETURN_REMINDER_DELAY_HOURS = 48;
 export const TAB_RETURN_REMINDER_MAX_AGE_DAYS = 14;
@@ -10,6 +11,7 @@ type BuildTabReturnReminderInput = {
   name?: string | null;
   editorId: string;
   editorName?: string | null;
+  userId?: string;
 };
 
 function appBaseUrl() {
@@ -54,13 +56,14 @@ export function buildTabReturnReminderEmail(input: BuildTabReturnReminderInput) 
   const subjectName = editorName.replace(/[\r\n]+/g, " ").slice(0, 120);
   const editorUrl = `${appBaseUrl()}/gte/${encodeURIComponent(input.editorId)}?source=tab_return_email`;
   const subject = `Continue working on ${subjectName}`;
+  const unsubscribeUrl = input.userId ? reminderUnsubscribeUrl(input.userId) : null;
   const text = `Hi ${firstName},
 
 Your work on ${editorName} is saved in Note2Tabs. When you are ready, you can return to play it, make adjustments, or continue practicing.
 
 Continue your tab: ${editorUrl}
 
-Note2Tabs`;
+Note2Tabs${unsubscribeUrl ? `\n\nStop reminder emails: ${unsubscribeUrl}` : ""}`;
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.55;color:#07110e;background:#f6f3ea;padding:24px;">
       <div style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #dedbd2;border-radius:16px;padding:26px;">
@@ -69,6 +72,7 @@ Note2Tabs`;
         <p style="margin:0 0 18px;color:#4f5a56;">
           Your work on <strong>${escapeHtml(editorName)}</strong> is saved. Return to play it, make adjustments, or continue practicing.
         </p>
+        ${unsubscribeUrl ? `<p style="margin:20px 0 0;color:#6b7470;font-size:12px;"><a href="${unsubscribeUrl}" style="color:#6b7470;">Stop reminder emails</a></p>` : ""}
         <p style="margin:0;">
           <a href="${editorUrl}" style="display:inline-block;padding:11px 16px;background:#07110e;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:650;">
             Continue your tab
@@ -78,5 +82,5 @@ Note2Tabs`;
     </div>
   `;
 
-  return { subject, text, html, editorUrl };
+  return { subject, text, html, editorUrl, unsubscribeUrl };
 }

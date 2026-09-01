@@ -16,6 +16,7 @@ import { useSession } from "next-auth/react";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
+import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
 import { buildLaneEditorRef, gteApi, normalizeEditorName } from "../../lib/gteApi";
 import { buildTrackMergePlan } from "../../lib/gteTrackMerge";
 import {
@@ -1423,6 +1424,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (originalSpeed !== null) setPlaybackSpeed(originalSpeed);
   }, []);
   const router = useRouter();
+  const tabReturnLandingTrackedRef = useRef(false);
   const saveToAccountPath = "/gte?importGuest=1";
   const loginSaveHref = `/auth/login?next=${encodeURIComponent(saveToAccountPath)}`;
   const signupSaveHref = `/auth/signup?next=${encodeURIComponent(saveToAccountPath)}`;
@@ -1431,6 +1433,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     : `/?appendEditorId=${encodeURIComponent(editorId)}#hero`;
   const transcriberNewHref = "/transcriber";
   const transcriberAppendHref = `/transcriber?appendEditorId=${encodeURIComponent(editorId)}`;
+
+  useEffect(() => {
+    if (!router.isReady || tabReturnLandingTrackedRef.current) return;
+    if (router.query.source !== "tab_return_email") return;
+    tabReturnLandingTrackedRef.current = true;
+    sendEvent(ANALYTICS_EVENTS.tabReturnReminderLanded, {
+      reminder_version: "tab_return_v1",
+      surface: "editor",
+    });
+  }, [router.isReady, router.query.source]);
   const chordDiagramHandednessStorageKey = useMemo(() => {
     if (session?.user?.id) {
       return `${CHORD_DIAGRAM_HANDEDNESS_STORAGE_PREFIX}user:${session.user.id}`;

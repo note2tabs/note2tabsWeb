@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { reminderUnsubscribeUrl } from "./reminderUnsubscribe";
 
 export const INACTIVE_SIGNUP_REMINDER_IDENTIFIER_PREFIX = "reminder:inactive-transcriber:";
 export const INACTIVE_SIGNUP_REMINDER_HOLDOUT_PREFIX = "experiment:inactive-transcriber-holdout:";
@@ -17,6 +18,7 @@ export const INACTIVE_SIGNUP_REMINDER_DELAYS: Record<InactiveSignupReminderVaria
 type BuildReminderEmailInput = {
   name?: string | null;
   variant?: Exclude<InactiveSignupReminderVariant, "holdout">;
+  userId?: string;
 };
 
 function baseUrl() {
@@ -61,6 +63,7 @@ export function buildInactiveSignupReminderEmail(input: BuildReminderEmailInput 
   const variant = input.variant || "24h";
   const transcriberUrl = `${baseUrl()}/transcribe?source=inactive_signup_reminder&timing=${variant}`;
   const subject = "Still interested in transcribing a song?";
+  const unsubscribeUrl = input.userId ? reminderUnsubscribeUrl(input.userId) : null;
   const text = `Hi ${firstName},
 
 You created a Note2Tabs account a little while ago, and we noticed you have not started your first transcription yet.
@@ -75,7 +78,7 @@ Start here: ${transcriberUrl}
 
 If now is not the right time, no worries. This is just a quick check-in.
 
-Note2Tabs`;
+Note2Tabs${unsubscribeUrl ? `\n\nStop reminder emails: ${unsubscribeUrl}` : ""}`;
 
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a;background:#f8fafc;padding:24px;">
@@ -102,9 +105,10 @@ Note2Tabs`;
         <p style="margin:0;color:#64748b;font-size:13px;">
           If now is not the right time, no worries. This is just a quick check-in.
         </p>
+        ${unsubscribeUrl ? `<p style="margin:16px 0 0;color:#64748b;font-size:12px;"><a href="${unsubscribeUrl}" style="color:#64748b;">Stop reminder emails</a></p>` : ""}
       </div>
     </div>
   `;
 
-  return { subject, text, html, transcriberUrl };
+  return { subject, text, html, transcriberUrl, unsubscribeUrl };
 }

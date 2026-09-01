@@ -13,6 +13,16 @@ import {
 } from "../lib/gteEditorListCache";
 import { hasPremiumEntitlement } from "../lib/premiumEntitlement";
 import { getEditorThumbnail } from "../lib/editorThumbnail";
+import {
+  RETENTION_INTENT_OPTIONS,
+  RETENTION_INTENT_RESEARCH_ENABLED,
+  RETENTION_INTENT_PROMPT_DELAY_MS,
+  RETENTION_INTENT_PROMPT_VERSION,
+  retentionIntentPromptState,
+  retentionIntentStorageKey,
+  shouldOfferRetentionIntentPrompt,
+  type RetentionIntent,
+} from "../lib/retentionIntentResearch";
 import type { EditorListItem } from "../types/gte";
 import { authOptions } from "./api/auth/[...nextauth]";
 
@@ -171,6 +181,8 @@ export default function ProductHome({
   const [subscription, setSubscription] = useState<PremiumSubscriptionStatus | null>(null);
   const [billingPortalBusy, setBillingPortalBusy] = useState(false);
   const [billingRecoveryError, setBillingRecoveryError] = useState<string | null>(null);
+  const [showIntentPrompt, setShowIntentPrompt] = useState(false);
+  const [intentAnswered, setIntentAnswered] = useState(false);
   const viewTrackedRef = useRef(false);
   const trialActivationTrackedRef = useRef(false);
   const paymentRecoveryTrackedRef = useRef(false);
@@ -269,6 +281,36 @@ export default function ProductHome({
       plan: isPremium ? "premium" : "free",
     });
   }, [isPremium, loading, recentEditors.length]);
+
+  useEffect(() => {
+    if (!RETENTION_INTENT_RESEARCH_ENABLED) return;
+    if (loading || loadError || recentEditors.length > 0 || localPreview) return;
+
+    const storageKey = retentionIntentStorageKey(userId);
+    let storedValue: string | null = null;
+    try {
+      storedValue = window.localStorage.getItem(storageKey);
+    } catch {
+      // The prompt can still be shown when storage is unavailable.
+    }
+    if (!shouldOfferRetentionIntentPrompt(storedValue)) return;
+
+    const timeout = window.setTimeout(() => {
+      setShowIntentPrompt(true);
+      sendEvent(ANALYTICS_EVENTS.retentionIntentPromptShown, {
+        prompt_version: RETENTION_INTENT_PROMPT_VERSION,
+        surface: "product_home_empty_state",
+      });
+    }, RETENTION_INTENT_PROMPT_DELAY_MS);
+
+    return () => window.clearTimeout(timeout);
+  }, [loadError, loading, localPreview, recentEditors.length, userId]);
+
+  useEffect(() => {
+    if (!intentAnswered) return;
+    const timeout = window.setTimeout(() => setShowIntentPrompt(false), 2_500);
+    return () => window.clearTimeout(timeout);
+  }, [intentAnswered]);
 
   useEffect(() => {
     if (!subscription?.isTrial || trialActivationTrackedRef.current) return;
@@ -370,6 +412,36 @@ export default function ProductHome({
 
   const trackHomeCta = (cta: string) =>
     trackCtaClick(cta, { surface: "product_home", plan: isPremium ? "premium" : "free" });
+
+  const saveIntentPromptState = (status: "answered" | "dismissed") => {
+    try {
+      window.localStorage.setItem(
+        retentionIntentStorageKey(userId),
+        retentionIntentPromptState(status)
+      );
+    } catch {
+      // Analytics still records the response when storage is unavailable.
+    }
+  };
+
+  const handleIntentSelected = (intent: RetentionIntent) => {
+    saveIntentPromptState("answered");
+    setIntentAnswered(true);
+    sendEvent(ANALYTICS_EVENTS.retentionIntentSelected, {
+      intent,
+      prompt_version: RETENTION_INTENT_PROMPT_VERSION,
+      surface: "product_home_empty_state",
+    });
+  };
+
+  const handleIntentDismissed = () => {
+    saveIntentPromptState("dismissed");
+    setShowIntentPrompt(false);
+    sendEvent(ANALYTICS_EVENTS.retentionIntentPromptDismissed, {
+      prompt_version: RETENTION_INTENT_PROMPT_VERSION,
+      surface: "product_home_empty_state",
+    });
+  };
 
   return (
     <>
@@ -481,6 +553,38 @@ export default function ProductHome({
           </section>
 
           {loadError && recentEditors.length === 0 && <div className="product-home__error" role="alert"><span>{loadError}</span><button type="button" onClick={() => void loadEditors(true)}>Try again</button></div>}
+
+          {RETENTION_INTENT_RESEARCH_ENABLED && showIntentPrompt && recentEditors.length === 0 && (
+            <aside className="product-studio__intent" aria-labelledby="retention-intent-title">
+              {intentAnswered ? (
+                <div className="product-studio__intent-thanks" role="status">
+                  <strong>Thank you.</strong>
+                  <span>We’ll use that to make getting started more useful.</span>
+                </div>
+              ) : (
+                <>
+                  <div className="product-studio__intent-copy">
+                    <strong id="retention-intent-title">What brought you to Note2Tabs today?</strong>
+                    <span>One quick question to help us improve the first visit.</span>
+                  </div>
+                  <div className="product-studio__intent-options" aria-label="Choose your main goal">
+                    {RETENTION_INTENT_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => handleIntentSelected(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button className="product-studio__intent-dismiss" type="button" onClick={handleIntentDismissed}>
+                    Not now
+                  </button>
+                </>
+              )}
+            </aside>
+          )}
 
           <section className="product-studio__library" aria-labelledby="recent-heading">
             <header><div><h2 id="recent-heading">Recent tabs</h2></div><Link href="/gte" onClick={() => trackHomeCta("product_home_view_all_editors")}>View all tabs →</Link></header>

@@ -10,6 +10,7 @@ import {
   sendTranscriptionStartedEvents,
   trackCtaClick,
 } from "../lib/analytics";
+import { buildTranscriptionResearchProperties } from "../lib/retentionResearch";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import {
@@ -853,10 +854,16 @@ export default function TranscriberPage() {
     setTranscriberSegments(null);
     setStatus(mode === "FILE" ? transcribingStatusLabel : "Preparing YouTube...");
     setLoading(true);
-    sendTranscriptionStartedEvents(transcriptionModel, {
+    const researchProperties = buildTranscriptionResearchProperties({
       mode,
-      input_source: mode === "YOUTUBE" ? "youtube" : "local_file",
+      transcriptionModel,
+      separateGuitar,
+      multipleGuitars,
+      durationSec: mode === "YOUTUBE" ? resolvedYtDuration : resolvedFileDuration,
+      fileSizeBytes: selectedFile?.size,
+      appendingToExistingEditor: Boolean(appendEditorId),
     });
+    sendTranscriptionStartedEvents(transcriptionModel, researchProperties);
 
     try {
       let response: Response;
@@ -957,7 +964,11 @@ export default function TranscriberPage() {
           await updateSession().catch(() => null);
         }
         setStatus("Opening progress screen...");
-        sendEvent("transcribe_queued", { mode, jobId: data.jobId, status: data.status || "queued" });
+        sendEvent("transcribe_queued", {
+          ...researchProperties,
+          jobId: data.jobId,
+          status: data.status || "queued",
+        });
         const jobParams = new URLSearchParams();
         jobParams.set("mode", mode);
         jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
@@ -995,7 +1006,7 @@ export default function TranscriberPage() {
         }
         setError(data?.error || "We could not start this transcription. Your selection is still here, so you can try again.");
         sendEvent("transcribe_error", {
-          mode,
+          ...researchProperties,
           error_code: categorizeAnalyticsError(data?.error, "transcription_failed"),
           http_status_class: analyticsHttpStatusClass(response.status),
         });
@@ -1003,7 +1014,10 @@ export default function TranscriberPage() {
       }
       if (!data.tabs || !Array.isArray(data.tabs)) {
         setError("The transcription finished without a usable tab. Try a clearer section or switch models.");
-        sendEvent("transcribe_error", { mode, error_code: "no_tabs" });
+        sendEvent("transcribe_error", {
+          ...researchProperties,
+          error_code: "no_tabs",
+        });
         return;
       }
       const nextTabs = data.tabs;
@@ -1016,7 +1030,10 @@ export default function TranscriberPage() {
         setLocalUnverifiedTranscriptionUsed(true);
         await updateSession().catch(() => null);
       }
-      sendEvent("transcribe_success", { mode, jobId: data.jobId });
+      sendEvent("transcribe_success", {
+        ...researchProperties,
+        jobId: data.jobId,
+      });
       if (transcriberSession && data.tabJobId) {
         setStatus("Tabs ready. Opening transcription...");
         await router.push(
@@ -1042,7 +1059,7 @@ export default function TranscriberPage() {
     } catch (err: any) {
       setError(err?.message || "We could not reach the transcription service. Check your connection and try again.");
       sendEvent("transcribe_error", {
-        mode,
+        ...researchProperties,
         error_code: categorizeAnalyticsError(err, "transcription_failed"),
       });
     } finally {
