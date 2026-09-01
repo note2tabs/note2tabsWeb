@@ -4739,6 +4739,7 @@ export default function GteWorkspace({
         subdivisionsPerBar: practiceMode
           ? Math.max(1, Math.round((timeSignature * 32) / Math.max(1, timeSignatureBottom)))
           : undefined,
+        minimumPlacementSpacing: practiceMode ? 18 : undefined,
       }),
     [
       effectivePlayheadFrame,
@@ -11938,7 +11939,7 @@ export default function GteWorkspace({
         return;
       }
       if (
-        event.code === "KeyM" &&
+        event.code === "KeyG" &&
         !event.shiftKey &&
         !event.ctrlKey &&
         !event.metaKey &&
@@ -12491,7 +12492,7 @@ export default function GteWorkspace({
         return;
       }
       if (
-        event.code === "KeyG" &&
+        event.code === "KeyX" &&
         !event.shiftKey &&
         !event.ctrlKey &&
         !event.metaKey &&
@@ -13404,8 +13405,8 @@ export default function GteWorkspace({
                 disabled={selectionActionsLocked}
                 title={
                   selectedNoteIds.length + selectedChordIds.length > 0
-                    ? "Move selected notes/chords with the mouse - Shortcut: M"
-                    : "Choose Move, then select notes or chords - Shortcut: M"
+                    ? "Move selected notes/chords with the mouse - Shortcut: G"
+                    : "Choose Move, then select notes or chords - Shortcut: G"
                 }
                 className={
                   moveToolActive || pendingSelectionTool === "move"
@@ -13413,7 +13414,7 @@ export default function GteWorkspace({
                     : iconButtonClass
                 }
               >
-                <span className={shortcutClass}>M</span>
+                <span className={shortcutClass}>G</span>
                 <svg
                   viewBox="0 0 24 24"
                   className="h-3.5 w-3.5 fill-current"

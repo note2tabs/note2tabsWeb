@@ -177,7 +177,7 @@ const SNAP_SUBDIVISION_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 const TOOL_SHORTCUT_HELP = [
   ["Scale", "S"],
   ["Cycle scale mode", "D"],
-  ["Move tool", "M"],
+  ["Move tool", "G"],
   ["Slice tool", "Shift+S"],
   ["Cut playing coordinates", "K"],
   ["Merge to chord", "C"],
@@ -188,9 +188,15 @@ const TOOL_SHORTCUT_HELP = [
   ["Hammer/Pull", "H"],
   ["Slide", "L"],
   ["Bend", "B"],
-  ["Toggle grid snapping", "G"],
+  ["Toggle grid snapping", "X"],
   ["Confirm active tool", "Enter"],
   ["Cancel active tool", "Escape"],
+] as const;
+const SIZE_SHORTCUT_HELP = [
+  ["Smaller add-note size", ","],
+  ["Larger add-note size", "."],
+  ["Larger cursor size", "N"],
+  ["Smaller cursor size", "M"],
 ] as const;
 const TRACK_CURSOR_SHORTCUT_HELP = [
   ["Move cursor", "Arrow keys"],
@@ -210,6 +216,7 @@ const SHORTCUT_HELP_SECTIONS: ReadonlyArray<
   readonly [string, ReadonlyArray<readonly [string, string]>]
 > = [
   ["Tools", TOOL_SHORTCUT_HELP],
+  ["Editing sizes", SIZE_SHORTCUT_HELP],
   ["Track cursor", TRACK_CURSOR_SHORTCUT_HELP],
 ];
 
@@ -5051,7 +5058,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       }
       if (isTyping) return;
       if (
-        event.code === "KeyG" &&
+        event.code === "KeyX" &&
         !event.shiftKey &&
         !event.ctrlKey &&
         !event.metaKey &&
@@ -6743,11 +6750,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             </option>
                           ))}
                         </select>
+                        <span className="text-[10px] font-normal text-slate-400">
+                          <kbd>,</kbd> smaller / <kbd>.</kbd> larger
+                        </span>
                       </label>
                       <SizeLinkToggle
                         linked={noteCursorSizesLinked}
                         onToggle={toggleNoteCursorSizeLink}
-                        className="mb-1 self-end"
+                        className="self-center"
                       />
                       <label className="grid gap-1 text-xs font-medium text-slate-600">
                         Cursor size
@@ -6765,6 +6775,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             </option>
                           ))}
                         </select>
+                        <span className="text-[10px] font-normal text-slate-400">
+                          <kbd>N</kbd> larger / <kbd>M</kbd> smaller
+                        </span>
                       </label>
                       </div>
                       <button
@@ -7023,9 +7036,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     placeholder="Untitled"
                   />
                 ) : (
-                  <span
+                  <button
+                    type="button"
+                    onClick={() => setNameEditing(true)}
+                    className="min-w-0 cursor-text rounded-sm bg-transparent p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                    title="Rename song"
+                    aria-label={`Rename ${canvas?.name || "Untitled"}`}
                     style={{
                       paddingLeft: isMobileViewport ? 0 : 4,
+                      paddingRight: 0,
+                      border: "none",
                       fontSize: isMobileViewport ? "1.35rem" : "1.45rem",
                       lineHeight: 1.15,
                       fontWeight: 500,
@@ -7037,19 +7057,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     }}
                   >
                     {canvas?.name || "Untitled"}
-                  </span>
+                  </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setNameEditing(true)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                  title="Rename editor"
-                  aria-label="Rename editor"
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l9.06-9.06.92.92L5.92 19.58zM20.71 7.04a1 1 0 0 0 0-1.41L18.37 3.29a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75 1.13-1.13z" />
-                  </svg>
-                </button>
               </span>
             </div>
             {!isMobileViewport && (
@@ -7776,7 +7785,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           }}
                           className="h-8 w-20 rounded-md border border-slate-200 bg-white px-2 text-sm"
                         />
-                        <span className="inline-flex flex-col gap-0.5">
+                        <span className="inline-flex h-8 flex-col gap-0.5">
                           <button
                             type="button"
                             onMouseDown={(event) => event.preventDefault()}
@@ -7791,7 +7800,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               setBpmDraft(formatBpm(next));
                               scheduleBpmCommit(next);
                             }}
-                            className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[9px] leading-none text-slate-600 hover:bg-slate-50"
+                            className="flex min-h-0 w-6 flex-1 items-center justify-center rounded border border-slate-200 bg-white text-[9px] leading-none text-slate-600 hover:bg-slate-50"
                             title="Increase BPM"
                             aria-label="Increase BPM"
                           >
@@ -7811,7 +7820,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               setBpmDraft(formatBpm(next));
                               scheduleBpmCommit(next);
                             }}
-                            className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[9px] leading-none text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="flex min-h-0 w-6 flex-1 items-center justify-center rounded border border-slate-200 bg-white text-[9px] leading-none text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                             title="Decrease BPM"
                             aria-label="Decrease BPM"
                             disabled={(normalizeBpm(bpmDraft) ?? 1) <= 1}
@@ -7898,11 +7907,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           </option>
                         ))}
                       </select>
+                      <span className="text-[10px] font-normal text-slate-400">
+                        <kbd>,</kbd> smaller / <kbd>.</kbd> larger
+                      </span>
                     </label>
                     <SizeLinkToggle
                       linked={noteCursorSizesLinked}
                       onToggle={toggleNoteCursorSizeLink}
-                      className="self-end"
+                      className="self-center"
                     />
                     <label className="grid gap-1 text-xs font-medium text-slate-600">
                       Cursor size
@@ -7921,12 +7933,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           </option>
                         ))}
                       </select>
+                      <span className="text-[10px] font-normal text-slate-400">
+                        <kbd>N</kbd> larger / <kbd>M</kbd> smaller
+                      </span>
                     </label>
+                    <button
+                      type="button"
+                      onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
+                      aria-pressed={globalSnapToGridEnabled}
+                      className="mt-[18px] flex h-8 min-w-28 self-start items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
+                    >
+                      <span>Grid</span>
+                      <span>{globalSnapToGridEnabled ? "On" : "Off"}</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
                       aria-pressed={globalSnapToKeyEnabled}
-                      className="flex h-8 min-w-28 items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
+                      className="mt-[18px] flex h-8 min-w-28 self-start items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
                     >
                       <span>Key</span>
                       <span>{globalSnapToKeyEnabled ? "On" : "Off"}</span>
@@ -8869,7 +8893,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
                                 practiceModeEnabled
-                                  ? Math.min(timelineZoomPercent / 100, 0.5)
+                                  ? Math.min(timelineZoomPercent / 100, 1)
                                   : timelineZoomPercent / 100
                               }
                               historyUndoCount={canvasUndoCount}
@@ -9230,7 +9254,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
                                 practiceModeEnabled
-                                  ? Math.min(timelineZoomPercent / 100, 0.5)
+                                  ? Math.min(timelineZoomPercent / 100, 1)
                                   : timelineZoomPercent / 100
                               }
                               historyUndoCount={canvasUndoCount}
@@ -9794,7 +9818,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                           timelineZoomFactor={
                             practiceModeEnabled
-                              ? Math.min(timelineZoomPercent / 100, 0.5)
+                              ? Math.min(timelineZoomPercent / 100, 1)
                               : timelineZoomPercent / 100
                           }
                           historyUndoCount={canvasUndoCount}

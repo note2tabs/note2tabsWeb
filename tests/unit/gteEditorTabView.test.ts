@@ -90,6 +90,28 @@ describe("gte editor tab view", () => {
     expect(view.placements[2].x - view.placements[1].x).toBe(4);
   });
 
+  it("widens practice bars when adjacent subdivisions need more room", () => {
+    const snapshot = baseSnapshot();
+    snapshot.totalFrames = 128;
+    snapshot.chords = [];
+    snapshot.notes = [
+      { id: 1, startTime: 0, length: 4, midiNum: 60, tab: [5, 3], optimals: [] },
+      { id: 2, startTime: 4, length: 4, midiNum: 61, tab: [5, 4], optimals: [] },
+    ];
+
+    const view = buildEditorTabView(snapshot, {
+      framesPerBar: 128,
+      beatsPerBar: 4,
+      subdivisionsPerBar: 32,
+      minimumPlacementSpacing: 18,
+      scale: 1,
+      playheadFrame: 0,
+    });
+
+    expect(view.barWidth).toBe(576);
+    expect(view.placements[1].x - view.placements[0].x).toBe(18);
+  });
+
   it("collapses empty practice bars and uses shared readable widths for populated bars", () => {
     const view = buildEditorTabView(baseSnapshot(), {
       framesPerBar: 480,
