@@ -4,6 +4,7 @@ import { prisma } from "../../../lib/prisma";
 import { createPostHogServerClient, flushPostHogServerClientInBackground } from "../../../lib/posthogServer";
 
 type SesNotification = {
+  eventType?: "Delivery" | "Bounce" | "Complaint";
   notificationType?: "Delivery" | "Bounce" | "Complaint";
   mail?: { messageId?: string; destination?: string[]; tags?: Record<string, string[]> };
   bounce?: { bounceType?: string; bounceSubType?: string; bouncedRecipients?: Array<{ emailAddress?: string }> };
@@ -49,11 +50,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (category !== "inactive_signup_reminder" && category !== "tab_return_reminder") {
     return res.status(200).json({ ok: true, ignored: true });
   }
-  const event = notification.notificationType === "Delivery"
+  const notificationType = notification.eventType || notification.notificationType;
+  const event = notificationType === "Delivery"
     ? "reminder_email_delivered"
-    : notification.notificationType === "Bounce"
+    : notificationType === "Bounce"
       ? "reminder_email_bounced"
-      : notification.notificationType === "Complaint"
+      : notificationType === "Complaint"
         ? "reminder_email_complaint_received"
         : null;
   if (!event) return res.status(200).json({ ok: true, ignored: true });

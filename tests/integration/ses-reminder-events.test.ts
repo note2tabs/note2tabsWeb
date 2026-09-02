@@ -35,6 +35,27 @@ describe("SES reminder lifecycle events", () => {
     }));
   });
 
+  it("records configuration-set events that use eventType", async () => {
+    const notification = {
+      eventType: "Delivery",
+      mail: {
+        messageId: "message-2",
+        destination: ["player@example.com"],
+        tags: { email_category: ["inactive_signup_reminder"] },
+      },
+    };
+    const { req, res } = createMocks({
+      method: "POST", query: { secret: "secret" },
+      body: { Type: "Notification", Message: JSON.stringify(notification) },
+    });
+    await handler(req, res);
+    expect(res._getStatusCode()).toBe(200);
+    expect(mocks.capture).toHaveBeenCalledWith(expect.objectContaining({
+      distinctId: "user-1", event: "reminder_email_delivered",
+      properties: expect.objectContaining({ email_category: "inactive_signup_reminder" }),
+    }));
+  });
+
   it("rejects unsigned webhook traffic", async () => {
     const { req, res } = createMocks({ method: "POST", query: { secret: "wrong" }, body: {} });
     await handler(req, res);
