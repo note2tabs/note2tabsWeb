@@ -18,9 +18,14 @@ import {
 import {
   isResumingTranscription,
   premiumWelcomeDestination,
+  premiumWelcomePreviewAllowed,
 } from "../../lib/premiumWelcome";
 
 type WelcomeState = "checking" | "ready" | "delayed";
+
+type Props = {
+  previewMode: boolean;
+};
 
 const CONFETTI = Array.from({ length: 28 }, (_, index) => ({
   left: `${5 + ((index * 37) % 90)}%`,
@@ -30,10 +35,10 @@ const CONFETTI = Array.from({ length: 28 }, (_, index) => ({
   rotate: `${(index * 47) % 180}deg`,
 }));
 
-export default function PremiumWelcomePage() {
+export default function PremiumWelcomePage({ previewMode }: Props) {
   const router = useRouter();
   const { data: session, update } = useSession();
-  const [state, setState] = useState<WelcomeState>("checking");
+  const [state, setState] = useState<WelcomeState>(previewMode ? "ready" : "checking");
   const trackedRef = useRef(false);
   const destination = useMemo(
     () => premiumWelcomeDestination(router.query.next),
@@ -42,7 +47,7 @@ export default function PremiumWelcomePage() {
   const resumesUpload = isResumingTranscription(destination);
 
   useEffect(() => {
-    if (!router.isReady) return;
+    if (!router.isReady || previewMode) return;
     let cancelled = false;
     const sessionIdValue = router.query.session_id;
     const sessionIdFromQuery = Array.isArray(sessionIdValue)
@@ -82,17 +87,18 @@ export default function PremiumWelcomePage() {
     return () => {
       cancelled = true;
     };
-  }, [router.isReady, router.query.session_id, session, update]);
+  }, [previewMode, router.isReady, router.query.session_id, session, update]);
 
   useEffect(() => {
-    if (state !== "ready" || trackedRef.current) return;
+    if (previewMode || state !== "ready" || trackedRef.current) return;
     trackedRef.current = true;
     sendEvent(ANALYTICS_EVENTS.premiumWelcomeViewed, {
       destination: resumesUpload ? "resume_transcription" : "transcriber",
     });
-  }, [resumesUpload, state]);
+  }, [previewMode, resumesUpload, state]);
 
   const trackContinue = () => {
+    if (previewMode) return;
     sendEvent(ANALYTICS_EVENTS.premiumWelcomeCtaClicked, {
       cta: "continue",
       destination: resumesUpload ? "resume_transcription" : "transcriber",
@@ -104,6 +110,7 @@ export default function PremiumWelcomePage() {
       <NoIndexHead title="Welcome to Premium | Note2Tabs" canonicalPath="/premium/welcome" />
       <main className="premium-welcome-page">
         <section className="premium-welcome-card" aria-live="polite">
+          {previewMode && <span className="premium-welcome-preview">Preview</span>}
           {state === "ready" && (
             <div className="premium-welcome-confetti" aria-hidden="true">
               {CONFETTI.map((piece, index) => (
@@ -175,10 +182,14 @@ export default function PremiumWelcomePage() {
 }
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  const previewMode =
+    ctx.query.preview === "1" && premiumWelcomePreviewAllowed();
+  if (previewMode) return { props: { previewMode: true } };
+
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   if (!session?.user?.id) {
     const callbackUrl = encodeURIComponent(ctx.resolvedUrl || "/premium/welcome");
     return { redirect: { destination: `/auth/login?next=${callbackUrl}`, permanent: false } };
   }
-  return { props: { session } };
+  return { props: { session, previewMode: false } };
 };

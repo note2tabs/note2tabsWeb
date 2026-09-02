@@ -20,3 +20,8 @@ export const premiumWelcomeDestination = (value: unknown) => {
 
 export const isResumingTranscription = (destination: string) =>
   destination.includes("resumeTranscription=1");
+
+export const premiumWelcomePreviewAllowed = (
+  vercelEnvironment = process.env.VERCEL_ENV,
+  nodeEnvironment = process.env.NODE_ENV
+) => vercelEnvironment === "preview" || nodeEnvironment === "development";

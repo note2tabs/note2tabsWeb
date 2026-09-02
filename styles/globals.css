@@ -12236,6 +12236,21 @@ input[type="number"] {
   box-shadow: 0 28px 80px rgba(23, 35, 29, 0.11);
 }
 
+.premium-welcome-preview {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  padding: 6px 10px;
+  border: 1px solid #dfe4df;
+  border-radius: 999px;
+  color: #687169;
+  background: rgba(255, 255, 255, 0.88);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .premium-welcome-mark {
   width: 58px;
   height: 58px;
