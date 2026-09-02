@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import crypto from "crypto";
 import { prisma } from "../../../lib/prisma";
-import { createPostHogServerClient, flushPostHogServerClientInBackground } from "../../../lib/posthogServer";
+import { createPostHogServerClient } from "../../../lib/posthogServer";
 
 type SesNotification = {
   eventType?: "Delivery" | "Bounce" | "Complaint";
@@ -75,6 +75,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
   }
-  if (posthog) flushPostHogServerClientInBackground(posthog);
+  // This endpoint exists solely to persist lifecycle telemetry. Waiting for the
+  // flush prevents serverless runtimes from freezing the request before the
+  // event leaves the process, and lets SNS retry when PostHog is unavailable.
+  if (posthog) await posthog.flush();
   return res.status(200).json({ ok: true });
 }

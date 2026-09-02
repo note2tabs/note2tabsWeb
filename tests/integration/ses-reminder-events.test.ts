@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMocks } from "node-mocks-http";
 
-const mocks = vi.hoisted(() => ({ findUser: vi.fn(), capture: vi.fn() }));
+const mocks = vi.hoisted(() => ({ findUser: vi.fn(), capture: vi.fn(), flush: vi.fn() }));
 vi.mock("../../lib/prisma", () => ({ prisma: { user: { findUnique: mocks.findUser } } }));
 vi.mock("../../lib/posthogServer", () => ({
-  createPostHogServerClient: () => ({ capture: mocks.capture }),
-  flushPostHogServerClientInBackground: () => undefined,
+  createPostHogServerClient: () => ({ capture: mocks.capture, flush: mocks.flush }),
 }));
 
 import handler from "../../pages/api/email/ses-events";
@@ -15,6 +14,7 @@ describe("SES reminder lifecycle events", () => {
     vi.clearAllMocks();
     process.env.SES_EVENT_WEBHOOK_SECRET = "secret";
     mocks.findUser.mockResolvedValue({ id: "user-1" });
+    mocks.flush.mockResolvedValue(undefined);
   });
 
   it("records a tagged reminder bounce in PostHog", async () => {
@@ -33,6 +33,7 @@ describe("SES reminder lifecycle events", () => {
       distinctId: "user-1", event: "reminder_email_bounced",
       properties: expect.objectContaining({ email_category: "tab_return_reminder", bounce_type: "Permanent" }),
     }));
+    expect(mocks.flush).toHaveBeenCalledOnce();
   });
 
   it("records configuration-set events that use eventType", async () => {
