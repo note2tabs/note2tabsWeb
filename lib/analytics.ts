@@ -70,6 +70,7 @@ export const ANALYTICS_EVENTS = {
   accountDeletionGoalSelected: "account_deletion_goal_selected",
   accountDeletionAlternativeClicked: "account_deletion_alternative_clicked",
   accountDeletionConfirmed: "account_deletion_confirmed",
+  internshipApplicationSubmitted: "internship_application_submitted",
 } as const;
 
 function getUtmParams() {

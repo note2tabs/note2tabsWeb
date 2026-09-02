@@ -55,6 +55,7 @@ type SeoHeadProps = {
   imageUrl?: string | null;
   ogType?: "website" | "article";
   noindex?: boolean;
+  nofollow?: boolean;
   rssUrl?: string;
   jsonLd?: JsonLd | JsonLd[];
   articlePublishedTime?: string;
@@ -86,6 +87,7 @@ export default function SeoHead({
   imageUrl,
   ogType = "website",
   noindex = false,
+  nofollow = false,
   rssUrl,
   jsonLd,
   articlePublishedTime,
@@ -104,8 +106,8 @@ export default function SeoHead({
       <title>{title}</title>
       <meta key="description" name="description" content={description} />
       <link key="canonical" rel="canonical" href={canonical} />
-      <meta key="robots" name="robots" content={noindex ? "noindex,follow" : INDEX_ROBOTS_DIRECTIVE} />
-      <meta key="googlebot" name="googlebot" content={noindex ? "noindex,follow" : INDEX_ROBOTS_DIRECTIVE} />
+      <meta key="robots" name="robots" content={noindex ? `noindex,${nofollow ? "nofollow" : "follow"}` : INDEX_ROBOTS_DIRECTIVE} />
+      <meta key="googlebot" name="googlebot" content={noindex ? `noindex,${nofollow ? "nofollow" : "follow"}` : INDEX_ROBOTS_DIRECTIVE} />
       <meta key="og:title" property="og:title" content={title} />
       <meta key="og:description" property="og:description" content={description} />
       <meta key="og:type" property="og:type" content={ogType} />

@@ -37,6 +37,14 @@ export default function PrivacyPage() {
             Note2Tabs. Please avoid including sensitive information that is not needed to resolve your issue.
           </p>
 
+          <h2>Internship applications</h2>
+          <p>
+            If you submit an internship application, the information you provide is delivered directly to the
+            Note2Tabs administrative email account and used only to assess and respond to your application. We do
+            not store internship applications in the Note2Tabs product database or send application answers to
+            product analytics. You may contact us to request deletion of your application information.
+          </p>
+
           <h2>Cookies and similar technologies</h2>
           <p>
             We use essential cookies to run the service. Product analytics are enabled by default, but PostHog is
