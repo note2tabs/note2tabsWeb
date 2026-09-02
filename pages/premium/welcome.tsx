@@ -143,7 +143,13 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
         <section className="premium-welcome-card" aria-live="polite">
           {previewMode && <span className="premium-welcome-preview">Preview</span>}
           <div className="premium-welcome-mark" aria-hidden="true">
-            <span>✓</span>
+            <svg viewBox="0 0 72 52" role="presentation">
+              <path className="premium-welcome-mark__staff" d="M7 15.5h45M7 22.5h45M7 29.5h45M7 36.5h45" />
+              <path className="premium-welcome-mark__note" d="M23 12v21.5M23 17l18-4v16.5" />
+              <ellipse className="premium-welcome-mark__note-fill" cx="18.5" cy="35" rx="5.5" ry="4" transform="rotate(-12 18.5 35)" />
+              <ellipse className="premium-welcome-mark__note-fill" cx="36.5" cy="31" rx="5.5" ry="4" transform="rotate(-12 36.5 31)" />
+              <path className="premium-welcome-mark__spark" d="M59 7v10M54 12h10M62.5 22.5v6M59.5 25.5h6" />
+            </svg>
           </div>
 
           {state === "checking" ? (
@@ -173,8 +179,8 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
               <p className="premium-welcome-eyebrow">Premium activated</p>
               <h1>You’re all set.</h1>
               <p>
-                Your Premium trial is active. Take on full songs, use the Heavy model more often,
-                and keep every unused credit for next month.
+                Thanks for choosing Note2Tabs Premium. Your trial is active, with more room for
+                full songs, the Heavy model, and credits that roll over.
               </p>
               <div className="premium-welcome-access" aria-label="Premium access now available">
                 <div><span>Monthly capacity</span><strong>100 credits</strong></div>

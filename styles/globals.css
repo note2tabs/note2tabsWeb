@@ -12252,17 +12252,43 @@ input[type="number"] {
 }
 
 .premium-welcome-mark {
-  width: 58px;
-  height: 58px;
+  width: 72px;
+  height: 52px;
   display: grid;
   place-items: center;
   margin: 0 auto 26px;
-  border: 1px solid rgba(13, 117, 93, 0.2);
-  border-radius: 50%;
-  color: #0d755d;
-  background: #edf7f3;
-  font-size: 24px;
-  font-weight: 650;
+}
+
+.premium-welcome-mark svg {
+  width: 72px;
+  height: 52px;
+  overflow: visible;
+}
+
+.premium-welcome-mark__staff {
+  fill: none;
+  stroke: #c8d4cc;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+}
+
+.premium-welcome-mark__note {
+  fill: none;
+  stroke: #0d755d;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.premium-welcome-mark__note-fill {
+  fill: #0d755d;
+}
+
+.premium-welcome-mark__spark {
+  fill: none;
+  stroke: #d5a43b;
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
 .premium-welcome-eyebrow {
