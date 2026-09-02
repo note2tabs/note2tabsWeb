@@ -148,18 +148,18 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
 
           {state === "checking" ? (
             <>
-              <p className="premium-welcome-eyebrow">Completing your upgrade</p>
+              <p className="premium-welcome-eyebrow">Activating Premium</p>
               <h1>Getting Premium ready…</h1>
-              <p>Your purchase is complete. We’re syncing your new limits now.</p>
+              <p>Your signup is complete. We’re syncing your new limits now.</p>
               <div className="premium-welcome-loader" aria-hidden="true" />
             </>
           ) : state === "delayed" ? (
             <>
-              <p className="premium-welcome-eyebrow">Thank you for upgrading</p>
+              <p className="premium-welcome-eyebrow">Premium is activating</p>
               <h1>Premium is almost ready.</h1>
               <p>
-                Stripe confirmed your purchase, but your account is taking a little longer to
-                update. Your payment is safe—try opening the transcriber in a moment.
+                Your signup was confirmed, but your account is taking a little longer to update.
+                No action is needed—check again in a moment.
               </p>
               <button className="premium-welcome-primary" type="button" onClick={() => router.reload()}>
                 Check again
@@ -170,11 +170,11 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
             </>
           ) : (
             <>
-              <p className="premium-welcome-eyebrow">Payment successful</p>
-              <h1>Premium is yours.</h1>
+              <p className="premium-welcome-eyebrow">Premium activated</p>
+              <h1>You’re all set.</h1>
               <p>
-                Your account is upgraded and ready. Take on full songs, use the Heavy model
-                more often, and keep every unused credit for next month.
+                Your Premium trial is active. Take on full songs, use the Heavy model more often,
+                and keep every unused credit for next month.
               </p>
               <div className="premium-welcome-access" aria-label="Premium access now available">
                 <div><span>Monthly capacity</span><strong>100 credits</strong></div>
