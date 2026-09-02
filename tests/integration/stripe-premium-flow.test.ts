@@ -278,7 +278,7 @@ describe("stripe premium flow", () => {
             premiumOfferVariant: "value_framing",
           }),
           success_url:
-            "https://note2tabs.test/settings?upgrade=success&session_id={CHECKOUT_SESSION_ID}",
+            "https://note2tabs.test/premium/welcome?next=%2Ftranscribe&session_id={CHECKOUT_SESSION_ID}",
           cancel_url: "https://note2tabs.test/settings?upgrade=cancel",
         }),
         expect.objectContaining({
@@ -415,7 +415,7 @@ describe("stripe premium flow", () => {
       expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
           success_url:
-            "https://note2tabs.test/transcribe?resumeTranscription=1&upgrade=success&session_id={CHECKOUT_SESSION_ID}",
+            "https://note2tabs.test/premium/welcome?next=%2Ftranscribe%3FresumeTranscription%3D1&session_id={CHECKOUT_SESSION_ID}",
           cancel_url: "https://note2tabs.test/transcribe?resumeTranscription=1&upgrade=cancel",
         }),
         expect.any(Object)
@@ -435,7 +435,7 @@ describe("stripe premium flow", () => {
       expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
           success_url:
-            "https://note2tabs.test/?resumeTranscription=1&upgrade=success&session_id={CHECKOUT_SESSION_ID}#hero",
+            "https://note2tabs.test/premium/welcome?next=%2F%3FresumeTranscription%3D1%23hero&session_id={CHECKOUT_SESSION_ID}",
         }),
         expect.any(Object)
       );

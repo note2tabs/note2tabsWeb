@@ -48,23 +48,26 @@ const appendCheckoutSessionId = (path: string) => {
   return `${pathAndQuery}${separator}session_id={CHECKOUT_SESSION_ID}${hash}`;
 };
 
+const premiumWelcomePath = (next: string) =>
+  `/premium/welcome?next=${encodeURIComponent(next)}`;
+
 const resolveCheckoutReturnPaths = (requestedPath: unknown) => {
   if (requestedPath === "/transcribe?resumeTranscription=1") {
     return {
-      success: "/transcribe?resumeTranscription=1&upgrade=success",
+      success: premiumWelcomePath("/transcribe?resumeTranscription=1"),
       cancel: "/transcribe?resumeTranscription=1&upgrade=cancel",
       manage: "/transcribe?resumeTranscription=1&upgrade=manage",
     };
   }
   if (requestedPath === "/?resumeTranscription=1") {
     return {
-      success: "/?resumeTranscription=1&upgrade=success#hero",
+      success: premiumWelcomePath("/?resumeTranscription=1#hero"),
       cancel: "/?resumeTranscription=1&upgrade=cancel#hero",
       manage: "/?resumeTranscription=1&upgrade=manage#hero",
     };
   }
   return {
-    success: "/settings?upgrade=success",
+    success: premiumWelcomePath("/transcribe"),
     cancel: "/settings?upgrade=cancel",
     manage: "/settings?upgrade=manage",
   };

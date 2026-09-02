@@ -24,6 +24,8 @@ export const ANALYTICS_EVENTS = {
   subscriptionCheckoutConfirmed: "subscription_checkout_confirmed",
   premiumTrialActivationShown: "premium_trial_activation_shown",
   premiumTrialActivationLanded: "premium_trial_activation_landed",
+  premiumWelcomeViewed: "premium_welcome_viewed",
+  premiumWelcomeCtaClicked: "premium_welcome_cta_clicked",
   subscriptionPaymentRecoveryShown: "subscription_payment_recovery_shown",
   subscriptionPaymentRecoveryClicked: "subscription_payment_recovery_clicked",
   subscriptionPaymentRecoveryFailed: "subscription_payment_recovery_failed",
