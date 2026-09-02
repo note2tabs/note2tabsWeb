@@ -146,7 +146,7 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
             <svg viewBox="0 0 64 64" role="presentation">
               <circle className="premium-welcome-mark__halo" cx="32" cy="32" r="29" />
               <circle className="premium-welcome-mark__surface" cx="32" cy="32" r="23" />
-              <path className="premium-welcome-mark__check" d="M20.5 32.5 28 40l16-17" />
+              <path className="premium-welcome-mark__check" d="M21.5 31.5 29 39l15.5-16.5" />
             </svg>
           </div>
 
@@ -174,8 +174,7 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
             </>
           ) : (
             <>
-              <p className="premium-welcome-eyebrow">Premium activated</p>
-              <h1>You’re all set.</h1>
+              <h1>You’re all set!</h1>
               <p>
                 Thanks for choosing Note2Tabs Premium. Your trial is active, with more room for
                 full songs, the Heavy model, and credits that roll over.
