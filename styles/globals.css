@@ -12292,21 +12292,31 @@ input[type="number"] {
   line-height: 1.65;
 }
 
-.premium-welcome-benefits {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 9px;
-  margin: 30px 0 34px;
+.premium-welcome-access {
+  max-width: 470px;
+  margin: 34px auto 0;
+  border-block: 1px solid #e1e4df;
 }
 
-.premium-welcome-benefits span {
-  padding: 9px 13px;
-  border: 1px solid #dfe4df;
-  border-radius: 999px;
-  color: #475149;
-  background: #fbfcfa;
-  font-size: 13px;
+.premium-welcome-access div {
+  min-height: 53px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  color: #626a64;
+  font-size: 14px;
+  text-align: left;
+}
+
+.premium-welcome-access div + div {
+  border-top: 1px solid #eceeea;
+}
+
+.premium-welcome-access strong {
+  color: #17201b;
+  font-weight: 620;
+  text-align: right;
 }
 
 .premium-welcome-primary {
@@ -12362,33 +12372,8 @@ input[type="number"] {
   animation: premium-welcome-spin 700ms linear infinite;
 }
 
-.premium-welcome-confetti {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.premium-welcome-confetti i {
-  position: absolute;
-  top: -18px;
-  width: 7px;
-  height: 13px;
-  border-radius: 2px;
-  opacity: 0;
-  animation-name: premium-welcome-fall;
-  animation-timing-function: cubic-bezier(0.25, 0.7, 0.4, 1);
-  animation-fill-mode: both;
-}
-
 @keyframes premium-welcome-spin {
   to { transform: rotate(360deg); }
-}
-
-@keyframes premium-welcome-fall {
-  0% { opacity: 0; translate: 0 -10px; }
-  12% { opacity: 0.92; }
-  100% { opacity: 0; translate: 16px 360px; rotate: 310deg; }
 }
 
 @media (max-width: 640px) {
@@ -12404,12 +12389,11 @@ input[type="number"] {
 
   .premium-welcome-card h1 { font-size: 36px; }
   .premium-welcome-card > p:not(.premium-welcome-eyebrow) { font-size: 16px; }
-  .premium-welcome-benefits { margin: 26px 0 4px; }
+  .premium-welcome-access { margin-top: 28px; }
   .premium-welcome-primary { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .premium-welcome-confetti { display: none; }
   .premium-welcome-loader { animation-duration: 1400ms; }
   .premium-welcome-primary { transition: none; }
 }
