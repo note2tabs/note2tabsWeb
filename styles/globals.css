@@ -12282,6 +12282,7 @@ input[type="number"] {
   stroke-width: 3.4;
   stroke-linecap: round;
   stroke-linejoin: round;
+  transform: translate(-1.5px, 2px);
 }
 
 .premium-welcome-eyebrow {
