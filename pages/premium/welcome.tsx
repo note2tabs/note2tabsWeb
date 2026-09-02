@@ -143,12 +143,10 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
         <section className="premium-welcome-card" aria-live="polite">
           {previewMode && <span className="premium-welcome-preview">Preview</span>}
           <div className="premium-welcome-mark" aria-hidden="true">
-            <svg viewBox="0 0 72 52" role="presentation">
-              <path className="premium-welcome-mark__staff" d="M7 15.5h45M7 22.5h45M7 29.5h45M7 36.5h45" />
-              <path className="premium-welcome-mark__note" d="M23 12v21.5M23 17l18-4v16.5" />
-              <ellipse className="premium-welcome-mark__note-fill" cx="18.5" cy="35" rx="5.5" ry="4" transform="rotate(-12 18.5 35)" />
-              <ellipse className="premium-welcome-mark__note-fill" cx="36.5" cy="31" rx="5.5" ry="4" transform="rotate(-12 36.5 31)" />
-              <path className="premium-welcome-mark__spark" d="M59 7v10M54 12h10M62.5 22.5v6M59.5 25.5h6" />
+            <svg viewBox="0 0 64 64" role="presentation">
+              <circle className="premium-welcome-mark__halo" cx="32" cy="32" r="29" />
+              <circle className="premium-welcome-mark__surface" cx="32" cy="32" r="23" />
+              <path className="premium-welcome-mark__check" d="M20.5 32.5 28 40l16-17" />
             </svg>
           </div>
 

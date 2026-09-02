@@ -12252,43 +12252,36 @@ input[type="number"] {
 }
 
 .premium-welcome-mark {
-  width: 72px;
-  height: 52px;
+  width: 64px;
+  height: 64px;
   display: grid;
   place-items: center;
   margin: 0 auto 26px;
 }
 
 .premium-welcome-mark svg {
-  width: 72px;
-  height: 52px;
+  width: 64px;
+  height: 64px;
   overflow: visible;
 }
 
-.premium-welcome-mark__staff {
-  fill: none;
-  stroke: #c8d4cc;
-  stroke-width: 1.25;
-  stroke-linecap: round;
+.premium-welcome-mark__halo {
+  fill: rgba(13, 117, 93, 0.07);
+  stroke: rgba(13, 117, 93, 0.12);
+  stroke-width: 1;
 }
 
-.premium-welcome-mark__note {
+.premium-welcome-mark__surface {
+  fill: #0d755d;
+  filter: drop-shadow(0 7px 12px rgba(13, 117, 93, 0.2));
+}
+
+.premium-welcome-mark__check {
   fill: none;
-  stroke: #0d755d;
-  stroke-width: 2.4;
+  stroke: #fff;
+  stroke-width: 3.4;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.premium-welcome-mark__note-fill {
-  fill: #0d755d;
-}
-
-.premium-welcome-mark__spark {
-  fill: none;
-  stroke: #d5a43b;
-  stroke-width: 2;
-  stroke-linecap: round;
 }
 
 .premium-welcome-eyebrow {
