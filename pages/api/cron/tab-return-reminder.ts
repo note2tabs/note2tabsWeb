@@ -194,6 +194,7 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
         subject: email.subject,
         html: email.html,
         text: email.text,
+        analyticsCategory: "tab_return_reminder",
       });
       if (!delivered) {
         skippedDeliveryDisabled += 1;

@@ -169,6 +169,7 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
         subject: email.subject,
         html: email.html,
         text: email.text,
+        analyticsCategory: "inactive_signup_reminder",
       });
 
       if (!delivered) {

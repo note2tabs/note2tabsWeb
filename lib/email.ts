@@ -6,6 +6,7 @@ type SendEmailInput = {
   subject: string;
   html: string;
   text?: string;
+  analyticsCategory?: string;
 };
 
 export class EmailConfigurationError extends Error {
@@ -108,6 +109,9 @@ export async function sendTransactionalEmail(input: SendEmailInput): Promise<boo
       subject: input.subject,
       html: input.html,
       ...(input.text ? { text: input.text } : {}),
+      ...(input.analyticsCategory
+        ? { headers: { "X-SES-MESSAGE-TAGS": `email_category=${input.analyticsCategory}` } }
+        : {}),
     });
     return true;
   }
@@ -139,6 +143,9 @@ export async function sendTransactionalEmail(input: SendEmailInput): Promise<boo
               : {}),
           },
         },
+        ...(input.analyticsCategory
+          ? { Tags: [{ Name: "email_category", Value: input.analyticsCategory }] }
+          : {}),
       })
     );
     return true;
