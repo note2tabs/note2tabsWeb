@@ -10215,6 +10215,54 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               <input type="number" min={0} max={12} value={trackCapoDraftById[selectedLaneId] ?? String(selectedTuning.capo)} onChange={(event) => handleLaneCapoDraftChange(selectedLaneId, event.target.value)} onBlur={() => commitLaneCapoDraft(selectedLaneId, selectedTuning.presetId, selectedTuning.capo)} className="h-8 w-16 rounded-md border border-slate-200 px-2 text-xs text-slate-700" aria-label="Track capo" />
                             </label>
                           </details>
+                          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleTrackMute(selectedLaneId)}
+                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${
+                                selectedMuted ? "text-rose-600" : "text-slate-500 hover:text-slate-800"
+                              }`}
+                              title={selectedMuted ? "Unmute" : "Mute"}
+                              aria-label={selectedMuted ? "Unmute" : "Mute"}
+                              aria-pressed={selectedMuted}
+                            >
+                              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                                <path d="M4 10v4h4l5 4V6L8 10H4z" />
+                                {selectedMuted ? (
+                                  <path d="m16.2 9.1 1.4 1.4-1.6 1.6 1.6 1.6-1.4 1.4-1.6-1.6-1.6 1.6-1.4-1.4 1.6-1.6-1.6-1.6 1.4-1.4 1.6 1.6z" />
+                                ) : (
+                                  <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
+                                )}
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleTrackIsolation(selectedLaneId)}
+                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${
+                                selectedIsolated ? "text-emerald-600" : "text-slate-500 hover:text-slate-800"
+                              }`}
+                              title={selectedIsolated ? "Stop soloing" : "Solo"}
+                              aria-label={selectedIsolated ? "Stop soloing" : "Solo"}
+                              aria-pressed={selectedIsolated}
+                            >
+                              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                                <path d="M12 4a7 7 0 0 0-7 7v5a2.5 2.5 0 0 0 2.5 2.5H8a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H7v-.5a5 5 0 0 1 10 0v.5h-1a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h.5A2.5 2.5 0 0 0 19 16v-5a7 7 0 0 0-7-7z" />
+                              </svg>
+                            </button>
+                            <input
+                              type="range"
+                              min={0}
+                              max={1}
+                              step={0.01}
+                              value={selectedVolume}
+                              onChange={(event) => handleTrackVolumePreview(selectedLaneId, Number(event.target.value))}
+                              onPointerUp={() => commitTrackVolume(selectedLaneId)}
+                              onPointerCancel={() => commitTrackVolume(selectedLaneId)}
+                              onBlur={() => commitTrackVolume(selectedLaneId)}
+                              className="h-7 w-full min-w-0 accent-slate-700"
+                              aria-label={`Volume for ${selectedLane.name || `Track ${selectedIndex + 1}`}`}
+                            />
+                          </div>
                         </div>
                       )}
                       <div className="col-span-2 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
