@@ -1335,6 +1335,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [desktopTrackMenuOpen, setDesktopTrackMenuOpen] = useState(false);
   const [desktopTrackAddMenuOpen, setDesktopTrackAddMenuOpen] = useState(false);
   const [desktopTrackSettingsCollapsed, setDesktopTrackSettingsCollapsed] = useState(false);
+  const [desktopRenamingLaneId, setDesktopRenamingLaneId] = useState<string | null>(null);
   const [deletingLaneId, setDeletingLaneId] = useState<string | null>(null);
   const [confirmDeleteTrackId, setConfirmDeleteTrackId] = useState<string | null>(null);
   const [mergeTracksDialogOpen, setMergeTracksDialogOpen] = useState(false);
@@ -10106,18 +10107,31 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 >
                   <div className="absolute bottom-0 right-[calc(100%+0.75rem)] w-[28rem] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
                     <div className="flex items-stretch gap-2">
-                      <div className="w-1/4 min-w-0 shrink-0">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Track settings</div>
-                    <input
-                      key={`${selectedLaneId}:${selectedLane.name || ""}`}
-                      defaultValue={selectedLane.name || `Track ${selectedIndex + 1}`}
-                      maxLength={80}
-                      aria-label={`Track ${selectedIndex + 1} name`}
-                      onBlur={(event) => void handleLaneNameCommit(selectedLaneId, event.currentTarget.value)}
-                      onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
-                      className="mt-1 w-full border-0 bg-transparent p-0 text-sm font-semibold text-slate-800 outline-none"
-                    />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDesktopTrackMenuOpen((open) => !open);
+                          setDesktopTrackAddMenuOpen(false);
+                        }}
+                        className="flex w-1/4 min-w-0 shrink-0 flex-col items-start rounded-md px-1 py-0.5 text-left transition hover:bg-slate-100"
+                        aria-expanded={desktopTrackMenuOpen}
+                        aria-haspopup="menu"
+                        title="Choose which track to edit"
+                      >
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Track settings</span>
+                        <span className="mt-1 flex w-full items-center gap-1">
+                          <span className="min-w-0 truncate text-sm font-semibold text-slate-800">
+                            {selectedLane.name || `Track ${selectedIndex + 1}`}
+                          </span>
+                          <svg
+                            viewBox="0 0 20 20"
+                            className={`h-3 w-3 shrink-0 fill-current text-slate-400 transition ${desktopTrackMenuOpen ? "rotate-180" : ""}`}
+                            aria-hidden="true"
+                          >
+                            <path d="M5.5 7.5 10 12l4.5-4.5 1.1 1.1L10 14.2 4.4 8.6z" />
+                          </svg>
+                        </span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => setDesktopTrackSettingsCollapsed((collapsed) => !collapsed)}
@@ -10195,16 +10209,44 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                               className={`flex items-center gap-1 rounded-lg px-1 py-1 transition ${
                                 active ? "bg-emerald-50 text-emerald-950" : "text-slate-700 hover:bg-slate-50"
                               }`}>
-                            <button
-                              type="button"
-                              role="option"
-                              aria-selected={active}
-                              onClick={() => activateLaneForEditing(candidateId)}
-                              className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-1.5 py-1.5 text-left text-xs"
-                            >
-                              <span className="min-w-0 truncate font-semibold">{candidate.name || `Track ${candidateIndex + 1}`}</span>
-                              <span className="shrink-0 text-[10px] font-medium text-slate-400">{type}</span>
-                            </button>
+                            {desktopRenamingLaneId === candidateId ? (
+                              <input
+                                key={`${candidateId}:${candidate.name || ""}`}
+                                autoFocus
+                                defaultValue={candidate.name || `Track ${candidateIndex + 1}`}
+                                maxLength={80}
+                                aria-label={`Track ${candidateIndex + 1} name`}
+                                onClick={(event) => event.stopPropagation()}
+                                onBlur={(event) => {
+                                  void handleLaneNameCommit(candidateId, event.currentTarget.value);
+                                  setDesktopRenamingLaneId(null);
+                                }}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") event.currentTarget.blur();
+                                  if (event.key === "Escape") {
+                                    event.currentTarget.value = candidate.name || `Track ${candidateIndex + 1}`;
+                                    event.currentTarget.blur();
+                                  }
+                                }}
+                                className="min-w-0 flex-1 rounded-lg border-0 bg-white px-1.5 py-1.5 text-left text-xs font-semibold text-slate-800 outline-none ring-1 ring-emerald-400"
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                role="option"
+                                aria-selected={active}
+                                onClick={() => activateLaneForEditing(candidateId)}
+                                onDoubleClick={(event) => {
+                                  event.stopPropagation();
+                                  setDesktopRenamingLaneId(candidateId);
+                                }}
+                                title="Double-click to rename"
+                                className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-1.5 py-1.5 text-left text-xs"
+                              >
+                                <span className="min-w-0 truncate font-semibold">{candidate.name || `Track ${candidateIndex + 1}`}</span>
+                                <span className="shrink-0 text-[10px] font-medium text-slate-400">{type}</span>
+                              </button>
+                            )}
                             <button type="button" onClick={() => toggleTrackMute(candidateId)} className={`h-7 w-7 rounded-md border text-[10px] font-bold ${candidateMuted ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-500"}`} aria-label={`${candidateMuted ? "Unmute" : "Mute"} ${candidate.name || `Track ${candidateIndex + 1}`}`}>M</button>
                             <button type="button" onClick={() => toggleTrackIsolation(candidateId)} className={`h-7 w-7 rounded-md border text-[10px] font-bold ${candidateIsolated ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 text-slate-500"}`} aria-label={`${candidateIsolated ? "Stop soloing" : "Solo"} ${candidate.name || `Track ${candidateIndex + 1}`}`}>S</button>
                             <input type="range" min={0} max={1} step={0.01} value={candidateVolume} onChange={(event) => handleTrackVolumePreview(candidateId, Number(event.target.value))} onPointerUp={() => commitTrackVolume(candidateId)} onPointerCancel={() => commitTrackVolume(candidateId)} onBlur={() => commitTrackVolume(candidateId)} className="w-12 accent-slate-700" aria-label={`Volume for ${candidate.name || `Track ${candidateIndex + 1}`}`} />
@@ -10288,10 +10330,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </div>
                     </div>
                   )}
-                  <button type="button" onClick={() => { setDesktopTrackMenuOpen((open) => !open); setDesktopTrackAddMenuOpen(false); }} className="flex h-10 items-center gap-2 rounded-full border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 shadow-lg transition hover:bg-slate-50" aria-expanded={desktopTrackMenuOpen} aria-haspopup="menu">
-                    <span className="max-w-32 truncate">{selectedLane.name || `Track ${selectedIndex + 1}`}</span>
-                    <svg viewBox="0 0 20 20" className={`h-3.5 w-3.5 fill-current transition ${desktopTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true"><path d="M5.5 7.5 10 12l4.5-4.5 1.1 1.1L10 14.2 4.4 8.6z" /></svg>
-                  </button>
                 </div>
               );
             })()}
