@@ -1336,6 +1336,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [desktopTrackAddMenuOpen, setDesktopTrackAddMenuOpen] = useState(false);
   const [desktopTrackSettingsCollapsed, setDesktopTrackSettingsCollapsed] = useState(false);
   const [desktopRenamingLaneId, setDesktopRenamingLaneId] = useState<string | null>(null);
+  const [trackDropdownContextMenu, setTrackDropdownContextMenu] = useState<{
+    laneId: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [deletingLaneId, setDeletingLaneId] = useState<string | null>(null);
   const [confirmDeleteTrackId, setConfirmDeleteTrackId] = useState<string | null>(null);
   const [mergeTracksDialogOpen, setMergeTracksDialogOpen] = useState(false);
@@ -5490,6 +5495,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       window.removeEventListener("touchstart", handlePointerDown, true);
     };
   }, [openMobileBarMenuLaneId, openTrackMenuId, trackContextMenu]);
+
+  useEffect(() => {
+    if (!trackDropdownContextMenu) return;
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-track-dropdown-context-menu='true']")) return;
+      setTrackDropdownContextMenu(null);
+    };
+    window.addEventListener("mousedown", handlePointerDown, true);
+    window.addEventListener("touchstart", handlePointerDown, true);
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown, true);
+      window.removeEventListener("touchstart", handlePointerDown, true);
+    };
+  }, [trackDropdownContextMenu]);
 
   useEffect(() => {
     if (!trackOffsetSession) return;
@@ -10113,6 +10133,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           setDesktopTrackMenuOpen((open) => !open);
                           setDesktopTrackAddMenuOpen(false);
                         }}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setTrackDropdownContextMenu({
+                            laneId: selectedLaneId,
+                            x: event.clientX,
+                            y: event.clientY,
+                          });
+                        }}
                         className="flex w-1/4 min-w-0 shrink-0 flex-col items-start rounded-md px-1 py-0.5 text-left transition hover:bg-slate-100"
                         aria-expanded={desktopTrackMenuOpen}
                         aria-haspopup="menu"
@@ -10206,6 +10235,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           const candidateVolume = normalizeTrackVolume(trackVolumeById[candidateId] ?? 1);
                           return (
                             <div key={candidateId}
+                              onContextMenu={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setTrackDropdownContextMenu({
+                                  laneId: candidateId,
+                                  x: event.clientX,
+                                  y: event.clientY,
+                                });
+                              }}
                               className={`flex items-center gap-1 rounded-lg px-1 py-1 transition ${
                                 active ? "bg-emerald-50 text-emerald-950" : "text-slate-700 hover:bg-slate-50"
                               }`}>
@@ -10720,6 +10758,36 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             className="block w-full px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-white"
           >
             Move down
+          </button>
+        </div>
+      )}
+      {trackDropdownContextMenu && (
+        <div
+          data-track-dropdown-context-menu="true"
+          className="fixed z-[10041] w-36 rounded-lg border border-slate-200 bg-white py-1 text-xs shadow-xl"
+          style={{ left: trackDropdownContextMenu.x, top: trackDropdownContextMenu.y }}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setDesktopTrackMenuOpen(true);
+              setDesktopRenamingLaneId(trackDropdownContextMenu.laneId);
+              setTrackDropdownContextMenu(null);
+            }}
+            className="block w-full px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Rename
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              requestDeleteTrack(trackDropdownContextMenu.laneId);
+              setTrackDropdownContextMenu(null);
+            }}
+            className="block w-full px-3 py-2 text-left font-semibold text-rose-600 hover:bg-rose-50"
+          >
+            Delete
           </button>
         </div>
       )}
