@@ -30,6 +30,7 @@ import {
 } from "../lib/premiumEntitlement";
 import NoIndexHead from "../components/NoIndexHead";
 import PremiumConversionCard from "../components/PremiumConversionCard";
+import { PLAN_CATALOG, effectiveSubscriptionPlan, proPlanPresentationEnabled } from "../lib/subscriptionPlans";
 import SubscriptionRetentionDialog from "../components/SubscriptionRetentionDialog";
 import type { SubscriptionRetentionGoal } from "../lib/subscriptionCancellationRetention";
 import {
@@ -42,6 +43,7 @@ type Props = {
     email: string;
     name: string | null;
     role: string;
+    subscriptionPlan: string;
     createdAt: string;
     isEmailVerified: boolean;
   };
@@ -149,6 +151,8 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const isPremium =
     user.role === "PREMIUM" || user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const isPaidPremium = user.role === "PREMIUM";
+  const currentPlan = isAdminOrMod ? "PRO" : effectiveSubscriptionPlan(user.role, user.subscriptionPlan);
+  const planDefinition = PLAN_CATALOG[currentPlan];
 
   const resetDeleteFlow = () => {
     setDeleteFlowOpen(false);
@@ -495,7 +499,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
           <p className="settingsProfileEmail">{user.email}</p>
         </div>
         <span className={`settingsPlanBadge${isPremium ? " settingsPlanBadgePremium" : ""}`}>
-          {accountRoleLabel(user.role)}
+          {user.role === "PREMIUM" ? planDefinition.name : accountRoleLabel(user.role)}
         </span>
       </div>
       <div className="settingsRows">
@@ -546,7 +550,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         <div className="settingsPlanSummaryTop">
           <div>
             <span className="settingsPlanEyebrow">Current plan</span>
-            <h3>{isPremium ? "Note2Tabs Premium" : "Note2Tabs Free"}</h3>
+            <h3>{`Note2Tabs ${planDefinition.name}`}</h3>
           </div>
           <span className={`settingsPlanBadge${isPremium ? " settingsPlanBadgePremium" : ""}`}>
             {isPremium ? "Active" : "Free"}
@@ -560,7 +564,10 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
           <div className="settingsCreditTrack" aria-label={`${creditsUsedLabel} credits used`}>
             <span style={{ width: `${creditUsagePercent}%` }} />
           </div>
-          <p>{isPremium ? "100 monthly credits with rollover up to 200." : "10 credits each month."}</p>
+          <p>{isPremium ? `${planDefinition.monthlyCredits} monthly credits with rollover up to ${planDefinition.rolloverCap}.` : "10 credits each month."}</p>
+          {currentPlan === "PRO" && (
+            <p><a href={`mailto:support@note2tabs.com?subject=${encodeURIComponent(`Pro support — ${user.email}`)}`}>Contact priority email support</a></p>
+          )}
         </div>
       </div>
       <div className="settingsRows">
@@ -588,6 +595,11 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
               >
                 {portalBusy ? "Opening..." : "Manage subscription"}
               </button>
+            )}
+            {currentPlan === "PREMIUM" && proPlanPresentationEnabled() && (
+              <Link href="/pricing?source=settings&reason=pro_capacity" className="settingsButton settingsButtonSecondary">
+                Compare Pro
+              </Link>
             )}
             {isAdminOrMod && (
               <Link href={analyticsHref} className="settingsButton settingsButtonSecondary">
@@ -617,7 +629,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         )
       )}
       {isPaidPremium && (
-        <p className="footnote">You can cancel your Premium subscription anytime from Manage subscription.</p>
+        <p className="footnote">You can cancel your {planDefinition.name} subscription anytime from Manage subscription.</p>
       )}
     </section>
   );
@@ -824,6 +836,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       <SubscriptionRetentionDialog
         open={subscriptionDialogOpen}
         busy={portalBusy}
+        planName={currentPlan === "PRO" ? "Pro" : "Premium"}
         onClose={() => setSubscriptionDialogOpen(false)}
         onCancellationIntent={() => {
           sendEvent(ANALYTICS_EVENTS.subscriptionCancellationIntentStarted, {
@@ -915,6 +928,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       email: true,
       name: true,
       role: true,
+      subscriptionPlan: true,
       tokensRemaining: true,
       createdAt: true,
       emailVerified: true,
@@ -926,6 +940,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_PREMIUM_MONTHLY
   );
   const role = user?.role || "FREE";
+  const subscriptionPlan = effectiveSubscriptionPlan(role, user?.subscriptionPlan);
   const isPremium = role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
   const creditWindow = isPremium
     ? getCreditWindow({ userCreatedAt: user?.createdAt })
@@ -952,10 +967,11 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     ),
     resetAt: creditWindow.resetAt,
     isPremium,
+    subscriptionPlan,
     userCreatedAt: user?.createdAt,
   });
   let credits = isPremium
-    ? reconcileCreditsWithStoredBalance(computedCredits, user?.tokensRemaining)
+    ? reconcileCreditsWithStoredBalance(computedCredits, user?.tokensRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap)
     : computedCredits;
   if (isPremium && user?.id) {
     try {
@@ -979,6 +995,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
             email: user.email,
             name: user.name,
             role: user.role,
+            subscriptionPlan: effectiveSubscriptionPlan(user.role, user.subscriptionPlan),
             createdAt: user.createdAt.toISOString(),
             isEmailVerified: Boolean(user.emailVerifiedBool || user.emailVerified),
           }
@@ -986,6 +1003,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
             email: session.user.email,
             name: session.user.name || null,
             role: "FREE",
+            subscriptionPlan: "FREE",
             createdAt: new Date().toISOString(),
             isEmailVerified: Boolean(session.user.isEmailVerified),
           },

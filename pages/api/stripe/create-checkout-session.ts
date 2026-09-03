@@ -5,9 +5,11 @@ import { authOptions } from "../auth/[...nextauth]";
 import { stripeClient } from "../../../lib/stripe";
 import { getAppBaseUrl } from "../../../lib/urls";
 import {
-  getStripePremiumConfig,
+  getStripePaidPlanConfig,
+  getStripePaidPlanConfigs,
 } from "../../../lib/stripePremium";
-import { getFreshUserRole } from "../../../lib/serverAuth";
+import { getFreshUserAccess } from "../../../lib/serverAuth";
+import { PLAN_CATALOG, proPlanCheckoutEnabled, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
 import { createPostHogServerClient } from "../../../lib/posthogServer";
 import { inspectPremiumCustomerState } from "../../../lib/stripePremiumOffer";
 import {
@@ -21,7 +23,6 @@ import { affiliateClickIdFromRequest, affiliateCodeFromRequest } from "../../../
 import { trackAffiliateEvent } from "../../../lib/affiliateTracking";
 import { prisma } from "../../../lib/prisma";
 
-const PREMIUM_TRIAL_DAYS = 7;
 const PREMIUM_ACCESS_ROLES = new Set(["PREMIUM", "ADMIN", "MODERATOR", "MOD"]);
 async function trackCheckoutEvent(
   distinctId: string,
@@ -85,20 +86,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session?.user?.email || !session.user.id) {
     return res.status(401).json({ error: "Your session has expired. Please sign in again." });
   }
-  const currentRole = await getFreshUserRole(session);
-  if (!currentRole) {
+  const access = await getFreshUserAccess(session);
+  if (!access?.role) {
     return res.status(401).json({ error: "Account not found" });
   }
 
-  const premiumConfig = getStripePremiumConfig();
-  if (!stripeClient || !premiumConfig) {
+  const rawPlan = typeof req.body?.plan === "string" ? req.body.plan.toLowerCase() : "premium";
+  if (rawPlan !== "premium" && rawPlan !== "pro") {
+    return res.status(400).json({ error: "Choose either Premium or Pro." });
+  }
+  const requestedPlan: PaidSubscriptionPlan = rawPlan === "pro" ? "PRO" : "PREMIUM";
+  if (requestedPlan === "PRO" && !proPlanCheckoutEnabled()) {
+    return res.status(503).json({ error: "Pro checkout is not available yet." });
+  }
+  const selectedPlan = PLAN_CATALOG[requestedPlan];
+  const selectedConfig = getStripePaidPlanConfig(requestedPlan);
+  const paidConfigs = Object.values(getStripePaidPlanConfigs()).filter(
+    (value): value is NonNullable<typeof value> => Boolean(value)
+  );
+  if (!stripeClient || !selectedConfig) {
     return res.status(503).json({
       error: "Premium checkout is temporarily unavailable. Please try again shortly.",
     });
   }
 
-  if (PREMIUM_ACCESS_ROLES.has(currentRole)) {
-    return res.status(409).json({ error: "This account already has Premium access." });
+  if (PREMIUM_ACCESS_ROLES.has(access.role)) {
+    return res.status(409).json({ error: "This account already has paid access. Manage your plan in Settings." });
   }
 
   const source = normalizePremiumFunnelSource(req.body?.source);
@@ -130,7 +143,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     deviceType,
   }));
   await trackCheckoutEvent(session.user.id, "checkout_session_requested", {
-    plan: "premium_monthly",
+    plan: selectedPlan.analyticsId,
     source,
     reason,
     funnel_id: funnelId,
@@ -152,7 +165,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const customerState = await inspectPremiumCustomerState({
       stripe: stripeClient,
       email: session.user.email,
-      config: premiumConfig,
+      config: selectedConfig,
+      configs: paidConfigs,
     });
     if (customerState.manageableCustomer) {
       const portal = await stripeClient.billingPortal.sessions.create({
@@ -190,7 +204,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
     const checkoutStateHash = createHash("sha256")
       .update(
-        `${session.user.id}|${returnPaths.success}|${funnelId}|${
+      `${session.user.id}|${requestedPlan}|${returnPaths.success}|${funnelId}|${
           customerState.subscriptionState.sort().join("|") || "new"
         }`
       )
@@ -198,14 +212,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .slice(0, 24);
     const checkoutMetadata = {
       userId: session.user.id,
-      note2tabsPlan: "premium",
-      note2tabsPriceId: premiumConfig.priceId,
+      note2tabsPlan: requestedPlan.toLowerCase(),
+      note2tabsPriceId: selectedConfig.priceId,
       premiumFunnelId: funnelId,
       premiumFunnelSource: source,
       premiumFunnelReason: reason,
       premiumOfferVariant: offerVariant,
       premiumFunnelModel: model,
-      premiumTrialIncluded: customerState.trialEligible ? "true" : "false",
+      premiumTrialIncluded: requestedPlan === "PREMIUM" && customerState.trialEligible ? "true" : "false",
       ...(activeAttribution
         ? {
             note2tabsAffiliateId: activeAttribution.affiliateId,
@@ -220,10 +234,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           : { customer_email: session.user.email }),
         mode: "subscription",
         payment_method_collection: "always",
-        line_items: [{ price: premiumConfig.priceId, quantity: 1 }],
+        line_items: [{ price: selectedConfig.priceId, quantity: 1 }],
         client_reference_id: funnelId,
         subscription_data: {
-          ...(customerState.trialEligible ? { trial_period_days: PREMIUM_TRIAL_DAYS } : {}),
+          ...(requestedPlan === "PREMIUM" && customerState.trialEligible
+            ? { trial_period_days: selectedPlan.trialDays }
+            : {}),
           metadata: checkoutMetadata,
         },
         ...(activeAttribution?.affiliate.stripePromotionCodeId
@@ -233,7 +249,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         cancel_url: `${baseUrl}${returnPaths.cancel}`,
         metadata: checkoutMetadata,
       },
-      { idempotencyKey: `premium-checkout-${session.user.id}-${checkoutStateHash}` }
+      { idempotencyKey: `${requestedPlan.toLowerCase()}-checkout-${session.user.id}-${checkoutStateHash}` }
     );
     if (!checkout.url) {
       throw new Error("Stripe returned a checkout session without a URL");
@@ -242,11 +258,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await stripeClient.subscriptions.cancel(subscriptionId);
     }
     await trackCheckoutEvent(session.user.id, "checkout_started", {
-      plan: "premium_monthly",
+      plan: selectedPlan.analyticsId,
       source,
       reason,
       funnel_id: funnelId,
-      trial_included: customerState.trialEligible,
+      trial_included: requestedPlan === "PREMIUM" && customerState.trialEligible,
       offer_variant: offerVariant,
       model,
       device_type: deviceType,
@@ -263,7 +279,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           affiliate_code: activeAttribution.affiliate.code,
           affiliate_click_id: affiliateClickIdFromRequest(req) || undefined,
           checkout_session_id: checkout.id,
-          trial_included: customerState.trialEligible,
+          plan: selectedPlan.analyticsId,
+          trial_included: requestedPlan === "PREMIUM" && customerState.trialEligible,
         },
       });
     }
@@ -281,12 +298,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       url: checkout.url,
       checkoutAttemptId: requestId,
       funnelId,
-      trialIncluded: customerState.trialEligible,
+      plan: requestedPlan.toLowerCase(),
+      trialIncluded: requestedPlan === "PREMIUM" && customerState.trialEligible,
       offerVariant,
     });
   } catch (error) {
     await trackCheckoutEvent(session.user.id, "checkout_failed", {
-      plan: "premium_monthly",
+      plan: selectedPlan.analyticsId,
       source,
       reason,
       funnel_id: funnelId,

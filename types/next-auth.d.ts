@@ -5,6 +5,7 @@ declare module "next-auth" {
     user?: DefaultSession["user"] & {
       id: string;
       role?: string;
+      subscriptionPlan?: "FREE" | "PREMIUM" | "PRO";
       tokensRemaining?: number;
       isEmailVerified?: boolean;
       unverifiedTranscriptionUsed?: boolean;
@@ -20,6 +21,7 @@ declare module "next-auth" {
 
   interface User {
     role?: string;
+    subscriptionPlan?: "FREE" | "PREMIUM" | "PRO";
     tokensRemaining?: number;
     isEmailVerified?: boolean;
     unverifiedTranscriptionUsed?: boolean;
@@ -31,6 +33,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
     role?: string;
+    subscriptionPlan?: "FREE" | "PREMIUM" | "PRO";
     tokensRemaining?: number;
     isEmailVerified?: boolean;
     unverifiedTranscriptionUsed?: boolean;

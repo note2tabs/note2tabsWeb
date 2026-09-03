@@ -29,6 +29,7 @@ import { authOptions } from "./api/auth/[...nextauth]";
 type ProductHomeProps = {
   userId: string;
   role: string;
+  subscriptionPlan: "FREE" | "PREMIUM" | "PRO";
   creditsRemaining: number | null;
   creditsLimit: number | null;
   creditsUnlimited: boolean;
@@ -38,6 +39,7 @@ type ProductHomeProps = {
 
 type PremiumSubscriptionStatus = {
   status: string;
+  plan?: string;
   isTrial: boolean;
   trialEndsAt: string | null;
   cancelAtPeriodEnd: boolean;
@@ -172,6 +174,7 @@ export default function ProductHome({
   creditsUnlimited,
   localPreview = false,
   initialEditors = [],
+  subscriptionPlan,
 }: ProductHomeProps) {
   const router = useRouter();
   const [editors, setEditors] = useState<EditorListItem[]>(initialEditors);
@@ -208,7 +211,7 @@ export default function ProductHome({
   const accountLabel = hasCreditBalance
     ? "Monthly credits"
     : isPremium
-      ? "Premium plan"
+      ? `${subscriptionPlan === "PRO" ? "Pro" : "Premium"} plan`
       : "Free plan";
   const accountValue = creditsUnlimited
     ? "Unlimited"
@@ -619,6 +622,7 @@ export const getServerSideProps: GetServerSideProps<ProductHomeProps> = async (c
       props: {
         userId: "local-home-preview",
         role: "USER",
+        subscriptionPlan: "FREE",
         creditsRemaining: 7,
         creditsLimit: 10,
         creditsUnlimited: false,
@@ -677,6 +681,7 @@ export const getServerSideProps: GetServerSideProps<ProductHomeProps> = async (c
     props: {
       userId: session.user.id,
       role: session.user.role || "USER",
+      subscriptionPlan: session.user.subscriptionPlan || (session.user.role === "PREMIUM" ? "PREMIUM" : "FREE"),
       creditsRemaining: session.user.monthlyCreditsRemaining ?? null,
       creditsLimit: session.user.monthlyCreditsLimit ?? null,
       creditsUnlimited: Boolean(session.user.monthlyCreditsUnlimited),

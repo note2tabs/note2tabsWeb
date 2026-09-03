@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { createBackendToken } from "../../../lib/backendToken";
-import { getFreshUserRole } from "../../../lib/serverAuth";
+import { getFreshUserAccess } from "../../../lib/serverAuth";
 
 const BASE_URL = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -29,8 +29,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session?.user?.id) {
     return res.status(401).json({ error: "Your session has expired. Please sign in again." });
   }
-  const currentRole = await getFreshUserRole(session);
-  if (!currentRole) {
+  const access = await getFreshUserAccess(session);
+  if (!access?.role) {
     return res.status(401).json({ error: "Account not found" });
   }
 
@@ -46,7 +46,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const token = createBackendToken({
     sub: session.user.id,
     email: session.user.email,
-    role: currentRole,
+    role: access.role,
+    subscriptionPlan: access.subscriptionPlan,
   });
 
   const search = req.url?.split("?")[1];

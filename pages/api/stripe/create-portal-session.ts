@@ -4,8 +4,8 @@ import { authOptions } from "../auth/[...nextauth]";
 import { stripeClient } from "../../../lib/stripe";
 import { getAppBaseUrl } from "../../../lib/urls";
 import {
-  getStripePremiumConfig,
-  stripeSubscriptionMatchesPremium,
+  getStripePaidPlanConfigs,
+  stripeSubscriptionPlan,
 } from "../../../lib/stripePremium";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -19,8 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: "Your session has expired. Please sign in again." });
   }
 
-  const premiumConfig = getStripePremiumConfig();
-  if (!stripeClient || !premiumConfig) {
+  if (!stripeClient || !Object.values(getStripePaidPlanConfigs()).some(Boolean)) {
     return res.status(503).json({
       error: "Subscription management is temporarily unavailable. Please try again shortly.",
     });
@@ -39,7 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         status: "all",
         limit: 100,
       });
-      if (subscriptions.data.some((subscription) => stripeSubscriptionMatchesPremium(subscription, premiumConfig))) {
+      if (subscriptions.data.some((subscription) => Boolean(stripeSubscriptionPlan(subscription)))) {
         customer = entry;
         break;
       }

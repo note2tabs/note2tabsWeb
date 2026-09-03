@@ -24,6 +24,7 @@ export async function inspectPremiumCustomerState(input: {
   stripe: StripeClient;
   email: string;
   config: StripePremiumConfig;
+  configs?: StripePremiumConfig[];
 }): Promise<PremiumCustomerState> {
   const customers = await input.stripe.customers.list({
     email: input.email,
@@ -59,7 +60,9 @@ export async function inspectPremiumCustomerState(input: {
           return {
             customer,
             premiumSubscriptions: subscriptions.data.filter((subscription) =>
-              stripeSubscriptionMatchesPremium(subscription, input.config)
+              (input.configs || [input.config]).some((config) =>
+                stripeSubscriptionMatchesPremium(subscription, config)
+              )
             ),
           };
         })

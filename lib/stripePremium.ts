@@ -1,9 +1,11 @@
 import type Stripe from "stripe";
+import { proPlanConfigured, type PaidSubscriptionPlan } from "./subscriptionPlans";
 
 export type StripePremiumConfig = {
   priceId: string;
   productId: string | null;
 };
+export type StripePaidPlanConfig = StripePremiumConfig & { plan: PaidSubscriptionPlan };
 
 type StripeIdReference = string | { id?: string | null } | null | undefined;
 type StripePriceReference =
@@ -27,6 +29,54 @@ export function getStripePremiumConfig(): StripePremiumConfig | null {
     priceId,
     productId: process.env.STRIPE_PRODUCT_PREMIUM?.trim() || null,
   };
+}
+
+export function getStripePaidPlanConfigs(): Record<PaidSubscriptionPlan, StripePaidPlanConfig | null> {
+  const premium = getStripePremiumConfig();
+  const proPriceId = proPlanConfigured() ? process.env.STRIPE_PRICE_PRO_MONTHLY?.trim() : undefined;
+  return {
+    PREMIUM: premium ? { ...premium, plan: "PREMIUM" } : null,
+    PRO: proPriceId ? {
+      plan: "PRO",
+      priceId: proPriceId,
+      productId: process.env.STRIPE_PRODUCT_PRO?.trim() || null,
+    } : null,
+  };
+}
+
+export function getStripePaidPlanConfig(plan: PaidSubscriptionPlan) {
+  return getStripePaidPlanConfigs()[plan];
+}
+
+export function stripePriceMatchesConfig(price: StripePriceReference, config: StripePremiumConfig) {
+  return stripePriceMatchesPremium(price, config);
+}
+
+export function stripeSubscriptionPlan(
+  subscription: Pick<Stripe.Subscription, "items"> | null | undefined
+): PaidSubscriptionPlan | null {
+  const configs = getStripePaidPlanConfigs();
+  for (const plan of ["PRO", "PREMIUM"] as const) {
+    const config = configs[plan];
+    if (config && stripeSubscriptionMatchesPremium(subscription, config)) return plan;
+  }
+  return null;
+}
+
+export function stripeCheckoutPlan(
+  session: Pick<Stripe.Checkout.Session, "line_items" | "metadata"> | null | undefined
+): PaidSubscriptionPlan | null {
+  const metadataPlan = session?.metadata?.note2tabsPlan?.toUpperCase();
+  const configs = getStripePaidPlanConfigs();
+  if ((metadataPlan === "PREMIUM" || metadataPlan === "PRO") && configs[metadataPlan]) {
+    const config = configs[metadataPlan];
+    if (config && stripeCheckoutSessionMatchesPremium(session, config)) return metadataPlan;
+  }
+  for (const plan of ["PRO", "PREMIUM"] as const) {
+    const config = configs[plan];
+    if (config && stripeCheckoutSessionMatchesPremium(session, config)) return plan;
+  }
+  return null;
 }
 
 export function stripePriceMatchesPremium(
@@ -65,10 +115,7 @@ export function stripeCheckoutSessionMatchesPremium(
   session: Pick<Stripe.Checkout.Session, "line_items" | "metadata"> | null | undefined,
   config: StripePremiumConfig
 ) {
-  if (
-    session?.metadata?.note2tabsPlan === "premium" &&
-    session.metadata.note2tabsPriceId === config.priceId
-  ) {
+  if (session?.metadata?.note2tabsPriceId === config.priceId) {
     return true;
   }
   return Boolean(

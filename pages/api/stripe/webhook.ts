@@ -3,19 +3,20 @@ import type Stripe from "stripe";
 import { stripeClient } from "../../../lib/stripe";
 import { prisma } from "../../../lib/prisma";
 import {
-  PREMIUM_MONTHLY_CREDITS,
   STARTING_CREDITS,
   capCreditBalance,
 } from "../../../lib/credits";
 import {
-  getStripePremiumConfig,
-  stripeCheckoutSessionMatchesPremium,
+  getStripePaidPlanConfigs,
+  stripeCheckoutPlan,
+  stripeSubscriptionPlan,
   stripeInvoiceMatchesPremium,
   stripeInvoiceRenewalAt,
   stripeSubscriptionId,
   stripeSubscriptionMatchesPremium,
   type StripePremiumConfig,
 } from "../../../lib/stripePremium";
+import { PLAN_CATALOG, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
 import {
   createPostHogServerClient,
   flushPostHogServerClientInBackground,
@@ -35,6 +36,7 @@ import {
 import { affiliateCanEarnCommission, commissionAmount } from "../../../lib/affiliate";
 import { buildPaymentFailedEmail } from "../../../lib/paymentRecovery";
 import { trackAffiliateEvent } from "../../../lib/affiliateTracking";
+import { buildProStartedEmail } from "../../../lib/proSubscriptionEmail";
 
 export const config = {
   api: {
@@ -163,31 +165,38 @@ async function emailHasEntitledSubscription(
   return false;
 }
 
-async function setPremiumForIdentifier(identifier: UserIdentifier) {
+async function setPremiumForIdentifier(identifier: UserIdentifier, plan: PaidSubscriptionPlan = "PREMIUM") {
   const user = await prisma.user.findFirst({
     where: identifier,
-    select: { id: true, role: true, tokensRemaining: true },
+    select: { id: true, role: true, subscriptionPlan: true, tokensRemaining: true },
   });
   if (!user) return null;
   if (user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD") {
     return null;
   }
-  const isAlreadyPremium = user.role === "PREMIUM";
+  const isAlreadyPaid = user.role === "PREMIUM";
+  const definition = PLAN_CATALOG[plan];
   const tokensRemaining =
-    !isAlreadyPremium
-      ? PREMIUM_MONTHLY_CREDITS
-      : capCreditBalance(user.tokensRemaining);
+    !isAlreadyPaid
+      ? definition.monthlyCredits
+      : capCreditBalance(
+          plan === "PRO" && user.subscriptionPlan !== "PRO"
+            ? Math.max(user.tokensRemaining, definition.monthlyCredits)
+            : user.tokensRemaining,
+          definition.rolloverCap
+        );
   await prisma.user.update({
     where: { id: user.id },
     data: {
       role: "PREMIUM",
+      subscriptionPlan: plan,
       tokensRemaining,
     },
   });
   return user.id;
 }
 
-function trackSubscriptionStarted(userId: string, session: Stripe.Checkout.Session) {
+function trackSubscriptionStarted(userId: string, session: Stripe.Checkout.Session, plan: PaidSubscriptionPlan) {
   const client = createPostHogServerClient();
   if (!client) return;
   const funnelId =
@@ -202,7 +211,7 @@ function trackSubscriptionStarted(userId: string, session: Stripe.Checkout.Sessi
     distinctId: userId,
     event: "subscription_started",
     properties: {
-      plan: "premium_monthly",
+      plan: PLAN_CATALOG[plan].analyticsId,
       source: normalizePremiumFunnelSource(session.metadata?.premiumFunnelSource),
       reason: normalizePremiumFunnelReason(session.metadata?.premiumFunnelReason),
       funnel_id: funnelId || undefined,
@@ -402,6 +411,26 @@ async function sendPremiumTrialStartedNotice(
   });
 }
 
+async function sendProStartedNotice(userId: string, stripeEventId: string) {
+  const marker = { identifier: `notice:pro-started:${userId}`, token: `stripe-event:${stripeEventId}` };
+  try {
+    await prisma.verificationToken.create({
+      data: { ...marker, expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) },
+    });
+  } catch (error) {
+    if (prismaErrorCode(error) === "P2002") return;
+    throw error;
+  }
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+  if (!user?.email) return;
+  try {
+    await sendTransactionalEmail({ to: user.email, ...buildProStartedEmail(user.name) });
+  } catch (error) {
+    await prisma.verificationToken.deleteMany({ where: marker });
+    throw error;
+  }
+}
+
 function checkoutPromotionCodeId(session: Stripe.Checkout.Session) {
   const discounts = (session.total_details as any)?.breakdown?.discounts || [];
   for (const entry of discounts) {
@@ -594,7 +623,8 @@ async function sendPaymentFailedNotice(
   userId: string,
   email: string,
   invoiceId: string,
-  attemptCount: number
+  attemptCount: number,
+  plan: PaidSubscriptionPlan = "PREMIUM"
 ) {
   // Set this to "stripe" when Stripe's own failed-payment emails are enabled,
   // so customers receive one recovery message rather than two.
@@ -619,7 +649,7 @@ async function sendPaymentFailedNotice(
     where: { id: userId },
     select: { name: true },
   });
-  const notice = buildPaymentFailedEmail({ name: user?.name });
+  const notice = buildPaymentFailedEmail({ name: user?.name, planName: PLAN_CATALOG[plan].name as "Premium" | "Pro" });
   try {
     await sendTransactionalEmail({ to: email, ...notice });
   } catch (error) {
@@ -632,6 +662,7 @@ type RenewalInvoiceDetails = {
   invoiceId: string;
   stripeSubscriptionId: string;
   renewalAt: Date;
+  plan: PaidSubscriptionPlan;
 };
 
 const prismaErrorCode = (error: unknown) =>
@@ -655,7 +686,7 @@ async function grantRenewalForIdentifier(
 
           const user = await tx.user.findFirst({
             where: identifier,
-            select: { id: true, role: true, tokensRemaining: true },
+            select: { id: true, role: true, subscriptionPlan: true, tokensRemaining: true },
           });
           if (!user || user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD") {
             return "ignored" as const;
@@ -681,13 +712,14 @@ async function grantRenewalForIdentifier(
           });
           if (isOutOfOrder) return "out_of_order" as const;
 
+          const definition = PLAN_CATALOG[renewal.plan];
           const tokensRemaining =
             user.role === "PREMIUM"
-              ? capCreditBalance(user.tokensRemaining + PREMIUM_MONTHLY_CREDITS)
-              : PREMIUM_MONTHLY_CREDITS;
+              ? capCreditBalance(user.tokensRemaining + definition.monthlyCredits, definition.rolloverCap)
+              : definition.monthlyCredits;
           await tx.user.update({
             where: { id: user.id },
-            data: { role: "PREMIUM", tokensRemaining },
+            data: { role: "PREMIUM", subscriptionPlan: renewal.plan, tokensRemaining },
           });
           return "granted" as const;
         },
@@ -705,14 +737,16 @@ async function grantRenewalForIdentifier(
 
 async function downgradePremiumByEmail(
   email: string,
-  premiumConfig: StripePremiumConfig,
+  paidConfigs: StripePremiumConfig[],
   customerId?: string | null
 ) {
-  if (customerId && (await customerHasEntitledSubscription(customerId, premiumConfig))) {
-    return;
+  if (customerId) {
+    for (const config of paidConfigs) {
+      if (await customerHasEntitledSubscription(customerId, config)) return;
+    }
   }
-  if (await emailHasEntitledSubscription(email, premiumConfig, customerId)) {
-    return;
+  for (const config of paidConfigs) {
+    if (await emailHasEntitledSubscription(email, config, customerId)) return;
   }
 
   const user = await prisma.user.findFirst({
@@ -722,45 +756,37 @@ async function downgradePremiumByEmail(
   if (!user || user.role !== "PREMIUM") return;
   await prisma.user.update({
     where: { id: user.id },
-    data: { role: "FREE", tokensRemaining: STARTING_CREDITS },
+    data: { role: "FREE", subscriptionPlan: "FREE", tokensRemaining: STARTING_CREDITS },
   });
 }
 
-async function checkoutSessionIsForPremium(
-  session: Stripe.Checkout.Session,
-  premiumConfig: StripePremiumConfig
-) {
-  if (!stripeClient) return false;
-  if (session.mode && session.mode !== "subscription") return false;
+async function paidPlanForCheckoutSession(session: Stripe.Checkout.Session) {
+  if (!stripeClient) return null;
+  if (session.mode && session.mode !== "subscription") return null;
 
   const subscriptionRef = session.subscription;
   if (subscriptionRef && typeof subscriptionRef === "object") {
-    if (stripeSubscriptionMatchesPremium(subscriptionRef, premiumConfig)) return true;
+    const plan = stripeSubscriptionPlan(subscriptionRef);
+    if (plan) return plan;
   } else if (typeof subscriptionRef === "string") {
     const subscription = await stripeClient.subscriptions.retrieve(subscriptionRef);
-    if (stripeSubscriptionMatchesPremium(subscription, premiumConfig)) return true;
+    const plan = stripeSubscriptionPlan(subscription);
+    if (plan) return plan;
   }
 
-  if (!session.id) return false;
+  if (!session.id) return null;
   const lineItems = await stripeClient.checkout.sessions.listLineItems(session.id, { limit: 100 });
-  return lineItems.data.some((lineItem) =>
-    stripeCheckoutSessionMatchesPremium(
-      { line_items: { data: [lineItem] } } as Stripe.Checkout.Session,
-      premiumConfig
-    )
-  );
+  return stripeCheckoutPlan({ ...session, line_items: lineItems } as Stripe.Checkout.Session);
 }
 
-async function premiumSubscriptionForInvoice(
-  invoice: Stripe.Invoice,
-  premiumConfig: StripePremiumConfig
-) {
+async function paidSubscriptionForInvoice(invoice: Stripe.Invoice) {
   if (!stripeClient) return null;
+  const configs = Object.values(getStripePaidPlanConfigs()).filter(
+    (value): value is NonNullable<typeof value> => Boolean(value)
+  );
+  const matchingConfig = configs.find((config) => stripeInvoiceMatchesPremium(invoice, config));
   const matchingLine = invoice.lines?.data?.find((line) =>
-    stripeInvoiceMatchesPremium(
-      { lines: { data: [line] } } as Stripe.Invoice,
-      premiumConfig
-    )
+    matchingConfig && stripeInvoiceMatchesPremium({ lines: { data: [line] } } as Stripe.Invoice, matchingConfig)
   );
   const subscriptionRef = invoice.subscription || matchingLine?.subscription || null;
   if (!subscriptionRef) return null;
@@ -768,9 +794,11 @@ async function premiumSubscriptionForInvoice(
     typeof subscriptionRef === "string"
       ? await stripeClient.subscriptions.retrieve(subscriptionRef)
       : subscriptionRef;
-  if (!stripeSubscriptionMatchesPremium(subscription, premiumConfig)) return null;
-  if (invoice.lines?.data?.length && !stripeInvoiceMatchesPremium(invoice, premiumConfig)) return null;
-  return subscription;
+  const plan = stripeSubscriptionPlan(subscription);
+  if (!plan) return null;
+  const config = getStripePaidPlanConfigs()[plan];
+  if (!config || (invoice.lines?.data?.length && !stripeInvoiceMatchesPremium(invoice, config))) return null;
+  return { subscription, plan, config };
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -779,8 +807,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const premiumConfig = getStripePremiumConfig();
-  if (!stripeClient || !process.env.STRIPE_WEBHOOK_SECRET || !premiumConfig) {
+  const paidConfigs = Object.values(getStripePaidPlanConfigs()).filter(
+    (value): value is NonNullable<typeof value> => Boolean(value)
+  );
+  if (!stripeClient || !process.env.STRIPE_WEBHOOK_SECRET || paidConfigs.length === 0) {
     return res.status(503).json({ error: "Stripe not configured yet." });
   }
 
@@ -801,20 +831,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     if (event.type === "checkout.session.completed") {
       const checkoutSession = event.data.object as Stripe.Checkout.Session;
-      if (!(await checkoutSessionIsForPremium(checkoutSession, premiumConfig))) {
+      const plan = await paidPlanForCheckoutSession(checkoutSession);
+      if (!plan) {
         return res.status(200).json({ received: true, ignored: "unrelated_checkout" });
       }
       const identifier = await resolveUserIdentifierFromCheckoutSession(checkoutSession);
       if (identifier) {
-        const userId = await setPremiumForIdentifier(identifier);
+        const userId = await setPremiumForIdentifier(identifier, plan);
         if (userId) {
-          trackSubscriptionStarted(userId, checkoutSession);
+          trackSubscriptionStarted(userId, checkoutSession, plan);
           await persistAffiliateAttribution(checkoutSession, userId);
-          await trackAffiliateTrialStarted(userId, checkoutSession);
-          try {
+          if (plan === "PREMIUM" && checkoutSession.metadata?.premiumTrialIncluded === "true") {
+            await trackAffiliateTrialStarted(userId, checkoutSession);
+          }
+          if (plan === "PREMIUM") try {
             await sendPremiumTrialStartedNotice(userId, checkoutSession, event.id);
           } catch (error) {
             console.error("Premium trial started notice delivery failed", { userId, error });
+          }
+          if (plan === "PRO") try {
+            await sendProStartedNotice(userId, event.id);
+          } catch (error) {
+            console.error("Pro started notice delivery failed", { userId, error });
           }
         }
       }
@@ -822,7 +860,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (event.type === "customer.subscription.deleted") {
       const subscription = event.data.object as Stripe.Subscription;
-      if (!stripeSubscriptionMatchesPremium(subscription, premiumConfig)) {
+      const plan = stripeSubscriptionPlan(subscription);
+      if (!plan) {
         return res.status(200).json({ received: true, ignored: "unrelated_subscription" });
       }
       const email = await resolveEmailFromCustomerRef(subscription.customer);
@@ -830,6 +869,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (userId) {
         trackSubscriptionLifecycle(userId, "subscription_ended", event.id, {
           status: subscription.status,
+          plan: PLAN_CATALOG[plan].analyticsId,
           cancellation_reason: subscription.cancellation_details?.reason || undefined,
           cancellation_feedback: subscription.cancellation_details?.feedback || undefined,
         });
@@ -837,7 +877,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (email) {
         await downgradePremiumByEmail(
           email,
-          premiumConfig,
+          paidConfigs,
           stripeSubscriptionId(subscription.customer)
         );
       }
@@ -845,7 +885,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (event.type === "customer.subscription.updated") {
       const subscription = event.data.object as Stripe.Subscription;
-      if (!stripeSubscriptionMatchesPremium(subscription, premiumConfig)) {
+      const plan = stripeSubscriptionPlan(subscription);
+      if (!plan) {
         return res.status(200).json({ received: true, ignored: "unrelated_subscription" });
       }
       const email = await resolveEmailFromCustomerRef(subscription.customer);
@@ -862,6 +903,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           event.id,
           {
             status: subscription.status,
+            plan: PLAN_CATALOG[plan].analyticsId,
             trial: subscription.status === "trialing",
             days_remaining: unixDaysRemaining(
               subscription.cancel_at || subscription.trial_end || subscription.current_period_end
@@ -872,13 +914,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         );
       }
       if (ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
-        if (userId) await setPremiumForIdentifier({ id: userId });
-        else if (email) await setPremiumForIdentifier({ email });
+        if (userId) await setPremiumForIdentifier({ id: userId }, plan);
+        else if (email) await setPremiumForIdentifier({ email }, plan);
       }
       if (email && REVOKED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
         await downgradePremiumByEmail(
           email,
-          premiumConfig,
+          paidConfigs,
           stripeSubscriptionId(subscription.customer)
         );
       }
@@ -886,7 +928,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (event.type === "customer.subscription.trial_will_end") {
       const subscription = event.data.object as Stripe.Subscription;
-      if (!stripeSubscriptionMatchesPremium(subscription, premiumConfig)) {
+      const plan = stripeSubscriptionPlan(subscription);
+      if (plan !== "PREMIUM") {
         return res.status(200).json({ received: true, ignored: "unrelated_subscription" });
       }
       const email = await resolveEmailFromCustomerRef(subscription.customer);
@@ -894,6 +937,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (userId) {
         trackSubscriptionLifecycle(userId, "subscription_trial_ending", event.id, {
           status: subscription.status,
+          plan: PLAN_CATALOG[plan].analyticsId,
           days_remaining: unixDaysRemaining(subscription.trial_end),
           cancel_at_period_end: subscription.cancel_at_period_end,
         });
@@ -911,10 +955,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (event.type === "invoice.payment_succeeded") {
       const invoice = event.data.object as Stripe.Invoice;
-      const premiumSubscription = await premiumSubscriptionForInvoice(invoice, premiumConfig);
-      if (!premiumSubscription) {
+      const paidSubscription = await paidSubscriptionForInvoice(invoice);
+      if (!paidSubscription) {
         return res.status(200).json({ received: true, ignored: "unrelated_invoice" });
       }
+      const { subscription: premiumSubscription, plan, config: paidConfig } = paidSubscription;
       if (!ENTITLED_SUBSCRIPTION_STATUSES.has(premiumSubscription.status)) {
         return res.status(200).json({ received: true, ignored: "subscription_not_entitled" });
       }
@@ -932,7 +977,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (userId) await trackAffiliatePayment(invoice, premiumSubscription, userId, isRenewal);
       if (isRenewal) {
         const subscriptionId = stripeSubscriptionId(premiumSubscription);
-        const renewalAt = stripeInvoiceRenewalAt(invoice, premiumConfig);
+        const renewalAt = stripeInvoiceRenewalAt(invoice, paidConfig);
         if (!invoice.id || !subscriptionId || !renewalAt) {
           return res.status(200).json({ received: true, ignored: "invalid_renewal" });
         }
@@ -940,15 +985,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           invoiceId: invoice.id,
           stripeSubscriptionId: subscriptionId,
           renewalAt,
+          plan,
         });
         if (userId && result === "granted") {
           trackSubscriptionLifecycle(userId, "subscription_renewed", event.id, {
             billing_reason: invoice.billing_reason || undefined,
+            plan: PLAN_CATALOG[plan].analyticsId,
           });
         }
         return res.status(200).json({ received: true, renewal: result });
       }
-      await setPremiumForIdentifier(identifier);
+      await setPremiumForIdentifier(identifier, plan);
     }
 
     if (event.type === "charge.refunded") {
@@ -964,16 +1011,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (event.type === "invoice.payment_failed") {
       const invoice = event.data.object as Stripe.Invoice;
-      const premiumSubscription = await premiumSubscriptionForInvoice(invoice, premiumConfig);
-      if (!premiumSubscription) {
+      const paidSubscription = await paidSubscriptionForInvoice(invoice);
+      if (!paidSubscription) {
         return res.status(200).json({ received: true, ignored: "unrelated_invoice" });
       }
+      const { subscription: premiumSubscription, plan } = paidSubscription;
       if (!ENTITLED_SUBSCRIPTION_STATUSES.has(premiumSubscription.status)) {
         const customerId = stripeSubscriptionId(premiumSubscription.customer);
         const email =
           normalizeEmail(invoice.customer_email) || (await resolveEmailFromCustomerRef(invoice.customer));
         if (email) {
-          await downgradePremiumByEmail(email, premiumConfig, customerId);
+          await downgradePremiumByEmail(email, paidConfigs, customerId);
         }
       }
       const email =
@@ -984,13 +1032,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           status: premiumSubscription.status,
           attempt_count: invoice.attempt_count || 0,
           billing_reason: invoice.billing_reason || undefined,
+          plan: PLAN_CATALOG[plan].analyticsId,
         });
         if (email && invoice.id) {
           await sendPaymentFailedNotice(
             userId,
             email,
             invoice.id,
-            invoice.attempt_count || 0
+            invoice.attempt_count || 0,
+            plan
           );
         }
       }

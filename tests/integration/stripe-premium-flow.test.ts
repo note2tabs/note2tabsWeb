@@ -25,7 +25,9 @@ const { sessionMock, stripeMock, prismaMock, posthogMock, sendEmailMock } = vi.h
         list: vi.fn(),
         retrieve: vi.fn(),
         cancel: vi.fn(),
+        update: vi.fn(),
       },
+      subscriptionSchedules: { create: vi.fn(), update: vi.fn() },
       invoices: {
         retrieve: vi.fn(),
       },
@@ -129,7 +131,9 @@ const premiumSubscription = (overrides: Record<string, unknown> = {}) => ({
   id: "sub_premium",
   status: "active",
   customer: "cus_123",
-  items: { data: [{ price: premiumPrice }] },
+  current_period_start: 1_700_000_000,
+  current_period_end: 1_702_678_400,
+  items: { data: [{ id: "si_premium", price: premiumPrice, quantity: 1 }] },
   ...overrides,
 });
 const premiumInvoice = (overrides: Record<string, unknown> = {}) => ({
@@ -157,6 +161,9 @@ describe("stripe premium flow", () => {
     vi.clearAllMocks();
     process.env.STRIPE_PRICE_PREMIUM_MONTHLY = "price_test_premium";
     delete process.env.STRIPE_PRODUCT_PREMIUM;
+    delete process.env.STRIPE_PRICE_PRO_MONTHLY;
+    delete process.env.STRIPE_PRODUCT_PRO;
+    delete process.env.PRO_PLAN_ENABLED;
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
     delete process.env.PREMIUM_TRIAL_REMINDER_MODE;
     process.env.NEXTAUTH_URL = "https://note2tabs.test";
@@ -212,6 +219,38 @@ describe("stripe premium flow", () => {
   });
 
   describe("create-checkout-session", () => {
+    it("keeps Pro checkout disabled until the launch flag is enabled", async () => {
+      process.env.STRIPE_PRICE_PRO_MONTHLY = "price_test_pro";
+      process.env.STRIPE_PRODUCT_PRO = "prod_test_pro";
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({ method: "POST", body: { plan: "pro" } });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(503);
+      expect(stripeMock.checkout.sessions.create).not.toHaveBeenCalled();
+    });
+
+    it("creates Pro checkout without a trial", async () => {
+      process.env.STRIPE_PRICE_PRO_MONTHLY = "price_test_pro";
+      process.env.STRIPE_PRODUCT_PRO = "prod_test_pro";
+      process.env.PRO_PLAN_ENABLED = "true";
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({ method: "POST", body: { plan: "pro" } });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(res._getJSONData()).toMatchObject({ plan: "pro", trialIncluded: false });
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          line_items: [{ price: "price_test_pro", quantity: 1 }],
+          subscription_data: expect.not.objectContaining({ trial_period_days: expect.anything() }),
+        }),
+        expect.objectContaining({ idempotencyKey: expect.stringContaining("pro-checkout-") })
+      );
+    });
+
     it("creates a checkout session with user metadata", async () => {
       const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
       const { req, res } = createMocks({
@@ -235,6 +274,7 @@ describe("stripe premium flow", () => {
         url: "https://checkout.stripe.test/session_123",
         checkoutAttemptId: "local",
         funnelId: "funnel_test_123",
+        plan: "premium",
         trialIncluded: true,
         offerVariant: "value_framing",
       });
@@ -637,6 +677,63 @@ describe("stripe premium flow", () => {
     });
   });
 
+  describe("change-plan", () => {
+    it("upgrades Premium to Pro immediately with proration", async () => {
+      process.env.STRIPE_PRICE_PRO_MONTHLY = "price_test_pro";
+      process.env.STRIPE_PRODUCT_PRO = "prod_test_pro";
+      process.env.PRO_PLAN_ENABLED = "true";
+      prismaMock.user.findUnique.mockResolvedValue({ role: "PREMIUM", subscriptionPlan: "PREMIUM" });
+      stripeMock.customers.list.mockResolvedValue({ data: [{ id: "cus_1", email: "user@example.com" }] });
+      stripeMock.subscriptions.list.mockResolvedValue({ data: [premiumSubscription()] });
+      stripeMock.subscriptions.update.mockResolvedValue({});
+      const handler = (await import("../../pages/api/stripe/change-plan")).default;
+      const { req, res } = createMocks({ method: "POST", body: { plan: "pro" } });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(res._getJSONData()).toMatchObject({ changed: true, plan: "pro", effective: "immediate" });
+      expect(stripeMock.subscriptions.update).toHaveBeenCalledWith(
+        "sub_premium",
+        expect.objectContaining({
+          items: [{ id: "si_premium", price: "price_test_pro" }],
+          proration_behavior: "always_invoice",
+        })
+      );
+    });
+
+    it("schedules a Pro to Premium downgrade for renewal", async () => {
+      process.env.STRIPE_PRICE_PRO_MONTHLY = "price_test_pro";
+      process.env.STRIPE_PRODUCT_PRO = "prod_test_pro";
+      process.env.PRO_PLAN_ENABLED = "true";
+      prismaMock.user.findUnique.mockResolvedValue({ role: "PREMIUM", subscriptionPlan: "PRO" });
+      stripeMock.customers.list.mockResolvedValue({ data: [{ id: "cus_1", email: "user@example.com" }] });
+      stripeMock.subscriptions.list.mockResolvedValue({
+        data: [premiumSubscription({
+          id: "sub_pro",
+          items: { data: [{ id: "si_pro", price: { id: "price_test_pro", product: "prod_test_pro" }, quantity: 1 }] },
+        })],
+      });
+      stripeMock.subscriptionSchedules.create.mockResolvedValue({ id: "sub_sched_1" });
+      stripeMock.subscriptionSchedules.update.mockResolvedValue({});
+      const handler = (await import("../../pages/api/stripe/change-plan")).default;
+      const { req, res } = createMocks({ method: "POST", body: { plan: "premium" } });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(res._getJSONData()).toMatchObject({ effective: "renewal", plan: "premium" });
+      expect(stripeMock.subscriptionSchedules.update).toHaveBeenCalledWith(
+        "sub_sched_1",
+        expect.objectContaining({
+          phases: expect.arrayContaining([
+            expect.objectContaining({ items: [{ price: "price_test_premium", quantity: 1 }] }),
+          ]),
+        })
+      );
+    });
+  });
+
   describe("premium offer eligibility", () => {
     it("returns a trial only for accounts without previous Premium trial history", async () => {
       const handler = (await import("../../pages/api/stripe/offer-eligibility")).default;
@@ -850,6 +947,39 @@ describe("stripe premium flow", () => {
   });
 
   describe("confirm-checkout-session", () => {
+    it("confirms Pro without a trial and grants 250 credits", async () => {
+      process.env.STRIPE_PRICE_PRO_MONTHLY = "price_test_pro";
+      process.env.STRIPE_PRODUCT_PRO = "prod_test_pro";
+      const proSubscription = premiumSubscription({
+        id: "sub_pro",
+        status: "active",
+        items: { data: [{ id: "si_pro", price: { id: "price_test_pro", product: "prod_test_pro" } }] },
+      });
+      stripeMock.subscriptions.retrieve.mockResolvedValue(proSubscription);
+      stripeMock.checkout.sessions.retrieve.mockResolvedValue({
+        id: "cs_pro",
+        mode: "subscription",
+        status: "complete",
+        metadata: { userId: "user_1", note2tabsPlan: "pro", note2tabsPriceId: "price_test_pro" },
+        line_items: { data: [{ price: { id: "price_test_pro", product: "prod_test_pro" } }] },
+        subscription: proSubscription,
+      });
+      prismaMock.user.findFirst.mockResolvedValue({
+        id: "user_1", role: "FREE", subscriptionPlan: "FREE", tokensRemaining: STARTING_CREDITS,
+      });
+      const handler = (await import("../../pages/api/stripe/confirm-checkout-session")).default;
+      const { req, res } = createMocks({ method: "POST", body: { sessionId: "cs_pro" } });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(res._getJSONData()).toEqual({ confirmed: true, role: "PREMIUM", subscriptionPlan: "PRO" });
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: "user_1" },
+        data: { role: "PREMIUM", subscriptionPlan: "PRO", tokensRemaining: 250 },
+      });
+    });
+
     it("confirms an authenticated completed Premium checkout immediately", async () => {
       stripeMock.subscriptions.retrieve.mockResolvedValue(
         premiumSubscription({ status: "trialing" })
@@ -880,10 +1010,10 @@ describe("stripe premium flow", () => {
       await handler(req as any, res as any);
 
       expect(res._getStatusCode()).toBe(200);
-      expect(res._getJSONData()).toEqual({ confirmed: true, role: "PREMIUM" });
+      expect(res._getJSONData()).toEqual({ confirmed: true, role: "PREMIUM", subscriptionPlan: "PREMIUM" });
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: "user_1" },
-        data: { role: "PREMIUM", tokensRemaining: PREMIUM_MONTHLY_CREDITS },
+        data: { role: "PREMIUM", subscriptionPlan: "PREMIUM", tokensRemaining: PREMIUM_MONTHLY_CREDITS },
       });
     });
 
@@ -952,11 +1082,11 @@ describe("stripe premium flow", () => {
       expect(res._getStatusCode()).toBe(200);
       expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
         where: { id: "user_1" },
-        select: { id: true, role: true, tokensRemaining: true },
+        select: { id: true, role: true, subscriptionPlan: true, tokensRemaining: true },
       });
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: "user_1" },
-        data: { role: "PREMIUM", tokensRemaining: PREMIUM_MONTHLY_CREDITS },
+        data: { role: "PREMIUM", subscriptionPlan: "PREMIUM", tokensRemaining: PREMIUM_MONTHLY_CREDITS },
       });
       expect(posthogMock.capture).toHaveBeenCalledWith({
         distinctId: "user_1",
@@ -1066,11 +1196,11 @@ describe("stripe premium flow", () => {
       expect(res._getStatusCode()).toBe(200);
       expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
         where: { email: "user@example.com" },
-        select: { id: true, role: true, tokensRemaining: true },
+        select: { id: true, role: true, subscriptionPlan: true, tokensRemaining: true },
       });
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: "user_1" },
-        data: { role: "PREMIUM", tokensRemaining: PREMIUM_MONTHLY_CREDITS },
+        data: { role: "PREMIUM", subscriptionPlan: "PREMIUM", tokensRemaining: PREMIUM_MONTHLY_CREDITS },
       });
     });
 
@@ -1123,7 +1253,7 @@ describe("stripe premium flow", () => {
       expect(res._getStatusCode()).toBe(200);
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: "user_1" },
-        data: { role: "FREE", tokensRemaining: STARTING_CREDITS },
+        data: { role: "FREE", subscriptionPlan: "FREE", tokensRemaining: STARTING_CREDITS },
       });
     });
 
@@ -1186,6 +1316,7 @@ describe("stripe premium flow", () => {
         where: { id: "user_1" },
         data: {
           role: "PREMIUM",
+          subscriptionPlan: "PREMIUM",
           tokensRemaining: 200,
         },
       });

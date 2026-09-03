@@ -743,7 +743,7 @@ input[type="number"] {
 
 .product-home__launcher {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   width: min(100%, 790px);
   gap: 12px;
   margin-top: 22px;
@@ -4485,7 +4485,7 @@ input[type="number"] {
 }
 
 .hero-heading {
-  max-width: 980px;
+  max-width: 1240px;
   text-align: center;
 }
 
@@ -11690,6 +11690,11 @@ input[type="number"] {
   align-items: stretch;
 }
 
+.pricing-page__plans--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 1240px;
+}
+
 .pricing-plan {
   position: relative;
   display: grid;
@@ -11706,6 +11711,16 @@ input[type="number"] {
   border-color: #06110d;
   background: #fff;
   box-shadow: 0 24px 62px rgba(6, 17, 13, 0.13);
+}
+
+.pricing-plan--pro {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.pricing-plan__badge--quiet {
+  border: 1px solid rgba(6, 17, 13, 0.14);
+  background: #f5f3ec;
+  color: #24322d;
 }
 
 .pricing-plan__badge {
@@ -12039,10 +12054,6 @@ input[type="number"] {
   .pricing-plan {
     padding: 25px 22px;
     border-radius: 20px;
-  }
-
-  .pricing-plan--premium {
-    order: -1;
   }
 
   .pricing-plan__top {

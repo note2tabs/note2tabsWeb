@@ -50,6 +50,7 @@ model User {
   image                       String?
   passwordHash                String?
   role                        String               @default("FREE")
+  subscriptionPlan            String               @default("FREE")
   tokensRemaining             Int                  @default(120)
   createdAt                   DateTime             @default(now())
   updatedAt                   DateTime             @updatedAt

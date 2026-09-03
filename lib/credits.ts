@@ -10,6 +10,8 @@ export const STARTING_CREDITS = 10;
 export const FREE_MONTHLY_CREDITS = 10;
 export const PREMIUM_MONTHLY_CREDITS = 100;
 export const PREMIUM_ROLLOVER_CREDIT_CAP = 200;
+export const PRO_MONTHLY_CREDITS = 250;
+export const PRO_ROLLOVER_CREDIT_CAP = 500;
 export const CREDIT_INTERVAL_SEC = 30;
 export const DEFAULT_DURATION_SEC = 30;
 export const DEV_CREDITS_LIMIT = 9999;
@@ -123,6 +125,7 @@ type BuildCreditsOptions = {
   usedCredits?: number;
   resetAt: Date;
   isPremium: boolean;
+  subscriptionPlan?: "FREE" | "PREMIUM" | "PRO";
   userCreatedAt?: Date;
 };
 
@@ -131,6 +134,7 @@ export function buildCreditsSummary({
   usedCredits,
   resetAt,
   isPremium,
+  subscriptionPlan,
   userCreatedAt,
 }: BuildCreditsOptions): CreditsSummary {
   const used =
@@ -149,9 +153,11 @@ export function buildCreditsSummary({
     };
   }
   const createdAt = userCreatedAt || new Date();
+  const monthlyCredits = subscriptionPlan === "PRO" ? PRO_MONTHLY_CREDITS : PREMIUM_MONTHLY_CREDITS;
+  const rolloverCap = subscriptionPlan === "PRO" ? PRO_ROLLOVER_CREDIT_CAP : PREMIUM_ROLLOVER_CREDIT_CAP;
   const grants = countMonthlyGrants(createdAt, new Date());
-  const earnedLimit = grants * PREMIUM_MONTHLY_CREDITS;
-  const remaining = capCreditBalance(Math.max(0, earnedLimit - used));
+  const earnedLimit = grants * monthlyCredits;
+  const remaining = capCreditBalance(Math.max(0, earnedLimit - used), rolloverCap);
   const limit = used + remaining;
   return {
     used,
@@ -169,7 +175,8 @@ export function capCreditBalance(value: number, cap = PREMIUM_ROLLOVER_CREDIT_CA
 
 export function reconcileCreditsWithStoredBalance(
   credits: CreditsSummary,
-  storedBalance?: number | null
+  storedBalance?: number | null,
+  cap = PREMIUM_ROLLOVER_CREDIT_CAP
 ): CreditsSummary {
   if (typeof storedBalance !== "number" || !Number.isFinite(storedBalance)) {
     return credits;
@@ -177,7 +184,7 @@ export function reconcileCreditsWithStoredBalance(
   if (storedBalance >= LEGACY_UNLIMITED_CREDIT_BALANCE) {
     return credits;
   }
-  const remaining = capCreditBalance(storedBalance);
+  const remaining = capCreditBalance(storedBalance, cap);
   return {
     ...credits,
     remaining,

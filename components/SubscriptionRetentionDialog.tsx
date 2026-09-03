@@ -9,6 +9,7 @@ import {
 type Props = {
   open: boolean;
   busy: boolean;
+  planName?: "Premium" | "Pro";
   onClose: () => void;
   onCancellationIntent: () => void;
   onOpenPortal: (intent: "billing" | "cancellation", goal?: SubscriptionRetentionGoal) => void;
@@ -18,6 +19,7 @@ type Props = {
 export default function SubscriptionRetentionDialog({
   open,
   busy,
+  planName = "Premium",
   onClose,
   onCancellationIntent,
   onOpenPortal,
@@ -70,7 +72,7 @@ export default function SubscriptionRetentionDialog({
 
         {step === "intent" ? (
           <>
-            <h2 id="subscription-retention-title">Manage Premium</h2>
+            <h2 id="subscription-retention-title">Manage {planName}</h2>
             <p id="subscription-retention-description" className="muted">
               What would you like to do? Billing details open directly in Stripe.
             </p>
@@ -83,7 +85,7 @@ export default function SubscriptionRetentionDialog({
                 onCancellationIntent();
                 setStep("retention");
               }} disabled={busy}>
-                <strong>I am thinking about ending Premium</strong>
+                <strong>I am thinking about ending {planName}</strong>
                 <span>Review your options before continuing to Stripe.</span>
               </button>
             </div>
@@ -116,7 +118,7 @@ export default function SubscriptionRetentionDialog({
 
             <div className="subscription-retention-actions">
               <button type="button" className="button-secondary button-small" onClick={onClose} disabled={busy}>
-                Keep Premium
+                Keep {planName}
               </button>
               <button
                 type="button"

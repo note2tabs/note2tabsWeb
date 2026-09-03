@@ -20,6 +20,7 @@ import {
   premiumWelcomeDestination,
   premiumWelcomePreviewAllowed,
 } from "../../lib/premiumWelcome";
+import { PLAN_CATALOG, effectiveSubscriptionPlan } from "../../lib/subscriptionPlans";
 
 type WelcomeState = "checking" | "ready" | "delayed";
 
@@ -38,6 +39,10 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
     [router.query.next]
   );
   const resumesUpload = isResumingTranscription(destination);
+  const currentPlan = previewMode
+    ? "PREMIUM"
+    : effectiveSubscriptionPlan(session?.user?.role, session?.user?.subscriptionPlan);
+  const plan = PLAN_CATALOG[currentPlan === "FREE" ? "PREMIUM" : currentPlan];
 
   useEffect(() => {
     if (state !== "ready" || confettiPlayedRef.current || typeof window === "undefined") return;
@@ -124,6 +129,7 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
     if (previewMode || state !== "ready" || trackedRef.current) return;
     trackedRef.current = true;
     sendEvent(ANALYTICS_EVENTS.premiumWelcomeViewed, {
+      plan: plan.analyticsId,
       destination: resumesUpload ? "resume_transcription" : "transcriber",
     });
   }, [previewMode, resumesUpload, state]);
@@ -131,6 +137,7 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
   const trackContinue = () => {
     if (previewMode) return;
     sendEvent(ANALYTICS_EVENTS.premiumWelcomeCtaClicked, {
+      plan: plan.analyticsId,
       cta: "continue",
       destination: resumesUpload ? "resume_transcription" : "transcriber",
     });
@@ -138,7 +145,7 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
 
   return (
     <>
-      <NoIndexHead title="Welcome to Premium | Note2Tabs" canonicalPath="/premium/welcome" />
+      <NoIndexHead title={`Welcome to ${plan.name} | Note2Tabs`} canonicalPath="/premium/welcome" />
       <main className="premium-welcome-page">
         <section className="premium-welcome-card" aria-live="polite">
           {previewMode && <span className="premium-welcome-preview">Preview</span>}
@@ -152,15 +159,15 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
 
           {state === "checking" ? (
             <>
-              <p className="premium-welcome-eyebrow">Activating Premium</p>
-              <h1>Getting Premium ready…</h1>
+              <p className="premium-welcome-eyebrow">Activating {plan.name}</p>
+              <h1>Getting {plan.name} ready…</h1>
               <p>Your signup is complete. We’re syncing your new limits now.</p>
               <div className="premium-welcome-loader" aria-hidden="true" />
             </>
           ) : state === "delayed" ? (
             <>
-              <p className="premium-welcome-eyebrow">Premium is activating</p>
-              <h1>Premium is almost ready.</h1>
+              <p className="premium-welcome-eyebrow">{plan.name} is activating</p>
+              <h1>{plan.name} is almost ready.</h1>
               <p>
                 Your signup was confirmed, but your account is taking a little longer to update.
                 No action is needed—check again in a moment.
@@ -176,16 +183,17 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
             <>
               <h1>You’re all set!</h1>
               <p>
-                Thanks for choosing Note2Tabs Premium. Your trial is active, with more room for
-                full songs, the Heavy model, and credits that roll over.
+                {currentPlan === "PRO"
+                  ? "Pro is active now, with more room for frequent transcription and the Heavy model."
+                  : "Thanks for choosing Note2Tabs Premium. Premium is active, with more room for full songs, the Heavy model, and credits that roll over."}
               </p>
               <div className="premium-welcome-access" aria-label="Premium access now available">
-                <div><span>Monthly capacity</span><strong>100 credits</strong></div>
-                <div><span>Credit rollover</span><strong>Up to 200</strong></div>
-                <div><span>Audio uploads</span><strong>Full songs</strong></div>
+                <div><span>Monthly capacity</span><strong>{plan.monthlyCredits} credits</strong></div>
+                <div><span>Credit rollover</span><strong>Up to {plan.rolloverCap}</strong></div>
+                <div><span>Audio uploads</span><strong>Up to {Math.round(plan.maxUploadBytes / 1024 / 1024)} MB</strong></div>
               </div>
               <Link className="premium-welcome-primary" href={destination} onClick={trackContinue}>
-                {resumesUpload ? "Continue your transcription" : "Transcribe with Premium"}
+                {resumesUpload ? "Continue your transcription" : `Transcribe with ${plan.name}`}
               </Link>
               <Link className="premium-welcome-secondary" href="/gte">
                 Go to my tabs

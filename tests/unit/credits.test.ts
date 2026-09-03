@@ -3,6 +3,7 @@ import {
   FREE_MONTHLY_CREDITS,
   LEGACY_UNLIMITED_CREDIT_BALANCE,
   PREMIUM_ROLLOVER_CREDIT_CAP,
+  PRO_ROLLOVER_CREDIT_CAP,
   buildCreditsSummary,
   getCreditWindow,
   reconcileCreditsWithStoredBalance,
@@ -110,5 +111,17 @@ describe("credits", () => {
 
     expect(reconciled.remaining).toBe(7);
     expect(reconciled.limit).toBe(100);
+  });
+
+  it("uses the Pro allocation and rollover cap", () => {
+    const credits = buildCreditsSummary({
+      durations: [],
+      resetAt: new Date("2026-10-01T00:00:00.000Z"),
+      isPremium: true,
+      subscriptionPlan: "PRO",
+      userCreatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    expect(credits.limit).toBe(PRO_ROLLOVER_CREDIT_CAP);
+    expect(credits.remaining).toBe(PRO_ROLLOVER_CREDIT_CAP);
   });
 });

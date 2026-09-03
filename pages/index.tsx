@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PLAN_CATALOG, effectiveSubscriptionPlan, proPlanPresentationEnabled, type PaidSubscriptionPlan } from "../lib/subscriptionPlans";
 import Image from "next/image";
 import type { GetStaticProps } from "next";
 import { useRouter } from "next/router";
@@ -28,7 +29,6 @@ import {
   DEFAULT_YOUTUBE_SNIPPET_SEC,
   MAX_FREE_FILE_SNIPPET_SEC,
   MAX_FREE_YOUTUBE_SNIPPET_SEC,
-  MAX_YOUTUBE_WINDOW_SEC,
   clampFileClipEnd,
   clampFileClipStart,
   clampYoutubeClipEnd,
@@ -105,7 +105,7 @@ type HomePageProps = {
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
 const MAX_FREE_BYTES = 50 * 1024 * 1024;
-const MAX_PREMIUM_BYTES = 200 * 1024 * 1024;
+const MAX_PRESERVABLE_UPLOAD_BYTES = 500 * 1024 * 1024;
 const AUDIO_ACCEPT = "audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.webm";
 
 const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
@@ -247,6 +247,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     setTranscriptionModel(model);
   };
   const isStaffUser = ["ADMIN", "MODERATOR", "MOD"].includes(transcriberSession?.user?.role || "");
+  const currentPlan = transcriberSession?.user?.subscriptionPlan || (isPremiumUser ? "PREMIUM" : "FREE");
+  const entitlementPlan = isStaffUser ? "PRO" : effectiveSubscriptionPlan(transcriberSession?.user?.role, currentPlan);
+  const maxUploadBytes = PLAN_CATALOG[entitlementPlan].maxUploadBytes;
+  const youtubeWindowSeconds = PLAN_CATALOG[entitlementPlan].youtubePositionLimitSeconds;
   const offerEligibility = usePremiumOfferEligibility(
     sessionStatus === "authenticated" && !isPremiumUser
   );
@@ -283,11 +287,11 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   }, [appendEditorId, editorChoices]);
   const youtubeId = useMemo(() => parseYouTubeId(youtubeUrl), [youtubeUrl]);
   const resolvedYtDuration = useMemo(() => {
-    return resolveYoutubeClipDuration(ytStartTime, ytEndTime, isPremiumUser);
-  }, [isPremiumUser, ytStartTime, ytEndTime]);
+    return resolveYoutubeClipDuration(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds);
+  }, [isPremiumUser, ytStartTime, ytEndTime, youtubeWindowSeconds]);
   const youtubeTimeRangeValid = useMemo(
-    () => isYoutubeClipRangeValid(ytStartTime, ytEndTime, isPremiumUser),
-    [isPremiumUser, ytStartTime, ytEndTime]
+    () => isYoutubeClipRangeValid(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds),
+    [isPremiumUser, ytStartTime, ytEndTime, youtubeWindowSeconds]
   );
   const resolvedFileDuration = useMemo(() => {
     if (fileStartTime === null || fileEndTime === null) return 0;
@@ -493,8 +497,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         setYtEndInput(formatTimestamp(pending.endTime));
       }
 
-      if (pending.mode === "FILE" && pending.file.size > MAX_PREMIUM_BYTES) {
-        setError(`The restored file exceeds the ${formatMb(MAX_PREMIUM_BYTES)} upload limit.`);
+      if (pending.mode === "FILE" && pending.file.size > MAX_PRESERVABLE_UPLOAD_BYTES) {
+        setError(`The restored file exceeds the ${formatMb(MAX_PRESERVABLE_UPLOAD_BYTES)} upload limit.`);
         setStatus("Choose a smaller audio file to continue.");
       } else if (requiresPremium && !premiumEntitlementReady) {
         setStatus("Your upload is restored. Upgrade to Premium to transcribe this file.");
@@ -564,7 +568,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setYtStartInput("");
       return;
     }
-    const nextRange = clampYoutubeClipStart(ytStartTime, ytEndTime, isPremiumUser);
+    const nextRange = clampYoutubeClipStart(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds);
     setYtStartTime(nextRange.start);
     setYtStartInput(formatTimestamp(nextRange.start));
     setYtEndTime(nextRange.end);
@@ -576,7 +580,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setYtEndInput("");
       return;
     }
-    const nextEnd = clampYoutubeClipEnd(ytStartTime, ytEndTime, isPremiumUser);
+    const nextEnd = clampYoutubeClipEnd(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds);
     setYtEndTime(nextEnd);
     setYtEndInput(formatTimestamp(nextEnd));
   };
@@ -788,7 +792,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
     if (mode === "FILE" && selectedFile) {
       const maxBytes = isPremiumRole(transcriberSession?.user?.role)
-        ? MAX_PREMIUM_BYTES
+        ? maxUploadBytes
         : MAX_FREE_BYTES;
       if (selectedFile.size > maxBytes) {
         setError(`File is too large. Max size is ${formatMb(maxBytes)} for your plan.`);
@@ -811,16 +815,16 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         setError("Start time must be 0 or greater.");
         return false;
       }
-      if (ytStartTime !== null && ytStartTime >= MAX_YOUTUBE_WINDOW_SEC) {
-        setError("Start time must be before 10:00.");
+      if (ytStartTime !== null && ytStartTime >= youtubeWindowSeconds) {
+        setError(`Start time must be before ${formatTimestamp(youtubeWindowSeconds)}.`);
         return false;
       }
       if (ytEndTime !== null && ytEndTime <= 0) {
         setError("End time must be greater than 0.");
         return false;
       }
-      if (ytEndTime !== null && ytEndTime > MAX_YOUTUBE_WINDOW_SEC) {
-        setError("End time must be 10:00 or earlier.");
+      if (ytEndTime !== null && ytEndTime > youtubeWindowSeconds) {
+        setError(`End time must be ${formatTimestamp(youtubeWindowSeconds)} or earlier.`);
         return false;
       }
     }
@@ -1083,13 +1087,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       return;
     }
     if (!transcriberSession && !disableDbInDev) {
-      if (mode === "FILE" && selectedFile && selectedFile.size > MAX_PREMIUM_BYTES) {
-        setError(`Files over ${formatMb(MAX_PREMIUM_BYTES)} cannot be preserved through sign-in.`);
+      if (mode === "FILE" && selectedFile && selectedFile.size > MAX_PRESERVABLE_UPLOAD_BYTES) {
+        setError(`Files over ${formatMb(MAX_PRESERVABLE_UPLOAD_BYTES)} cannot be preserved through sign-in.`);
         sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, {
           reason: "file_too_large",
           mode,
           size: selectedFile.size,
-          maxBytes: MAX_PREMIUM_BYTES,
+          maxBytes: MAX_PRESERVABLE_UPLOAD_BYTES,
         });
         return;
       }
@@ -1324,54 +1328,58 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   const handlePricingClick = async (
     source: PremiumFunnelSource = "home_pricing",
-    reason = "homepage_pricing_card"
+    reason = "homepage_pricing_card",
+    plan: PaidSubscriptionPlan = "PREMIUM"
   ) => {
     if (pricingBusy) return;
     const funnel = getOrCreatePremiumFunnelContext({ source, reason });
     sendEvent(ANALYTICS_EVENTS.pricingCtaClicked, {
-      cta: "premium_card",
+      cta: plan === "PRO" ? "pro_card" : "premium_card",
+      plan: plan.toLowerCase(),
       signedIn: Boolean(session),
       path: "/",
       ...premiumFunnelProperties(funnel),
     });
     if (!session) {
-      signIn(undefined, { callbackUrl: `${premiumPricingHref(funnel)}&checkout=1` });
+      signIn(undefined, { callbackUrl: `${premiumPricingHref(funnel)}&checkout=1&plan=${plan.toLowerCase()}` });
       return;
     }
-    if (isPremiumUser) {
+    if (isStaffUser || (isPremiumUser && currentPlan === plan)) {
       await router.push(isStaffUser ? "/transcribe" : "/settings");
       return;
     }
     setPricingBusy(true);
     setPricingError(null);
     try {
-      const res = await fetch("/api/stripe/create-checkout-session", {
+      const res = await fetch(isPremiumUser ? "/api/stripe/change-plan" : "/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           source: funnel.source,
           reason: funnel.reason,
           funnelId: funnel.funnelId,
+          plan: plan.toLowerCase(),
         }),
       });
       const data = await res.json();
-      if (!res.ok || !data?.url) {
+      if (!res.ok || (!isPremiumUser && !data?.url)) {
         sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-          plan: "premium_monthly",
+          plan: plan === "PRO" ? "pro_monthly" : "premium_monthly",
           ...premiumFunnelProperties(funnel),
         });
         setPricingError(data?.error || "Checkout is temporarily unavailable. Please try again in a moment.");
         return;
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
-        plan: "premium_monthly",
+        plan: plan === "PRO" ? "pro_monthly" : "premium_monthly",
         checkout_attempt_id: data.checkoutAttemptId,
         ...premiumFunnelProperties(funnel),
       });
-      window.location.href = data.url;
+      if (data.url) window.location.href = data.url;
+      else await router.push("/settings?planChanged=1");
     } catch (err: any) {
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-        plan: "premium_monthly",
+        plan: plan === "PRO" ? "pro_monthly" : "premium_monthly",
         ...premiumFunnelProperties(funnel),
       });
       setPricingError(err?.message || "We could not reach checkout. Check your connection and try again.");
@@ -1711,7 +1719,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                         </label>
                         <p className="advanced-note">
                           {isPremiumUser
-                            ? "Choose any clip length within the first 10 minutes."
+                            ? `Choose any clip length within the first ${youtubeWindowSeconds / 60} minutes.`
                             : "Free clips can be up to 30 s."}
                         </p>
                       </div>
@@ -1958,7 +1966,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   </p>
                 </div>
               </article>
-
               <article className="editor-showcase-row editor-showcase-row--reverse" data-reveal>
                 <div className="editor-showcase-image editor-showcase-image--tools">
                   <Image
@@ -2035,7 +2042,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               <h2>Choose your plan.</h2>
               <p>Start free. Upgrade when you want more transcriptions and full songs.</p>
             </div>
-            <div className="pricing-page__plans home-pricing__plans">
+            <div className={`pricing-page__plans home-pricing__plans${proPlanPresentationEnabled() ? " pricing-page__plans--three" : ""}`}>
               <article className="pricing-plan pricing-plan--free" data-reveal>
                 <div className="pricing-plan__top">
                   <h3>Free</h3>
@@ -2098,6 +2105,26 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <li>Longer YouTube clips within the first 10 minutes</li>
                 </ul>
               </article>
+              {proPlanPresentationEnabled() && <article className="pricing-plan pricing-plan--pro" data-reveal>
+                <div className="pricing-plan__badge pricing-plan__badge--quiet">For frequent transcription</div>
+                <div className="pricing-plan__top">
+                  <h3>Pro</h3>
+                  <div className="pricing-plan__price"><strong>$14.99</strong><span>/ month</span></div>
+                </div>
+                <button type="button" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => void handlePricingClick("home_pricing", "homepage_pro_card", "PRO")} disabled={pricingBusy}>
+                  {pricingBusy ? "Opening…" : currentPlan === "PRO" ? "Manage current plan" : currentPlan === "PREMIUM" ? "Upgrade to Pro" : "Choose Pro"}
+                </button>
+                <p className="pricing-plan__reassurance">No trial · $14.99 billed today · Cancel anytime</p>
+                <div className="pricing-plan__divider" />
+                <ul className="pricing-plan__features">
+                  <li>Everything in Premium</li>
+                  <li><strong>250</strong> credits each month</li>
+                  <li>Unused credits roll over, up to 500</li>
+                  <li>Uploads up to 500 MB</li>
+                  <li>YouTube selections within the first 20 minutes</li>
+                  <li>Priority email support and future early-access eligibility</li>
+                </ul>
+              </article>}
             </div>
             {pricingError && <div className="error" role="alert">{pricingError}</div>}
             <div className="home-pricing__details" data-reveal>

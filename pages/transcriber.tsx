@@ -32,7 +32,6 @@ import {
   DEFAULT_YOUTUBE_SNIPPET_SEC,
   MAX_FREE_FILE_SNIPPET_SEC,
   MAX_FREE_YOUTUBE_SNIPPET_SEC,
-  MAX_YOUTUBE_WINDOW_SEC,
   clampFileClipEnd,
   clampFileClipStart,
   clampYoutubeClipEnd,
@@ -71,6 +70,7 @@ import {
   premiumFunnelProperties,
   premiumPricingHref,
 } from "../lib/premiumFunnel";
+import { PLAN_CATALOG, effectiveSubscriptionPlan } from "../lib/subscriptionPlans";
 
 type TabsResponse = {
   tabs: string[][];
@@ -90,7 +90,7 @@ type CreditsResponse = {
 const isPremiumRole = (role?: string) =>
   role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
 const MAX_FREE_BYTES = 50 * 1024 * 1024;
-const MAX_PREMIUM_BYTES = 200 * 1024 * 1024;
+const MAX_PRESERVABLE_UPLOAD_BYTES = 500 * 1024 * 1024;
 const AUDIO_ACCEPT = "audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.webm";
 
 const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
@@ -223,6 +223,12 @@ export default function TranscriberPage() {
   const transcriberSession = session ?? null;
   const isSignedIn = Boolean(transcriberSession);
   const isPremiumUser = isPremiumRole(transcriberSession?.user?.role);
+  const isStaffUser = ["ADMIN", "MODERATOR", "MOD"].includes(transcriberSession?.user?.role || "");
+  const entitlementPlan = isStaffUser
+    ? "PRO"
+    : effectiveSubscriptionPlan(transcriberSession?.user?.role, transcriberSession?.user?.subscriptionPlan);
+  const maxUploadBytes = PLAN_CATALOG[entitlementPlan].maxUploadBytes;
+  const youtubeWindowSeconds = PLAN_CATALOG[entitlementPlan].youtubePositionLimitSeconds;
   const selectTranscriptionModel = (model: TranscriptionModelChoice) => {
     transcriptionModelTouchedRef.current = true;
     setTranscriptionModel(model);
@@ -260,11 +266,11 @@ export default function TranscriberPage() {
   }, [appendEditorId, editorChoices]);
   const youtubeId = useMemo(() => parseYouTubeId(youtubeUrl), [youtubeUrl]);
   const resolvedYtDuration = useMemo(() => {
-    return resolveYoutubeClipDuration(ytStartTime, ytEndTime, isPremiumUser);
-  }, [isPremiumUser, ytStartTime, ytEndTime]);
+    return resolveYoutubeClipDuration(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds);
+  }, [isPremiumUser, ytStartTime, ytEndTime, youtubeWindowSeconds]);
   const youtubeTimeRangeValid = useMemo(
-    () => isYoutubeClipRangeValid(ytStartTime, ytEndTime, isPremiumUser),
-    [isPremiumUser, ytStartTime, ytEndTime]
+    () => isYoutubeClipRangeValid(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds),
+    [isPremiumUser, ytStartTime, ytEndTime, youtubeWindowSeconds]
   );
   const resolvedFileDuration = useMemo(() => {
     if (fileStartTime === null || fileEndTime === null) return 0;
@@ -484,8 +490,8 @@ export default function TranscriberPage() {
         setYtEndInput(formatTimestamp(pending.endTime));
       }
 
-      if (pending.mode === "FILE" && pending.file.size > MAX_PREMIUM_BYTES) {
-        setError(`The restored file exceeds the ${formatMb(MAX_PREMIUM_BYTES)} upload limit.`);
+      if (pending.mode === "FILE" && pending.file.size > MAX_PRESERVABLE_UPLOAD_BYTES) {
+        setError(`The restored file exceeds the ${formatMb(MAX_PRESERVABLE_UPLOAD_BYTES)} upload limit.`);
         setStatus("Choose a smaller audio file to continue.");
       } else if (requiresPremium && !premiumEntitlementReady) {
         setStatus("Your upload is restored. Upgrade to Premium to transcribe this file.");
@@ -553,7 +559,7 @@ export default function TranscriberPage() {
       setYtStartInput("");
       return;
     }
-    const nextRange = clampYoutubeClipStart(ytStartTime, ytEndTime, isPremiumUser);
+    const nextRange = clampYoutubeClipStart(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds);
     setYtStartTime(nextRange.start);
     setYtStartInput(formatTimestamp(nextRange.start));
     setYtEndTime(nextRange.end);
@@ -565,7 +571,7 @@ export default function TranscriberPage() {
       setYtEndInput("");
       return;
     }
-    const nextEnd = clampYoutubeClipEnd(ytStartTime, ytEndTime, isPremiumUser);
+    const nextEnd = clampYoutubeClipEnd(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds);
     setYtEndTime(nextEnd);
     setYtEndInput(formatTimestamp(nextEnd));
   };
@@ -727,13 +733,13 @@ export default function TranscriberPage() {
     }
 
     if (!transcriberSession && !disableDbInDev) {
-      if (mode === "FILE" && selectedFile && selectedFile.size > MAX_PREMIUM_BYTES) {
-        setError(`Files over ${formatMb(MAX_PREMIUM_BYTES)} cannot be preserved through sign-in.`);
+      if (mode === "FILE" && selectedFile && selectedFile.size > MAX_PRESERVABLE_UPLOAD_BYTES) {
+        setError(`Files over ${formatMb(MAX_PRESERVABLE_UPLOAD_BYTES)} cannot be preserved through sign-in.`);
         sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, {
           reason: "file_too_large",
           mode,
           size: selectedFile.size,
-          maxBytes: MAX_PREMIUM_BYTES,
+          maxBytes: MAX_PRESERVABLE_UPLOAD_BYTES,
         });
         return;
       }
@@ -807,7 +813,7 @@ export default function TranscriberPage() {
 
     if (mode === "FILE" && selectedFile) {
       const maxBytes = isPremiumRole(transcriberSession?.user?.role)
-        ? MAX_PREMIUM_BYTES
+        ? maxUploadBytes
         : MAX_FREE_BYTES;
       if (selectedFile.size > maxBytes) {
         setError(`File is too large. Max size is ${formatMb(maxBytes)} for your plan.`);
@@ -824,16 +830,16 @@ export default function TranscriberPage() {
         setError("Start time must be 0 or greater.");
         return;
       }
-      if (ytStartTime !== null && ytStartTime >= MAX_YOUTUBE_WINDOW_SEC) {
-        setError("Start time must be before 10:00.");
+      if (ytStartTime !== null && ytStartTime >= youtubeWindowSeconds) {
+        setError(`Start time must be before ${formatTimestamp(youtubeWindowSeconds)}.`);
         return;
       }
       if (ytEndTime !== null && ytEndTime <= 0) {
         setError("End time must be greater than 0.");
         return;
       }
-      if (ytEndTime !== null && ytEndTime > MAX_YOUTUBE_WINDOW_SEC) {
-        setError("End time must be 10:00 or earlier.");
+      if (ytEndTime !== null && ytEndTime > youtubeWindowSeconds) {
+        setError(`End time must be ${formatTimestamp(youtubeWindowSeconds)} or earlier.`);
         return;
       }
     }
@@ -1484,7 +1490,7 @@ export default function TranscriberPage() {
                         <label>End time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:30" value={ytEndInput} onChange={(event) => handleYtEndInputChange(event.target.value)} onBlur={handleYtEndInputBlur} required /></label>
                         <p className="advanced-note">
                           {isPremiumUser
-                            ? "Choose any clip length within the first 10 minutes."
+                            ? `Choose any clip length within the first ${youtubeWindowSeconds / 60} minutes.`
                             : "Free clips can be up to 30 s."}
                         </p>
                       </div>

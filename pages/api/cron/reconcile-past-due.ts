@@ -5,8 +5,8 @@ import { paymentRecoveryExpired } from "../../../lib/paymentRecovery";
 import { prisma } from "../../../lib/prisma";
 import { stripeClient } from "../../../lib/stripe";
 import {
-  getStripePremiumConfig,
-  stripeSubscriptionMatchesPremium,
+  getStripePaidPlanConfigs,
+  stripeSubscriptionPlan,
 } from "../../../lib/stripePremium";
 
 function isAuthorized(req: NextApiRequest) {
@@ -44,8 +44,7 @@ async function failedAt(subscription: Stripe.Subscription) {
 }
 
 async function hasAnotherEntitledPremium(
-  subscription: Stripe.Subscription,
-  config: NonNullable<ReturnType<typeof getStripePremiumConfig>>
+  subscription: Stripe.Subscription
 ) {
   const customerId = typeof subscription.customer === "string"
     ? subscription.customer
@@ -57,7 +56,7 @@ async function hasAnotherEntitledPremium(
   });
   return subscriptions.data.some((candidate) =>
     candidate.id !== subscription.id &&
-    stripeSubscriptionMatchesPremium(candidate, config) &&
+    Boolean(stripeSubscriptionPlan(candidate)) &&
     ["active", "trialing", "past_due"].includes(candidate.status)
   );
 }
@@ -69,8 +68,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   if (!isAuthorized(req)) return res.status(401).json({ error: "Unauthorized" });
 
-  const config = getStripePremiumConfig();
-  if (!stripeClient || !config) {
+  if (!stripeClient || !Object.values(getStripePaidPlanConfigs()).some(Boolean)) {
     return res.status(503).json({ error: "Stripe not configured" });
   }
 
@@ -91,13 +89,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let retained = 0;
 
   for (const subscription of subscriptions) {
-    if (!stripeSubscriptionMatchesPremium(subscription, config)) continue;
+    if (!stripeSubscriptionPlan(subscription)) continue;
     checked += 1;
     const firstFailure = await failedAt(subscription);
     if (!firstFailure || !paymentRecoveryExpired(firstFailure, now)) continue;
 
     const email = await customerEmail(subscription.customer);
-    const keepPremium = await hasAnotherEntitledPremium(subscription, config);
+    const keepPremium = await hasAnotherEntitledPremium(subscription);
     await stripeClient.subscriptions.cancel(subscription.id);
 
     if (email && !keepPremium) {
@@ -108,7 +106,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (user?.role === "PREMIUM") {
         await prisma.user.update({
           where: { id: user.id },
-          data: { role: "FREE", tokensRemaining: STARTING_CREDITS },
+          data: { role: "FREE", subscriptionPlan: "FREE", tokensRemaining: STARTING_CREDITS },
         });
       }
     } else if (keepPremium) {
