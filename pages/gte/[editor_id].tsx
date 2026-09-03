@@ -10008,11 +10008,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           sharedViewportBarCount={sharedViewportBarCount}
                           sharedTimelineBaseScale={sharedTimelineBaseScale}
                           onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
-                          timelineZoomFactor={
-                            practiceModeEnabled
-                              ? Math.min(timelineZoomPercent / 100, 0.75)
-                              : timelineZoomPercent / 100
-                          }
+                          // sharedTimelineBaseScale is already fitted to sharedViewportBarCount
+                          // bars (which the "Bars/row" control derives from timelineZoomPercent),
+                          // so multiplying by timelineZoomPercent/100 here would apply that same
+                          // zoom twice — bars/row squared instead of linear. Only the default
+                          // 100% (bars/row = 4) happened to look right, since that factor is 1.
+                          timelineZoomFactor={practiceModeEnabled ? 0.75 : 1}
                           historyUndoCount={canvasUndoCount}
                           historyRedoCount={canvasRedoCount}
                           onRequestUndo={handleCanvasUndo}
