@@ -164,5 +164,11 @@ export type CanvasSnapshot = {
   secondsPerBar?: number;
   timingVersion?: number;
   timingMap?: TimingMapV2;
+  editorInputSettings?: {
+    defaultNoteLengthDenominator: number;
+    cursorSizeDenominator: number;
+  };
+  /** Track last viewed by the user, persisted server-side so it survives reloads. */
+  activeLaneId?: string;
   editors: EditorSnapshot[];
 };

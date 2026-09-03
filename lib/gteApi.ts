@@ -733,6 +733,24 @@ export const gteApi = {
       body: JSON.stringify({ name }),
       }
     ),
+  setEditorInputSettings: (
+    editorId: string,
+    settings: { defaultNoteLengthDenominator: number; cursorSizeDenominator: number }
+  ) =>
+    requestForEditor<{
+      ok: true;
+      settings: { defaultNoteLengthDenominator: number; cursorSizeDenominator: number };
+    }>(editorId, `/editors/${editorId}/input-settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ settings }),
+    }),
+  setActiveLane: (editorId: string, laneId: string) =>
+    requestForEditor<{ ok: true; laneId: string }>(editorId, `/editors/${editorId}/active-lane`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ laneId }),
+    }),
   addCanvasEditor: (
     editorId: string,
     name?: string,

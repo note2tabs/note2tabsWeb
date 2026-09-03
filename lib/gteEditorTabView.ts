@@ -53,6 +53,8 @@ type BuildEditorTabViewOptions = {
   scale: number;
   playheadFrame: number;
   minBarCount?: number;
+  subdivisionsPerBar?: number;
+  minimumPlacementSpacing?: number;
   variableBarWidths?: boolean;
   collapseConsecutiveEmptyBars?: boolean;
 };
@@ -205,17 +207,21 @@ export const buildEditorTabView = (
     scale,
     playheadFrame,
     minBarCount,
+    subdivisionsPerBar,
+    minimumPlacementSpacing,
     variableBarWidths = false,
     collapseConsecutiveEmptyBars = false,
   }: BuildEditorTabViewOptions
 ): EditorTabViewModel => {
   const safeFramesPerBar = Math.max(1, Math.round(framesPerBar));
   const safeBeatsPerBar = Math.max(1, Math.round(beatsPerBar));
-  const slotsPerBar = safeBeatsPerBar * 2;
+  const slotsPerBar = Math.max(
+    1,
+    Math.round(subdivisionsPerBar ?? safeBeatsPerBar * 2)
+  );
   const labels = getStringLabelsForSnapshot(snapshot);
   const stringLabels = labels.length === STRING_COUNT ? labels : DEFAULT_LABELS;
-  const barWidth = safeFramesPerBar * Math.max(0.1, scale);
-  const slotWidth = barWidth / slotsPerBar;
+  const baseBarWidth = safeFramesPerBar * Math.max(0.1, scale);
   const maxNoteFrame = snapshot.notes.reduce((max, note) => Math.max(max, toSafeInt(note.startTime, 0)), 0);
   const maxChordFrame = snapshot.chords.reduce((max, chord) => Math.max(max, toSafeInt(chord.startTime, 0)), 0);
   const totalFrames = Math.max(safeFramesPerBar, toSafeInt(snapshot.totalFrames, safeFramesPerBar), maxNoteFrame, maxChordFrame);
@@ -235,6 +241,33 @@ export const buildEditorTabView = (
     const barIndex = clamp(Math.floor(startTime / safeFramesPerBar), 0, barCount - 1);
     onsetTimesByBar[barIndex].add(startTime);
   });
+  const framesPerSlot = safeFramesPerBar / slotsPerBar;
+  const minimumSpacing = Math.max(0, Number(minimumPlacementSpacing) || 0);
+  const minimumUniformBarWidth = onsetTimesByBar.reduce((requiredWidth, times, barIndex) => {
+    if (minimumSpacing <= 0 || times.size < 2) return requiredWidth;
+    const barStart = barIndex * safeFramesPerBar;
+    const occupiedSlots = [...times]
+      .map((time) =>
+        clamp(
+          Math.round((time - barStart) / Math.max(1, framesPerSlot) - 0.5),
+          0,
+          slotsPerBar - 1
+        )
+      )
+      .sort((left, right) => left - right)
+      .filter((slot, index, source) => index === 0 || slot !== source[index - 1]);
+    let closestSlotDistance = slotsPerBar;
+    for (let index = 1; index < occupiedSlots.length; index += 1) {
+      closestSlotDistance = Math.min(
+        closestSlotDistance,
+        occupiedSlots[index] - occupiedSlots[index - 1]
+      );
+    }
+    if (closestSlotDistance <= 0 || closestSlotDistance >= slotsPerBar) return requiredWidth;
+    return Math.max(requiredWidth, (minimumSpacing * slotsPerBar) / closestSlotDistance);
+  }, 0);
+  const barWidth = Math.max(baseBarWidth, minimumUniformBarWidth);
+  const slotWidth = barWidth / slotsPerBar;
   const maximumDenseOnsets = Math.max(
     5,
     ...onsetTimesByBar.map((times) => times.size)
