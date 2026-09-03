@@ -9899,7 +9899,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                             title={candidateMuted ? "Unmute track" : "Mute track"}
                                             aria-label={`${candidateMuted ? "Unmute" : "Mute"} ${candidate.name || `Track ${candidateIndex + 1}`}`}
                                           >
-                                            M
+                                            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                                              <path d="M4 10v4h4l5 4V6L8 10H4z" />
+                                              {candidateMuted ? (
+                                                <path d="m16.2 9.1 1.4 1.4-1.6 1.6 1.6 1.6-1.4 1.4-1.6-1.6-1.6 1.6-1.4-1.4 1.6-1.6-1.6-1.6 1.4-1.4 1.6 1.6z" />
+                                              ) : (
+                                                <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
+                                              )}
+                                            </svg>
                                           </button>
                                           <button
                                             type="button"
@@ -9913,7 +9920,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                             title={candidateIsolated ? "Stop soloing track" : "Solo track"}
                                             aria-label={`${candidateIsolated ? "Stop soloing" : "Solo"} ${candidate.name || `Track ${candidateIndex + 1}`}`}
                                           >
-                                            S
+                                            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                                              <path d="M12 4a7 7 0 0 0-7 7v5a2.5 2.5 0 0 0 2.5 2.5H8a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H7v-.5a5 5 0 0 1 10 0v.5h-1a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h.5A2.5 2.5 0 0 0 19 16v-5a7 7 0 0 0-7-7z" />
+                                            </svg>
                                           </button>
                                           <input
                                             type="range"
@@ -10363,8 +10372,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                 <span className="shrink-0 text-[10px] font-medium text-slate-400">{type}</span>
                               </button>
                             )}
-                            <button type="button" onClick={() => toggleTrackMute(candidateId)} className={`h-7 w-7 rounded-md border text-[10px] font-bold ${candidateMuted ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-500"}`} aria-label={`${candidateMuted ? "Unmute" : "Mute"} ${candidate.name || `Track ${candidateIndex + 1}`}`}>M</button>
-                            <button type="button" onClick={() => toggleTrackIsolation(candidateId)} className={`h-7 w-7 rounded-md border text-[10px] font-bold ${candidateIsolated ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 text-slate-500"}`} aria-label={`${candidateIsolated ? "Stop soloing" : "Solo"} ${candidate.name || `Track ${candidateIndex + 1}`}`}>S</button>
+                            <button type="button" onClick={() => toggleTrackMute(candidateId)} className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${candidateMuted ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-500"}`} aria-label={`${candidateMuted ? "Unmute" : "Mute"} ${candidate.name || `Track ${candidateIndex + 1}`}`}>
+                              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                                <path d="M4 10v4h4l5 4V6L8 10H4z" />
+                                {candidateMuted ? (
+                                  <path d="m16.2 9.1 1.4 1.4-1.6 1.6 1.6 1.6-1.4 1.4-1.6-1.6-1.6 1.6-1.4-1.4 1.6-1.6-1.6-1.6 1.4-1.4 1.6 1.6z" />
+                                ) : (
+                                  <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
+                                )}
+                              </svg>
+                            </button>
+                            <button type="button" onClick={() => toggleTrackIsolation(candidateId)} className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${candidateIsolated ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 text-slate-500"}`} aria-label={`${candidateIsolated ? "Stop soloing" : "Solo"} ${candidate.name || `Track ${candidateIndex + 1}`}`}>
+                              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                                <path d="M12 4a7 7 0 0 0-7 7v5a2.5 2.5 0 0 0 2.5 2.5H8a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H7v-.5a5 5 0 0 1 10 0v.5h-1a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h.5A2.5 2.5 0 0 0 19 16v-5a7 7 0 0 0-7-7z" />
+                              </svg>
+                            </button>
                             <input type="range" min={0} max={1} step={0.01} value={candidateVolume} onChange={(event) => handleTrackVolumePreview(candidateId, Number(event.target.value))} onPointerUp={() => commitTrackVolume(candidateId)} onPointerCancel={() => commitTrackVolume(candidateId)} onBlur={() => commitTrackVolume(candidateId)} className="w-12 accent-slate-700" aria-label={`Volume for ${candidate.name || `Track ${candidateIndex + 1}`}`} />
                             </div>
                           );
