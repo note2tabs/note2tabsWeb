@@ -62,4 +62,5 @@ export const proPlanCheckoutEnabled = () =>
   proPlanConfigured() && process.env.PRO_PLAN_ENABLED === "true";
 
 export const proPlanPresentationEnabled = () =>
-  process.env.NEXT_PUBLIC_PRO_PLAN_ENABLED === "true";
+  process.env.NEXT_PUBLIC_PRO_PLAN_ENABLED === "true" ||
+  process.env.NEXT_PUBLIC_PRO_PLAN_PREVIEW === "true";

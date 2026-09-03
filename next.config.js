@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Feature branches must be reviewable without exposing unfinished plans on
+  // the production deployment. Vercel replaces this at build time.
+  env: {
+    NEXT_PUBLIC_PRO_PLAN_PREVIEW:
+      process.env.VERCEL_ENV === "production" ? "false" : "true",
+  },
   async redirects() {
     return [
       {
