@@ -1521,6 +1521,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [trackCapoDraftById, setTrackCapoDraftById] = useState<Record<string, string>>({});
   const [pendingLaneTuningChange, setPendingLaneTuningChange] = useState<PendingLaneTuningChange | null>(null);
   const [isolatedTrackIds, setIsolatedTrackIds] = useState<Set<string>>(() => new Set());
+  // Ephemeral, per-session "solo just the active track" toggle. Unlike
+  // isolatedTrackIds it is never persisted to the canvas and always resets to
+  // off on reload or when switching tracks.
+  const [local_isolate_bool, setLocalIsolateBool] = useState(false);
   const [laneSelectionById, setLaneSelectionById] = useState<
     Record<string, { noteCount: number; chordCount: number; noteIds: number[]; chordIds: number[] }>
   >({});
@@ -4314,6 +4318,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     startFrameAnchorRef.current = 0;
   }, [activeLaneId]);
 
+  useEffect(() => {
+    setLocalIsolateBool(false);
+  }, [activeLaneId]);
+
   const scheduleGlobalPlayback = useCallback(
     async (
       ctx: AudioContext,
@@ -4423,8 +4431,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
       canvas.editors.forEach((lane, index) => {
         const laneId = lane.id || `ed-${index + 1}`;
-        if (isolatedTrackIds.size > 0 && !isolatedTrackIds.has(laneId)) return;
-        if (trackMuteById[laneId]) return;
+        if (local_isolate_bool) {
+          // Local isolate overrides everything else: only the active track
+          // plays, and it plays even if it is (persistently) muted.
+          if (laneId !== activeLaneId) return;
+        } else {
+          if (isolatedTrackIds.size > 0 && !isolatedTrackIds.has(laneId)) return;
+          if (trackMuteById[laneId]) return;
+        }
         const lanePan = normalizeTrackPan(trackPanById[laneId] ?? 0);
         const instrumentId = normalizeTrackInstrumentId(lane.instrumentId);
         if (isDrumLane(lane)) {
@@ -4822,6 +4836,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       return { ctx, endFrame, startFrame: playbackStartFrame, startTimeSec: playBase, scheduleAhead };
     },
     [
+      activeLaneId,
       canvas,
       canvasTimelineEnd,
       countInEnabled,
@@ -4831,6 +4846,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       globalPlaybackVolume,
       globalPracticeLoopRange,
       isolatedTrackIds,
+      local_isolate_bool,
       metronomeEnabled,
       normalizedPlaybackSpeed,
       practiceLoopEnabled,
@@ -5458,6 +5474,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!canvas) return "";
     return [
       `iso:${Array.from(isolatedTrackIds).sort().join(",")}`,
+      `localIso:${local_isolate_bool ? activeLaneId ?? "" : ""}`,
       `loop:${practiceLoopEnabled ? globalPracticeLoopRange?.startFrame ?? "-" : "-"}:${practiceLoopEnabled ? globalPracticeLoopRange?.endFrame ?? "-" : "-"}`,
       `selection:${selectedPracticePlaybackRange?.startFrame ?? "-"}:${selectedPracticePlaybackRange?.endFrame ?? "-"}`,
       `met:${metronomeEnabled ? 1 : 0}`,
@@ -5472,10 +5489,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       }),
     ].join("|");
   }, [
+    activeLaneId,
     canvas,
     countInEnabled,
     globalPracticeLoopRange,
     isolatedTrackIds,
+    local_isolate_bool,
     metronomeEnabled,
     normalizedPlaybackSpeed,
     practiceLoopEnabled,
@@ -10189,6 +10208,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   data-track-menu="true"
                   data-desktop-track-selector="true"
                 >
+                  <button
+                    type="button"
+                    data-gte-floating-ui="true"
+                    onClick={() => setLocalIsolateBool((prev) => !prev)}
+                    className={`absolute bottom-0 flex h-10 w-10 items-center justify-center rounded-full border shadow-lg transition ${
+                      local_isolate_bool
+                        ? "border-emerald-600 bg-emerald-600 text-white"
+                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                    style={{ right: "calc(100% + 28rem + 1.5rem)" }}
+                    title={local_isolate_bool ? "Stop local isolate" : "Locally isolate this track"}
+                    aria-label={local_isolate_bool ? "Stop local isolate" : "Locally isolate this track"}
+                    aria-pressed={local_isolate_bool}
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                      <path d="M12 4a7 7 0 0 0-7 7v5a2.5 2.5 0 0 0 2.5 2.5H8a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H7v-.5a5 5 0 0 1 10 0v.5h-1a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h.5A2.5 2.5 0 0 0 19 16v-5a7 7 0 0 0-7-7z" />
+                    </svg>
+                  </button>
                   <div className="absolute bottom-0 right-[calc(100%+0.75rem)] w-[28rem] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
                     <div className="flex items-stretch gap-2">
                       <button
