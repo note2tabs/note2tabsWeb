@@ -1520,7 +1520,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [trackPanById, setTrackPanById] = useState<Record<string, number>>({});
   const [trackCapoDraftById, setTrackCapoDraftById] = useState<Record<string, string>>({});
   const [pendingLaneTuningChange, setPendingLaneTuningChange] = useState<PendingLaneTuningChange | null>(null);
-  const [isolatedTrackId, setIsolatedTrackId] = useState<string | null>(null);
+  const [isolatedTrackIds, setIsolatedTrackIds] = useState<Set<string>>(() => new Set());
   const [laneSelectionById, setLaneSelectionById] = useState<
     Record<string, { noteCount: number; chordCount: number; noteIds: number[]; chordIds: number[] }>
   >({});
@@ -1999,16 +1999,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     if (!canvas) return;
     const volumes: Record<string, number> = {};
     const muted: Record<string, boolean> = {};
-    let isolated: string | null = null;
+    const isolated = new Set<string>();
     canvas.editors.forEach((lane, index) => {
       const laneId = lane.id || `ed-${index + 1}`;
       volumes[laneId] = normalizeTrackVolume(lane.playbackVolume ?? 1);
       muted[laneId] = lane.playbackMuted === true;
-      if (!isolated && lane.playbackIsolated === true) isolated = laneId;
+      if (lane.playbackIsolated === true) isolated.add(laneId);
     });
     setTrackVolumeById(volumes);
     setTrackMuteById(muted);
-    setIsolatedTrackId(isolated);
+    setIsolatedTrackIds(isolated);
   }, [canvas?.editors]);
 
   useEffect(() => {
@@ -3944,9 +3944,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       }
       return prev;
     });
-    setIsolatedTrackId((prev) => {
-      if (!prev) return prev;
-      return canvas.editors.some((lane, index) => (lane.id || `ed-${index + 1}`) === prev) ? prev : null;
+    setIsolatedTrackIds((prev) => {
+      if (prev.size === 0) return prev;
+      const validIds = new Set(canvas.editors.map((lane, index) => lane.id || `ed-${index + 1}`));
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (validIds.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
     });
   }, [canvas]);
 
@@ -4413,7 +4423,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
       canvas.editors.forEach((lane, index) => {
         const laneId = lane.id || `ed-${index + 1}`;
-        if (isolatedTrackId && laneId !== isolatedTrackId) return;
+        if (isolatedTrackIds.size > 0 && !isolatedTrackIds.has(laneId)) return;
         if (trackMuteById[laneId]) return;
         const lanePan = normalizeTrackPan(trackPanById[laneId] ?? 0);
         const instrumentId = normalizeTrackInstrumentId(lane.instrumentId);
@@ -4820,7 +4830,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       globalTimingMap,
       globalPlaybackVolume,
       globalPracticeLoopRange,
-      isolatedTrackId,
+      isolatedTrackIds,
       metronomeEnabled,
       normalizedPlaybackSpeed,
       practiceLoopEnabled,
@@ -5358,22 +5368,28 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const toggleTrackMute = useCallback((trackId: string) => {
     if (!canvas) return;
     const nextMuted = !Boolean(trackMuteById[trackId]);
-    // Mute and isolate are mutually exclusive per track: muting the currently
-    // isolated track clears isolation for it, since "only this track plays"
-    // and "this track never plays" cannot both be true at once.
-    const nextIsolatedId = nextMuted && isolatedTrackId === trackId ? null : isolatedTrackId;
+    // Mute and isolate are mutually exclusive per track: muting a track that
+    // is currently isolated (soloed) clears its isolation, since "this track
+    // never plays" and "this track is one of the soloed ones" cannot both be
+    // true at once. Other isolated tracks are unaffected.
+    const wasIsolated = nextMuted && isolatedTrackIds.has(trackId);
+    let nextIsolatedIds = isolatedTrackIds;
+    if (wasIsolated) {
+      nextIsolatedIds = new Set(isolatedTrackIds);
+      nextIsolatedIds.delete(trackId);
+    }
     setTrackMuteById((prev) => ({ ...prev, [trackId]: nextMuted }));
-    if (nextIsolatedId !== isolatedTrackId) setIsolatedTrackId(nextIsolatedId);
+    if (wasIsolated) setIsolatedTrackIds(nextIsolatedIds);
     persistTrackPlaybackCanvas({
       ...canvas,
       updatedAt: new Date().toISOString(),
       editors: canvas.editors.map((lane) => ({
         ...lane,
         ...(lane.id === trackId ? { playbackMuted: nextMuted } : null),
-        playbackIsolated: lane.id === nextIsolatedId,
+        playbackIsolated: nextIsolatedIds.has(lane.id),
       })),
     });
-  }, [canvas, isolatedTrackId, persistTrackPlaybackCanvas, trackMuteById]);
+  }, [canvas, isolatedTrackIds, persistTrackPlaybackCanvas, trackMuteById]);
 
   const handleTrackVolumePreview = useCallback((trackId: string, nextVolume: number) => {
     const volume = normalizeTrackVolume(nextVolume);
@@ -5411,12 +5427,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 
   const toggleTrackIsolation = useCallback((trackId: string) => {
     if (!canvas) return;
-    const nextIsolatedId = isolatedTrackId === trackId ? null : trackId;
+    // Isolate is a toggleable membership now: any number of tracks can be
+    // isolated at once. With none isolated, every track plays; with one or
+    // more isolated, only those play.
+    const willIsolate = !isolatedTrackIds.has(trackId);
+    const nextIsolatedIds = new Set(isolatedTrackIds);
+    if (willIsolate) {
+      nextIsolatedIds.add(trackId);
+    } else {
+      nextIsolatedIds.delete(trackId);
+    }
     // Mute and isolate are mutually exclusive per track: isolating a track
     // that is currently muted un-mutes it first, since a soloed track must
     // actually play.
-    const wasMuted = nextIsolatedId === trackId && Boolean(trackMuteById[trackId]);
-    setIsolatedTrackId(nextIsolatedId);
+    const wasMuted = willIsolate && Boolean(trackMuteById[trackId]);
+    setIsolatedTrackIds(nextIsolatedIds);
     if (wasMuted) setTrackMuteById((prev) => ({ ...prev, [trackId]: false }));
     persistTrackPlaybackCanvas({
       ...canvas,
@@ -5424,15 +5449,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       editors: canvas.editors.map((lane) => ({
         ...lane,
         ...(wasMuted && lane.id === trackId ? { playbackMuted: false } : null),
-        playbackIsolated: lane.id === nextIsolatedId,
+        playbackIsolated: nextIsolatedIds.has(lane.id),
       })),
     });
-  }, [canvas, isolatedTrackId, persistTrackPlaybackCanvas, trackMuteById]);
+  }, [canvas, isolatedTrackIds, persistTrackPlaybackCanvas, trackMuteById]);
 
   const trackPlaybackStateSignature = useMemo(() => {
     if (!canvas) return "";
     return [
-      `iso:${isolatedTrackId ?? ""}`,
+      `iso:${Array.from(isolatedTrackIds).sort().join(",")}`,
       `loop:${practiceLoopEnabled ? globalPracticeLoopRange?.startFrame ?? "-" : "-"}:${practiceLoopEnabled ? globalPracticeLoopRange?.endFrame ?? "-" : "-"}`,
       `selection:${selectedPracticePlaybackRange?.startFrame ?? "-"}:${selectedPracticePlaybackRange?.endFrame ?? "-"}`,
       `met:${metronomeEnabled ? 1 : 0}`,
@@ -5450,7 +5475,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     canvas,
     countInEnabled,
     globalPracticeLoopRange,
-    isolatedTrackId,
+    isolatedTrackIds,
     metronomeEnabled,
     normalizedPlaybackSpeed,
     practiceLoopEnabled,
@@ -6316,14 +6341,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                   <button
                     type="button"
                     onClick={() => toggleTrackIsolation(practiceSoundLaneId)}
-                    aria-pressed={isolatedTrackId === practiceSoundLaneId}
+                    aria-pressed={isolatedTrackIds.has(practiceSoundLaneId)}
                     className={`h-9 rounded-lg border text-xs font-semibold ${
-                      isolatedTrackId === practiceSoundLaneId
+                      isolatedTrackIds.has(practiceSoundLaneId)
                         ? "border-sky-300 bg-sky-50 text-sky-800"
                         : "border-slate-200 text-slate-700"
                     }`}
                   >
-                    {isolatedTrackId === practiceSoundLaneId ? "Soloed" : "Solo"}
+                    {isolatedTrackIds.has(practiceSoundLaneId) ? "Soloed" : "Solo"}
                   </button>
                 </div>
                 <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -8835,7 +8860,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               const laneEditorRef = buildLaneEditorRef(editorId, laneId);
               const isActive = laneId === desktopVisibleLaneId;
               const isTrackMuted = Boolean(trackMuteById[laneId]);
-              const isTrackIsolated = isolatedTrackId === laneId;
+              const isTrackIsolated = isolatedTrackIds.has(laneId);
               const trackVolume = normalizeTrackVolume(trackVolumeById[laneId] ?? 1);
               const trackPan = normalizeTrackPan(trackPanById[laneId] ?? 0);
               const laneBarCount = getLaneBarCount(lane);
@@ -9824,7 +9849,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                       // Drum tracks stay audible (mute/solo/volume) but cannot be viewed in practice mode.
                                       const candidateIsDrum = isDrumLane(candidate);
                                       const candidateMuted = Boolean(trackMuteById[candidateId]);
-                                      const candidateIsolated = isolatedTrackId === candidateId;
+                                      const candidateIsolated = isolatedTrackIds.has(candidateId);
                                       const candidateVolume = normalizeTrackVolume(
                                         trackVolumeById[candidateId] ?? 1
                                       );
@@ -10154,7 +10179,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                 : DEFAULT_TRACK_INSTRUMENT_ID;
               const selectedTuning = getSnapshotTuning(selectedLane);
               const selectedMuted = Boolean(trackMuteById[selectedLaneId]);
-              const selectedIsolated = isolatedTrackId === selectedLaneId;
+              const selectedIsolated = isolatedTrackIds.has(selectedLaneId);
               const selectedVolume = normalizeTrackVolume(trackVolumeById[selectedLaneId] ?? 1);
 
               return (
@@ -10318,7 +10343,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                           const active = candidateId === selectedLaneId;
                           const type = isDrumLane(candidate) ? "Drums" : isChordLane(candidate) ? "Chords" : "Tab";
                           const candidateMuted = Boolean(trackMuteById[candidateId]);
-                          const candidateIsolated = isolatedTrackId === candidateId;
+                          const candidateIsolated = isolatedTrackIds.has(candidateId);
                           const candidateVolume = normalizeTrackVolume(trackVolumeById[candidateId] ?? 1);
                           return (
                             <div key={candidateId}
