@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PLAN_CATALOG, effectiveSubscriptionPlan, proPlanPresentationEnabled, type PaidSubscriptionPlan } from "../lib/subscriptionPlans";
+import type { BillingInterval } from "../lib/stripePremium";
 import Image from "next/image";
 import type { GetStaticProps } from "next";
 import { useRouter } from "next/router";
@@ -225,6 +226,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const [editorLoading, setEditorLoading] = useState(false);
   const [pricingBusy, setPricingBusy] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
+  const [pricingBillingInterval, setPricingBillingInterval] = useState<BillingInterval>("monthly");
   const [authHandoffBusy, setAuthHandoffBusy] = useState(false);
   const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
   const [includesOtherInstruments, setIncludesOtherInstruments] = useState<boolean | null>(null);
@@ -1336,12 +1338,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     sendEvent(ANALYTICS_EVENTS.pricingCtaClicked, {
       cta: plan === "PRO" ? "pro_card" : "premium_card",
       plan: plan.toLowerCase(),
+      billing_interval: pricingBillingInterval,
       signedIn: Boolean(session),
       path: "/",
       ...premiumFunnelProperties(funnel),
     });
     if (!session) {
-      signIn(undefined, { callbackUrl: `${premiumPricingHref(funnel)}&checkout=1&plan=${plan.toLowerCase()}` });
+      signIn(undefined, { callbackUrl: `${premiumPricingHref(funnel)}&checkout=1&plan=${plan.toLowerCase()}&billing=${pricingBillingInterval}` });
       return;
     }
     if (isStaffUser || (isPremiumUser && currentPlan === plan)) {
@@ -1359,19 +1362,22 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           reason: funnel.reason,
           funnelId: funnel.funnelId,
           plan: plan.toLowerCase(),
+          billingInterval: pricingBillingInterval,
         }),
       });
       const data = await res.json();
       if (!res.ok || (!isPremiumUser && !data?.url)) {
         sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-          plan: plan === "PRO" ? "pro_monthly" : "premium_monthly",
+          plan: `${plan.toLowerCase()}_${pricingBillingInterval}`,
+          billing_interval: pricingBillingInterval,
           ...premiumFunnelProperties(funnel),
         });
         setPricingError(data?.error || "Checkout is temporarily unavailable. Please try again in a moment.");
         return;
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
-        plan: plan === "PRO" ? "pro_monthly" : "premium_monthly",
+        plan: `${plan.toLowerCase()}_${pricingBillingInterval}`,
+        billing_interval: pricingBillingInterval,
         checkout_attempt_id: data.checkoutAttemptId,
         ...premiumFunnelProperties(funnel),
       });
@@ -1379,7 +1385,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       else await router.push("/settings?planChanged=1");
     } catch (err: any) {
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-        plan: plan === "PRO" ? "pro_monthly" : "premium_monthly",
+        plan: `${plan.toLowerCase()}_${pricingBillingInterval}`,
+        billing_interval: pricingBillingInterval,
         ...premiumFunnelProperties(funnel),
       });
       setPricingError(err?.message || "We could not reach checkout. Check your connection and try again.");
@@ -2042,6 +2049,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               <h2>Choose your plan.</h2>
               <p>Start free. Upgrade when you want more transcriptions and full songs.</p>
             </div>
+            {proPlanPresentationEnabled() && <div className="pricing-billing-toggle" role="group" aria-label="Billing interval" data-reveal>
+              <button type="button" aria-pressed={pricingBillingInterval === "monthly"} className={pricingBillingInterval === "monthly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("monthly")}>Monthly</button>
+              <button type="button" aria-pressed={pricingBillingInterval === "yearly"} className={pricingBillingInterval === "yearly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("yearly")}>Yearly <span>2 months free</span></button>
+            </div>}
             <div className={`pricing-page__plans home-pricing__plans${proPlanPresentationEnabled() ? " pricing-page__plans--three" : ""}`}>
               <article className="pricing-plan pricing-plan--free" data-reveal>
                 <div className="pricing-plan__top">
@@ -2069,13 +2080,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 data-reveal
               >
                 <div className="pricing-plan__badge">
-                  {offerEligibility === "eligible" ? "Most popular · 7-day trial" : "Most popular"}
+                  {offerEligibility === "ineligible" ? "Most popular" : "Most popular · 7-day free trial"}
                 </div>
                 <div className="pricing-plan__top">
                   <h3>Premium</h3>
                   <div className="pricing-plan__price">
-                    <strong>$5.99</strong>
-                    <span>/ month</span>
+                    <strong>{pricingBillingInterval === "yearly" ? "$59.90" : "$5.99"}</strong>
+                    <span>/ {pricingBillingInterval === "yearly" ? "year" : "month"}</span>
                   </div>
                 </div>
                 <button
@@ -2093,7 +2104,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                       : premiumOfferCtaLabel(offerEligibility)}
                 </button>
                 <p className="pricing-plan__reassurance">
-                  {premiumOfferReassurance(offerEligibility)}
+                  {pricingBillingInterval === "yearly"
+                    ? offerEligibility === "ineligible"
+                      ? "$59.90/year · Save 2 months · Cancel anytime"
+                      : "7-day free trial for eligible new subscribers · Then $59.90/year"
+                    : offerEligibility === "eligible"
+                      ? "7-day free trial · Then $5.99/month · Cancel anytime"
+                      : premiumOfferReassurance(offerEligibility)}
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
@@ -2106,15 +2123,14 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 </ul>
               </article>
               {proPlanPresentationEnabled() && <article className="pricing-plan pricing-plan--pro" data-reveal>
-                <div className="pricing-plan__badge pricing-plan__badge--quiet">For frequent transcription</div>
                 <div className="pricing-plan__top">
                   <h3>Pro</h3>
-                  <div className="pricing-plan__price"><strong>$14.99</strong><span>/ month</span></div>
+                  <div className="pricing-plan__price"><strong>{pricingBillingInterval === "yearly" ? "$149.90" : "$14.99"}</strong><span>/ {pricingBillingInterval === "yearly" ? "year" : "month"}</span></div>
                 </div>
                 <button type="button" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => void handlePricingClick("home_pricing", "homepage_pro_card", "PRO")} disabled={pricingBusy}>
                   {pricingBusy ? "Opening…" : currentPlan === "PRO" ? "Manage current plan" : currentPlan === "PREMIUM" ? "Upgrade to Pro" : "Choose Pro"}
                 </button>
-                <p className="pricing-plan__reassurance">No trial · $14.99 billed today · Cancel anytime</p>
+                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? "No free trial · $149.90 billed today · Save 2 months" : "No free trial · $14.99 billed today · Cancel anytime"}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li>Everything in Premium</li>

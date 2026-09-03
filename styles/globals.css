@@ -11681,6 +11681,44 @@ input[type="number"] {
   text-wrap: balance;
 }
 
+.pricing-billing-toggle {
+  display: flex;
+  width: fit-content;
+  margin: -28px auto 38px;
+  padding: 4px;
+  border: 1px solid rgba(6, 17, 13, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 8px 24px rgba(6, 17, 13, 0.05);
+}
+
+.pricing-billing-toggle button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(6, 17, 13, 0.66);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pricing-billing-toggle button.is-active {
+  background: #06110d;
+  color: #fff;
+}
+
+.pricing-billing-toggle button span {
+  margin-left: 5px;
+  color: #16805f;
+  font-size: 0.72rem;
+}
+
+.pricing-billing-toggle button.is-active span { color: #9ee0c9; }
+.home-pricing .pricing-billing-toggle { margin: 20px auto 38px; }
+
 .pricing-page__plans {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

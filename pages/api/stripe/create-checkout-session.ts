@@ -7,6 +7,7 @@ import { getAppBaseUrl } from "../../../lib/urls";
 import {
   getStripePaidPlanConfig,
   getStripePaidPlanConfigs,
+  type BillingInterval,
 } from "../../../lib/stripePremium";
 import { getFreshUserAccess } from "../../../lib/serverAuth";
 import { PLAN_CATALOG, proPlanCheckoutEnabled, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
@@ -96,11 +97,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Choose either Premium or Pro." });
   }
   const requestedPlan: PaidSubscriptionPlan = rawPlan === "pro" ? "PRO" : "PREMIUM";
+  const rawBillingInterval = typeof req.body?.billingInterval === "string" ? req.body.billingInterval.toLowerCase() : "monthly";
+  if (rawBillingInterval !== "monthly" && rawBillingInterval !== "yearly") {
+    return res.status(400).json({ error: "Choose monthly or yearly billing." });
+  }
+  const billingInterval: BillingInterval = rawBillingInterval;
   if (requestedPlan === "PRO" && !proPlanCheckoutEnabled()) {
     return res.status(503).json({ error: "Pro checkout is not available yet." });
   }
   const selectedPlan = PLAN_CATALOG[requestedPlan];
-  const selectedConfig = getStripePaidPlanConfig(requestedPlan);
+  const selectedConfig = getStripePaidPlanConfig(requestedPlan, billingInterval);
   const paidConfigs = Object.values(getStripePaidPlanConfigs()).filter(
     (value): value is NonNullable<typeof value> => Boolean(value)
   );
@@ -144,6 +150,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }));
   await trackCheckoutEvent(session.user.id, "checkout_session_requested", {
     plan: selectedPlan.analyticsId,
+    billing_interval: billingInterval,
     source,
     reason,
     funnel_id: funnelId,
@@ -204,7 +211,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
     const checkoutStateHash = createHash("sha256")
       .update(
-      `${session.user.id}|${requestedPlan}|${returnPaths.success}|${funnelId}|${
+      `${session.user.id}|${requestedPlan}|${billingInterval}|${returnPaths.success}|${funnelId}|${
           customerState.subscriptionState.sort().join("|") || "new"
         }`
       )
@@ -213,6 +220,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const checkoutMetadata = {
       userId: session.user.id,
       note2tabsPlan: requestedPlan.toLowerCase(),
+      note2tabsBillingInterval: billingInterval,
       note2tabsPriceId: selectedConfig.priceId,
       premiumFunnelId: funnelId,
       premiumFunnelSource: source,
@@ -249,7 +257,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         cancel_url: `${baseUrl}${returnPaths.cancel}`,
         metadata: checkoutMetadata,
       },
-      { idempotencyKey: `${requestedPlan.toLowerCase()}-checkout-${session.user.id}-${checkoutStateHash}` }
+      { idempotencyKey: `${requestedPlan.toLowerCase()}-${billingInterval}-checkout-${session.user.id}-${checkoutStateHash}` }
     );
     if (!checkout.url) {
       throw new Error("Stripe returned a checkout session without a URL");
@@ -259,6 +267,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     await trackCheckoutEvent(session.user.id, "checkout_started", {
       plan: selectedPlan.analyticsId,
+      billing_interval: billingInterval,
       source,
       reason,
       funnel_id: funnelId,
@@ -280,6 +289,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           affiliate_click_id: affiliateClickIdFromRequest(req) || undefined,
           checkout_session_id: checkout.id,
           plan: selectedPlan.analyticsId,
+          billing_interval: billingInterval,
           trial_included: requestedPlan === "PREMIUM" && customerState.trialEligible,
         },
       });
@@ -299,12 +309,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       checkoutAttemptId: requestId,
       funnelId,
       plan: requestedPlan.toLowerCase(),
+      billingInterval,
       trialIncluded: requestedPlan === "PREMIUM" && customerState.trialEligible,
       offerVariant,
     });
   } catch (error) {
     await trackCheckoutEvent(session.user.id, "checkout_failed", {
       plan: selectedPlan.analyticsId,
+      billing_interval: billingInterval,
       source,
       reason,
       funnel_id: funnelId,

@@ -3,7 +3,7 @@ import type Stripe from "stripe";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { stripeClient } from "../../../lib/stripe";
-import { getStripePaidPlanConfig, stripeSubscriptionPlan } from "../../../lib/stripePremium";
+import { getStripePaidPlanConfig, stripeSubscriptionPlan, type BillingInterval } from "../../../lib/stripePremium";
 import { getFreshUserAccess } from "../../../lib/serverAuth";
 import { PLAN_CATALOG, proPlanCheckoutEnabled, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
 import { createPostHogServerClient } from "../../../lib/posthogServer";
@@ -25,10 +25,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Choose either Premium or Pro." });
   }
   const requestedPlan: PaidSubscriptionPlan = rawPlan === "pro" ? "PRO" : "PREMIUM";
+  const rawBillingInterval = typeof req.body?.billingInterval === "string" ? req.body.billingInterval.toLowerCase() : "monthly";
+  if (rawBillingInterval !== "monthly" && rawBillingInterval !== "yearly") {
+    return res.status(400).json({ error: "Choose monthly or yearly billing." });
+  }
+  const billingInterval: BillingInterval = rawBillingInterval;
   if (requestedPlan === "PRO" && !proPlanCheckoutEnabled()) {
     return res.status(503).json({ error: "Pro is not available yet." });
   }
-  const targetConfig = getStripePaidPlanConfig(requestedPlan);
+  const targetConfig = getStripePaidPlanConfig(requestedPlan, billingInterval);
   if (!stripeClient || !targetConfig) return res.status(503).json({ error: "That plan is not available yet." });
 
   try {
@@ -52,7 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         items: [{ id: item.id, price: targetConfig.priceId }],
         proration_behavior: "always_invoice",
         payment_behavior: "pending_if_incomplete",
-        metadata: { ...current.metadata, note2tabsPlan: "pro", note2tabsPriceId: targetConfig.priceId },
+        metadata: { ...current.metadata, note2tabsPlan: "pro", note2tabsPriceId: targetConfig.priceId, note2tabsBillingInterval: billingInterval },
       });
     } else {
       let scheduleId = typeof current.schedule === "string" ? current.schedule : current.schedule?.id;
@@ -71,7 +76,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           {
             start_date: current.current_period_end,
             items: [{ price: targetConfig.priceId, quantity: item.quantity || 1 }],
-            metadata: { note2tabsPlan: "premium", note2tabsPriceId: targetConfig.priceId },
+            metadata: { note2tabsPlan: "premium", note2tabsPriceId: targetConfig.priceId, note2tabsBillingInterval: billingInterval },
           },
         ],
       });
@@ -84,6 +89,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       properties: {
         from_plan: PLAN_CATALOG[currentPlan].analyticsId,
         to_plan: PLAN_CATALOG[requestedPlan].analyticsId,
+        to_billing_interval: billingInterval,
         effective: currentPlan === "PREMIUM" ? "immediate" : "renewal",
       },
     });
@@ -91,6 +97,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({
       changed: true,
       plan: rawPlan,
+      billingInterval,
       effective: currentPlan === "PREMIUM" ? "immediate" : "renewal",
     });
   } catch (error) {

@@ -160,8 +160,10 @@ describe("stripe premium flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.STRIPE_PRICE_PREMIUM_MONTHLY = "price_test_premium";
+    delete process.env.STRIPE_PRICE_PREMIUM_YEARLY;
     delete process.env.STRIPE_PRODUCT_PREMIUM;
     delete process.env.STRIPE_PRICE_PRO_MONTHLY;
+    delete process.env.STRIPE_PRICE_PRO_YEARLY;
     delete process.env.STRIPE_PRODUCT_PRO;
     delete process.env.PRO_PLAN_ENABLED;
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
@@ -247,7 +249,26 @@ describe("stripe premium flow", () => {
           line_items: [{ price: "price_test_pro", quantity: 1 }],
           subscription_data: expect.not.objectContaining({ trial_period_days: expect.anything() }),
         }),
-        expect.objectContaining({ idempotencyKey: expect.stringContaining("pro-checkout-") })
+        expect.objectContaining({ idempotencyKey: expect.stringContaining("pro-monthly-checkout-") })
+      );
+    });
+
+    it("uses yearly prices while keeping Premium's trial and excluding Pro's", async () => {
+      process.env.STRIPE_PRICE_PREMIUM_YEARLY = "price_test_premium_yearly";
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({ method: "POST", body: { plan: "premium", billingInterval: "yearly" } });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(res._getJSONData()).toMatchObject({ plan: "premium", billingInterval: "yearly", trialIncluded: true });
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          line_items: [{ price: "price_test_premium_yearly", quantity: 1 }],
+          subscription_data: expect.objectContaining({ trial_period_days: 7 }),
+          metadata: expect.objectContaining({ note2tabsBillingInterval: "yearly" }),
+        }),
+        expect.objectContaining({ idempotencyKey: expect.stringContaining("premium-yearly-checkout-") })
       );
     });
 
@@ -275,6 +296,7 @@ describe("stripe premium flow", () => {
         checkoutAttemptId: "local",
         funnelId: "funnel_test_123",
         plan: "premium",
+        billingInterval: "monthly",
         trialIncluded: true,
         offerVariant: "value_framing",
       });
@@ -322,7 +344,7 @@ describe("stripe premium flow", () => {
           cancel_url: "https://note2tabs.test/settings?upgrade=cancel",
         }),
         expect.objectContaining({
-          idempotencyKey: expect.stringMatching(/^premium-checkout-user_1-/),
+          idempotencyKey: expect.stringMatching(/^premium-monthly-checkout-user_1-/),
         })
       );
     });
