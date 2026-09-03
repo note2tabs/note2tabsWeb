@@ -9178,6 +9178,9 @@ export default function GteWorkspace({
         setKeyboardAddMode(null);
         setDraftNote(null);
         setDraftNoteAnchor(null);
+        // Placing the tab cursor also anchors where the next explicit "Play"
+        // will start from (startFrameAnchorRef, tracked at the page level).
+        onGlobalPlaybackFrameChange?.(startTime);
       } else {
         const minX = Math.min(current.startX, current.endX);
         const maxX = Math.max(current.startX, current.endX);

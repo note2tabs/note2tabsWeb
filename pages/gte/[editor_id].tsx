@@ -1548,6 +1548,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const practiceRootRef = useRef<HTMLElement | null>(null);
   const practiceSettingsHydratedRef = useRef(false);
   const globalPlaybackFrameRef = useRef(0);
+  // Where the next explicit "start playback" begins from. Mirrors
+  // globalPlaybackFrameRef everywhere that ref is updated (so pausing and
+  // pressing play again still resumes normally), but additionally resets to 0
+  // on track switch, reload, and "go to start" — globalPlaybackFrameRef alone
+  // does not reset on track switch, since it also drives the shared playhead.
+  const startFrameAnchorRef = useRef(0);
   const globalPlaybackCounterTickRef = useRef(0);
   const bpmCommitTimerRef = useRef<number | null>(null);
   const queuedBpmValueRef = useRef<string | number | null>(null);
@@ -3880,6 +3886,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const syncGlobalPlaybackFrame = useCallback((nextFrame: number, options?: { forceReact?: boolean }) => {
     const normalized = Math.max(0, Math.min(canvasTimelineEnd, Math.round(nextFrame)));
     globalPlaybackFrameRef.current = normalized;
+    startFrameAnchorRef.current = normalized;
     const counterTick = Math.floor((normalized / Math.max(1, globalPlaybackFps)) * 20);
     if (options?.forceReact || counterTick !== globalPlaybackCounterTickRef.current) {
       globalPlaybackCounterTickRef.current = counterTick;
@@ -4293,6 +4300,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     stopGlobalPlayback();
     syncGlobalPlaybackFrame(0, { forceReact: true });
   }, [editorId, stopGlobalPlayback, syncGlobalPlaybackFrame]);
+
+  useEffect(() => {
+    startFrameAnchorRef.current = 0;
+  }, [activeLaneId]);
 
   const scheduleGlobalPlayback = useCallback(
     async (
@@ -4844,7 +4855,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       0,
       Math.min(
         canvasTimelineEnd,
-        Math.round(startFrameOverride ?? globalPlaybackFrameRef.current)
+        Math.round(startFrameOverride ?? startFrameAnchorRef.current)
       )
     );
     const startFrame =
