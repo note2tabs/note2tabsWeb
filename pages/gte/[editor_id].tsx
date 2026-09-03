@@ -2829,32 +2829,58 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     }
     setConfirmDeleteTrackId(null);
 
+    const deletedLaneIndex = canvas.editors.findIndex((lane) => lane.id === laneId);
+    if (deletedLaneIndex < 0) {
+      setError("Track not found.");
+      return;
+    }
+    const deletedLane = canvas.editors[deletedLaneIndex];
+    const previousActiveLaneId = activeLaneId;
+    const previousMobileEditLaneId = mobileEditLaneId;
+    const nextEditors = canvas.editors.filter((lane) => lane.id !== laneId);
+    const nextCanvas = normalizeCanvas(
+      {
+        ...canvas,
+        editors: nextEditors,
+        updatedAt: new Date().toISOString(),
+        version: Math.max(1, Math.round(toNumber(canvas.version, 1))) + 1,
+      },
+      editorId
+    );
+
     setDeletingLaneId(laneId);
     setError(null);
+    canvasRef.current = nextCanvas;
+    applyCanvasUpdate(nextCanvas, { markDirty: !isGuestMode });
+    if (activeLaneId === laneId) {
+      setActiveLaneId(nextCanvas.editors[Math.min(deletedLaneIndex, nextCanvas.editors.length - 1)]?.id || null);
+    }
+    if (mobileEditLaneId === laneId) {
+      setMobileEditLaneId(null);
+    }
+
     try {
-      const nextEditors = canvas.editors.filter((lane) => lane.id !== laneId);
-      if (nextEditors.length === canvas.editors.length) {
-        throw new Error("Track not found.");
-      }
-      const nextCanvas = normalizeCanvas(
-        {
-          ...canvas,
-          editors: nextEditors,
-          updatedAt: new Date().toISOString(),
-          version: Math.max(1, Math.round(toNumber(canvas.version, 1))) + 1,
-        },
-        editorId
-      );
       await gteApi.applySnapshot(editorId, nextCanvas);
-      applyCanvasUpdate(nextCanvas, { markDirty: !isGuestMode });
-      if (activeLaneId === laneId) {
-        setActiveLaneId(nextCanvas.editors[0]?.id || null);
-      }
-      if (mobileEditLaneId === laneId) {
-        setMobileEditLaneId(null);
-      }
     } catch (err: any) {
-      setError(err?.message || "We could not remove this track. It is still in your tab; please try again.");
+      const currentCanvas = canvasRef.current || nextCanvas;
+      if (!currentCanvas.editors.some((lane) => lane.id === laneId)) {
+        const restoredEditors = [...currentCanvas.editors];
+        restoredEditors.splice(Math.min(deletedLaneIndex, restoredEditors.length), 0, deletedLane);
+        const restoredCanvas = normalizeCanvas(
+          {
+            ...currentCanvas,
+            editors: restoredEditors,
+            updatedAt: new Date().toISOString(),
+            version: Math.max(1, Math.round(toNumber(currentCanvas.version, 1))) + 1,
+          },
+          editorId
+        );
+        canvasRef.current = restoredCanvas;
+        applyCanvasUpdate(restoredCanvas, { markDirty: !isGuestMode, recordHistory: false });
+        if (previousActiveLaneId === laneId) setActiveLaneId(laneId);
+        if (previousMobileEditLaneId === laneId) setMobileEditLaneId(laneId);
+      }
+      setError(err?.message || "We could not remove this track, so it has been restored. Please try again.");
     } finally {
       setDeletingLaneId(null);
     }
