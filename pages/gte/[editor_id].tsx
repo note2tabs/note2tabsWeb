@@ -5358,15 +5358,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const toggleTrackMute = useCallback((trackId: string) => {
     if (!canvas) return;
     const nextMuted = !Boolean(trackMuteById[trackId]);
+    // Mute and isolate are mutually exclusive per track: muting the currently
+    // isolated track clears isolation for it, since "only this track plays"
+    // and "this track never plays" cannot both be true at once.
+    const nextIsolatedId = nextMuted && isolatedTrackId === trackId ? null : isolatedTrackId;
     setTrackMuteById((prev) => ({ ...prev, [trackId]: nextMuted }));
+    if (nextIsolatedId !== isolatedTrackId) setIsolatedTrackId(nextIsolatedId);
     persistTrackPlaybackCanvas({
       ...canvas,
       updatedAt: new Date().toISOString(),
-      editors: canvas.editors.map((lane) =>
-        lane.id === trackId ? { ...lane, playbackMuted: nextMuted } : lane
-      ),
+      editors: canvas.editors.map((lane) => ({
+        ...lane,
+        ...(lane.id === trackId ? { playbackMuted: nextMuted } : null),
+        playbackIsolated: lane.id === nextIsolatedId,
+      })),
     });
-  }, [canvas, persistTrackPlaybackCanvas, trackMuteById]);
+  }, [canvas, isolatedTrackId, persistTrackPlaybackCanvas, trackMuteById]);
 
   const handleTrackVolumePreview = useCallback((trackId: string, nextVolume: number) => {
     const volume = normalizeTrackVolume(nextVolume);
@@ -5405,16 +5412,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const toggleTrackIsolation = useCallback((trackId: string) => {
     if (!canvas) return;
     const nextIsolatedId = isolatedTrackId === trackId ? null : trackId;
+    // Mute and isolate are mutually exclusive per track: isolating a track
+    // that is currently muted un-mutes it first, since a soloed track must
+    // actually play.
+    const wasMuted = nextIsolatedId === trackId && Boolean(trackMuteById[trackId]);
     setIsolatedTrackId(nextIsolatedId);
+    if (wasMuted) setTrackMuteById((prev) => ({ ...prev, [trackId]: false }));
     persistTrackPlaybackCanvas({
       ...canvas,
       updatedAt: new Date().toISOString(),
       editors: canvas.editors.map((lane) => ({
         ...lane,
+        ...(wasMuted && lane.id === trackId ? { playbackMuted: false } : null),
         playbackIsolated: lane.id === nextIsolatedId,
       })),
     });
-  }, [canvas, isolatedTrackId, persistTrackPlaybackCanvas]);
+  }, [canvas, isolatedTrackId, persistTrackPlaybackCanvas, trackMuteById]);
 
   const trackPlaybackStateSignature = useMemo(() => {
     if (!canvas) return "";
@@ -7002,7 +7015,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     <div className="grid gap-1 border-t border-slate-200 p-2">
                       {([
                         ["showBarNumbers", "Bar numbers"],
-                        ["showTimeRuler", "Time ruler"],
                         ["showPlaybackCounter", "Playback counter"],
                       ] as const).map(([key, label]) => (
                         <button
@@ -7148,7 +7160,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               <div className="absolute right-0 top-[calc(100%+4px)] z-[10000] grid w-64 gap-1 rounded-lg border border-slate-200 bg-white p-2 text-sm text-slate-700 shadow-xl">
                 {([
                   ["showBarNumbers", "Bar numbers"],
-                  ["showTimeRuler", "Time ruler"],
                   ["showPlaybackCounter", "Playback counter"],
                 ] as const).map(([key, label]) => (
                   <button
@@ -7536,7 +7547,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </button>
                       {([
                         ["showBarNumbers", "Bar numbers"],
-                        ["showTimeRuler", "Time ruler"],
                         ["showPlaybackCounter", "Playback counter"],
                       ] as const).map(([key, label]) => (
                         <button
