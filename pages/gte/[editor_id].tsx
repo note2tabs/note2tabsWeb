@@ -8763,7 +8763,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         {saveError && <div className="error" role="alert">{saveError}</div>}
         {canvas && (
           <div
-            className={`gte-editor-stage stack min-w-0 content-start overflow-x-hidden ${
+            className={`gte-editor-stage stack min-w-0 content-start ${
               isMobileEditMode
                 ? "gte-editor-stage--mobile-edit flex-1 min-h-0 space-y-0"
                 : practiceModeEnabled

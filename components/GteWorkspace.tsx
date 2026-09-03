@@ -16777,7 +16777,13 @@ export default function GteWorkspace({
             <div
               ref={timelineOuterRef}
               data-gte-shared-timeline="true"
-              className="hide-scrollbar min-w-0 overflow-x-hidden overflow-y-visible"
+              // No overflow is set on either axis here on purpose: declaring
+              // one axis hidden while leaving the other "visible" makes the
+              // browser silently compute the visible axis as "auto" (per the
+              // CSS overflow spec), turning this into a hidden-scrollbar
+              // nested scroll container. The track should just lay out at
+              // its natural height on the page, not scroll internally.
+              className="min-w-0"
               onScroll={handleTimelineOuterScroll}
             >
               <div className="relative" style={{ width: timelineChromeWidth, paddingTop: TIMELINE_BAR_HEADER_HEIGHT, paddingBottom: addBarStartsNewRow ? 40 : 0 }}>
