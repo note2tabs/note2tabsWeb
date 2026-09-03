@@ -10172,7 +10172,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                             y: event.clientY,
                           });
                         }}
-                        className="flex w-1/4 min-w-0 shrink-0 flex-col items-start rounded-md px-1 py-0.5 text-left transition hover:bg-slate-100"
+                        className="flex w-1/2 min-w-0 shrink-0 flex-col items-start rounded-md px-1 py-0.5 text-left transition hover:bg-slate-100"
                         aria-expanded={desktopTrackMenuOpen}
                         aria-haspopup="menu"
                         title="Choose which track to edit"
@@ -10682,7 +10682,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       {!isMobileViewport && canvas && (
         <div
           data-gte-floating-ui="true"
-          className="pointer-events-none fixed bottom-16 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2"
+          className="pointer-events-none fixed bottom-10 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2"
         >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
             {displayPreferences.showPlaybackCounter && (
