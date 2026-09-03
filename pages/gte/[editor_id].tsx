@@ -3886,7 +3886,6 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const syncGlobalPlaybackFrame = useCallback((nextFrame: number, options?: { forceReact?: boolean }) => {
     const normalized = Math.max(0, Math.min(canvasTimelineEnd, Math.round(nextFrame)));
     globalPlaybackFrameRef.current = normalized;
-    startFrameAnchorRef.current = normalized;
     const counterTick = Math.floor((normalized / Math.max(1, globalPlaybackFps)) * 20);
     if (options?.forceReact || counterTick !== globalPlaybackCounterTickRef.current) {
       globalPlaybackCounterTickRef.current = counterTick;
@@ -5192,8 +5191,12 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       });
       return;
     }
-    const atTimelineEnd = Math.round(globalPlaybackFrameRef.current) >= canvasTimelineEnd;
-    void startGlobalPlayback(atTimelineEnd ? 0 : undefined);
+    // Play always starts from startFrameAnchorRef (never a raw override here),
+    // except once it's run off the end of the timeline — restart from 0 then.
+    if (Math.round(startFrameAnchorRef.current) >= canvasTimelineEnd) {
+      startFrameAnchorRef.current = 0;
+    }
+    void startGlobalPlayback();
   }, [
     beginSpeedTrainerSession,
     canvasTimelineEnd,
@@ -5261,6 +5264,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       if (globalPlaybackIsPlaying || globalPlaybackStartPendingRef.current) {
         stopGlobalPlayback();
       }
+      // Every explicit seek (cursor/note click, skip bar, go to start) is
+      // exactly what should anchor the next "Play" — unlike the continuous
+      // frame updates during playback, which must not move the anchor, or
+      // pausing and resuming would resume from the pause point instead of it.
+      startFrameAnchorRef.current = clamped;
       syncGlobalPlaybackFrame(clamped, { forceReact: true });
     },
     [canvasTimelineEnd, globalPlaybackIsPlaying, stopGlobalPlayback, syncGlobalPlaybackFrame]

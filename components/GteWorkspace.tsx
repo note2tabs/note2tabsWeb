@@ -9571,6 +9571,9 @@ export default function GteWorkspace({
       time: snapKeyboardCursorTimeToGrid(startTime),
       stringIndex: clamp(Math.round(stringIndex), 0, 5),
     });
+    // Pressing a note/chord anchors the next explicit "Play" to its start,
+    // same as placing the cursor on an empty cell.
+    onGlobalPlaybackFrameChange?.(startTime);
     const shiftKey = Boolean(event.shiftKey);
     if (sliceToolActive && !shiftKey) {
       multiDragMovedRef.current = true;
@@ -9652,6 +9655,9 @@ export default function GteWorkspace({
       time: snapKeyboardCursorTimeToGrid(startTime),
       stringIndex: clamp(Math.round(stringIndex), 0, 5),
     });
+    // Pressing a note/chord anchors the next explicit "Play" to its start,
+    // same as placing the cursor on an empty cell.
+    onGlobalPlaybackFrameChange?.(startTime);
     const shiftKey = Boolean(event.shiftKey);
     if (sliceToolActive && !shiftKey) {
       const target = getPointerFrame(event.clientX, event.clientY);
