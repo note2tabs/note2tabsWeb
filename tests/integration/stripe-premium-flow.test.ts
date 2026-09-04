@@ -272,6 +272,28 @@ describe("stripe premium flow", () => {
       );
     });
 
+    it("creates yearly Pro checkout without a trial", async () => {
+      process.env.STRIPE_PRICE_PRO_MONTHLY = "price_test_pro";
+      process.env.STRIPE_PRICE_PRO_YEARLY = "price_test_pro_yearly";
+      process.env.STRIPE_PRODUCT_PRO = "prod_test_pro";
+      process.env.PRO_PLAN_ENABLED = "true";
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({ method: "POST", body: { plan: "pro", billingInterval: "yearly" } });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(res._getJSONData()).toMatchObject({ plan: "pro", billingInterval: "yearly", trialIncluded: false });
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          line_items: [{ price: "price_test_pro_yearly", quantity: 1 }],
+          subscription_data: expect.not.objectContaining({ trial_period_days: expect.anything() }),
+          metadata: expect.objectContaining({ note2tabsBillingInterval: "yearly" }),
+        }),
+        expect.objectContaining({ idempotencyKey: expect.stringContaining("pro-yearly-checkout-") })
+      );
+    });
+
     it("creates a checkout session with user metadata", async () => {
       const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
       const { req, res } = createMocks({
