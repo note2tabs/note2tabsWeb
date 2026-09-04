@@ -578,10 +578,10 @@ model lane_chords {
   user_id       String
   canvas_id     String
   lane_id       String
-  lane_key      BigInt?
+  lane_key      Int?
   chord_id      Int
   start_time    Int
-  length        Int
+  length        Int          @db.SmallInt
   original_midi Json         @default("[]")
   current_tabs  Json         @default("[]")
   og_tabs       Json         @default("[]")
@@ -598,12 +598,12 @@ model lane_cuts {
   user_id      String
   canvas_id    String
   lane_id      String
-  lane_key     BigInt?
+  lane_key     Int?
   region_index Int
   start_time   Int
   end_time     Int
-  coord_string Int
-  coord_fret   Int
+  coord_string Int          @db.SmallInt
+  coord_fret   Int          @db.SmallInt
   updated_at   DateTime     @db.Timestamptz(6)
   created_at   DateTime     @default(now()) @db.Timestamptz(6)
   canvas_lanes canvas_lanes @relation(fields: [user_id, canvas_id, lane_id], references: [user_id, canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
@@ -616,13 +616,13 @@ model lane_notes {
   user_id      String
   canvas_id    String
   lane_id      String
-  lane_key     BigInt?
+  lane_key     Int?
   note_id      Int
   start_time   Int
-  length       Int
-  midi_num     Int
-  tab_string   Int
-  tab_fret     Int
+  length       Int          @db.SmallInt
+  midi_num     Int          @db.SmallInt
+  tab_string   Int          @db.SmallInt
+  tab_fret     Int          @db.SmallInt
   metadata     Json         @default("{}")
   updated_at   DateTime     @db.Timestamptz(6)
   created_at   DateTime     @default(now()) @db.Timestamptz(6)
@@ -636,7 +636,7 @@ model lane_note_effects {
   user_id        String
   canvas_id      String
   lane_id        String
-  lane_key       BigInt?
+  lane_key       Int?
   effect_id      Int
   effect_type    Int
   start_note_id  Int
