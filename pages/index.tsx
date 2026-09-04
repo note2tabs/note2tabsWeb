@@ -2051,7 +2051,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
             </div>
             {proPlanPresentationEnabled() && <div className="pricing-billing-toggle" role="group" aria-label="Billing interval" data-reveal>
               <button type="button" aria-pressed={pricingBillingInterval === "monthly"} className={pricingBillingInterval === "monthly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("monthly")}>Monthly</button>
-              <button type="button" aria-pressed={pricingBillingInterval === "yearly"} className={pricingBillingInterval === "yearly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("yearly")}>Yearly <span>2 months free</span></button>
+              <button type="button" aria-pressed={pricingBillingInterval === "yearly"} className={pricingBillingInterval === "yearly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("yearly")}>Yearly</button>
             </div>}
             <div className={`pricing-page__plans home-pricing__plans${proPlanPresentationEnabled() ? " pricing-page__plans--three" : ""}`}>
               <article className="pricing-plan pricing-plan--free" data-reveal>
@@ -2085,7 +2085,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <div className="pricing-plan__top">
                   <h3>Premium</h3>
                   <div className="pricing-plan__price">
-                    <strong>{pricingBillingInterval === "yearly" ? "$59.90" : "$5.99"}</strong>
+                    <strong>{pricingBillingInterval === "yearly" ? "$59.99" : "$5.99"}</strong>
                     <span>/ {pricingBillingInterval === "yearly" ? "year" : "month"}</span>
                   </div>
                 </div>
@@ -2106,8 +2106,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <p className="pricing-plan__reassurance">
                   {pricingBillingInterval === "yearly"
                     ? offerEligibility === "ineligible"
-                      ? "$59.90/year · Save 2 months · Cancel anytime"
-                      : "7-day free trial for eligible new subscribers · Then $59.90/year"
+                      ? "$59.99/year · Save $12 per year · Cancel anytime"
+                      : "7-day free trial · Then $59.99/year · Save $12 per year"
                     : offerEligibility === "eligible"
                       ? "7-day free trial · Then $5.99/month · Cancel anytime"
                       : premiumOfferReassurance(offerEligibility)}
@@ -2125,12 +2125,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               {proPlanPresentationEnabled() && <article className="pricing-plan pricing-plan--pro" data-reveal>
                 <div className="pricing-plan__top">
                   <h3>Pro</h3>
-                  <div className="pricing-plan__price"><strong>{pricingBillingInterval === "yearly" ? "$149.90" : "$14.99"}</strong><span>/ {pricingBillingInterval === "yearly" ? "year" : "month"}</span></div>
+                  <div className="pricing-plan__price"><strong>{pricingBillingInterval === "yearly" ? "$149.99" : "$14.99"}</strong><span>/ {pricingBillingInterval === "yearly" ? "year" : "month"}</span></div>
                 </div>
                 <button type="button" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => void handlePricingClick("home_pricing", "homepage_pro_card", "PRO")} disabled={pricingBusy}>
                   {pricingBusy ? "Opening…" : currentPlan === "PRO" ? "Manage current plan" : currentPlan === "PREMIUM" ? "Upgrade to Pro" : "Choose Pro"}
                 </button>
-                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? "No free trial · $149.90 billed today · Save 2 months" : "No free trial · $14.99 billed today · Cancel anytime"}</p>
+                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? "No free trial · $149.99 billed today · Save $30 per year" : "No free trial · $14.99 billed today · Cancel anytime"}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li>Everything in Premium</li>

@@ -120,10 +120,10 @@ export default function PricingPage() {
         itemListElement: [
           { "@type": "Offer", name: "Free", price: "0", priceCurrency: "USD" },
           { "@type": "Offer", name: "Premium", price: "5.99", priceCurrency: "USD" },
-          { "@type": "Offer", name: "Premium yearly", price: "59.90", priceCurrency: "USD" },
+          { "@type": "Offer", name: "Premium yearly", price: "59.99", priceCurrency: "USD" },
           ...(showPro ? [
             { "@type": "Offer", name: "Pro", price: "14.99", priceCurrency: "USD" },
-            { "@type": "Offer", name: "Pro yearly", price: "149.90", priceCurrency: "USD" },
+            { "@type": "Offer", name: "Pro yearly", price: "149.99", priceCurrency: "USD" },
           ] : []),
         ],
       },
@@ -255,7 +255,7 @@ export default function PricingPage() {
 
             {showPro && <div className="pricing-billing-toggle" role="group" aria-label="Billing interval">
               <button type="button" aria-pressed={billingInterval === "monthly"} className={billingInterval === "monthly" ? "is-active" : ""} onClick={() => setBillingInterval("monthly")}>Monthly</button>
-              <button type="button" aria-pressed={billingInterval === "yearly"} className={billingInterval === "yearly" ? "is-active" : ""} onClick={() => setBillingInterval("yearly")}>Yearly <span>2 months free</span></button>
+              <button type="button" aria-pressed={billingInterval === "yearly"} className={billingInterval === "yearly" ? "is-active" : ""} onClick={() => setBillingInterval("yearly")}>Yearly</button>
             </div>}
 
             <section className={`pricing-page__plans${showPro ? " pricing-page__plans--three" : ""}`} aria-label="Note2Tabs plans">
@@ -299,7 +299,7 @@ export default function PricingPage() {
                 <div className="pricing-plan__top">
                   <h2>Premium</h2>
                   <div className="pricing-plan__price">
-                    <strong>{billingInterval === "yearly" ? "$59.90" : "$5.99"}</strong>
+                    <strong>{billingInterval === "yearly" ? "$59.99" : "$5.99"}</strong>
                     <span>/ {billingInterval === "yearly" ? "year" : "month"}</span>
                   </div>
                 </div>
@@ -325,8 +325,8 @@ export default function PricingPage() {
                 <p className="pricing-plan__reassurance">
                   {billingInterval === "yearly"
                     ? offerEligibility === "ineligible"
-                      ? "$59.90/year · Save 2 months · Cancel anytime"
-                      : "7-day free trial for eligible new subscribers · Then $59.90/year"
+                      ? "$59.99/year · Save $12 per year · Cancel anytime"
+                      : "7-day free trial · Then $59.99/year · Save $12 per year"
                     : offerEligibility === "eligible"
                       ? "7-day free trial · Then $5.99/month · Cancel anytime"
                       : premiumOfferReassurance(offerEligibility, offerVariant)}
@@ -345,7 +345,7 @@ export default function PricingPage() {
               {showPro && <article className="pricing-plan pricing-plan--pro">
                 <div className="pricing-plan__top">
                   <h2>Pro</h2>
-                  <div className="pricing-plan__price"><strong>{billingInterval === "yearly" ? "$149.90" : "$14.99"}</strong><span>/ {billingInterval === "yearly" ? "year" : "month"}</span></div>
+                  <div className="pricing-plan__price"><strong>{billingInterval === "yearly" ? "$149.99" : "$14.99"}</strong><span>/ {billingInterval === "yearly" ? "year" : "month"}</span></div>
                 </div>
                 {currentPlan === "PRO" || hasStaffAccess ? (
                   <Link href={hasStaffAccess ? "/transcribe" : "/settings"} className="pricing-plan__cta pricing-plan__cta--secondary">
@@ -356,7 +356,7 @@ export default function PricingPage() {
                     {checkoutBusy ? "Opening…" : currentPlan === "PREMIUM" ? "Upgrade to Pro" : "Choose Pro"}
                   </button>
                 )}
-                <p className="pricing-plan__reassurance">{billingInterval === "yearly" ? "No free trial · $149.90 billed today · Save 2 months" : "No free trial · $14.99 billed today · Cancel anytime"}</p>
+                <p className="pricing-plan__reassurance">{billingInterval === "yearly" ? "No free trial · $149.99 billed today · Save $30 per year" : "No free trial · $14.99 billed today · Cancel anytime"}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li>Everything in Premium</li>
