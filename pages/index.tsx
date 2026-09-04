@@ -2051,7 +2051,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
             </div>
             {proPlanPresentationEnabled() && <div className="pricing-billing-toggle" role="group" aria-label="Billing interval" data-reveal>
               <button type="button" aria-pressed={pricingBillingInterval === "monthly"} className={pricingBillingInterval === "monthly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("monthly")}>Monthly</button>
-              <button type="button" aria-pressed={pricingBillingInterval === "yearly"} className={pricingBillingInterval === "yearly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("yearly")}>Yearly <span>Save up to $30!</span></button>
+              <button type="button" aria-pressed={pricingBillingInterval === "yearly"} className={pricingBillingInterval === "yearly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("yearly")}>Yearly <span>Save $30!</span></button>
             </div>}
             <div className={`pricing-page__plans home-pricing__plans${proPlanPresentationEnabled() ? " pricing-page__plans--three" : ""}`}>
               <article className="pricing-plan pricing-plan--free" data-reveal>
