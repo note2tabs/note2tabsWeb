@@ -486,7 +486,6 @@ model PostCluster {
 }
 
 model canvas_lanes {
-  user_id            String
   canvas_id          String
   lane_id            String
   lane_key           BigInt        @unique(map: "idx_canvas_lanes_lane_key") @default(autoincrement())
@@ -501,21 +500,21 @@ model canvas_lanes {
   seconds_per_bar    Float         @default(2.0)
   updated_at         DateTime      @db.Timestamptz(6)
   created_at         DateTime      @default(now()) @db.Timestamptz(6)
-  canvases           canvases      @relation(fields: [user_id, canvas_id], references: [user_id, canvas_id], onDelete: Cascade, onUpdate: NoAction)
+  canvases           canvases      @relation(fields: [canvas_id], references: [canvas_id], onDelete: Cascade, onUpdate: NoAction)
   lane_chords        lane_chords[]
   lane_cuts          lane_cuts[]
   lane_note_effects  lane_note_effects[]
   lane_notes         lane_notes[]
 
-  @@id([user_id, canvas_id, lane_id])
-  @@unique([user_id, canvas_id, lane_index], map: "idx_canvas_lanes_unique_order")
-  @@index([user_id, canvas_id, lane_id], map: "idx_canvas_lanes_lookup")
-  @@index([user_id, canvas_id, track_type], map: "idx_canvas_lanes_track_type")
+  @@id([canvas_id, lane_id])
+  @@unique([canvas_id, lane_index], map: "idx_canvas_lanes_unique_order")
+  @@index([canvas_id, lane_id], map: "idx_canvas_lanes_lookup")
+  @@index([canvas_id, track_type], map: "idx_canvas_lanes_track_type")
 }
 
 model canvases {
   user_id               String
-  canvas_id             String
+  canvas_id             String         @unique
   name                  String?
   schema_version        Int            @default(1)
   canvas_schema_version Int            @default(1)
@@ -575,7 +574,6 @@ model jobs {
 }
 
 model lane_chords {
-  user_id       String
   canvas_id     String
   lane_id       String
   lane_key      Int?
@@ -588,14 +586,13 @@ model lane_chords {
   metadata      Json         @default("{}")
   updated_at    DateTime     @db.Timestamptz(6)
   created_at    DateTime     @default(now()) @db.Timestamptz(6)
-  canvas_lanes  canvas_lanes @relation(fields: [user_id, canvas_id, lane_id], references: [user_id, canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
+  canvas_lanes  canvas_lanes @relation(fields: [canvas_id, lane_id], references: [canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@id([user_id, canvas_id, lane_id, chord_id])
-  @@index([user_id, canvas_id, lane_id, start_time, chord_id], map: "idx_lane_chords_lookup")
+  @@id([canvas_id, lane_id, chord_id])
+  @@index([canvas_id, lane_id, start_time, chord_id], map: "idx_lane_chords_lookup")
 }
 
 model lane_cuts {
-  user_id      String
   canvas_id    String
   lane_id      String
   lane_key     Int?
@@ -606,14 +603,13 @@ model lane_cuts {
   coord_fret   Int          @db.SmallInt
   updated_at   DateTime     @db.Timestamptz(6)
   created_at   DateTime     @default(now()) @db.Timestamptz(6)
-  canvas_lanes canvas_lanes @relation(fields: [user_id, canvas_id, lane_id], references: [user_id, canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
+  canvas_lanes canvas_lanes @relation(fields: [canvas_id, lane_id], references: [canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@id([user_id, canvas_id, lane_id, region_index])
-  @@index([user_id, canvas_id, lane_id, region_index], map: "idx_lane_cuts_lookup")
+  @@id([canvas_id, lane_id, region_index])
+  @@index([canvas_id, lane_id, region_index], map: "idx_lane_cuts_lookup")
 }
 
 model lane_notes {
-  user_id      String
   canvas_id    String
   lane_id      String
   lane_key     Int?
@@ -626,14 +622,13 @@ model lane_notes {
   metadata     Json         @default("{}")
   updated_at   DateTime     @db.Timestamptz(6)
   created_at   DateTime     @default(now()) @db.Timestamptz(6)
-  canvas_lanes canvas_lanes @relation(fields: [user_id, canvas_id, lane_id], references: [user_id, canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
+  canvas_lanes canvas_lanes @relation(fields: [canvas_id, lane_id], references: [canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@id([user_id, canvas_id, lane_id, note_id])
-  @@index([user_id, canvas_id, lane_id, start_time, note_id], map: "idx_lane_notes_lookup")
+  @@id([canvas_id, lane_id, note_id])
+  @@index([canvas_id, lane_id, start_time, note_id], map: "idx_lane_notes_lookup")
 }
 
 model lane_note_effects {
-  user_id        String
   canvas_id      String
   lane_id        String
   lane_key       Int?
@@ -644,10 +639,10 @@ model lane_note_effects {
   effect_label   String       @default("")
   updated_at     DateTime     @db.Timestamptz(6)
   created_at     DateTime     @default(now()) @db.Timestamptz(6)
-  canvas_lanes   canvas_lanes @relation(fields: [user_id, canvas_id, lane_id], references: [user_id, canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
+  canvas_lanes   canvas_lanes @relation(fields: [canvas_id, lane_id], references: [canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@id([user_id, canvas_id, lane_id, effect_id])
-  @@index([user_id, canvas_id, lane_id, effect_id], map: "idx_lane_note_effects_lookup")
+  @@id([canvas_id, lane_id, effect_id])
+  @@index([canvas_id, lane_id, effect_id], map: "idx_lane_note_effects_lookup")
 }
 
 model thistothat_usage_state {
