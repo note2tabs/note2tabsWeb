@@ -65,6 +65,18 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "/api/chord-fingerings": ["./data/chord-fingerings-index.json"],
   },
+  // Prisma 6 uses its native Node-API query engine in our Node.js functions.
+  // Its package also ships browser/edge WASM engines for every supported
+  // database; Next's conservative tracer otherwise stores all of them in each
+  // function bundle even though this app only uses PostgreSQL through the
+  // native library engine.
+  outputFileTracingExcludes: {
+    "*": [
+      "./node_modules/@prisma/client/runtime/query_engine_bg.*",
+      "./node_modules/@prisma/client/runtime/query_compiler_bg.*",
+      "./node_modules/.prisma/client/query_engine_bg.wasm",
+    ],
+  },
   turbopack: {
     root: __dirname,
   },
