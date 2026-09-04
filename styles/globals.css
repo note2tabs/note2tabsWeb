@@ -11775,6 +11775,11 @@ input[type="number"] {
   letter-spacing: 0.025em;
 }
 
+.pricing-plan__saving {
+  color: #16805f;
+  font-weight: 700;
+}
+
 .pricing-plan__top {
   display: grid;
   gap: 20px;

@@ -2106,8 +2106,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <p className="pricing-plan__reassurance">
                   {pricingBillingInterval === "yearly"
                     ? offerEligibility === "ineligible"
-                      ? "$59.99/year · Save $12 per year · Cancel anytime"
-                      : "7-day free trial · Then $59.99/year · Save $12 per year"
+                      ? <><span>$59.99/year · </span><span className="pricing-plan__saving">Save $12 per year</span><span> · Cancel anytime</span></>
+                      : <><span>7-day free trial · Then $59.99/year · </span><span className="pricing-plan__saving">Save $12 per year</span></>
                     : offerEligibility === "eligible"
                       ? "7-day free trial · Then $5.99/month · Cancel anytime"
                       : premiumOfferReassurance(offerEligibility)}
@@ -2130,7 +2130,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <button type="button" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => void handlePricingClick("home_pricing", "homepage_pro_card", "PRO")} disabled={pricingBusy}>
                   {pricingBusy ? "Opening…" : currentPlan === "PRO" ? "Manage current plan" : currentPlan === "PREMIUM" ? "Upgrade to Pro" : "Choose Pro"}
                 </button>
-                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? "No free trial · $149.99 billed today · Save $30 per year" : "No free trial · $14.99 billed today · Cancel anytime"}</p>
+                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? <><span>No free trial · $149.99 billed today · </span><span className="pricing-plan__saving">Save $30 per year</span></> : "No free trial · $14.99 billed today · Cancel anytime"}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li>Everything in Premium</li>
