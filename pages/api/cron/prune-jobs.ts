@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
 
 const SUCCEEDED_MAX_AGE_HOURS = 48;
-const FAILED_MAX_AGE_DAYS = 14;
+const FAILED_MAX_AGE_DAYS = 5;
 // A job legitimately in "running" for under an hour is just mid-flight, not
 // stuck -- only clear rows that have been stale long enough to rule that out.
 const STUCK_RUNNING_MAX_AGE_HOURS = 24;
