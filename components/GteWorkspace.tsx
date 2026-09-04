@@ -5178,6 +5178,8 @@ export default function GteWorkspace({
   const playheadAudioStartRef = useRef<number | null>(null);
   const playheadRafRef = useRef<number | null>(null);
   const playbackScrollRafRef = useRef<number | null>(null);
+  const verticalPlaybackScrollRafRef = useRef<number | null>(null);
+  const lastFollowedPlaybackRowRef = useRef<number | null>(null);
   const timelineViewportRafRef = useRef<number | null>(null);
   const pendingTimelineViewportRef = useRef<{ scrollLeft: number; clientWidth: number } | null>(null);
   const clipboardRef = useRef<{
@@ -9176,6 +9178,9 @@ export default function GteWorkspace({
         setKeyboardAddMode(null);
         setDraftNote(null);
         setDraftNoteAnchor(null);
+        // Placing the tab cursor also anchors where the next explicit "Play"
+        // will start from (startFrameAnchorRef, tracked at the page level).
+        onGlobalPlaybackFrameChange?.(startTime);
       } else {
         const minX = Math.min(current.startX, current.endX);
         const maxX = Math.max(current.startX, current.endX);
@@ -9566,6 +9571,9 @@ export default function GteWorkspace({
       time: snapKeyboardCursorTimeToGrid(startTime),
       stringIndex: clamp(Math.round(stringIndex), 0, 5),
     });
+    // Pressing a note/chord anchors the next explicit "Play" to its start,
+    // same as placing the cursor on an empty cell.
+    onGlobalPlaybackFrameChange?.(startTime);
     const shiftKey = Boolean(event.shiftKey);
     if (sliceToolActive && !shiftKey) {
       multiDragMovedRef.current = true;
@@ -9647,6 +9655,9 @@ export default function GteWorkspace({
       time: snapKeyboardCursorTimeToGrid(startTime),
       stringIndex: clamp(Math.round(stringIndex), 0, 5),
     });
+    // Pressing a note/chord anchors the next explicit "Play" to its start,
+    // same as placing the cursor on an empty cell.
+    onGlobalPlaybackFrameChange?.(startTime);
     const shiftKey = Boolean(event.shiftKey);
     if (sliceToolActive && !shiftKey) {
       const target = getPointerFrame(event.clientX, event.clientY);
@@ -13894,6 +13905,61 @@ export default function GteWorkspace({
     useExternalPlayback,
   ]);
 
+  useEffect(() => {
+    if (verticalPlaybackScrollRafRef.current !== null) {
+      window.cancelAnimationFrame(verticalPlaybackScrollRafRef.current);
+      verticalPlaybackScrollRafRef.current = null;
+    }
+    // The row-wrap canvas layout stacks bars vertically, so following playback
+    // means scrolling the page to the row containing the playhead, not the
+    // track's own (no longer scrollable) container. The desktop canvas always
+    // drives playback through the page's global transport (useExternalPlayback
+    // is true there), and playheadFrameRef stays in sync in that mode too, so
+    // neither useExternalPlayback nor onSharedTimelineScrollRatioChange (which
+    // only concerns horizontal-scroll ownership) should gate this effect —
+    // guarding on either made it dead code in real usage.
+    if (tabViewEnabled || mobileViewport || !effectiveIsPlaying || !isActive) {
+      lastFollowedPlaybackRowRef.current = null;
+      return;
+    }
+    const container = timelineOuterRef.current;
+    if (!container) return;
+
+    const followPlaybackRow = () => {
+      const frame = Math.max(0, playheadFrameRef.current);
+      const rowIndex = rowFrames > 0 ? Math.min(rows - 1, Math.floor(frame / rowFrames)) : 0;
+      if (rowIndex !== lastFollowedPlaybackRowRef.current) {
+        lastFollowedPlaybackRowRef.current = rowIndex;
+        const rect = container.getBoundingClientRect();
+        const rowTop = rect.top + rowIndex * rowStride;
+        const rowBottom = rowTop + rowBlockHeight;
+        const topPadding = 140;
+        const bottomPadding = 54;
+        if (rowTop < topPadding || rowBottom > window.innerHeight - bottomPadding) {
+          window.scrollBy({ top: rowTop - topPadding, behavior: "smooth" });
+        }
+      }
+      verticalPlaybackScrollRafRef.current = window.requestAnimationFrame(followPlaybackRow);
+    };
+
+    verticalPlaybackScrollRafRef.current = window.requestAnimationFrame(followPlaybackRow);
+    return () => {
+      if (verticalPlaybackScrollRafRef.current !== null) {
+        window.cancelAnimationFrame(verticalPlaybackScrollRafRef.current);
+        verticalPlaybackScrollRafRef.current = null;
+      }
+    };
+  }, [
+    effectiveIsPlaying,
+    isActive,
+    mobileViewport,
+    rowBlockHeight,
+    rowFrames,
+    rowStride,
+    rows,
+    tabViewEnabled,
+  ]);
+
   const showMobileEditRail = isMobileEditMode && isActive && !tabViewEnabled;
   const showMobileInlineNoteSettings =
     isMobileEditMode &&
@@ -16777,7 +16843,13 @@ export default function GteWorkspace({
             <div
               ref={timelineOuterRef}
               data-gte-shared-timeline="true"
-              className="hide-scrollbar min-w-0 overflow-x-hidden overflow-y-visible"
+              // No overflow is set on either axis here on purpose: declaring
+              // one axis hidden while leaving the other "visible" makes the
+              // browser silently compute the visible axis as "auto" (per the
+              // CSS overflow spec), turning this into a hidden-scrollbar
+              // nested scroll container. The track should just lay out at
+              // its natural height on the page, not scroll internally.
+              className="min-w-0"
               onScroll={handleTimelineOuterScroll}
             >
               <div className="relative" style={{ width: timelineChromeWidth, paddingTop: TIMELINE_BAR_HEADER_HEIGHT, paddingBottom: addBarStartsNewRow ? 40 : 0 }}>
