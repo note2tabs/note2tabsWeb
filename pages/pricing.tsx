@@ -255,7 +255,7 @@ export default function PricingPage() {
 
             {showPro && <div className="pricing-billing-toggle" role="group" aria-label="Billing interval">
               <button type="button" aria-pressed={billingInterval === "monthly"} className={billingInterval === "monthly" ? "is-active" : ""} onClick={() => setBillingInterval("monthly")}>Monthly</button>
-              <button type="button" aria-pressed={billingInterval === "yearly"} className={billingInterval === "yearly" ? "is-active" : ""} onClick={() => setBillingInterval("yearly")}>Yearly</button>
+              <button type="button" aria-pressed={billingInterval === "yearly"} className={billingInterval === "yearly" ? "is-active" : ""} onClick={() => setBillingInterval("yearly")}>Yearly <span>Save up to $30!</span></button>
             </div>}
 
             <section className={`pricing-page__plans${showPro ? " pricing-page__plans--three" : ""}`} aria-label="Note2Tabs plans">
