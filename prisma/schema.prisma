@@ -501,10 +501,6 @@ model canvas_lanes {
   updated_at         DateTime      @db.Timestamptz(6)
   created_at         DateTime      @default(now()) @db.Timestamptz(6)
   canvases           canvases      @relation(fields: [canvas_id], references: [canvas_id], onDelete: Cascade, onUpdate: NoAction)
-  lane_chords        lane_chords[]
-  lane_cuts          lane_cuts[]
-  lane_note_effects  lane_note_effects[]
-  lane_notes         lane_notes[]
 
   @@id([canvas_id, lane_id])
   @@unique([canvas_id, lane_index], map: "idx_canvas_lanes_unique_order")
@@ -573,76 +569,68 @@ model jobs {
   @@index([status, createdAt], map: "jobs_status_createdat_idx")
 }
 
+// canvas_id/lane_id are intentionally not modeled here: lane_key alone
+// identifies the parent lane (canvas_lanes.lane_key), and canvas_id/lane_id
+// are only reachable via a join through canvas_lanes. No Prisma-level
+// @relation is declared to canvas_lanes because nothing reads these tables
+// through Prisma Client at runtime (only dlapi.py's raw SQL, and ad hoc
+// audit scripts) -- the real foreign key lives at the database level.
 model lane_chords {
-  canvas_id     String
-  lane_id       String
-  lane_key      Int?
+  lane_key      Int
   chord_id      Int
   start_time    Int
-  length        Int          @db.SmallInt
-  original_midi Json         @default("[]")
-  current_tabs  Json         @default("[]")
-  og_tabs       Json         @default("[]")
-  metadata      Json         @default("{}")
-  updated_at    DateTime     @db.Timestamptz(6)
-  created_at    DateTime     @default(now()) @db.Timestamptz(6)
-  canvas_lanes  canvas_lanes @relation(fields: [canvas_id, lane_id], references: [canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
+  length        Int      @db.SmallInt
+  original_midi Json     @default("[]")
+  current_tabs  Json     @default("[]")
+  og_tabs       Json     @default("[]")
+  metadata      Json     @default("{}")
+  updated_at    DateTime @db.Timestamptz(6)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
 
-  @@id([canvas_id, lane_id, chord_id])
-  @@index([canvas_id, lane_id, start_time, chord_id], map: "idx_lane_chords_lookup")
+  @@id([lane_key, chord_id])
+  @@index([lane_key, start_time, chord_id], map: "idx_lane_chords_lookup")
 }
 
 model lane_cuts {
-  canvas_id    String
-  lane_id      String
-  lane_key     Int?
+  lane_key     Int
   region_index Int
   start_time   Int
   end_time     Int
-  coord_string Int          @db.SmallInt
-  coord_fret   Int          @db.SmallInt
-  updated_at   DateTime     @db.Timestamptz(6)
-  created_at   DateTime     @default(now()) @db.Timestamptz(6)
-  canvas_lanes canvas_lanes @relation(fields: [canvas_id, lane_id], references: [canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
+  coord_string Int      @db.SmallInt
+  coord_fret   Int      @db.SmallInt
+  updated_at   DateTime @db.Timestamptz(6)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
 
-  @@id([canvas_id, lane_id, region_index])
-  @@index([canvas_id, lane_id, region_index], map: "idx_lane_cuts_lookup")
+  @@id([lane_key, region_index])
 }
 
 model lane_notes {
-  canvas_id    String
-  lane_id      String
-  lane_key     Int?
-  note_id      Int
-  start_time   Int
-  length       Int          @db.SmallInt
-  midi_num     Int          @db.SmallInt
-  tab_string   Int          @db.SmallInt
-  tab_fret     Int          @db.SmallInt
-  metadata     Json         @default("{}")
-  updated_at   DateTime     @db.Timestamptz(6)
-  created_at   DateTime     @default(now()) @db.Timestamptz(6)
-  canvas_lanes canvas_lanes @relation(fields: [canvas_id, lane_id], references: [canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
+  lane_key   Int
+  note_id    Int
+  start_time Int
+  length     Int      @db.SmallInt
+  midi_num   Int      @db.SmallInt
+  tab_string Int      @db.SmallInt
+  tab_fret   Int      @db.SmallInt
+  metadata   Json     @default("{}")
+  updated_at DateTime @db.Timestamptz(6)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
 
-  @@id([canvas_id, lane_id, note_id])
-  @@index([canvas_id, lane_id, start_time, note_id], map: "idx_lane_notes_lookup")
+  @@id([lane_key, note_id])
+  @@index([lane_key, start_time, note_id], map: "idx_lane_notes_lookup")
 }
 
 model lane_note_effects {
-  canvas_id      String
-  lane_id        String
-  lane_key       Int?
-  effect_id      Int
-  effect_type    Int
-  start_note_id  Int
-  end_note_id    Int
-  effect_label   String       @default("")
-  updated_at     DateTime     @db.Timestamptz(6)
-  created_at     DateTime     @default(now()) @db.Timestamptz(6)
-  canvas_lanes   canvas_lanes @relation(fields: [canvas_id, lane_id], references: [canvas_id, lane_id], onDelete: Cascade, onUpdate: NoAction)
+  lane_key      Int
+  effect_id     Int
+  effect_type   Int
+  start_note_id Int
+  end_note_id   Int
+  effect_label  String   @default("")
+  updated_at    DateTime @db.Timestamptz(6)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
 
-  @@id([canvas_id, lane_id, effect_id])
-  @@index([canvas_id, lane_id, effect_id], map: "idx_lane_note_effects_lookup")
+  @@id([lane_key, effect_id])
 }
 
 model thistothat_usage_state {
