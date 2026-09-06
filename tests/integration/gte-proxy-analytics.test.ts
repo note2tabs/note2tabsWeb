@@ -22,7 +22,7 @@ vi.mock("../../lib/gteTrackInstrumentStore", () => ({
     const match = path.match(/^editors\/([^/]+)/);
     return match ? match[1] : null;
   },
-  hydrateTrackInstrumentsFromStore: async (_userId: string, _editorRef: string, payload: unknown) => payload,
+  hydrateTrackInstrumentsFromStore: async (_editorRef: string, payload: unknown) => payload,
   persistTrackInstrumentsFromSnapshot: vi.fn(),
 }));
 

@@ -124,15 +124,15 @@ const collectSelectionsFromSnapshot = (
   return [];
 };
 
-const loadTrackInstrumentMap = async (userId: string, canvasId: string) => {
-  if (!userId || !canvasId || tableAvailability === "missing") {
+const loadTrackInstrumentMap = async (canvasId: string) => {
+  if (!canvasId || tableAvailability === "missing") {
     return new Map<string, string>();
   }
   try {
     const rows = await prisma.$queryRaw<TrackInstrumentRow[]>(Prisma.sql`
       SELECT "laneId", "instrumentId"
       FROM ${GTE_TRACK_INSTRUMENT_TABLE}
-      WHERE "userId" = ${userId} AND "editorId" = ${canvasId}
+      WHERE "editorId" = ${canvasId}
     `);
     tableAvailability = "available";
     return new Map(rows.map((row) => [row.laneId, row.instrumentId]));
@@ -143,12 +143,11 @@ const loadTrackInstrumentMap = async (userId: string, canvasId: string) => {
 };
 
 const saveTrackInstrumentSelections = async (
-  userId: string,
   canvasId: string,
   selections: InstrumentSelection[],
   options?: { replaceCanvas?: boolean }
 ) => {
-  if (!userId || !canvasId || tableAvailability === "missing") return;
+  if (!canvasId || tableAvailability === "missing") return;
   try {
     await prisma.$transaction(async (tx) => {
       if (options?.replaceCanvas) {
@@ -156,14 +155,13 @@ const saveTrackInstrumentSelections = async (
         if (laneIds.length) {
           await tx.$executeRaw(Prisma.sql`
             DELETE FROM ${GTE_TRACK_INSTRUMENT_TABLE}
-            WHERE "userId" = ${userId}
-              AND "editorId" = ${canvasId}
+            WHERE "editorId" = ${canvasId}
               AND "laneId" NOT IN (${Prisma.join(laneIds)})
           `);
         } else {
           await tx.$executeRaw(Prisma.sql`
             DELETE FROM ${GTE_TRACK_INSTRUMENT_TABLE}
-            WHERE "userId" = ${userId} AND "editorId" = ${canvasId}
+            WHERE "editorId" = ${canvasId}
           `);
         }
       }
@@ -172,8 +170,7 @@ const saveTrackInstrumentSelections = async (
         if (!selection.instrumentId) {
           await tx.$executeRaw(Prisma.sql`
             DELETE FROM ${GTE_TRACK_INSTRUMENT_TABLE}
-            WHERE "userId" = ${userId}
-              AND "editorId" = ${canvasId}
+            WHERE "editorId" = ${canvasId}
               AND "laneId" = ${selection.laneId}
           `);
           continue;
@@ -181,10 +178,10 @@ const saveTrackInstrumentSelections = async (
 
         await tx.$executeRaw(Prisma.sql`
           INSERT INTO ${GTE_TRACK_INSTRUMENT_TABLE}
-            ("id", "userId", "editorId", "laneId", "instrumentId", "createdAt", "updatedAt")
+            ("id", "editorId", "laneId", "instrumentId", "createdAt", "updatedAt")
           VALUES
-            (${randomUUID()}, ${userId}, ${canvasId}, ${selection.laneId}, ${selection.instrumentId}, NOW(), NOW())
-          ON CONFLICT ("userId", "editorId", "laneId")
+            (${randomUUID()}, ${canvasId}, ${selection.laneId}, ${selection.instrumentId}, NOW(), NOW())
+          ON CONFLICT ("editorId", "laneId")
           DO UPDATE SET
             "instrumentId" = EXCLUDED."instrumentId",
             "updatedAt" = NOW()
@@ -200,7 +197,6 @@ const saveTrackInstrumentSelections = async (
 export const getGteEditorRefFromPath = (path: string) => getEditorRefFromPath(path);
 
 export const hydrateTrackInstrumentsFromStore = async <T>(
-  userId: string,
   editorRef: string | null,
   payload: T
 ): Promise<T> => {
@@ -209,7 +205,7 @@ export const hydrateTrackInstrumentsFromStore = async <T>(
   }
 
   const { canvasId, laneId } = parseEditorRef(editorRef);
-  const instrumentMap = await loadTrackInstrumentMap(userId, canvasId);
+  const instrumentMap = await loadTrackInstrumentMap(canvasId);
   if (!instrumentMap.size) return payload;
 
   const mergeValue = (value: unknown) => {
@@ -232,7 +228,6 @@ export const hydrateTrackInstrumentsFromStore = async <T>(
 };
 
 export const persistTrackInstrumentsFromSnapshot = async (
-  userId: string,
   editorRef: string | null,
   snapshot: unknown
 ) => {
@@ -240,19 +235,17 @@ export const persistTrackInstrumentsFromSnapshot = async (
   const parsedRef = parseEditorRef(editorRef);
   const selections = collectSelectionsFromSnapshot(snapshot, parsedRef);
   if (!selections.length && !isCanvasSnapshot(snapshot)) return;
-  await saveTrackInstrumentSelections(userId, parsedRef.canvasId, selections, {
+  await saveTrackInstrumentSelections(parsedRef.canvasId, selections, {
     replaceCanvas: isCanvasSnapshot(snapshot),
   });
 };
 
 export const persistTrackInstrumentSelection = async (input: {
-  userId: string;
   editorId: string;
   laneId: string;
   instrumentId?: string | null;
 }) => {
   await saveTrackInstrumentSelections(
-    input.userId,
     input.editorId,
     [
       {
