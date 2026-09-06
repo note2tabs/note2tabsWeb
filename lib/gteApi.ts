@@ -649,13 +649,25 @@ export const gteApi = {
   applySnapshot: (
     editorId: string,
     snapshot: EditorOrCanvasSnapshot | Record<string, any>,
-    concurrency?: { expectedVersion?: number; expectedDraftRevision?: number }
+    concurrency?: {
+      expectedVersion?: number;
+      expectedDraftRevision?: number;
+      // The lane as the client last saw it confirmed by the server --
+      // lets the backend auto-merge concurrent edits from a collaborator
+      // instead of rejecting the save outright. See dlapi.py's
+      // apply_editor_snapshot for the merge semantics.
+      baseSnapshot?: EditorOrCanvasSnapshot | Record<string, any>;
+    }
   ) =>
-    requestForEditor<{ ok: true; snapshot: any; canvas?: CanvasSnapshot }>(editorId, `/editors/${editorId}/snapshot`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ snapshot, ...concurrency }),
-    }),
+    requestForEditor<{ ok: true; snapshot: any; canvas?: CanvasSnapshot; conflicts?: unknown[] }>(
+      editorId,
+      `/editors/${editorId}/snapshot`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshot, ...concurrency }),
+      }
+    ),
   setTrackInstrument: (editorId: string, laneId: string, instrumentId: string) =>
     request<{ ok: true }>("/track-instrument", {
       method: "POST",
