@@ -23,7 +23,7 @@ import {
   shouldOfferRetentionIntentPrompt,
   type RetentionIntent,
 } from "../lib/retentionIntentResearch";
-import type { EditorListItem, PendingCanvasShare, SharedEditorListItem } from "../types/gte";
+import type { EditorListItem } from "../types/gte";
 import { authOptions } from "./api/auth/[...nextauth]";
 
 type ProductHomeProps = {
@@ -123,12 +123,22 @@ function ProductMark({ product }: { product: "transcriber" | "editor" }) {
   );
 }
 
-function SidebarIcon({ name }: { name: "home" | "transcriber" | "tabs" }) {
+function SidebarIcon({ name }: { name: "home" | "transcriber" | "tabs" | "shared" }) {
   if (name === "home") {
     return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m3.5 9 6.5-5.5L16.5 9v7.5h-5v-4h-3v4h-5Z" /></svg>;
   }
   if (name === "transcriber") {
     return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h2m2-4v8m3-11v14m3-10v6m3-3h-1" /></svg>;
+  }
+  if (name === "shared") {
+    return (
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <circle cx="15" cy="4.5" r="2" />
+        <circle cx="5" cy="10" r="2" />
+        <circle cx="15" cy="15.5" r="2" />
+        <path d="M6.7 8.8 13.3 5.7M6.7 11.2l6.6 3.1" />
+      </svg>
+    );
   }
   return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5.5h13m-13 4.5h13m-13 4.5h8" /></svg>;
 }
@@ -178,8 +188,6 @@ export default function ProductHome({
 }: ProductHomeProps) {
   const router = useRouter();
   const [editors, setEditors] = useState<EditorListItem[]>(initialEditors);
-  const [sharedEditors, setSharedEditors] = useState<SharedEditorListItem[]>([]);
-  const [pendingShares, setPendingShares] = useState<PendingCanvasShare[]>([]);
   const [loading, setLoading] = useState(!localPreview);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -231,7 +239,6 @@ export default function ProductHome({
         const response = await gteApi.listEditors();
         const nextEditors = response.editors || [];
         setEditors(nextEditors);
-        setSharedEditors(response.sharedEditors || []);
         writeEditorListCache(window.sessionStorage, userId, nextEditors);
       } catch (error: unknown) {
         setLoadError(editorLoadMessage(error));
@@ -252,27 +259,6 @@ export default function ProductHome({
     }
     if (!cached.isFresh) void loadEditors(!hasCache);
   }, [loadEditors, localPreview, userId]);
-
-  useEffect(() => {
-    if (localPreview) return;
-    gteApi
-      .listPendingShares()
-      .then((response) => setPendingShares(response.pending || []))
-      .catch(() => {
-        // Pending invites are a nice-to-have banner; failing quietly here
-        // keeps the rest of the home page usable if this call errors.
-      });
-  }, [localPreview]);
-
-  const handleAcceptShare = useCallback(async (shareId: number) => {
-    try {
-      await gteApi.acceptShare(shareId);
-      setPendingShares((prev) => prev.filter((share) => share.shareId !== shareId));
-      await loadEditors(false);
-    } catch {
-      // Leave the invite in the pending list so the user can retry.
-    }
-  }, [loadEditors]);
 
   useEffect(() => {
     if (localPreview || role !== "PREMIUM") return;
@@ -480,6 +466,7 @@ export default function ProductHome({
               <Link href="/home" className="is-active"><SidebarIcon name="home" />Home</Link>
               <Link href="/transcribe" onClick={() => trackHomeCta("product_home_sidebar_transcribe")}><SidebarIcon name="transcriber" />Transcriber</Link>
               <Link href="/gte" onClick={() => trackHomeCta("product_home_sidebar_editors")}><SidebarIcon name="tabs" />My tabs</Link>
+              <Link href="/shared" onClick={() => trackHomeCta("product_home_sidebar_shared")}><SidebarIcon name="shared" />Shared with you</Link>
             </nav>
             <div className="product-studio-sidebar__recent">
               <header><span>Recent tabs</span><Link href="/gte">View all</Link></header>
@@ -631,57 +618,6 @@ export default function ProductHome({
               <div className="product-home__empty-recents"><span className="product-home__empty-paper" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span><div><h3>Your tabs will live here.</h3><p>Anything you transcribe or create is saved to your library.</p></div></div>
             )}
           </section>
-
-          {pendingShares.length > 0 && (
-            <section className="product-studio__library" aria-labelledby="pending-shares-heading">
-              <header><div><h2 id="pending-shares-heading">Pending invites</h2></div></header>
-              <ul style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {pendingShares.map((share) => (
-                  <li
-                    key={share.shareId}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "10px 12px",
-                      border: "1px solid #e2e8f0",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    <span>
-                      <strong>{share.name || "Untitled"}</strong> — invited as{" "}
-                      {share.role === "editor" ? "an editor" : "a viewer"}
-                    </span>
-                    <button type="button" onClick={() => void handleAcceptShare(share.shareId)}>
-                      Accept
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {sharedEditors.length > 0 && (
-            <section className="product-studio__library" aria-labelledby="shared-editors-heading">
-              <header><div><h2 id="shared-editors-heading">Shared with you</h2></div></header>
-              <div className="product-studio__grid">
-                {sharedEditors.map((editor) => (
-                  <Link
-                    key={editor.id}
-                    href={`/gte/${editor.id}`}
-                    className="product-studio__tab"
-                    onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})}
-                  >
-                    <span>
-                      <strong>{editor.name || "Untitled"}</strong>
-                      <small>{editor.role === "editor" ? "Can edit" : "Can view"}</small>
-                      <em>{relativeUpdatedAt(editor.updatedAt)}</em>
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          )}
 
           {!isPremium && <Link href="/pricing?source=product_home" className="product-studio__premium" onClick={() => trackHomeCta("product_home_premium_footer")}><span><strong>Need more transcription room?</strong><small>Premium includes 100 monthly credits, rollover, and full-length uploads.</small></span><i>Explore Premium →</i></Link>}
           </div>
