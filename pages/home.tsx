@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth/next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import NoIndexHead from "../components/NoIndexHead";
+import WorkspaceSidebar from "../components/WorkspaceSidebar";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
 import { gteApi } from "../lib/gteApi";
 import {
@@ -121,16 +122,6 @@ function ProductMark({ product }: { product: "transcriber" | "editor" }) {
       </svg>
     </span>
   );
-}
-
-function SidebarIcon({ name }: { name: "home" | "transcriber" | "tabs" }) {
-  if (name === "home") {
-    return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m3.5 9 6.5-5.5L16.5 9v7.5h-5v-4h-3v4h-5Z" /></svg>;
-  }
-  if (name === "transcriber") {
-    return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h2m2-4v8m3-11v14m3-10v6m3-3h-1" /></svg>;
-  }
-  return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5.5h13m-13 4.5h13m-13 4.5h8" /></svg>;
 }
 
 function CurrentTabArtwork({ editor }: { editor: EditorListItem }) {
@@ -451,21 +442,13 @@ export default function ProductHome({
       <NoIndexHead title="Home | Note2Tabs" canonicalPath="/home" />
       <main className="product-home product-home--studio">
         <div className="container product-studio-layout">
-          <aside className="product-studio-sidebar" aria-label="Workspace navigation">
-            <nav>
-              <Link href="/home" className="is-active"><SidebarIcon name="home" />Home</Link>
-              <Link href="/transcribe" onClick={() => trackHomeCta("product_home_sidebar_transcribe")}><SidebarIcon name="transcriber" />Transcriber</Link>
-              <Link href="/gte" onClick={() => trackHomeCta("product_home_sidebar_editors")}><SidebarIcon name="tabs" />My tabs</Link>
-            </nav>
-            <div className="product-studio-sidebar__recent">
-              <header><span>Recent tabs</span><Link href="/gte">View all</Link></header>
-              {recentEditors.slice(0, 4).map((editor) => (
-                <Link key={editor.id} href={`/gte/${editor.id}`} onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})}>{editorName(editor)}</Link>
-              ))}
-              {!loading && recentEditors.length === 0 && <small>No tabs yet</small>}
-            </div>
-            {!isPremium && <Link className="product-studio-sidebar__premium" href="/pricing?source=product_home" onClick={() => trackHomeCta("product_home_sidebar_premium")}><strong>Premium</strong><span>More credits and full-song uploads</span><i>Explore →</i></Link>}
-          </aside>
+          <WorkspaceSidebar
+            active="home"
+            recentEditors={recentEditors}
+            loading={loading}
+            isPremium={isPremium}
+            analyticsSurface="product_home"
+          />
           <div className="product-studio">
           <header className="product-studio__welcome">
             <div className="product-studio__credits" role="status" aria-label="Account usage">
@@ -607,6 +590,7 @@ export default function ProductHome({
               <div className="product-home__empty-recents"><span className="product-home__empty-paper" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span><div><h3>Your tabs will live here.</h3><p>Anything you transcribe or create is saved to your library.</p></div></div>
             )}
           </section>
+
           {!isPremium && <Link href="/pricing?source=product_home" className="product-studio__premium" onClick={() => trackHomeCta("product_home_premium_footer")}><span><strong>Need more transcription room?</strong><small>Premium includes 100 monthly credits, rollover, and full-length uploads.</small></span><i>Explore Premium →</i></Link>}
           </div>
         </div>

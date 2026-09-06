@@ -413,9 +413,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (upstream.ok && isSnapshotSave) {
     const snapshot = (req.body as { snapshot?: unknown } | undefined)?.snapshot;
     await Promise.all([
-      persistTrackInstrumentsFromSnapshot(session.user.id, editorRef, snapshot),
+      persistTrackInstrumentsFromSnapshot(editorRef, snapshot),
       persistTrackPlaybackFromSnapshot(session.user.id, editorRef, snapshot),
-      persistDrumLoopsFromSnapshot(session.user.id, editorRef, snapshot),
+      persistDrumLoopsFromSnapshot(editorRef, snapshot),
     ]);
   }
 
@@ -425,9 +425,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const parsed = JSON.parse(responseText) as unknown;
       const preferenceHydrationStartedAt = Date.now();
       await Promise.all([
-        hydrateTrackInstrumentsFromStore(session.user.id, editorRef, parsed),
+        hydrateTrackInstrumentsFromStore(editorRef, parsed),
         hydrateTrackPlaybackFromStore(session.user.id, editorRef, parsed),
-        hydrateDrumLoopsFromStore(session.user.id, editorRef, parsed),
+        hydrateDrumLoopsFromStore(editorRef, parsed),
         ...(method === "GET"
           ? [
               hydrateGteEditorInputSettingsFromStore(session.user.id, editorRef, parsed),

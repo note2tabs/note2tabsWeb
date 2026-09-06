@@ -5192,6 +5192,11 @@ export default function GteWorkspace({
   const undoRef = useRef<EditorSnapshot[]>([]);
   const redoRef = useRef<EditorSnapshot[]>([]);
   const snapshotRef = useRef<EditorSnapshot>(snapshot);
+  // The last snapshot the server confirmed for this lane -- the "base" for
+  // automatic conflict merging when a collaborator saved in the meantime.
+  // Deliberately only updated at load and after a successful save, never
+  // by local edits (see snapshotRef above for that).
+  const baseSnapshotRef = useRef<EditorSnapshot>(snapshot);
   const selectedNoteIdsRef = useRef<number[]>([]);
   const selectedChordIdsRef = useRef<number[]>([]);
   const pendingMutationsRef = useRef<OptimisticMutation[]>([]);
@@ -6804,7 +6809,8 @@ export default function GteWorkspace({
 
   if (!autosaveQueueRef.current) {
     autosaveQueueRef.current = new RevisionedAutosaveQueue({
-      save: async (payload) => gteApi.applySnapshot(editorId, payload),
+      save: async (payload) =>
+        gteApi.applySnapshot(editorId, payload, { baseSnapshot: baseSnapshotRef.current }),
       debounceMs: AUTOSAVE_DEBOUNCE_MS,
     });
   }
@@ -6814,7 +6820,7 @@ export default function GteWorkspace({
       if (!allowBackend) {
         return { ok: true as const, snapshot: payload };
       }
-      return gteApi.applySnapshot(editorId, payload);
+      return gteApi.applySnapshot(editorId, payload, { baseSnapshot: baseSnapshotRef.current });
     },
     isOnline: () => typeof navigator === "undefined" || navigator.onLine !== false,
     onStateChange: (state) => {
@@ -6827,6 +6833,11 @@ export default function GteWorkspace({
       // and applying it here causes a visible rollback before the next save.
       const updatedAt = (res.snapshot as EditorSnapshot | undefined)?.updatedAt;
       setLastSavedAt(updatedAt || new Date().toISOString());
+      // The server's response is the post-merge truth for this lane -- the
+      // next save's "base" for automatic conflict merging.
+      if (res.snapshot) {
+        baseSnapshotRef.current = res.snapshot as EditorSnapshot;
+      }
     },
     onError: (err) => {
       const message = err instanceof Error ? err.message : "Autosave failed.";

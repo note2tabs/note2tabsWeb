@@ -82,6 +82,7 @@ import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 import { getChordEditorMidiNotes } from "../../lib/gteChordEditor";
 import { buildChordPlaybackWindows } from "../../lib/gteChordPlayback";
 import GteFileImportButton from "../../components/GteFileImportButton";
+import ShareDialog from "../../components/ShareDialog";
 import { EditorLoadingState } from "../../components/EditorLoadingState";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
@@ -1287,6 +1288,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [nameSaving, setNameSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [nameEditing, setNameEditing] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [bpmDraft, setBpmDraft] = useState(formatBpm(secondsPerBarToBpm(DEFAULT_SECONDS_PER_BAR, 8)));
   const [bpmSaving, setBpmSaving] = useState(false);
   const [bpmError, setBpmError] = useState<string | null>(null);
@@ -7944,6 +7946,15 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     <span className="text-xs text-slate-600" role="status" aria-live="polite">
                       {saveStatus}
                     </span>
+                    {!isGuestMode && (
+                      <button
+                        type="button"
+                        onClick={() => setShareDialogOpen(true)}
+                        className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+                      >
+                        Share
+                      </button>
+                    )}
                     {isGuestMode ? (
                       <Link href="/" className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
                         Back home
@@ -11208,6 +11219,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
             </div>
           </div>
         </div>
+      )}
+      {shareDialogOpen && (
+        <ShareDialog editorId={editorId} onClose={() => setShareDialogOpen(false)} />
       )}
       </main>
     </>

@@ -25,7 +25,7 @@ const AnalyticsIdentityLinker = dynamic(() => import("../components/AnalyticsIde
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   const router = useRouter();
   const isGteEditorPage = router.pathname === "/gte/[editor_id]";
-  const isProductHomePage = router.pathname === "/home";
+  const isProductHomePage = router.pathname === "/home" || router.pathname === "/shared";
 
   useEffect(() => {
     const trackPageView = (url?: string) => {

@@ -60,9 +60,7 @@ model User {
   unverifiedTranscriptionUsed Boolean              @default(false)
   accounts                    Account[]
   feedbackSubmissions         FeedbackSubmission[]
-  gteTrackInstruments         GteTrackInstrument[]
   gteTrackPlaybackSettings    GteTrackPlaybackSetting[]
-  gteDrumLoopStates           GteDrumLoopState[]
   gteEditorInputSettings      GteEditorInputSetting[]
   gteActiveLanes              GteActiveLane[]
   posts                       Post[]
@@ -312,17 +310,13 @@ model AnalyticsGteSession {
 
 model GteTrackInstrument {
   id           String   @id @default(cuid())
-  userId       String
   editorId     String
   laneId       String
   instrumentId String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now()) @updatedAt
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, editorId, laneId])
-  @@index([editorId, laneId])
-  @@index([userId, updatedAt])
+  @@unique([editorId, laneId])
 }
 
 model GteTrackPlaybackSetting {
@@ -344,17 +338,13 @@ model GteTrackPlaybackSetting {
 
 model GteDrumLoopState {
   id        String   @id @default(cuid())
-  userId    String
   editorId  String
   laneId    String
   loops     Json     @default("[]")
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, editorId, laneId])
-  @@index([editorId, laneId])
-  @@index([userId, updatedAt])
+  @@unique([editorId, laneId])
 }
 
 model GteActiveLane {
