@@ -1,14 +1,17 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import { getServerSession } from "next-auth/next";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import NoIndexHead from "../components/NoIndexHead";
+import WorkspaceSidebar from "../components/WorkspaceSidebar";
 import { gteApi } from "../lib/gteApi";
-import type { OutgoingCanvasShare, PendingCanvasShare, SharedEditorListItem } from "../types/gte";
+import { hasPremiumEntitlement } from "../lib/premiumEntitlement";
+import type { EditorListItem, OutgoingCanvasShare, PendingCanvasShare, SharedEditorListItem } from "../types/gte";
 import { authOptions } from "./api/auth/[...nextauth]";
 
 type Props = {
   userId: string;
+  role?: string;
 };
 
 const relativeUpdatedAt = (value?: string) => {
@@ -28,15 +31,29 @@ const relativeUpdatedAt = (value?: string) => {
   )}`;
 };
 
-export default function SharedWithYouPage({ userId }: Props) {
+export default function SharedWithYouPage({ role }: Props) {
   const [pending, setPending] = useState<PendingCanvasShare[]>([]);
   const [shared, setShared] = useState<SharedEditorListItem[]>([]);
   const [outgoing, setOutgoing] = useState<OutgoingCanvasShare[]>([]);
+  const [editors, setEditors] = useState<EditorListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [acceptingId, setAcceptingId] = useState<number | null>(null);
   const [decliningId, setDecliningId] = useState<number | null>(null);
   const [revokingId, setRevokingId] = useState<number | null>(null);
+
+  const isPremium = hasPremiumEntitlement({ user: { role } });
+  const recentEditors = useMemo(
+    () =>
+      [...editors]
+        .sort((left, right) => {
+          const leftTime = left.updatedAt ? new Date(left.updatedAt).getTime() : 0;
+          const rightTime = right.updatedAt ? new Date(right.updatedAt).getTime() : 0;
+          return rightTime - leftTime;
+        })
+        .slice(0, 6),
+    [editors]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,6 +66,7 @@ export default function SharedWithYouPage({ userId }: Props) {
       ]);
       setPending(pendingRes.pending || []);
       setShared(editorsRes.sharedEditors || []);
+      setEditors(editorsRes.editors || []);
       setOutgoing(outgoingRes.outgoing || []);
     } catch {
       setError("Could not load your shared tabs. Try refreshing.");
@@ -125,16 +143,13 @@ export default function SharedWithYouPage({ userId }: Props) {
       <NoIndexHead title="Shared with you | Note2Tabs" canonicalPath="/shared" />
       <main className="product-home product-home--studio">
         <div className="container product-studio-layout">
-          <aside className="product-studio-sidebar" aria-label="Workspace navigation">
-            <nav>
-              <Link href="/home">Home</Link>
-              <Link href="/transcribe">Transcriber</Link>
-              <Link href="/gte">My tabs</Link>
-              <Link href="/shared" className="is-active">
-                Shared with you
-              </Link>
-            </nav>
-          </aside>
+          <WorkspaceSidebar
+            active="shared"
+            recentEditors={recentEditors}
+            loading={loading}
+            isPremium={isPremium}
+            analyticsSurface="product_shared"
+          />
           <div className="product-studio">
             <header className="product-studio__welcome">
               <h1>Shared with you</h1>
@@ -295,5 +310,5 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       },
     };
   }
-  return { props: { userId: session.user.id } };
+  return { props: { userId: session.user.id, role: session.user.role || "USER" } };
 };
