@@ -151,9 +151,8 @@ export default function SharedWithYouPage({ role }: Props) {
             analyticsSurface="product_shared"
           />
           <div className="product-studio">
-            <header className="product-studio__welcome">
-              <h1>Shared with you</h1>
-              <p>Invites to editors other people have shared with you, and everything you've already accepted.</p>
+            <header className="product-studio__welcome" style={{ justifyContent: "center" }}>
+              <h1 style={{ textAlign: "center", width: "100%" }}>Shared with you</h1>
             </header>
 
             {error && <p className="product-home__error">{error}</p>}
