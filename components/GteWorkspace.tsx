@@ -65,7 +65,6 @@ import {
 } from "../lib/gteChordEditor";
 import type { Chord, ChordFingering, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord, TimingMapV2 } from "../types/gte";
 import TabViewer from "./TabViewer";
-import ShareDialog from "./ShareDialog";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
 import {
   buildEditorTabView,
@@ -5129,7 +5128,6 @@ export default function GteWorkspace({
   const [localToolbarOpen, setLocalToolbarOpen] = useState(false);
   const [toolHelpOpen, setToolHelpOpen] = useState(false);
   const [tabPreviewOpen, setTabPreviewOpen] = useState(false);
-  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [sliceToolActive, setSliceToolActive] = useState(false);
   const [sliceCursor, setSliceCursor] = useState<{ time: number; rowIndex: number } | null>(null);
   const [cutCursor, setCutCursor] = useState<{ time: number; rowIndex: number } | null>(null);
@@ -15752,15 +15750,6 @@ export default function GteWorkspace({
           </button>
         )}
         {!embedded && (
-          <button
-            type="button"
-            onClick={() => setShareDialogOpen(true)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            Share
-          </button>
-        )}
-        {!embedded && (
           <div className="flex items-center gap-1.5">
             <select
               value={exportFormat}
@@ -18633,9 +18622,6 @@ export default function GteWorkspace({
           </div>
         )}
       </div>
-      {shareDialogOpen && (
-        <ShareDialog editorId={editorId} onClose={() => setShareDialogOpen(false)} />
-      )}
     </div>
   );
 }
