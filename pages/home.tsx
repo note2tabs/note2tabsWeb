@@ -23,7 +23,7 @@ import {
   shouldOfferRetentionIntentPrompt,
   type RetentionIntent,
 } from "../lib/retentionIntentResearch";
-import type { EditorListItem } from "../types/gte";
+import type { EditorListItem, PendingCanvasShare, SharedEditorListItem } from "../types/gte";
 import { authOptions } from "./api/auth/[...nextauth]";
 
 type ProductHomeProps = {
@@ -178,6 +178,8 @@ export default function ProductHome({
 }: ProductHomeProps) {
   const router = useRouter();
   const [editors, setEditors] = useState<EditorListItem[]>(initialEditors);
+  const [sharedEditors, setSharedEditors] = useState<SharedEditorListItem[]>([]);
+  const [pendingShares, setPendingShares] = useState<PendingCanvasShare[]>([]);
   const [loading, setLoading] = useState(!localPreview);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -229,6 +231,7 @@ export default function ProductHome({
         const response = await gteApi.listEditors();
         const nextEditors = response.editors || [];
         setEditors(nextEditors);
+        setSharedEditors(response.sharedEditors || []);
         writeEditorListCache(window.sessionStorage, userId, nextEditors);
       } catch (error: unknown) {
         setLoadError(editorLoadMessage(error));
@@ -249,6 +252,27 @@ export default function ProductHome({
     }
     if (!cached.isFresh) void loadEditors(!hasCache);
   }, [loadEditors, localPreview, userId]);
+
+  useEffect(() => {
+    if (localPreview) return;
+    gteApi
+      .listPendingShares()
+      .then((response) => setPendingShares(response.pending || []))
+      .catch(() => {
+        // Pending invites are a nice-to-have banner; failing quietly here
+        // keeps the rest of the home page usable if this call errors.
+      });
+  }, [localPreview]);
+
+  const handleAcceptShare = useCallback(async (shareId: number) => {
+    try {
+      await gteApi.acceptShare(shareId);
+      setPendingShares((prev) => prev.filter((share) => share.shareId !== shareId));
+      await loadEditors(false);
+    } catch {
+      // Leave the invite in the pending list so the user can retry.
+    }
+  }, [loadEditors]);
 
   useEffect(() => {
     if (localPreview || role !== "PREMIUM") return;
@@ -607,6 +631,58 @@ export default function ProductHome({
               <div className="product-home__empty-recents"><span className="product-home__empty-paper" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span><div><h3>Your tabs will live here.</h3><p>Anything you transcribe or create is saved to your library.</p></div></div>
             )}
           </section>
+
+          {pendingShares.length > 0 && (
+            <section className="product-studio__library" aria-labelledby="pending-shares-heading">
+              <header><div><h2 id="pending-shares-heading">Pending invites</h2></div></header>
+              <ul style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {pendingShares.map((share) => (
+                  <li
+                    key={share.shareId}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "10px 12px",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "8px",
+                    }}
+                  >
+                    <span>
+                      <strong>{share.name || "Untitled"}</strong> — invited as{" "}
+                      {share.role === "editor" ? "an editor" : "a viewer"}
+                    </span>
+                    <button type="button" onClick={() => void handleAcceptShare(share.shareId)}>
+                      Accept
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {sharedEditors.length > 0 && (
+            <section className="product-studio__library" aria-labelledby="shared-editors-heading">
+              <header><div><h2 id="shared-editors-heading">Shared with you</h2></div></header>
+              <div className="product-studio__grid">
+                {sharedEditors.map((editor) => (
+                  <Link
+                    key={editor.id}
+                    href={`/gte/${editor.id}`}
+                    className="product-studio__tab"
+                    onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})}
+                  >
+                    <span>
+                      <strong>{editor.name || "Untitled"}</strong>
+                      <small>{editor.role === "editor" ? "Can edit" : "Can view"}</small>
+                      <em>{relativeUpdatedAt(editor.updatedAt)}</em>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
           {!isPremium && <Link href="/pricing?source=product_home" className="product-studio__premium" onClick={() => trackHomeCta("product_home_premium_footer")}><span><strong>Need more transcription room?</strong><small>Premium includes 100 monthly credits, rollover, and full-length uploads.</small></span><i>Explore Premium →</i></Link>}
           </div>
         </div>

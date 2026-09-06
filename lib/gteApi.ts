@@ -1,8 +1,12 @@
 import type {
+  CanvasShare,
   CanvasSnapshot,
   ChordFingering,
   EditorListItem,
   EditorSnapshot,
+  PendingCanvasShare,
+  SharedEditorListItem,
+  SharedEditorRole,
   TabCoord,
   TimingMapV2,
 } from "../types/gte";
@@ -609,7 +613,23 @@ async function importTranscriberToGuest(
 }
 
 export const gteApi = {
-  listEditors: () => request<{ editors: EditorListItem[] }>("/editors"),
+  listEditors: () =>
+    request<{ editors: EditorListItem[]; sharedEditors?: SharedEditorListItem[] }>("/editors"),
+  listShares: (editorId: string) =>
+    request<{ shares: CanvasShare[] }>(`/editors/${encodeURIComponent(editorId)}/shares`),
+  createShare: (editorId: string, email: string, role: SharedEditorRole) =>
+    request<CanvasShare & { canvasId: string }>(`/editors/${encodeURIComponent(editorId)}/shares`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, role }),
+    }),
+  revokeShare: (editorId: string, shareId: number) =>
+    request<{ ok: true }>(`/editors/${encodeURIComponent(editorId)}/shares/${shareId}`, {
+      method: "DELETE",
+    }),
+  listPendingShares: () => request<{ pending: PendingCanvasShare[] }>("/shares/pending"),
+  acceptShare: (shareId: number) =>
+    request<{ ok: true }>(`/shares/${shareId}/accept`, { method: "POST" }),
   createEditor: (editorId?: string, name?: string) =>
     request<{ editorId: string; snapshot: CanvasSnapshot }>("/editors", {
       method: "POST",
