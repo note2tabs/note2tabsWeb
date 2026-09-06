@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth/next";
 import { useCallback, useEffect, useState } from "react";
 import NoIndexHead from "../components/NoIndexHead";
 import { gteApi } from "../lib/gteApi";
-import type { PendingCanvasShare, SharedEditorListItem } from "../types/gte";
+import type { OutgoingCanvasShare, PendingCanvasShare, SharedEditorListItem } from "../types/gte";
 import { authOptions } from "./api/auth/[...nextauth]";
 
 type Props = {
@@ -31,21 +31,25 @@ const relativeUpdatedAt = (value?: string) => {
 export default function SharedWithYouPage({ userId }: Props) {
   const [pending, setPending] = useState<PendingCanvasShare[]>([]);
   const [shared, setShared] = useState<SharedEditorListItem[]>([]);
+  const [outgoing, setOutgoing] = useState<OutgoingCanvasShare[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [acceptingId, setAcceptingId] = useState<number | null>(null);
   const [decliningId, setDecliningId] = useState<number | null>(null);
+  const [revokingId, setRevokingId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [pendingRes, editorsRes] = await Promise.all([
+      const [pendingRes, editorsRes, outgoingRes] = await Promise.all([
         gteApi.listPendingShares(),
         gteApi.listEditors(),
+        gteApi.listOutgoingShares(),
       ]);
       setPending(pendingRes.pending || []);
       setShared(editorsRes.sharedEditors || []);
+      setOutgoing(outgoingRes.outgoing || []);
     } catch {
       setError("Could not load your shared tabs. Try refreshing.");
     } finally {
@@ -92,6 +96,29 @@ export default function SharedWithYouPage({ userId }: Props) {
       setDecliningId(null);
     }
   }, []);
+
+  const handleRevokeCollaborator = useCallback(
+    async (canvasId: string, shareId: number) => {
+      setRevokingId(shareId);
+      try {
+        await gteApi.revokeShare(canvasId, shareId);
+        setOutgoing((prev) =>
+          prev
+            .map((entry) =>
+              entry.canvasId === canvasId
+                ? { ...entry, collaborators: entry.collaborators.filter((c) => c.shareId !== shareId) }
+                : entry
+            )
+            .filter((entry) => entry.collaborators.length > 0)
+        );
+      } catch {
+        setError("Could not remove that collaborator. Try again.");
+      } finally {
+        setRevokingId(null);
+      }
+    },
+    []
+  );
 
   return (
     <>
@@ -194,6 +221,61 @@ export default function SharedWithYouPage({ userId }: Props) {
                     </Link>
                   ))}
                 </div>
+              )}
+            </section>
+
+            <section className="product-studio__library" aria-labelledby="outgoing-heading">
+              <header>
+                <div>
+                  <h2 id="outgoing-heading">Tabs you've shared</h2>
+                </div>
+              </header>
+              {loading ? (
+                <p>Loading...</p>
+              ) : outgoing.length === 0 ? (
+                <p>You haven't shared any tabs yet.</p>
+              ) : (
+                <ul style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {outgoing.map((entry) => (
+                    <li
+                      key={entry.canvasId}
+                      style={{
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                        padding: "10px 12px",
+                      }}
+                    >
+                      <Link href={`/gte/${entry.canvasId}`}>
+                        <strong>{entry.name || "Untitled"}</strong>
+                      </Link>
+                      <ul style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                        {entry.collaborators.map((collaborator) => (
+                          <li
+                            key={collaborator.shareId}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: "12px",
+                            }}
+                          >
+                            <span>
+                              {collaborator.email} — {collaborator.role === "editor" ? "can edit" : "can view"}
+                              {collaborator.status === "pending" ? " · invite pending" : ""}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => void handleRevokeCollaborator(entry.canvasId, collaborator.shareId)}
+                              disabled={revokingId === collaborator.shareId}
+                            >
+                              {revokingId === collaborator.shareId ? "Removing..." : "Remove"}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
               )}
             </section>
           </div>

@@ -4,6 +4,7 @@ import type {
   ChordFingering,
   EditorListItem,
   EditorSnapshot,
+  OutgoingCanvasShare,
   PendingCanvasShare,
   SharedEditorListItem,
   SharedEditorRole,
@@ -628,6 +629,7 @@ export const gteApi = {
       method: "DELETE",
     }),
   listPendingShares: () => request<{ pending: PendingCanvasShare[] }>("/shares/pending"),
+  listOutgoingShares: () => request<{ outgoing: OutgoingCanvasShare[] }>("/shares/outgoing"),
   acceptShare: (shareId: number) =>
     request<{ ok: true }>(`/shares/${shareId}/accept`, { method: "POST" }),
   createEditor: (editorId?: string, name?: string) =>

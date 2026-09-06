@@ -181,6 +181,13 @@ export type PendingCanvasShare = {
   createdAt?: string;
 };
 
+export type OutgoingCanvasShare = {
+  canvasId: string;
+  name?: string;
+  updatedAt?: string;
+  collaborators: CanvasShare[];
+};
+
 export type CanvasSnapshot = {
   id: string;
   name?: string;
