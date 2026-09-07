@@ -250,8 +250,10 @@ export default function SharedWithYouPage({ role }: Props) {
                       <details>
                         <summary>
                           <span className="shared-page__outgoing-name">{entry.name || "Untitled"}</span>
-                          <span className="shared-page__outgoing-count">{entry.collaborators.length} {entry.collaborators.length === 1 ? "collaborator" : "collaborators"}</span>
-                          <span className="shared-page__chevron" aria-hidden="true">⌄</span>
+                          <span className="shared-page__outgoing-meta">
+                            <span className="shared-page__outgoing-count">{entry.collaborators.length} {entry.collaborators.length === 1 ? "collaborator" : "collaborators"}</span>
+                            <svg className="shared-page__chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+                          </span>
                         </summary>
                         <div className="shared-page__outgoing-body">
                           <Link href={`/gte/${entry.canvasId}`} className="shared-page__open-tab">Open tab →</Link>
