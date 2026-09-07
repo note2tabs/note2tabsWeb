@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { gteApi } from "../lib/gteApi";
 import type { CanvasShare, SharedEditorRole } from "../types/gte";
+import Note2TabsSelect from "./Note2TabsSelect";
 
 type ShareDialogProps = {
   editorId: string;
@@ -91,15 +92,14 @@ export default function ShareDialog({ editorId, onClose }: ShareDialogProps) {
             className="h-9 flex-1 rounded-md border border-slate-200 px-2 text-sm"
             disabled={submitting}
           />
-          <select
+          <Note2TabsSelect
             value={role}
-            onChange={(event) => setRole(event.target.value as SharedEditorRole)}
-            className="h-9 rounded-md border border-slate-200 px-2 text-xs font-semibold"
+            onChange={setRole}
+            className="note2tabs-select--compact share-dialog__role-select"
             disabled={submitting}
-          >
-            <option value="editor">Can edit</option>
-            <option value="viewer">Can view</option>
-          </select>
+            label="Permission"
+            options={[{ value: "editor", label: "Can edit" }, { value: "viewer", label: "Can view" }]}
+          />
           <button
             type="submit"
             disabled={submitting}

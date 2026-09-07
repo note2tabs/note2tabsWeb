@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import Note2TabsSelect from "./Note2TabsSelect";
 import {
   getSubscriptionValueReminder,
   SUBSCRIPTION_RETENTION_GOALS,
@@ -98,12 +99,12 @@ export default function SubscriptionRetentionDialog({
             </p>
             <label className="form-group">
               <span className="label">I signed up to…</span>
-              <select className="form-input" value={goal} onChange={(event) => setGoal(event.target.value as SubscriptionRetentionGoal)}>
-                <option value="">Choose what brought you here</option>
-                {SUBSCRIPTION_RETENTION_GOALS.map((item) => (
-                  <option key={item.value} value={item.value}>{item.label}</option>
-                ))}
-              </select>
+              <Note2TabsSelect
+                value={goal}
+                onChange={setGoal}
+                label="Reason for signing up"
+                options={[{ value: "", label: "Choose what brought you here" }, ...SUBSCRIPTION_RETENTION_GOALS]}
+              />
             </label>
 
             {valueReminder && goal && (

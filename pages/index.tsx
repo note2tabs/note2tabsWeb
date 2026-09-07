@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Note2TabsSelect from "../components/Note2TabsSelect";
 import { PLAN_CATALOG, effectiveSubscriptionPlan, proPlanPresentationEnabled, type PaidSubscriptionPlan } from "../lib/subscriptionPlans";
 import type { BillingInterval } from "../lib/stripePremium";
 import Image from "next/image";
@@ -1832,19 +1833,14 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <div className="results-actions">
                   {isSignedIn && (
                     <div className="button-row">
-                      <select
-                        className="form-select button-small"
+                      <Note2TabsSelect
+                        className="note2tabs-select--compact"
                         value={editorChoice}
-                        onChange={(event) => setEditorChoice(event.target.value)}
+                        onChange={setEditorChoice}
                         disabled={editorLoading}
-                      >
-                        <option value="new">New editor</option>
-                        {editorChoicesForSelect.map((editor) => (
-                          <option key={editor.id} value={editor.id}>
-                            {editor.name || "Untitled"}
-                          </option>
-                        ))}
-                      </select>
+                        label="Import destination"
+                        options={[{ value: "new", label: "New editor" }, ...editorChoicesForSelect.map((editor) => ({ value: editor.id, label: editor.name || "Untitled" }))]}
+                      />
                       <button
                         type="button"
                         className="button-primary"

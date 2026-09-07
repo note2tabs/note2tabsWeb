@@ -42,6 +42,7 @@ import {
   resolveYoutubeClipDuration,
 } from "../lib/transcriptionClip";
 import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../components/SeoHead";
+import Note2TabsSelect from "../components/Note2TabsSelect";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 import TranscriptionModelValueNote from "../components/TranscriptionModelValueNote";
 import PremiumConversionCard from "../components/PremiumConversionCard";
@@ -1564,19 +1565,14 @@ export default function TranscriberPage() {
                 <div className="results-actions">
                   {isSignedIn && (
                     <div className="button-row">
-                      <select
-                        className="form-select button-small"
+                      <Note2TabsSelect
+                        className="note2tabs-select--compact"
                         value={editorChoice}
-                        onChange={(event) => setEditorChoice(event.target.value)}
+                        onChange={setEditorChoice}
                         disabled={editorLoading}
-                      >
-                        <option value="new">New editor</option>
-                        {editorChoicesForSelect.map((editor) => (
-                          <option key={editor.id} value={editor.id}>
-                            {editor.name || "Untitled"}
-                          </option>
-                        ))}
-                      </select>
+                        label="Import destination"
+                        options={[{ value: "new", label: "New editor" }, ...editorChoicesForSelect.map((editor) => ({ value: editor.id, label: editor.name || "Untitled" }))]}
+                      />
                       <button
                         type="button"
                         className="button-primary"
