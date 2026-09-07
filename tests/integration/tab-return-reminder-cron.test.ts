@@ -77,7 +77,9 @@ describe("tab return reminder cron", () => {
     expect(res._getStatusCode()).toBe(200);
     const query = mocks.queryRaw.mock.calls[0]?.[0] as { strings?: string[] };
     const sql = query?.strings?.join("?") ?? String(query);
-    expect(sql).toContain("n.canvas_id = c.canvas_id");
+    expect(sql).toContain("INNER JOIN canvas_lanes l ON l.lane_key = n.lane_key");
+    expect(sql).toContain("l.canvas_id = c.canvas_id");
+    expect(sql).not.toContain("n.canvas_id");
     expect(sql).not.toContain("n.user_id");
   });
 
