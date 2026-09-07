@@ -1,5 +1,6 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { getServerSession } from "next-auth/next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import NoIndexHead from "../components/NoIndexHead";
@@ -8,6 +9,8 @@ import { gteApi } from "../lib/gteApi";
 import { hasPremiumEntitlement } from "../lib/premiumEntitlement";
 import type { EditorListItem, OutgoingCanvasShare, PendingCanvasShare, SharedEditorListItem, SharedEditorRole } from "../types/gte";
 import { authOptions } from "./api/auth/[...nextauth]";
+import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
+import { TAB_SHARE_EMAIL_SOURCE } from "../lib/tabShareAnalytics";
 
 type Props = {
   userId: string;
@@ -88,6 +91,8 @@ function SharedFilterMenu<T extends string>({
 }
 
 export default function SharedWithYouPage({ role }: Props) {
+  const router = useRouter();
+  const shareEmailClickTracked = useRef(false);
   const [pending, setPending] = useState<PendingCanvasShare[]>([]);
   const [shared, setShared] = useState<SharedEditorListItem[]>([]);
   const [outgoing, setOutgoing] = useState<OutgoingCanvasShare[]>([]);
@@ -101,6 +106,16 @@ export default function SharedWithYouPage({ role }: Props) {
   const [query, setQuery] = useState("");
   const [access, setAccess] = useState<"all" | SharedEditorRole>("all");
   const [sort, setSort] = useState<"modified" | "name">("modified");
+
+  useEffect(() => {
+    if (!router.isReady || router.query.source !== TAB_SHARE_EMAIL_SOURCE || shareEmailClickTracked.current) return;
+    shareEmailClickTracked.current = true;
+    sendEvent(ANALYTICS_EVENTS.tabShareEmailClicked, {
+      landing: "shared",
+      recipient_status: "existing",
+      source: TAB_SHARE_EMAIL_SOURCE,
+    });
+  }, [router.isReady, router.query.source]);
 
   const isPremium = hasPremiumEntitlement({ user: { role } });
   const recentEditors = useMemo(

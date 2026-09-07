@@ -1,6 +1,7 @@
 import { sendTransactionalEmail } from "./email";
 import { escapeEmailHtml, renderProductEmail } from "./emailTemplate";
 import { tabShareBlockUrl } from "./tabShareEmailPreferences";
+import { TAB_SHARE_EMAIL_SOURCE } from "./tabShareAnalytics";
 
 export type TabShareEmailInput = {
   to: string;
@@ -22,9 +23,10 @@ export function buildTabShareEmail(input: TabShareEmailInput) {
   const inviter = input.inviterName?.trim() || "Someone";
   const tabName = input.tabName?.trim() || "a tab";
   const permission = input.role === "editor" ? "view and edit" : "view";
-  const sharedPath = `/shared?source=tab_share_email&editor=${encodeURIComponent(input.editorId)}`;
+  const campaign = `source=${TAB_SHARE_EMAIL_SOURCE}&utm_source=note2tabs&utm_medium=email&utm_campaign=tab_sharing`;
+  const sharedPath = `/shared?${campaign}&editor=${encodeURIComponent(input.editorId)}`;
   const sharedUrl = `${appBaseUrl()}${sharedPath}`;
-  const signupUrl = `${appBaseUrl()}/auth/signup?next=${encodeURIComponent(sharedPath)}`;
+  const signupUrl = `${appBaseUrl()}/auth/signup?next=${encodeURIComponent(sharedPath)}&utm_source=note2tabs&utm_medium=email&utm_campaign=tab_sharing`;
   const privacyUrl = `${appBaseUrl()}/privacy`;
   const blockUrl = tabShareBlockUrl(input.to);
   const subject = `${inviter} shared a Note2Tabs tab with you`;

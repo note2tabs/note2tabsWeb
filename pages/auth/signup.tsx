@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { signIn } from "next-auth/react";
@@ -9,6 +9,7 @@ import { clearOAuthIntent, saveOAuthIntent } from "../../lib/oauthAnalytics";
 import { categorizeAnalyticsDestination } from "../../lib/analyticsPrivacy";
 import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
 import { premiumFunnelProperties, readPremiumFunnelContext } from "../../lib/premiumFunnel";
+import { isTabShareEmailDestination, TAB_SHARE_EMAIL_SOURCE } from "../../lib/tabShareAnalytics";
 
 const authErrorMessage = (error?: string | string[]) => {
   const value = Array.isArray(error) ? error[0] : error;
@@ -29,6 +30,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const shareEmailClickTracked = useRef(false);
   const nextHref = useMemo(() => {
     const raw = router.query.next;
     const value = Array.isArray(raw) ? raw[0] : raw;
@@ -40,6 +42,17 @@ export default function SignupPage() {
   const loginHref =
     nextHref === "/" ? "/auth/login" : `/auth/login?next=${encodeURIComponent(nextHref)}`;
   const routeError = useMemo(() => authErrorMessage(router.query.error), [router.query.error]);
+  const fromTabShareEmail = useMemo(() => isTabShareEmailDestination(nextHref), [nextHref]);
+
+  useEffect(() => {
+    if (!router.isReady || !fromTabShareEmail || shareEmailClickTracked.current) return;
+    shareEmailClickTracked.current = true;
+    sendEvent(ANALYTICS_EVENTS.tabShareEmailClicked, {
+      landing: "signup",
+      recipient_status: "new",
+      source: TAB_SHARE_EMAIL_SOURCE,
+    });
+  }, [fromTabShareEmail, router.isReady]);
 
   useEffect(() => {
     if (router.query.error) clearOAuthIntent();
@@ -91,6 +104,7 @@ export default function SignupPage() {
       sendEvent(ANALYTICS_EVENTS.signupCompleted, {
         method: "email",
         destination,
+        ...(fromTabShareEmail ? { signup_source: TAB_SHARE_EMAIL_SOURCE } : {}),
         ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
       });
       // Keep the newly created account signed in while email verification is
@@ -184,6 +198,7 @@ export default function SignupPage() {
               sendEvent(ANALYTICS_EVENTS.signupStarted, {
                 method: "google",
                 destination: categorizeAnalyticsDestination(nextHref),
+                ...(fromTabShareEmail ? { signup_source: TAB_SHARE_EMAIL_SOURCE } : {}),
                 ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
               });
               trackCtaClick("signup_google", { surface: "signup_page" });

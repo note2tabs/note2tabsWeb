@@ -12,6 +12,7 @@ import { categorizeAnalyticsDestination } from "../lib/analyticsPrivacy";
 import { getAcquisitionProperties } from "../lib/acquisitionAttribution";
 import { getAnalyticsTrackingIds } from "../lib/analyticsV2";
 import { premiumFunnelProperties, readPremiumFunnelContext } from "../lib/premiumFunnel";
+import { isTabShareEmailDestination, TAB_SHARE_EMAIL_SOURCE } from "../lib/tabShareAnalytics";
 
 export default function AnalyticsIdentityLinker() {
   const { data: session, status } = useSession();
@@ -84,12 +85,22 @@ export default function AnalyticsIdentityLinker() {
       const isRecentlyCreated =
         Number.isFinite(createdAtMs) && Date.now() - createdAtMs >= 0 && Date.now() - createdAtMs < 10 * 60 * 1000;
       if (oauthIntent && isRecentlyCreated) {
+        const fromTabShareEmail = isTabShareEmailDestination(oauthIntent.next);
         sendEvent(ANALYTICS_EVENTS.signupCompleted, {
           method: "google",
           destination: categorizeAnalyticsDestination(oauthIntent.next),
           initiatedAs: oauthIntent.intent,
+          ...(fromTabShareEmail ? { signup_source: TAB_SHARE_EMAIL_SOURCE } : {}),
           ...(funnel ? premiumFunnelProperties(funnel) : {}),
         });
+        if (fromTabShareEmail) {
+          sendEvent(ANALYTICS_EVENTS.tabShareEmailSignupCompleted, {
+            method: "google",
+            landing: "signup",
+            recipient_status: "new",
+            source: TAB_SHARE_EMAIL_SOURCE,
+          });
+        }
       } else if (oauthIntent) {
         sendEvent(ANALYTICS_EVENTS.loginSucceeded, {
           method: "google",

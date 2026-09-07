@@ -27,7 +27,7 @@ describe("tab sharing email", () => {
 
     expect(email.subject).toBe("Noel shared a Note2Tabs tab with you");
     expect(email.sharedUrl).toBe(
-      "https://www.note2tabs.com/shared?source=tab_share_email&editor=editor%2F1"
+      "https://www.note2tabs.com/shared?source=tab_share_email&utm_source=note2tabs&utm_medium=email&utm_campaign=tab_sharing&editor=editor%2F1"
     );
     expect(email.text).toContain("view and edit “Autumn fall”");
   });
@@ -79,6 +79,7 @@ describe("tab sharing email", () => {
     });
 
     expect(email.signupUrl).toContain("/auth/signup?next=");
+    expect(email.signupUrl).toContain("utm_campaign=tab_sharing");
     expect(email.html).toContain("Create account and open tab");
     expect(email.html).toContain("Note2Tabs is an online guitar-tab editor");
     expect(email.html).toContain("view the tablature, hear it played back, and follow along");
