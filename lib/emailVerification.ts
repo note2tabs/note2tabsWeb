@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { prisma } from "./prisma";
 import { sendTransactionalEmail } from "./email";
 import { normalizeSafeReturnPath } from "./safeReturnPath";
+import { escapeEmailHtml, renderProductEmail } from "./emailTemplate";
 
 const VERIFY_TOKEN_PREFIX = "verify:";
 const VERIFY_TOKEN_TTL_MS = 1000 * 60 * 60 * 24; // 24h
@@ -62,15 +63,14 @@ export async function sendVerificationEmail(
   const firstName = options?.name?.trim() || "there";
   const subject = "Verify your Note2Tabs account";
   const text = `Hi ${firstName},\n\nPlease verify your email to use the transcriber:\n${url}\n\nIf you didn't create this account, you can ignore this email.`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; line-height:1.45; color:#0f172a;">
-      <p>Hi ${firstName},</p>
-      <p>Please verify your email to use the Note2Tabs transcriber.</p>
-      <p><a href="${url}" style="display:inline-block;padding:10px 14px;background:#0f172a;color:#fff;text-decoration:none;border-radius:8px;">Verify email</a></p>
-      <p style="font-size:13px;color:#475569;">Or copy this link: ${url}</p>
-      <p style="font-size:13px;color:#475569;">If you did not create this account, you can ignore this email.</p>
-    </div>
-  `;
+  const html = renderProductEmail({
+    title: "Verify your email",
+    preview: "Verify your email address to finish setting up Note2Tabs.",
+    greeting: `Hi ${escapeEmailHtml(firstName)},`,
+    bodyHtml: '<p style="margin:0;">Verify your email address to finish setting up your account and use the transcriber.</p>',
+    action: { label: "Verify email", url },
+    secondaryHtml: `This link expires in 24 hours. If you did not create a Note2Tabs account, you can ignore this email.<br><br><a href="${url}" style="color:#4f5a56;text-decoration:underline;word-break:break-all;">Copy verification link</a>`,
+  });
   return sendTransactionalEmail({ to: email, subject, html, text });
 }
 

@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { sendTransactionalEmail } from "./email";
 import { prisma } from "./prisma";
+import { escapeEmailHtml, renderProductEmail } from "./emailTemplate";
 
 type TranscriptionCompleteEmailInput = {
   name?: string | null;
@@ -18,15 +19,6 @@ function appBaseUrl() {
   );
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 export function buildTranscriptionCompleteEmail(input: TranscriptionCompleteEmailInput) {
   const firstName = input.name?.trim().split(/\s+/)[0] || "there";
   const sourceLabel = input.sourceLabel?.trim() || "Your transcription";
@@ -41,22 +33,13 @@ ${sourceLabel} is ready. Open it in the Note2Tabs editor to play, edit, practice
 Open in editor: ${editorUrl}
 
 Note2Tabs`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.55;color:#07110e;background:#f6f3ea;padding:24px;">
-      <div style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #dedbd2;border-radius:16px;padding:26px;">
-        <p style="margin:0 0 12px;">Hi ${escapeHtml(firstName)},</p>
-        <h1 style="margin:0 0 12px;font-size:22px;line-height:1.25;">Your transcription is ready</h1>
-        <p style="margin:0 0 18px;color:#4f5a56;">
-          ${escapeHtml(sourceLabel)} is ready. Open it in the Note2Tabs editor to play, edit, practice, and export your tabs.
-        </p>
-        <p style="margin:0;">
-          <a href="${editorUrl}" style="display:inline-block;padding:11px 16px;background:#07110e;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:650;">
-            Open in editor
-          </a>
-        </p>
-      </div>
-    </div>
-  `;
+  const html = renderProductEmail({
+    title: "Your transcription is ready",
+    preview: `${sourceLabel} is ready to open in the editor.`,
+    greeting: `Hi ${escapeEmailHtml(firstName)},`,
+    bodyHtml: `<p style="margin:0;"><strong style="color:#17201d;">${escapeEmailHtml(sourceLabel)}</strong> is ready. Open it to play, edit, practice, or export your tab.</p>`,
+    action: { label: "Open in editor", url: editorUrl },
+  });
 
   return { subject, text, html, editorUrl };
 }
