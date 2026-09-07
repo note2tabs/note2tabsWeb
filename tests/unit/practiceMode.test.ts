@@ -53,8 +53,8 @@ describe("editor practice mode", () => {
 
   it("turns practice into a focused paper-like reading surface", () => {
     expect(editorPage).toContain("min-h-[1050px]");
-    expect(editorPage).toContain("max-w-[900px]");
-    expect(editorPage).toContain("Math.min(timelineZoomPercent / 100, 0.5)");
+    expect(editorPage).toContain("max-w-[1100px]");
+    expect(editorPage).toContain("lg:max-w-[calc(100vw-32rem)]");
     expect(editorPage).toContain("practiceMode={practiceModeEnabled}");
     expect(workspace).toContain('practiceMode ? "rounded-none border-0"');
     expect(workspace).toContain("data-gte-practice-score");
@@ -80,8 +80,8 @@ describe("editor practice mode", () => {
   });
 
   it("compresses consecutive empty bars into one selectable range", () => {
-    expect(workspace).toContain("collapseConsecutiveEmptyBars: practiceMode");
     expect(workspace).toContain("const practiceBarSegments = useMemo");
+    expect(workspace).toContain("!practiceOccupiedBarIndexSet.has(endBar)");
     expect(workspace).toContain("handlePracticeBarSegmentSelection");
     expect(workspace).toContain("segment.startBar + 1");
     expect(workspace).toContain("data-bar-end-index={segment.endBar - 1}");
@@ -166,7 +166,7 @@ describe("editor practice mode", () => {
   it("keeps shortcuts and bar-selection guidance on the right in practice", () => {
     expect(editorPage).toContain("const renderPracticeHelp = () => (");
     expect(editorPage).toContain("Practice shortcuts");
-    expect(editorPage).toContain("min-[1400px]:right-[max(1rem,calc(50vw-700px))]");
+    expect(editorPage).toContain("lg:fixed lg:right-4 lg:top-28");
     expect(editorPage).toContain("Select one or more bars for playback");
     expect(editorPage).toContain("Shift-click another bar");
   });
