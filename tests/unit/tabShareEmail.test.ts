@@ -79,7 +79,10 @@ describe("tab sharing email", () => {
     });
 
     expect(email.signupUrl).toContain("/auth/signup?next=");
-    expect(email.html).toContain("Create account to open tab");
+    expect(email.html).toContain("Create account and open tab");
+    expect(email.html).toContain("Note2Tabs is an online guitar-tab editor");
+    expect(email.html).toContain("view the tablature, hear it played back, and follow along");
+    expect(email.text).toContain("The account makes sure the invitation is connected to the right person");
     expect(email.html).toContain("You have not been added to a marketing list");
     expect(email.html).toContain("Block future sharing emails");
     expect(email.html).not.toMatch(/premium|discount|upgrade/i);

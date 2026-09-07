@@ -28,9 +28,14 @@ export function buildTabShareEmail(input: TabShareEmailInput) {
   const privacyUrl = `${appBaseUrl()}/privacy`;
   const blockUrl = tabShareBlockUrl(input.to);
   const subject = `${inviter} shared a Note2Tabs tab with you`;
-  const text = `${inviter} invited you to ${permission} “${tabName}” on Note2Tabs.
+  const newRecipientExplanation = `Note2Tabs is an online guitar-tab editor. ${inviter} shared “${tabName}” with you so you can ${input.role === "editor" ? "view, play, and edit the tablature" : "view the tablature, hear it played back, and follow along"}.
 
-${input.recipientHasAccount ? `Open the tab: ${sharedUrl}` : `Create a free account to open the tab: ${signupUrl}`}
+Create a free account using this email address to open the tab. The account makes sure the invitation is connected to the right person.`;
+  const text = `${input.recipientHasAccount
+    ? `${inviter} invited you to ${permission} “${tabName}” on Note2Tabs.`
+    : newRecipientExplanation}
+
+${input.recipientHasAccount ? `Open the tab: ${sharedUrl}` : `Create your account and open the tab: ${signupUrl}`}
 
 ${input.recipientHasAccount ? "Sign in using this email address to access it." : `You received this service email because ${inviter} shared a tab with this address. You have not been added to a marketing list.`}
 ${!input.recipientHasAccount && blockUrl ? `\nStop future tab-sharing emails: ${blockUrl}` : ""}
@@ -38,11 +43,13 @@ Privacy: ${privacyUrl}
 
 Note2Tabs`;
   const html = renderProductEmail({
-    title: `${inviter} shared a tab with you`,
+    title: `${inviter} shared a ${input.recipientHasAccount ? "tab" : "guitar tab"} with you`,
     preview: `${inviter} invited you to ${permission} ${tabName}.`,
-    bodyHtml: `<p style="margin:0;">You can ${permission} <strong style="color:#17201d;">${escapeEmailHtml(tabName)}</strong> on Note2Tabs.</p>`,
+    bodyHtml: input.recipientHasAccount
+      ? `<p style="margin:0;">You can ${permission} <strong style="color:#17201d;">${escapeEmailHtml(tabName)}</strong> on Note2Tabs.</p>`
+      : `<p style="margin:0 0 14px;"><strong style="color:#17201d;">Note2Tabs is an online guitar-tab editor.</strong> ${escapeEmailHtml(inviter)} shared <strong style="color:#17201d;">${escapeEmailHtml(tabName)}</strong> with you so you can ${input.role === "editor" ? "view, play, and edit the tablature" : "view the tablature, hear it played back, and follow along"}.</p><p style="margin:0;">Create a free account using this email address to open the tab. The account makes sure the invitation is connected to the right person.</p>`,
     action: {
-      label: input.recipientHasAccount ? "Open shared tab" : "Create account to open tab",
+      label: input.recipientHasAccount ? "Open shared tab" : "Create account and open tab",
       url: input.recipientHasAccount ? sharedUrl : signupUrl,
     },
     secondaryHtml: input.recipientHasAccount
