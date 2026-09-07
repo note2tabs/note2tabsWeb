@@ -1289,6 +1289,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [nameError, setNameError] = useState<string | null>(null);
   const [nameEditing, setNameEditing] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const openShareDialog = useCallback((surface: "editor_toolbar" | "practice_controls") => {
+    sendEvent(ANALYTICS_EVENTS.tabShareDialogOpened, { surface });
+    setShareDialogOpen(true);
+  }, []);
   const [bpmDraft, setBpmDraft] = useState(formatBpm(secondsPerBarToBpm(DEFAULT_SECONDS_PER_BAR, 8)));
   const [bpmSaving, setBpmSaving] = useState(false);
   const [bpmError, setBpmError] = useState<string | null>(null);
@@ -6550,6 +6554,22 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
               )}
             </div>
           </details>
+          {!isGuestMode && (
+            <button
+              type="button"
+              onClick={() => openShareDialog("practice_controls")}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-xs font-semibold text-emerald-900 shadow-sm transition hover:border-emerald-400 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 lg:w-full"
+              title="Share this tab"
+            >
+              <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current" aria-hidden="true">
+                <circle cx="5" cy="10" r="2" />
+                <circle cx="15" cy="5" r="2" />
+                <circle cx="15" cy="15" r="2" />
+                <path d="m6.8 9.1 6.4-3.2M6.8 10.9l6.4 3.2" strokeLinecap="round" />
+              </svg>
+              Share tab
+            </button>
+          )}
           {PRACTICE_RATING_UI_ENABLED && practiceRatingError && (
             <p className="order-[2] w-full rounded-lg bg-rose-50 px-2 py-1.5 text-[10px] leading-4 text-rose-700" role="alert">
               {practiceRatingError}
@@ -7949,10 +7969,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     {!isGuestMode && (
                       <button
                         type="button"
-                        onClick={() => setShareDialogOpen(true)}
-                        className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+                        onClick={() => openShareDialog("editor_toolbar")}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900 shadow-sm transition hover:border-emerald-400 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+                        title="Share this tab"
                       >
-                        Share
+                        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current" aria-hidden="true">
+                          <circle cx="5" cy="10" r="2" />
+                          <circle cx="15" cy="5" r="2" />
+                          <circle cx="15" cy="15" r="2" />
+                          <path d="m6.8 9.1 6.4-3.2M6.8 10.9l6.4 3.2" strokeLinecap="round" />
+                        </svg>
+                        Share tab
                       </button>
                     )}
                     {isGuestMode ? (
