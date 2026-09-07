@@ -619,7 +619,7 @@ export const gteApi = {
   listShares: (editorId: string) =>
     request<{ shares: CanvasShare[] }>(`/editors/${encodeURIComponent(editorId)}/shares`),
   createShare: (editorId: string, email: string, role: SharedEditorRole) =>
-    request<CanvasShare & { canvasId: string; emailDelivered?: boolean }>(`/editors/${encodeURIComponent(editorId)}/shares`, {
+    request<CanvasShare & { canvasId: string; emailDelivered?: boolean; emailSuppressed?: boolean }>(`/editors/${encodeURIComponent(editorId)}/shares`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, role }),

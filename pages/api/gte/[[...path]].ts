@@ -26,12 +26,38 @@ import type { GteAnalyticsEvent } from "../../../lib/gteAnalytics";
 import { parseTextTabImport } from "../../../lib/gteTabImport";
 import { prisma } from "../../../lib/prisma";
 import { sendTabShareEmail } from "../../../lib/tabShareEmail";
+import {
+  claimTabShareEmailDelivery,
+  isTabShareEmailBlocked,
+  normalizeShareEmail,
+  releaseTabShareEmailDelivery,
+} from "../../../lib/tabShareEmailPreferences";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
   process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 const SNAPSHOT_SAVE_CACHE_TTL_MS = 4000;
 const SNAPSHOT_SAVE_CACHE_MAX = 200;
+const SHARE_EMAIL_RATE_WINDOW_MS = 60 * 60 * 1000;
+const SHARE_EMAIL_RATE_MAX = 20;
+const shareEmailRateByUser = new Map<string, number[]>();
+
+function withinShareEmailRateLimit(userId: string) {
+  const cutoff = Date.now() - SHARE_EMAIL_RATE_WINDOW_MS;
+  const recent = (shareEmailRateByUser.get(userId) || []).filter((time) => time > cutoff);
+  if (recent.length >= SHARE_EMAIL_RATE_MAX) {
+    shareEmailRateByUser.set(userId, recent);
+    return false;
+  }
+  recent.push(Date.now());
+  shareEmailRateByUser.set(userId, recent);
+  if (shareEmailRateByUser.size > 500) {
+    for (const [key, values] of shareEmailRateByUser) {
+      if (!values.some((time) => time > cutoff)) shareEmailRateByUser.delete(key);
+    }
+  }
+  return true;
+}
 
 type SnapshotSaveCacheEntry = {
   body: string;
@@ -484,7 +510,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const parsed = JSON.parse(responseText) as GteShareResponse;
       const editorId = decodeURIComponent(shareMatch[1]);
-      const recipient = typeof parsed.email === "string" ? parsed.email.trim() : "";
+      const recipient = typeof parsed.email === "string" ? normalizeShareEmail(parsed.email) : "";
       const role = parsed.role === "viewer" ? "viewer" : "editor";
       let tabName: string | undefined;
       try {
@@ -495,15 +521,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       let emailDelivered = false;
+      let emailSuppressed = false;
       if (recipient) {
         try {
-          emailDelivered = await sendTabShareEmail({
-            to: recipient,
-            inviterName: session.user.name || session.user.email,
-            tabName,
-            editorId,
-            role,
-          });
+          const [recipientUser, blocked] = await Promise.all([
+            prisma.user.findUnique({ where: { email: recipient }, select: { id: true } }),
+            isTabShareEmailBlocked(recipient),
+          ]);
+          const rateAllowed = withinShareEmailRateLimit(session.user.id);
+          const deliveryClaimed = !blocked && rateAllowed
+            ? await claimTabShareEmailDelivery(session.user.id, editorId, recipient)
+            : false;
+          emailSuppressed = blocked || !rateAllowed || !deliveryClaimed;
+          if (deliveryClaimed) {
+            try {
+              emailDelivered = await sendTabShareEmail({
+                to: recipient,
+                inviterName: session.user.name || session.user.email,
+                tabName,
+                editorId,
+                role,
+                recipientHasAccount: Boolean(recipientUser),
+              });
+            } catch (error) {
+              await releaseTabShareEmailDelivery(session.user.id, editorId, recipient).catch(() => {});
+              throw error;
+            }
+          }
         } catch (error) {
           console.error("note2tabs.email.tab_share_failed", {
             editorId,
@@ -511,7 +555,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
         }
       }
-      responseText = JSON.stringify({ ...parsed, emailDelivered });
+      responseText = JSON.stringify({ ...parsed, emailDelivered, emailSuppressed });
       res.setHeader("Content-Type", "application/json; charset=utf-8");
     } catch {
       // Preserve the successful share response if the upstream payload is unexpectedly not JSON.

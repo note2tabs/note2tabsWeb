@@ -22,6 +22,7 @@ describe("tab sharing email", () => {
       tabName: "Autumn fall",
       editorId: "editor/1",
       role: "editor",
+      recipientHasAccount: true,
     });
 
     expect(email.subject).toBe("Noel shared a Note2Tabs tab with you");
@@ -38,6 +39,7 @@ describe("tab sharing email", () => {
       tabName: "<script>alert(1)</script>",
       editorId: "editor-1",
       role: "viewer",
+      recipientHasAccount: true,
     });
 
     expect(email.html).not.toContain("<script>alert(1)</script>");
@@ -53,6 +55,7 @@ describe("tab sharing email", () => {
         tabName: "Autumn fall",
         editorId: "editor-1",
         role: "viewer",
+        recipientHasAccount: true,
       })
     ).resolves.toBe(true);
 
@@ -62,5 +65,23 @@ describe("tab sharing email", () => {
         analyticsCategory: "tab_share",
       })
     );
+  });
+
+  it("uses a separate, non-promotional invitation for recipients without accounts", () => {
+    vi.stubEnv("EMAIL_UNSUBSCRIBE_SECRET", "test-secret");
+    const email = buildTabShareEmail({
+      to: "new-player@example.com",
+      inviterName: "Noel",
+      tabName: "Autumn fall",
+      editorId: "editor-1",
+      role: "viewer",
+      recipientHasAccount: false,
+    });
+
+    expect(email.signupUrl).toContain("/auth/signup?next=");
+    expect(email.html).toContain("Create account to open tab");
+    expect(email.html).toContain("You have not been added to a marketing list");
+    expect(email.html).toContain("Block future sharing emails");
+    expect(email.html).not.toMatch(/premium|discount|upgrade/i);
   });
 });

@@ -49,7 +49,7 @@ export default function ShareDialog({ editorId, onClose }: ShareDialogProps) {
         { shareId: created.shareId, email: created.email, role: created.role, status: created.status, createdAt: created.createdAt },
       ]);
       setEmail("");
-      if (created.emailDelivered === false) {
+      if (created.emailDelivered === false && !created.emailSuppressed) {
         setError("Access was shared, but the invitation email could not be delivered. Remove the collaborator and try again.");
       }
     } catch (err: any) {
@@ -108,6 +108,9 @@ export default function ShareDialog({ editorId, onClose }: ShareDialogProps) {
             {submitting ? "Inviting..." : "Invite"}
           </button>
         </form>
+        <p className="mt-2 text-[11px] leading-4 text-slate-500">
+          You can share with anyone. If they do not have a Note2Tabs account, we will email them an invitation to join and open the tab.
+        </p>
         {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
 
         <div className="mt-4 max-h-64 overflow-y-auto">
