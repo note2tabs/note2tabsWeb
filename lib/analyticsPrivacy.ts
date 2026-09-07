@@ -252,6 +252,11 @@ const EXPECTED_EXCEPTION_PATTERNS = [
   /resizeobserver loop/i,
 ];
 
+// Browsers intentionally hide the details of some cross-origin script errors.
+// The resulting generic message has no source, stack, or actionable application
+// context, so retain it in Error Tracking without waking the operational alert.
+const NON_ACTIONABLE_BROWSER_EXCEPTION_PATTERNS = [/^error script error\.?$/i];
+
 function exceptionText(value: unknown, depth = 0): string {
   if (depth > 8) return "";
   if (typeof value === "string") return value;
@@ -268,6 +273,9 @@ export function classifyPostHogException(exceptionList: unknown) {
   const text = exceptionText(exceptionList);
   if (EXPECTED_EXCEPTION_PATTERNS.some((pattern) => pattern.test(text))) {
     return { alertEligible: false, classification: "expected_product_state" } as const;
+  }
+  if (NON_ACTIONABLE_BROWSER_EXCEPTION_PATTERNS.some((pattern) => pattern.test(text.trim()))) {
+    return { alertEligible: false, classification: "non_actionable_browser_error" } as const;
   }
   return { alertEligible: true, classification: "unexpected_application_error" } as const;
 }

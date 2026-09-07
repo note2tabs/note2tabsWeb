@@ -67,6 +67,20 @@ describe("tab return reminder cron", () => {
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 
+  it("uses the normalized lane_notes ownership schema", async () => {
+    const { req, res } = createMocks({
+      method: "GET",
+      headers: { authorization: "Bearer cron-test" },
+    });
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    const query = mocks.queryRaw.mock.calls[0]?.[0] as { strings?: string[] };
+    const sql = query?.strings?.join("?") ?? String(query);
+    expect(sql).toContain("n.canvas_id = c.canvas_id");
+    expect(sql).not.toContain("n.user_id");
+  });
+
   it("sends once when explicitly enabled and included in the rollout", async () => {
     process.env.TAB_RETURN_REMINDER_ENABLED = "true";
     process.env.TAB_RETURN_REMINDER_ROLLOUT_PERCENT = "100";

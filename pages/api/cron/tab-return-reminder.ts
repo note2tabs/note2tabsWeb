@@ -94,7 +94,7 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
       )
       AND EXISTS (
         SELECT 1 FROM lane_notes n
-        WHERE n.user_id = c.user_id AND n.canvas_id = c.canvas_id
+        WHERE n.canvas_id = c.canvas_id
       )
     ORDER BY c.user_id, c.updated_at DESC
     LIMIT ${batchSize()}

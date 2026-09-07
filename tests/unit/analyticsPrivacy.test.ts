@@ -108,6 +108,13 @@ describe("analytics privacy sanitization", () => {
     });
   });
 
+  it("retains opaque cross-origin script errors without paging operators", () => {
+    expect(classifyPostHogException([{ type: "Error", value: "Script error." }])).toEqual({
+      alertEligible: false,
+      classification: "non_actionable_browser_error",
+    });
+  });
+
   it("preserves deeply nested session replay snapshots", () => {
     const snapshot = {
       uuid: "snapshot-id",
