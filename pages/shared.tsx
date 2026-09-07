@@ -1,7 +1,7 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import { getServerSession } from "next-auth/next";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import NoIndexHead from "../components/NoIndexHead";
 import WorkspaceSidebar from "../components/WorkspaceSidebar";
 import { gteApi } from "../lib/gteApi";
@@ -39,6 +39,51 @@ function SharedTabArtwork() {
       </span>
       <span className="shared-page__art-notes">3&nbsp;&nbsp;5&nbsp;&nbsp;7&nbsp;&nbsp;5</span>
     </span>
+  );
+}
+
+function SharedFilterMenu<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: Array<{ value: T; label: string }>;
+  onChange: (value: T) => void;
+}) {
+  const rootRef = useRef<HTMLDetailsElement>(null);
+  const selected = options.find((option) => option.value === value) || options[0];
+
+  useEffect(() => {
+    const close = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) rootRef.current.open = false;
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  return (
+    <details className="shared-page__filter-menu" ref={rootRef} onKeyDown={(event) => {
+      if (event.key === "Escape" && rootRef.current) {
+        rootRef.current.open = false;
+        rootRef.current.querySelector("summary")?.focus();
+      }
+    }}>
+      <summary aria-label={`${label}: ${selected.label}`}><span>{selected.label}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></summary>
+      <div role="listbox" aria-label={label}>
+        {options.map((option) => (
+          <button key={option.value} type="button" role="option" aria-selected={option.value === value} onClick={() => {
+            onChange(option.value);
+            if (rootRef.current) rootRef.current.open = false;
+          }}>
+            <span className="shared-page__filter-check" aria-hidden="true">{option.value === value && <svg viewBox="0 0 16 16"><path d="m3 8 3 3 7-7" /></svg>}</span>
+            <span>{option.label}</span>
+          </button>
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -219,8 +264,8 @@ export default function SharedWithYouPage({ role }: Props) {
               </div>
               <div className="shared-page__filters">
                 <label className="shared-page__search"><span aria-hidden="true">⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search shared tabs" aria-label="Search shared tabs" /></label>
-                <select value={access} onChange={(event) => setAccess(event.target.value as "all" | SharedEditorRole)} aria-label="Filter by access"><option value="all">All access</option><option value="editor">Can edit</option><option value="viewer">View only</option></select>
-                <select value={sort} onChange={(event) => setSort(event.target.value as "modified" | "name")} aria-label="Sort shared tabs"><option value="modified">Last modified</option><option value="name">Name</option></select>
+                <SharedFilterMenu label="Filter by access" value={access} onChange={setAccess} options={[{ value: "all", label: "All access" }, { value: "editor", label: "Can edit" }, { value: "viewer", label: "View only" }]} />
+                <SharedFilterMenu label="Sort shared tabs" value={sort} onChange={setSort} options={[{ value: "modified", label: "Last modified" }, { value: "name", label: "Name" }]} />
               </div>
             </div>
 
