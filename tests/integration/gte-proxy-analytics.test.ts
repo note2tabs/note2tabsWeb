@@ -4,6 +4,7 @@ import { createMocks } from "node-mocks-http";
 const sessionMock = vi.fn();
 const logMock = vi.fn();
 const updateTabJobMock = vi.fn();
+const sendTabShareEmailMock = vi.fn();
 
 vi.mock("next-auth/next", () => ({
   getServerSession: (...args: unknown[]) => sessionMock(...args),
@@ -15,6 +16,10 @@ vi.mock("../../lib/gteAnalytics", () => ({
 
 vi.mock("../../lib/prisma", () => ({
   prisma: { tabJob: { updateMany: (...args: unknown[]) => updateTabJobMock(...args) } },
+}));
+
+vi.mock("../../lib/tabShareEmail", () => ({
+  sendTabShareEmail: (...args: unknown[]) => sendTabShareEmailMock(...args),
 }));
 
 vi.mock("../../lib/gteTrackInstrumentStore", () => ({
@@ -37,11 +42,81 @@ describe("gte proxy analytics", () => {
     logMock.mockReset();
     updateTabJobMock.mockReset();
     updateTabJobMock.mockResolvedValue({ count: 1 });
-    sessionMock.mockResolvedValue({ user: { id: "user_1" } });
+    sendTabShareEmailMock.mockReset();
+    sendTabShareEmailMock.mockResolvedValue(true);
+    sessionMock.mockResolvedValue({ user: { id: "user_1", name: "Noel", email: "owner@example.com" } });
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ ok: true, snapshot: { id: "ed_1" } }), { status: 200 }))
     );
+  });
+
+  it("emails a collaborator only after the editor service creates the share", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            shareId: 12,
+            canvasId: "ed_1",
+            email: "player@example.com",
+            role: "viewer",
+            status: "pending",
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ editors: [{ id: "ed_1", name: "Autumn fall" }] }), { status: 200 })
+      );
+
+    const handler = (await import("../../pages/api/gte/[[...path]]")).default;
+    const { req, res } = createMocks({
+      method: "POST",
+      query: { path: ["editors", "ed_1", "shares"] },
+      body: { email: "player@example.com", role: "viewer" },
+    });
+
+    await handler(req as any, res as any);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(sendTabShareEmailMock).toHaveBeenCalledWith({
+      to: "player@example.com",
+      inviterName: "Noel",
+      tabName: "Autumn fall",
+      editorId: "ed_1",
+      role: "viewer",
+    });
+    expect(JSON.parse(res._getData())).toEqual(expect.objectContaining({ emailDelivered: true }));
+  });
+
+  it("keeps the share but reports when its invitation email fails", async () => {
+    sendTabShareEmailMock.mockRejectedValueOnce(new Error("SES unavailable"));
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            shareId: 12,
+            canvasId: "ed_1",
+            email: "player@example.com",
+            role: "editor",
+            status: "pending",
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ editors: [] }), { status: 200 }));
+
+    const handler = (await import("../../pages/api/gte/[[...path]]")).default;
+    const { req, res } = createMocks({
+      method: "POST",
+      query: { path: ["editors", "ed_1", "shares"] },
+      body: { email: "player@example.com", role: "editor" },
+    });
+
+    await handler(req as any, res as any);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(JSON.parse(res._getData())).toEqual(expect.objectContaining({ emailDelivered: false }));
   });
 
   it("logs successful editor commits as saves without blocking the response", async () => {

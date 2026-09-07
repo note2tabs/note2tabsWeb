@@ -49,6 +49,9 @@ export default function ShareDialog({ editorId, onClose }: ShareDialogProps) {
         { shareId: created.shareId, email: created.email, role: created.role, status: created.status, createdAt: created.createdAt },
       ]);
       setEmail("");
+      if (created.emailDelivered === false) {
+        setError("Access was shared, but the invitation email could not be delivered. Remove the collaborator and try again.");
+      }
     } catch (err: any) {
       setError(err?.message || "Could not send the invite.");
     } finally {

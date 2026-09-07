@@ -25,6 +25,7 @@ import {
 import type { GteAnalyticsEvent } from "../../../lib/gteAnalytics";
 import { parseTextTabImport } from "../../../lib/gteTabImport";
 import { prisma } from "../../../lib/prisma";
+import { sendTabShareEmail } from "../../../lib/tabShareEmail";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -96,6 +97,13 @@ type GteEditorListItem = {
 
 type GteEditorListResponse = {
   editors?: GteEditorListItem[];
+};
+
+type GteShareResponse = {
+  canvasId?: string;
+  email?: string;
+  role?: "viewer" | "editor";
+  [key: string]: unknown;
 };
 
 const AUTO_NAME_SUFFIX_RE = /^(.*?)(\d{2,})$/;
@@ -469,6 +477,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     } catch {
       // ignore analytics parse/logging failures
+    }
+  }
+  const shareMatch = method === "POST" ? path.match(/^editors\/([^/]+)\/shares$/) : null;
+  if (upstream.ok && shareMatch && responseText) {
+    try {
+      const parsed = JSON.parse(responseText) as GteShareResponse;
+      const editorId = decodeURIComponent(shareMatch[1]);
+      const recipient = typeof parsed.email === "string" ? parsed.email.trim() : "";
+      const role = parsed.role === "viewer" ? "viewer" : "editor";
+      let tabName: string | undefined;
+      try {
+        const editors = await getExistingEditors(headers);
+        tabName = editors.find((editor) => editor.id === editorId)?.name;
+      } catch {
+        // A generic tab name is sufficient if the editor list is temporarily unavailable.
+      }
+
+      let emailDelivered = false;
+      if (recipient) {
+        try {
+          emailDelivered = await sendTabShareEmail({
+            to: recipient,
+            inviterName: session.user.name || session.user.email,
+            tabName,
+            editorId,
+            role,
+          });
+        } catch (error) {
+          console.error("note2tabs.email.tab_share_failed", {
+            editorId,
+            error: error instanceof Error ? error.message : "email_delivery_failed",
+          });
+        }
+      }
+      responseText = JSON.stringify({ ...parsed, emailDelivered });
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+    } catch {
+      // Preserve the successful share response if the upstream payload is unexpectedly not JSON.
     }
   }
   const commitMatch = method === "POST" ? path.match(/^editors\/([^/]+)\/commit$/) : null;
