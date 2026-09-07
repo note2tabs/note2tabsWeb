@@ -31,6 +31,18 @@ const relativeUpdatedAt = (value?: string) => {
   )}`;
 };
 
+function SharedTabArtwork() {
+  return (
+    <span className="shared-page__art" aria-hidden="true">
+      <span className="shared-page__art-label">Shared tab</span>
+      <span className="shared-page__art-lines">
+        {[0, 1, 2, 3, 4, 5].map((line) => <i key={line} />)}
+      </span>
+      <span className="shared-page__art-notes">3&nbsp;&nbsp;5&nbsp;&nbsp;7&nbsp;&nbsp;5</span>
+    </span>
+  );
+}
+
 export default function SharedWithYouPage({ role }: Props) {
   const [pending, setPending] = useState<PendingCanvasShare[]>([]);
   const [shared, setShared] = useState<SharedEditorListItem[]>([]);
@@ -150,44 +162,37 @@ export default function SharedWithYouPage({ role }: Props) {
             isPremium={isPremium}
             analyticsSurface="product_shared"
           />
-          <div className="product-studio">
-            <header className="product-studio__welcome" style={{ justifyContent: "center" }}>
-              <h1 style={{ textAlign: "center", width: "100%" }}>Shared with you</h1>
+          <div className="product-studio shared-page">
+            <header className="shared-page__header">
+              <div>
+                <p>Collaboration</p>
+                <h1>Shared tabs</h1>
+                <span>Play together, exchange ideas, and manage the people working on your tabs.</span>
+              </div>
+              {!loading && (
+                <div className="shared-page__summary" aria-label="Sharing summary">
+                  <span><strong>{shared.length}</strong> shared with you</span>
+                  <i aria-hidden="true" />
+                  <span><strong>{outgoing.reduce((total, entry) => total + entry.collaborators.length, 0)}</strong> collaborators</span>
+                </div>
+              )}
             </header>
 
-            {error && <p className="product-home__error">{error}</p>}
+            {error && <div className="product-home__error" role="alert"><span>{error}</span><button type="button" onClick={() => void load()}>Try again</button></div>}
 
-            <section className="product-studio__library" aria-labelledby="pending-heading">
-              <header>
-                <div>
-                  <h2 id="pending-heading">Pending invites</h2>
-                </div>
-              </header>
+            {(loading || pending.length > 0) && <section className="shared-page__section shared-page__section--invites" aria-labelledby="pending-heading">
+              <header><div><p>Invitations</p><h2 id="pending-heading">Waiting for you</h2></div>{!loading && <span>{pending.length}</span>}</header>
               {loading ? (
-                <p>Loading...</p>
-              ) : pending.length === 0 ? (
-                <p>No pending invites right now.</p>
+                <div className="shared-page__skeleton" aria-label="Loading invitations" />
               ) : (
-                <ul style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <ul className="shared-page__invite-list">
                   {pending.map((share) => (
-                    <li
-                      key={share.shareId}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "10px 12px",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "8px",
-                        gap: "12px",
-                      }}
-                    >
-                      <span>
-                        <strong>{share.name || "Untitled"}</strong> — invited as{" "}
-                        {share.role === "editor" ? "an editor" : "a viewer"}
-                      </span>
-                      <span style={{ display: "flex", gap: "8px" }}>
+                    <li key={share.shareId}>
+                      <span className="shared-page__invite-icon" aria-hidden="true">↗</span>
+                      <span className="shared-page__invite-copy"><strong>{share.name || "Untitled"}</strong><small>You were invited to {share.role === "editor" ? "edit this tab" : "view this tab"}</small></span>
+                      <span className="shared-page__invite-actions">
                         <button
+                          className="shared-page__button shared-page__button--primary"
                           type="button"
                           onClick={() => void handleAccept(share)}
                           disabled={acceptingId === share.shareId}
@@ -195,6 +200,7 @@ export default function SharedWithYouPage({ role }: Props) {
                           {acceptingId === share.shareId ? "Accepting..." : "Accept"}
                         </button>
                         <button
+                          className="shared-page__button"
                           type="button"
                           onClick={() => void handleDecline(share)}
                           disabled={decliningId === share.shareId}
@@ -206,31 +212,27 @@ export default function SharedWithYouPage({ role }: Props) {
                   ))}
                 </ul>
               )}
-            </section>
+            </section>}
 
-            <section className="product-studio__library" aria-labelledby="shared-heading">
-              <header>
-                <div>
-                  <h2 id="shared-heading">Editors shared with you</h2>
-                </div>
-              </header>
+            <section className="shared-page__section" aria-labelledby="shared-heading">
+              <header><div><p>Your collaborations</p><h2 id="shared-heading">Shared with you</h2></div></header>
               {loading ? (
-                <p>Loading...</p>
+                <div className="shared-page__card-grid" aria-label="Loading shared tabs">{[0, 1, 2].map((item) => <div className="shared-page__card-skeleton" key={item} />)}</div>
               ) : shared.length === 0 ? (
-                <p>Nothing here yet. Accepted invites will show up in this list.</p>
+                <div className="shared-page__empty"><span aria-hidden="true">↗</span><div><h3>No shared tabs yet</h3><p>When someone invites you to a tab, it will appear here after you accept it.</p></div></div>
               ) : (
-                <div className="product-studio__grid">
+                <div className="shared-page__card-grid">
                   {shared.map((editor) => (
                     <Link
                       key={editor.id}
                       href={`/gte/${editor.id}`}
-                      className="product-studio__tab"
+                      className="shared-page__tab-card"
                       onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})}
                     >
-                      <span>
+                      <SharedTabArtwork />
+                      <span className="shared-page__tab-copy">
                         <strong>{editor.name || "Untitled"}</strong>
-                        <small>{editor.role === "editor" ? "Can edit" : "Can view"}</small>
-                        <em>{relativeUpdatedAt(editor.updatedAt)}</em>
+                        <span><small>{editor.role === "editor" ? "Can edit" : "View only"}</small><em>{relativeUpdatedAt(editor.updatedAt)}</em></span>
                       </span>
                     </Link>
                   ))}
@@ -238,46 +240,24 @@ export default function SharedWithYouPage({ role }: Props) {
               )}
             </section>
 
-            <section className="product-studio__library" aria-labelledby="outgoing-heading">
-              <header>
-                <div>
-                  <h2 id="outgoing-heading">Tabs you've shared</h2>
-                </div>
-              </header>
+            <section className="shared-page__section" aria-labelledby="outgoing-heading">
+              <header><div><p>Manage access</p><h2 id="outgoing-heading">Shared by you</h2></div></header>
               {loading ? (
-                <p>Loading...</p>
+                <div className="shared-page__skeleton" aria-label="Loading collaborators" />
               ) : outgoing.length === 0 ? (
-                <p>You haven't shared any tabs yet.</p>
+                <div className="shared-page__empty"><span aria-hidden="true">＋</span><div><h3>No collaborators yet</h3><p>Open one of your tabs and choose Share to invite someone.</p></div><Link href="/gte">View your tabs →</Link></div>
               ) : (
-                <ul style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <ul className="shared-page__outgoing">
                   {outgoing.map((entry) => (
-                    <li
-                      key={entry.canvasId}
-                      style={{
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "8px",
-                        padding: "10px 12px",
-                      }}
-                    >
-                      <Link href={`/gte/${entry.canvasId}`}>
-                        <strong>{entry.name || "Untitled"}</strong>
-                      </Link>
-                      <ul style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <li key={entry.canvasId} className="shared-page__outgoing-card">
+                      <header><div><Link href={`/gte/${entry.canvasId}`}><strong>{entry.name || "Untitled"}</strong></Link><small>{entry.collaborators.length} {entry.collaborators.length === 1 ? "person" : "people"} with access</small></div><Link href={`/gte/${entry.canvasId}`}>Open tab →</Link></header>
+                      <ul>
                         {entry.collaborators.map((collaborator) => (
-                          <li
-                            key={collaborator.shareId}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: "12px",
-                            }}
-                          >
-                            <span>
-                              {collaborator.email} — {collaborator.role === "editor" ? "can edit" : "can view"}
-                              {collaborator.status === "pending" ? " · invite pending" : ""}
-                            </span>
+                          <li key={collaborator.shareId}>
+                            <span className="shared-page__avatar" aria-hidden="true">{collaborator.email.slice(0, 1).toUpperCase()}</span>
+                            <span className="shared-page__person"><strong>{collaborator.email}</strong><small>{collaborator.role === "editor" ? "Can edit" : "View only"}{collaborator.status === "pending" ? " · Invitation pending" : ""}</small></span>
                             <button
+                              className="shared-page__remove"
                               type="button"
                               onClick={() => void handleRevokeCollaborator(entry.canvasId, collaborator.shareId)}
                               disabled={revokingId === collaborator.shareId}
