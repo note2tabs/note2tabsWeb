@@ -182,6 +182,43 @@ select {
   font-family: inherit;
 }
 
+/* Every interactive control gets an immediate, consistent acknowledgement.
+   Component styles can still add stronger product-specific feedback. */
+:where(button, [role="button"], summary, a[href], select, input, textarea) {
+  -webkit-tap-highlight-color: rgba(15, 23, 42, 0.1);
+}
+
+:where(button, [role="button"], summary, a[href], select, input, textarea):focus-visible {
+  outline: 2px solid rgba(15, 23, 42, 0.82);
+  outline-offset: 3px;
+}
+
+:where(button, [role="button"], summary, a[href]) {
+  transition-property: color, background-color, border-color, box-shadow, opacity, filter, transform;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+:where(button, [role="button"], summary, a[href]):not(:disabled, [aria-disabled="true"]):active {
+  filter: brightness(0.9);
+  opacity: 0.82;
+}
+
+:where(button, [role="button"])[aria-busy="true"] {
+  cursor: wait;
+}
+
+:where(button, select, input, textarea):disabled,
+:where([role="button"], a[href])[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(button, [role="button"], summary, a[href]) {
+    transition-duration: 0.01ms;
+  }
+}
+
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
