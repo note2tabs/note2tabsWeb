@@ -2749,6 +2749,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setTrackOffsetSession(session);
     setTrackContextMenu(null);
     setOpenTrackMenuId(null);
+    setDesktopTrackSettingsCollapsed(true);
+    setDesktopTrackMenuOpen(false);
     setActiveLaneId(laneId);
     setTimelineZoomPercent((current) => Math.min(current, 50));
   }, [canvas, cloneCanvas, shiftingLaneId, timelineZoomPercent]);
@@ -2781,15 +2783,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         editorId
       );
       if (isGuestMode) {
-        setCanvas(session.baseCanvas);
-        applyCanvasUpdate(previewCanvas, { markDirty: true });
+        recordCanvasHistory(session.baseCanvas, previewCanvas);
+        applyCanvasUpdate(previewCanvas, { markDirty: true, recordHistory: false });
       } else {
         const response = await gteApi.setLaneTimelineOffset(editorId, session.laneId, {
           expectedVersion: Math.max(1, Number(session.baseCanvas.version) || 1),
           timelineOffsetFrames: session.previewOffsetFrames,
           applyToImportGroup: false,
         });
-        applyCanvasUpdate(normalizeCanvas(response.canvas, editorId), { markDirty: true });
+        const committedCanvas = normalizeCanvas(response.canvas, editorId);
+        recordCanvasHistory(session.baseCanvas, committedCanvas);
+        applyCanvasUpdate(committedCanvas, { markDirty: true, recordHistory: false });
       }
     } catch (err: any) {
       setCanvas(session.baseCanvas);
@@ -2797,7 +2801,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     } finally {
       setShiftingLaneId(null);
     }
-  }, [applyCanvasUpdate, editorId, isGuestMode]);
+  }, [applyCanvasUpdate, editorId, isGuestMode, recordCanvasHistory]);
 
   const handleShiftTrack = useCallback(async (laneId: string, deltaBars: number) => {
     if (!canvas || shiftingLaneId) return;

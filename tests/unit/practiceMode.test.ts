@@ -177,4 +177,13 @@ describe("editor practice mode", () => {
     expect(globalStyles).toContain("min-height: 100dvh");
     expect(globalStyles).toContain("background: var(--bg)");
   });
+
+  it("closes track settings and records one undo step when offsetting a track", () => {
+    expect(editorPage).toContain("setDesktopTrackSettingsCollapsed(true)");
+    expect(editorPage).toContain("recordCanvasHistory(session.baseCanvas, previewCanvas)");
+    expect(editorPage).toContain("recordCanvasHistory(session.baseCanvas, committedCanvas)");
+    expect(editorPage).toContain(
+      "applyCanvasUpdate(committedCanvas, { markDirty: true, recordHistory: false })"
+    );
+  });
 });
