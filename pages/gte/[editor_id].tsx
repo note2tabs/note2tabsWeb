@@ -10281,14 +10281,14 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </svg>
                     </button>
                   ) : (
-                  <div className="absolute bottom-0 right-[calc(100%+0.75rem)] w-[28rem] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
+                  <div className="absolute bottom-0 right-[calc(100%+0.75rem)] w-[28rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
                     <button
                       type="button"
                       onClick={() => {
                         setDesktopTrackSettingsCollapsed(true);
                         setDesktopTrackMenuOpen(false);
                       }}
-                      className="flex w-full items-center justify-between rounded-lg px-1 py-0.5 text-left text-slate-700 transition hover:bg-slate-100"
+                      className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-4 text-left text-slate-700 transition hover:bg-slate-50"
                       title="Minimize track settings"
                       aria-label="Minimize track settings"
                       aria-expanded={true}
@@ -10298,7 +10298,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         <path d="M5 7.5 10 12.5l5-5z" />
                       </svg>
                     </button>
-                    {!desktopTrackSettingsCollapsed && <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
+                    {!desktopTrackSettingsCollapsed && <div className="m-4 mt-3 grid grid-cols-2 gap-3">
                       {!selectedDrumLane && (
                         <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Instrument
                           <select value={selectedInstrumentValue} onChange={(event) => handleLaneInstrumentChange(selectedLaneId, event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
