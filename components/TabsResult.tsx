@@ -8,7 +8,7 @@ type TabsResultProps = {
 };
 
 export default function TabsResult({ segments, sourceLabel, audioUrl }: TabsResultProps) {
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
 
   const joinedText = useMemo(
     () => segments.map((segment) => segment.join("\n")).join("\n\n---\n\n"),
@@ -18,10 +18,12 @@ export default function TabsResult({ segments, sourceLabel, audioUrl }: TabsResu
   const handleCopy = async () => {
     try {
       const ok = await copyText(joinedText);
-      if (ok) setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setCopyState(ok ? "copied" : "error");
+      setTimeout(() => setCopyState("idle"), 1800);
     } catch (err) {
       console.error("Failed to copy tabs", err);
+      setCopyState("error");
+      setTimeout(() => setCopyState("idle"), 1800);
     }
   };
 
@@ -43,8 +45,8 @@ export default function TabsResult({ segments, sourceLabel, audioUrl }: TabsResu
           <h3 className="section-title" style={{ margin: 0 }}>
             Generated Tabs
           </h3>
-          <button type="button" onClick={handleCopy} className="button-secondary button-small">
-            {copied ? "Copied" : "Copy tabs"}
+          <button type="button" onClick={handleCopy} className="button-secondary button-small" aria-live="polite">
+            {copyState === "copied" ? "Copied" : copyState === "error" ? "Copy failed" : "Copy tabs"}
           </button>
         </div>
         <div className="stack">

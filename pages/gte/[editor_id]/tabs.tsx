@@ -165,7 +165,11 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
     if (!targetLane) return;
     const payload = `${targetLane.title}\n${targetLane.text || "No tabs available yet."}`;
     const copied = await copyTextReliable(payload);
-    if (!copied) return;
+    if (!copied) {
+      setError("The tab could not be copied. Check your browser permissions and try again.");
+      return;
+    }
+    setError(null);
     setCopyState("copied");
     setLaneCopyState((prev) => ({ ...prev, [targetLane.id]: "copied" }));
     window.setTimeout(() => {
@@ -177,7 +181,11 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
   const handleCopySingleTab = async (lane: LaneTabText) => {
     const payload = `${lane.title}\n${lane.text || "No tabs available yet."}`;
     const copied = await copyTextReliable(payload);
-    if (!copied) return;
+    if (!copied) {
+      setError("The tab could not be copied. Check your browser permissions and try again.");
+      return;
+    }
+    setError(null);
     setTargetLaneId(lane.id);
     setCopyState("copied");
     setLaneCopyState((prev) => ({ ...prev, [lane.id]: "copied" }));

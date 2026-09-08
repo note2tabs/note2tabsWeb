@@ -23,6 +23,7 @@ export default function AffiliatePage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<"link" | "code" | null>(null);
+  const [copyError, setCopyError] = useState(false);
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -37,8 +38,14 @@ export default function AffiliatePage() {
   const currency = affiliate?.commissions[0]?.currency || "usd";
   const totalEarned = useMemo(() => affiliate ? affiliate.totals.paid + affiliate.totals.pending : 0, [affiliate]);
   const copy = async (value: string, kind: "link" | "code") => {
-    await navigator.clipboard.writeText(value); setCopied(kind);
-    window.setTimeout(() => setCopied(null), 1800);
+    setCopyError(false);
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(kind);
+      window.setTimeout(() => setCopied(null), 1800);
+    } catch {
+      setCopyError(true);
+    }
   };
   const onboard = async () => {
     setBusy(true); setError("");
@@ -85,8 +92,9 @@ export default function AffiliatePage() {
           <section className="affiliateCard affiliateShareCard"><div className="affiliateCardHeading"><div><span className="affiliateSectionLabel">Your referral</span><h2>Share your link</h2></div>
             <span className="affiliateTermsBadge">{affiliate.discountPercent}% off for {affiliate.discountMonths} months</span></div>
             <p>Anyone who subscribes through your link receives the discount automatically.</p>
-            <div className="affiliateCopyField"><span>{link}</span><button type="button" onClick={() => copy(link, "link")} aria-label="Copy referral link"><CopyIcon/>{copied === "link" ? "Copied" : "Copy"}</button></div>
-            <div className="affiliateCodeRow"><div><span>Promotion code</span><strong>{affiliate.code}</strong></div><button type="button" onClick={() => copy(affiliate.code, "code")}><CopyIcon/>{copied === "code" ? "Copied" : "Copy code"}</button></div>
+            <div className="affiliateCopyField"><span>{link}</span><button type="button" onClick={() => copy(link, "link")} aria-label="Copy referral link" aria-live="polite"><CopyIcon/>{copied === "link" ? "Copied" : "Copy"}</button></div>
+            <div className="affiliateCodeRow"><div><span>Promotion code</span><strong>{affiliate.code}</strong></div><button type="button" onClick={() => copy(affiliate.code, "code")} aria-live="polite"><CopyIcon/>{copied === "code" ? "Copied" : "Copy code"}</button></div>
+            {copyError && <p className="affiliateInlineError" role="alert">Could not copy automatically. Select the link or code and copy it manually.</p>}
           </section>
           <aside className="affiliateCard affiliateTermsCard"><span className="affiliateSectionLabel">How earnings work</span><h2>{affiliate.commissionPercent}% commission</h2>
             <p>Earn from each referred customer’s first {affiliate.commissionMonths} paid subscription months.</p>
