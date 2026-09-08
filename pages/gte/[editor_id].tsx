@@ -1340,7 +1340,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
   const [addTrackMenuOpen, setAddTrackMenuOpen] = useState(false);
   const [desktopTrackMenuOpen, setDesktopTrackMenuOpen] = useState(false);
   const [desktopTrackAddMenuOpen, setDesktopTrackAddMenuOpen] = useState(false);
-  const [desktopTrackSettingsCollapsed, setDesktopTrackSettingsCollapsed] = useState(false);
+  const [desktopTrackSettingsCollapsed, setDesktopTrackSettingsCollapsed] = useState(true);
   const [desktopRenamingLaneId, setDesktopRenamingLaneId] = useState<string | null>(null);
   const [trackDropdownContextMenu, setTrackDropdownContextMenu] = useState<{
     laneId: string;
@@ -2083,6 +2083,19 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    if (desktopTrackSettingsCollapsed) return;
+    const closeTrackSettingsOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setDesktopTrackSettingsCollapsed(true);
+      setDesktopTrackMenuOpen(false);
+    };
+    window.addEventListener("keydown", closeTrackSettingsOnEscape, true);
+    return () => window.removeEventListener("keydown", closeTrackSettingsOnEscape, true);
+  }, [desktopTrackSettingsCollapsed]);
+
   const handleMainMouseDownCapture = useCallback((event: ReactMouseEvent<HTMLElement>) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
@@ -2736,6 +2749,8 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     setTrackOffsetSession(session);
     setTrackContextMenu(null);
     setOpenTrackMenuId(null);
+    setDesktopTrackSettingsCollapsed(true);
+    setDesktopTrackMenuOpen(false);
     setActiveLaneId(laneId);
     setTimelineZoomPercent((current) => Math.min(current, 50));
   }, [canvas, cloneCanvas, shiftingLaneId, timelineZoomPercent]);
@@ -2768,15 +2783,17 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         editorId
       );
       if (isGuestMode) {
-        setCanvas(session.baseCanvas);
-        applyCanvasUpdate(previewCanvas, { markDirty: true });
+        recordCanvasHistory(session.baseCanvas, previewCanvas);
+        applyCanvasUpdate(previewCanvas, { markDirty: true, recordHistory: false });
       } else {
         const response = await gteApi.setLaneTimelineOffset(editorId, session.laneId, {
           expectedVersion: Math.max(1, Number(session.baseCanvas.version) || 1),
           timelineOffsetFrames: session.previewOffsetFrames,
           applyToImportGroup: false,
         });
-        applyCanvasUpdate(normalizeCanvas(response.canvas, editorId), { markDirty: true });
+        const committedCanvas = normalizeCanvas(response.canvas, editorId);
+        recordCanvasHistory(session.baseCanvas, committedCanvas);
+        applyCanvasUpdate(committedCanvas, { markDirty: true, recordHistory: false });
       }
     } catch (err: any) {
       setCanvas(session.baseCanvas);
@@ -2784,7 +2801,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     } finally {
       setShiftingLaneId(null);
     }
-  }, [applyCanvasUpdate, editorId, isGuestMode]);
+  }, [applyCanvasUpdate, editorId, isGuestMode, recordCanvasHistory]);
 
   const handleShiftTrack = useCallback(async (laneId: string, deltaBars: number) => {
     if (!canvas || shiftingLaneId) return;
@@ -10250,70 +10267,76 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     type="button"
                     data-gte-floating-ui="true"
                     onClick={() => setLocalIsolateBool((prev) => !prev)}
-                    className={`absolute bottom-0 flex h-10 w-10 items-center justify-center rounded-full border shadow-lg transition ${
+                    className={`fixed bottom-12 left-5 flex h-[3.75rem] w-[3.75rem] items-center justify-center rounded-full border shadow-lg transition ${
                       local_isolate_bool
                         ? "border-emerald-600 bg-emerald-600 text-white"
                         : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                     }`}
-                    style={{ right: "calc(100% + 28rem + 1.5rem)" }}
                     title={local_isolate_bool ? "Stop local isolate" : "Locally isolate this track"}
                     aria-label={local_isolate_bool ? "Stop local isolate" : "Locally isolate this track"}
                     aria-pressed={local_isolate_bool}
                   >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current" aria-hidden="true">
                       <path d="M12 4a7 7 0 0 0-7 7v5a2.5 2.5 0 0 0 2.5 2.5H8a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H7v-.5a5 5 0 0 1 10 0v.5h-1a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h.5A2.5 2.5 0 0 0 19 16v-5a7 7 0 0 0-7-7z" />
                     </svg>
                   </button>
-                  <div className="absolute bottom-0 right-[calc(100%+0.75rem)] w-[28rem] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
-                    <div className="flex items-stretch gap-2">
+                  {desktopTrackSettingsCollapsed ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDesktopTrackMenuOpen((open) => !open);
+                        setDesktopTrackAddMenuOpen(false);
+                      }}
+                      className="absolute bottom-0 right-[calc(100%+0.75rem)] flex w-[28rem] items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left text-slate-700 shadow-[0_16px_45px_rgba(15,23,42,0.14)] transition hover:bg-slate-50"
+                      title="Choose a track"
+                      aria-label="Choose a track"
+                      aria-expanded={desktopTrackMenuOpen}
+                      aria-haspopup="listbox"
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Track</span>
+                        <span className="mt-1 block truncate text-sm font-semibold text-slate-800">
+                          {selectedLane.name || `Track ${selectedIndex + 1}`}
+                        </span>
+                      </span>
+                      <svg viewBox="0 0 20 20" className={`h-4 w-4 shrink-0 fill-current text-slate-500 transition ${desktopTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true">
+                        <path d="M5.5 7.5 10 12l4.5-4.5 1.1 1.1L10 14.2 4.4 8.6z" />
+                      </svg>
+                    </button>
+                  ) : (
+                  <>
+                  <div
+                    className="fixed inset-0 z-[10049] bg-slate-950/20 backdrop-blur-[1px]"
+                    onMouseDown={() => {
+                      setDesktopTrackSettingsCollapsed(true);
+                      setDesktopTrackMenuOpen(false);
+                    }}
+                    aria-hidden="true"
+                  />
+                  <div
+                    className="fixed left-1/2 top-1/2 z-[10050] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)]"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="desktop-track-settings-title"
+                  >
+                    <div className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-4 text-slate-700">
+                      <span id="desktop-track-settings-title" className="text-sm font-semibold text-slate-700">Track settings</span>
                       <button
                         type="button"
                         onClick={() => {
-                          setDesktopTrackMenuOpen((open) => !open);
-                          setDesktopTrackAddMenuOpen(false);
+                          setDesktopTrackSettingsCollapsed(true);
+                          setDesktopTrackMenuOpen(false);
                         }}
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          setTrackDropdownContextMenu({
-                            laneId: selectedLaneId,
-                            x: event.clientX,
-                            y: event.clientY,
-                          });
-                        }}
-                        className="flex w-1/2 min-w-0 shrink-0 flex-col items-start rounded-md px-1 py-0.5 text-left transition hover:bg-slate-100"
-                        aria-expanded={desktopTrackMenuOpen}
-                        aria-haspopup="menu"
-                        title="Choose which track to edit"
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                        title="Close track settings"
+                        aria-label="Close track settings"
                       >
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Track settings</span>
-                        <span className="mt-1 flex w-full items-center gap-1">
-                          <span className="min-w-0 truncate text-sm font-semibold text-slate-800">
-                            {selectedLane.name || `Track ${selectedIndex + 1}`}
-                          </span>
-                          <svg
-                            viewBox="0 0 20 20"
-                            className={`h-3 w-3 shrink-0 fill-current text-slate-400 transition ${desktopTrackMenuOpen ? "rotate-180" : ""}`}
-                            aria-hidden="true"
-                          >
-                            <path d="M5.5 7.5 10 12l4.5-4.5 1.1 1.1L10 14.2 4.4 8.6z" />
-                          </svg>
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDesktopTrackSettingsCollapsed((collapsed) => !collapsed)}
-                        className="flex flex-1 items-start justify-end rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-                        title={desktopTrackSettingsCollapsed ? "Expand track settings" : "Minimize track settings"}
-                        aria-label={desktopTrackSettingsCollapsed ? "Expand track settings" : "Minimize track settings"}
-                        aria-expanded={!desktopTrackSettingsCollapsed}
-                      >
-                        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 fill-current" aria-hidden="true">
-                          <path d={desktopTrackSettingsCollapsed ? "M5 12.5 10 7.5l5 5z" : "M5 7.5 10 12.5l5-5z"} />
+                        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current" strokeWidth="1.8" aria-hidden="true">
+                          <path d="m5.5 5.5 9 9m0-9-9 9" strokeLinecap="round" />
                         </svg>
                       </button>
                     </div>
-                    {!desktopTrackSettingsCollapsed && <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
+                    {!desktopTrackSettingsCollapsed && <div className="m-4 mt-3 grid grid-cols-2 gap-3">
                       {!selectedDrumLane && (
                         <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Instrument
                           <select value={selectedInstrumentValue} onChange={(event) => handleLaneInstrumentChange(selectedLaneId, event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
@@ -10390,8 +10413,10 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                       </div>
                     </div>}
                   </div>
-                  {desktopTrackMenuOpen && (
-                    <div className="absolute bottom-12 right-0 w-[min(22rem,calc(100vw-2.5rem))] overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
+                  </>
+                  )}
+                  {desktopTrackSettingsCollapsed && desktopTrackMenuOpen && (
+                    <div className="absolute bottom-16 right-[calc(100%+0.75rem)] w-[28rem] overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
                       <div className="hidden border-b border-slate-100 px-4 py-3">
                         <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Edit track</div>
                         <input
@@ -10472,6 +10497,21 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                                 <span className="shrink-0 text-[10px] font-medium text-slate-400">{type}</span>
                               </button>
                             )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                activateLaneForEditing(candidateId);
+                                setDesktopTrackSettingsCollapsed(false);
+                              }}
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                              title={`Edit settings for ${candidate.name || `Track ${candidateIndex + 1}`}`}
+                              aria-label={`Edit settings for ${candidate.name || `Track ${candidateIndex + 1}`}`}
+                            >
+                              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-none stroke-current" strokeWidth="1.8" aria-hidden="true">
+                                <path d="m4 20 4.2-1 10.6-10.6a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="m14.5 6.7 2.8 2.8" strokeLinecap="round" />
+                              </svg>
+                            </button>
                             <button type="button" onClick={() => toggleTrackMute(candidateId)} className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${candidateMuted ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-500"}`} aria-label={`${candidateMuted ? "Unmute" : "Mute"} ${candidate.name || `Track ${candidateIndex + 1}`}`}>
                               <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                                 <path d="M4 10v4h4l5 4V6L8 10H4z" />
