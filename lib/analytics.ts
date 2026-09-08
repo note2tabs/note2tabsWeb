@@ -76,6 +76,7 @@ export const ANALYTICS_EVENTS = {
   accountDeletionAlternativeClicked: "account_deletion_alternative_clicked",
   accountDeletionConfirmed: "account_deletion_confirmed",
   internshipApplicationSubmitted: "internship_application_submitted",
+  staleChunkRecoveryFailed: "stale_chunk_recovery_failed",
 } as const;
 
 function getUtmParams() {

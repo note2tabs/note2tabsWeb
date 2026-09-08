@@ -257,6 +257,17 @@ const EXPECTED_EXCEPTION_PATTERNS = [
 // context, so retain it in Error Tracking without waking the operational alert.
 const NON_ACTIONABLE_BROWSER_EXCEPTION_PATTERNS = [/^error script error\.?$/i];
 
+// A browser can retain an old Next.js route manifest briefly after a deploy and
+// request a chunk Vercel has already retired. The app reloads once to obtain the
+// current manifest; only a failed recovery is operationally actionable.
+const RECOVERABLE_STALE_CHUNK_PATTERNS = [
+  /chunkloaderror/i,
+  /loading chunk [^ ]+ failed/i,
+  /failed to load chunk/i,
+  /failed to fetch dynamically imported module/i,
+  /importing a module script failed/i,
+];
+
 function exceptionText(value: unknown, depth = 0): string {
   if (depth > 8) return "";
   if (typeof value === "string") return value;
@@ -271,6 +282,9 @@ function exceptionText(value: unknown, depth = 0): string {
 
 export function classifyPostHogException(exceptionList: unknown) {
   const text = exceptionText(exceptionList);
+  if (RECOVERABLE_STALE_CHUNK_PATTERNS.some((pattern) => pattern.test(text))) {
+    return { alertEligible: false, classification: "recoverable_stale_chunk" } as const;
+  }
   if (EXPECTED_EXCEPTION_PATTERNS.some((pattern) => pattern.test(text))) {
     return { alertEligible: false, classification: "expected_product_state" } as const;
   }

@@ -115,6 +115,17 @@ describe("analytics privacy sanitization", () => {
     });
   });
 
+  it("classifies stale deployment chunks as automatically recoverable", () => {
+    expect(
+      classifyPostHogException([
+        { type: "ChunkLoadError", value: "Loading chunk 123 failed" },
+      ])
+    ).toEqual({
+      alertEligible: false,
+      classification: "recoverable_stale_chunk",
+    });
+  });
+
   it("preserves deeply nested session replay snapshots", () => {
     const snapshot = {
       uuid: "snapshot-id",

@@ -13,6 +13,7 @@ import UserActivityTracker from "../components/UserActivityTracker";
 import AffiliateAttributionCapture from "../components/AffiliateAttributionCapture";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { sanitizeAnalyticsPathname } from "../lib/analyticsPrivacy";
+import { installStaleChunkRecovery } from "../lib/staleChunkRecovery";
 import {
   sessionReplayIsBlocked,
   stopPostHogSessionRecording,
@@ -26,6 +27,14 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   const router = useRouter();
   const isGteEditorPage = router.pathname === "/gte/[editor_id]";
   const isProductHomePage = router.pathname === "/home" || router.pathname === "/shared";
+
+  useEffect(() => {
+    return installStaleChunkRecovery(router.events, {
+      reportFailure: () => sendEvent(ANALYTICS_EVENTS.staleChunkRecoveryFailed, {
+        path: window.location.pathname,
+      }),
+    });
+  }, [router.events]);
 
   useEffect(() => {
     const trackPageView = (url?: string) => {
