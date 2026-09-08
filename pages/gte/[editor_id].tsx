@@ -2145,12 +2145,11 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
         const revisionAtStart = canvasRevisionRef.current;
         const res = await gteApi.commitEditor(editorId, { keepalive: options?.keepalive });
         if (revisionAtStart !== canvasRevisionRef.current) return;
-        const normalized = preserveDrumLoopsAcrossCanvasUpdate(
-          normalizeCanvas(res.snapshot, editorId),
-          canvasRef.current || currentCanvas
-        );
-        setCanvas(normalized);
-        setLastCommittedAt(normalized.updatedAt || new Date().toISOString());
+        // A commit acknowledges the server draft; it must not replace the
+        // optimistic canvas. Lane autosaves can still be in flight, so the
+        // commit response may represent the immediately preceding revision
+        // and would make freshly added notes disappear until the next load.
+        setLastCommittedAt(res.snapshot?.updatedAt || new Date().toISOString());
         setHasPendingCommit(false);
       } catch (err: any) {
         setSaveError(err?.message || "We could not save your latest changes. Keep this tab open while we retry.");
@@ -2983,6 +2982,9 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
     nextLaneSnapshot: EditorSnapshot,
     options?: { recordHistory?: boolean; markDirty?: boolean }
   ) => {
+    // Advance synchronously, before React commits the state update, so an
+    // already in-flight save cannot mistake this edit for its own revision.
+    canvasRevisionRef.current += 1;
     setCanvas((prev) => {
       if (!prev) return prev;
       const secondsPerBar = Math.max(
