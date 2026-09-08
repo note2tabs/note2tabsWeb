@@ -16,6 +16,13 @@ const globalStyles = fs.readFileSync(
 );
 
 describe("editor practice mode", () => {
+  it("keeps track-wide fingering tools local-first for shared editor access", () => {
+    expect(workspace).not.toContain('serverMode: "immediate"');
+    expect(workspace).not.toContain("gteApi.generateCuts(");
+    expect(workspace).toContain("localApply: generateCutsInSnapshot");
+    expect(workspace).toContain('serverMode: "local-first"');
+  });
+
   it("keeps play and rate hidden behind its frontend feature flag", () => {
     expect(editorPage).toContain("const PRACTICE_RATING_UI_ENABLED = false");
     expect(editorPage).toContain(

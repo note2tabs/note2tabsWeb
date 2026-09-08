@@ -4,6 +4,7 @@ import {
   createBackendStyleChordAlternatives,
   createPossibleTabs,
   finalizeOptimizedTrackFingeringInSnapshot,
+  generateCutsInSnapshot,
   generateOctaveCombos,
   optimizeTrackFingeringInSnapshot,
   scoreChord,
@@ -57,6 +58,16 @@ const snapshot = (): EditorSnapshot => ({
 });
 
 describe("track fingering optimization", () => {
+  it("generates playing coordinates entirely from the current frontend snapshot", () => {
+    const draft = snapshot();
+
+    generateCutsInSnapshot(draft);
+
+    expect(draft.cutPositionsWithCoords.length).toBeGreaterThan(1);
+    expect(draft.cutPositionsWithCoords[0][0][0]).toBe(0);
+    expect(draft.cutPositionsWithCoords.at(-1)?.[0][1]).toBe(draft.totalFrames);
+  });
+
   it("clusters nearby overlapping onsets without mutating the notes", () => {
     const notes = snapshot().notes;
     const before = JSON.stringify(notes);

@@ -961,7 +961,7 @@ const deleteCutBoundaryInSnapshot = (draft: EditorSnapshot, boundaryIndex: numbe
   setCutRegionsInSnapshot(draft, next);
 };
 
-const generateCutsInSnapshot = (draft: EditorSnapshot) => {
+export const generateCutsInSnapshot = (draft: EditorSnapshot) => {
   const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(draft.totalFrames || FIXED_FRAMES_PER_BAR));
   const events = [
     ...draft.notes.map((note) => ({
@@ -9934,35 +9934,18 @@ export default function GteWorkspace({
     setDraftNoteAnchor(null);
   };
 
-  const requestGeneratedPlayingCoordinates = () => {
-    const current = snapshotRef.current;
-    return gteApi.generateCuts(editorId, {
-      tuning: current.tuning,
-      maxFret: current.maxFret,
-    });
-  };
-
   const handleOptimizeFingering = () => {
     if (snapshotRef.current.notes.length === 0 && snapshotRef.current.chords.length === 0) return;
     setOptimizingFingering(true);
     void runMutation(
-      async () => {
-        const generated = await requestGeneratedPlayingCoordinates();
-        const optimized = cloneSnapshot(generated.snapshot);
-        optimizeTrackFingeringInSnapshot(optimized, {
-          generatePlayingCoordinates: false,
-        });
-        finalizeOptimizedTrackFingeringInSnapshot(optimized);
-        mergeRedundantCutRegionsInSnapshot(optimized);
-        return gteApi.applySnapshot(editorId, optimized);
-      },
+      async () => ({}),
       {
         localApply: (draft) => {
           optimizeTrackFingeringInSnapshot(draft);
           finalizeOptimizedTrackFingeringInSnapshot(draft);
           mergeRedundantCutRegionsInSnapshot(draft);
         },
-        serverMode: "immediate",
+        serverMode: "local-first",
       }
     ).finally(() => setOptimizingFingering(false));
     setSelectedNoteIds([]);
@@ -11220,9 +11203,9 @@ export default function GteWorkspace({
   };
 
   const handleGenerateCuts = () => {
-    void runMutation(requestGeneratedPlayingCoordinates, {
-      serverMode: "immediate",
-      unavailableMessage: "Generated cuts are available after saving this draft to an account.",
+    void runMutation(async () => ({}), {
+      localApply: generateCutsInSnapshot,
+      serverMode: "local-first",
     });
   };
 
