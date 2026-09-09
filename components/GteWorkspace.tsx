@@ -961,49 +961,6 @@ const deleteCutBoundaryInSnapshot = (draft: EditorSnapshot, boundaryIndex: numbe
   setCutRegionsInSnapshot(draft, next);
 };
 
-export const generateCutsInSnapshot = (draft: EditorSnapshot) => {
-  const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(draft.totalFrames || FIXED_FRAMES_PER_BAR));
-  const events = [
-    ...draft.notes.map((note) => ({
-      time: Math.max(0, Math.min(totalFrames, Math.round(note.startTime))),
-      coord: clampTabCoordInSnapshot(draft, note.tab),
-    })),
-    ...draft.chords
-      .filter((chord) => chord.currentTabs.length > 0)
-      .map((chord) => ({
-        time: Math.max(0, Math.min(totalFrames, Math.round(chord.startTime))),
-        coord: clampTabCoordInSnapshot(draft, chord.currentTabs[0]),
-      })),
-  ].sort((left, right) => left.time - right.time);
-
-  if (!events.length) {
-    draft.cutPositionsWithCoords = buildDefaultCutRegions(draft);
-    return;
-  }
-
-  const boundaries = Array.from(
-    new Set(
-      [0, ...events.map((event) => event.time).filter((time) => time > 0 && time < totalFrames), totalFrames].sort(
-        (left, right) => left - right
-      )
-    )
-  );
-
-  const next: CutWithCoord[] = [];
-  for (let index = 0; index < boundaries.length - 1; index += 1) {
-    const start = boundaries[index];
-    const end = boundaries[index + 1];
-    if (end <= start) continue;
-    let coord = clampTabCoordInSnapshot(draft, DEFAULT_CUT_COORD);
-    for (const event of events) {
-      if (event.time > start) break;
-      coord = cloneTabCoord(event.coord);
-    }
-    next.push([[start, end], coord]);
-  }
-  setCutRegionsInSnapshot(draft, next);
-};
-
 type FingeringOptimizationResult = {
   chordGroups: NoteChordCluster[];
   createdChordIds: number[];
@@ -1183,13 +1140,9 @@ const buildChordFromCluster = (
 export const optimizeTrackFingeringInSnapshot = (
   draft: EditorSnapshot,
   options?: {
-    generatePlayingCoordinates?: boolean;
     optimizeChordFingerings?: boolean;
   }
 ): FingeringOptimizationResult => {
-  if (options?.generatePlayingCoordinates !== false) {
-    generateCutsInSnapshot(draft);
-  }
   const tolerance = Math.max(1, Math.round((draft.framesPerMessure || FIXED_FRAMES_PER_BAR) / 32));
   const chordGroups = clusterTrackNotesIntoChordGroups(draft.notes, tolerance);
   const createdChordIds: number[] = [];
@@ -9934,18 +9887,29 @@ export default function GteWorkspace({
     setDraftNoteAnchor(null);
   };
 
+  const requestGeneratedPlayingCoordinates = () => {
+    const current = snapshotRef.current;
+    return gteApi.generateCuts(editorId, {
+      tuning: current.tuning,
+      maxFret: current.maxFret,
+    });
+  };
+
   const handleOptimizeFingering = () => {
     if (snapshotRef.current.notes.length === 0 && snapshotRef.current.chords.length === 0) return;
     setOptimizingFingering(true);
     void runMutation(
-      async () => ({}),
+      async () => {
+        const generated = await requestGeneratedPlayingCoordinates();
+        const optimized = cloneSnapshot(generated.snapshot);
+        optimizeTrackFingeringInSnapshot(optimized);
+        finalizeOptimizedTrackFingeringInSnapshot(optimized);
+        mergeRedundantCutRegionsInSnapshot(optimized);
+        return gteApi.applySnapshot(editorId, optimized);
+      },
       {
-        localApply: (draft) => {
-          optimizeTrackFingeringInSnapshot(draft);
-          finalizeOptimizedTrackFingeringInSnapshot(draft);
-          mergeRedundantCutRegionsInSnapshot(draft);
-        },
-        serverMode: "local-first",
+        serverMode: "immediate",
+        unavailableMessage: "Fingering optimization is available after saving this draft to an account.",
       }
     ).finally(() => setOptimizingFingering(false));
     setSelectedNoteIds([]);
@@ -11203,9 +11167,9 @@ export default function GteWorkspace({
   };
 
   const handleGenerateCuts = () => {
-    void runMutation(async () => ({}), {
-      localApply: generateCutsInSnapshot,
-      serverMode: "local-first",
+    void runMutation(requestGeneratedPlayingCoordinates, {
+      serverMode: "immediate",
+      unavailableMessage: "Generated playing coordinates are available after saving this draft to an account.",
     });
   };
 
