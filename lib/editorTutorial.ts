@@ -2,10 +2,12 @@ export type EditorTutorialCard = {
   id: string;
   eyebrow: string;
   title: string;
-  imageSrc: string;
-  imageAlt: string;
+  mediaSrc: string;
+  mediaAlt: string;
+  mediaType?: "image" | "video";
+  mediaFit?: "cover" | "contain";
   text: string;
-  imagePosition?: string;
+  mediaPosition?: string;
 };
 
 /**
@@ -17,37 +19,38 @@ export const EDITOR_TUTORIAL_CARDS: EditorTutorialCard[] = [
     id: "canvas",
     eyebrow: "The workspace",
     title: "Shape the tab on the canvas",
-    imageSrc: "/images/editor-previews/Editor-main.webp",
-    imageAlt: "The Note2Tabs editor canvas with notes arranged on guitar strings",
-    text: "Click an empty position to add a note. Select notes and chords to move, resize, copy, or change their fingering.",
-    imagePosition: "center 34%",
+    mediaSrc: "/videos/tutorials/tutvid01.mp4",
+    mediaAlt: "Adding and editing a note on the Note2Tabs canvas",
+    mediaType: "video",
+    mediaFit: "cover",
+    text: "Click on the tab to move the cursor and use {numbers} to add a note. Select the note with {mouse} or {enter} and press {plus}/{minus} to change the fret. Use the mouse or {arrows} to move the cursor. Use {backspace} or {delete} to delete a note.",
   },
   {
     id: "tracks",
     eyebrow: "Tracks",
     title: "Keep every part organized",
-    imageSrc: "/images/editor-previews/collage.webp",
-    imageAlt: "Several Note2Tabs editor views arranged together",
+    mediaSrc: "/images/editor-previews/collage.webp",
+    mediaAlt: "Several Note2Tabs editor views arranged together",
     text: "Use the track menu to switch parts. The pencil opens instrument, tuning, playback, offset, and removal settings.",
-    imagePosition: "center 42%",
+    mediaPosition: "center 42%",
   },
   {
     id: "playback",
     eyebrow: "Listen and practice",
     title: "Hear changes as you work",
-    imageSrc: "/images/editor-previews/collage-training.webp",
-    imageAlt: "Note2Tabs playback and practice tools",
+    mediaSrc: "/images/editor-previews/collage-training.webp",
+    mediaAlt: "Note2Tabs playback and practice tools",
     text: "Play from anywhere, loop a section, add a metronome, slow the song down, or move into Practice mode for a focused view.",
-    imagePosition: "center 48%",
+    mediaPosition: "center 48%",
   },
   {
     id: "tools",
     eyebrow: "Editing tools",
     title: "Let the editor handle the repetitive work",
-    imageSrc: "/images/doodles/fretboard-segment.webp",
-    imageAlt: "A hand-drawn guitar fretboard",
+    mediaSrc: "/images/doodles/fretboard-segment.webp",
+    mediaAlt: "A hand-drawn guitar fretboard",
     text: "Open Tools to generate playing coordinates, optimize fingering, quantize timing, merge notes, and perform other track-wide edits.",
-    imagePosition: "center",
+    mediaPosition: "center",
   },
 ];
 

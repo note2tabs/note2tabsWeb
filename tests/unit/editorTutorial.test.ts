@@ -4,13 +4,15 @@ import { describe, expect, it } from "vitest";
 import { EDITOR_TUTORIAL_CARDS } from "../../lib/editorTutorial";
 
 describe("editor tutorial", () => {
-  it("starts with four editable image-and-text cards", () => {
+  it("starts with four editable media-and-text cards", () => {
     expect(EDITOR_TUTORIAL_CARDS).toHaveLength(4);
-    expect(EDITOR_TUTORIAL_CARDS.every((card) => card.imageSrc && card.imageAlt && card.text)).toBe(true);
+    expect(EDITOR_TUTORIAL_CARDS.every((card) => card.mediaSrc && card.mediaAlt && card.text)).toBe(true);
     expect(new Set(EDITOR_TUTORIAL_CARDS.map((card) => card.id)).size).toBe(4);
     EDITOR_TUTORIAL_CARDS.forEach((card) => {
-      expect(fs.existsSync(path.join(process.cwd(), "public", card.imageSrc))).toBe(true);
+      expect(fs.existsSync(path.join(process.cwd(), "public", card.mediaSrc))).toBe(true);
     });
+    expect(EDITOR_TUTORIAL_CARDS[0].mediaType).toBe("video");
+    expect(EDITOR_TUTORIAL_CARDS[0].mediaSrc).toBe("/videos/tutorials/tutvid01.mp4");
   });
 
   it("connects first-entry state, every navigation control, and the reopen button", () => {

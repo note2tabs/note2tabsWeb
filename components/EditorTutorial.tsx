@@ -39,6 +39,36 @@ const Arrow = ({ direction }: { direction: "left" | "right" }) => (
   </svg>
 );
 
+const tutorialToken = (token: string, key: number) => {
+  const keyClass = "mx-0.5 inline-flex min-h-5 min-w-5 items-center justify-center rounded border border-slate-300 bg-white px-1 text-[11px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_rgba(15,23,42,0.12)] align-middle";
+  if (token === "mouse") {
+    return (
+      <span key={key} className="mx-0.5 inline-flex align-middle" title="Mouse" aria-label="mouse">
+        <svg viewBox="0 0 16 22" className="h-[19px] w-3.5 fill-none stroke-current text-slate-700" aria-hidden="true">
+          <rect x="2" y="1" width="12" height="20" rx="6" />
+          <path d="M8 1v6" />
+        </svg>
+      </span>
+    );
+  }
+  const labels: Record<string, string> = {
+    numbers: "1 2 3",
+    enter: "Enter ↵",
+    plus: "+",
+    minus: "−",
+    arrows: "← ↑ ↓ →",
+    backspace: "Backspace",
+    delete: "Del",
+  };
+  return labels[token] ? <kbd key={key} className={keyClass}>{labels[token]}</kbd> : `{${token}}`;
+};
+
+const renderTutorialText = (text: string) =>
+  text.split(/(\{(?:numbers|mouse|enter|plus|minus|arrows|backspace|delete)\})/g).map((part, index) => {
+    const match = part.match(/^\{(.+)\}$/);
+    return match ? tutorialToken(match[1], index) : part;
+  });
+
 export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDITOR_TUTORIAL_CARDS }: Props) {
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
@@ -134,16 +164,30 @@ export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDI
             </button>
 
             <div className="relative aspect-[16/9] w-full overflow-hidden bg-[#eef2ec]">
-              <Image
-                key={activeCard.id}
-                src={activeCard.imageSrc}
-                alt={activeCard.imageAlt}
-                fill
-                priority={index === 0}
-                sizes="(max-width: 640px) calc(100vw - 32px), 576px"
-                className="object-cover"
-                style={{ objectPosition: activeCard.imagePosition ?? "center" }}
-              />
+              {activeCard.mediaType === "video" ? (
+                <video
+                  key={activeCard.id}
+                  src={activeCard.mediaSrc}
+                  aria-label={activeCard.mediaAlt}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className={`h-full w-full ${activeCard.mediaFit === "contain" ? "object-contain" : "object-cover"}`}
+                  style={{ objectPosition: activeCard.mediaPosition ?? "center" }}
+                />
+              ) : (
+                <Image
+                  key={activeCard.id}
+                  src={activeCard.mediaSrc}
+                  alt={activeCard.mediaAlt}
+                  fill
+                  priority={index === 0}
+                  sizes="(max-width: 640px) calc(100vw - 32px), 576px"
+                  className={activeCard.mediaFit === "contain" ? "object-contain" : "object-cover"}
+                  style={{ objectPosition: activeCard.mediaPosition ?? "center" }}
+                />
+              )}
             </div>
 
             <div className="px-6 pb-5 pt-3 sm:px-8 sm:pb-7">
@@ -153,7 +197,7 @@ export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDI
               <h2 id="editor-tutorial-title" className="mb-0 mt-2 text-2xl font-semibold tracking-[-0.025em] text-slate-950">
                 {activeCard.title}
               </h2>
-              <p className="mb-0 mt-3 text-[15px] leading-6 text-slate-600">{activeCard.text}</p>
+              <p className="mb-0 mt-3 text-[15px] leading-6 text-slate-600">{renderTutorialText(activeCard.text)}</p>
 
               <div className="mt-7 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
                 <button
