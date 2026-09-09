@@ -156,7 +156,18 @@ const normalizeCuts = (cuts: CutWithCoord[], totalFrames: number): CutWithCoord[
       return [[start, end], normalizeCutCoord(cut[1])];
     })
     .sort((left, right) => left[0][0] - right[0][0]);
-  return normalized.length ? normalized : [[[0, totalFrames], [2, 0]]];
+  if (!normalized.length) return [[[0, totalFrames], [2, 0]]];
+  const cleaned: CutWithCoord[] = [];
+  normalized.forEach((cut) => {
+    const previous = cleaned[cleaned.length - 1];
+    if (previous && previous[1][0] === cut[1][0] && previous[1][1] === cut[1][1]) {
+      previous[0][1] = Math.max(previous[0][1], cut[0][1]);
+      return;
+    }
+    cleaned.push(cut);
+  });
+  cleaned[cleaned.length - 1][0][1] = totalFrames;
+  return cleaned;
 };
 
 export const insertCutBoundaryLocal = (snapshot: EditorSnapshot, time: number, coord: TabCoord) => {

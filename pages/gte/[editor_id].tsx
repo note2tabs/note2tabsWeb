@@ -131,6 +131,7 @@ import { getPlaybackScrollTarget } from "../../lib/gtePlaybackScroll";
 import {
   GTE_TIMELINE_END_PADDING,
   GTE_TIMELINE_GUTTER_WIDTH,
+  getTimelineBaseScale,
 } from "../../lib/gteTimelineGeometry";
 import {
   getFullscreenElement,
@@ -3475,8 +3476,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       const bars = getLaneBarCount(lane);
       if (bars > maxBars) maxBars = bars;
     }
-    // The selected number of bars fills the available editor width at default zoom.
-    // Zooming in reduces the visible span; zooming out increases it.
+    // Keep the real shared bar count separate from the requested row capacity.
+    // A short song must not create phantom bars merely to fill the row.
     return Math.max(1, Math.min(maxBars, desktopBarsPerRow));
   }, [canvas, desktopBarsPerRow]);
 
@@ -3500,9 +3501,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         240,
         measuredWidth - GTE_TIMELINE_GUTTER_WIDTH - GTE_TIMELINE_END_PADDING
       );
-      const rawScale =
-        availableWidth / Math.max(1, FIXED_FRAMES_PER_BAR * sharedViewportBarCount);
-      const nextScale = Math.max(0.1, rawScale);
+      // Fit each bar to the selected bars-per-row capacity, even when the song
+      // currently contains fewer bars. The unused row width then stays empty.
+      const nextScale = getTimelineBaseScale(
+        availableWidth,
+        FIXED_FRAMES_PER_BAR,
+        desktopBarsPerRow
+      );
       setSharedTimelineBaseScale((prev) =>
         prev !== undefined && Math.abs(prev - nextScale) < 0.01 ? prev : nextScale
       );
@@ -3523,7 +3528,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       observer.disconnect();
       window.removeEventListener("resize", scheduleScaleComputation);
     };
-  }, [activeLaneId, canvas, isMobileViewport, practiceModeEnabled, sharedViewportBarCount]);
+  }, [activeLaneId, canvas, desktopBarsPerRow, isMobileViewport, practiceModeEnabled, sharedViewportBarCount]);
 
   const synchronizeSharedTimelineScroll = useCallback((next: number, scrollLeft?: number) => {
     const clamped = Math.max(0, Math.min(1, next));

@@ -3,6 +3,17 @@ export const GTE_TIMELINE_LABEL_COLUMN_WIDTH = 50;
 export const GTE_TIMELINE_COLUMN_GAP = 8;
 export const GTE_TIMELINE_END_PADDING = 40;
 
+export const getTimelineBaseScale = (
+  availableWidth: number,
+  framesPerBar: number,
+  barsPerRow: number
+) =>
+  Math.max(
+    0.1,
+    Math.max(0, Number(availableWidth) || 0) /
+      Math.max(1, Math.max(1, Number(framesPerBar) || 1) * Math.max(1, Math.round(Number(barsPerRow) || 1)))
+  );
+
 export const getScaledDrumHitSize = (
   gridCellWidth: number,
   rowHeight: number,
