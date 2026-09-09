@@ -5220,6 +5220,7 @@ export default function GteWorkspace({
   const selectionRef = useRef<SelectionState | null>(null);
   const enterGridCycleRef = useRef<{ gridKey: string; order: string[]; index: number } | null>(null);
   const keyboardGridCursorRef = useRef<KeyboardGridCursor | null>(null);
+  const lastHandledMobileTimelineTouchAtRef = useRef(0);
   const keyboardAddModeRef = useRef<KeyboardAddMode | null>(null);
   const noteFretTypingBufferRef = useRef("");
   const noteFretTypingAtRef = useRef(0);
@@ -9376,6 +9377,10 @@ export default function GteWorkspace({
 
   const handleTimelineMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
+    if (mobileViewport && Date.now() - lastHandledMobileTimelineTouchAtRef.current < 800) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     setContextMenu(null);
     const target = getPointerFrame(event.clientX, event.clientY, {
@@ -10561,7 +10566,7 @@ export default function GteWorkspace({
       const first = event.touches[0];
       if (
         first &&
-        (Math.abs(first.clientX - gesture.tapX) > 8 || Math.abs(first.clientY - gesture.tapY) > 8)
+        (Math.abs(first.clientX - gesture.tapX) > 18 || Math.abs(first.clientY - gesture.tapY) > 18)
       ) {
         gesture.tapEligible = false;
       }
@@ -10584,14 +10589,14 @@ export default function GteWorkspace({
       }
       mobileTimelineTouchRef.current = null;
       if (!gesture.tapEligible) return;
-      const touch = event.changedTouches[0];
-      if (!touch || !timelineRef.current) return;
+      if (!timelineRef.current) return;
       event.preventDefault();
-      const target = getPointerFrame(touch.clientX, touch.clientY, { snapToCursorSize: true });
+      lastHandledMobileTimelineTouchAtRef.current = Date.now();
+      const target = getPointerFrame(gesture.tapX, gesture.tapY, { snapToCursorSize: true });
       if (!target) return;
       const rect = timelineRef.current.getBoundingClientRect();
       const y = clamp(
-        touch.clientY - rect.top - timelineRef.current.clientTop,
+        gesture.tapY - rect.top - timelineRef.current.clientTop,
         0,
         timelineHeight
       );
@@ -10599,7 +10604,6 @@ export default function GteWorkspace({
       const stringIndex = clamp(Math.floor((y - rowTop) / ROW_HEIGHT), 0, 5);
       const currentCursor = keyboardGridCursorRef.current;
       const tappedCurrentCursor =
-        keyboardCursorVisible &&
         currentCursor?.time === target.time &&
         currentCursor.stringIndex === stringIndex;
 
@@ -10608,7 +10612,9 @@ export default function GteWorkspace({
       setNoteMenuAnchor(null);
       setNoteMenuNoteId(null);
       setNoteMenuDraft(null);
-      setKeyboardGridCursor({ time: target.time, stringIndex });
+      const nextCursor = { time: target.time, stringIndex };
+      keyboardGridCursorRef.current = nextCursor;
+      setKeyboardGridCursor(nextCursor);
       setKeyboardCursorVisible(true);
       setKeyboardAddMode(null);
       if (tappedCurrentCursor) {
@@ -10628,7 +10634,6 @@ export default function GteWorkspace({
     [
       clamp,
       getPointerFrame,
-      keyboardCursorVisible,
       onGlobalPlaybackFrameChange,
       rowStride,
       scaleSelectedMobileNote,
