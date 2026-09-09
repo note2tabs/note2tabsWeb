@@ -2031,6 +2031,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       setMobileControlsOpen((prev) => (matches ? prev : false));
       setMobileNavOpen((prev) => (matches ? prev : false));
       if (matches) {
+        setEditorMode((current) => (current === "tab" ? "canvas" : current));
         setMobileEditLaneId(null);
         setMobileControlsOpen(false);
       } else {
@@ -5704,13 +5705,43 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   );
 
   const renderViewModeSwitch = (compact = false) => {
+    if (compact) {
+      const mobilePracticeActive = editorMode === "practice";
+      return (
+        <div className="gte-view-mode-switch w-56 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+          <div className="relative grid grid-cols-2" role="group" aria-label="Mobile workspace mode">
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 left-0 w-1/2 rounded-md bg-white shadow-sm ring-1 ring-slate-200/70 transition-transform duration-200 ease-out"
+              style={{ transform: `translateX(${mobilePracticeActive ? 100 : 0}%)` }}
+            />
+            <button
+              type="button"
+              onClick={() => setEditorMode("canvas")}
+              aria-pressed={!mobilePracticeActive}
+              className={`relative z-10 h-8 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
+                !mobilePracticeActive ? "text-slate-900" : "text-slate-600"
+              }`}
+            >
+              Canvas
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditorMode("practice")}
+              aria-pressed={mobilePracticeActive}
+              className={`relative z-10 h-8 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${
+                mobilePracticeActive ? "text-emerald-800" : "text-slate-600"
+              }`}
+            >
+              Practice
+            </button>
+          </div>
+        </div>
+      );
+    }
     const activeIndex = editorMode === "canvas" ? 0 : editorMode === "tab" ? 1 : 2;
     return (
-    <div
-      className={`gte-view-mode-switch rounded-lg border border-slate-200 bg-slate-100 p-0.5 ${
-        compact ? "w-64" : "w-72"
-      }`}
-    >
+    <div className="gte-view-mode-switch w-72 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
       <div
         className="relative grid grid-cols-3"
         role="group"
