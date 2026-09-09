@@ -119,6 +119,7 @@ const tutorialToken = (token: string, key: number) => {
     shift: "Shift",
     a: "A",
     o: "O",
+    g: "G",
     n: "N",
     m: "M",
     s: "S",
@@ -127,7 +128,7 @@ const tutorialToken = (token: string, key: number) => {
 };
 
 const renderTutorialText = (text: string) =>
-  text.split(/(\{(?:numbers|mouse|enter|plus|minus|arrows|backspace|delete|\?|comma|period|shift|a|o|n|m|s|boxSelect|coordinate|tools|right|optimizeFingering|optimizeCoordinates|gridOn|keyOn)\})/g).map((part, index) => {
+  text.split(/(\{(?:numbers|mouse|enter|plus|minus|arrows|backspace|delete|\?|comma|period|shift|a|o|g|n|m|s|boxSelect|coordinate|tools|right|optimizeFingering|optimizeCoordinates|gridOn|keyOn)\})/g).map((part, index) => {
     const match = part.match(/^\{(.+)\}$/);
     return match ? tutorialToken(match[1], index) : part;
   });

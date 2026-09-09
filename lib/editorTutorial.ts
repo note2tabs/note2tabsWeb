@@ -33,7 +33,7 @@ export const EDITOR_TUTORIAL_CARDS: EditorTutorialCard[] = [
     mediaAlt: "Moving and resizing notes on the Note2Tabs canvas",
     mediaType: "video",
     mediaFit: "cover",
-    text: "Move the notes by mouse or {m}. Scale them by dragging the edge or by {s}. Use {boxSelect}/{shift} to select multiple notes or {a} to select all.",
+    text: "Move the notes by mouse or {g}. Scale them by dragging the edge or by {s}. Use {boxSelect}/{shift} to select multiple notes or {a} to select all.",
   },
   {
     id: "playback",
