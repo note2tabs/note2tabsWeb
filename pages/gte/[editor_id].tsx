@@ -183,7 +183,7 @@ const CONTROL_COMMIT_DEBOUNCE_MS = 350;
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
 const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32, 64];
-const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 3, 4, 8, 16, 32, 64];
+const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 4, 8, 16, 32, 64];
 const SNAP_SUBDIVISION_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 const TOOL_SHORTCUT_HELP = [
   ["Scale", "S"],
@@ -206,8 +206,8 @@ const TOOL_SHORTCUT_HELP = [
 const SIZE_SHORTCUT_HELP = [
   ["Smaller add-note size", ","],
   ["Larger add-note size", "."],
-  ["Larger cursor size", "N"],
-  ["Smaller cursor size", "M"],
+  ["Smaller cursor size", "N"],
+  ["Larger cursor size", "M"],
 ] as const;
 const TRACK_CURSOR_SHORTCUT_HELP = [
   ["Move cursor", "Arrow keys"],

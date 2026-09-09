@@ -4,10 +4,10 @@ import { describe, expect, it } from "vitest";
 import { EDITOR_TUTORIAL_CARDS } from "../../lib/editorTutorial";
 
 describe("editor tutorial", () => {
-  it("starts with four editable media-and-text cards", () => {
-    expect(EDITOR_TUTORIAL_CARDS).toHaveLength(4);
+  it("starts with five editable media-and-text cards", () => {
+    expect(EDITOR_TUTORIAL_CARDS).toHaveLength(5);
     expect(EDITOR_TUTORIAL_CARDS.every((card) => card.mediaSrc && card.mediaAlt && card.text)).toBe(true);
-    expect(new Set(EDITOR_TUTORIAL_CARDS.map((card) => card.id)).size).toBe(4);
+    expect(new Set(EDITOR_TUTORIAL_CARDS.map((card) => card.id)).size).toBe(5);
     EDITOR_TUTORIAL_CARDS.forEach((card) => {
       expect(fs.existsSync(path.join(process.cwd(), "public", card.mediaSrc))).toBe(true);
     });

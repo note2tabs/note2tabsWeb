@@ -41,6 +41,60 @@ const Arrow = ({ direction }: { direction: "left" | "right" }) => (
 
 const tutorialToken = (token: string, key: number) => {
   const keyClass = "mx-0.5 inline-flex min-h-5 min-w-5 items-center justify-center rounded border border-slate-300 bg-white px-1 text-[11px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_rgba(15,23,42,0.12)] align-middle";
+  if (token === "gridOn" || token === "keyOn") {
+    return (
+      <span
+        key={key}
+        className="mx-0.5 inline-flex min-h-6 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2 text-[11px] font-semibold leading-none text-slate-700 align-middle"
+        aria-label={`${token === "gridOn" ? "Grid" : "Key"} toggle on`}
+      >
+        {token === "gridOn" ? "Grid" : "Key"}
+        <span className="text-emerald-700">On</span>
+      </span>
+    );
+  }
+  if (token === "boxSelect") {
+    return (
+      <span
+        key={key}
+        className="mx-0.5 inline-flex h-6 w-7 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 align-middle"
+        title="Box select"
+        aria-label="box select"
+      >
+        <svg viewBox="0 0 20 16" className="h-4 w-5 fill-none stroke-current" aria-hidden="true">
+          <rect x="2.5" y="2.5" width="12" height="9" rx="1" strokeDasharray="2 1.5" />
+          <path d="m12.5 9.5 4.5 4-2.1.2-1 1.8z" fill="currentColor" stroke="none" />
+        </svg>
+      </span>
+    );
+  }
+  if (token === "coordinate") {
+    return (
+      <span
+        key={key}
+        className="relative mx-0.5 inline-flex h-4 w-9 rounded border border-sky-400 bg-sky-100 align-middle"
+        title="Playing coordinate"
+        aria-label="playing coordinate"
+      >
+        <span className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 border-b border-r border-sky-400 bg-sky-100" />
+      </span>
+    );
+  }
+  if (token === "tools" || token === "optimizeFingering" || token === "optimizeCoordinates") {
+    const label = token === "tools"
+      ? "Tools"
+      : token === "optimizeFingering"
+        ? "Optimize fingering"
+        : "Optimize to coordinates";
+    return (
+      <span key={key} className="mx-0.5 inline-flex min-h-6 items-center rounded-md border border-slate-300 bg-white px-2 text-[11px] font-semibold leading-none text-slate-700 align-middle">
+        {label}
+      </span>
+    );
+  }
+  if (token === "right") {
+    return <span key={key} className="mx-0.5 inline-block font-semibold text-slate-500" aria-label="then">→</span>;
+  }
   if (token === "mouse") {
     return (
       <span key={key} className="mx-0.5 inline-flex align-middle" title="Mouse" aria-label="mouse">
@@ -59,6 +113,13 @@ const tutorialToken = (token: string, key: number) => {
     arrows: "← ↑ ↓ →",
     backspace: "Backspace",
     delete: "Del",
+    "?": "?",
+    comma: ",",
+    period: ".",
+    shift: "Shift",
+    a: "A",
+    o: "O",
+    n: "N",
     m: "M",
     s: "S",
   };
@@ -66,7 +127,7 @@ const tutorialToken = (token: string, key: number) => {
 };
 
 const renderTutorialText = (text: string) =>
-  text.split(/(\{(?:numbers|mouse|enter|plus|minus|arrows|backspace|delete|m|s)\})/g).map((part, index) => {
+  text.split(/(\{(?:numbers|mouse|enter|plus|minus|arrows|backspace|delete|\?|comma|period|shift|a|o|n|m|s|boxSelect|coordinate|tools|right|optimizeFingering|optimizeCoordinates|gridOn|keyOn)\})/g).map((part, index) => {
     const match = part.match(/^\{(.+)\}$/);
     return match ? tutorialToken(match[1], index) : part;
   });

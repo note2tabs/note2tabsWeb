@@ -326,7 +326,7 @@ const CHORD_PALETTE_EXTENSIONS = [
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
 const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32, 64];
-const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 3, 4, 8, 16, 32, 64];
+const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 4, 8, 16, 32, 64];
 const DEFAULT_CUT_COORD: TabCoord = [2, 0];
 const CUT_SEGMENT_HEIGHT = 20;
 const PLAYING_COORDINATE_OFFSET = 0;
@@ -12684,7 +12684,7 @@ export default function GteWorkspace({
       ) {
         event.preventDefault();
         const changesNoteSize = event.key === "," || event.key === ".";
-        const indexDelta: -1 | 1 = event.key === "," || event.code === "KeyM" ? 1 : -1;
+        const indexDelta: -1 | 1 = event.key === "," || event.code === "KeyN" ? 1 : -1;
         if (noteCursorSizesLinked) {
           const next = stepSizeDenominator(
             CURSOR_SIZE_FRACTION_DENOMINATORS,
