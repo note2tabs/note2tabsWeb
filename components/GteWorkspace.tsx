@@ -5046,6 +5046,16 @@ export default function GteWorkspace({
   const [multiDragDelta, setMultiDragDelta] = useState<number | null>(null);
   const [resizingNote, setResizingNote] = useState<ResizeState | null>(null);
   const [resizePreviewLength, setResizePreviewLength] = useState<number | null>(null);
+  const [mobilePinchPreview, setMobilePinchPreview] = useState<{ noteId: number; length: number } | null>(null);
+  const mobileTimelineTouchRef = useRef<{
+    tapX: number;
+    tapY: number;
+    tapEligible: boolean;
+    pinchDistance: number | null;
+    pinchStartLength: number | null;
+    pinchNoteId: number | null;
+    pinchFactor: number;
+  } | null>(null);
   const [resizingChord, setResizingChord] = useState<ResizeState | null>(null);
   const [resizeChordPreviewLength, setResizeChordPreviewLength] = useState<number | null>(null);
   const [noteMenuAnchor, setNoteMenuAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -10463,7 +10473,7 @@ export default function GteWorkspace({
   );
 
   const scaleSelectedMobileNote = useCallback(
-    (factor: 0.5 | 2) => {
+    (factor: number) => {
       if (!selectedNote) return;
       const resolvedId = resolveNoteId(selectedNote.id);
       const nextLength = snapLengthToGrid(clampEventLength(selectedNote.length * factor));
@@ -10482,6 +10492,140 @@ export default function GteWorkspace({
       });
     },
     [editorId, enqueueOptimisticMutation, resolveNoteId, selectedNote, snapLengthToGrid, snapToGridEnabled]
+  );
+
+  const handleMobileTimelineTouchStart = useCallback(
+    (event: ReactTouchEvent<HTMLDivElement>) => {
+      if (!isMobileEditMode) return;
+      const first = event.touches[0];
+      if (!first) return;
+      const target = event.target as HTMLElement | null;
+      if (event.touches.length >= 2 && selectedNote && selectedNoteIdsRef.current.length === 1) {
+        const second = event.touches[1];
+        const distance = Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+        if (distance <= 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        clearTouchHold();
+        mobileTimelineTouchRef.current = {
+          tapX: first.clientX,
+          tapY: first.clientY,
+          tapEligible: false,
+          pinchDistance: distance,
+          pinchStartLength: selectedNote.length,
+          pinchNoteId: selectedNote.id,
+          pinchFactor: 1,
+        };
+        setMobilePinchPreview({ noteId: selectedNote.id, length: selectedNote.length });
+        return;
+      }
+      mobileTimelineTouchRef.current = {
+        tapX: first.clientX,
+        tapY: first.clientY,
+        tapEligible: !target?.closest("[data-gte-note='true']"),
+        pinchDistance: null,
+        pinchStartLength: null,
+        pinchNoteId: null,
+        pinchFactor: 1,
+      };
+    },
+    [clearTouchHold, isMobileEditMode, selectedNote]
+  );
+
+  const handleMobileTimelineTouchMove = useCallback(
+    (event: ReactTouchEvent<HTMLDivElement>) => {
+      const gesture = mobileTimelineTouchRef.current;
+      if (!gesture) return;
+      if (gesture.pinchDistance !== null && gesture.pinchStartLength !== null && gesture.pinchNoteId !== null) {
+        const first = event.touches[0];
+        const second = event.touches[1];
+        if (!first || !second) return;
+        event.preventDefault();
+        const distance = Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+        const factor = clamp(distance / gesture.pinchDistance, 0.25, 4);
+        gesture.pinchFactor = factor;
+        setMobilePinchPreview({
+          noteId: gesture.pinchNoteId,
+          length: snapLengthToGrid(clampEventLength(gesture.pinchStartLength * factor)),
+        });
+        return;
+      }
+      const first = event.touches[0];
+      if (
+        first &&
+        (Math.abs(first.clientX - gesture.tapX) > 8 || Math.abs(first.clientY - gesture.tapY) > 8)
+      ) {
+        gesture.tapEligible = false;
+      }
+    },
+    [clamp, snapLengthToGrid]
+  );
+
+  const handleMobileTimelineTouchEnd = useCallback(
+    (event: ReactTouchEvent<HTMLDivElement>) => {
+      const gesture = mobileTimelineTouchRef.current;
+      if (!gesture) return;
+      if (gesture.pinchDistance !== null) {
+        event.preventDefault();
+        if (Math.abs(gesture.pinchFactor - 1) > 0.01) {
+          scaleSelectedMobileNote(gesture.pinchFactor);
+        }
+        setMobilePinchPreview(null);
+        mobileTimelineTouchRef.current = null;
+        return;
+      }
+      mobileTimelineTouchRef.current = null;
+      if (!gesture.tapEligible) return;
+      const touch = event.changedTouches[0];
+      if (!touch || !timelineRef.current) return;
+      event.preventDefault();
+      const target = getPointerFrame(touch.clientX, touch.clientY, { snapToCursorSize: true });
+      if (!target) return;
+      const rect = timelineRef.current.getBoundingClientRect();
+      const y = clamp(
+        touch.clientY - rect.top - timelineRef.current.clientTop,
+        0,
+        timelineHeight
+      );
+      const rowTop = target.rowIndex * rowStride;
+      const stringIndex = clamp(Math.floor((y - rowTop) / ROW_HEIGHT), 0, 5);
+      const currentCursor = keyboardGridCursorRef.current;
+      const tappedCurrentCursor =
+        keyboardCursorVisible &&
+        currentCursor?.time === target.time &&
+        currentCursor.stringIndex === stringIndex;
+
+      setSelectedNoteIds([]);
+      setSelectedChordIds([]);
+      setNoteMenuAnchor(null);
+      setNoteMenuNoteId(null);
+      setNoteMenuDraft(null);
+      setKeyboardGridCursor({ time: target.time, stringIndex });
+      setKeyboardCursorVisible(true);
+      setKeyboardAddMode(null);
+      if (tappedCurrentCursor) {
+        setDraftNote({
+          stringIndex,
+          fret: 0,
+          startTime: target.time,
+          length: lastAddedNoteLengthRef.current,
+        });
+        setDraftNoteAnchor(null);
+      } else {
+        setDraftNote(null);
+        setDraftNoteAnchor(null);
+      }
+      onGlobalPlaybackFrameChange?.(target.time);
+    },
+    [
+      clamp,
+      getPointerFrame,
+      keyboardCursorVisible,
+      onGlobalPlaybackFrameChange,
+      rowStride,
+      scaleSelectedMobileNote,
+      timelineHeight,
+    ]
   );
 
   const handleAddNoteEffect = useCallback(
@@ -16951,6 +17095,13 @@ export default function GteWorkspace({
                 }`}
                 style={{ height: timelineHeight }}
                 onMouseDown={handleTimelineMouseDown}
+                onTouchStartCapture={handleMobileTimelineTouchStart}
+                onTouchMoveCapture={handleMobileTimelineTouchMove}
+                onTouchEndCapture={handleMobileTimelineTouchEnd}
+                onTouchCancelCapture={() => {
+                  mobileTimelineTouchRef.current = null;
+                  setMobilePinchPreview(null);
+                }}
                 onContextMenu={handleTimelineContextMenu}
                 onMouseMove={(event) => {
                   if (sliceToolActive) {
@@ -17520,7 +17671,9 @@ export default function GteWorkspace({
                     ? note.startTime + multiDelta
                     : preview?.startTime ?? note.startTime;
                   const displayString = preview?.stringIndex ?? note.tab[0];
-                  const displayLength = scalePreview
+                  const displayLength = mobilePinchPreview?.noteId === note.id
+                    ? mobilePinchPreview.length
+                    : scalePreview
                     ? scalePreview.length
                     : quantizePreview
                     ? quantizePreview.length
@@ -17536,6 +17689,7 @@ export default function GteWorkspace({
                     return (
                       <button
                         key={`note-${note.id}-seg-${segment.rowIndex}-${idx}`}
+                        data-gte-note="true"
                         type="button"
                         onMouseDown={(event) => {
                           if (event.button !== 0) return;
