@@ -8006,9 +8006,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       </button>
                     )}
                     {isGuestMode ? (
-                      <Link href="/" className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-                        Back home
-                      </Link>
+                      <div className="relative">
+                        <EditorTutorialTrigger className="absolute bottom-[calc(100%+6px)] right-0 z-10" />
+                        <Link href="/" className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+                          Back home
+                        </Link>
+                      </div>
                     ) : (
                       <div className="relative">
                         <EditorTutorialTrigger className="absolute bottom-[calc(100%+6px)] right-0 z-10" />
@@ -8534,9 +8537,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               <div className="button-row shrink-0 rounded-xl border border-slate-200 bg-white/55 p-1 shadow-sm">
                 {isGuestMode ? (
                   <>
-                    <Link href="/" className="button-secondary button-small min-h-[34px]">
-                      Back home
-                    </Link>
+                    <div className="relative">
+                      <EditorTutorialTrigger className="absolute bottom-[calc(100%+6px)] right-0 z-10" />
+                      <Link href="/" className="button-secondary button-small min-h-[34px]">
+                        Back home
+                      </Link>
+                    </div>
                     {session?.user?.id ? (
                       <button
                         type="button"
