@@ -13962,21 +13962,6 @@ export default function GteWorkspace({
     isMobileEditMode &&
     isActive &&
     Boolean(selectedNote && noteMenuNoteId === selectedNote.id && noteMenuDraft && selectedNoteIds.length === 1);
-  const mobileNoteFingeringOptions = useMemo(
-    () => [
-      ...(noteAlternates?.possibleTabs || []).map((tab) => ({
-        key: `open-${tab[0]}-${tab[1]}`,
-        label: `${stringLabels[tab[0]]}${tab[1]}`,
-        value: `${tab[0]}:${tab[1]}`,
-      })),
-      ...(noteAlternates?.blockedTabs || []).map((tab) => ({
-        key: `blocked-${tab[0]}-${tab[1]}`,
-        label: `${stringLabels[tab[0]]}${tab[1]} blocked`,
-        value: `${tab[0]}:${tab[1]}`,
-      })),
-    ],
-    [noteAlternates]
-  );
 
   const noteEffectEdgeMap = useMemo(() => {
     const map = new Map<number, { left: boolean; right: boolean }>();
@@ -18535,33 +18520,35 @@ export default function GteWorkspace({
                         Scale 2×
                       </button>
                     </div>
-                    <label className="mt-2 block text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-                      Fingering
-                      <select
-                        key={`mobile-note-fingering-${selectedNote.id}`}
-                        defaultValue=""
-                        disabled={mobileNoteFingeringOptions.length === 0}
-                        onChange={(event) => {
-                          const rawValue = event.currentTarget.value;
-                          if (!rawValue) return;
-                          const [stringValue, fretValue] = rawValue.split(":").map(Number);
-                          if (Number.isInteger(stringValue) && Number.isInteger(fretValue)) {
-                            handleAssignAlt([stringValue, fretValue]);
-                          }
-                          event.currentTarget.value = "";
-                        }}
-                        className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-[13px] text-slate-700 disabled:bg-slate-100 disabled:text-slate-400"
-                      >
-                        <option value="">
-                          {mobileNoteFingeringOptions.length ? "Choose fingering" : "No other fingerings"}
-                        </option>
-                        {mobileNoteFingeringOptions.map((option) => (
-                          <option key={option.key} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <div className="mt-2">
+                      <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Fingering</div>
+                      {noteAlternates?.possibleTabs?.length || noteAlternates?.blockedTabs?.length ? (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {(noteAlternates?.possibleTabs || []).slice(0, 10).map((tab, index) => (
+                            <button
+                              key={`mobile-note-alt-${selectedNote.id}-${index}`}
+                              type="button"
+                              onClick={() => handleAssignAlt(tab)}
+                              className="min-h-9 min-w-11 rounded-lg bg-amber-400/70 px-2.5 py-1.5 text-xs font-semibold text-slate-900 active:bg-amber-400"
+                            >
+                              {stringLabels[tab[0]]}{tab[1]}
+                            </button>
+                          ))}
+                          {(noteAlternates?.blockedTabs || []).slice(0, 10).map((tab, index) => (
+                            <button
+                              key={`mobile-note-alt-blocked-${selectedNote.id}-${index}`}
+                              type="button"
+                              onClick={() => handleAssignAlt(tab)}
+                              className="min-h-9 min-w-11 rounded-lg bg-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700 active:bg-rose-300"
+                            >
+                              {stringLabels[tab[0]]}{tab[1]}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-1.5 text-xs text-slate-400">No alternative fingerings</div>
+                      )}
+                    </div>
                 </div>
               </div>
             </div>
