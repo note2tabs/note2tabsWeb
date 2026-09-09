@@ -9221,7 +9221,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               sharedViewportBarCount={Math.min(sharedViewportBarCount, 2)}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
-                                practiceModeEnabled
+                                isMobileViewport && !practiceModeEnabled
+                                  ? 1
+                                  : practiceModeEnabled
                                   ? Math.min(timelineZoomPercent / 100, 0.75)
                                   : timelineZoomPercent / 100
                               }

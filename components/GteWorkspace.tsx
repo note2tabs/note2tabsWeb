@@ -5312,7 +5312,7 @@ export default function GteWorkspace({
   );
   const viewportTimelineWidth = Math.max(1, viewportTotalFrames) * scale;
   const timelineWidth = viewportTimelineWidth;
-  const timelineChromeWidth = viewportTimelineWidth + 40;
+  const timelineChromeWidth = viewportTimelineWidth + (isMobileEditMode ? 0 : 40);
   const rowHeight = ROW_HEIGHT * 6;
   const coordinateBandHeight = showPlayingCoordinates
     ? PLAYING_COORDINATE_OFFSET + CUT_SEGMENT_HEIGHT
@@ -5323,11 +5323,16 @@ export default function GteWorkspace({
   const lastRowIndex = rows - 1;
   const lastRowBarCount = Math.max(0, barCount - lastRowIndex * barsPerRow);
   const addBarStartsNewRow = lastRowBarCount >= barsPerRow;
-  const addBarLeft = addBarStartsNewRow ? 0 : lastRowBarCount * framesPerMeasure * scale + 10;
-  const addBarTop =
-    TIMELINE_BAR_HEADER_HEIGHT +
-    (addBarStartsNewRow ? rows * rowStride : lastRowIndex * rowStride) +
-    Math.max(0, Math.round(rowHeight / 2) - ADD_BAR_BUTTON_HALF_SIZE);
+  const addBarLeft = isMobileEditMode
+    ? 8
+    : addBarStartsNewRow
+    ? 0
+    : lastRowBarCount * framesPerMeasure * scale + 10;
+  const addBarTop = isMobileEditMode
+    ? TIMELINE_BAR_HEADER_HEIGHT + timelineHeight + 8
+    : TIMELINE_BAR_HEADER_HEIGHT +
+      (addBarStartsNewRow ? rows * rowStride : lastRowIndex * rowStride) +
+      Math.max(0, Math.round(rowHeight / 2) - ADD_BAR_BUTTON_HALF_SIZE);
   const timelineEnd = barCount * framesPerMeasure;
   const snapThresholdFrames = Math.max(1, Math.round(4 / Math.max(1, scale)));
   const playbackFps = fps;
@@ -6483,7 +6488,10 @@ export default function GteWorkspace({
 
     const computeScale = () => {
       const availableWidth = Math.max(240, container.clientWidth - 16);
-      const rawScale = availableWidth / Math.max(1, framesPerMeasure * TARGET_VISIBLE_BARS);
+      const fittedBars = isMobileEditMode
+        ? Math.max(1, Math.min(2, normalizedSharedViewportBars))
+        : TARGET_VISIBLE_BARS;
+      const rawScale = availableWidth / Math.max(1, framesPerMeasure * fittedBars);
       const nextScale = Math.max(0.5, Math.min(4, rawScale));
       setAutoBaseScale((prev) => (Math.abs(prev - nextScale) < 0.01 ? prev : nextScale));
     };
@@ -6492,7 +6500,7 @@ export default function GteWorkspace({
     const observer = new ResizeObserver(computeScale);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [framesPerMeasure, sharedTimelineBaseScale]);
+  }, [framesPerMeasure, isMobileEditMode, normalizedSharedViewportBars, sharedTimelineBaseScale]);
 
   useEffect(() => {
     const container = tabViewEnabled ? tabViewScrollRef.current : timelineOuterRef.current;
@@ -15051,25 +15059,45 @@ export default function GteWorkspace({
               Add bars
             </h2>
             <label className="mt-3 grid gap-1 text-[11px] font-semibold text-slate-600">
-              Number of bars
-              <input
-                type="number"
-                min={1}
-                max={10}
-                step={1}
-                autoFocus
-                value={addBarsCountInput}
-                onChange={(event) => setAddBarsCountInput(event.target.value)}
-                onBlur={() => {
-                  const parsedCount = Number(addBarsCountInput);
-                  if (Number.isFinite(parsedCount)) {
-                    setAddBarsCountInput(String(Math.max(1, Math.min(10, Math.round(parsedCount)))));
-                  }
-                }}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none focus:border-sky-400"
-              />
+              <span className="flex items-center justify-between">
+                <span>Number of bars</span>
+                {isMobileEditMode && (
+                  <span className="text-base font-bold tabular-nums text-slate-900">{addBarsCountInput}</span>
+                )}
+              </span>
+              {isMobileEditMode ? (
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={addBarsCountInput}
+                  onChange={(event) => setAddBarsCountInput(event.target.value)}
+                  className="h-10 w-full accent-emerald-600"
+                  aria-label="Number of bars to add"
+                />
+              ) : (
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  step={1}
+                  autoFocus
+                  value={addBarsCountInput}
+                  onChange={(event) => setAddBarsCountInput(event.target.value)}
+                  onBlur={() => {
+                    const parsedCount = Number(addBarsCountInput);
+                    if (Number.isFinite(parsedCount)) {
+                      setAddBarsCountInput(String(Math.max(1, Math.min(10, Math.round(parsedCount)))));
+                    }
+                  }}
+                  className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none focus:border-sky-400"
+                />
+              )}
             </label>
-            <p className="mt-1.5 text-[11px] text-slate-500">Enter a whole number from 1 to 10.</p>
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              {isMobileEditMode ? "Slide to choose between 1 and 10 bars." : "Enter a whole number from 1 to 10."}
+            </p>
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
@@ -16978,7 +17006,14 @@ export default function GteWorkspace({
               className="min-w-0"
               onScroll={handleTimelineOuterScroll}
             >
-              <div className="relative" style={{ width: timelineChromeWidth, paddingTop: TIMELINE_BAR_HEADER_HEIGHT, paddingBottom: addBarStartsNewRow ? 40 : 0 }}>
+              <div
+                className="relative"
+                style={{
+                  width: timelineChromeWidth,
+                  paddingTop: TIMELINE_BAR_HEADER_HEIGHT,
+                  paddingBottom: isMobileEditMode ? 56 : addBarStartsNewRow ? 40 : 0,
+                }}
+              >
                 {framesPerMeasure > 0 &&
                   visibleCanvasBarIndices.filter((barIndex) => barIndex >= trackOffsetBarCount).map((barIndex) => {
                     const rowIndex = Math.floor(barIndex / barsPerRow);
@@ -17078,8 +17113,8 @@ export default function GteWorkspace({
                       left: Math.max(0, Math.min(timelineChromeWidth - ADD_BAR_BUTTON_SIZE, addBarLeft)),
                       top: addBarTop,
                     }}
-                  title="Add bar to end"
-                  aria-label="Add bar to end"
+                  title="Add bars to end"
+                  aria-label="Add bars to end"
                 >
                   <AddBarIcon />
                 </button>
