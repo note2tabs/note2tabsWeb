@@ -62,7 +62,7 @@ export const EDITOR_TUTORIAL_CARDS: EditorTutorialCard[] = [
     mediaSrc: "/videos/tutorials/tut05.png",
     mediaAlt: "A complete song arranged across several rows in the Note2Tabs editor",
     mediaFit: "contain",
-    text: "Switch, add or change tracks, compose your own songs or try to play the song in practice mode. Press {?} to bring up this tutorial again. Have fun playing the guitar!",
+    text: "Switch, add or change tracks, compose your own songs or try to play the song in practice mode. Press {?} to bring up this tutorial again or {help} to see the keybinds. Have fun playing the guitar!",
   },
 ];
 

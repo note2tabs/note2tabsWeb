@@ -80,9 +80,11 @@ const tutorialToken = (token: string, key: number) => {
       </span>
     );
   }
-  if (token === "tools" || token === "optimizeFingering" || token === "optimizeCoordinates") {
+  if (token === "tools" || token === "help" || token === "optimizeFingering" || token === "optimizeCoordinates") {
     const label = token === "tools"
       ? "Tools"
+      : token === "help"
+        ? "Help"
       : token === "optimizeFingering"
         ? "Optimize fingering"
         : "Optimize to coordinates";
@@ -128,7 +130,7 @@ const tutorialToken = (token: string, key: number) => {
 };
 
 const renderTutorialText = (text: string) =>
-  text.split(/(\{(?:numbers|mouse|enter|plus|minus|arrows|backspace|delete|\?|comma|period|shift|a|o|g|n|m|s|boxSelect|coordinate|tools|right|optimizeFingering|optimizeCoordinates|gridOn|keyOn)\})/g).map((part, index) => {
+  text.split(/(\{(?:numbers|mouse|enter|plus|minus|arrows|backspace|delete|\?|comma|period|shift|a|o|g|n|m|s|boxSelect|coordinate|tools|help|right|optimizeFingering|optimizeCoordinates|gridOn|keyOn)\})/g).map((part, index) => {
     const match = part.match(/^\{(.+)\}$/);
     return match ? tutorialToken(match[1], index) : part;
   });
