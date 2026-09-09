@@ -10560,7 +10560,7 @@ export default function GteWorkspace({
       mobileTimelineTouchRef.current = {
         tapX: first.clientX,
         tapY: first.clientY,
-        tapEligible: !target?.closest("[data-gte-note='true']"),
+        tapEligible: !target?.closest("[data-gte-note='true'], [data-gte-cursor-add='true']"),
         pinchDistance: null,
         pinchStartLength: null,
         pinchNoteId: null,
@@ -13984,6 +13984,27 @@ export default function GteWorkspace({
     timelineEnd,
   ]);
 
+  const openMobileAddNoteAtCursor = useCallback(() => {
+    const cursor = keyboardGridCursorRef.current;
+    if (!cursor || !isMobileEditMode) return;
+    setSelectedNoteIds([]);
+    setSelectedChordIds([]);
+    setNoteMenuAnchor(null);
+    setNoteMenuNoteId(null);
+    setNoteMenuDraft(null);
+    setChordMenuAnchor(null);
+    setChordMenuChordId(null);
+    setChordMenuDraft(null);
+    setKeyboardAddMode(null);
+    setDraftNote({
+      stringIndex: cursor.stringIndex,
+      fret: 0,
+      startTime: cursor.time,
+      length: lastAddedNoteLengthRef.current,
+    });
+    setDraftNoteAnchor(null);
+  }, [isMobileEditMode]);
+
   useEffect(() => {
     if (!TRACK_HORIZONTAL_SCROLL_ENABLED || mobileViewport || !isActive || !keyboardCursorMarker) return;
     const container = timelineOuterRef.current;
@@ -17358,7 +17379,26 @@ export default function GteWorkspace({
                   );
                 })}
 
-                {keyboardCursorMarker && (
+                {keyboardCursorMarker && (isMobileEditMode ? (
+                  <button
+                    type="button"
+                    data-gte-cursor-add="true"
+                    aria-label="Add note at cursor"
+                    className="absolute z-30 rounded-sm border border-slate-400/75 bg-slate-300/45 p-0"
+                    style={{
+                      left: keyboardCursorMarker.left,
+                      top: keyboardCursorMarker.top,
+                      width: keyboardCursorMarker.width,
+                      height: keyboardCursorMarker.height,
+                    }}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      lastHandledMobileTimelineTouchAtRef.current = Date.now();
+                      openMobileAddNoteAtCursor();
+                    }}
+                  />
+                ) : (
                   <div
                     className="absolute z-20 pointer-events-none"
                     style={{
@@ -17370,7 +17410,7 @@ export default function GteWorkspace({
                   >
                     <div className="h-full w-full rounded-sm border border-slate-400/75 bg-slate-300/45" />
                   </div>
-                )}
+                ))}
 
                 {sliceToolActive && sliceCursor && (() => {
                   const rowStart = sliceCursor.rowIndex * rowFrames;
