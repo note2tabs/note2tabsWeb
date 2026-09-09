@@ -305,6 +305,8 @@ type ContextMenuState =
 const DEFAULT_STRING_LABELS = ["E", "B", "G", "D", "A", "E"];
 const ROW_HEIGHT = 24;
 const ROW_GAP = 32;
+const ADD_BAR_BUTTON_SIZE = 40;
+const ADD_BAR_BUTTON_HALF_SIZE = ADD_BAR_BUTTON_SIZE / 2;
 const BARS_PER_ROW = 3;
 const DEFAULT_NOTE_LENGTH = 20;
 const DEFAULT_MAX_FRET = 22;
@@ -3755,7 +3757,7 @@ function ChordLaneWorkspace({
             type="button"
             data-gte-editor-control="true"
             onClick={appendChordBar}
-            className="absolute z-30 flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white text-base font-semibold text-slate-600 shadow-sm hover:border-slate-400 hover:bg-slate-100"
+            className="absolute z-30 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-emerald-600 text-2xl font-semibold leading-none text-white shadow-[0_8px_22px_rgba(5,150,105,0.32)] ring-1 ring-emerald-700/30 transition hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-[0_10px_26px_rgba(5,150,105,0.4)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
             style={{
               left:
                 timelineContentOffset +
@@ -3768,7 +3770,7 @@ function ChordLaneWorkspace({
                   ? chordTabRowCount * chordTabRowStride
                   : (chordTabRowCount - 1) * chordTabRowStride +
                     TIMELINE_BAR_HEADER_HEIGHT +
-                    Math.max(4, timelineRowHeight / 2 - 14),
+                    Math.max(4, timelineRowHeight / 2 - ADD_BAR_BUTTON_HALF_SIZE),
             }}
             title="Add bar to end"
             aria-label="Add bar to end"
@@ -5306,7 +5308,7 @@ export default function GteWorkspace({
   const addBarTop =
     TIMELINE_BAR_HEADER_HEIGHT +
     (addBarStartsNewRow ? rows * rowStride : lastRowIndex * rowStride) +
-    Math.max(0, Math.round(rowHeight / 2) - 14);
+    Math.max(0, Math.round(rowHeight / 2) - ADD_BAR_BUTTON_HALF_SIZE);
   const timelineEnd = barCount * framesPerMeasure;
   const snapThresholdFrames = Math.max(1, Math.round(4 / Math.max(1, scale)));
   const playbackFps = fps;
@@ -16447,7 +16449,7 @@ export default function GteWorkspace({
               const tabAddBarTop =
                 tabAddBarRowIndex * (tabRowHeight + ROW_GAP) +
                 TIMELINE_BAR_HEADER_HEIGHT +
-                Math.max(0, Math.round(editorTabView.height / 2) - 14);
+                Math.max(0, Math.round(editorTabView.height / 2) - ADD_BAR_BUTTON_HALF_SIZE);
 
               return (
                 <div
@@ -16747,7 +16749,7 @@ export default function GteWorkspace({
                       event.preventDefault();
                       event.stopPropagation();
                     }}
-                    className="absolute z-40 flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white/95 text-base font-semibold text-slate-600 shadow-sm hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900"
+                    className="absolute z-40 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-emerald-600 text-2xl font-semibold leading-none text-white shadow-[0_8px_22px_rgba(5,150,105,0.32)] ring-1 ring-emerald-700/30 transition hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-[0_10px_26px_rgba(5,150,105,0.4)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
                     style={{ left: tabAddBarLeft, top: tabAddBarTop }}
                     title="Add bars to end"
                     aria-label="Add bars to end"
@@ -16903,9 +16905,9 @@ export default function GteWorkspace({
                     event.preventDefault();
                     event.stopPropagation();
                   }}
-                    className="absolute z-40 flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white/95 text-base font-semibold text-slate-600 shadow-sm hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900"
+                    className="absolute z-40 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-emerald-600 text-2xl font-semibold leading-none text-white shadow-[0_8px_22px_rgba(5,150,105,0.32)] ring-1 ring-emerald-700/30 transition hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-[0_10px_26px_rgba(5,150,105,0.4)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
                     style={{
-                      left: Math.max(0, Math.min(timelineChromeWidth - 28, addBarLeft)),
+                      left: Math.max(0, Math.min(timelineChromeWidth - ADD_BAR_BUTTON_SIZE, addBarLeft)),
                       top: addBarTop,
                     }}
                   title="Add bar to end"
