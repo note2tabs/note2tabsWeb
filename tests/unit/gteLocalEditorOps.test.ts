@@ -129,10 +129,26 @@ describe("gte local editor operations", () => {
   it("adds and removes bars with deterministic note shifts", () => {
     let next = addBarLocal(snapshot());
     expect(next.totalFrames).toBe(1440);
+    expect(next.cutPositionsWithCoords).toEqual([
+      [[0, 480], [2, 0]],
+      [[480, 1440], [3, 2]],
+    ]);
 
     next = removeBarLocal(next, 0);
     expect(next.totalFrames).toBe(960);
     expect(next.notes.map((note) => note.startTime)).toEqual([]);
     expect(next.chords.map((chord) => chord.startTime)).toEqual([0]);
+  });
+
+  it("cleans adjacent matching playing coordinates when adding a bar", () => {
+    const base = snapshot();
+    base.cutPositionsWithCoords = [
+      [[0, 480], [2, 0]],
+      [[480, 960], [2, 0]],
+    ];
+
+    const next = addBarLocal(base);
+
+    expect(next.cutPositionsWithCoords).toEqual([[[0, 1440], [2, 0]]]);
   });
 });

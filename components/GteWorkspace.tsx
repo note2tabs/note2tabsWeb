@@ -696,7 +696,9 @@ const normalizeCutRegions = (draft: EditorSnapshot, regions: CutWithCoord[]): Cu
     })
     .filter((entry) => entry[0][1] > entry[0][0])
     .sort((left, right) => left[0][0] - right[0][0]);
-  return normalized.length ? normalized : buildDefaultCutRegions(draft);
+  if (!normalized.length) return buildDefaultCutRegions(draft);
+  normalized[normalized.length - 1][0][1] = totalFrames;
+  return normalized;
 };
 
 const getCutRegions = (draft: EditorSnapshot) =>
@@ -1264,6 +1266,10 @@ const applyBarOperationCleanupInSnapshot = (draft: EditorSnapshot) => {
   mergeRedundantCutRegionsInSnapshot(draft);
 };
 
+const cleanPlayingCoordinatesAfterBarAddInSnapshot = (draft: EditorSnapshot) => {
+  mergeRedundantCutRegionsInSnapshot(draft);
+};
+
 const cloneCutRegionsPayload = (regions: CutWithCoord[]): CutWithCoord[] =>
   regions.map((region) => [
     [region[0][0], region[0][1]],
@@ -1458,6 +1464,7 @@ const addBarsInSnapshot = (draft: EditorSnapshot, count: number) => {
   if (!draft.cutPositionsWithCoords.length) {
     draft.cutPositionsWithCoords = buildDefaultCutRegions(draft);
   }
+  cleanPlayingCoordinatesAfterBarAddInSnapshot(draft);
 };
 
 const removeBarInSnapshot = (draft: EditorSnapshot, index: number) => {
@@ -2839,15 +2846,12 @@ function ChordLaneWorkspace({
   }, [commitSnapshot, selectedChordIds, snapshot]);
 
   const appendChordBar = useCallback(() => {
-    commitSnapshot(
-      {
-        ...snapshot,
-        totalFrames:
-          Math.max(FIXED_FRAMES_PER_BAR, Math.ceil(snapshot.totalFrames / FIXED_FRAMES_PER_BAR) * FIXED_FRAMES_PER_BAR) +
-          FIXED_FRAMES_PER_BAR,
-      },
-      { recordHistory: true }
-    );
+    const nextSnapshot = cloneSnapshot(snapshot);
+    nextSnapshot.totalFrames =
+      Math.max(FIXED_FRAMES_PER_BAR, Math.ceil(snapshot.totalFrames / FIXED_FRAMES_PER_BAR) * FIXED_FRAMES_PER_BAR) +
+      FIXED_FRAMES_PER_BAR;
+    cleanPlayingCoordinatesAfterBarAddInSnapshot(nextSnapshot);
+    commitSnapshot(nextSnapshot, { recordHistory: true });
   }, [commitSnapshot, snapshot]);
 
   useEffect(() => {
@@ -11196,7 +11200,7 @@ export default function GteWorkspace({
       const added = await gteApi.addBars(editorId, safeCount);
       if (!added.snapshot) return added;
       const cleanedSnapshot = cloneSnapshot(added.snapshot);
-      applyBarOperationCleanupInSnapshot(cleanedSnapshot);
+      cleanPlayingCoordinatesAfterBarAddInSnapshot(cleanedSnapshot);
       if (cutRegionsEqual(added.snapshot.cutPositionsWithCoords, cleanedSnapshot.cutPositionsWithCoords)) {
         return added;
       }
@@ -11204,7 +11208,6 @@ export default function GteWorkspace({
     }, {
       localApply: (draft) => {
         addBarsInSnapshot(draft, safeCount);
-        applyBarOperationCleanupInSnapshot(draft);
       },
     });
   };
