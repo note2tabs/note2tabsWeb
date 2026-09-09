@@ -9151,11 +9151,26 @@ export default function GteWorkspace({
         const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, 5);
         const rawStartTime = Math.round(current.startX / scale) + rowStart;
         const startTime = clamp(snapStartTimeToGrid(rawStartTime), rowStart, rowStart + availableFrames - 1);
+        const currentCursor = keyboardGridCursorRef.current;
+        const tappedCurrentCursor =
+          mobileViewport &&
+          currentCursor?.time === startTime &&
+          currentCursor.stringIndex === stringIndex;
         setKeyboardGridCursor({ time: startTime, stringIndex });
         setKeyboardCursorVisible(true);
         setKeyboardAddMode(null);
-        setDraftNote(null);
-        setDraftNoteAnchor(null);
+        if (tappedCurrentCursor) {
+          setDraftNote({
+            stringIndex,
+            fret: 0,
+            startTime,
+            length: lastAddedNoteLengthRef.current,
+          });
+          setDraftNoteAnchor(null);
+        } else {
+          setDraftNote(null);
+          setDraftNoteAnchor(null);
+        }
         // Placing the tab cursor also anchors where the next explicit "Play"
         // will start from (startFrameAnchorRef, tracked at the page level).
         onGlobalPlaybackFrameChange?.(startTime);
@@ -9255,6 +9270,7 @@ export default function GteWorkspace({
     snapshot.chords,
     clamp,
     snapStartTimeToGrid,
+    mobileViewport,
   ]);
 
   useEffect(() => {
@@ -9817,34 +9833,6 @@ export default function GteWorkspace({
       setBusy(false);
     }
   };
-
-  const appendDraftFretDigit = useCallback((digit: string) => {
-    setDraftNote((prev) => {
-      if (!prev) return prev;
-      const current = prev.fret === null ? "" : String(prev.fret);
-      const nextText = `${current}${digit}`.replace(/^0+(?=\d)/, "");
-      const nextValue = nextText === "" ? null : Number(nextText);
-      if (nextValue === null) {
-        return { ...prev, fret: null };
-      }
-      if (!Number.isInteger(nextValue) || nextValue < 0 || nextValue > maxFret) {
-        return prev;
-      }
-      return { ...prev, fret: nextValue };
-    });
-  }, [maxFret]);
-
-  const backspaceDraftFretDigit = useCallback(() => {
-    setDraftNote((prev) => {
-      if (!prev) return prev;
-      const current = prev.fret === null ? "" : String(prev.fret);
-      const nextText = current.slice(0, -1);
-      return {
-        ...prev,
-        fret: nextText ? Number(nextText) : null,
-      };
-    });
-  }, []);
 
   const handleAddNote = () => {
     if (!draftNote) return;
@@ -10415,6 +10403,87 @@ export default function GteWorkspace({
     setSelectedNoteIds([]);
   };
 
+  const moveSelectedMobileNote = useCallback(
+    (direction: "left" | "right" | "up" | "down") => {
+      if (!selectedNote) return;
+      const resolvedId = resolveNoteId(selectedNote.id);
+      if (direction === "up" || direction === "down") {
+        const nextString = clamp(selectedNote.tab[0] + (direction === "up" ? -1 : 1), 0, 5);
+        if (nextString === selectedNote.tab[0]) return;
+        const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [nextString, selectedNote.tab[1]]);
+        const updates = getEffectAwareFingeringUpdates(snapshotRef.current, [
+          { noteId: resolvedId, tab: nextTab },
+        ]);
+        playNotePreview(nextTab);
+        enqueueOptimisticMutation({
+          label: "mobile-note-move-string",
+          apply: (draft) => {
+            applyNoteFingeringUpdates(draft, updates);
+            return draft;
+          },
+          commit: async () => {
+            let last: { snapshot?: EditorSnapshot } | null = null;
+            for (const update of updates) {
+              last = await gteApi.assignNoteTab(editorId, update.noteId, update.tab);
+            }
+            return last ?? {};
+          },
+        });
+        return;
+      }
+      const step = Math.max(1, cursorSizeDenominatorToFrames(cursorSizeDenominator));
+      const maxStart = Math.max(0, timelineEnd - Math.max(1, Math.round(selectedNote.length)));
+      const nextStart = clamp(
+        selectedNote.startTime + (direction === "left" ? -step : step),
+        0,
+        maxStart
+      );
+      if (nextStart === selectedNote.startTime) return;
+      enqueueOptimisticMutation({
+        label: "mobile-note-move-time",
+        apply: (draft) => {
+          const note = draft.notes.find((item) => item.id === resolvedId);
+          if (note) note.startTime = nextStart;
+          return draft;
+        },
+        commit: () => gteApi.setNoteStartTime(editorId, resolvedId, nextStart, snapToGridEnabled),
+      });
+    },
+    [
+      clamp,
+      cursorSizeDenominator,
+      editorId,
+      enqueueOptimisticMutation,
+      resolveNoteId,
+      selectedNote,
+      snapTabToKeyIfEnabled,
+      snapToGridEnabled,
+      timelineEnd,
+    ]
+  );
+
+  const scaleSelectedMobileNote = useCallback(
+    (factor: 0.5 | 2) => {
+      if (!selectedNote) return;
+      const resolvedId = resolveNoteId(selectedNote.id);
+      const nextLength = snapLengthToGrid(clampEventLength(selectedNote.length * factor));
+      if (nextLength === selectedNote.length) return;
+      setNoteMenuDraft((prev) =>
+        prev ? { ...prev, length: formatLengthFramesAsSeconds(nextLength) } : prev
+      );
+      enqueueOptimisticMutation({
+        label: "mobile-note-scale",
+        apply: (draft) => {
+          const note = draft.notes.find((item) => item.id === resolvedId);
+          if (note) note.length = nextLength;
+          return draft;
+        },
+        commit: () => gteApi.setNoteLength(editorId, resolvedId, nextLength, snapToGridEnabled),
+      });
+    },
+    [editorId, enqueueOptimisticMutation, resolveNoteId, selectedNote, snapLengthToGrid, snapToGridEnabled]
+  );
+
   const handleAddNoteEffect = useCallback(
     (type: number) => {
       if (guardSingleTrackSelectionAction(getNoteEffectTypeName(type))) return;
@@ -10872,45 +10941,6 @@ export default function GteWorkspace({
       commitNoteMenuLengthValue(nextLength);
     },
     [commitNoteMenuLengthValue, formatLengthFramesAsSeconds, noteFractionDenominatorToFrames]
-  );
-
-  const adjustMobileNoteField = useCallback(
-    (field: "fret" | "length", delta: number) => {
-      const fallbackValue =
-        field === "fret" ? selectedNote?.tab[1] ?? 0 : selectedNote?.length ?? lastAddedNoteLengthRef.current;
-      const currentValue = Number(noteMenuDraft?.[field] ?? (field === "fret" ? fallbackValue : formatLengthFramesAsSeconds(fallbackValue)));
-      const nextValue =
-        field === "fret"
-          ? Math.max(0, Math.min(maxFret, (Number.isFinite(currentValue) ? currentValue : fallbackValue) + delta))
-          : Math.max(
-              framesToDurationSeconds(1),
-              Math.min(
-                framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES),
-                (Number.isFinite(currentValue) ? currentValue : framesToDurationSeconds(fallbackValue)) + delta * 0.1
-              )
-            );
-      const nextDraftValue = field === "fret" ? String(nextValue) : formatDurationSeconds(nextValue);
-      setNoteMenuDraft((prev) => (prev ? { ...prev, [field]: nextDraftValue } : prev));
-      if (field === "fret") {
-        if (!selectedNote) return;
-        scheduleNoteFretArrowCommit(selectedNote.id, nextValue);
-      } else {
-        const nextLengthFrames = parseLengthSecondsToFrames(nextDraftValue);
-        if (nextLengthFrames !== null) {
-          commitNoteMenuLengthValue(nextLengthFrames);
-        }
-      }
-    },
-    [
-      commitNoteMenuLengthValue,
-      formatLengthFramesAsSeconds,
-      framesToDurationSeconds,
-      maxFret,
-      noteMenuDraft,
-      parseLengthSecondsToFrames,
-      scheduleNoteFretArrowCommit,
-      selectedNote,
-    ]
   );
 
   const adjustDesktopNoteMenuFret = useCallback(
@@ -13743,7 +13773,7 @@ export default function GteWorkspace({
     : "relative min-w-0 rounded-2xl border border-slate-200 bg-white p-5 space-y-5 -ml-3 w-[calc(100%+0.75rem)]";
 
   const keyboardCursorMarker = useMemo<KeyboardCursorMarker | null>(() => {
-    if (mobileViewport || !keyboardGridCursor || !keyboardCursorVisible) return null;
+    if ((mobileViewport && !isMobileEditMode) || !keyboardGridCursor || !keyboardCursorVisible) return null;
     const safeTime = snapKeyboardCursorTimeToGrid(keyboardGridCursor.time);
     const step = getKeyboardGridCellWidthFrames(safeTime);
     const rowIndex = rowFrames > 0 ? clamp(Math.floor(safeTime / rowFrames), 0, rows - 1) : 0;
@@ -13763,6 +13793,7 @@ export default function GteWorkspace({
     keyboardCursorVisible,
     keyboardGridCursor,
     mobileViewport,
+    isMobileEditMode,
     rowFrames,
     rowStride,
     rows,
@@ -18278,42 +18309,46 @@ export default function GteWorkspace({
                         Cancel
                       </button>
                     </div>
-                    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center">
-                      <div className="text-[10px] uppercase tracking-wide text-slate-500">Fret</div>
-                      <div className="mt-1 text-2xl font-semibold text-slate-900">
-                        {draftNote.fret === null ? "--" : draftNote.fret}
-                      </div>
+                    <label className="mt-3 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                      <span className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        <span>Fret</span>
+                        <span className="text-xl font-bold tabular-nums text-slate-900">{draftNote.fret ?? 0}</span>
+                      </span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={maxFret}
+                        step={1}
+                        value={draftNote.fret ?? 0}
+                        onChange={(event) => {
+                          const fret = Number(event.currentTarget.value);
+                          setDraftNote((prev) => (prev ? { ...prev, fret } : prev));
+                          playNotePreview([draftNote.stringIndex, fret]);
+                        }}
+                        className="mt-3 h-8 w-full accent-emerald-600"
+                        aria-label="New note fret"
+                      />
+                    </label>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDraftNote(null);
+                          setDraftNoteAnchor(null);
+                        }}
+                        className="h-11 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-700"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddNote}
+                        disabled={draftNote.fret === null}
+                        className="h-11 rounded-xl bg-slate-900 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                      >
+                        OK
+                      </button>
                     </div>
-                    <div className="mt-2 grid grid-cols-3 gap-1.5">
-                      {["1", "2", "3", "4", "5", "6", "7", "8", "9", "Clear", "0", "Del"].map((key) => (
-                        <button
-                          key={`draft-key-${key}`}
-                          type="button"
-                          onClick={() => {
-                            if (key === "Clear") {
-                              setDraftNote((prev) => (prev ? { ...prev, fret: null } : prev));
-                              return;
-                            }
-                            if (key === "Del") {
-                              backspaceDraftFretDigit();
-                              return;
-                            }
-                            appendDraftFretDigit(key);
-                          }}
-                          className="flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-800"
-                        >
-                          {key}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleAddNote}
-                      disabled={draftNote.fret === null}
-                      className="mt-2 w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-                    >
-                      Add note
-                    </button>
                   </div>
                 )}
                 {draftNote && draftNoteAnchor && !mobileViewport && (
@@ -18426,14 +18461,14 @@ export default function GteWorkspace({
         </div>
         {showMobileEditRail && (
           <div className="mt-2 shrink-0" data-gte-floating-ui="true">
-            <div className="flex h-[13rem] items-stretch gap-2 pb-[5rem]">
+            <div className="flex items-stretch gap-2 pb-[5rem]">
               <div
                 ref={showMobileInlineNoteSettings ? noteMenuRef : null}
                 className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white p-2.5 shadow-lg"
                 onMouseDown={(event) => event.stopPropagation()}
               >
                 {showMobileInlineNoteSettings && selectedNote && noteMenuDraft ? (
-                  <div className="flex h-full min-h-0 flex-col">
+                  <div className="flex min-h-0 flex-col">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                         Note settings
@@ -18452,85 +18487,54 @@ export default function GteWorkspace({
                         Delete
                       </button>
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      {(["fret", "length"] as const).map((field) => {
-                        const label = field === "fret" ? "Fret" : "Length sec";
-                        const value = field === "fret" ? noteMenuDraft.fret : noteMenuDraft.length;
-                        const commitField = field === "fret" ? commitNoteMenuFret : commitNoteMenuLength;
-                        return (
-                          <div key={field} className="rounded-lg border border-slate-200 bg-slate-50 p-1.5">
-                            <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-                              {label}
-                            </div>
-                            <div className="mt-1 flex items-stretch gap-1.5">
-                              <input
-                                type="number"
-                                min={field === "fret" ? 0 : framesToDurationSeconds(1)}
-                                max={field === "fret" ? maxFret : framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
-                                step={field === "fret" ? 1 : 0.01}
-                                inputMode={field === "fret" ? "numeric" : "decimal"}
-                                enterKeyHint="done"
-                                value={value}
-                                onChange={(event) =>
-                                  setNoteMenuDraft((prev) =>
-                                    prev ? { ...prev, [field]: event.target.value } : prev
-                                  )
-                                }
-                                onFocus={(event) => event.currentTarget.select()}
-                                onKeyDown={(event) => {
-                                  if (event.key !== "Enter") return;
-                                  event.preventDefault();
-                                  commitField();
-                                }}
-                                onBlur={() => commitField()}
-                                className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[16px] font-semibold text-slate-900 outline-none"
-                              />
-                              <div className="flex flex-col gap-1">
-                                <button
-                                  type="button"
-                                  onMouseDown={(event) => event.preventDefault()}
-                                  onClick={() => adjustMobileNoteField(field, 1)}
-                                  className="flex h-[18px] w-6 items-center justify-center rounded border border-slate-200 bg-white text-[9px] text-slate-600"
-                                  aria-label={`Increase ${label.toLowerCase()}`}
-                                >
-                                  &#9650;
-                                </button>
-                                <button
-                                  type="button"
-                                  onMouseDown={(event) => event.preventDefault()}
-                                  onClick={() => adjustMobileNoteField(field, -1)}
-                                  className="flex h-[18px] w-6 items-center justify-center rounded border border-slate-200 bg-white text-[9px] text-slate-600"
-                                  aria-label={`Decrease ${label.toLowerCase()}`}
-                                >
-                                  &#9660;
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-1.5">
-                        <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-                          Length
-                        </div>
-                        <select
-                          value={getNearestNoteFractionDenominator(selectedNote.length)}
-                          onChange={(event) => commitNoteMenuFractionLength(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key !== "Enter") return;
-                            event.preventDefault();
-                            commitNoteMenuFractionLength(event.currentTarget.value);
-                          }}
-                          className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-[13px] font-semibold text-slate-900 outline-none"
-                          aria-label={`Musical note length ${formatLengthFramesAsFraction(selectedNote.length)}`}
+                    <label className="mt-2 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <span className="flex items-center justify-between text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                        <span>Fret</span>
+                        <span className="text-lg font-bold tabular-nums text-slate-900">{noteMenuDraft.fret}</span>
+                      </span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={maxFret}
+                        step={1}
+                        value={Number(noteMenuDraft.fret)}
+                        onChange={(event) => {
+                          const fret = Number(event.currentTarget.value);
+                          setNoteMenuDraft((prev) => (prev ? { ...prev, fret: String(fret) } : prev));
+                          scheduleNoteFretArrowCommit(selectedNote.id, fret);
+                        }}
+                        className="mt-1 h-7 w-full accent-emerald-600"
+                        aria-label="Selected note fret"
+                      />
+                    </label>
+                    <div className="mt-2 grid grid-cols-4 gap-1.5" aria-label="Move selected note">
+                      {(["left", "up", "down", "right"] as const).map((direction) => (
+                        <button
+                          key={direction}
+                          type="button"
+                          onClick={() => moveSelectedMobileNote(direction)}
+                          className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
+                          aria-label={`Move note ${direction}`}
                         >
-                          {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
-                            <option key={denominator} value={denominator}>
-                              {formatNoteLengthOption(denominator)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                          {direction === "left" ? "←" : direction === "right" ? "→" : direction === "up" ? "↑" : "↓"}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => scaleSelectedMobileNote(0.5)}
+                        className="h-10 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-100"
+                      >
+                        Scale ½×
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => scaleSelectedMobileNote(2)}
+                        className="h-10 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-100"
+                      >
+                        Scale 2×
+                      </button>
                     </div>
                     <label className="mt-2 block text-[9px] font-semibold uppercase tracking-wide text-slate-500">
                       Fingering

@@ -2029,7 +2029,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       setMobileControlsOpen((prev) => (matches ? prev : false));
       setMobileNavOpen((prev) => (matches ? prev : false));
       if (matches) {
-        setEditorMode("practice");
         setMobileEditLaneId(null);
         setMobileControlsOpen(false);
       } else {
@@ -6695,6 +6694,53 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         Menu
                       </div>
                       <div className="mt-3 space-y-2">
+                        <details className="rounded-xl border border-slate-200 bg-white">
+                          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold text-slate-700">
+                            <span>Tools</span>
+                            <span aria-hidden="true" className="text-slate-400">›</span>
+                          </summary>
+                          <div className="max-h-[55vh] overflow-y-auto border-t border-slate-200 p-2">
+                            <div ref={setEditMenuPortalTarget} />
+                            <div className="mt-1 border-t border-slate-200 pt-1">
+                              <button type="button" onClick={openTimingEditor} className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">
+                                Bar tempo…
+                              </button>
+                              <button type="button" onClick={() => setFindKeyDialogOpen(true)} className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">
+                                Detect song key
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setGeneratePlayingCoordinatesRequest((request) => request + 1)}
+                                disabled={!activeLaneId}
+                                className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:text-slate-400"
+                              >
+                                Generate playing coordinates
+                              </button>
+                            </div>
+                          </div>
+                        </details>
+                        <details className="rounded-xl border border-slate-200 bg-white">
+                          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold text-slate-700">
+                            <span>Help</span>
+                            <span aria-hidden="true" className="text-slate-400">›</span>
+                          </summary>
+                          <div className="max-h-[55vh] overflow-y-auto border-t border-slate-200 p-2">
+                            <div className="mb-2 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                              <span>Editor tutorial</span>
+                              <EditorTutorialTrigger />
+                            </div>
+                            {SHORTCUT_HELP_SECTIONS.map(([title, shortcuts]) => (
+                              <section key={`mobile-help-${title}`} className="border-t border-slate-100 py-2 first:border-0">
+                                <h3 className="px-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{title}</h3>
+                                {shortcuts.map(([label, shortcut]) => (
+                                  <div key={`mobile-help-${title}-${label}`} className="flex min-h-8 items-center gap-2 rounded-lg px-2 text-xs text-slate-700">
+                                    <span>{label}</span><span className="ml-auto text-[10px] text-slate-400">{shortcut}</span>
+                                  </div>
+                                ))}
+                              </section>
+                            ))}
+                          </div>
+                        </details>
                         {isGuestMode ? (
                           <>
                             <Link href="/" className="block rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
@@ -8926,10 +8972,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               if (practiceModeEnabled && laneId !== globalControlsLaneId) {
                 return null;
               }
-              if (isMobileViewport && mobileEditLaneId && laneId !== mobileEditLaneId) {
-                return null;
-              }
-              if (!practiceModeEnabled && !isMobileViewport && laneId !== desktopVisibleLaneId) {
+              if (!practiceModeEnabled && laneId !== desktopVisibleLaneId) {
                 return null;
               }
               const laneEditorRef = buildLaneEditorRef(editorId, laneId);
@@ -8955,7 +8998,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 : trackInstrumentOptions.find((option) => option.id === instrumentValue)?.label ||
                   "Built-in synth";
               const tuning = getSnapshotTuning(lane);
-              const mobileEditing = isMobileViewport && mobileEditLaneId === laneId;
+              const mobileEditing = isMobileViewport && !practiceModeEnabled && laneId === desktopVisibleLaneId;
               const mobileSelectedBars =
                 isMobileViewport && barSelection?.laneId === laneId ? barSelection.barIndices : [];
               const mobileBarPasteIndex = mobileSelectedBars.length
@@ -9191,7 +9234,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                               sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
-                              sharedViewportBarCount={sharedViewportBarCount}
+                              sharedViewportBarCount={Math.min(sharedViewportBarCount, 2)}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
                                 practiceModeEnabled
