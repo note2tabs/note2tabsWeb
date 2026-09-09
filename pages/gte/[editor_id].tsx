@@ -39,6 +39,7 @@ import {
   secondsToFrame,
   timingMapForCanvas,
 } from "../../lib/gteTiming";
+import { flushGteTelemetry, queueGteTelemetry } from "../../lib/gteTelemetryClient";
 import {
   buildPracticeRatingBars,
   encodeMonoWav,
@@ -1891,18 +1892,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         heartbeatSequence?: number;
       } = {}
     ) => {
-      const payload = {
+      return queueGteTelemetry({
         event,
         editorId,
         sessionId,
         path: window.location.pathname,
         ...properties,
-      };
-      return fetch("/api/gte/telemetry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        keepalive: true,
       });
     };
 
@@ -1937,7 +1932,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       telemetryClosedRef.current = true;
       const startedAt = telemetryStartedAtRef.current ?? Date.now();
       const durationSec = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
-      const payload = JSON.stringify({
+      void queueGteTelemetry({
         event: "gte_editor_session_end",
         editorId,
         sessionId,
@@ -1945,19 +1940,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         activeDurationSec: currentActiveDurationSec(),
         path: window.location.pathname,
       });
-
-      if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-        const blob = new Blob([payload], { type: "application/json" });
-        navigator.sendBeacon("/api/gte/telemetry", blob);
-        return;
-      }
-
-      void fetch("/api/gte/telemetry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: payload,
-        keepalive: true,
-      }).catch(() => {});
+      void flushGteTelemetry("beacon");
     };
 
     const handlePageHide = () => flushSessionEnd();
@@ -1975,18 +1958,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
   useEffect(() => {
     if (!editorId || editorMode !== "practice" || !telemetrySessionRef.current) return;
-    void fetch("/api/gte/telemetry", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    void queueGteTelemetry({
         event: "gte_practice_started",
         editorId,
         sessionId: telemetrySessionRef.current,
         mode: "practice",
         path: window.location.pathname,
-      }),
-      keepalive: true,
-    }).catch(() => {});
+      });
   }, [editorId, editorMode]);
 
   useEffect(() => {

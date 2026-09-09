@@ -60,4 +60,21 @@ describe("job polling", () => {
     );
     expect(result.job).toEqual({ job_id: "job_123", status: "done" });
   });
+
+  it("coalesces identical concurrent browser polls without changing their result", async () => {
+    let resolveResponse!: (response: Response) => void;
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => { resolveResponse = resolve; }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const first = requestJobStatus<{ status: string }>("job_123", { etag: '"v1"' });
+    const second = requestJobStatus<{ status: string }>("job_123", { etag: '"v1"' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveResponse(new Response(JSON.stringify({ status: "processing" }), { status: 200 }));
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      expect.objectContaining({ job: { status: "processing" } }),
+      expect.objectContaining({ job: { status: "processing" } }),
+    ]);
+    vi.unstubAllGlobals();
+  });
 });

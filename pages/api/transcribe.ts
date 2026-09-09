@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { attachFunctionTiming } from "../../lib/functionTiming";
 import { publicTranscriptionError } from "../../lib/backendError";
 import { getServerSession } from "next-auth/next";
 import { IncomingForm, type File as FormidableFile } from "formidable";
@@ -415,6 +416,7 @@ async function waitForBackendJobResult(initialPayload: unknown, headers: Record<
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  attachFunctionTiming(res, "/api/transcribe");
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });
