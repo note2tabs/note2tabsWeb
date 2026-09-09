@@ -9,6 +9,8 @@ export type JobStatusPollResult<T> = {
   retryAfterMs: number;
 };
 
+const inFlightPolls = new Map<string, Promise<JobStatusPollResult<unknown>>>();
+
 export function parseRetryAfterMs(
   value: string | null,
   fallbackMs = DEFAULT_JOB_POLL_DELAY_MS,
@@ -28,7 +30,7 @@ export function parseRetryAfterMs(
   return Math.min(MAX_JOB_POLL_DELAY_MS, Math.max(MIN_JOB_POLL_DELAY_MS, Math.round(requestedDelayMs)));
 }
 
-export async function requestJobStatus<T>(
+async function requestJobStatusUncached<T>(
   jobId: string,
   options: {
     includeOutput?: boolean;
@@ -64,4 +66,25 @@ export async function requestJobStatus<T>(
     etag: responseEtag,
     retryAfterMs,
   };
+}
+
+export function requestJobStatus<T>(
+  jobId: string,
+  options: {
+    includeOutput?: boolean;
+    etag?: string | null;
+    fetcher?: typeof fetch;
+  } = {}
+): Promise<JobStatusPollResult<T>> {
+  // A custom fetcher is normally a test or isolated caller and must retain its
+  // exact invocation semantics. Browser callers share identical concurrent polls.
+  if (options.fetcher) return requestJobStatusUncached<T>(jobId, options);
+  const key = `${jobId}:${Boolean(options.includeOutput)}:${options.etag || ""}`;
+  const existing = inFlightPolls.get(key);
+  if (existing) return existing as Promise<JobStatusPollResult<T>>;
+  const request = requestJobStatusUncached<T>(jobId, options).finally(() => {
+    if (inFlightPolls.get(key) === request) inFlightPolls.delete(key);
+  });
+  inFlightPolls.set(key, request as Promise<JobStatusPollResult<unknown>>);
+  return request;
 }

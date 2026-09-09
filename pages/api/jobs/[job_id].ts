@@ -5,6 +5,7 @@ import { prisma } from "../../../lib/prisma";
 import { buildUniqueTabJobLabel, deriveTabJobBaseLabel } from "../../../lib/tabJobNames";
 import { normalizePositiveDurationSec } from "../../../lib/transcriptionDuration";
 import { sendTranscriptionCompleteEmailOnce } from "../../../lib/transcriptionCompleteEmail";
+import { attachFunctionTiming } from "../../../lib/functionTiming";
 import {
   parseStoredTabPayload,
   normalizeTranscriberTracks,
@@ -31,6 +32,7 @@ const LARGE_JOB_FIELDS = [
   "note_events",
   "noteEvents",
 ];
+const acknowledgedDurableResults = new Set<string>();
 
 function getJobSources(job: unknown) {
   if (!job || typeof job !== "object" || Array.isArray(job)) return [] as Record<string, unknown>[];
@@ -447,6 +449,8 @@ async function findPersistedTabJob(jobId: string, sessionUserId: string) {
 }
 
 async function markBackendJobPersisted(jobId: string, sessionUserId: string, tabJobId: string) {
+  const acknowledgementKey = `${jobId}:${sessionUserId}:${tabJobId}`;
+  if (acknowledgedDurableResults.has(acknowledgementKey)) return;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
   try {
@@ -465,10 +469,15 @@ async function markBackendJobPersisted(jobId: string, sessionUserId: string, tab
       }
     );
     if (!response.ok) {
+      const detail = (await response.text()).slice(0, 300);
       console.warn("Backend job durability acknowledgement failed", {
         jobId,
         status: response.status,
+        detail,
       });
+    } else {
+      acknowledgedDurableResults.add(acknowledgementKey);
+      if (acknowledgedDurableResults.size > 500) acknowledgedDurableResults.delete(acknowledgedDurableResults.values().next().value!);
     }
   } catch (error) {
     // The persisted TabJob remains the source of truth. A later final-status
@@ -595,6 +604,8 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  let upstreamBytes = 0;
+  attachFunctionTiming(res, "/api/jobs/[job_id]", () => ({ upstreamBytes }));
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).json({ error: "Method not allowed" });
@@ -632,7 +643,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const pollingHeadersSource = fetched.upstream;
   const text = fetched.text;
   const contentType = fetched.contentType;
-  let upstreamBytes = fetched.bytes;
+  upstreamBytes = fetched.bytes;
   let fetchedFullOutput = clientRequestedFullOutput;
   let persistedTab = false;
   if (!text) {
@@ -675,7 +686,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         if (tabJobId) {
           persistedTab = true;
-          await markBackendJobPersisted(jobId, session.user.id, tabJobId);
+          const backendDurableResultId = getStringValue(payload, ["durableResultId"]);
+          if (backendDurableResultId !== tabJobId) {
+            await markBackendJobPersisted(jobId, session.user.id, tabJobId);
+          }
           try {
             await sendTranscriptionCompleteEmailOnce({
               userId: session.user.id,

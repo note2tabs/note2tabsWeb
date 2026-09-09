@@ -32,6 +32,7 @@ import {
   normalizeShareEmail,
   releaseTabShareEmailDelivery,
 } from "../../../lib/tabShareEmailPreferences";
+import { attachFunctionTiming } from "../../../lib/functionTiming";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -307,6 +308,8 @@ async function maybeLogGteAnalyticsEvent(input: {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const requestStartedAt = Date.now();
+  let timingPath = "";
+  attachFunctionTiming(res, "/api/gte/[[...path]]", () => ({ method: req.method, path: timingPath }));
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.id) {
     return res.status(401).json({ error: "Your session has expired. Please sign in again." });
@@ -322,6 +325,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const method = req.method || "GET";
   const path = getPath(req);
+  timingPath = path;
   const editorRef = getGteEditorRefFromPath(path);
   const editorInputSettingsRef = getEditorInputSettingsRef(method, path);
   if (editorInputSettingsRef) {
