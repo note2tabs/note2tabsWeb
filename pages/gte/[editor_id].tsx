@@ -8843,10 +8843,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         </div>
         )}
         {isGuestMode && !isMobileEditMode && !practiceModeEnabled && (
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm sm:flex-wrap sm:gap-4 sm:rounded-xl sm:px-4 sm:py-3">
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-slate-800">Keep your work safe</div>
-              <div className="mt-0.5 text-xs leading-5 text-slate-500">
+              <div className="truncate text-xs font-medium text-slate-600 sm:hidden">
+                {session?.user?.id ? "Save your draft." : "Sign in to save."}
+              </div>
+              <div className="hidden text-sm font-semibold text-slate-800 sm:block">Keep your work safe</div>
+              <div className="mt-0.5 hidden text-xs leading-5 text-slate-500 sm:block">
                 Create a free account to save this draft and continue on any device.
               </div>
             </div>
@@ -8854,21 +8857,21 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               <button
                 type="button"
                 onClick={() => void router.push(saveToAccountPath)}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-700"
+                className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 sm:px-4 sm:py-2"
               >
                 Save this draft
               </button>
             ) : (
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 items-center gap-1 sm:gap-2">
                 <Link
                   href={loginSaveHref}
-                  className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                  className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 sm:bg-transparent sm:py-2 sm:text-slate-600 sm:hover:bg-slate-100 sm:hover:text-slate-900"
                 >
                   Sign in
                 </Link>
                 <Link
                   href={signupSaveHref}
-                  className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-700"
+                  className="hidden rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 sm:block"
                 >
                   Create free account
                 </Link>
