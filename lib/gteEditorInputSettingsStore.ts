@@ -6,7 +6,7 @@ import { prisma } from "./prisma";
 const LANE_DELIMITER = "__ed__";
 const TABLE = Prisma.raw(`"GteEditorInputSetting"`);
 const NOTE_SIZE_DENOMINATORS = new Set([0.5, 1, 2, 3, 4, 8, 16, 32, 64]);
-const CURSOR_SIZE_DENOMINATORS = new Set([1, 2, 3, 4, 8, 16, 32, 64]);
+const CURSOR_SIZE_DENOMINATORS = new Set([1, 2, 4, 8, 16, 32, 64]);
 
 export type GteEditorInputSettings = {
   defaultNoteLengthDenominator: number;

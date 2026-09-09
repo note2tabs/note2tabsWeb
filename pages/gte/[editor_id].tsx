@@ -84,6 +84,8 @@ import { buildChordPlaybackWindows } from "../../lib/gteChordPlayback";
 import GteFileImportButton from "../../components/GteFileImportButton";
 import ShareDialog from "../../components/ShareDialog";
 import { EditorLoadingState } from "../../components/EditorLoadingState";
+import EditorTutorial, { EditorTutorialTrigger } from "../../components/EditorTutorial";
+import { prisma } from "../../lib/prisma";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
   buildGteExportFile,
@@ -145,6 +147,8 @@ const GteWorkspace = dynamic(() => import("../../components/GteTrackWorkspace"),
 type Props = {
   editorId: string;
   isGuestMode: boolean;
+  hasAccount: boolean;
+  passedTutorial: boolean;
 };
 
 type TrackOffsetSession = {
@@ -179,7 +183,7 @@ const CONTROL_COMMIT_DEBOUNCE_MS = 350;
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
 const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32, 64];
-const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 3, 4, 8, 16, 32, 64];
+const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 4, 8, 16, 32, 64];
 const SNAP_SUBDIVISION_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 const TOOL_SHORTCUT_HELP = [
   ["Scale", "S"],
@@ -202,8 +206,8 @@ const TOOL_SHORTCUT_HELP = [
 const SIZE_SHORTCUT_HELP = [
   ["Smaller add-note size", ","],
   ["Larger add-note size", "."],
-  ["Larger cursor size", "N"],
-  ["Smaller cursor size", "M"],
+  ["Smaller cursor size", "N"],
+  ["Larger cursor size", "M"],
 ] as const;
 const TRACK_CURSOR_SHORTCUT_HELP = [
   ["Move cursor", "Arrow keys"],
@@ -1278,7 +1282,7 @@ const moveBarsInCanvas = (
   );
 };
 
-export default function GteEditorPage({ editorId, isGuestMode }: Props) {
+export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passedTutorial }: Props) {
   useGteRenderInstrumentation("GteEditorPage", editorId);
   const { data: session } = useSession();
   const [canvas, setCanvas] = useState<CanvasSnapshot | null>(null);
@@ -8006,13 +8010,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                         Back home
                       </Link>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => router.push("/gte")}
-                        className="inline-flex h-8 w-32 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
-                      >
-                        Back to editors
-                      </button>
+                      <div className="relative">
+                        <EditorTutorialTrigger className="absolute bottom-[calc(100%+6px)] right-0 z-10" />
+                        <button
+                          type="button"
+                          onClick={() => router.push("/gte")}
+                          className="inline-flex h-8 w-32 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+                        >
+                          Back to editors
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -8550,13 +8557,16 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
                     )}
                   </>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => router.push("/gte")}
-                    className="button-secondary button-small min-h-[34px]"
-                  >
-                    Back to editors
-                  </button>
+                  <div className="relative">
+                    <EditorTutorialTrigger className="absolute bottom-[calc(100%+6px)] right-0 z-10" />
+                    <button
+                      type="button"
+                      onClick={() => router.push("/gte")}
+                      className="button-secondary button-small min-h-[34px]"
+                    >
+                      Back to editors
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -11292,6 +11302,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       {shareDialogOpen && (
         <ShareDialog editorId={editorId} onClose={() => setShareDialogOpen(false)} />
       )}
+      <EditorTutorial hasAccount={hasAccount} passedTutorial={passedTutorial} />
       </main>
     </>
   );
@@ -11300,11 +11311,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const editorId = `${ctx.params?.editor_id || ""}`;
   const normalizedEditorId = editorId.trim().toLowerCase();
+  const session = await getServerSession(ctx.req, ctx.res, authOptions);
+  const tutorialUser = session?.user?.id
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { passedTutorial: true },
+      })
+    : null;
   if (normalizedEditorId === GTE_GUEST_EDITOR_ID) {
-    return { props: { editorId: GTE_GUEST_EDITOR_ID, isGuestMode: true } };
+    return {
+      props: {
+        editorId: GTE_GUEST_EDITOR_ID,
+        isGuestMode: true,
+        hasAccount: Boolean(session?.user?.id),
+        passedTutorial: Boolean(tutorialUser?.passedTutorial),
+      },
+    };
   }
 
-  const session = await getServerSession(ctx.req, ctx.res, authOptions);
   if (!session?.user?.id) {
     return {
       redirect: {
@@ -11313,5 +11337,12 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       },
     };
   }
-  return { props: { editorId, isGuestMode: false } };
+  return {
+    props: {
+      editorId,
+      isGuestMode: false,
+      hasAccount: true,
+      passedTutorial: Boolean(tutorialUser?.passedTutorial),
+    },
+  };
 };

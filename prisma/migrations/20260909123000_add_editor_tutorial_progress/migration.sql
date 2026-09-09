@@ -1,0 +1,2 @@
+ALTER TABLE "User"
+ADD COLUMN "passedTutorial" BOOLEAN NOT NULL DEFAULT false;
