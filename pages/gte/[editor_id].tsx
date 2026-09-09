@@ -84,6 +84,8 @@ import { buildChordPlaybackWindows } from "../../lib/gteChordPlayback";
 import GteFileImportButton from "../../components/GteFileImportButton";
 import ShareDialog from "../../components/ShareDialog";
 import { EditorLoadingState } from "../../components/EditorLoadingState";
+import EditorTutorial from "../../components/EditorTutorial";
+import { prisma } from "../../lib/prisma";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
   buildGteExportFile,
@@ -145,6 +147,8 @@ const GteWorkspace = dynamic(() => import("../../components/GteTrackWorkspace"),
 type Props = {
   editorId: string;
   isGuestMode: boolean;
+  hasAccount: boolean;
+  passedTutorial: boolean;
 };
 
 type TrackOffsetSession = {
@@ -1278,7 +1282,7 @@ const moveBarsInCanvas = (
   );
 };
 
-export default function GteEditorPage({ editorId, isGuestMode }: Props) {
+export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passedTutorial }: Props) {
   useGteRenderInstrumentation("GteEditorPage", editorId);
   const { data: session } = useSession();
   const [canvas, setCanvas] = useState<CanvasSnapshot | null>(null);
@@ -11292,6 +11296,7 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
       {shareDialogOpen && (
         <ShareDialog editorId={editorId} onClose={() => setShareDialogOpen(false)} />
       )}
+      <EditorTutorial hasAccount={hasAccount} passedTutorial={passedTutorial} />
       </main>
     </>
   );
@@ -11300,11 +11305,24 @@ export default function GteEditorPage({ editorId, isGuestMode }: Props) {
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const editorId = `${ctx.params?.editor_id || ""}`;
   const normalizedEditorId = editorId.trim().toLowerCase();
+  const session = await getServerSession(ctx.req, ctx.res, authOptions);
+  const tutorialUser = session?.user?.id
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { passedTutorial: true },
+      })
+    : null;
   if (normalizedEditorId === GTE_GUEST_EDITOR_ID) {
-    return { props: { editorId: GTE_GUEST_EDITOR_ID, isGuestMode: true } };
+    return {
+      props: {
+        editorId: GTE_GUEST_EDITOR_ID,
+        isGuestMode: true,
+        hasAccount: Boolean(session?.user?.id),
+        passedTutorial: Boolean(tutorialUser?.passedTutorial),
+      },
+    };
   }
 
-  const session = await getServerSession(ctx.req, ctx.res, authOptions);
   if (!session?.user?.id) {
     return {
       redirect: {
@@ -11313,5 +11331,12 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       },
     };
   }
-  return { props: { editorId, isGuestMode: false } };
+  return {
+    props: {
+      editorId,
+      isGuestMode: false,
+      hasAccount: true,
+      passedTutorial: Boolean(tutorialUser?.passedTutorial),
+    },
+  };
 };

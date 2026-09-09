@@ -58,6 +58,7 @@ model User {
   lastActiveAt                DateTime             @default(now())
   emailVerifiedBool           Boolean              @default(false)
   unverifiedTranscriptionUsed Boolean              @default(false)
+  passedTutorial              Boolean              @default(false)
   accounts                    Account[]
   feedbackSubmissions         FeedbackSubmission[]
   gteTrackPlaybackSettings    GteTrackPlaybackSetting[]
