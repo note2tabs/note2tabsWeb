@@ -16,11 +16,10 @@ const globalStyles = fs.readFileSync(
 );
 
 describe("editor practice mode", () => {
-  it("uses the smart backend generator for track-wide fingering tools", () => {
-    expect(workspace).not.toContain("generateCutsInSnapshot");
-    expect(workspace).toContain("gteApi.generateCuts(editorId");
-    expect(workspace).toContain("const generated = await requestGeneratedPlayingCoordinates()");
-    expect(workspace).toContain('serverMode: "immediate"');
+  it("uses the frontend port of the smart backend generator for track-wide fingering tools", () => {
+    expect(workspace).toContain("generatePlayingCoordinatesInSnapshot(optimized)");
+    expect(workspace).toContain("localApply: generatePlayingCoordinatesInSnapshot");
+    expect(workspace).not.toContain("gteApi.generateCuts(editorId");
   });
 
   it("keeps play and rate hidden behind its frontend feature flag", () => {

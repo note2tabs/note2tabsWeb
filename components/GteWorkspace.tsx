@@ -48,6 +48,7 @@ import {
   orderNotesForEffect,
 } from "../lib/gteNoteEffects";
 import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
+import { generatePlayingCoordinatesInSnapshot } from "../lib/gtePlayingCoordinates";
 import {
   getChordFingeringDatasetType,
   getChordFingeringMidiNotes,
@@ -9887,21 +9888,13 @@ export default function GteWorkspace({
     setDraftNoteAnchor(null);
   };
 
-  const requestGeneratedPlayingCoordinates = () => {
-    const current = snapshotRef.current;
-    return gteApi.generateCuts(editorId, {
-      tuning: current.tuning,
-      maxFret: current.maxFret,
-    });
-  };
-
   const handleOptimizeFingering = () => {
     if (snapshotRef.current.notes.length === 0 && snapshotRef.current.chords.length === 0) return;
     setOptimizingFingering(true);
     void runMutation(
       async () => {
-        const generated = await requestGeneratedPlayingCoordinates();
-        const optimized = cloneSnapshot(generated.snapshot);
+        const optimized = cloneSnapshot(snapshotRef.current);
+        generatePlayingCoordinatesInSnapshot(optimized);
         optimizeTrackFingeringInSnapshot(optimized);
         finalizeOptimizedTrackFingeringInSnapshot(optimized);
         mergeRedundantCutRegionsInSnapshot(optimized);
@@ -11167,9 +11160,12 @@ export default function GteWorkspace({
   };
 
   const handleGenerateCuts = () => {
-    void runMutation(requestGeneratedPlayingCoordinates, {
-      serverMode: "immediate",
-      unavailableMessage: "Generated playing coordinates are available after saving this draft to an account.",
+    void runMutation(async () => {
+      const generated = cloneSnapshot(snapshotRef.current);
+      generatePlayingCoordinatesInSnapshot(generated);
+      return gteApi.applySnapshot(editorId, generated);
+    }, {
+      localApply: generatePlayingCoordinatesInSnapshot,
     });
   };
 

@@ -12,10 +12,10 @@ const guestApi = fs.readFileSync(
 );
 
 describe("smart playing-coordinate generation routing", () => {
-  it("routes generation and whole-track fingering optimization through the same backend generator", () => {
-    expect(workspace).not.toContain("generateCutsInSnapshot");
-    expect(workspace).toContain("const generated = await requestGeneratedPlayingCoordinates()");
-    expect(workspace).toContain("runMutation(requestGeneratedPlayingCoordinates");
+  it("routes generation and whole-track fingering optimization through the frontend backend-port", () => {
+    expect(workspace).toContain("generatePlayingCoordinatesInSnapshot(optimized)");
+    expect(workspace).toContain("localApply: generatePlayingCoordinatesInSnapshot");
+    expect(workspace).not.toContain("gteApi.generateCuts");
   });
 
   it("keeps the guest canvas clone path and has no simplistic local fallback", () => {
