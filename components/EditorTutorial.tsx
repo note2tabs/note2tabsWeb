@@ -59,12 +59,14 @@ const tutorialToken = (token: string, key: number) => {
     arrows: "← ↑ ↓ →",
     backspace: "Backspace",
     delete: "Del",
+    m: "M",
+    s: "S",
   };
   return labels[token] ? <kbd key={key} className={keyClass}>{labels[token]}</kbd> : `{${token}}`;
 };
 
 const renderTutorialText = (text: string) =>
-  text.split(/(\{(?:numbers|mouse|enter|plus|minus|arrows|backspace|delete)\})/g).map((part, index) => {
+  text.split(/(\{(?:numbers|mouse|enter|plus|minus|arrows|backspace|delete|m|s)\})/g).map((part, index) => {
     const match = part.match(/^\{(.+)\}$/);
     return match ? tutorialToken(match[1], index) : part;
   });
