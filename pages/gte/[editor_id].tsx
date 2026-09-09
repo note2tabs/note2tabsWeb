@@ -1320,6 +1320,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [mobileEditLaneId, setMobileEditLaneId] = useState<string | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
+  const [mobileEditingSettingsOpen, setMobileEditingSettingsOpen] = useState(false);
+  const [mobileTrackMenuOpen, setMobileTrackMenuOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [savingCanvas, setSavingCanvas] = useState(false);
   const [exportingTrack, setExportingTrack] = useState(false);
@@ -3637,6 +3639,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   );
 
   const mobileControlsSummary = `${nameDraft || "Untitled"} - ${bpmDraft} BPM - ${timeSignatureDraft}/${timeSignatureBottomDraft}`;
+  const mobileActiveLaneIndex = Math.max(
+    0,
+    canvas?.editors.findIndex((lane, index) => (lane.id || `ed-${index + 1}`) === activeLaneId) ?? 0
+  );
+  const mobileActiveLane = canvas?.editors[mobileActiveLaneIndex];
   const isMobileCanvasMode = isMobileViewport && mobileEditLaneId === null;
   const isMobileEditMode = isMobileViewport && mobileEditLaneId !== null;
   const globalControlsLaneId = useMemo(() => {
@@ -6843,38 +6850,37 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               </div>
               {renderViewModeSwitch(true)}
             </div>
-            <div className={practiceModeEnabled ? "hidden" : "rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"}>
-              <button
-                type="button"
-                onClick={() => setMobileControlsOpen((prev) => !prev)}
-                className="flex w-full items-center justify-between gap-3 text-left"
-                aria-expanded={mobileControlsOpen}
-              >
-                <span className="min-w-0">
-                  <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Project settings
+            <div className={practiceModeEnabled ? "hidden" : "space-y-2"}>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileControlsOpen((prev) => !prev);
+                    setMobileEditingSettingsOpen(false);
+                  }}
+                  className={`min-w-0 rounded-xl border p-3 text-left shadow-sm ${mobileControlsOpen ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white"}`}
+                  aria-expanded={mobileControlsOpen}
+                >
+                  <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Project settings</span>
+                  <span className="mt-1 block truncate text-xs text-slate-700">{mobileControlsSummary}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileEditingSettingsOpen((prev) => !prev);
+                    setMobileControlsOpen(false);
+                  }}
+                  className={`min-w-0 rounded-xl border p-3 text-left shadow-sm ${mobileEditingSettingsOpen ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white"}`}
+                  aria-expanded={mobileEditingSettingsOpen}
+                >
+                  <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Editing settings</span>
+                  <span className="mt-1 block truncate text-xs text-slate-700">
+                    Note 1/{chordOnlyDefaultNoteLengthDenominator} · Cursor 1/{chordOnlyCursorSizeDenominator}
                   </span>
-                  <span className="block truncate text-sm text-slate-700">{mobileControlsSummary}</span>
-                </span>
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600">
-                  <svg
-                    viewBox="0 0 24 24"
-                    className={`h-4 w-4 transition-transform ${mobileControlsOpen ? "rotate-180" : ""}`}
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M6 9l6 6 6-6"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={1.9}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-              </button>
+                </button>
+              </div>
               {mobileControlsOpen && (
-                <div className="mt-3 grid gap-3">
+                <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                   <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     Name
                     <input
@@ -7045,111 +7051,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       </span>
                     </label>
                   </div>
-                  <details className="rounded-xl border border-slate-200 bg-slate-50">
-                    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-slate-700">
-                      Editing behavior
-                      <span className="text-xs font-normal text-slate-500">
-                        Notes, cursor & snapping
-                      </span>
-                    </summary>
-                    <div className="grid grid-cols-2 gap-2 border-t border-slate-200 p-2">
-                      <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2">
-                      <label className="grid gap-1 text-xs font-medium text-slate-600">
-                        Add note size
-                        <select
-                          value={chordOnlyDefaultNoteLengthDenominator}
-                          onKeyDown={blockSizeSelectKeyboardChange}
-                          onChange={(event) =>
-                            handleDefaultNoteLengthDenominatorChange(Number(event.target.value))
-                          }
-                          className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
-                        >
-                          {(noteCursorSizesLinked
-                            ? CURSOR_SIZE_FRACTION_DENOMINATORS
-                            : NOTE_LENGTH_FRACTION_DENOMINATORS
-                          ).map((denominator) => (
-                            <option key={`mobile-note-size-${denominator}`} value={denominator}>
-                              {formatNoteLengthOption(denominator)}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="text-[10px] font-normal text-slate-400">
-                          <kbd>,</kbd> smaller / <kbd>.</kbd> larger
-                        </span>
-                      </label>
-                      <SizeLinkToggle
-                        linked={noteCursorSizesLinked}
-                        onToggle={toggleNoteCursorSizeLink}
-                        className="self-center"
-                      />
-                      <label className="grid gap-1 text-xs font-medium text-slate-600">
-                        Cursor size
-                        <select
-                          value={chordOnlyCursorSizeDenominator}
-                          onKeyDown={blockSizeSelectKeyboardChange}
-                          onChange={(event) =>
-                            handleCursorSizeDenominatorChange(Number(event.target.value))
-                          }
-                          className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
-                        >
-                          {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
-                            <option key={`mobile-cursor-size-${denominator}`} value={denominator}>
-                              1/{denominator}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="text-[10px] font-normal text-slate-400">
-                          <kbd>N</kbd> larger / <kbd>M</kbd> smaller
-                        </span>
-                      </label>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
-                        aria-pressed={globalSnapToGridEnabled}
-                        className="flex min-h-11 items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-left text-sm text-slate-700"
-                      >
-                        <span>Snap to grid</span>
-                        <span className="text-xs text-slate-500">{globalSnapToGridEnabled ? "On" : "Off"}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
-                        aria-pressed={globalSnapToKeyEnabled}
-                        className="flex min-h-11 items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-left text-sm text-slate-700"
-                      >
-                        <span>Snap to key</span>
-                        <span className="text-xs text-slate-500">{globalSnapToKeyEnabled ? "On" : "Off"}</span>
-                      </button>
-                    </div>
-                  </details>
-                  <details className="rounded-xl border border-slate-200 bg-slate-50">
-                    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-slate-700">
-                      Display
-                      <span className="text-xs font-normal text-slate-500">
-                        Timeline labels & counter
-                      </span>
-                    </summary>
-                    <div className="grid gap-1 border-t border-slate-200 p-2">
-                      {([
-                        ["showBarNumbers", "Bar numbers"],
-                        ["showPlaybackCounter", "Playback counter"],
-                      ] as const).map(([key, label]) => (
-                        <button
-                          key={`mobile-display-${key}`}
-                          type="button"
-                          onClick={() => updateDisplayPreference(key, !displayPreferences[key])}
-                          aria-pressed={displayPreferences[key]}
-                          className="flex min-h-11 items-center justify-between rounded-lg bg-white px-3 text-left text-sm text-slate-700"
-                        >
-                          <span>{label}</span>
-                          <span className="text-xs text-slate-500">
-                            {displayPreferences[key] ? "On" : "Off"}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </details>
                   <div className="flex min-h-[1.25rem] flex-wrap items-center gap-3 text-xs">
                     <span className="text-slate-600" role="status" aria-live="polite">{saveStatus}</span>
                     {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
@@ -7160,6 +7061,55 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       </span>
                     )}
                   </div>
+                </div>
+              )}
+              {mobileEditingSettingsOpen && (
+                <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2">
+                    <label className="grid gap-1 text-xs font-medium text-slate-600">
+                      Add note size
+                      <select
+                        value={chordOnlyDefaultNoteLengthDenominator}
+                        onKeyDown={blockSizeSelectKeyboardChange}
+                        onChange={(event) => handleDefaultNoteLengthDenominatorChange(Number(event.target.value))}
+                        className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
+                      >
+                        {(noteCursorSizesLinked ? CURSOR_SIZE_FRACTION_DENOMINATORS : NOTE_LENGTH_FRACTION_DENOMINATORS).map((denominator) => (
+                          <option key={`mobile-note-size-${denominator}`} value={denominator}>{formatNoteLengthOption(denominator)}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <SizeLinkToggle linked={noteCursorSizesLinked} onToggle={toggleNoteCursorSizeLink} className="self-center" />
+                    <label className="grid gap-1 text-xs font-medium text-slate-600">
+                      Cursor size
+                      <select
+                        value={chordOnlyCursorSizeDenominator}
+                        onKeyDown={blockSizeSelectKeyboardChange}
+                        onChange={(event) => handleCursorSizeDenominatorChange(Number(event.target.value))}
+                        className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
+                      >
+                        {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
+                          <option key={`mobile-cursor-size-${denominator}`} value={denominator}>1/{denominator}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
+                    aria-pressed={globalSnapToGridEnabled}
+                    className="flex min-h-11 items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 text-left text-sm text-slate-700"
+                  >
+                    <span>Grid</span><span className="text-xs text-slate-500">{globalSnapToGridEnabled ? "On" : "Off"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
+                    aria-pressed={globalSnapToKeyEnabled}
+                    className="flex min-h-11 items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 text-left text-sm text-slate-700"
+                  >
+                    <span>Key</span><span className="text-xs text-slate-500">{globalSnapToKeyEnabled ? "On" : "Off"}</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -10656,58 +10606,88 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               );
             })()}
             {!practiceModeEnabled && isMobileViewport && !mobileEditLaneId && (
-              <div className="relative flex justify-center pt-1">
-                <button
-                  type="button"
-                  onClick={() => setAddTrackMenuOpen((open) => !open)}
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={addingLane}
-                  title={addingLane ? "Adding track..." : "Add track"}
-                  aria-label={addingLane ? "Adding track" : "Add track"}
-                  aria-expanded={addTrackMenuOpen}
-                  aria-haspopup="menu"
-                >
-                  <span className="text-base leading-none" aria-hidden="true">+</span>
-                  <span>{addingLane ? "Adding…" : "Add track"}</span>
-                </button>
-                {addTrackMenuOpen && (
-                  <div
-                    className="absolute bottom-11 z-30 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-xl"
-                    role="menu"
-                    aria-label="Add track"
-                  >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
-                      onClick={() => void handleAddLane("tab")}
-                      disabled={addingLane}
-                    >
-                      <span>Tab</span>
-                      <span className="text-xs text-slate-400">Track</span>
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
-                      onClick={() => void handleAddLane("chords")}
-                      disabled={addingLane}
-                    >
-                      <span>Chords</span>
-                      <span className="text-xs text-slate-400">Track</span>
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
-                      onClick={() => void handleAddLane("drums")}
-                      disabled={addingLane}
-                    >
-                      <span>Drums</span>
-                      <span className="text-xs text-slate-400">Track</span>
-                    </button>
+              <div className="fixed bottom-[5.75rem] left-3 right-3 z-[70]" data-gte-floating-ui="true">
+                {mobileTrackMenuOpen && (
+                  <div className="mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.2)]" role="listbox" aria-label="Choose track">
+                    {canvas.editors.map((lane, index) => {
+                      const laneId = lane.id || `ed-${index + 1}`;
+                      const active = laneId === activeLaneId;
+                      return (
+                        <button
+                          key={`mobile-track-choice-${laneId}`}
+                          type="button"
+                          role="option"
+                          aria-selected={active}
+                          onClick={() => {
+                            setActiveLaneId(laneId);
+                            setOpenMobileBarMenuLaneId(null);
+                            setMobileTrackMenuOpen(false);
+                          }}
+                          className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-sm ${active ? "bg-emerald-50 font-semibold text-emerald-950" : "text-slate-700 active:bg-slate-50"}`}
+                        >
+                          <span className="min-w-0 truncate">{lane.name || `Track ${index + 1}`}</span>
+                          <span className="ml-3 shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                            {isDrumLane(lane) ? "Drums" : isChordLane(lane) ? "Chords" : "Tab"}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
+                {addTrackMenuOpen && (
+                  <div className="mb-2 ml-auto w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl" role="menu" aria-label="Add track">
+                    {(["tab", "chords", "drums"] as const).map((type) => (
+                      <button
+                        key={`mobile-add-${type}`}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setAddTrackMenuOpen(false);
+                          void handleAddLane(type);
+                        }}
+                        disabled={addingLane}
+                        className="flex min-h-10 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-50 disabled:opacity-50"
+                      >
+                        <span>{type === "tab" ? "Tab" : type === "chords" ? "Chords" : "Drums"}</span>
+                        <span className="text-xs text-slate-400">Track</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_14px_40px_rgba(15,23,42,0.18)]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileTrackMenuOpen((open) => !open);
+                      setAddTrackMenuOpen(false);
+                    }}
+                    className="flex min-w-0 flex-1 items-center justify-between rounded-xl px-2.5 py-1.5 text-left"
+                    aria-expanded={mobileTrackMenuOpen}
+                    aria-haspopup="listbox"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-400">Track</span>
+                      <span className="block truncate text-sm font-semibold text-slate-800">
+                        {mobileActiveLane?.name || `Track ${mobileActiveLaneIndex + 1}`}
+                      </span>
+                    </span>
+                    <span className={`ml-3 text-slate-500 transition ${mobileTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true">⌃</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddTrackMenuOpen((open) => !open);
+                      setMobileTrackMenuOpen(false);
+                    }}
+                    disabled={addingLane}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-xl text-white disabled:opacity-50"
+                    title="Add track"
+                    aria-label="Add track"
+                    aria-expanded={addTrackMenuOpen}
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             )}
           </div>

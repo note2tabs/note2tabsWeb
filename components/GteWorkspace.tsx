@@ -18459,7 +18459,7 @@ export default function GteWorkspace({
             </div>
           </div>
         </div>
-        {showMobileEditRail && (
+        {showMobileEditRail && showMobileInlineNoteSettings && selectedNote && noteMenuDraft && (
           <div className="mt-2 shrink-0" data-gte-floating-ui="true">
             <div className="flex items-stretch gap-2 pb-[5rem]">
               <div
@@ -18467,8 +18467,7 @@ export default function GteWorkspace({
                 className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white p-2.5 shadow-lg"
                 onMouseDown={(event) => event.stopPropagation()}
               >
-                {showMobileInlineNoteSettings && selectedNote && noteMenuDraft ? (
-                  <div className="flex min-h-0 flex-col">
+                <div className="flex min-h-0 flex-col">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                         Note settings
@@ -18563,17 +18562,7 @@ export default function GteWorkspace({
                         ))}
                       </select>
                     </label>
-                  </div>
-                ) : (
-                  <div className="flex h-full flex-col justify-center">
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                      Note settings
-                    </div>
-                    <div className="mt-1 text-[11px] leading-4 text-slate-500">
-                      Select one note to edit fret, length, or fingering.
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           </div>
