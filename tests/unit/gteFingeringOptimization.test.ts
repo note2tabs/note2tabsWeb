@@ -4,7 +4,6 @@ import {
   createBackendStyleChordAlternatives,
   createPossibleTabs,
   finalizeOptimizedTrackFingeringInSnapshot,
-  generateCutsInSnapshot,
   generateOctaveCombos,
   optimizeTrackFingeringInSnapshot,
   scoreChord,
@@ -58,16 +57,6 @@ const snapshot = (): EditorSnapshot => ({
 });
 
 describe("track fingering optimization", () => {
-  it("generates playing coordinates entirely from the current frontend snapshot", () => {
-    const draft = snapshot();
-
-    generateCutsInSnapshot(draft);
-
-    expect(draft.cutPositionsWithCoords.length).toBeGreaterThan(1);
-    expect(draft.cutPositionsWithCoords[0][0][0]).toBe(0);
-    expect(draft.cutPositionsWithCoords.at(-1)?.[0][1]).toBe(draft.totalFrames);
-  });
-
   it("clusters nearby overlapping onsets without mutating the notes", () => {
     const notes = snapshot().notes;
     const before = JSON.stringify(notes);
@@ -90,8 +79,9 @@ describe("track fingering optimization", () => {
     expect(groups.map((group) => group.notes.map((item) => item.id))).toEqual([[1], [2], [3, 4]]);
   });
 
-  it("generates coordinates, chordizes clusters, and preserves every pitch", () => {
+  it("chordizes clusters, preserves every pitch, and keeps backend-generated coordinates", () => {
     const draft = snapshot();
+    const generatedCoordinates = structuredClone(draft.cutPositionsWithCoords);
     const result = optimizeTrackFingeringInSnapshot(draft);
 
     expect(result.createdChordIds).toHaveLength(1);
@@ -104,7 +94,7 @@ describe("track fingering optimization", () => {
         getTabMidi(draft, tab, draft.chords[0].originalMidi[index])
       )
     ).toEqual(draft.chords[0].originalMidi);
-    expect(draft.cutPositionsWithCoords.length).toBeGreaterThan(1);
+    expect(draft.cutPositionsWithCoords).toEqual(generatedCoordinates);
   });
 
   it("preserves coordinates supplied by the playing-coordinate generator", () => {
@@ -116,7 +106,7 @@ describe("track fingering optimization", () => {
     ];
     draft.cutPositionsWithCoords = generatedCoordinates;
 
-    optimizeTrackFingeringInSnapshot(draft, { generatePlayingCoordinates: false });
+    optimizeTrackFingeringInSnapshot(draft);
 
     expect(draft.cutPositionsWithCoords).toEqual(generatedCoordinates);
   });
@@ -170,7 +160,7 @@ describe("track fingering optimization", () => {
     draft.chords = [chord(20, 0, 120, [[1, 1], [0, 0]], [60, 64])];
     const expectedBest = createBackendStyleChordAlternatives(draft, [60, 64], [2, 5])[0];
 
-    optimizeTrackFingeringInSnapshot(draft, { generatePlayingCoordinates: false });
+    optimizeTrackFingeringInSnapshot(draft);
 
     expect(draft.chords[0].currentTabs).toEqual(expectedBest);
     expect(draft.chords[0].ogTabs).toEqual(expectedBest);
