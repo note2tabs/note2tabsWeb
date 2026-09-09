@@ -307,6 +307,11 @@ const ROW_HEIGHT = 24;
 const ROW_GAP = 32;
 const ADD_BAR_BUTTON_SIZE = 40;
 const ADD_BAR_BUTTON_HALF_SIZE = ADD_BAR_BUTTON_SIZE / 2;
+const AddBarIcon = () => (
+  <svg viewBox="0 0 20 20" className="h-5 w-5 fill-none stroke-current" aria-hidden="true">
+    <path d="M10 4v12M4 10h12" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
 const BARS_PER_ROW = 3;
 const DEFAULT_NOTE_LENGTH = 20;
 const DEFAULT_MAX_FRET = 22;
@@ -3775,7 +3780,7 @@ function ChordLaneWorkspace({
             title="Add bar to end"
             aria-label="Add bar to end"
           >
-            +
+            <AddBarIcon />
           </button>
           <div
             ref={chordLanePlayheadRef}
@@ -16754,7 +16759,7 @@ export default function GteWorkspace({
                     title="Add bars to end"
                     aria-label="Add bars to end"
                   >
-                    +
+                    <AddBarIcon />
                   </button>
 
                 </div>
@@ -16913,7 +16918,7 @@ export default function GteWorkspace({
                   title="Add bar to end"
                   aria-label="Add bar to end"
                 >
-                  +
+                  <AddBarIcon />
                 </button>
                 <div
                   ref={timelineRef}
