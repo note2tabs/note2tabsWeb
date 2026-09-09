@@ -6734,31 +6734,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       <div className="mt-3 space-y-2">
                         <details className="rounded-xl border border-slate-200 bg-white">
                           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold text-slate-700">
-                            <span>Tools</span>
-                            <span aria-hidden="true" className="text-slate-400">›</span>
-                          </summary>
-                          <div className="max-h-[55vh] overflow-y-auto border-t border-slate-200 p-2">
-                            <div ref={setEditMenuPortalTarget} />
-                            <div className="mt-1 border-t border-slate-200 pt-1">
-                              <button type="button" onClick={openTimingEditor} className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">
-                                Bar tempo…
-                              </button>
-                              <button type="button" onClick={() => setFindKeyDialogOpen(true)} className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">
-                                Detect song key
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setGeneratePlayingCoordinatesRequest((request) => request + 1)}
-                                disabled={!activeLaneId}
-                                className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:text-slate-400"
-                              >
-                                Generate playing coordinates
-                              </button>
-                            </div>
-                          </div>
-                        </details>
-                        <details className="rounded-xl border border-slate-200 bg-white">
-                          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold text-slate-700">
                             <span>Help</span>
                             <span aria-hidden="true" className="text-slate-400">›</span>
                           </summary>
@@ -6882,6 +6857,28 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               {renderViewModeSwitch(true)}
             </div>
             <div className={practiceModeEnabled ? "hidden" : "space-y-2"}>
+              <details className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold text-slate-700">
+                  <span>Tools</span>
+                  <span aria-hidden="true" className="text-slate-400">⌄</span>
+                </summary>
+                <div className="max-h-[60vh] overflow-y-auto border-t border-slate-200 p-2">
+                  <div ref={setEditMenuPortalTarget} />
+                  <div className="mt-1 grid gap-1 border-t border-slate-100 pt-1">
+                    <button type="button" onClick={() => setFindKeyDialogOpen(true)} className="min-h-11 rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-100">
+                      Detect song key
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGeneratePlayingCoordinatesRequest((request) => request + 1)}
+                      disabled={!activeLaneId}
+                      className="min-h-11 rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-100 disabled:text-slate-400"
+                    >
+                      Generate playing coordinates
+                    </button>
+                  </div>
+                </div>
+              </details>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"

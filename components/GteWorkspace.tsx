@@ -7616,12 +7616,14 @@ export default function GteWorkspace({
     quantizeSessionRef.current = null;
   }, []);
 
-  const activateQuantizeTool = useCallback(() => {
+  const activateQuantizeTool = useCallback((selection?: { noteIds: number[]; chordIds: number[] }) => {
+    const noteIds = selection?.noteIds ?? selectedNoteIds;
+    const chordIds = selection?.chordIds ?? selectedChordIds;
     const notes = snapshot.notes
-      .filter((note) => selectedNoteIds.includes(note.id))
+      .filter((note) => noteIds.includes(note.id))
       .map((note) => ({ id: note.id, startTime: note.startTime, length: note.length }));
     const chords = snapshot.chords
-      .filter((chord) => selectedChordIds.includes(chord.id))
+      .filter((chord) => chordIds.includes(chord.id))
       .map((chord) => ({ id: chord.id, startTime: chord.startTime, length: chord.length }));
     if (!notes.length && !chords.length) {
       setError("Select at least one note/chord before using Quantize.");
@@ -9931,13 +9933,13 @@ export default function GteWorkspace({
     setSelectedChordIds([]);
   };
 
-  const handleOptimizeToCoordinates = () => {
-    if (!selectedNoteIds.length) return;
+  const handleOptimizeToCoordinates = (noteIds: number[] = selectedNoteIds) => {
+    if (!noteIds.length) return;
     void runMutation(
       async () => ({}),
       {
         localApply: (draft) => {
-          const resolvedIds = selectedNoteIds
+          const resolvedIds = noteIds
             .map((id) => (id < 0 ? noteIdMapRef.current.get(id) ?? id : id))
             .filter((id) => id >= 0);
           if (!resolvedIds.length) return;
@@ -9965,10 +9967,10 @@ export default function GteWorkspace({
     );
   };
 
-  const handleSnapSelectedNotesToKey = () => {
-    if (!selectedNoteIds.length) return;
+  const handleSnapSelectedNotesToKey = (noteIds: number[] = selectedNoteIds) => {
+    if (!noteIds.length) return;
     if (guardSingleTrackSelectionAction("Snap to key")) return;
-    const selectedIds = Array.from(new Set(selectedNoteIds.map((id) => resolveNoteId(id))));
+    const selectedIds = Array.from(new Set(noteIds.map((id) => resolveNoteId(id))));
     const selectedIdSet = new Set(selectedIds);
     const requestedUpdates = snapshotRef.current.notes
       .filter((note) => selectedIdSet.has(note.id))
@@ -10005,6 +10007,29 @@ export default function GteWorkspace({
         return last ?? {};
       },
     });
+  };
+
+  const runMobileWholeTrackTool = (tool: "coordinates" | "snap-key" | "quantize") => {
+    const noteIds = snapshotRef.current.notes.map((note) => note.id);
+    const chordIds = snapshotRef.current.chords.map((chord) => chord.id);
+    setSelectedNoteIds(noteIds);
+    setSelectedChordIds(chordIds);
+    selectedNoteIdsRef.current = noteIds;
+    selectedChordIdsRef.current = chordIds;
+    setNoteMenuAnchor(null);
+    setNoteMenuNoteId(null);
+    setNoteMenuDraft(null);
+    setChordMenuAnchor(null);
+    setChordMenuChordId(null);
+    setChordMenuDraft(null);
+    setPendingSelectionTool(null);
+    if (tool === "coordinates") {
+      handleOptimizeToCoordinates(noteIds);
+    } else if (tool === "snap-key") {
+      handleSnapSelectedNotesToKey(noteIds);
+    } else {
+      activateQuantizeTool({ noteIds, chordIds });
+    }
   };
 
   const handleJoinSelectedNotes = () => {
@@ -14204,6 +14229,40 @@ export default function GteWorkspace({
       );
     };
 
+    if (inlineMobile) {
+      const mobileButtonClass =
+        "flex min-h-11 w-full items-center rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-100 disabled:text-slate-400";
+      const allTrackEventsEmpty = snapshot.notes.length === 0 && snapshot.chords.length === 0;
+      return (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-editor-control="true"
+          className="grid gap-1"
+          onMouseDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
+        >
+          <button type="button" onClick={() => void handleOptimizeFingering()} disabled={optimizingFingering || allTrackEventsEmpty} className={mobileButtonClass}>
+            Optimize fingering
+          </button>
+          <button type="button" onClick={() => runMobileWholeTrackTool("coordinates")} disabled={snapshot.notes.length === 0} className={mobileButtonClass}>
+            Optimize to coordinates
+          </button>
+          <button type="button" onClick={() => runMobileWholeTrackTool("snap-key")} disabled={snapshot.notes.length === 0} className={mobileButtonClass}>
+            Snap to key
+          </button>
+          <button type="button" onClick={() => void handleMakeChord()} disabled={chordizeCandidateCount < 2 || selectionActionsLocked} className={mobileButtonClass}>
+            Merge to chord
+          </button>
+          <button type="button" onClick={handleDisbandChord} disabled={!selectedChord || selectionActionsLocked} className={mobileButtonClass}>
+            Disband chord
+          </button>
+          <button type="button" onClick={() => runMobileWholeTrackTool("quantize")} disabled={allTrackEventsEmpty || selectionActionsLocked} className={mobileButtonClass}>
+            Quantize
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div
         ref={toolbarRef}
@@ -14377,7 +14436,7 @@ export default function GteWorkspace({
 
               <button
                 type="button"
-                onClick={handleSnapSelectedNotesToKey}
+                onClick={() => handleSnapSelectedNotesToKey()}
                 disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
                 title={
                   selectionActionsLocked
@@ -14780,7 +14839,7 @@ export default function GteWorkspace({
       }}
     >
       {editMenuPortalTarget
-        ? createPortal(renderEditMenuPanel(), editMenuPortalTarget)
+        ? createPortal(renderEditMenuPanel(true), editMenuPortalTarget)
         : null}
       {pendingSelectionTool && (
         <div
