@@ -84,7 +84,7 @@ import { buildChordPlaybackWindows } from "../../lib/gteChordPlayback";
 import GteFileImportButton from "../../components/GteFileImportButton";
 import ShareDialog from "../../components/ShareDialog";
 import { EditorLoadingState } from "../../components/EditorLoadingState";
-import EditorTutorial from "../../components/EditorTutorial";
+import EditorTutorial, { EditorTutorialTrigger } from "../../components/EditorTutorial";
 import { prisma } from "../../lib/prisma";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
@@ -8010,13 +8010,16 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         Back home
                       </Link>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => router.push("/gte")}
-                        className="inline-flex h-8 w-32 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
-                      >
-                        Back to editors
-                      </button>
+                      <div className="relative">
+                        <EditorTutorialTrigger className="absolute bottom-[calc(100%+6px)] right-0 z-10" />
+                        <button
+                          type="button"
+                          onClick={() => router.push("/gte")}
+                          className="inline-flex h-8 w-32 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+                        >
+                          Back to editors
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -8554,13 +8557,16 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     )}
                   </>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => router.push("/gte")}
-                    className="button-secondary button-small min-h-[34px]"
-                  >
-                    Back to editors
-                  </button>
+                  <div className="relative">
+                    <EditorTutorialTrigger className="absolute bottom-[calc(100%+6px)] right-0 z-10" />
+                    <button
+                      type="button"
+                      onClick={() => router.push("/gte")}
+                      className="button-secondary button-small min-h-[34px]"
+                    >
+                      Back to editors
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

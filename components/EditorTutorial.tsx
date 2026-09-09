@@ -12,6 +12,22 @@ type Props = {
   cards?: EditorTutorialCard[];
 };
 
+const EDITOR_TUTORIAL_OPEN_EVENT = "note2tabs:open-editor-tutorial";
+
+export function EditorTutorialTrigger({ className = "" }: { className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new Event(EDITOR_TUTORIAL_OPEN_EVENT))}
+      className={`flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-bold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${className}`.trim()}
+      aria-label="Open editor tutorial"
+      title="Editor tutorial"
+    >
+      ?
+    </button>
+  );
+}
+
 const Arrow = ({ direction }: { direction: "left" | "right" }) => (
   <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current" aria-hidden="true">
     <path
@@ -74,28 +90,24 @@ export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDI
     };
   }, [open, recordInteraction]);
 
+  useEffect(() => {
+    const onOpenTutorial = () => {
+      recordInteraction();
+      setIndex(0);
+      setOpen(true);
+    };
+    window.addEventListener(EDITOR_TUTORIAL_OPEN_EVENT, onOpenTutorial);
+    return () => window.removeEventListener(EDITOR_TUTORIAL_OPEN_EVENT, onOpenTutorial);
+  }, [recordInteraction]);
+
   const interact = (action: () => void) => {
     recordInteraction();
     action();
   };
   const activeCard = cards[index] ?? cards[0];
-  const openTutorial = () => interact(() => {
-    setIndex(0);
-    setOpen(true);
-  });
 
   return (
     <>
-      <button
-        type="button"
-        onClick={openTutorial}
-        className="fixed right-4 top-20 z-[90] flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white/95 text-sm font-bold text-slate-700 shadow-md backdrop-blur transition hover:border-slate-400 hover:bg-white"
-        aria-label="Open editor tutorial"
-        title="Editor tutorial"
-      >
-        ?
-      </button>
-
       {open && activeCard && (
         <div
           className="fixed inset-0 z-[20000] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-[2px]"
