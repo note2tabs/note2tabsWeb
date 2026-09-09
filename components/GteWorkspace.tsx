@@ -47,7 +47,7 @@ import {
   getEffectPairKeys,
   orderNotesForEffect,
 } from "../lib/gteNoteEffects";
-import { nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
+import { cloneEditorSnapshot, nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
 import { generatePlayingCoordinatesInSnapshot } from "../lib/gtePlayingCoordinates";
 import {
   getChordFingeringDatasetType,
@@ -2846,7 +2846,7 @@ function ChordLaneWorkspace({
   }, [commitSnapshot, selectedChordIds, snapshot]);
 
   const appendChordBar = useCallback(() => {
-    const nextSnapshot = cloneSnapshot(snapshot);
+    const nextSnapshot = cloneEditorSnapshot(snapshot);
     nextSnapshot.totalFrames =
       Math.max(FIXED_FRAMES_PER_BAR, Math.ceil(snapshot.totalFrames / FIXED_FRAMES_PER_BAR) * FIXED_FRAMES_PER_BAR) +
       FIXED_FRAMES_PER_BAR;
