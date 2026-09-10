@@ -73,14 +73,26 @@ describe("inactive signup reminder cron experiment", () => {
     );
   });
 
+  it("excludes every historical assignment marker before selecting candidates", async () => {
+    mocks.queryRaw.mockResolvedValue([]);
+    const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    const query = mocks.queryRaw.mock.calls[0]?.[0] as { strings?: string[] };
+    const sql = query?.strings?.join("?") ?? String(query);
+    expect(sql).toContain("reminder:inactive-transcriber:");
+    expect(sql).toContain("experiment:inactive-transcriber-holdout:");
+  });
+
   it("defaults to a non-sending dry run when the experiment is not enabled", async () => {
     delete process.env.INACTIVE_SIGNUP_REMINDER_EXPERIMENT_ENABLED;
     mocks.queryRaw.mockResolvedValue([
       {
-        id: userForVariant("24h"),
+        id: userForVariant("72h"),
         email: "player@example.com",
         name: "Player",
-        createdAt: new Date(Date.now() - 26 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 76 * 60 * 60 * 1000),
       },
     ]);
     const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
@@ -123,10 +135,10 @@ describe("inactive signup reminder cron experiment", () => {
   it("never sends a reminder after its assigned delivery window", async () => {
     mocks.queryRaw.mockResolvedValue([
       {
-        id: userForVariant("6h"),
+        id: userForVariant("72h"),
         email: "late@example.com",
         name: "Late",
-        createdAt: new Date(Date.now() - 20 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 80 * 60 * 60 * 1000),
       },
     ]);
     const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
@@ -137,10 +149,10 @@ describe("inactive signup reminder cron experiment", () => {
   });
 
   it("rechecks activation immediately before sending", async () => {
-    const userId = userForVariant("24h");
+    const userId = userForVariant("72h");
     mocks.queryRaw.mockResolvedValue([{
       id: userId, email: "active@example.com", name: "Active",
-      createdAt: new Date(Date.now() - 26 * 60 * 60 * 1000),
+      createdAt: new Date(Date.now() - 76 * 60 * 60 * 1000),
     }]);
     mocks.tabJobCount.mockResolvedValue(1);
     const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });

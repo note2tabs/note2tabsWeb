@@ -10,9 +10,9 @@ import {
 describe("inactive signup reminder experiment", () => {
   afterEach(() => delete process.env.NEXT_PUBLIC_APP_URL);
 
-  it("assigns each user to one stable timing arm", () => {
+  it("assigns each user to one stable holdout or 72-hour arm", () => {
     const variant = assignInactiveSignupReminderVariant("user-123");
-    expect(["holdout", "6h", "24h", "72h"]).toContain(variant);
+    expect(["holdout", "72h"]).toContain(variant);
     expect(assignInactiveSignupReminderVariant("user-123")).toBe(variant);
     expect(INACTIVE_SIGNUP_REMINDER_DELAYS[variant]).toBeDefined();
     expect(buildInactiveSignupHoldoutIdentifier("user-123")).toBe(
@@ -21,6 +21,17 @@ describe("inactive signup reminder experiment", () => {
     expect(buildInactiveSignupExperimentToken("user-123", variant)).toBe(
       buildInactiveSignupExperimentToken("user-123", variant)
     );
+  });
+
+  it("keeps the two arms close to an even deterministic split", () => {
+    const assignments = Array.from({ length: 10_000 }, (_, index) =>
+      assignInactiveSignupReminderVariant(`distribution-user-${index}`)
+    );
+    const treatmentCount = assignments.filter((variant) => variant === "72h").length;
+
+    expect(treatmentCount).toBeGreaterThan(4_800);
+    expect(treatmentCount).toBeLessThan(5_200);
+    expect(new Set(assignments)).toEqual(new Set(["holdout", "72h"]));
   });
 
   it("adds attributable source and timing to the call to action", () => {

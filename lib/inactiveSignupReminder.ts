@@ -52,16 +52,13 @@ export function buildInactiveSignupExperimentToken(userId: string, variant: Inac
 
 export function assignInactiveSignupReminderVariant(userId: string): InactiveSignupReminderVariant {
   const bucket = crypto.createHash("sha256").update(`inactive-signup-reminder:${userId}`).digest().readUInt32BE(0) % 100;
-  if (bucket < 20) return "holdout";
-  if (bucket < 47) return "6h";
-  if (bucket < 74) return "24h";
-  return "72h";
+  return bucket < 50 ? "holdout" : "72h";
 }
 
 export function buildInactiveSignupReminderEmail(input: BuildReminderEmailInput = {}) {
   const firstName = (input.name || "").trim() || "there";
   const safeName = escapeEmailHtml(firstName);
-  const variant = input.variant || "24h";
+  const variant = input.variant || "72h";
   const transcriberUrl = `${baseUrl()}/transcribe?source=inactive_signup_reminder&timing=${variant}`;
   const subject = "Still interested in transcribing a song?";
   const unsubscribeUrl = input.userId ? reminderUnsubscribeUrl(input.userId) : null;
