@@ -13998,6 +13998,10 @@ export default function GteWorkspace({
   const openMobileAddNoteAtCursor = useCallback(() => {
     const cursor = keyboardGridCursorRef.current;
     if (!cursor || !isMobileEditMode) return;
+    const stableCursor = { time: cursor.time, stringIndex: cursor.stringIndex };
+    keyboardGridCursorRef.current = stableCursor;
+    setKeyboardGridCursor(stableCursor);
+    setKeyboardCursorVisible(true);
     setSelectedNoteIds([]);
     setSelectedChordIds([]);
     setNoteMenuAnchor(null);
@@ -14008,9 +14012,9 @@ export default function GteWorkspace({
     setChordMenuDraft(null);
     setKeyboardAddMode(null);
     setDraftNote({
-      stringIndex: cursor.stringIndex,
+      stringIndex: stableCursor.stringIndex,
       fret: 0,
-      startTime: cursor.time,
+      startTime: stableCursor.time,
       length: lastAddedNoteLengthRef.current,
     });
     setDraftNoteAnchor(null);
@@ -17394,8 +17398,9 @@ export default function GteWorkspace({
                   <button
                     type="button"
                     data-gte-cursor-add="true"
+                    data-gte-editor-control="true"
                     aria-label="Add note at cursor"
-                    className="absolute z-30 rounded-sm border border-slate-400/75 bg-slate-300/45 p-0"
+                    className="absolute z-30 touch-none rounded-sm border border-slate-400/75 bg-slate-300/45 p-0"
                     style={{
                       left: keyboardCursorMarker.left,
                       top: keyboardCursorMarker.top,
@@ -17406,7 +17411,20 @@ export default function GteWorkspace({
                       event.preventDefault();
                       event.stopPropagation();
                       lastHandledMobileTimelineTouchAtRef.current = Date.now();
+                    }}
+                    onPointerUp={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      lastHandledMobileTimelineTouchAtRef.current = Date.now();
                       openMobileAddNoteAtCursor();
+                    }}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
                     }}
                   />
                 ) : (
