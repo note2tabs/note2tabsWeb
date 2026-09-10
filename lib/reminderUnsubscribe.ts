@@ -1,6 +1,7 @@
 import crypto from "crypto";
 
 export const REMINDER_UNSUBSCRIBE_PREFIX = "email:reminders-unsubscribed:";
+export const REMINDER_DELIVERY_SUPPRESSION_PREFIX = "email:reminders-delivery-suppressed:";
 
 function secret() {
   return process.env.EMAIL_UNSUBSCRIBE_SECRET || process.env.CRON_SECRET || "";
@@ -8,6 +9,10 @@ function secret() {
 
 export function reminderUnsubscribeIdentifier(userId: string) {
   return `${REMINDER_UNSUBSCRIBE_PREFIX}${userId}`;
+}
+
+export function reminderDeliverySuppressionIdentifier(userId: string) {
+  return `${REMINDER_DELIVERY_SUPPRESSION_PREFIX}${userId}`;
 }
 
 export function createReminderUnsubscribeToken(userId: string) {

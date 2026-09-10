@@ -81,6 +81,8 @@ import {
   GTE_TIMELINE_END_PADDING,
   GTE_TIMELINE_GUTTER_WIDTH,
   GTE_TIMELINE_LABEL_COLUMN_WIDTH,
+  resolveAddBarRowCapacity,
+  shouldAddBarStartNewRow,
 } from "../lib/gteTimelineGeometry";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
@@ -198,6 +200,7 @@ type Props = {
   sharedTimeSignature?: number;
   sharedTimeSignatureBottom?: number;
   sharedViewportBarCount?: number;
+  sharedRowCapacityBarCount?: number;
   sharedTimelineBaseScale?: number;
   sharedTimelineScrollRatio?: number;
   onSharedTimelineScrollRatioChange?: (next: number, scrollLeft?: number) => void;
@@ -4806,6 +4809,7 @@ export default function GteWorkspace({
   sharedTimeSignature,
   sharedTimeSignatureBottom,
   sharedViewportBarCount,
+  sharedRowCapacityBarCount,
   sharedTimelineBaseScale,
   sharedTimelineScrollRatio,
   onSharedTimelineScrollRatioChange,
@@ -5277,6 +5281,10 @@ export default function GteWorkspace({
     sharedViewportBarCount !== undefined && Number.isFinite(sharedViewportBarCount)
       ? Math.max(1, Math.round(sharedViewportBarCount))
       : barCount;
+  const normalizedSharedRowCapacity = resolveAddBarRowCapacity(
+    sharedRowCapacityBarCount,
+    normalizedSharedViewportBars
+  );
   const viewportBarCount = Math.min(barCount, normalizedSharedViewportBars);
   const viewportTotalFrames = viewportBarCount * framesPerMeasure;
   const barsPerRow = Math.max(1, Math.min(barCount, normalizedSharedViewportBars));
@@ -5312,7 +5320,13 @@ export default function GteWorkspace({
   const timelineHeight = rows * rowBlockHeight + Math.max(0, rows - 1) * ROW_GAP;
   const lastRowIndex = rows - 1;
   const lastRowBarCount = Math.max(0, barCount - lastRowIndex * barsPerRow);
-  const addBarStartsNewRow = lastRowBarCount >= barsPerRow;
+  // `barsPerRow` is capped to the number of existing bars so short scores can
+  // use their natural width. Use the configured row capacity here so the add
+  // button remains beside a short final row instead of jumping below it.
+  const addBarStartsNewRow = shouldAddBarStartNewRow(
+    lastRowBarCount,
+    normalizedSharedRowCapacity
+  );
   const addBarLeft = addBarStartsNewRow ? 0 : lastRowBarCount * framesPerMeasure * scale + 10;
   const addBarTop =
     TIMELINE_BAR_HEADER_HEIGHT +
@@ -16437,7 +16451,10 @@ export default function GteWorkspace({
               const tabRowHeight = TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height;
               const lastTabRowIndex = rows - 1;
               const lastTabRowBarCount = Math.max(0, barCount - lastTabRowIndex * barsPerRow);
-              const tabAddBarStartsNewRow = lastTabRowBarCount >= barsPerRow;
+              const tabAddBarStartsNewRow = shouldAddBarStartNewRow(
+                lastTabRowBarCount,
+                normalizedSharedRowCapacity
+              );
               const tabScoreHeight =
                 rows * tabRowHeight +
                 Math.max(0, rows - 1) * ROW_GAP +
@@ -16449,11 +16466,11 @@ export default function GteWorkspace({
                 ? 0
                 : editorTabView.barStartXs[lastTabRowIndex * barsPerRow];
               const tabAddBarLeft = tabAddBarStartsNewRow
-                ? EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + 10
+                ? EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + 16
                 : EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
                   editorTabView.barStartXs[Math.min(barCount, editorTabView.barCount)] -
                     tabAddBarSourceLeft +
-                  10;
+                  16;
               const tabAddBarTop =
                 tabAddBarRowIndex * (tabRowHeight + ROW_GAP) +
                 TIMELINE_BAR_HEADER_HEIGHT +

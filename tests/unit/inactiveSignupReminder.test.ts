@@ -10,9 +10,9 @@ import {
 describe("inactive signup reminder experiment", () => {
   afterEach(() => delete process.env.NEXT_PUBLIC_APP_URL);
 
-  it("assigns each user to one stable timing arm", () => {
+  it("assigns each user to one stable holdout or 6-hour arm", () => {
     const variant = assignInactiveSignupReminderVariant("user-123");
-    expect(["holdout", "6h", "24h", "72h"]).toContain(variant);
+    expect(["holdout", "6h"]).toContain(variant);
     expect(assignInactiveSignupReminderVariant("user-123")).toBe(variant);
     expect(INACTIVE_SIGNUP_REMINDER_DELAYS[variant]).toBeDefined();
     expect(buildInactiveSignupHoldoutIdentifier("user-123")).toBe(
@@ -23,11 +23,22 @@ describe("inactive signup reminder experiment", () => {
     );
   });
 
+  it("keeps the two arms close to an even deterministic split", () => {
+    const assignments = Array.from({ length: 10_000 }, (_, index) =>
+      assignInactiveSignupReminderVariant(`distribution-user-${index}`)
+    );
+    const treatmentCount = assignments.filter((variant) => variant === "6h").length;
+
+    expect(treatmentCount).toBeGreaterThan(4_800);
+    expect(treatmentCount).toBeLessThan(5_200);
+    expect(new Set(assignments)).toEqual(new Set(["holdout", "6h"]));
+  });
+
   it("adds attributable source and timing to the call to action", () => {
     process.env.NEXT_PUBLIC_APP_URL = "https://www.note2tabs.com/";
-    const email = buildInactiveSignupReminderEmail({ name: "Player", variant: "72h" });
+    const email = buildInactiveSignupReminderEmail({ name: "Player", variant: "6h" });
     expect(email.transcriberUrl).toBe(
-      "https://www.note2tabs.com/transcribe?source=inactive_signup_reminder&timing=72h"
+      "https://www.note2tabs.com/transcribe?source=inactive_signup_reminder&timing=6h"
     );
     expect(email.html).toContain(email.transcriberUrl);
     expect(email.text).toContain(email.transcriberUrl);

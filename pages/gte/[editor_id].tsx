@@ -7945,6 +7945,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   <div className={`order-7 shrink-0 items-center gap-2 xl:ml-auto ${
                     practiceModeEnabled ? "hidden" : "flex"
                   }`}>
+                    <EditorTutorialTrigger className="shrink-0" />
                     <button
                       type="button"
                       onClick={handleCanvasUndo}
@@ -7989,15 +7990,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       </button>
                     )}
                     {isGuestMode ? (
-                      <div className="relative">
-                        <EditorTutorialTrigger className="absolute bottom-[calc(100%+6px)] right-0 z-10" />
+                      <div>
                         <Link href="/" className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
                           Back home
                         </Link>
                       </div>
                     ) : (
-                      <div className="relative">
-                        <EditorTutorialTrigger className="absolute bottom-[calc(100%+6px)] right-0 z-10" />
+                      <div>
                         <button
                           type="button"
                           onClick={() => router.push("/gte")}
@@ -9192,6 +9191,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                               sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                               sharedViewportBarCount={sharedViewportBarCount}
+                              sharedRowCapacityBarCount={desktopBarsPerRow}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
                                 practiceModeEnabled
@@ -9553,6 +9553,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                               sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                               sharedViewportBarCount={sharedViewportBarCount}
+                              sharedRowCapacityBarCount={desktopBarsPerRow}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
                                 practiceModeEnabled
@@ -10125,6 +10126,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                           sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                           sharedViewportBarCount={sharedViewportBarCount}
+                          sharedRowCapacityBarCount={desktopBarsPerRow}
                           sharedTimelineBaseScale={sharedTimelineBaseScale}
                           onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                           // sharedTimelineBaseScale is already fitted to sharedViewportBarCount

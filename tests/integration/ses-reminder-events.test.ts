@@ -1,8 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMocks } from "node-mocks-http";
 
-const mocks = vi.hoisted(() => ({ findUser: vi.fn(), capture: vi.fn(), flush: vi.fn(), blockShare: vi.fn() }));
-vi.mock("../../lib/prisma", () => ({ prisma: { user: { findUnique: mocks.findUser } } }));
+const mocks = vi.hoisted(() => ({
+  findUser: vi.fn(), capture: vi.fn(), flush: vi.fn(), blockShare: vi.fn(), upsertMarker: vi.fn(),
+}));
+vi.mock("../../lib/prisma", () => ({
+  prisma: {
+    user: { findUnique: mocks.findUser },
+    verificationToken: { upsert: mocks.upsertMarker },
+  },
+}));
 vi.mock("../../lib/posthogServer", () => ({
   createPostHogServerClient: () => ({ capture: mocks.capture, flush: mocks.flush }),
 }));
@@ -16,6 +23,7 @@ describe("SES reminder lifecycle events", () => {
     process.env.SES_EVENT_WEBHOOK_SECRET = "secret";
     mocks.findUser.mockResolvedValue({ id: "user-1" });
     mocks.flush.mockResolvedValue(undefined);
+    mocks.upsertMarker.mockResolvedValue({});
   });
 
   it("records a tagged reminder bounce in PostHog", async () => {
@@ -35,6 +43,34 @@ describe("SES reminder lifecycle events", () => {
       properties: expect.objectContaining({ email_category: "tab_return_reminder", bounce_type: "Permanent" }),
     }));
     expect(mocks.flush).toHaveBeenCalledOnce();
+    expect(mocks.upsertMarker).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        identifier_token: {
+          identifier: "email:reminders-delivery-suppressed:user-1",
+          token: "suppressed",
+        },
+      },
+    }));
+  });
+
+  it("permanently suppresses reminder delivery after a complaint", async () => {
+    const notification = {
+      notificationType: "Complaint",
+      mail: { messageId: "message-complaint", tags: { email_category: ["inactive_signup_reminder"] } },
+      complaint: { complainedRecipients: [{ emailAddress: "player@example.com" }] },
+    };
+    const { req, res } = createMocks({
+      method: "POST", query: { secret: "secret" },
+      body: { Type: "Notification", Message: JSON.stringify(notification) },
+    });
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(mocks.upsertMarker).toHaveBeenCalledOnce();
+    expect(mocks.capture).toHaveBeenCalledWith(expect.objectContaining({
+      event: "reminder_email_complaint_received",
+    }));
   });
 
   it("records configuration-set events that use eventType", async () => {
