@@ -6488,7 +6488,12 @@ export default function GteWorkspace({
     if (!container || framesPerMeasure <= 0) return;
 
     const computeScale = () => {
-      const availableWidth = Math.max(240, container.clientWidth - 16);
+      const containerRect = container.getBoundingClientRect();
+      const viewportWidth = window.visualViewport?.width ?? document.documentElement.clientWidth;
+      const visibleContainerWidth = isMobileEditMode
+        ? Math.min(container.clientWidth, Math.max(1, viewportWidth - containerRect.left - 8))
+        : container.clientWidth;
+      const availableWidth = Math.max(240, visibleContainerWidth - 16);
       const fittedBars = isMobileEditMode
         ? Math.max(1, Math.min(2, normalizedSharedViewportBars))
         : TARGET_VISIBLE_BARS;
@@ -6500,7 +6505,11 @@ export default function GteWorkspace({
     computeScale();
     const observer = new ResizeObserver(computeScale);
     observer.observe(container);
-    return () => observer.disconnect();
+    window.visualViewport?.addEventListener("resize", computeScale);
+    return () => {
+      observer.disconnect();
+      window.visualViewport?.removeEventListener("resize", computeScale);
+    };
   }, [framesPerMeasure, isMobileEditMode, normalizedSharedViewportBars, sharedTimelineBaseScale]);
 
   useEffect(() => {
