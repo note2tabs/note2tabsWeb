@@ -16466,11 +16466,11 @@ export default function GteWorkspace({
                 ? 0
                 : editorTabView.barStartXs[lastTabRowIndex * barsPerRow];
               const tabAddBarLeft = tabAddBarStartsNewRow
-                ? EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + 10
+                ? EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + 16
                 : EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
                   editorTabView.barStartXs[Math.min(barCount, editorTabView.barCount)] -
                     tabAddBarSourceLeft +
-                  10;
+                  16;
               const tabAddBarTop =
                 tabAddBarRowIndex * (tabRowHeight + ROW_GAP) +
                 TIMELINE_BAR_HEADER_HEIGHT +
