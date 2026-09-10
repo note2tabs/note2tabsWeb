@@ -11,12 +11,17 @@ const mocks = vi.hoisted(() => ({
   flush: vi.fn(),
   tabJobCount: vi.fn(),
   canvasCount: vi.fn(),
+  suppressionCount: vi.fn(),
 }));
 
 vi.mock("../../lib/prisma", () => ({
   prisma: {
     $queryRaw: mocks.queryRaw,
-    verificationToken: { create: mocks.createMarker, deleteMany: mocks.deleteMarkers },
+    verificationToken: {
+      create: mocks.createMarker,
+      deleteMany: mocks.deleteMarkers,
+      count: mocks.suppressionCount,
+    },
     tabJob: { count: mocks.tabJobCount },
     canvases: { count: mocks.canvasCount },
   },
@@ -49,6 +54,7 @@ describe("inactive signup reminder cron experiment", () => {
     mocks.deleteMarkers.mockResolvedValue({ count: 1 });
     mocks.tabJobCount.mockResolvedValue(0);
     mocks.canvasCount.mockResolvedValue(0);
+    mocks.suppressionCount.mockResolvedValue(0);
   });
 
   it("keeps the control group unemailed", async () => {
@@ -68,7 +74,11 @@ describe("inactive signup reminder cron experiment", () => {
     expect(mocks.capture).toHaveBeenCalledWith(
       expect.objectContaining({
         event: "inactive_signup_reminder_assigned",
-        properties: expect.objectContaining({ experiment_group: "holdout", timing_variant: "holdout" }),
+        properties: expect.objectContaining({
+          experiment_group: "holdout",
+          timing_variant: "holdout",
+          experiment_version: "inactive_signup_6h_50_50_v1",
+        }),
       })
     );
   });
@@ -83,16 +93,18 @@ describe("inactive signup reminder cron experiment", () => {
     const sql = query?.strings?.join("?") ?? String(query);
     expect(sql).toContain("reminder:inactive-transcriber:");
     expect(sql).toContain("experiment:inactive-transcriber-holdout:");
+    expect(sql).toContain("email:reminders-unsubscribed:");
+    expect(sql).toContain("email:reminders-delivery-suppressed:");
   });
 
   it("defaults to a non-sending dry run when the experiment is not enabled", async () => {
     delete process.env.INACTIVE_SIGNUP_REMINDER_EXPERIMENT_ENABLED;
     mocks.queryRaw.mockResolvedValue([
       {
-        id: userForVariant("72h"),
+        id: userForVariant("6h"),
         email: "player@example.com",
         name: "Player",
-        createdAt: new Date(Date.now() - 76 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 8 * 60 * 60 * 1000),
       },
     ]);
     const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
@@ -104,30 +116,34 @@ describe("inactive signup reminder cron experiment", () => {
   });
 
   it("waits for the assigned delay and records the timing arm when sent", async () => {
-    const userId = userForVariant("72h");
+    const userId = userForVariant("6h");
     mocks.queryRaw.mockResolvedValue([
       {
         id: userId,
         email: "player@example.com",
         name: "Player",
-        createdAt: new Date(Date.now() - 76 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 8 * 60 * 60 * 1000),
       },
     ]);
     const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
     await handler(req, res);
 
-    expect(JSON.parse(res._getData())).toMatchObject({ sent: 1, sentByVariant: { "72h": 1 } });
+    expect(JSON.parse(res._getData())).toMatchObject({ sent: 1, sentByVariant: { "6h": 1 } });
     expect(mocks.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "player@example.com",
-        html: expect.stringContaining("timing=72h"),
+        html: expect.stringContaining("timing=6h"),
       })
     );
     expect(mocks.capture).toHaveBeenCalledWith(
       expect.objectContaining({
         distinctId: userId,
         event: "inactive_signup_reminder_sent",
-        properties: expect.objectContaining({ timing_variant: "72h", delay_hours: 72 }),
+        properties: expect.objectContaining({
+          timing_variant: "6h",
+          delay_hours: 6,
+          experiment_version: "inactive_signup_6h_50_50_v1",
+        }),
       })
     );
   });
@@ -135,10 +151,10 @@ describe("inactive signup reminder cron experiment", () => {
   it("never sends a reminder after its assigned delivery window", async () => {
     mocks.queryRaw.mockResolvedValue([
       {
-        id: userForVariant("72h"),
+        id: userForVariant("6h"),
         email: "late@example.com",
         name: "Late",
-        createdAt: new Date(Date.now() - 80 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 13 * 60 * 60 * 1000),
       },
     ]);
     const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
@@ -149,14 +165,44 @@ describe("inactive signup reminder cron experiment", () => {
   });
 
   it("rechecks activation immediately before sending", async () => {
-    const userId = userForVariant("72h");
+    const userId = userForVariant("6h");
     mocks.queryRaw.mockResolvedValue([{
       id: userId, email: "active@example.com", name: "Active",
-      createdAt: new Date(Date.now() - 76 * 60 * 60 * 1000),
+      createdAt: new Date(Date.now() - 8 * 60 * 60 * 1000),
     }]);
     mocks.tabJobCount.mockResolvedValue(1);
     const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
     await handler(req, res);
+    expect(JSON.parse(res._getData())).toMatchObject({ sent: 0 });
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("rechecks reminder suppression immediately before sending", async () => {
+    const userId = userForVariant("6h");
+    mocks.queryRaw.mockResolvedValue([{
+      id: userId, email: "suppressed@example.com", name: "Suppressed",
+      createdAt: new Date(Date.now() - 8 * 60 * 60 * 1000),
+    }]);
+    mocks.suppressionCount.mockResolvedValue(1);
+
+    const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
+    await handler(req, res);
+
+    expect(JSON.parse(res._getData())).toMatchObject({ sent: 0 });
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("does not send when a reminder marker already exists", async () => {
+    const userId = userForVariant("6h");
+    mocks.queryRaw.mockResolvedValue([{
+      id: userId, email: "already-sent@example.com", name: "Already sent",
+      createdAt: new Date(Date.now() - 8 * 60 * 60 * 1000),
+    }]);
+    mocks.createMarker.mockRejectedValueOnce({ code: "P2002" });
+
+    const { req, res } = createMocks({ method: "GET", headers: { authorization: "Bearer cron-test" } });
+    await handler(req, res);
+
     expect(JSON.parse(res._getData())).toMatchObject({ sent: 0 });
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });

@@ -8,6 +8,7 @@ import {
   INACTIVE_SIGNUP_REMINDER_DELAYS,
   INACTIVE_SIGNUP_REMINDER_MAX_AGE_DAYS,
   INACTIVE_SIGNUP_REMINDER_MAX_LATENESS_HOURS,
+  INACTIVE_SIGNUP_REMINDER_EXPERIMENT_VERSION,
   assignInactiveSignupReminderVariant,
   buildInactiveSignupExperimentToken,
   buildInactiveSignupHoldoutIdentifier,
@@ -68,7 +69,8 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
         WHERE v.identifier IN (
           'reminder:inactive-transcriber:' || u.id,
           'experiment:inactive-transcriber-holdout:' || u.id,
-          'email:reminders-unsubscribed:' || u.id
+          'email:reminders-unsubscribed:' || u.id,
+          'email:reminders-delivery-suppressed:' || u.id
         )
       )
     ORDER BY u."createdAt" ASC
@@ -127,6 +129,7 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
           properties: {
             timing_variant: variant,
             experiment_group: "holdout",
+            experiment_version: INACTIVE_SIGNUP_REMINDER_EXPERIMENT_VERSION,
             $insert_id: `inactive-signup-reminder-assigned:${user.id}`,
           },
         });
@@ -149,11 +152,22 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
     wouldSend += 1;
     if (dryRun) continue;
 
-    const [tabJobs, canvases] = await Promise.all([
+    const [tabJobs, canvases, suppressionMarkers] = await Promise.all([
       prisma.tabJob.count({ where: { userId: user.id } }),
       prisma.canvases.count({ where: { user_id: user.id } }),
+      prisma.verificationToken.count({
+        where: {
+          identifier: {
+            in: [
+              `email:reminders-unsubscribed:${user.id}`,
+              `email:reminders-delivery-suppressed:${user.id}`,
+            ],
+          },
+          expires: { gt: now },
+        },
+      }),
     ]);
-    if (tabJobs > 0 || canvases > 0) continue;
+    if (tabJobs > 0 || canvases > 0 || suppressionMarkers > 0) continue;
 
     const deliveryPosthog = createPostHogServerClient();
     try {
@@ -188,6 +202,7 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
           timing_variant: variant,
           delay_hours: delayHours,
           experiment_group: "treatment",
+          experiment_version: INACTIVE_SIGNUP_REMINDER_EXPERIMENT_VERSION,
           $insert_id: `inactive-signup-reminder-assigned:${user.id}`,
         },
       });
@@ -197,6 +212,7 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
         properties: {
           timing_variant: variant,
           delay_hours: delayHours,
+          experiment_version: INACTIVE_SIGNUP_REMINDER_EXPERIMENT_VERSION,
           $insert_id: `inactive-signup-reminder:${user.id}`,
         },
       });

@@ -6,6 +6,7 @@ export const INACTIVE_SIGNUP_REMINDER_IDENTIFIER_PREFIX = "reminder:inactive-tra
 export const INACTIVE_SIGNUP_REMINDER_HOLDOUT_PREFIX = "experiment:inactive-transcriber-holdout:";
 export const INACTIVE_SIGNUP_REMINDER_MAX_AGE_DAYS = 4;
 export const INACTIVE_SIGNUP_REMINDER_MAX_LATENESS_HOURS = 6;
+export const INACTIVE_SIGNUP_REMINDER_EXPERIMENT_VERSION = "inactive_signup_6h_50_50_v1";
 
 export type InactiveSignupReminderVariant = "holdout" | "6h" | "24h" | "72h";
 
@@ -52,13 +53,13 @@ export function buildInactiveSignupExperimentToken(userId: string, variant: Inac
 
 export function assignInactiveSignupReminderVariant(userId: string): InactiveSignupReminderVariant {
   const bucket = crypto.createHash("sha256").update(`inactive-signup-reminder:${userId}`).digest().readUInt32BE(0) % 100;
-  return bucket < 50 ? "holdout" : "72h";
+  return bucket < 50 ? "holdout" : "6h";
 }
 
 export function buildInactiveSignupReminderEmail(input: BuildReminderEmailInput = {}) {
   const firstName = (input.name || "").trim() || "there";
   const safeName = escapeEmailHtml(firstName);
-  const variant = input.variant || "72h";
+  const variant = input.variant || "6h";
   const transcriberUrl = `${baseUrl()}/transcribe?source=inactive_signup_reminder&timing=${variant}`;
   const subject = "Still interested in transcribing a song?";
   const unsubscribeUrl = input.userId ? reminderUnsubscribeUrl(input.userId) : null;
