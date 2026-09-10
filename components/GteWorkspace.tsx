@@ -17068,7 +17068,10 @@ export default function GteWorkspace({
           className={`flex min-w-0 ${tabViewEnabled ? "hidden" : ""} ${
             isMobileEditMode ? "min-h-0 flex-1 items-center" : "items-start"
           }`}
-          style={{ columnGap: GTE_TIMELINE_COLUMN_GAP }}
+          style={{
+            columnGap: GTE_TIMELINE_COLUMN_GAP,
+            transform: isMobileEditMode ? "translateX(-8px)" : undefined,
+          }}
         >
           <div
             className={`flex flex-col gap-0 ${
