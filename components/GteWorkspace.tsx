@@ -17093,7 +17093,7 @@ export default function GteWorkspace({
               </div>
             ))}
           </div>
-          <div className={`min-w-0 flex-1 ${isMobileEditMode ? "min-h-0 overflow-hidden" : "overflow-y-visible"}`}>
+          <div className={`min-w-0 flex-1 ${isMobileEditMode ? "w-0 min-h-0 overflow-hidden" : "overflow-y-visible"}`}>
             <div
               ref={timelineOuterRef}
               data-gte-shared-timeline="true"

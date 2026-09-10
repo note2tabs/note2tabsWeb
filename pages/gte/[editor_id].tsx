@@ -6714,8 +6714,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             : `stack ${isMobileCanvasMode ? "pb-24" : "pb-28"}`
         }`}
       >
-        {isMobileViewport && (
-          <div className="flex shrink-0 justify-center px-2">
+        {!practiceFullscreen && (
+          <div className="flex shrink-0 justify-center px-2 md:hidden">
             {renderViewModeSwitch(true)}
           </div>
         )}
