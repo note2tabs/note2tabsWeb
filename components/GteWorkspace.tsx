@@ -6486,27 +6486,32 @@ export default function GteWorkspace({
     if (sharedTimelineBaseScale !== undefined) return;
     const container = timelineOuterRef.current;
     if (!container || framesPerMeasure <= 0) return;
+    const layoutContainer = container.parentElement;
 
     const computeScale = () => {
       const containerRect = container.getBoundingClientRect();
       const viewportWidth = window.visualViewport?.width ?? document.documentElement.clientWidth;
+      const measuredLayoutWidth = layoutContainer?.clientWidth || container.clientWidth;
       const visibleContainerWidth = isMobileEditMode
-        ? Math.min(container.clientWidth, Math.max(1, viewportWidth - containerRect.left - 8))
-        : container.clientWidth;
+        ? Math.min(measuredLayoutWidth, Math.max(1, viewportWidth - containerRect.left - 8))
+        : measuredLayoutWidth;
       const availableWidth = isMobileEditMode
-        ? Math.max(1, visibleContainerWidth)
+        ? Math.max(1, visibleContainerWidth - 2)
         : Math.max(240, visibleContainerWidth - 16);
       const fittedBars = isMobileEditMode
         ? Math.max(1, Math.min(2, normalizedSharedViewportBars))
         : TARGET_VISIBLE_BARS;
       const rawScale = availableWidth / Math.max(1, framesPerMeasure * fittedBars);
-      const nextScale = Math.max(0.5, Math.min(4, rawScale));
+      const nextScale = isMobileEditMode
+        ? Math.max(0.05, Math.min(4, rawScale))
+        : Math.max(0.5, Math.min(4, rawScale));
       setAutoBaseScale((prev) => (Math.abs(prev - nextScale) < 0.01 ? prev : nextScale));
     };
 
     computeScale();
     const observer = new ResizeObserver(computeScale);
     observer.observe(container);
+    if (layoutContainer) observer.observe(layoutContainer);
     window.visualViewport?.addEventListener("resize", computeScale);
     return () => {
       observer.disconnect();
