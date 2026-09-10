@@ -9191,6 +9191,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                               sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                               sharedViewportBarCount={sharedViewportBarCount}
+                              sharedRowCapacityBarCount={desktopBarsPerRow}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
                                 practiceModeEnabled
@@ -9552,6 +9553,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                               sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                               sharedViewportBarCount={sharedViewportBarCount}
+                              sharedRowCapacityBarCount={desktopBarsPerRow}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
                                 practiceModeEnabled
@@ -10124,6 +10126,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                           sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                           sharedViewportBarCount={sharedViewportBarCount}
+                          sharedRowCapacityBarCount={desktopBarsPerRow}
                           sharedTimelineBaseScale={sharedTimelineBaseScale}
                           onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                           // sharedTimelineBaseScale is already fitted to sharedViewportBarCount

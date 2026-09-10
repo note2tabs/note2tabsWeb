@@ -81,6 +81,7 @@ import {
   GTE_TIMELINE_END_PADDING,
   GTE_TIMELINE_GUTTER_WIDTH,
   GTE_TIMELINE_LABEL_COLUMN_WIDTH,
+  resolveAddBarRowCapacity,
   shouldAddBarStartNewRow,
 } from "../lib/gteTimelineGeometry";
 import {
@@ -199,6 +200,7 @@ type Props = {
   sharedTimeSignature?: number;
   sharedTimeSignatureBottom?: number;
   sharedViewportBarCount?: number;
+  sharedRowCapacityBarCount?: number;
   sharedTimelineBaseScale?: number;
   sharedTimelineScrollRatio?: number;
   onSharedTimelineScrollRatioChange?: (next: number, scrollLeft?: number) => void;
@@ -4807,6 +4809,7 @@ export default function GteWorkspace({
   sharedTimeSignature,
   sharedTimeSignatureBottom,
   sharedViewportBarCount,
+  sharedRowCapacityBarCount,
   sharedTimelineBaseScale,
   sharedTimelineScrollRatio,
   onSharedTimelineScrollRatioChange,
@@ -5278,6 +5281,10 @@ export default function GteWorkspace({
     sharedViewportBarCount !== undefined && Number.isFinite(sharedViewportBarCount)
       ? Math.max(1, Math.round(sharedViewportBarCount))
       : barCount;
+  const normalizedSharedRowCapacity = resolveAddBarRowCapacity(
+    sharedRowCapacityBarCount,
+    normalizedSharedViewportBars
+  );
   const viewportBarCount = Math.min(barCount, normalizedSharedViewportBars);
   const viewportTotalFrames = viewportBarCount * framesPerMeasure;
   const barsPerRow = Math.max(1, Math.min(barCount, normalizedSharedViewportBars));
@@ -5318,7 +5325,7 @@ export default function GteWorkspace({
   // button remains beside a short final row instead of jumping below it.
   const addBarStartsNewRow = shouldAddBarStartNewRow(
     lastRowBarCount,
-    normalizedSharedViewportBars
+    normalizedSharedRowCapacity
   );
   const addBarLeft = addBarStartsNewRow ? 0 : lastRowBarCount * framesPerMeasure * scale + 10;
   const addBarTop =
@@ -16446,7 +16453,7 @@ export default function GteWorkspace({
               const lastTabRowBarCount = Math.max(0, barCount - lastTabRowIndex * barsPerRow);
               const tabAddBarStartsNewRow = shouldAddBarStartNewRow(
                 lastTabRowBarCount,
-                normalizedSharedViewportBars
+                normalizedSharedRowCapacity
               );
               const tabScoreHeight =
                 rows * tabRowHeight +

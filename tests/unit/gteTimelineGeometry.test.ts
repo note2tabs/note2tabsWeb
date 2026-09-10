@@ -5,6 +5,7 @@ import {
   GTE_TIMELINE_LABEL_COLUMN_WIDTH,
   getScaledDrumHitSize,
   getTimelineBaseScale,
+  resolveAddBarRowCapacity,
   shouldAddBarStartNewRow,
 } from "../../lib/gteTimelineGeometry";
 
@@ -29,8 +30,15 @@ describe("gte timeline geometry", () => {
   });
 
   it("keeps the add-bar control beside a short final row", () => {
-    expect(shouldAddBarStartNewRow(2, 4)).toBe(false);
-    expect(shouldAddBarStartNewRow(3, 4)).toBe(false);
-    expect(shouldAddBarStartNewRow(4, 4)).toBe(true);
+    const rowCapacity = resolveAddBarRowCapacity(4, 2);
+
+    expect(rowCapacity).toBe(4);
+    expect(shouldAddBarStartNewRow(2, rowCapacity)).toBe(false);
+    expect(shouldAddBarStartNewRow(3, rowCapacity)).toBe(false);
+    expect(shouldAddBarStartNewRow(4, rowCapacity)).toBe(true);
+  });
+
+  it("falls back to the visible capacity when no configured capacity is supplied", () => {
+    expect(resolveAddBarRowCapacity(undefined, 2)).toBe(2);
   });
 });

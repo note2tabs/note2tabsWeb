@@ -12,6 +12,17 @@ export const shouldAddBarStartNewRow = (
   return safeBarCount >= safeRowCapacity;
 };
 
+export const resolveAddBarRowCapacity = (
+  configuredBarsPerRow: number | undefined,
+  visibleBarsPerRow: number
+) => {
+  const visibleCapacity = Math.max(1, Math.round(Number(visibleBarsPerRow) || 1));
+  if (configuredBarsPerRow === undefined || !Number.isFinite(configuredBarsPerRow)) {
+    return visibleCapacity;
+  }
+  return Math.max(1, Math.round(configuredBarsPerRow));
+};
+
 export const getTimelineBaseScale = (
   availableWidth: number,
   framesPerBar: number,
