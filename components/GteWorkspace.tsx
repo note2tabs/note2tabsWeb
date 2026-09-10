@@ -9877,6 +9877,10 @@ export default function GteWorkspace({
 
   const handleAddNote = () => {
     if (!draftNote) return;
+    const committedCursor = {
+      time: draftNote.startTime,
+      stringIndex: draftNote.stringIndex,
+    };
     const { fret } = draftNote;
     const rawLength = clampEventLength(draftNote.length ?? lastAddedNoteLengthRef.current);
     if (fret === null) {
@@ -9924,6 +9928,9 @@ export default function GteWorkspace({
         return gteApi.applySnapshot(editorId, expandedSnapshot);
       },
     });
+    keyboardGridCursorRef.current = committedCursor;
+    setKeyboardGridCursor(committedCursor);
+    setKeyboardCursorVisible(true);
     setDraftNote(null);
     setDraftNoteAnchor(null);
   };
@@ -13879,7 +13886,8 @@ export default function GteWorkspace({
   useEffect(() => {
     const handlePointerStart = (target: HTMLElement | null, shiftKey: boolean) => {
       if (!target) return;
-      if (timelineRef.current && timelineRef.current.contains(target)) {
+      const clickedMobileCursor = Boolean(target.closest("[data-gte-cursor-add='true']"));
+      if (timelineRef.current && timelineRef.current.contains(target) && !clickedMobileCursor) {
         setKeyboardCursorVisible(false);
       }
       if (keyboardAddModeRef.current) {
@@ -18661,7 +18669,7 @@ export default function GteWorkspace({
                         disabled={draftNote.fret === null}
                         className="h-11 rounded-xl bg-slate-900 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
                       >
-                        OK
+                        Done
                       </button>
                     </div>
                   </div>
