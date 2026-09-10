@@ -6493,7 +6493,9 @@ export default function GteWorkspace({
       const visibleContainerWidth = isMobileEditMode
         ? Math.min(container.clientWidth, Math.max(1, viewportWidth - containerRect.left - 8))
         : container.clientWidth;
-      const availableWidth = Math.max(240, visibleContainerWidth - 16);
+      const availableWidth = isMobileEditMode
+        ? Math.max(1, visibleContainerWidth)
+        : Math.max(240, visibleContainerWidth - 16);
       const fittedBars = isMobileEditMode
         ? Math.max(1, Math.min(2, normalizedSharedViewportBars))
         : TARGET_VISIBLE_BARS;
@@ -18744,6 +18746,13 @@ export default function GteWorkspace({
               </div>
               </div>
             </div>
+            {isMobileEditMode && (
+              <div
+                aria-hidden="true"
+                className="shrink-0"
+                style={{ width: GTE_TIMELINE_LABEL_COLUMN_WIDTH }}
+              />
+            )}
           </div>
         </div>
         {showMobileEditRail && showMobileInlineNoteSettings && selectedNote && noteMenuDraft && (

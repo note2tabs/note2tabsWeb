@@ -5717,7 +5717,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             />
             <button
               type="button"
-              onClick={() => setEditorMode("canvas")}
+              onClick={() => {
+                setMobileEditLaneId(null);
+                setEditorMode("canvas");
+              }}
               aria-pressed={!mobilePracticeActive}
               className={`relative z-10 h-8 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
                 !mobilePracticeActive ? "text-slate-900" : "text-slate-600"
@@ -5727,7 +5730,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             </button>
             <button
               type="button"
-              onClick={() => setEditorMode("practice")}
+              onClick={() => {
+                setMobileEditLaneId(null);
+                setEditorMode("practice");
+              }}
               aria-pressed={mobilePracticeActive}
               className={`relative z-10 h-8 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${
                 mobilePracticeActive ? "text-emerald-800" : "text-slate-600"
@@ -6708,11 +6714,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             : `stack ${isMobileCanvasMode ? "pb-24" : "pb-28"}`
         }`}
       >
+        {isMobileViewport && (
+          <div className="flex shrink-0 justify-center px-2">
+            {renderViewModeSwitch(true)}
+          </div>
+        )}
         {isMobileCanvasMode && (
           <div className="space-y-3">
-            <div className="flex justify-center">
-              {renderViewModeSwitch(true)}
-            </div>
             <div className="flex items-start">
               <div className="flex items-center gap-2">
                 <div className="relative" data-mobile-nav="true">
