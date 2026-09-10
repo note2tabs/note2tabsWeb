@@ -81,6 +81,7 @@ import {
   GTE_TIMELINE_END_PADDING,
   GTE_TIMELINE_GUTTER_WIDTH,
   GTE_TIMELINE_LABEL_COLUMN_WIDTH,
+  shouldAddBarStartNewRow,
 } from "../lib/gteTimelineGeometry";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
@@ -5312,7 +5313,13 @@ export default function GteWorkspace({
   const timelineHeight = rows * rowBlockHeight + Math.max(0, rows - 1) * ROW_GAP;
   const lastRowIndex = rows - 1;
   const lastRowBarCount = Math.max(0, barCount - lastRowIndex * barsPerRow);
-  const addBarStartsNewRow = lastRowBarCount >= barsPerRow;
+  // `barsPerRow` is capped to the number of existing bars so short scores can
+  // use their natural width. Use the configured row capacity here so the add
+  // button remains beside a short final row instead of jumping below it.
+  const addBarStartsNewRow = shouldAddBarStartNewRow(
+    lastRowBarCount,
+    normalizedSharedViewportBars
+  );
   const addBarLeft = addBarStartsNewRow ? 0 : lastRowBarCount * framesPerMeasure * scale + 10;
   const addBarTop =
     TIMELINE_BAR_HEADER_HEIGHT +
@@ -16437,7 +16444,10 @@ export default function GteWorkspace({
               const tabRowHeight = TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height;
               const lastTabRowIndex = rows - 1;
               const lastTabRowBarCount = Math.max(0, barCount - lastTabRowIndex * barsPerRow);
-              const tabAddBarStartsNewRow = lastTabRowBarCount >= barsPerRow;
+              const tabAddBarStartsNewRow = shouldAddBarStartNewRow(
+                lastTabRowBarCount,
+                normalizedSharedViewportBars
+              );
               const tabScoreHeight =
                 rows * tabRowHeight +
                 Math.max(0, rows - 1) * ROW_GAP +

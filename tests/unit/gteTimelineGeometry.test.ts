@@ -5,6 +5,7 @@ import {
   GTE_TIMELINE_LABEL_COLUMN_WIDTH,
   getScaledDrumHitSize,
   getTimelineBaseScale,
+  shouldAddBarStartNewRow,
 } from "../../lib/gteTimelineGeometry";
 
 describe("gte timeline geometry", () => {
@@ -25,5 +26,11 @@ describe("gte timeline geometry", () => {
 
     expect(scale).toBe(0.5);
     expect(2 * 480 * scale).toBe(480);
+  });
+
+  it("keeps the add-bar control beside a short final row", () => {
+    expect(shouldAddBarStartNewRow(2, 4)).toBe(false);
+    expect(shouldAddBarStartNewRow(3, 4)).toBe(false);
+    expect(shouldAddBarStartNewRow(4, 4)).toBe(true);
   });
 });
