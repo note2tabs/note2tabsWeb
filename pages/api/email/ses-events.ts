@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { prisma } from "../../../lib/prisma";
 import { createPostHogServerClient } from "../../../lib/posthogServer";
 import { blockTabShareEmails } from "../../../lib/tabShareEmailPreferences";
+import { reminderDeliverySuppressionIdentifier } from "../../../lib/reminderUnsubscribe";
 
 type SesNotification = {
   eventType?: "Delivery" | "Bounce" | "Complaint";
@@ -69,6 +70,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await blockTabShareEmails(email);
     }
     const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+    const shouldSuppressReminders = isReminder && Boolean(user?.id) && (
+      notificationType === "Complaint"
+      || (notificationType === "Bounce" && notification.bounce?.bounceType === "Permanent")
+    );
+    if (shouldSuppressReminders && user) {
+      const identifier = reminderDeliverySuppressionIdentifier(user.id);
+      await prisma.verificationToken.upsert({
+        where: { identifier_token: { identifier, token: "suppressed" } },
+        create: {
+          identifier,
+          token: "suppressed",
+          expires: new Date("9999-12-31T00:00:00.000Z"),
+        },
+        update: { expires: new Date("9999-12-31T00:00:00.000Z") },
+      });
+    }
     posthog?.capture({
       distinctId: user?.id || `unknown-email:${crypto.createHash("sha256").update(email).digest("hex").slice(0, 24)}`,
       event,

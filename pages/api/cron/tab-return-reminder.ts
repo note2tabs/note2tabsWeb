@@ -89,7 +89,8 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
           AND v.identifier IN (
             'reminder:return-to-tab:' || c.user_id || ':' || c.canvas_id,
             'reminder:return-to-tab-cooldown:' || c.user_id,
-            'email:reminders-unsubscribed:' || c.user_id
+            'email:reminders-unsubscribed:' || c.user_id,
+            'email:reminders-delivery-suppressed:' || c.user_id
           )
       )
       AND EXISTS (
