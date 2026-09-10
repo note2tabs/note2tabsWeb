@@ -6710,7 +6710,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       >
         {isMobileCanvasMode && (
           <div className="space-y-3">
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+            <div className="flex justify-center">
+              {renderViewModeSwitch(true)}
+            </div>
+            <div className="flex items-start">
               <div className="flex items-center gap-2">
                 <div className="relative" data-mobile-nav="true">
                   <button
@@ -6854,7 +6857,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 </div>
                 {renderMobileHistoryControls()}
               </div>
-              {renderViewModeSwitch(true)}
             </div>
             <div className={practiceModeEnabled ? "hidden" : "space-y-2"}>
               <details className="rounded-xl border border-slate-200 bg-white shadow-sm">
