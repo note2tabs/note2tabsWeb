@@ -150,6 +150,44 @@ export type EditorListItem = {
   storageStatus?: "LIVE" | "ARCHIVING" | "ARCHIVED" | "RESTORING" | "ERROR";
 };
 
+export type SharedEditorRole = "viewer" | "editor";
+
+export type SharedEditorListItem = {
+  id: string;
+  name?: string;
+  updatedAt?: string;
+  version?: number;
+  role: SharedEditorRole;
+  ownerUserId?: string;
+};
+
+export type CanvasShareStatus = "pending" | "accepted" | "revoked";
+
+export type CanvasShare = {
+  shareId: number;
+  email: string;
+  role: SharedEditorRole;
+  status: CanvasShareStatus;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type PendingCanvasShare = {
+  shareId: number;
+  canvasId: string;
+  name?: string;
+  role: SharedEditorRole;
+  invitedBy?: string;
+  createdAt?: string;
+};
+
+export type OutgoingCanvasShare = {
+  canvasId: string;
+  name?: string;
+  updatedAt?: string;
+  collaborators: CanvasShare[];
+};
+
 export type CanvasSnapshot = {
   id: string;
   name?: string;
@@ -164,5 +202,11 @@ export type CanvasSnapshot = {
   secondsPerBar?: number;
   timingVersion?: number;
   timingMap?: TimingMapV2;
+  editorInputSettings?: {
+    defaultNoteLengthDenominator: number;
+    cursorSizeDenominator: number;
+  };
+  /** Track last viewed by the user, persisted server-side so it survives reloads. */
+  activeLaneId?: string;
   editors: EditorSnapshot[];
 };

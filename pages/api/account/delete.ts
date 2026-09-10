@@ -4,8 +4,8 @@ import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "../../../lib/prisma";
 import { stripeClient } from "../../../lib/stripe";
 import {
-  getStripePremiumConfig,
-  stripeSubscriptionMatchesPremium,
+  getStripePaidPlanConfigs,
+  stripeSubscriptionPlan,
 } from "../../../lib/stripePremium";
 import { getFreshUserRole } from "../../../lib/serverAuth";
 
@@ -36,14 +36,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    const premiumConfig = getStripePremiumConfig();
-    if (currentRole === "PREMIUM" && (!stripeClient || !premiumConfig)) {
+    const paidConfigured = Object.values(getStripePaidPlanConfigs()).some(Boolean);
+    if (currentRole === "PREMIUM" && (!stripeClient || !paidConfigured)) {
       return res.status(503).json({
         error: "Subscription cancellation is temporarily unavailable. Your account was not deleted.",
       });
     }
 
-    if (stripeClient && premiumConfig) {
+    if (stripeClient && paidConfigured) {
       const customers = await stripeClient.customers.list({ email: session.user.email, limit: 100 });
       for (const customer of customers.data) {
         if ("deleted" in customer) continue;
@@ -54,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         for (const subscription of subscriptions.data) {
           if (
-            stripeSubscriptionMatchesPremium(subscription, premiumConfig) &&
+            stripeSubscriptionPlan(subscription) &&
             CANCELLABLE_SUBSCRIPTION_STATUSES.has(subscription.status)
           ) {
             await stripeClient.subscriptions.cancel(subscription.id);

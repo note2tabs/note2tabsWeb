@@ -3,8 +3,8 @@ import { getServerSession } from "next-auth/next";
 import type Stripe from "stripe";
 import { stripeClient } from "../../../lib/stripe";
 import {
-  getStripePremiumConfig,
-  stripeSubscriptionMatchesPremium,
+  getStripePaidPlanConfigs,
+  stripeSubscriptionPlan,
 } from "../../../lib/stripePremium";
 import { authOptions } from "../auth/[...nextauth]";
 
@@ -21,8 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: "Not authenticated" });
   }
 
-  const premiumConfig = getStripePremiumConfig();
-  if (!stripeClient || !premiumConfig) {
+  if (!stripeClient || !Object.values(getStripePaidPlanConfigs()).some(Boolean)) {
     return res.status(503).json({ error: "Stripe not configured yet." });
   }
   const stripe = stripeClient;
@@ -43,9 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       )
     );
     const subscriptions: Stripe.Subscription[] = subscriptionPages.flatMap((result) =>
-      result.data.filter((subscription) =>
-        stripeSubscriptionMatchesPremium(subscription, premiumConfig)
-      )
+      result.data.filter((subscription) => Boolean(stripeSubscriptionPlan(subscription)))
     );
 
     const subscription = subscriptions
@@ -59,6 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({
       subscription: {
         status: subscription.status,
+        plan: stripeSubscriptionPlan(subscription)?.toLowerCase(),
         isTrial: subscription.status === "trialing",
         trialEndsAt: subscription.trial_end
           ? new Date(subscription.trial_end * 1000).toISOString()

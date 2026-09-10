@@ -75,13 +75,13 @@ const collectSelections = (snapshot: unknown, ref: EditorRefParts): LoopSelectio
   return [];
 };
 
-const loadRows = async (userId: string, canvasId: string) => {
-  if (!userId || !canvasId || !canUseTable()) return [];
+const loadRows = async (canvasId: string) => {
+  if (!canvasId || !canUseTable()) return [];
   try {
     const rows = await prisma.$queryRaw<StoredLoopRow[]>(Prisma.sql`
       SELECT "laneId", "loops"
       FROM ${TABLE}
-      WHERE "userId" = ${userId} AND "editorId" = ${canvasId}
+      WHERE "editorId" = ${canvasId}
     `);
     tableAvailability = "available";
     return rows;
@@ -106,13 +106,12 @@ const applyRows = (value: unknown, laneId: string | null, rows: StoredLoopRow[])
 };
 
 export const hydrateDrumLoopsFromStore = async <T>(
-  userId: string,
   editorRef: string | null,
   payload: T
 ): Promise<T> => {
   if (!editorRef || !isRecord(payload) || !canUseTable()) return payload;
   const ref = parseEditorRef(editorRef);
-  const rows = await loadRows(userId, ref.canvasId);
+  const rows = await loadRows(ref.canvasId);
   if (!rows.length) return payload;
   applyRows(payload, ref.laneId, rows);
   if ("canvas" in payload) applyRows(payload.canvas, ref.laneId, rows);
@@ -121,7 +120,6 @@ export const hydrateDrumLoopsFromStore = async <T>(
 };
 
 export const persistDrumLoopsFromSnapshot = async (
-  userId: string,
   editorRef: string | null,
   snapshot: unknown
 ) => {
@@ -136,13 +134,13 @@ export const persistDrumLoopsFromSnapshot = async (
         if (laneIds.length) {
           await tx.$executeRaw(Prisma.sql`
             DELETE FROM ${TABLE}
-            WHERE "userId" = ${userId} AND "editorId" = ${ref.canvasId}
+            WHERE "editorId" = ${ref.canvasId}
               AND "laneId" NOT IN (${Prisma.join(laneIds)})
           `);
         } else {
           await tx.$executeRaw(Prisma.sql`
             DELETE FROM ${TABLE}
-            WHERE "userId" = ${userId} AND "editorId" = ${ref.canvasId}
+            WHERE "editorId" = ${ref.canvasId}
           `);
         }
       }
@@ -150,7 +148,7 @@ export const persistDrumLoopsFromSnapshot = async (
         if (!selection.loops.length) {
           await tx.$executeRaw(Prisma.sql`
             DELETE FROM ${TABLE}
-            WHERE "userId" = ${userId} AND "editorId" = ${ref.canvasId}
+            WHERE "editorId" = ${ref.canvasId}
               AND "laneId" = ${selection.laneId}
           `);
           continue;
@@ -158,11 +156,11 @@ export const persistDrumLoopsFromSnapshot = async (
         const loopsJson = JSON.stringify(selection.loops);
         await tx.$executeRaw(Prisma.sql`
           INSERT INTO ${TABLE}
-            ("id", "userId", "editorId", "laneId", "loops", "createdAt", "updatedAt")
+            ("id", "editorId", "laneId", "loops", "createdAt", "updatedAt")
           VALUES
-            (${randomUUID()}, ${userId}, ${ref.canvasId}, ${selection.laneId},
+            (${randomUUID()}, ${ref.canvasId}, ${selection.laneId},
              ${loopsJson}::jsonb, NOW(), NOW())
-          ON CONFLICT ("userId", "editorId", "laneId")
+          ON CONFLICT ("editorId", "laneId")
           DO UPDATE SET "loops" = EXCLUDED."loops", "updatedAt" = NOW()
         `);
       }

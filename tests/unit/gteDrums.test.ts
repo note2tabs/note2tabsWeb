@@ -19,23 +19,26 @@ describe("drum tracks", () => {
     });
   });
 
-  it("defines the six active drum voices and number shortcuts", () => {
+  it("defines the full nine-piece drum kit and number shortcuts", () => {
     expect(DRUM_VOICES.map((voice) => voice.label)).toEqual([
-      "Cymbal",
+      "Crash cymbal",
+      "Ride cymbal",
       "Closed hi-hat",
       "Open hi-hat",
-      "Bass",
-      "Kick",
-      "Snare",
+      "High tom",
+      "Mid tom",
+      "Snare drum",
+      "Floor tom",
+      "Bass drum",
     ]);
-    expect(DRUM_VOICES.map((voice) => voice.key)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(DRUM_VOICES.map((voice) => voice.key)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 
   it("encodes a drum voice in lane_notes-compatible note fields", () => {
     const note = buildDrumNote({
       id: 12,
       startTime: 240,
-      voiceIndex: 5,
+      voiceIndex: 6,
       length: 30,
     });
     expect(note).toMatchObject({
@@ -43,7 +46,7 @@ describe("drum tracks", () => {
       startTime: 240,
       length: 30,
       midiNum: 38,
-      tab: [5, 0],
+      tab: [6, 0],
     });
     expect(getDrumVoiceForNote(note).id).toBe("snare");
   });
@@ -55,7 +58,7 @@ describe("drum tracks", () => {
   });
 
   it("rejects legacy sticks hits while sticks are disabled", () => {
-    expect(isSupportedDrumNote({ midiNum: 37, tab: [6, 0] })).toBe(false);
+    expect(isSupportedDrumNote({ midiNum: 37, tab: [9, 0] })).toBe(false);
   });
 
   it("snaps each bar independently for non-divisible drum grids", () => {

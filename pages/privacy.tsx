@@ -37,6 +37,22 @@ export default function PrivacyPage() {
             Note2Tabs. Please avoid including sensitive information that is not needed to resolve your issue.
           </p>
 
+          <h2>Tabs shared with non-users</h2>
+          <p>
+            A signed-in Note2Tabs user may share a tab with an email address that does not yet belong to an account.
+            We use that address only to create and deliver the requested sharing invitation and to prevent abuse or
+            unwanted repeat messages. The invitation identifies the person who shared the tab, links to this policy,
+            and lets the recipient block future tab-sharing emails. We do not add recipients to marketing lists.
+          </p>
+
+          <h2>Internship applications</h2>
+          <p>
+            If you submit an internship application, the information you provide is delivered directly to the
+            Note2Tabs administrative email account and used only to assess and respond to your application. We do
+            not store internship applications in the Note2Tabs product database or send application answers to
+            product analytics. You may contact us to request deletion of your application information.
+          </p>
+
           <h2>Cookies and similar technologies</h2>
           <p>
             We use essential cookies to run the service. Product analytics are enabled by default, but PostHog is

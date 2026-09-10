@@ -1,12 +1,15 @@
 import type { Note } from "../types/gte";
 
 export type DrumVoiceId =
-  | "cymbal"
+  | "crash"
+  | "ride"
   | "closed_hi_hat"
   | "open_hi_hat"
-  | "bass"
-  | "kick"
-  | "snare";
+  | "high_tom"
+  | "mid_tom"
+  | "snare"
+  | "floor_tom"
+  | "kick";
 
 export type DrumVoice = {
   id: DrumVoiceId;
@@ -18,13 +21,14 @@ export type DrumVoice = {
 };
 
 export const DRUM_VOICES: readonly DrumVoice[] = [
-  { id: "cymbal", label: "Cymbal", shortLabel: "CYM", midi: 49, key: 1, sampleStem: "cymbal" },
+  { id: "crash", label: "Crash cymbal", shortLabel: "CC", midi: 49, key: 1, sampleStem: "cymbal" },
+  { id: "ride", label: "Ride cymbal", shortLabel: "RD", midi: 51, key: 2, sampleStem: "cymbal" },
   {
     id: "closed_hi_hat",
     label: "Closed hi-hat",
     shortLabel: "CHH",
     midi: 42,
-    key: 2,
+    key: 3,
     sampleStem: "closed_hi_hat",
   },
   {
@@ -32,12 +36,14 @@ export const DRUM_VOICES: readonly DrumVoice[] = [
     label: "Open hi-hat",
     shortLabel: "OHH",
     midi: 46,
-    key: 3,
+    key: 4,
     sampleStem: "open_hi_hat",
   },
-  { id: "bass", label: "Bass", shortLabel: "BAS", midi: 41, key: 4, sampleStem: "bass" },
-  { id: "kick", label: "Kick", shortLabel: "KIK", midi: 36, key: 5, sampleStem: "kick" },
-  { id: "snare", label: "Snare", shortLabel: "SNR", midi: 38, key: 6, sampleStem: "snare" },
+  { id: "high_tom", label: "High tom", shortLabel: "HT", midi: 50, key: 5, sampleStem: "bass" },
+  { id: "mid_tom", label: "Mid tom", shortLabel: "MT", midi: 47, key: 6, sampleStem: "bass" },
+  { id: "snare", label: "Snare drum", shortLabel: "SD", midi: 38, key: 7, sampleStem: "snare" },
+  { id: "floor_tom", label: "Floor tom", shortLabel: "FT", midi: 41, key: 8, sampleStem: "bass" },
+  { id: "kick", label: "Bass drum", shortLabel: "BD", midi: 36, key: 9, sampleStem: "kick" },
 ] as const;
 
 export const DEFAULT_DRUM_HIT_LENGTH = 30;

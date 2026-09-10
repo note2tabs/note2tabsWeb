@@ -108,6 +108,24 @@ describe("analytics privacy sanitization", () => {
     });
   });
 
+  it("retains opaque cross-origin script errors without paging operators", () => {
+    expect(classifyPostHogException([{ type: "Error", value: "Script error." }])).toEqual({
+      alertEligible: false,
+      classification: "non_actionable_browser_error",
+    });
+  });
+
+  it("classifies stale deployment chunks as automatically recoverable", () => {
+    expect(
+      classifyPostHogException([
+        { type: "ChunkLoadError", value: "Loading chunk 123 failed" },
+      ])
+    ).toEqual({
+      alertEligible: false,
+      classification: "recoverable_stale_chunk",
+    });
+  });
+
   it("preserves deeply nested session replay snapshots", () => {
     const snapshot = {
       uuid: "snapshot-id",

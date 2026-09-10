@@ -19,6 +19,8 @@ import {
 } from "../lib/usePremiumOfferEligibility";
 import { premiumOfferExperimentProperties } from "../lib/premiumOfferExperiment";
 import { usePremiumOfferExperiment } from "../lib/usePremiumOfferExperiment";
+import { proPlanPresentationEnabled, type PaidSubscriptionPlan } from "../lib/subscriptionPlans";
+import type { BillingInterval } from "../lib/stripePremium";
 
 const pricingFaqs = [
   {
@@ -27,19 +29,23 @@ const pricingFaqs = [
       "Eligible new subscribers get a 7-day trial. Premium is $5.99 per month and you can cancel anytime.",
   },
   {
-    question: "Do both plans include Light and Heavy?",
+    question: "Does Pro include a free trial?",
+    answer: "No. Pro is for frequent transcription and is billed at $14.99 as soon as you subscribe.",
+  },
+  {
+    question: "Do all plans include Light and Heavy?",
     answer:
       "Yes. Light is faster for clear, focused guitar recordings. Heavy is our more accurate model for complex and multi-instrument recordings. Premium gives you more room to choose Heavy regularly.",
   },
   {
     question: "What happens to unused credits?",
     answer:
-      "Premium credits roll over up to a balance of 200. Free credits refresh monthly and do not roll over.",
+      "Premium credits roll over up to 200 and Pro credits up to 500. Free credits refresh monthly and do not roll over.",
   },
   {
     question: "Can I cancel anytime?",
     answer:
-      "Yes. You can manage or cancel Premium from your account settings. Your access continues through the current billing period.",
+      "Yes. You can manage or cancel Premium or Pro from your account settings. Your access continues through the current billing period.",
   },
 ];
 
@@ -48,11 +54,14 @@ export default function PricingPage() {
   const { data: session, status: sessionStatus } = useSession();
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>("monthly");
   const resumedCheckoutRef = useRef(false);
   const pricingViewTrackedRef = useRef(false);
   const funnelContextRef = useRef<PremiumFunnelContext | null>(null);
   const currentRole = session?.user?.role || "";
+  const showPro = proPlanPresentationEnabled();
   const hasPaidPremium = currentRole === "PREMIUM";
+  const currentPlan = session?.user?.subscriptionPlan || (hasPaidPremium ? "PREMIUM" : "FREE");
   const hasStaffAccess = ["ADMIN", "MODERATOR", "MOD"].includes(currentRole);
   const hasPremiumAccess = hasPaidPremium || hasStaffAccess;
   const { variant: offerVariant, resolved: offerVariantResolved } =
@@ -61,7 +70,7 @@ export default function PricingPage() {
     sessionStatus === "authenticated" && !hasPremiumAccess
   );
   const description =
-    "Simple monthly pricing for Note2Tabs. Compare free and premium plans for guitar tab transcription and editing.";
+    "Simple monthly pricing for Note2Tabs. Compare Free, Premium, and Pro plans for guitar tab transcription and editing.";
   const pricingJsonLd = [
     {
       "@context": "https://schema.org",
@@ -101,6 +110,24 @@ export default function PricingPage() {
         },
       })),
     },
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: "Note2Tabs",
+      offers: {
+        "@type": "OfferCatalog",
+        name: "Note2Tabs subscription plans",
+        itemListElement: [
+          { "@type": "Offer", name: "Free", price: "0", priceCurrency: "USD" },
+          { "@type": "Offer", name: "Premium", price: "5.99", priceCurrency: "USD" },
+          { "@type": "Offer", name: "Premium yearly", price: "59.99", priceCurrency: "USD" },
+          ...(showPro ? [
+            { "@type": "Offer", name: "Pro", price: "14.99", priceCurrency: "USD" },
+            { "@type": "Offer", name: "Pro yearly", price: "149.99", priceCurrency: "USD" },
+          ] : []),
+        ],
+      },
+    },
   ];
 
   const entrySource = normalizePremiumFunnelSource(router.query.source);
@@ -130,22 +157,24 @@ export default function PricingPage() {
     });
   }, [getFunnelContext, offerVariant, offerVariantResolved, router.isReady]);
 
-  const startCheckout = useCallback(async () => {
+  const startCheckout = useCallback(async (plan: PaidSubscriptionPlan = "PREMIUM") => {
     if (checkoutBusy) return;
     const funnel = getFunnelContext();
     sendEvent(ANALYTICS_EVENTS.pricingCtaClicked, {
-      cta: "premium_offer",
+      cta: plan === "PRO" ? "pro_offer" : "premium_offer",
+      plan: plan.toLowerCase(),
+      billing_interval: billingInterval,
       signedIn: Boolean(session),
       path: "/pricing",
       ...premiumFunnelProperties(funnel),
       ...premiumOfferExperimentProperties(offerVariant),
     });
     if (!session) {
-      const callbackUrl = `${premiumPricingHref(funnel)}&checkout=1`;
+      const callbackUrl = `${premiumPricingHref(funnel)}&checkout=1&plan=${plan.toLowerCase()}&billing=${billingInterval}`;
       await signIn(undefined, { callbackUrl });
       return;
     }
-    if (hasPremiumAccess) {
+    if (hasStaffAccess || (hasPaidPremium && currentPlan === plan)) {
       await router.push(hasPaidPremium ? "/settings" : "/transcribe");
       return;
     }
@@ -153,7 +182,7 @@ export default function PricingPage() {
     setCheckoutBusy(true);
     setCheckoutError(null);
     try {
-      const response = await fetch("/api/stripe/create-checkout-session", {
+      const response = await fetch(hasPaidPremium ? "/api/stripe/change-plan" : "/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -161,22 +190,27 @@ export default function PricingPage() {
           reason: funnel.reason,
           funnelId: funnel.funnelId,
           offerVariant,
+          plan: plan.toLowerCase(),
+          billingInterval,
         }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload?.url) {
+      if (!response.ok || (!hasPaidPremium && !payload?.url)) {
         throw new Error(payload?.error || "Checkout is temporarily unavailable. Please try again in a moment.");
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
-        plan: "premium_monthly",
+        plan: `${plan.toLowerCase()}_${billingInterval}`,
+        billing_interval: billingInterval,
         checkout_attempt_id: payload.checkoutAttemptId,
         ...premiumFunnelProperties(funnel),
         ...premiumOfferExperimentProperties(offerVariant),
       });
-      window.location.assign(payload.url);
+      if (payload.url) window.location.assign(payload.url);
+      else await router.push("/settings?planChanged=1");
     } catch (error) {
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-        plan: "premium_monthly",
+        plan: `${plan.toLowerCase()}_${billingInterval}`,
+        billing_interval: billingInterval,
         ...premiumFunnelProperties(funnel),
         ...premiumOfferExperimentProperties(offerVariant),
       });
@@ -187,16 +221,21 @@ export default function PricingPage() {
       );
       setCheckoutBusy(false);
     }
-  }, [checkoutBusy, getFunnelContext, hasPaidPremium, hasPremiumAccess, offerVariant, router, session]);
+  }, [billingInterval, checkoutBusy, currentPlan, getFunnelContext, hasPaidPremium, hasStaffAccess, offerVariant, router, session]);
 
   useEffect(() => {
     if (!router.isReady || router.query.checkout !== "1") return;
     if (!offerVariantResolved || sessionStatus !== "authenticated" || resumedCheckoutRef.current) return;
+    const requestedBilling = router.query.billing === "yearly" ? "yearly" : "monthly";
+    if (billingInterval !== requestedBilling) {
+      setBillingInterval(requestedBilling);
+      return;
+    }
     resumedCheckoutRef.current = true;
     const funnel = getFunnelContext();
     void router.replace(premiumPricingHref(funnel), undefined, { shallow: true });
-    void startCheckout();
-  }, [getFunnelContext, offerVariantResolved, router.isReady, router.query.checkout, sessionStatus, startCheckout]);
+    void startCheckout(router.query.plan === "pro" ? "PRO" : "PREMIUM");
+  }, [billingInterval, getFunnelContext, offerVariantResolved, router.isReady, router.query.billing, router.query.checkout, router.query.plan, sessionStatus, startCheckout]);
 
   return (
     <>
@@ -211,13 +250,15 @@ export default function PricingPage() {
           <div className="container pricing-page__container">
             <header className="pricing-page__hero">
               <h1>Choose how far you want to take your music.</h1>
-              <p>
-                Start free. Upgrade for more transcriptions, full songs, and
-                more usage of the Heavy model.
-              </p>
+              <p>Start free. Upgrade when you need more room for full songs and the Heavy model.</p>
             </header>
 
-            <section className="pricing-page__plans" aria-label="Note2Tabs plans">
+            {showPro && <div className="pricing-billing-toggle" role="group" aria-label="Billing interval">
+              <button type="button" aria-pressed={billingInterval === "monthly"} className={billingInterval === "monthly" ? "is-active" : ""} onClick={() => setBillingInterval("monthly")}>Monthly</button>
+              <button type="button" aria-pressed={billingInterval === "yearly"} className={billingInterval === "yearly" ? "is-active" : ""} onClick={() => setBillingInterval("yearly")}>Yearly <span>Save $30!</span></button>
+            </div>}
+
+            <section className={`pricing-page__plans${showPro ? " pricing-page__plans--three" : ""}`} aria-label="Note2Tabs plans">
               <article className="pricing-plan pricing-plan--free">
                 <div className="pricing-plan__top">
                   <h2>Free</h2>
@@ -252,14 +293,14 @@ export default function PricingPage() {
                   {offerEligibility === "eligible"
                     ? offerVariant === "value_framing"
                       ? "Most popular · 7 days free"
-                      : "Most popular · 7-day trial"
-                    : "Most popular"}
+                      : "Most popular · 7-day free trial"
+                    : offerEligibility === "ineligible" ? "Most popular" : "Most popular · 7-day free trial"}
                 </div>
                 <div className="pricing-plan__top">
                   <h2>Premium</h2>
                   <div className="pricing-plan__price">
-                    <strong>$5.99</strong>
-                    <span>/ month</span>
+                    <strong>{billingInterval === "yearly" ? "$59.99" : "$5.99"}</strong>
+                    <span>/ {billingInterval === "yearly" ? "year" : "month"}</span>
                   </div>
                 </div>
                 {hasPremiumAccess ? (
@@ -273,7 +314,7 @@ export default function PricingPage() {
                   <button
                     type="button"
                     className="pricing-plan__cta pricing-plan__cta--primary"
-                    onClick={() => void startCheckout()}
+                    onClick={() => void startCheckout("PREMIUM")}
                     disabled={checkoutBusy || sessionStatus === "loading"}
                   >
                     {checkoutBusy
@@ -282,7 +323,13 @@ export default function PricingPage() {
                   </button>
                 )}
                 <p className="pricing-plan__reassurance">
-                  {premiumOfferReassurance(offerEligibility, offerVariant)}
+                  {billingInterval === "yearly"
+                    ? offerEligibility === "ineligible"
+                      ? <><span>$59.99/year · </span><span className="pricing-plan__saving">Save $12 per year</span><span> · Cancel anytime</span></>
+                      : <><span>7-day free trial · Then $59.99/year · </span><span className="pricing-plan__saving">Save $12 per year</span></>
+                    : offerEligibility === "eligible"
+                      ? "7-day free trial · Then $5.99/month · Cancel anytime"
+                      : premiumOfferReassurance(offerEligibility, offerVariant)}
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
@@ -294,6 +341,33 @@ export default function PricingPage() {
                   <li>Longer YouTube clips within the first 10 minutes</li>
                 </ul>
               </article>
+
+              {showPro && <article className="pricing-plan pricing-plan--pro">
+                <div className="pricing-plan__top">
+                  <h2>Pro</h2>
+                  <div className="pricing-plan__price"><strong>{billingInterval === "yearly" ? "$149.99" : "$14.99"}</strong><span>/ {billingInterval === "yearly" ? "year" : "month"}</span></div>
+                </div>
+                {currentPlan === "PRO" || hasStaffAccess ? (
+                  <Link href={hasStaffAccess ? "/transcribe" : "/settings"} className="pricing-plan__cta pricing-plan__cta--secondary">
+                    {hasStaffAccess ? "Pro access included" : "Manage current plan"}
+                  </Link>
+                ) : (
+                  <button type="button" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => void startCheckout("PRO")} disabled={checkoutBusy || sessionStatus === "loading"}>
+                    {checkoutBusy ? "Opening…" : currentPlan === "PREMIUM" ? "Upgrade to Pro" : "Choose Pro"}
+                  </button>
+                )}
+                <p className="pricing-plan__reassurance">{billingInterval === "yearly" ? <><span>No free trial · $149.99 billed today · </span><span className="pricing-plan__saving">Save $30 per year</span></> : "No free trial · $14.99 billed today · Cancel anytime"}</p>
+                <div className="pricing-plan__divider" />
+                <ul className="pricing-plan__features">
+                  <li>Everything in Premium</li>
+                  <li><strong>250</strong> credits each month</li>
+                  <li>Unused credits roll over, up to 500</li>
+                  <li>Uploads up to 500 MB</li>
+                  <li>YouTube selections within the first 20 minutes</li>
+                  <li>Priority email support</li>
+                  <li>Eligible for future early-access features</li>
+                </ul>
+              </article>}
             </section>
 
             {checkoutError && (

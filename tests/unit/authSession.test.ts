@@ -10,6 +10,7 @@ describe("JWT-backed auth sessions", () => {
       {
         id: "user_1",
         role: "PREMIUM",
+        subscriptionPlan: "PREMIUM",
         tokensRemaining: 42,
         emailVerifiedBool: true,
         unverifiedTranscriptionUsed: true,
@@ -20,6 +21,7 @@ describe("JWT-backed auth sessions", () => {
     expect(token).toMatchObject({
       id: "user_1",
       role: "PREMIUM",
+      subscriptionPlan: "PREMIUM",
       tokensRemaining: 42,
       isEmailVerified: true,
       unverifiedTranscriptionUsed: true,
@@ -36,6 +38,7 @@ describe("JWT-backed auth sessions", () => {
     const token = {
       id: "user_1",
       role: "PREMIUM",
+      subscriptionPlan: "PREMIUM",
       tokensRemaining: 42,
       isEmailVerified: true,
       unverifiedTranscriptionUsed: false,
@@ -49,6 +52,7 @@ describe("JWT-backed auth sessions", () => {
         email: "player@example.com",
         id: "user_1",
         role: "PREMIUM",
+        subscriptionPlan: "PREMIUM",
         tokensRemaining: 42,
         isEmailVerified: true,
         unverifiedTranscriptionUsed: false,

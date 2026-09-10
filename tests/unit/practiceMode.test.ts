@@ -16,6 +16,12 @@ const globalStyles = fs.readFileSync(
 );
 
 describe("editor practice mode", () => {
+  it("uses the frontend port of the smart backend generator for track-wide fingering tools", () => {
+    expect(workspace).toContain("generatePlayingCoordinatesInSnapshot(optimized)");
+    expect(workspace).toContain("localApply: generatePlayingCoordinatesInSnapshot");
+    expect(workspace).not.toContain("gteApi.generateCuts(editorId");
+  });
+
   it("keeps play and rate hidden behind its frontend feature flag", () => {
     expect(editorPage).toContain("const PRACTICE_RATING_UI_ENABLED = false");
     expect(editorPage).toContain(
@@ -53,8 +59,8 @@ describe("editor practice mode", () => {
 
   it("turns practice into a focused paper-like reading surface", () => {
     expect(editorPage).toContain("min-h-[1050px]");
-    expect(editorPage).toContain("max-w-[900px]");
-    expect(editorPage).toContain("Math.min(timelineZoomPercent / 100, 0.5)");
+    expect(editorPage).toContain("max-w-[1100px]");
+    expect(editorPage).toContain("lg:max-w-[calc(100vw-32rem)]");
     expect(editorPage).toContain("practiceMode={practiceModeEnabled}");
     expect(workspace).toContain('practiceMode ? "rounded-none border-0"');
     expect(workspace).toContain("data-gte-practice-score");
@@ -80,8 +86,8 @@ describe("editor practice mode", () => {
   });
 
   it("compresses consecutive empty bars into one selectable range", () => {
-    expect(workspace).toContain("collapseConsecutiveEmptyBars: practiceMode");
     expect(workspace).toContain("const practiceBarSegments = useMemo");
+    expect(workspace).toContain("!practiceOccupiedBarIndexSet.has(endBar)");
     expect(workspace).toContain("handlePracticeBarSegmentSelection");
     expect(workspace).toContain("segment.startBar + 1");
     expect(workspace).toContain("data-bar-end-index={segment.endBar - 1}");
@@ -154,7 +160,8 @@ describe("editor practice mode", () => {
   it("provides focused, persistent practice utilities", () => {
     expect(editorPage).toContain("note2tabs:practice:");
     expect(editorPage).toContain("Bluetooth pedals that send arrow or Page keys");
-    expect(editorPage).toContain("requestFullscreen()");
+    expect(editorPage).toContain("supportsElementFullscreen");
+    expect(editorPage).toContain("toggleElementFullscreen");
     expect(editorPage).toContain("Count-in bars");
     expect(editorPage).toContain("Metronome volume");
     expect(editorPage).not.toContain("<PracticeFretboard");
@@ -165,7 +172,7 @@ describe("editor practice mode", () => {
   it("keeps shortcuts and bar-selection guidance on the right in practice", () => {
     expect(editorPage).toContain("const renderPracticeHelp = () => (");
     expect(editorPage).toContain("Practice shortcuts");
-    expect(editorPage).toContain("min-[1400px]:right-[max(1rem,calc(50vw-700px))]");
+    expect(editorPage).toContain("lg:fixed lg:right-4 lg:top-28");
     expect(editorPage).toContain("Select one or more bars for playback");
     expect(editorPage).toContain("Shift-click another bar");
   });
@@ -175,5 +182,14 @@ describe("editor practice mode", () => {
     expect(globalStyles).toContain(".gte-practice-fullscreen::backdrop");
     expect(globalStyles).toContain("min-height: 100dvh");
     expect(globalStyles).toContain("background: var(--bg)");
+  });
+
+  it("closes track settings and records one undo step when offsetting a track", () => {
+    expect(editorPage).toContain("setDesktopTrackSettingsCollapsed(true)");
+    expect(editorPage).toContain("recordCanvasHistory(session.baseCanvas, previewCanvas)");
+    expect(editorPage).toContain("recordCanvasHistory(session.baseCanvas, committedCanvas)");
+    expect(editorPage).toContain(
+      "applyCanvasUpdate(committedCanvas, { markDirty: true, recordHistory: false })"
+    );
   });
 });

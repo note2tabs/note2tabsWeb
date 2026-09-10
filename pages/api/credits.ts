@@ -23,10 +23,12 @@ const isPremiumRole = (role?: string) =>
 async function buildUserCredits(user: {
   id: string;
   role: string;
+  subscriptionPlan: string;
   tokensRemaining: number;
   createdAt: Date;
 }) {
-  const isPremium = isPremiumRole(user.role);
+  const subscriptionPlan = user.subscriptionPlan === "PRO" ? "PRO" : user.role === "PREMIUM" ? "PREMIUM" : "FREE";
+  const isPremium = isPremiumRole(user.role) || subscriptionPlan !== "FREE";
   const creditWindow = isPremium
     ? getCreditWindow({ userCreatedAt: user.createdAt })
     : getCreditWindow();
@@ -52,11 +54,12 @@ async function buildUserCredits(user: {
     ),
     resetAt: creditWindow.resetAt,
     isPremium,
+    subscriptionPlan,
     userCreatedAt: user.createdAt,
   });
 
   let credits: CreditsSummary = isPremium
-    ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining)
+    ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining, subscriptionPlan === "PRO" ? 500 : 200)
     : computedCredits;
   let source: "computed" | "stored" | "backend" = isPremium ? "stored" : "computed";
 
@@ -110,6 +113,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     select: {
       id: true,
       role: true,
+      subscriptionPlan: true,
       tokensRemaining: true,
       createdAt: true,
     },

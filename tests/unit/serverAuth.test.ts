@@ -29,7 +29,7 @@ describe("fresh server authorization", () => {
     await expect(hasFreshUserRole(session, new Set(["ADMIN"]))).resolves.toBe(false);
     expect(mocks.findUnique).toHaveBeenCalledWith({
       where: { id: "user_1" },
-      select: { role: true },
+      select: { role: true, subscriptionPlan: true },
     });
   });
 

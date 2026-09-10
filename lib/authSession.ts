@@ -5,6 +5,7 @@ import type { CreditsSummary } from "./credits";
 export type AuthUserState = {
   id?: string | null;
   role?: string | null;
+  subscriptionPlan?: string | null;
   tokensRemaining?: number | null;
   emailVerified?: Date | null;
   emailVerifiedBool?: boolean | null;
@@ -22,6 +23,7 @@ const toIsoString = (value: Date | string | null | undefined) => {
 export function applyUserStateToToken(token: JWT, user: AuthUserState) {
   if (user.id) token.id = user.id;
   if (user.role) token.role = user.role;
+  if (user.subscriptionPlan) token.subscriptionPlan = user.subscriptionPlan as "FREE" | "PREMIUM" | "PRO";
   if (typeof user.tokensRemaining === "number") {
     token.tokensRemaining = user.tokensRemaining;
   }
@@ -43,6 +45,7 @@ export function applyTokenToSession(
   if (!session.user) return session;
   session.user.id = token.id || session.user.id;
   session.user.role = token.role || "FREE";
+  session.user.subscriptionPlan = token.subscriptionPlan || "FREE";
   session.user.tokensRemaining =
     typeof token.tokensRemaining === "number" ? token.tokensRemaining : 0;
   session.user.isEmailVerified = Boolean(token.isEmailVerified);

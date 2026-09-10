@@ -69,6 +69,12 @@ describe("YouTube clip limits", () => {
     expect(isYoutubeClipRangeValid(600, 601, true)).toBe(false);
   });
 
+  it("allows Pro selections through the first twenty minutes", () => {
+    expect(isYoutubeClipRangeValid(1190, 1200, true, 1200)).toBe(true);
+    expect(isYoutubeClipRangeValid(1190, 1201, true, 1200)).toBe(false);
+    expect(clampYoutubeClipEnd(1190, 1300, true, 1200)).toBe(1200);
+  });
+
   it("clamps free ranges without shortening Premium ranges", () => {
     expect(clampYoutubeClipEnd(120, 300, false)).toBe(150);
     expect(clampYoutubeClipEnd(120, 300, true)).toBe(300);

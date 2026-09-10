@@ -1,8 +1,13 @@
 import type {
+  CanvasShare,
   CanvasSnapshot,
   ChordFingering,
   EditorListItem,
   EditorSnapshot,
+  OutgoingCanvasShare,
+  PendingCanvasShare,
+  SharedEditorListItem,
+  SharedEditorRole,
   TabCoord,
   TimingMapV2,
 } from "../types/gte";
@@ -609,7 +614,24 @@ async function importTranscriberToGuest(
 }
 
 export const gteApi = {
-  listEditors: () => request<{ editors: EditorListItem[] }>("/editors"),
+  listEditors: () =>
+    request<{ editors: EditorListItem[]; sharedEditors?: SharedEditorListItem[] }>("/editors"),
+  listShares: (editorId: string) =>
+    request<{ shares: CanvasShare[] }>(`/editors/${encodeURIComponent(editorId)}/shares`),
+  createShare: (editorId: string, email: string, role: SharedEditorRole) =>
+    request<CanvasShare & { canvasId: string; emailDelivered?: boolean; emailSuppressed?: boolean }>(`/editors/${encodeURIComponent(editorId)}/shares`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, role }),
+    }),
+  revokeShare: (editorId: string, shareId: number) =>
+    request<{ ok: true }>(`/editors/${encodeURIComponent(editorId)}/shares/${shareId}`, {
+      method: "DELETE",
+    }),
+  listPendingShares: () => request<{ pending: PendingCanvasShare[] }>("/shares/pending"),
+  listOutgoingShares: () => request<{ outgoing: OutgoingCanvasShare[] }>("/shares/outgoing"),
+  acceptShare: (shareId: number) =>
+    request<{ ok: true }>(`/shares/${shareId}/accept`, { method: "POST" }),
   createEditor: (editorId?: string, name?: string) =>
     request<{ editorId: string; snapshot: CanvasSnapshot }>("/editors", {
       method: "POST",
@@ -629,13 +651,25 @@ export const gteApi = {
   applySnapshot: (
     editorId: string,
     snapshot: EditorOrCanvasSnapshot | Record<string, any>,
-    concurrency?: { expectedVersion?: number; expectedDraftRevision?: number }
+    concurrency?: {
+      expectedVersion?: number;
+      expectedDraftRevision?: number;
+      // The lane as the client last saw it confirmed by the server --
+      // lets the backend auto-merge concurrent edits from a collaborator
+      // instead of rejecting the save outright. See dlapi.py's
+      // apply_editor_snapshot for the merge semantics.
+      baseSnapshot?: EditorOrCanvasSnapshot | Record<string, any>;
+    }
   ) =>
-    requestForEditor<{ ok: true; snapshot: any; canvas?: CanvasSnapshot }>(editorId, `/editors/${editorId}/snapshot`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ snapshot, ...concurrency }),
-    }),
+    requestForEditor<{ ok: true; snapshot: any; canvas?: CanvasSnapshot; conflicts?: unknown[] }>(
+      editorId,
+      `/editors/${editorId}/snapshot`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshot, ...concurrency }),
+      }
+    ),
   setTrackInstrument: (editorId: string, laneId: string, instrumentId: string) =>
     request<{ ok: true }>("/track-instrument", {
       method: "POST",
@@ -733,6 +767,24 @@ export const gteApi = {
       body: JSON.stringify({ name }),
       }
     ),
+  setEditorInputSettings: (
+    editorId: string,
+    settings: { defaultNoteLengthDenominator: number; cursorSizeDenominator: number }
+  ) =>
+    requestForEditor<{
+      ok: true;
+      settings: { defaultNoteLengthDenominator: number; cursorSizeDenominator: number };
+    }>(editorId, `/editors/${editorId}/input-settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ settings }),
+    }),
+  setActiveLane: (editorId: string, laneId: string) =>
+    requestForEditor<{ ok: true; laneId: string }>(editorId, `/editors/${editorId}/active-lane`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ laneId }),
+    }),
   addCanvasEditor: (
     editorId: string,
     name?: string,

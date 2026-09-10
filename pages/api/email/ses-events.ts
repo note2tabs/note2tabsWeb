@@ -1,9 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import crypto from "crypto";
 import { prisma } from "../../../lib/prisma";
-import { createPostHogServerClient, flushPostHogServerClientInBackground } from "../../../lib/posthogServer";
+import { createPostHogServerClient } from "../../../lib/posthogServer";
+import { blockTabShareEmails } from "../../../lib/tabShareEmailPreferences";
 
 type SesNotification = {
+  eventType?: "Delivery" | "Bounce" | "Complaint";
   notificationType?: "Delivery" | "Bounce" | "Complaint";
   mail?: { messageId?: string; destination?: string[]; tags?: Record<string, string[]> };
   bounce?: { bounceType?: string; bounceSubType?: string; bouncedRecipients?: Array<{ emailAddress?: string }> };
@@ -46,20 +48,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const notification = JSON.parse(envelope.Message) as SesNotification;
   const category = notification.mail?.tags?.email_category?.[0];
-  if (category !== "inactive_signup_reminder" && category !== "tab_return_reminder") {
+  const isReminder = category === "inactive_signup_reminder" || category === "tab_return_reminder";
+  const isTabShare = category === "tab_share";
+  if (!isReminder && !isTabShare) {
     return res.status(200).json({ ok: true, ignored: true });
   }
-  const event = notification.notificationType === "Delivery"
-    ? "reminder_email_delivered"
-    : notification.notificationType === "Bounce"
-      ? "reminder_email_bounced"
-      : notification.notificationType === "Complaint"
-        ? "reminder_email_complaint_received"
+  const notificationType = notification.eventType || notification.notificationType;
+  const event = notificationType === "Delivery"
+    ? (isTabShare ? "tab_share_email_delivered" : "reminder_email_delivered")
+    : notificationType === "Bounce"
+      ? (isTabShare ? "tab_share_email_bounced" : "reminder_email_bounced")
+      : notificationType === "Complaint"
+        ? (isTabShare ? "tab_share_email_complaint_received" : "reminder_email_complaint_received")
         : null;
   if (!event) return res.status(200).json({ ok: true, ignored: true });
 
   const posthog = createPostHogServerClient();
   for (const email of recipients(notification)) {
+    if (isTabShare && (notificationType === "Complaint" || (notificationType === "Bounce" && notification.bounce?.bounceType === "Permanent"))) {
+      await blockTabShareEmails(email);
+    }
     const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     posthog?.capture({
       distinctId: user?.id || `unknown-email:${crypto.createHash("sha256").update(email).digest("hex").slice(0, 24)}`,
@@ -73,6 +81,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
   }
-  if (posthog) flushPostHogServerClientInBackground(posthog);
+  // This endpoint exists solely to persist lifecycle telemetry. Waiting for the
+  // flush prevents serverless runtimes from freezing the request before the
+  // event leaves the process, and lets SNS retry when PostHog is unavailable.
+  if (posthog) await posthog.flush();
   return res.status(200).json({ ok: true });
 }

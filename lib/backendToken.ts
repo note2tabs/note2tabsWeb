@@ -4,6 +4,7 @@ type BackendTokenPayload = {
   sub: string;
   email?: string | null;
   role?: string | null;
+  subscriptionPlan?: string | null;
 };
 
 export function createBackendToken(payload: BackendTokenPayload) {

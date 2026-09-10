@@ -59,7 +59,7 @@ describe("past-due reconciliation", () => {
     expect(stripeMock.subscriptions.cancel).toHaveBeenCalledWith("sub_past_due");
     expect(prismaMock.user.update).toHaveBeenCalledWith({
       where: { id: "user_1" },
-      data: { role: "FREE", tokensRemaining: 10 },
+      data: { role: "FREE", subscriptionPlan: "FREE", tokensRemaining: 10 },
     });
   });
 

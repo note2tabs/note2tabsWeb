@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { reminderUnsubscribeUrl } from "./reminderUnsubscribe";
+import { escapeEmailHtml, renderProductEmail } from "./emailTemplate";
 
 export const TAB_RETURN_REMINDER_DELAY_HOURS = 48;
 export const TAB_RETURN_REMINDER_MAX_AGE_DAYS = 14;
@@ -19,15 +20,6 @@ function appBaseUrl() {
     /\/$/,
     ""
   );
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 export function buildTabReturnReminderIdentifier(userId: string, editorId: string) {
@@ -64,23 +56,14 @@ Your work on ${editorName} is saved in Note2Tabs. When you are ready, you can re
 Continue your tab: ${editorUrl}
 
 Note2Tabs${unsubscribeUrl ? `\n\nStop reminder emails: ${unsubscribeUrl}` : ""}`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.55;color:#07110e;background:#f6f3ea;padding:24px;">
-      <div style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #dedbd2;border-radius:16px;padding:26px;">
-        <p style="margin:0 0 12px;">Hi ${escapeHtml(firstName)},</p>
-        <h1 style="margin:0 0 12px;font-size:22px;line-height:1.25;">Your tab is ready when you are</h1>
-        <p style="margin:0 0 18px;color:#4f5a56;">
-          Your work on <strong>${escapeHtml(editorName)}</strong> is saved. Return to play it, make adjustments, or continue practicing.
-        </p>
-        ${unsubscribeUrl ? `<p style="margin:20px 0 0;color:#6b7470;font-size:12px;"><a href="${unsubscribeUrl}" style="color:#6b7470;">Stop reminder emails</a></p>` : ""}
-        <p style="margin:0;">
-          <a href="${editorUrl}" style="display:inline-block;padding:11px 16px;background:#07110e;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:650;">
-            Continue your tab
-          </a>
-        </p>
-      </div>
-    </div>
-  `;
+  const html = renderProductEmail({
+    title: "Your tab is ready when you are",
+    preview: `Continue working on ${editorName}.`,
+    greeting: `Hi ${escapeEmailHtml(firstName)},`,
+    bodyHtml: `<p style="margin:0;">Your work on <strong style="color:#17201d;">${escapeEmailHtml(editorName)}</strong> is saved. Return whenever you want to play it, make changes, or keep practicing.</p>`,
+    action: { label: "Continue your tab", url: editorUrl },
+    footerHtml: unsubscribeUrl ? `<a href="${unsubscribeUrl}" style="color:#747d79;text-decoration:underline;">Stop reminder emails</a>` : "Note2Tabs",
+  });
 
   return { subject, text, html, editorUrl, unsubscribeUrl };
 }

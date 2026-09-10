@@ -3,6 +3,7 @@ export const DEFAULT_FILE_SNIPPET_SEC = 60;
 export const MAX_FREE_YOUTUBE_SNIPPET_SEC = 30;
 export const DEFAULT_YOUTUBE_SNIPPET_SEC = 30;
 export const MAX_YOUTUBE_WINDOW_SEC = 10 * 60;
+export const MAX_PRO_YOUTUBE_WINDOW_SEC = 20 * 60;
 
 export type FileClipRange = {
   start: number;
@@ -72,18 +73,19 @@ export function isFileClipRangeValid(
   return isPremiumUser || endTime - startTime <= MAX_FREE_FILE_SNIPPET_SEC;
 }
 
-export function getYoutubeClipMaxLengthSec(isPremiumUser: boolean) {
-  return isPremiumUser ? MAX_YOUTUBE_WINDOW_SEC : MAX_FREE_YOUTUBE_SNIPPET_SEC;
+export function getYoutubeClipMaxLengthSec(isPremiumUser: boolean, paidWindowSec = MAX_YOUTUBE_WINDOW_SEC) {
+  return isPremiumUser ? paidWindowSec : MAX_FREE_YOUTUBE_SNIPPET_SEC;
 }
 
 export function resolveYoutubeClipDuration(
   startTime: number | null,
   endTime: number | null,
-  isPremiumUser: boolean
+  isPremiumUser: boolean,
+  paidWindowSec = MAX_YOUTUBE_WINDOW_SEC
 ) {
   if (startTime === null || endTime === null) return 0;
   return Math.min(
-    getYoutubeClipMaxLengthSec(isPremiumUser),
+    getYoutubeClipMaxLengthSec(isPremiumUser, paidWindowSec),
     Math.max(1, endTime - startTime)
   );
 }
@@ -91,25 +93,29 @@ export function resolveYoutubeClipDuration(
 export function isYoutubeClipRangeValid(
   startTime: number | null,
   endTime: number | null,
-  isPremiumUser: boolean
+  isPremiumUser: boolean,
+  paidWindowSec = MAX_YOUTUBE_WINDOW_SEC
 ) {
   if (startTime === null || endTime === null) return false;
-  if (startTime < 0 || startTime >= MAX_YOUTUBE_WINDOW_SEC) return false;
-  if (endTime <= startTime || endTime > MAX_YOUTUBE_WINDOW_SEC) return false;
+  const windowSec = isPremiumUser ? paidWindowSec : MAX_YOUTUBE_WINDOW_SEC;
+  if (startTime < 0 || startTime >= windowSec) return false;
+  if (endTime <= startTime || endTime > windowSec) return false;
   return isPremiumUser || endTime - startTime <= MAX_FREE_YOUTUBE_SNIPPET_SEC;
 }
 
 export function clampYoutubeClipStart(
   startTime: number,
   endTime: number | null,
-  isPremiumUser: boolean
+  isPremiumUser: boolean,
+  paidWindowSec = MAX_YOUTUBE_WINDOW_SEC
 ): YouTubeClipRange {
-  const start = Math.min(MAX_YOUTUBE_WINDOW_SEC - 1, Math.max(0, startTime));
+  const windowSec = isPremiumUser ? paidWindowSec : MAX_YOUTUBE_WINDOW_SEC;
+  const start = Math.min(windowSec - 1, Math.max(0, startTime));
   const maxEnd = Math.min(
-    MAX_YOUTUBE_WINDOW_SEC,
-    start + getYoutubeClipMaxLengthSec(isPremiumUser)
+    windowSec,
+    start + getYoutubeClipMaxLengthSec(isPremiumUser, paidWindowSec)
   );
-  const fallbackEnd = Math.min(MAX_YOUTUBE_WINDOW_SEC, start + DEFAULT_YOUTUBE_SNIPPET_SEC);
+  const fallbackEnd = Math.min(windowSec, start + DEFAULT_YOUTUBE_SNIPPET_SEC);
   const end = endTime === null || endTime <= start ? fallbackEnd : Math.min(maxEnd, endTime);
   return { start, end };
 }
@@ -117,14 +123,16 @@ export function clampYoutubeClipStart(
 export function clampYoutubeClipEnd(
   startTime: number | null,
   endTime: number,
-  isPremiumUser: boolean
+  isPremiumUser: boolean,
+  paidWindowSec = MAX_YOUTUBE_WINDOW_SEC
 ) {
+  const windowSec = isPremiumUser ? paidWindowSec : MAX_YOUTUBE_WINDOW_SEC;
   const start = startTime === null
     ? 0
-    : Math.min(MAX_YOUTUBE_WINDOW_SEC - 1, Math.max(0, startTime));
+    : Math.min(windowSec - 1, Math.max(0, startTime));
   const maxEnd = Math.min(
-    MAX_YOUTUBE_WINDOW_SEC,
-    start + getYoutubeClipMaxLengthSec(isPremiumUser)
+    windowSec,
+    start + getYoutubeClipMaxLengthSec(isPremiumUser, paidWindowSec)
   );
   return Math.min(maxEnd, Math.max(start + 1, endTime));
 }

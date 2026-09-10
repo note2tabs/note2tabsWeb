@@ -6,9 +6,7 @@ import {
   isEmailVerificationRequiredServer,
   isLocalNoDbServerMode,
 } from "../../../lib/serverDevMode";
-
-const MAX_FREE_BYTES = 50 * 1024 * 1024;
-const MAX_PREMIUM_BYTES = 200 * 1024 * 1024;
+import { effectiveSubscriptionPlan, PLAN_CATALOG } from "../../../lib/subscriptionPlans";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -31,17 +29,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: "Your session has expired. Please sign in again." });
   }
   let currentRole = "FREE";
+  let currentPlan = "FREE";
   if (isEmailVerificationRequiredServer) {
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
         role: true,
+        subscriptionPlan: true,
         emailVerified: true,
         emailVerifiedBool: true,
         unverifiedTranscriptionUsed: true,
       },
     });
     currentRole = user?.role || "FREE";
+    currentPlan = effectiveSubscriptionPlan(currentRole, user?.subscriptionPlan);
     const isEmailVerified = Boolean(user?.emailVerifiedBool || user?.emailVerified);
     if (!user || (!isEmailVerified && user.unverifiedTranscriptionUsed)) {
       return res.status(403).json({
@@ -52,9 +53,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } else {
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { role: true },
+      select: { role: true, subscriptionPlan: true },
     });
     currentRole = user?.role || "FREE";
+    currentPlan = effectiveSubscriptionPlan(currentRole, user?.subscriptionPlan);
   }
 
   const { fileName, contentType, size } = req.body || {};
@@ -63,12 +65,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Choose a valid audio file and try again." });
   }
 
-  const isPremium =
-    currentRole === "PREMIUM" ||
-    currentRole === "ADMIN" ||
-    currentRole === "MODERATOR" ||
-    currentRole === "MOD";
-  const maxBytes = isPremium ? MAX_PREMIUM_BYTES : MAX_FREE_BYTES;
+  const isStaff = ["ADMIN", "MODERATOR", "MOD"].includes(currentRole);
+  const maxBytes = isStaff ? PLAN_CATALOG.PRO.maxUploadBytes : PLAN_CATALOG[currentPlan as "FREE" | "PREMIUM" | "PRO"].maxUploadBytes;
   if (sizeNum > maxBytes) {
     return res.status(413).json({
       error: `This file exceeds your plan's ${Math.round(maxBytes / (1024 * 1024))} MB upload limit. Choose a smaller file or shorter section.`,
@@ -90,6 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     body: JSON.stringify({
       fileName,
       contentType: typeof contentType === "string" ? contentType : "application/octet-stream",
+      size: sizeNum,
     }),
   });
   const rawText = await upstream.text();

@@ -24,6 +24,8 @@ export const ANALYTICS_EVENTS = {
   subscriptionCheckoutConfirmed: "subscription_checkout_confirmed",
   premiumTrialActivationShown: "premium_trial_activation_shown",
   premiumTrialActivationLanded: "premium_trial_activation_landed",
+  premiumWelcomeViewed: "premium_welcome_viewed",
+  premiumWelcomeCtaClicked: "premium_welcome_cta_clicked",
   subscriptionPaymentRecoveryShown: "subscription_payment_recovery_shown",
   subscriptionPaymentRecoveryClicked: "subscription_payment_recovery_clicked",
   subscriptionPaymentRecoveryFailed: "subscription_payment_recovery_failed",
@@ -40,6 +42,9 @@ export const ANALYTICS_EVENTS = {
   signupStarted: "signup_started",
   signupCompleted: "signup_completed",
   signupFailed: "signup_failed",
+  tabShareEmailClicked: "tab_share_email_clicked",
+  tabShareEmailSignupCompleted: "tab_share_email_signup_completed",
+  tabShareDialogOpened: "tab_share_dialog_opened",
   loginSucceeded: "login_succeeded",
   inactiveSignupReminderLanded: "inactive_signup_reminder_landed",
   tabReturnReminderLanded: "tab_return_reminder_landed",
@@ -70,6 +75,8 @@ export const ANALYTICS_EVENTS = {
   accountDeletionGoalSelected: "account_deletion_goal_selected",
   accountDeletionAlternativeClicked: "account_deletion_alternative_clicked",
   accountDeletionConfirmed: "account_deletion_confirmed",
+  internshipApplicationSubmitted: "internship_application_submitted",
+  staleChunkRecoveryFailed: "stale_chunk_recovery_failed",
 } as const;
 
 function getUtmParams() {

@@ -2,6 +2,7 @@ import NextAuth, { type NextAuthOptions } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { normalizeSubscriptionPlan } from "../../../lib/subscriptionPlans";
 import { compare } from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
 import { buildDevCreditsSummary } from "../../../lib/credits";
@@ -53,6 +54,7 @@ const providers: NextAuthOptions["providers"] = [
             email: true,
             name: true,
             role: true,
+            subscriptionPlan: true,
             tokensRemaining: true,
             passwordHash: true,
             emailVerified: true,
@@ -93,6 +95,7 @@ const providers: NextAuthOptions["providers"] = [
           email: user.email,
           name: user.name,
           role: user.role,
+          subscriptionPlan: normalizeSubscriptionPlan(user.subscriptionPlan),
           tokensRemaining: user.tokensRemaining,
           isEmailVerified,
           unverifiedTranscriptionUsed: user.unverifiedTranscriptionUsed,
@@ -199,6 +202,7 @@ export const authOptions: NextAuthOptions = {
             select: {
               id: true,
               role: true,
+              subscriptionPlan: true,
               tokensRemaining: true,
               emailVerified: true,
               emailVerifiedBool: true,

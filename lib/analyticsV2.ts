@@ -27,7 +27,9 @@ type CanonicalEvent = {
 };
 
 const QUEUE_MAX = 20;
-const FLUSH_MS = 1200;
+// Keep events long enough to combine normal navigation/action bursts. Pagehide
+// and visibilitychange still flush immediately, so navigation delivery is unchanged.
+const FLUSH_MS = 10_000;
 
 let queue: CanonicalEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;

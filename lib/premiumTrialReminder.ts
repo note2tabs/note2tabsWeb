@@ -1,3 +1,5 @@
+import { escapeEmailHtml, renderProductEmail } from "./emailTemplate";
+
 type PremiumTrialReminderInput = {
   name?: string | null;
   trialEndsAt: Date;
@@ -13,14 +15,6 @@ const appBaseUrl = () =>
     /\/$/,
     ""
   );
-
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 
 export const customPremiumTrialReminderEnabled = () =>
   process.env.PREMIUM_TRIAL_REMINDER_MODE === "custom";
@@ -65,18 +59,14 @@ ${destination.action}: ${destination.url}
 Review or cancel online at any time: ${settingsUrl}
 
 Note2Tabs`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.55;color:#07110e;background:#f6f3ea;padding:24px;">
-      <div style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #dedbd2;border-radius:16px;padding:26px;">
-        <p style="margin:0 0 12px;">Hi ${escapeHtml(firstName)},</p>
-        <h1 style="margin:0 0 12px;font-size:22px;line-height:1.25;">Your Premium trial has started</h1>
-        <p style="margin:0 0 14px;color:#4f5a56;">${escapeHtml(terms)}</p>
-        <p style="margin:0 0 18px;color:#4f5a56;">Premium includes 100 monthly transcription credits, rollover up to 200 credits, full-length audio-file transcription, and access to the Heavy model.</p>
-        <p style="margin:0 0 18px;"><a href="${destination.url}" style="display:inline-block;padding:11px 16px;background:#07110e;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:650;">${escapeHtml(destination.action)}</a></p>
-        <p style="margin:0;color:#68726e;font-size:13px;">You can <a href="${settingsUrl}" style="color:#195e4c;">review or cancel your subscription online</a> at any time.</p>
-      </div>
-    </div>
-  `;
+  const html = renderProductEmail({
+    title: "Your Premium trial has started",
+    preview: `Your trial runs through ${endDate}.`,
+    greeting: `Hi ${escapeEmailHtml(firstName)},`,
+    bodyHtml: `<p style="margin:0 0 16px;">${escapeEmailHtml(terms)}</p><p style="margin:0;">You now have 100 monthly credits, rollover up to 200 credits, full-length audio uploads, and access to the Heavy model.</p>`,
+    action: { label: destination.action, url: destination.url },
+    secondaryHtml: `You can <a href="${settingsUrl}" style="color:#4f5a56;text-decoration:underline;">review or cancel your subscription</a> at any time.`,
+  });
   return { subject, text, html, continueUrl: destination.url, settingsUrl };
 }
 
@@ -99,25 +89,14 @@ You can review or cancel your subscription at any time: ${settingsUrl}
 
 Note2Tabs`;
 
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.55;color:#07110e;background:#f6f3ea;padding:24px;">
-      <div style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #dedbd2;border-radius:16px;padding:26px;">
-        <p style="margin:0 0 12px;">Hi ${escapeHtml(firstName)},</p>
-        <h1 style="margin:0 0 12px;font-size:22px;line-height:1.25;">Your Premium trial ends ${escapeHtml(endDate)}</h1>
-        <p style="margin:0 0 18px;color:#4f5a56;">
-          After the trial, Premium renews at $5.99 per month unless you cancel before then.
-        </p>
-        <p style="margin:0 0 18px;">
-          <a href="${continueUrl}" style="display:inline-block;padding:11px 16px;background:#07110e;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:650;">
-            ${escapeHtml(action)}
-          </a>
-        </p>
-        <p style="margin:0;color:#68726e;font-size:13px;">
-          You can <a href="${settingsUrl}" style="color:#195e4c;">review or cancel your subscription</a> at any time.
-        </p>
-      </div>
-    </div>
-  `;
+  const html = renderProductEmail({
+    title: `Your Premium trial ends ${endDate}`,
+    preview: `Your Premium trial ends on ${endDate}.`,
+    greeting: `Hi ${escapeEmailHtml(firstName)},`,
+    bodyHtml: '<p style="margin:0;">After the trial, Premium renews at $5.99 per month unless you cancel before then.</p>',
+    action: { label: action, url: continueUrl },
+    secondaryHtml: `You can <a href="${settingsUrl}" style="color:#4f5a56;text-decoration:underline;">review or cancel your subscription</a> at any time.`,
+  });
 
   return { subject, text, html, continueUrl, settingsUrl };
 }

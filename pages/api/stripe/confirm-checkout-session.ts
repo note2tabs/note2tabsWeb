@@ -2,14 +2,14 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type Stripe from "stripe";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
-import { PREMIUM_MONTHLY_CREDITS } from "../../../lib/credits";
+import { capCreditBalance } from "../../../lib/credits";
 import { prisma } from "../../../lib/prisma";
 import { stripeClient } from "../../../lib/stripe";
 import {
-  getStripePremiumConfig,
-  stripeCheckoutSessionMatchesPremium,
-  stripeSubscriptionMatchesPremium,
+  stripeCheckoutPlan,
+  stripeSubscriptionPlan,
 } from "../../../lib/stripePremium";
+import { PLAN_CATALOG } from "../../../lib/subscriptionPlans";
 
 const CONFIRMABLE_SUBSCRIPTION_STATUSES = new Set<Stripe.Subscription.Status>([
   "active",
@@ -53,8 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(429).json({ error: "Too many confirmation attempts. Please try again shortly." });
   }
 
-  const premiumConfig = getStripePremiumConfig();
-  if (!stripeClient || !premiumConfig) {
+  if (!stripeClient) {
     return res.status(503).json({
       error: "Premium confirmation is temporarily unavailable. Please try again shortly.",
     });
@@ -83,12 +82,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       typeof subscriptionRef === "string"
         ? await stripeClient.subscriptions.retrieve(subscriptionRef)
         : subscriptionRef;
-    const matchesPremium =
-      stripeCheckoutSessionMatchesPremium(checkoutSession, premiumConfig) &&
-      stripeSubscriptionMatchesPremium(subscription, premiumConfig);
+    const checkoutPlan = stripeCheckoutPlan(checkoutSession);
+    const subscriptionPlan = stripeSubscriptionPlan(subscription);
     if (
       !subscription ||
-      !matchesPremium ||
+      !checkoutPlan || checkoutPlan !== subscriptionPlan ||
       !CONFIRMABLE_SUBSCRIPTION_STATUSES.has(subscription.status)
     ) {
       return res.status(409).json({ error: "Premium checkout is not active yet." });
@@ -96,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const user = await prisma.user.findFirst({
       where: { id: session.user.id },
-      select: { id: true, role: true, tokensRemaining: true },
+      select: { id: true, role: true, subscriptionPlan: true, tokensRemaining: true },
     });
     if (!user) {
       return res.status(404).json({ error: "Account not found." });
@@ -109,23 +107,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // This narrows the window in which a replay could race a cancellation.
     const liveSubscription = await stripeClient.subscriptions.retrieve(subscription.id);
     if (
-      !stripeSubscriptionMatchesPremium(liveSubscription, premiumConfig) ||
+      stripeSubscriptionPlan(liveSubscription) !== subscriptionPlan ||
       !CONFIRMABLE_SUBSCRIPTION_STATUSES.has(liveSubscription.status)
     ) {
       return res.status(409).json({ error: "Premium checkout is no longer active." });
     }
 
-    if (user.role === "PREMIUM") {
-      return res.status(200).json({ confirmed: true, role: "PREMIUM" });
-    }
-
-    const tokensRemaining = PREMIUM_MONTHLY_CREDITS;
+    const definition = PLAN_CATALOG[subscriptionPlan];
+    const isUpgrade = subscriptionPlan === "PRO" && user.subscriptionPlan !== "PRO";
+    const tokensRemaining = user.role !== "PREMIUM"
+      ? definition.monthlyCredits
+      : capCreditBalance(
+          isUpgrade ? Math.max(user.tokensRemaining, definition.monthlyCredits) : user.tokensRemaining,
+          definition.rolloverCap
+        );
     await prisma.user.update({
       where: { id: user.id },
-      data: { role: "PREMIUM", tokensRemaining },
+      data: { role: "PREMIUM", subscriptionPlan, tokensRemaining },
     });
 
-    return res.status(200).json({ confirmed: true, role: "PREMIUM" });
+    return res.status(200).json({ confirmed: true, role: "PREMIUM", subscriptionPlan });
   } catch (error) {
     console.error("stripe checkout confirmation error", error);
     return res.status(500).json({ error: "Could not confirm Premium checkout." });

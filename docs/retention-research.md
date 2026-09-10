@@ -43,9 +43,9 @@ The job completion event carries the available model, duration, source mode, sep
 
 Tab-return reminder landings emit `tab_return_reminder_landed`. Processed treatment and holdout assignments are excluded before the hourly batch limit, preventing old assignments from starving newer eligible users.
 
-Both hourly reminder endpoints emit `reminder_scheduler_run_completed`; reaching the batch limit also emits `reminder_scheduler_backlog_detected`, and an uncaught run error emits `reminder_scheduler_failed`. Zero eligible users is a healthy completed run. Individual send failures emit `reminder_email_delivery_failed`. AWS SES delivery, bounce, and complaint notifications are accepted at `/api/email/ses-events` and emit their corresponding lifecycle events for tagged reminder messages.
+Both hourly reminder endpoints emit `reminder_scheduler_run_completed`; reaching the batch limit also emits `reminder_scheduler_backlog_detected`, and an uncaught run error emits `reminder_scheduler_failed`. Zero eligible users is a healthy completed run. Individual send failures emit `reminder_email_delivery_failed`.
 
-PostHog monitors should alert on any `reminder_scheduler_failed`, `reminder_scheduler_backlog_detected`, `reminder_email_delivery_failed`, or `reminder_email_complaint_received` event. Bounces are tracked for deliverability analysis but an individual bounce is not an operational alert. A heartbeat monitor should alert when either scheduler has no `reminder_scheduler_run_completed` event for two hours. The SES webhook requires `SES_EVENT_WEBHOOK_SECRET` and an SNS HTTPS subscription to `https://www.note2tabs.com/api/email/ses-events?secret=...`.
+PostHog monitors should alert on any `reminder_scheduler_failed`, `reminder_scheduler_backlog_detected`, or `reminder_email_delivery_failed` event. A heartbeat monitor should alert when either scheduler has no `reminder_scheduler_run_completed` event for two hours.
 
 Browser `$exception` events include `alert_eligible`. Operational alerts must filter for `alert_eligible = true`. Expected validation and user states—including oversized files, missing/invalid fret input, authentication, quotas, rate limits, cancellations, offline/network failures, and ResizeObserver noise—remain available for product analysis but are explicitly ineligible for alerts.
 

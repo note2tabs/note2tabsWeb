@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMocks } from "node-mocks-http";
 
-const mocks = vi.hoisted(() => ({ findUser: vi.fn(), capture: vi.fn() }));
+const mocks = vi.hoisted(() => ({ findUser: vi.fn(), capture: vi.fn(), flush: vi.fn(), blockShare: vi.fn() }));
 vi.mock("../../lib/prisma", () => ({ prisma: { user: { findUnique: mocks.findUser } } }));
 vi.mock("../../lib/posthogServer", () => ({
-  createPostHogServerClient: () => ({ capture: mocks.capture }),
-  flushPostHogServerClientInBackground: () => undefined,
+  createPostHogServerClient: () => ({ capture: mocks.capture, flush: mocks.flush }),
 }));
+vi.mock("../../lib/tabShareEmailPreferences", () => ({ blockTabShareEmails: mocks.blockShare }));
 
 import handler from "../../pages/api/email/ses-events";
 
@@ -15,6 +15,7 @@ describe("SES reminder lifecycle events", () => {
     vi.clearAllMocks();
     process.env.SES_EVENT_WEBHOOK_SECRET = "secret";
     mocks.findUser.mockResolvedValue({ id: "user-1" });
+    mocks.flush.mockResolvedValue(undefined);
   });
 
   it("records a tagged reminder bounce in PostHog", async () => {
@@ -33,6 +34,28 @@ describe("SES reminder lifecycle events", () => {
       distinctId: "user-1", event: "reminder_email_bounced",
       properties: expect.objectContaining({ email_category: "tab_return_reminder", bounce_type: "Permanent" }),
     }));
+    expect(mocks.flush).toHaveBeenCalledOnce();
+  });
+
+  it("records configuration-set events that use eventType", async () => {
+    const notification = {
+      eventType: "Delivery",
+      mail: {
+        messageId: "message-2",
+        destination: ["player@example.com"],
+        tags: { email_category: ["inactive_signup_reminder"] },
+      },
+    };
+    const { req, res } = createMocks({
+      method: "POST", query: { secret: "secret" },
+      body: { Type: "Notification", Message: JSON.stringify(notification) },
+    });
+    await handler(req, res);
+    expect(res._getStatusCode()).toBe(200);
+    expect(mocks.capture).toHaveBeenCalledWith(expect.objectContaining({
+      distinctId: "user-1", event: "reminder_email_delivered",
+      properties: expect.objectContaining({ email_category: "inactive_signup_reminder" }),
+    }));
   });
 
   it("rejects unsigned webhook traffic", async () => {
@@ -40,5 +63,21 @@ describe("SES reminder lifecycle events", () => {
     await handler(req, res);
     expect(res._getStatusCode()).toBe(401);
     expect(mocks.capture).not.toHaveBeenCalled();
+  });
+
+  it("suppresses future tab-share emails after a permanent bounce", async () => {
+    const notification = {
+      notificationType: "Bounce",
+      mail: { messageId: "message-share", tags: { email_category: ["tab_share"] } },
+      bounce: { bounceType: "Permanent", bouncedRecipients: [{ emailAddress: "new@example.com" }] },
+    };
+    const { req, res } = createMocks({
+      method: "POST", query: { secret: "secret" },
+      body: { Type: "Notification", Message: JSON.stringify(notification) },
+    });
+    await handler(req, res);
+    expect(res._getStatusCode()).toBe(200);
+    expect(mocks.blockShare).toHaveBeenCalledWith("new@example.com");
+    expect(mocks.capture).toHaveBeenCalledWith(expect.objectContaining({ event: "tab_share_email_bounced" }));
   });
 });

@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { attachFunctionTiming } from "../../lib/functionTiming";
 import { publicTranscriptionError } from "../../lib/backendError";
 import { getServerSession } from "next-auth/next";
 import { IncomingForm, type File as FormidableFile } from "formidable";
@@ -34,9 +35,9 @@ import {
 } from "../../lib/backendCredits";
 import {
   MAX_FREE_YOUTUBE_SNIPPET_SEC,
-  MAX_YOUTUBE_WINDOW_SEC,
   isYoutubeClipRangeValid,
 } from "../../lib/transcriptionClip";
+import { effectiveSubscriptionPlan, PLAN_CATALOG, type SubscriptionPlan } from "../../lib/subscriptionPlans";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
@@ -415,6 +416,7 @@ async function waitForBackendJobResult(initialPayload: unknown, headers: Record<
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  attachFunctionTiming(res, "/api/transcribe");
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });
@@ -461,6 +463,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let user: {
       id: string;
       role: string;
+      subscriptionPlan: string;
       tokensRemaining: number;
       emailVerified: Date | null;
       emailVerifiedBool: boolean;
@@ -468,6 +471,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       createdAt: Date;
     } | null = null;
     let isPremium = false;
+    let subscriptionPlan: SubscriptionPlan = "FREE";
     let refreshedCredits: CreditsSummary = buildDevCreditsSummary();
 
     if (session?.user?.id) {
@@ -477,6 +481,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           select: {
             id: true,
             role: true,
+            subscriptionPlan: true,
             tokensRemaining: true,
             emailVerified: true,
             emailVerifiedBool: true,
@@ -502,6 +507,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             user.role === "ADMIN" ||
             user.role === "MODERATOR" ||
             user.role === "MOD";
+          subscriptionPlan = ["ADMIN", "MODERATOR", "MOD"].includes(user.role)
+            ? "PRO"
+            : effectiveSubscriptionPlan(user.role, user.subscriptionPlan);
           const creditWindow = isPremium
             ? getCreditWindow({ userCreatedAt: user.createdAt })
             : getCreditWindow();
@@ -527,10 +535,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             ),
             resetAt: creditWindow.resetAt,
             isPremium,
+            subscriptionPlan,
             userCreatedAt: user.createdAt,
           });
           refreshedCredits = isPremium
-            ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining)
+            ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap)
             : computedCredits;
           if (!isPremium && user.tokensRemaining !== refreshedCredits.remaining) {
             user.tokensRemaining = refreshedCredits.remaining;
@@ -573,6 +582,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (BACKEND_SECRET) {
       backendHeaders["X-Backend-Secret"] = BACKEND_SECRET;
+      backendHeaders["X-Subscription-Plan"] = subscriptionPlan;
     }
 
     if (contentType.includes("multipart/form-data")) {
@@ -676,10 +686,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           maxDurationSec: MAX_FREE_YOUTUBE_SNIPPET_SEC,
         });
       }
-      if (!isYoutubeClipRangeValid(startTime, startTime + duration, isPremium)) {
+      const youtubeWindow = PLAN_CATALOG[subscriptionPlan].youtubePositionLimitSeconds;
+      if (!isYoutubeClipRangeValid(startTime, startTime + duration, isPremium, youtubeWindow)) {
         return res.status(400).json({
-          error: `YouTube clips must stay within the first ${MAX_YOUTUBE_WINDOW_SEC / 60} minutes.`,
-          maxEndTimeSec: MAX_YOUTUBE_WINDOW_SEC,
+          error: `YouTube clips must stay within the first ${youtubeWindow / 60} minutes.`,
+          maxEndTimeSec: youtubeWindow,
         });
       }
     }
