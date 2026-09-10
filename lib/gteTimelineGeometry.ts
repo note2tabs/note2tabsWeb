@@ -3,6 +3,15 @@ export const GTE_TIMELINE_LABEL_COLUMN_WIDTH = 50;
 export const GTE_TIMELINE_COLUMN_GAP = 8;
 export const GTE_TIMELINE_END_PADDING = 40;
 
+export const shouldAddBarStartNewRow = (
+  lastRowBarCount: number,
+  configuredBarsPerRow: number
+) => {
+  const safeBarCount = Math.max(0, Math.round(Number(lastRowBarCount) || 0));
+  const safeRowCapacity = Math.max(1, Math.round(Number(configuredBarsPerRow) || 1));
+  return safeBarCount >= safeRowCapacity;
+};
+
 export const getTimelineBaseScale = (
   availableWidth: number,
   framesPerBar: number,
