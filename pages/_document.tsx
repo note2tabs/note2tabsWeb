@@ -4,7 +4,7 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        <meta name="google-adsense-account" content="ca-pub-6022628118304495" />
+        <meta name="google-adsense-account" content="ca-pub-3904018627841872" />
         <style
           dangerouslySetInnerHTML={{
             __html: `

@@ -18,7 +18,7 @@ describe("branded search presentation", () => {
     const documentSource = readFileSync(join(process.cwd(), "pages", "_document.tsx"), "utf8");
 
     expect(documentSource).toContain(
-      '<meta name="google-adsense-account" content="ca-pub-6022628118304495" />'
+      '<meta name="google-adsense-account" content="ca-pub-3904018627841872" />'
     );
     expect(documentSource).not.toContain("pagead2.googlesyndication.com/pagead/js/adsbygoogle.js");
   });
