@@ -6302,6 +6302,10 @@ export default function GteWorkspace({
 
   const getPasteTargetFrame = (overrideFrame?: number) => {
     if (overrideFrame !== undefined) return clamp(Math.round(overrideFrame), 0, timelineEnd);
+    const editorCursor = keyboardGridCursorRef.current;
+    if (editorCursor) {
+      return clamp(Math.round(editorCursor.time), 0, timelineEnd);
+    }
     if (isPointInTimeline(mousePosRef.current.x, mousePosRef.current.y)) {
       const target = getPointerFrame(mousePosRef.current.x, mousePosRef.current.y);
       if (target) return clamp(target.time, 0, timelineEnd);
@@ -10137,10 +10141,73 @@ export default function GteWorkspace({
     if (!payload) return;
     const pasteFrame = getPasteTargetFrame(targetFrame);
     const offset = pasteFrame - payload.anchor;
-    void runMutation(async () => {
-      let currentSnapshot = snapshot;
+    const pastedNotes = payload.notes
+      .map((note) => ({
+        ...note,
+        start: note.start + offset,
+        length: clampEventLength(note.length),
+        tempId: getTempNoteId(),
+      }))
+      .filter((note) => note.start >= 0);
+    const pastedChords = payload.chords
+      .map((chord) => ({
+        ...chord,
+        start: chord.start + offset,
+        length: clampEventLength(chord.length),
+        tempId: getTempChordId(),
+      }))
+      .filter((chord) => chord.start >= 0);
+    if (!pastedNotes.length && !pastedChords.length) return;
+    const pastedEnd = Math.max(
+      framesPerMeasure,
+      ...pastedNotes.map((note) => note.start + note.length),
+      ...pastedChords.map((chord) => chord.start + chord.length)
+    );
+    const nextTotalFrames = Math.max(
+      Number(snapshotRef.current.totalFrames || 0),
+      Math.ceil(pastedEnd / framesPerMeasure) * framesPerMeasure
+    );
+    const createdNotes: TempNoteMapping[] = pastedNotes.map((note) => ({
+      tempId: note.tempId,
+      signature: noteSignature(note.start, note.length, note.tab),
+    }));
+    const createdChords: TempChordMapping[] = pastedChords.map((chord) => ({
+      tempId: chord.tempId,
+      signature: chordSignature(chord.start, chord.length, chord.tabs),
+    }));
+
+    enqueueOptimisticMutation({
+      label: "paste-selection",
+      createdNotes,
+      createdChords,
+      apply: (draft) => {
+        pastedNotes.forEach((note) => {
+          draft.notes.push({
+            id: note.tempId,
+            startTime: note.start,
+            length: note.length,
+            midiNum: getTabMidi(draft, note.tab),
+            tab: [note.tab[0], note.tab[1]],
+            optimals: [],
+          });
+        });
+        pastedChords.forEach((chord) => {
+          const tabs = chord.tabs.map((tab) => [tab[0], tab[1]] as TabCoord);
+          draft.chords.push({
+            id: chord.tempId,
+            startTime: chord.start,
+            length: chord.length,
+            originalMidi: tabs.map((tab) => getTabMidi(draft, tab)),
+            currentTabs: tabs,
+            ogTabs: tabs.map((tab) => [tab[0], tab[1]] as TabCoord),
+          });
+        });
+        draft.totalFrames = Math.max(Number(draft.totalFrames || 0), nextTotalFrames);
+        return draft;
+      },
+      commit: async () => {
+      let currentSnapshot = snapshotRef.current;
       let last: EditorSnapshot | null = null;
-      const addedNoteIds: number[] = [];
       const addNoteAndCollectId = async (tab: TabCoord, start: number, length: number) => {
         const clampedLength = clampEventLength(length);
         const beforeIds = new Set(currentSnapshot.notes.map((note) => note.id));
@@ -10154,7 +10221,6 @@ export default function GteWorkspace({
         last = res.snapshot;
         const newNote = currentSnapshot.notes.find((note) => !beforeIds.has(note.id));
         if (newNote) {
-          addedNoteIds.push(newNote.id);
           return newNote.id;
         }
         const fallback = currentSnapshot.notes.find(
@@ -10165,24 +10231,19 @@ export default function GteWorkspace({
             note.tab[1] === tab[1]
         );
         if (fallback) {
-          addedNoteIds.push(fallback.id);
           return fallback.id;
         }
         return null;
       };
 
-      for (const note of payload.notes) {
-        const start = note.start + offset;
-        if (start < 0) continue;
-        await addNoteAndCollectId(note.tab, start, note.length);
+      for (const note of pastedNotes) {
+        await addNoteAndCollectId(note.tab, note.start, note.length);
       }
 
-      for (const chord of payload.chords) {
-        const chordStart = chord.start + offset;
-        if (chordStart < 0) continue;
+      for (const chord of pastedChords) {
         const chordNoteIds: number[] = [];
         for (const tab of chord.tabs) {
-          const id = await addNoteAndCollectId(tab, chordStart, chord.length);
+          const id = await addNoteAndCollectId(tab, chord.start, chord.length);
           if (id !== null) chordNoteIds.push(id);
         }
         if (chordNoteIds.length > 0) {
@@ -10191,8 +10252,18 @@ export default function GteWorkspace({
           last = res.snapshot;
         }
       }
+      if (last && Number(last.totalFrames || 0) < nextTotalFrames) {
+        const expandedSnapshot = cloneSnapshot(last);
+        expandedSnapshot.totalFrames = nextTotalFrames;
+        const expanded = await gteApi.applySnapshot(editorId, expandedSnapshot);
+        currentSnapshot = expanded.snapshot;
+        last = expanded.snapshot;
+      }
       return last ? { snapshot: last } : {};
+      },
     });
+    setSelectedNoteIds(pastedNotes.map((note) => note.tempId));
+    setSelectedChordIds(pastedChords.map((chord) => chord.tempId));
   };
 
   const collectChordizeNoteIds = (
