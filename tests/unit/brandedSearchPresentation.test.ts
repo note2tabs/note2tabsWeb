@@ -14,6 +14,15 @@ describe("branded search presentation", () => {
     expect(documentSource).not.toContain('href="/favicon-32x32.png"');
   });
 
+  it("exposes the AdSense account without loading advertising JavaScript", () => {
+    const documentSource = readFileSync(join(process.cwd(), "pages", "_document.tsx"), "utf8");
+
+    expect(documentSource).toContain(
+      '<meta name="google-adsense-account" content="ca-pub-6022628118304495" />'
+    );
+    expect(documentSource).not.toContain("pagead2.googlesyndication.com/pagead/js/adsbygoogle.js");
+  });
+
   it("uses descriptive anchors for the preferred branded sitelinks", () => {
     const html = renderToStaticMarkup(createElement(FooterBar));
 
