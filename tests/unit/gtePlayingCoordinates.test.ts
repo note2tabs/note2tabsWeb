@@ -71,4 +71,20 @@ describe("frontend playing-coordinate generator backend parity", () => {
       [[2, 0], [3, 5], [4, 10], [5, 15]],
     ]);
   });
+
+  it("uses the four-string bass fretboard for regions and alternatives", () => {
+    const snapshot = buildSnapshot(480, []);
+    snapshot.trackType = "bass";
+    snapshot.editorType = "bass";
+    snapshot.tuning = { presetId: "bass-standard", openStringMidi: [43, 38, 33, 28], capo: 0 };
+    snapshot.notes = [
+      { id: 1, startTime: 0, length: 120, midiNum: 43, tab: [0, 0], optimals: [] },
+      { id: 2, startTime: 120, length: 120, midiNum: 45, tab: [0, 2], optimals: [] },
+    ];
+    generatePlayingCoordinatesInSnapshot(snapshot);
+    expect(snapshot.cutPositionsWithCoords).toEqual([[[0, 480], [2, 1]]]);
+    expect(snapshot.notes[0].optimals).toEqual([[0, 0], [1, 5], [2, 10], [3, 15]]);
+    expect(snapshot.notes[1].optimals).toEqual([[0, 2], [1, 7], [2, 12], [3, 17]]);
+    expect(snapshot.notes.flatMap((note) => note.optimals).every(([stringIndex]) => stringIndex < 4)).toBe(true);
+  });
 });

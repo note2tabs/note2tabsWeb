@@ -248,11 +248,12 @@ describe("gte tab import helpers", () => {
     });
     expect(parsed.tracks?.[1]).toMatchObject({
       name: "Bass 1 Ch 1",
-      stamps: [[0, [4, 0], 60]],
+      trackType: "bass",
+      stamps: [[0, [0, 2], 60]],
     });
     expect(parsed.stamps).toEqual([
       [0, [0, 0], 120],
-      [0, [4, 0], 60],
+      [0, [0, 2], 60],
     ]);
   });
 
@@ -266,7 +267,8 @@ describe("gte tab import helpers", () => {
     });
     expect(parsed.tracks?.[1]).toMatchObject({
       name: "Ch 2 program 33",
-      stamps: [[0, [4, 0], 120]],
+      trackType: "bass",
+      stamps: [[0, [0, 2], 120]],
     });
   });
 

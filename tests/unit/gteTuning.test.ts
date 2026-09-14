@@ -5,6 +5,9 @@ import {
   fretMidi,
   getTabMidi,
   getSnapshotTuning,
+  getAllTabsForMidi,
+  getOpenStringMidiFromSnapshot,
+  getStringLabelsForSnapshot,
 } from "../../lib/gteTuning";
 import type { EditorSnapshot } from "../../types/gte";
 
@@ -82,5 +85,26 @@ describe("gte tuning", () => {
 
   it("reads normalized tuning defaults", () => {
     expect(getSnapshotTuning(baseSnapshot())).toEqual({ presetId: "standard", capo: 0 });
+  });
+
+  it("supports four-string Standard and Drop D bass without octave substitution", () => {
+    const bass = baseSnapshot();
+    bass.trackType = "bass";
+    bass.editorType = "bass";
+    bass.chords = [];
+    bass.tuning = { presetId: "bass-standard", openStringMidi: [43, 38, 33, 28], capo: 0 };
+    expect(getOpenStringMidiFromSnapshot(bass)).toEqual([43, 38, 33, 28]);
+    expect(getStringLabelsForSnapshot(bass)).toEqual(["G", "D", "A", "E"]);
+    expect(getAllTabsForMidi(bass, 28)).toEqual([[3, 0]]);
+    expect(getAllTabsForMidi(bass, 65)).toEqual([[0, 22]]);
+    expect(getAllTabsForMidi(bass, 66)).toEqual([]);
+    bass.notes = [
+      { id: 1, startTime: 0, length: 120, midiNum: 20, tab: [3, 0], optimals: [] },
+      { id: 2, startTime: 120, length: 120, midiNum: 40, tab: [3, 12], optimals: [] },
+    ];
+    const dropped = applyTuningToSnapshotPreservingSound(bass, "bass-drop-d", 0);
+    expect(dropped.tuning?.openStringMidi).toEqual([43, 38, 33, 26]);
+    expect(dropped.notes).toHaveLength(1);
+    expect(dropped.notes[0].midiNum).toBe(40);
   });
 });
