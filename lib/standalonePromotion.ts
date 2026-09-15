@@ -1,10 +1,13 @@
 export const STANDALONE_PROMOTION_METADATA_KEY = "note2tabsStandalonePromotion";
+export const SCHOOL_ACCESS_METADATA_KEY = "note2tabsCardFreeSchoolAccess";
+export const SCHOOL_ACCESS_MONTHS_METADATA_KEY = "note2tabsSchoolAccessMonths";
 
 export type StandalonePromotionInput = {
   code: string;
   percentOff: number;
   durationMonths: number;
   expiresAt: number | null;
+  cardFreeSchoolAccess: boolean;
 };
 
 export function parseStandalonePromotionInput(body: unknown): StandalonePromotionInput | null {
@@ -12,10 +15,12 @@ export function parseStandalonePromotionInput(body: unknown): StandalonePromotio
   const code = typeof input.code === "string" ? input.code.trim().toUpperCase() : "";
   const percentOff = Number(input.percentOff);
   const durationMonths = Number(input.durationMonths);
+  const cardFreeSchoolAccess = input.cardFreeSchoolAccess === true;
 
   if (!/^[A-Z0-9-]{3,32}$/.test(code)) return null;
   if (!Number.isInteger(percentOff) || percentOff < 1 || percentOff > 100) return null;
   if (!Number.isInteger(durationMonths) || durationMonths < 1 || durationMonths > 24) return null;
+  if (cardFreeSchoolAccess && percentOff !== 100) return null;
 
   let expiresAt: number | null = null;
   if (input.expiresOn !== undefined && input.expiresOn !== null && input.expiresOn !== "") {
@@ -28,5 +33,5 @@ export function parseStandalonePromotionInput(body: unknown): StandalonePromotio
     if (expiresAt <= Math.floor(Date.now() / 1000)) return null;
   }
 
-  return { code, percentOff, durationMonths, expiresAt };
+  return { code, percentOff, durationMonths, expiresAt, cardFreeSchoolAccess };
 }

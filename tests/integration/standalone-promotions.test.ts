@@ -26,6 +26,12 @@ describe("standalone promotion input", () => {
     expect(input?.expiresAt).toBe(Math.floor(Date.UTC(2099, 11, 31, 23, 59, 59) / 1000));
   });
 
+  it("allows card-free school access only for a 100% discount", () => {
+    expect(parseStandalonePromotionInput({ code: "SCHOOL100", percentOff: 100, durationMonths: 2, cardFreeSchoolAccess: true }))
+      .toMatchObject({ cardFreeSchoolAccess: true, percentOff: 100, durationMonths: 2 });
+    expect(parseStandalonePromotionInput({ code: "SCHOOL50", percentOff: 50, durationMonths: 2, cardFreeSchoolAccess: true })).toBeNull();
+  });
+
   it.each([
     { code: "NO", percentOff: 10, durationMonths: 3 },
     { code: "INVALID_CODE", percentOff: 10, durationMonths: 3 },
