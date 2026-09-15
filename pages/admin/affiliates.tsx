@@ -4,12 +4,12 @@ import { getServerSession } from "next-auth/next";
 import { FormEvent, useMemo, useState } from "react";
 import { prisma } from "../../lib/prisma";
 import { hasFreshUserRole } from "../../lib/serverAuth";
-import { STANDALONE_PROMOTION_METADATA_KEY } from "../../lib/standalonePromotion";
+import { SCHOOL_ACCESS_METADATA_KEY, STANDALONE_PROMOTION_METADATA_KEY } from "../../lib/standalonePromotion";
 import { stripeClient } from "../../lib/stripe";
 import { authOptions } from "../api/auth/[...nextauth]";
 
 type AffiliateRow = { id: string; code: string; status: string; email: string; referrals: number; pendingCommissions: number; commissionPercent: number; commissionMonths: number; discountPercent: number; discountMonths: number };
-type PromotionRow = { id: string; code: string; active: boolean; percentOff: number; durationMonths: number; expiresAt: number | null };
+type PromotionRow = { id: string; code: string; active: boolean; percentOff: number; durationMonths: number; expiresAt: number | null; cardFreeSchoolAccess: boolean };
 type Notice = { text: string; tone: "success" | "error" };
 
 const CopyIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>;
@@ -31,6 +31,7 @@ export default function AdminAffiliatesPage({ initialAffiliates, initialPromotio
   const [percentOff, setPercentOff] = useState("10");
   const [durationMonths, setDurationMonths] = useState("3");
   const [expiresOn, setExpiresOn] = useState("");
+  const [cardFreeSchoolAccess, setCardFreeSchoolAccess] = useState(false);
   const [promotionBusy, setPromotionBusy] = useState(false);
   const [promotions, setPromotions] = useState(initialPromotions);
   const [deactivatingPromotionId, setDeactivatingPromotionId] = useState<string | null>(null);
@@ -54,7 +55,7 @@ export default function AdminAffiliatesPage({ initialAffiliates, initialPromotio
   const createPromotion = async (event: FormEvent) => {
     event.preventDefault(); setPromotionBusy(true); setMessage(null);
     try {
-      const response = await fetch("/api/admin/affiliates/promotions/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: promotionCode, percentOff: Number(percentOff), durationMonths: Number(durationMonths), expiresOn }) });
+      const response = await fetch("/api/admin/affiliates/promotions/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: promotionCode, percentOff: Number(percentOff), durationMonths: Number(durationMonths), expiresOn, cardFreeSchoolAccess }) });
       const body = await response.json();
       if (response.ok) {
         setPromotions((rows) => [body.promotion, ...rows]); setPromotionCode(""); setExpiresOn("");
@@ -109,6 +110,7 @@ export default function AdminAffiliatesPage({ initialAffiliates, initialPromotio
       <div className="adminAffiliateField"><label htmlFor="promotion-percent">Discount</label><div className="adminAffiliateInputSuffix"><input id="promotion-percent" type="number" min="1" max="100" step="1" required value={percentOff} onChange={(event) => setPercentOff(event.target.value)} /><span>%</span></div></div>
       <div className="adminAffiliateField"><label htmlFor="promotion-months">Discount duration</label><div className="adminAffiliateInputSuffix"><input id="promotion-months" type="number" min="1" max="24" step="1" required value={durationMonths} onChange={(event) => setDurationMonths(event.target.value)} /><span>months</span></div></div>
       <div className="adminAffiliateField"><label htmlFor="promotion-end">End date <em>Optional</em></label><input id="promotion-end" type="date" value={expiresOn} onChange={(event) => setExpiresOn(event.target.value)} /></div>
+      <label className="adminAffiliateCheckbox"><input type="checkbox" checked={cardFreeSchoolAccess} onChange={(event) => { setCardFreeSchoolAccess(event.target.checked); if (event.target.checked) setPercentOff("100"); }} /><span><strong>Card-free school access</strong><small>Requires a 100% discount. Access ends after the selected duration and never renews without consent.</small></span></label>
       <button className="affiliatePrimaryButton adminAffiliateSubmit" disabled={promotionBusy}>{promotionBusy ? "Creating code…" : "Create discount code"}<span aria-hidden="true">→</span></button>
     </form></section>
     <section className="adminAffiliateCard adminAffiliateDirectory adminAffiliatePromotions"><div className="adminAffiliateDirectoryHeading"><div><span className="affiliateSectionLabel">Checkout discounts</span><h2>General discount codes</h2></div><span className="affiliateCount">{promotions.length} total</span></div>{promotions.length === 0 ? <div className="adminAffiliateEmpty"><span>%</span><h3>No general codes yet</h3><p>Codes created above will appear here.</p></div> : <div className="adminAffiliateTableWrap"><table className="adminAffiliateTable"><thead><tr><th>Code</th><th>Offer</th><th>Ends</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{promotions.map((promotion) => <tr key={promotion.id}><td><strong>{promotion.code}</strong><span>No affiliate attribution</span></td><td>{promotion.percentOff}% for {promotion.durationMonths} {promotion.durationMonths === 1 ? "month" : "months"}</td><td>{formatEndDate(promotion.expiresAt)}</td><td><span className={`adminAffiliateStatus adminAffiliateStatus--${promotion.active ? "active" : "deactivated"}`}><i />{promotion.active ? "Active" : "Inactive"}</span></td><td><div className="adminAffiliateActions">{promotion.active && <button type="button" className="adminAffiliateDeactivate" disabled={deactivatingPromotionId === promotion.id} onClick={() => deactivatePromotion(promotion)}>{deactivatingPromotionId === promotion.id ? "Deactivating…" : "Deactivate"}</button>}</div></td></tr>)}</tbody></table></div>}</section>
@@ -127,7 +129,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       const result = await stripeClient.promotionCodes.list({ limit: 100, expand: ["data.coupon"] });
       promotions = result.data.filter((promotion) => promotion.metadata?.[STANDALONE_PROMOTION_METADATA_KEY] === "true").map((promotion) => {
         const coupon = typeof promotion.coupon === "string" ? null : promotion.coupon;
-        return { id: promotion.id, code: promotion.code, active: promotion.active, percentOff: coupon?.percent_off || 0, durationMonths: coupon?.duration_in_months || 0, expiresAt: promotion.expires_at || null };
+        return { id: promotion.id, code: promotion.code, active: promotion.active, percentOff: coupon?.percent_off || 0, durationMonths: coupon?.duration_in_months || 0, expiresAt: promotion.expires_at || null, cardFreeSchoolAccess: promotion.metadata?.[SCHOOL_ACCESS_METADATA_KEY] === "true" || coupon?.metadata?.[SCHOOL_ACCESS_METADATA_KEY] === "true" };
       });
     } catch (error) { console.error("standalone promotions could not be loaded", error); }
   }

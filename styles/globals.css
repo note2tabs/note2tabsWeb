@@ -12078,6 +12078,11 @@ input[type="number"] {
   align-items: stretch;
 }
 
+.adminAffiliateCheckbox { display: flex; gap: 10px; align-items: flex-start; }
+.adminAffiliateCheckbox input { margin-top: 3px; }
+.adminAffiliateCheckbox span { display: grid; gap: 3px; }
+.adminAffiliateCheckbox small { color: #69716d; line-height: 1.4; }
+
 .pricing-page__plans--three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   max-width: 1240px;

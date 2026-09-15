@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
-import { STANDALONE_PROMOTION_METADATA_KEY, parseStandalonePromotionInput } from "../../../../../lib/standalonePromotion";
+import { SCHOOL_ACCESS_METADATA_KEY, SCHOOL_ACCESS_MONTHS_METADATA_KEY, STANDALONE_PROMOTION_METADATA_KEY, parseStandalonePromotionInput } from "../../../../../lib/standalonePromotion";
 import { stripeClient } from "../../../../../lib/stripe";
 import { getStripePaidPlanConfigs } from "../../../../../lib/stripePremium";
 import { hasFreshUserRole } from "../../../../../lib/serverAuth";
@@ -41,6 +41,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const metadata = {
       [STANDALONE_PROMOTION_METADATA_KEY]: "true",
       note2tabsPromotionCode: input.code,
+      ...(input.cardFreeSchoolAccess ? {
+        [SCHOOL_ACCESS_METADATA_KEY]: "true",
+        [SCHOOL_ACCESS_MONTHS_METADATA_KEY]: String(input.durationMonths),
+      } : {}),
     };
     const coupon = await stripeClient.coupons.create({
       percent_off: input.percentOff,
@@ -68,6 +72,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           percentOff: input.percentOff,
           durationMonths: input.durationMonths,
           expiresAt: promotion.expires_at || input.expiresAt,
+          cardFreeSchoolAccess: input.cardFreeSchoolAccess,
         },
       });
     } catch (error) {
