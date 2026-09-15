@@ -107,9 +107,9 @@ const normalizeTuning = (value: unknown, legacyTabRef: unknown): EditorSnapshot[
         Array.isArray(stringValues) ? toFiniteNumber(stringValues[0], NaN) : NaN
       )
     : [];
-  const openStringMidi = fromRaw.length === 6
+  const openStringMidi = fromRaw.length === 4 || fromRaw.length === 6
     ? fromRaw.map((item) => Math.round(item))
-    : legacyOpenStrings.length === 6 && legacyOpenStrings.every(Number.isFinite)
+    : (legacyOpenStrings.length === 4 || legacyOpenStrings.length === 6) && legacyOpenStrings.every(Number.isFinite)
       ? legacyOpenStrings.map((item) => Math.round(item))
       : [...preset.openStringMidi];
   return {
@@ -168,6 +168,7 @@ const normalizeEditorType = (value: unknown) => {
   const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
   if (raw === "drum" || raw === "drums" || raw === "percussion") return "drums";
   if (raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor") return "chords";
+  if (raw === "bass" || raw === "basseditor" || raw === "bass-editor") return "bass";
   return "tab";
 };
 

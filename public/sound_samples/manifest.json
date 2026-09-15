@@ -125,5 +125,24 @@
       "82": "bb5_vl3_rr1_2.opus",
       "85": "db6_vl3_rr1_2.opus"
     }
+  },
+  {
+    "id": "bass_overdrive",
+    "label": "Bass (Overdrive)",
+    "folder": "bass_overdrive",
+    "gain": 0.82,
+    "samples": {
+      "28": "bass_28.opus",
+      "33": "bass_33.opus",
+      "36": "bass_36.opus",
+      "39": "bass_39.opus",
+      "42": "bass_42.opus",
+      "45": "bass_45.opus",
+      "48": "bass_48.opus",
+      "51": "bass_51.opus",
+      "54": "bass_54.opus",
+      "57": "bass_57.opus",
+      "60": "bass_60.opus"
+    }
   }
 ]

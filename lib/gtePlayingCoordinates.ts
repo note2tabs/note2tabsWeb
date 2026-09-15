@@ -7,7 +7,7 @@ type SignedSegment = [number, number];
 const BACKEND_BLUR_SIZE = 80;
 const BACKEND_CUT_MARGIN = 5;
 const BACKEND_BARS_PER_CHUNK = 4;
-const BACKEND_ANCHOR_STRING = 2;
+const backendAnchorString = (stringCount: number) => Math.max(0, Math.min(2, stringCount - 1));
 
 const bankersRound = (value: number) => {
   const floor = Math.floor(value);
@@ -117,7 +117,6 @@ const rankTabsLikeBackend = (
         : (coord[0] - tab[0]) ** 2 * 0.1 + ((coord[1] - tab[1]) * 3) ** 2,
     }))
     .sort((left, right) => left.distance - right.distance || left.index - right.index)
-    .slice(0, 6)
     .map(({ tab }) => tab);
 
 const assignBackendStyleOptimals = (snapshot: EditorSnapshot) => {
@@ -193,7 +192,7 @@ const buildWindowRegions = (
     const centerFret = squareOptimizer(regionMidis.length ? regionMidis : allMidis, openStrings, fretCount);
     return [[
       [start + windowStart, end + windowStart],
-      [BACKEND_ANCHOR_STRING, centerFret],
+      [backendAnchorString(openStrings.length), centerFret],
     ]];
   });
 };
@@ -268,16 +267,17 @@ export const generatePlayingCoordinatesInSnapshot = (snapshot: EditorSnapshot) =
   const endTime = Math.ceil(rawEndTime / framesPerBar) * framesPerBar;
   snapshot.totalFrames = Math.max(Math.trunc(snapshot.totalFrames || 0), endTime);
   const maxFret = getMaxFretFromSnapshot(snapshot);
+  const stringCount = getOpenStringMidiFromSnapshot(snapshot).length;
   const stamps: Stamp[] = snapshot.notes.flatMap((note): Stamp[] => {
     const stringIndex = Math.trunc(note.tab?.[0]);
     const fret = Math.max(0, Math.min(maxFret, Math.trunc(note.tab?.[1])));
     const length = Math.trunc(note.length);
-    return stringIndex >= 0 && stringIndex < 6 && length > 0
+    return stringIndex >= 0 && stringIndex < stringCount && length > 0
       ? [[Math.trunc(note.startTime), [stringIndex, fret], length]]
       : [];
   });
   if (!stamps.length) {
-    snapshot.cutPositionsWithCoords = [[[0, Math.max(0, endTime)], [2, 0]]];
+    snapshot.cutPositionsWithCoords = [[[0, Math.max(0, endTime)], [backendAnchorString(stringCount), 0]]];
     snapshot.notes.forEach((note) => { note.optimals = []; });
     return snapshot.cutPositionsWithCoords;
   }

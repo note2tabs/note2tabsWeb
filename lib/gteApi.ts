@@ -74,7 +74,7 @@ export type TranscriberSegment = {
 export type TranscriberSegmentGroup = TranscriberSegment[];
 export type TranscriberTrack = {
   name: string;
-  trackType: "tab" | "drums";
+  trackType: "tab" | "bass" | "drums";
   instrumentId: string;
   program?: number;
   segments: TranscriberSegmentGroup;
@@ -789,9 +789,9 @@ export const gteApi = {
     editorId: string,
     name?: string,
     options?: {
-      editorType?: "tab" | "chords" | "drums" | string;
-      trackType?: "tab" | "chords" | "drums" | string;
-      type?: "tab" | "chords" | "drums" | string;
+      editorType?: "tab" | "bass" | "chords" | "drums" | string;
+      trackType?: "tab" | "bass" | "chords" | "drums" | string;
+      type?: "tab" | "bass" | "chords" | "drums" | string;
       chordEditor?: Record<string, unknown>;
     }
   ) =>

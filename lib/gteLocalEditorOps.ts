@@ -1,4 +1,5 @@
 import type { Chord, CutWithCoord, EditorSnapshot, Note, TabCoord } from "../types/gte";
+import { getOpenStringMidiFromSnapshot, isBassSnapshot } from "./gteTuning";
 
 export const GTE_FRAMES_PER_BAR = 480;
 
@@ -24,13 +25,15 @@ export const nextLocalChordId = (snapshot: EditorSnapshot, currentNextId = 1) =>
     1
   );
 
-const normalizeTab = (tab: TabCoord): TabCoord => [
-  Math.max(0, Math.min(5, Math.round(toNumber(tab[0], 0)))),
+const stringCountFor = (snapshot: EditorSnapshot) => getOpenStringMidiFromSnapshot(snapshot).length;
+
+const normalizeTab = (tab: TabCoord, stringCount = 6): TabCoord => [
+  Math.max(0, Math.min(Math.max(0, stringCount - 1), Math.round(toNumber(tab[0], 0)))),
   Math.max(0, Math.round(toNumber(tab[1], 0))),
 ];
 
-const normalizeCutCoord = (tab: TabCoord): TabCoord => [
-  Math.max(0, Math.min(5, Math.round(toNumber(tab[0], 2)))),
+const normalizeCutCoord = (tab: TabCoord, stringCount = 6): TabCoord => [
+  Math.max(0, Math.min(Math.max(0, stringCount - 1), Math.round(toNumber(tab[0], 2)))),
   Math.max(0, Math.round(toNumber(tab[1], 0))),
 ];
 
@@ -53,8 +56,8 @@ export const addNoteLocal = (
       startTime: Math.max(0, Math.round(toNumber(note.startTime, 0))),
       length: Math.max(1, Math.round(toNumber(note.length, 1))),
       midiNum: Math.round(toNumber(note.midiNum, 0)),
-      tab: normalizeTab(note.tab),
-      optimals: Array.isArray(note.optimals) ? note.optimals.map(normalizeTab) : [],
+      tab: normalizeTab(note.tab, stringCountFor(next)),
+      optimals: Array.isArray(note.optimals) ? note.optimals.map((tab) => normalizeTab(tab, stringCountFor(next))) : [],
     },
   ]);
   next.totalFrames = Math.max(next.totalFrames, next.notes[next.notes.length - 1]?.startTime ?? 0);
@@ -85,14 +88,14 @@ export const resizeNoteLocal = (snapshot: EditorSnapshot, noteId: number, length
 export const assignNoteTabLocal = (snapshot: EditorSnapshot, noteId: number, tab: TabCoord) => {
   const next = cloneEditorSnapshot(snapshot);
   const note = next.notes.find((item) => item.id === noteId);
-  if (note) note.tab = normalizeTab(tab);
+  if (note) note.tab = normalizeTab(tab, stringCountFor(next));
   return next;
 };
 
 export const setChordTabsLocal = (snapshot: EditorSnapshot, chordId: number, tabs: TabCoord[]) => {
   const next = cloneEditorSnapshot(snapshot);
   const chord = next.chords.find((item) => item.id === chordId);
-  if (chord) chord.currentTabs = tabs.map(normalizeTab);
+  if (chord) chord.currentTabs = tabs.map((tab) => normalizeTab(tab, stringCountFor(next)));
   return next;
 };
 
@@ -113,6 +116,7 @@ export const resizeChordLocal = (snapshot: EditorSnapshot, chordId: number, leng
 
 export const makeChordLocal = (snapshot: EditorSnapshot, noteIds: number[]) => {
   const next = cloneEditorSnapshot(snapshot);
+  if (isBassSnapshot(next)) return next;
   const selected = next.notes.filter((note) => noteIds.includes(note.id));
   if (selected.length < 2) return next;
   const startTime = Math.min(...selected.map((note) => note.startTime));
@@ -122,8 +126,8 @@ export const makeChordLocal = (snapshot: EditorSnapshot, noteIds: number[]) => {
     startTime,
     length,
     originalMidi: selected.map((note) => note.midiNum),
-    currentTabs: selected.map((note) => normalizeTab(note.tab)),
-    ogTabs: selected.map((note) => normalizeTab(note.tab)),
+    currentTabs: selected.map((note) => normalizeTab(note.tab, stringCountFor(next))),
+    ogTabs: selected.map((note) => normalizeTab(note.tab, stringCountFor(next))),
   };
   next.notes = next.notes.filter((note) => !noteIds.includes(note.id));
   next.chords = sortChords([...next.chords, chord]);
@@ -140,7 +144,7 @@ export const disbandChordLocal = (snapshot: EditorSnapshot, chordId: number) => 
     startTime: chord.startTime,
     length: chord.length,
     midiNum: chord.originalMidi[index] ?? 0,
-    tab: normalizeTab(tab),
+    tab: normalizeTab(tab, stringCountFor(next)),
     optimals: [],
   }));
   next.chords = next.chords.filter((item) => item.id !== chordId);
@@ -148,12 +152,12 @@ export const disbandChordLocal = (snapshot: EditorSnapshot, chordId: number) => 
   return next;
 };
 
-const normalizeCuts = (cuts: CutWithCoord[], totalFrames: number): CutWithCoord[] => {
+const normalizeCuts = (cuts: CutWithCoord[], totalFrames: number, stringCount = 6): CutWithCoord[] => {
   const normalized = cuts
     .map((cut): CutWithCoord => {
       const start = Math.max(0, Math.min(totalFrames - 1, Math.round(toNumber(cut[0][0], 0))));
       const end = Math.max(start + 1, Math.min(totalFrames, Math.round(toNumber(cut[0][1], totalFrames))));
-      return [[start, end], normalizeCutCoord(cut[1])];
+      return [[start, end], normalizeCutCoord(cut[1], stringCount)];
     })
     .sort((left, right) => left[0][0] - right[0][0]);
   if (!normalized.length) return [[[0, totalFrames], [2, 0]]];
@@ -175,22 +179,22 @@ export const insertCutBoundaryLocal = (snapshot: EditorSnapshot, time: number, c
   const totalFrames = Math.max(1, Math.round(toNumber(next.totalFrames, GTE_FRAMES_PER_BAR)));
   const boundary = Math.max(1, Math.min(totalFrames - 1, Math.round(toNumber(time, 0))));
   const cuts: CutWithCoord[] = [];
-  normalizeCuts(next.cutPositionsWithCoords, totalFrames).forEach((cut) => {
+  normalizeCuts(next.cutPositionsWithCoords, totalFrames, stringCountFor(next)).forEach((cut) => {
     if (boundary > cut[0][0] && boundary < cut[0][1]) {
       cuts.push([[cut[0][0], boundary], cut[1]]);
-      cuts.push([[boundary, cut[0][1]], normalizeCutCoord(coord)]);
+      cuts.push([[boundary, cut[0][1]], normalizeCutCoord(coord, stringCountFor(next))]);
       return;
     }
     cuts.push(cut);
   });
-  next.cutPositionsWithCoords = normalizeCuts(cuts, totalFrames);
+  next.cutPositionsWithCoords = normalizeCuts(cuts, totalFrames, stringCountFor(next));
   return next;
 };
 
 export const shiftCutBoundaryLocal = (snapshot: EditorSnapshot, boundaryIndex: number, time: number) => {
   const next = cloneEditorSnapshot(snapshot);
   const totalFrames = Math.max(1, Math.round(toNumber(next.totalFrames, GTE_FRAMES_PER_BAR)));
-  const cuts = normalizeCuts(next.cutPositionsWithCoords, totalFrames);
+  const cuts = normalizeCuts(next.cutPositionsWithCoords, totalFrames, stringCountFor(next));
   const index = Math.max(1, Math.min(cuts.length - 1, Math.round(toNumber(boundaryIndex, 1))));
   if (!cuts[index]) return next;
   const min = cuts[index - 1][0][0] + 1;
@@ -198,26 +202,26 @@ export const shiftCutBoundaryLocal = (snapshot: EditorSnapshot, boundaryIndex: n
   const boundary = Math.max(min, Math.min(max, Math.round(toNumber(time, cuts[index][0][0]))));
   cuts[index - 1][0][1] = boundary;
   cuts[index][0][0] = boundary;
-  next.cutPositionsWithCoords = normalizeCuts(cuts, totalFrames);
+  next.cutPositionsWithCoords = normalizeCuts(cuts, totalFrames, stringCountFor(next));
   return next;
 };
 
 export const deleteCutBoundaryLocal = (snapshot: EditorSnapshot, boundaryIndex: number) => {
   const next = cloneEditorSnapshot(snapshot);
   const totalFrames = Math.max(1, Math.round(toNumber(next.totalFrames, GTE_FRAMES_PER_BAR)));
-  const cuts = normalizeCuts(next.cutPositionsWithCoords, totalFrames);
+  const cuts = normalizeCuts(next.cutPositionsWithCoords, totalFrames, stringCountFor(next));
   const index = Math.round(toNumber(boundaryIndex, 0));
   if (index <= 0 || index >= cuts.length) return next;
   cuts[index - 1][0][1] = cuts[index][0][1];
   cuts.splice(index, 1);
-  next.cutPositionsWithCoords = normalizeCuts(cuts, totalFrames);
+  next.cutPositionsWithCoords = normalizeCuts(cuts, totalFrames, stringCountFor(next));
   return next;
 };
 
 export const addBarLocal = (snapshot: EditorSnapshot) => {
   const next = cloneEditorSnapshot(snapshot);
   next.totalFrames = Math.max(GTE_FRAMES_PER_BAR, Math.round(toNumber(next.totalFrames, 0))) + GTE_FRAMES_PER_BAR;
-  next.cutPositionsWithCoords = normalizeCuts(next.cutPositionsWithCoords, next.totalFrames);
+  next.cutPositionsWithCoords = normalizeCuts(next.cutPositionsWithCoords, next.totalFrames, stringCountFor(next));
   return next;
 };
 
@@ -240,7 +244,8 @@ export const removeBarLocal = (snapshot: EditorSnapshot, barIndex: number) => {
   next.totalFrames = Math.max(GTE_FRAMES_PER_BAR, next.totalFrames - GTE_FRAMES_PER_BAR);
   next.cutPositionsWithCoords = normalizeCuts(
     next.cutPositionsWithCoords.map((cut): CutWithCoord => [[shift(cut[0][0]), shift(cut[0][1])], cut[1]]),
-    next.totalFrames
+    next.totalFrames,
+    stringCountFor(next)
   );
   return next;
 };

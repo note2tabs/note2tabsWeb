@@ -90,6 +90,21 @@ export default function PrivacyPage() {
             You can deny analytics and continue using core features (subject to rate limits and security protections).
             You can update this later in settings and request account deletion at any time.
           </p>
+
+          <h2>Advertising</h2>
+          <p>
+            Note2Tabs may use advertising partners, including Google, to display ads on selected parts of the
+            service. When advertising is enabled, those partners may process device information, approximate
+            location, browsing activity, and advertising identifiers to deliver, measure, limit, and protect ads.
+            Google explains how it uses information from sites that use its services in its
+            {" "}<a href="https://policies.google.com/technologies/partner-sites">partner-sites policy</a>.
+          </p>
+          <p>
+            Advertising cookies, local storage, and personalized advertising are subject to the choices and notices
+            required in the visitor&apos;s region. Note2Tabs does not use information from internship applications,
+            private uploaded audio, or private tab content to personalize advertising. Paid plans may be offered an
+            ad-free experience as described on the pricing page.
+          </p>
           </section>
         </div>
       </main>

@@ -11,7 +11,7 @@ export type Note = {
   pitchBend?: number[];
 };
 
-export type GteTrackType = "tab" | "chords" | "drums";
+export type GteTrackType = "tab" | "bass" | "chords" | "drums";
 
 export type TimingAnchor = {
   tick: number;
@@ -109,6 +109,7 @@ export type EditorSnapshot = {
   playbackIsolated?: boolean;
   timelineOffsetFrames?: number;
   importGroupId?: string;
+  importDroppedNoteCount?: number;
   tuning?: {
     presetId?: string;
     label?: string;
