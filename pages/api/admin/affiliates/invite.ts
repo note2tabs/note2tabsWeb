@@ -60,7 +60,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       duration: "repeating",
       duration_in_months: affiliate.discountMonths,
       applies_to: { products: uniqueProductIds },
-      name: `Note2Tabs affiliate ${code}`,
+      // Stripe limits coupon names to 40 characters while our codes may be 32.
+      name: `N2T ${code}`,
       metadata: {
         note2tabsAffiliateId: affiliate.id,
         discountPercent: String(affiliate.discountPercent),

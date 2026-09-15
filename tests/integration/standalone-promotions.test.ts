@@ -52,8 +52,20 @@ describe("standalone promotion API", () => {
     const { req, res } = createMocks({ method: "POST", body: { code: "summer20", percentOff: 20, durationMonths: 4, expiresOn: "2099-08-20" } });
     await handler(req as any, res as any);
     expect(res._getStatusCode()).toBe(201);
-    expect(stripeMock.coupons.create).toHaveBeenCalledWith(expect.objectContaining({ percent_off: 20, duration_in_months: 4, applies_to: { products: ["prod_premium", "prod_pro"] }, metadata: expect.objectContaining({ note2tabsStandalonePromotion: "true" }) }));
+    expect(stripeMock.coupons.create).toHaveBeenCalledWith(expect.objectContaining({ name: "N2T SUMMER20", percent_off: 20, duration_in_months: 4, applies_to: { products: ["prod_premium", "prod_pro"] }, metadata: expect.objectContaining({ note2tabsStandalonePromotion: "true" }) }));
     expect(stripeMock.promotionCodes.create).toHaveBeenCalledWith(expect.objectContaining({ code: "SUMMER20", active: true, expires_at: expect.any(Number) }));
+  });
+
+  it("keeps Stripe's coupon name within its limit for the longest valid code", async () => {
+    const code = "A".repeat(32);
+    const handler = (await import("../../pages/api/admin/affiliates/promotions/create")).default;
+    const { req, res } = createMocks({ method: "POST", body: { code, percentOff: 20, durationMonths: 4 } });
+    await handler(req as any, res as any);
+
+    expect(res._getStatusCode()).toBe(201);
+    const name = stripeMock.coupons.create.mock.calls[0][0].name;
+    expect(name).toBe(`N2T ${code}`);
+    expect(name.length).toBeLessThanOrEqual(40);
   });
 
   it("rejects duplicate active codes", async () => {

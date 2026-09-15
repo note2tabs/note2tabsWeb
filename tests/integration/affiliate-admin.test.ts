@@ -103,7 +103,8 @@ describe("affiliate administration", () => {
       discountPercent: 15, discountMonths: 4,
     }) });
     expect(stripeMock.coupons.create).toHaveBeenCalledWith(expect.objectContaining({
-      percent_off: 15, duration_in_months: 4, applies_to: { products: ["prod_premium", "prod_pro"] },
+      name: "N2T ARTIST15", percent_off: 15, duration_in_months: 4,
+      applies_to: { products: ["prod_premium", "prod_pro"] },
     }));
   });
 

@@ -47,7 +47,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       duration: "repeating",
       duration_in_months: input.durationMonths,
       applies_to: { products: [...productIds] },
-      name: `Note2Tabs promotion ${input.code}`,
+      // Stripe limits coupon names to 40 characters while our codes may be 32.
+      name: `N2T ${input.code}`,
       metadata,
       ...(input.expiresAt ? { redeem_by: input.expiresAt } : {}),
     });
