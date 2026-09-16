@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { SCHOOL_ACCESS_METADATA_KEY, SCHOOL_ACCESS_MONTHS_METADATA_KEY, STANDALONE_PROMOTION_METADATA_KEY, parseStandalonePromotionInput } from "../../../../../lib/standalonePromotion";
 import { stripeClient } from "../../../../../lib/stripe";
-import { getStripePaidPlanConfigs } from "../../../../../lib/stripePremium";
+import { getPaidPlanProductIds } from "../../../../../lib/stripeCouponProducts";
 import { hasFreshUserRole } from "../../../../../lib/serverAuth";
 import { authOptions } from "../../../auth/[...nextauth]";
 
@@ -26,17 +26,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const existing = await stripeClient.promotionCodes.list({ code: input.code, active: true, limit: 1 });
     if (existing.data.length) return res.status(409).json({ error: "That code is already active." });
 
-    const configs = Object.values(getStripePaidPlanConfigs()).filter((config): config is NonNullable<typeof config> => Boolean(config));
-    const productIds = new Set<string>();
-    for (const config of configs) {
-      if (config.productId) productIds.add(config.productId);
-      else {
-        const price = await stripeClient.prices.retrieve(config.priceId);
-        const productId = typeof price.product === "string" ? price.product : price.product?.id;
-        if (productId) productIds.add(productId);
-      }
-    }
-    if (!productIds.size) return res.status(503).json({ error: "Paid plan billing is not configured." });
+    const productIds = await getPaidPlanProductIds(stripeClient);
+    if (!productIds.length) return res.status(503).json({ error: "Paid plan billing is not configured." });
 
     const metadata = {
       [STANDALONE_PROMOTION_METADATA_KEY]: "true",
@@ -50,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       percent_off: input.percentOff,
       duration: "repeating",
       duration_in_months: input.durationMonths,
-      applies_to: { products: [...productIds] },
+      applies_to: { products: productIds },
       // Stripe limits coupon names to 40 characters while our codes may be 32.
       name: `N2T ${input.code}`,
       metadata,
