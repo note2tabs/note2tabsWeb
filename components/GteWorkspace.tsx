@@ -1274,7 +1274,7 @@ export const finalizeOptimizedTrackFingeringInSnapshot = (draft: EditorSnapshot)
   draft.noteEffects = normalizeSnapshotNoteEffects(draft);
 };
 
-const mergeRedundantCutRegionsInSnapshot = (draft: EditorSnapshot) => {
+export const mergeRedundantCutRegionsInSnapshot = (draft: EditorSnapshot) => {
   draft.cutPositionsWithCoords = mergeRedundantCutRegions(draft, draft.cutPositionsWithCoords);
 };
 

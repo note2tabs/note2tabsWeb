@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { gteApi } from "../lib/gteApi";
+import { gteApi, optimizeImportedTrackFingerings } from "../lib/gteApi";
 import {
   TAB_IMPORT_ACCEPT,
   getTabImportExtension,
@@ -357,6 +357,7 @@ export default function GteFileImportButton({
         }),
       };
       await gteApi.applySnapshot(targetEditorId, nextCanvas);
+      await optimizeImportedTrackFingerings(targetEditorId, nextCanvas);
       await onImported(targetEditorId);
     } catch (err: unknown) {
       if (editorId && addedLaneIds.length) {
