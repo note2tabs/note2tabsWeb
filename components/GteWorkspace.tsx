@@ -2126,6 +2126,14 @@ function ChordLaneWorkspace({
   // the toggle applies to whichever chord track is being practised.
   const chordFingeringsVisible = practiceMode ? practiceFingeringsVisible : fingeringsVisible;
   const snapToKeyEnabled = Boolean(globalSnapToKeyEnabled);
+  const isChordPayloadInKey = useCallback(
+    (payload: ChordPalettePayload) =>
+      !snapToKeyEnabled ||
+      getChordEditorMidiNotes(payload).every((midi) =>
+        isMidiInKey(midi, canvasKeyBase, canvasKeyType)
+      ),
+    [canvasKeyBase, canvasKeyType, snapToKeyEnabled]
+  );
   const normalizedTimelineZoomFactor =
     timelineZoomFactor !== undefined && Number.isFinite(timelineZoomFactor)
       ? Math.max(MIN_TIMELINE_ZOOM, Math.min(MAX_TIMELINE_ZOOM, timelineZoomFactor))
@@ -2656,6 +2664,7 @@ function ChordLaneWorkspace({
 
   const addChordAtFrame = useCallback(
     (payload: ChordPalettePayload, rawFrame: number) => {
+      if (!isChordPayloadInKey(payload)) return;
       const startTime = snapFrame(rawFrame);
       const length = snapLength(FIXED_FRAMES_PER_BAR / 4);
       const nextChord: Chord = {
@@ -2681,7 +2690,7 @@ function ChordLaneWorkspace({
       );
       setSelectedChordIds([nextChord.id]);
     },
-    [commitSnapshot, snapFrame, snapLength, snapshot, totalFrames]
+    [commitSnapshot, isChordPayloadInKey, snapFrame, snapLength, snapshot, totalFrames]
   );
 
   useEffect(() => {
@@ -3342,14 +3351,34 @@ function ChordLaneWorkspace({
                     {CHORD_EDITOR_ROOTS.map((root) => {
                       const label = getChordEditorLabel(root, quality.name, chordPaletteExtension);
                       const payload = { root, quality: quality.name, extension: chordPaletteExtension, label };
+                      const chordInKey = isChordPayloadInKey(payload);
                       return (
                         <button
                           key={`${quality.name}-${root}`}
                           type="button"
-                          draggable
-                          onDragStart={(event) => handlePaletteDragStart(event, payload)}
-                          onClick={() => void playChordPalettePreview(payload)}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 hover:border-emerald-400 hover:bg-emerald-50"
+                          draggable={chordInKey}
+                          disabled={!chordInKey}
+                          onDragStart={(event) => {
+                            if (!chordInKey) {
+                              event.preventDefault();
+                              return;
+                            }
+                            handlePaletteDragStart(event, payload);
+                          }}
+                          onClick={() => {
+                            if (!chordInKey) return;
+                            void playChordPalettePreview(payload);
+                          }}
+                          className={`rounded-lg border px-2 py-1.5 text-xs font-semibold ${
+                            chordInKey
+                              ? "border-slate-200 bg-white text-slate-700 hover:border-emerald-400 hover:bg-emerald-50"
+                              : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-60"
+                          }`}
+                          title={
+                            chordInKey
+                              ? `Drag ${label} to the chord editor`
+                              : `${label} is outside the current key`
+                          }
                         >
                           {label}
                         </button>
@@ -3514,12 +3543,21 @@ function ChordLaneWorkspace({
                     const visibleStart = Math.max(start, rowStartFrame);
                     const visibleEnd = Math.min(end, rowEndFrame);
                     const isSelected = selectedChordIds.includes(chord.id);
+                    const strums = normalizeChordEditorStrums(chord.strums);
                     const label = getPracticeChordLabel(chord);
                     const fingeringLookup = getChordFingeringLookup(chord);
-                    const fingering = getPracticeChordFingering(
-                      chord,
-                      fingeringOptionsByChordKey[fingeringLookup.key]
-                    );
+                    const fingeringOptions = fingeringOptionsByChordKey[fingeringLookup.key] || [];
+                    const savedFingeringIndex =
+                      Number.isFinite(Number(chord.fingeringIndex)) && fingeringOptions.length
+                        ? Math.max(
+                            0,
+                            Math.min(
+                              fingeringOptions.length - 1,
+                              Math.round(Number(chord.fingeringIndex))
+                            )
+                          )
+                        : 0;
+                    const fingering = getPracticeChordFingering(chord, fingeringOptions);
                     const isStrumEditing = strumEditor?.chordId === chord.id;
                     const strumGridStep = getStrumGridStep(chordLength);
                     const beatGridStep = Math.max(
@@ -3532,23 +3570,69 @@ function ChordLaneWorkspace({
                       CHORD_EDITOR_MIN_BLOCK_WIDTH,
                       (visibleEnd - visibleStart) * pxPerFrame
                     );
+                    const segmentContainsStart = start >= rowStartFrame;
+                    const segmentContainsEnd = end <= rowEndFrame;
                     return (
                       <Fragment key={`chord-tab-${rowIndex}-${chord.id}`}>
-                        <button
-                          type="button"
+                        <div
                           data-track-reorder-block="true"
-                          aria-pressed={isSelected}
                           onMouseDown={(event) => {
+                            event.preventDefault();
                             event.stopPropagation();
+                            if (dragHoldTimeoutRef.current) {
+                              clearTimeout(dragHoldTimeoutRef.current);
+                              dragHoldTimeoutRef.current = null;
+                            }
+                            chordMouseDownSelectionRef.current = {
+                              chordId: chord.id,
+                              wasSelected: isSelected,
+                              shiftKey: event.shiftKey,
+                            };
                             setSelectedBarIndices([]);
+                            if (event.shiftKey) {
+                              setSelectedChordIds((previousSelected) =>
+                                previousSelected.includes(chord.id)
+                                  ? previousSelected.filter((value) => value !== chord.id)
+                                  : [...previousSelected, chord.id]
+                              );
+                              return;
+                            }
+                            if (!isSelected) setSelectedChordIds([chord.id]);
+                            const selectedIdsForDrag =
+                              isSelected && selectedChordIds.length > 1
+                                ? new Set(selectedChordIds)
+                                : null;
+                            const dragGroup = selectedIdsForDrag
+                              ? snapshot.chords
+                                  .filter((item) => selectedIdsForDrag.has(item.id))
+                                  .map((item) => ({ chordId: item.id, originalStart: item.startTime }))
+                              : undefined;
+                            dragHoldTimeoutRef.current = setTimeout(() => {
+                              dragHoldTimeoutRef.current = null;
+                              dragStateRef.current = {
+                                kind: "move",
+                                chordId: chord.id,
+                                anchorX: event.clientX,
+                                originalStart: chord.startTime,
+                                group: dragGroup,
+                              };
+                            }, TOUCH_DRAG_HOLD_MS);
                           }}
                           onClick={(event) => {
+                            event.preventDefault();
                             event.stopPropagation();
-                            setSelectedChordIds((selectedIds) =>
-                              event.shiftKey
-                                ? selectedIds.includes(chord.id)
-                                  ? selectedIds.filter((id) => id !== chord.id)
-                                  : [...selectedIds, chord.id]
+                            if (event.detail > 1) return;
+                            if (suppressChordClickRef.current) {
+                              suppressChordClickRef.current = false;
+                              chordMouseDownSelectionRef.current = null;
+                              return;
+                            }
+                            const mouseDownSelection = chordMouseDownSelectionRef.current;
+                            chordMouseDownSelectionRef.current = null;
+                            if (mouseDownSelection?.shiftKey) return;
+                            setSelectedChordIds(
+                              mouseDownSelection?.chordId === chord.id && mouseDownSelection.wasSelected
+                                ? []
                                 : [chord.id]
                             );
                           }}
@@ -3570,7 +3654,7 @@ function ChordLaneWorkspace({
                               setSelectedChordIds([chord.id]);
                             }
                           }}
-                          className={`absolute z-10 flex h-8 items-center justify-center rounded border px-2 text-sm font-semibold shadow-sm ${
+                          className={`absolute z-10 flex h-8 cursor-pointer select-none items-center justify-center rounded border px-2 text-sm font-semibold shadow-sm ${
                             isSelected
                               ? "border-sky-500 bg-sky-100 text-sky-950"
                               : "border-slate-300 bg-emerald-50 text-slate-900"
@@ -3582,9 +3666,124 @@ function ChordLaneWorkspace({
                           }}
                           aria-label={`${label} chord`}
                         >
+                          {segmentContainsStart ? (
+                            <button
+                              type="button"
+                              data-track-reorder-block="true"
+                              className="absolute left-0 top-0 z-20 h-full w-2 cursor-ew-resize rounded-l bg-transparent"
+                              aria-label="Resize chord start"
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (dragHoldTimeoutRef.current) clearTimeout(dragHoldTimeoutRef.current);
+                                dragHoldTimeoutRef.current = null;
+                                setSelectedBarIndices([]);
+                                setSelectedChordIds([chord.id]);
+                                dragStateRef.current = {
+                                  kind: "resize-left",
+                                  chordId: chord.id,
+                                  anchorX: event.clientX,
+                                  originalStart: chord.startTime,
+                                  originalLength: chord.length,
+                                };
+                              }}
+                            />
+                          ) : null}
                           <span className="max-w-full truncate">{label}</span>
+                          {strums.map((strum) => {
+                            const strumFrame = start + strum.time;
+                            if (strumFrame < visibleStart || strumFrame >= visibleEnd) return null;
+                            return (
+                              <span
+                                key={`${chord.id}-${strum.id ?? strum.time}-${strum.direction}`}
+                                className="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 text-base leading-none text-slate-700"
+                                style={{ left: (strumFrame - visibleStart) * pxPerFrame }}
+                              >
+                                {strum.direction === "mute" ? "x" : strum.direction === "up" ? "↑" : "↓"}
+                              </span>
+                            );
+                          })}
+                          {segmentContainsEnd ? (
+                            <button
+                              type="button"
+                              data-track-reorder-block="true"
+                              className="absolute right-0 top-0 z-20 h-full w-2 cursor-ew-resize rounded-r bg-transparent"
+                              aria-label="Resize chord end"
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (dragHoldTimeoutRef.current) clearTimeout(dragHoldTimeoutRef.current);
+                                dragHoldTimeoutRef.current = null;
+                                setSelectedBarIndices([]);
+                                setSelectedChordIds([chord.id]);
+                                dragStateRef.current = {
+                                  kind: "resize-right",
+                                  chordId: chord.id,
+                                  anchorX: event.clientX,
+                                  originalStart: chord.startTime,
+                                  originalLength: chord.length,
+                                };
+                              }}
+                            />
+                          ) : null}
                           {chordFingeringsVisible && start >= rowStartFrame ? (
-                            <span className="absolute left-1/2 top-10 flex w-[92px] -translate-x-1/2 justify-center rounded-md border border-slate-200 bg-white p-1 shadow-sm">
+                            <div
+                              data-track-reorder-block="true"
+                              className="absolute left-1/2 top-10 z-30 flex w-[122px] -translate-x-1/2 flex-col items-center rounded-md border border-slate-200 bg-white p-1 shadow-sm"
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                              }}
+                              onClick={(event) => event.stopPropagation()}
+                              onDoubleClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                              }}
+                            >
+                              <div className="flex w-full items-center justify-between gap-1 pb-1">
+                                <button
+                                  type="button"
+                                  className="grid h-6 w-6 place-items-center rounded border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                  disabled={fingeringOptions.length <= 1}
+                                  aria-label={`Previous ${label} fingering`}
+                                  onClick={() => {
+                                    if (!fingeringOptions.length) return;
+                                    const nextIndex =
+                                      (savedFingeringIndex - 1 + fingeringOptions.length) %
+                                      fingeringOptions.length;
+                                    applyChordFingering(
+                                      chord.id,
+                                      fingeringOptions[nextIndex],
+                                      nextIndex
+                                    );
+                                  }}
+                                >
+                                  {"<"}
+                                </button>
+                                <span className="max-w-[58px] truncate text-center text-[10px] font-semibold text-slate-700">
+                                  {fingeringOptions.length
+                                    ? `${savedFingeringIndex + 1}/${fingeringOptions.length}`
+                                    : "0/0"}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="grid h-6 w-6 place-items-center rounded border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                  disabled={fingeringOptions.length <= 1}
+                                  aria-label={`Next ${label} fingering`}
+                                  onClick={() => {
+                                    if (!fingeringOptions.length) return;
+                                    const nextIndex =
+                                      (savedFingeringIndex + 1) % fingeringOptions.length;
+                                    applyChordFingering(
+                                      chord.id,
+                                      fingeringOptions[nextIndex],
+                                      nextIndex
+                                    );
+                                  }}
+                                >
+                                  {">"}
+                                </button>
+                              </div>
                               {fingering ? (
                                 <ChordFingeringDiagram
                                   fingering={fingering}
@@ -3595,9 +3794,9 @@ function ChordLaneWorkspace({
                                   No shape
                                 </span>
                               )}
-                            </span>
+                            </div>
                           ) : null}
-                        </button>
+                        </div>
                         {isStrumEditing && strumEditor && start >= rowStartFrame ? (
                           <div
                             data-track-reorder-block="true"
