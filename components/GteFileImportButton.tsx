@@ -240,7 +240,6 @@ export default function GteFileImportButton({
     setLoadingLabel(`Importing ${preparedSelection?.format || getImportFormatLabel(file?.name || "")}`);
     onError("");
     let createdEditorId: string | null = null;
-    let importPersisted = false;
     const addedLaneIds: string[] = [];
     try {
       if (file && /\.json$/i.test(file.name)) {
@@ -282,7 +281,6 @@ export default function GteFileImportButton({
           throw new Error("Could not create an editor for this Note2Tabs JSON file.");
         }
         await gteApi.importEditorJson(targetEditorId, laneId, payload);
-        importPersisted = true;
         await onImported(targetEditorId);
         return;
       }
@@ -363,25 +361,12 @@ export default function GteFileImportButton({
         }),
       };
       await gteApi.applySnapshot(targetEditorId, nextCanvas);
-      importPersisted = true;
-      try {
-        // Reload after the initial save so optimization uses the authoritative
-        // canvas version instead of the stale pre-save add-lane response.
-        await optimizeImportedTrackFingerings(targetEditorId);
-      } catch (optimizationError) {
-        await onImported(targetEditorId);
-        onError(
-          optimizationError instanceof Error
-            ? `The tracks were imported, but automatic fingering optimization could not finish: ${optimizationError.message}`
-            : "The tracks were imported, but automatic fingering optimization could not finish."
-        );
-        return;
-      }
+      await optimizeImportedTrackFingerings(targetEditorId, nextCanvas);
       await onImported(targetEditorId);
     } catch (err: unknown) {
-      if (!importPersisted && editorId && addedLaneIds.length) {
+      if (editorId && addedLaneIds.length) {
         await Promise.all(addedLaneIds.map((laneId) => gteApi.deleteCanvasEditor(editorId, laneId).catch(() => {})));
-      } else if (!importPersisted && createdEditorId) {
+      } else if (createdEditorId) {
         await gteApi.deleteEditor(createdEditorId).catch(() => {});
       }
       const message = err instanceof Error ? err.message : "Could not import this tab file.";
