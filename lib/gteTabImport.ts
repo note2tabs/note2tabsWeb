@@ -74,43 +74,6 @@ export type ParsedTabFileImport = ParsedTabImport & {
   fileName: string;
 };
 
-type RebasableMidiImportTrack = {
-  stamps: Array<[number, [number, number], number]>;
-  totalFrames?: number;
-  framesPerMessure?: number;
-};
-
-/** Removes only shared leading silence while preserving timing between selected MIDI channels. */
-export function rebaseSelectedMidiTracks<T extends RebasableMidiImportTrack>(tracks: T[]): T[] {
-  const firstFrame = tracks.reduce(
-    (earliest, track) => track.stamps.reduce(
-      (trackEarliest, [start]) => Math.min(trackEarliest, Math.max(0, Math.round(Number(start) || 0))),
-      earliest
-    ),
-    Number.POSITIVE_INFINITY
-  );
-  if (!Number.isFinite(firstFrame) || firstFrame <= 0) return tracks;
-
-  return tracks.map((track) => {
-    const stamps = track.stamps.map(([start, tab, length]): [number, [number, number], number] => [
-      Math.max(0, Math.round(Number(start) || 0) - firstFrame),
-      [tab[0], tab[1]],
-      length,
-    ]);
-    const noteEnd = stamps.reduce((latest, [start, , length]) => Math.max(latest, start + length), 0);
-    const framesPerBar = Math.max(1, Math.round(Number(track.framesPerMessure) || 480));
-    return {
-      ...track,
-      stamps,
-      totalFrames: Math.max(
-        framesPerBar,
-        noteEnd,
-        Math.max(0, Math.round(Number(track.totalFrames) || 0) - firstFrame)
-      ),
-    };
-  });
-}
-
 export type ParsedTabTrackImport = Omit<ParsedTabImport, "tracks"> & {
   name?: string;
   trackType?: "tab" | "bass";

@@ -7,7 +7,6 @@ import {
   getUnsupportedTabImportMessage,
   parseCompressedMusicXmlTabImport,
   parseMidiTabImport,
-  rebaseSelectedMidiTracks,
   parseTabImportFile,
   parseMusicXmlTabImport,
   parseTextTabImport,
@@ -271,27 +270,6 @@ describe("gte tab import helpers", () => {
       trackType: "bass",
       stamps: [[0, [0, 2], 120]],
     });
-  });
-
-  it("removes shared MIDI leading silence without changing selected-channel alignment", () => {
-    const tracks = rebaseSelectedMidiTracks([
-      {
-        name: "Late pad",
-        framesPerMessure: 480,
-        totalFrames: 2400,
-        stamps: [[960, [0, 2], 120] as [number, [number, number], number]],
-      },
-      {
-        name: "Later lead",
-        framesPerMessure: 480,
-        totalFrames: 2400,
-        stamps: [[1200, [1, 4], 120] as [number, [number, number], number]],
-      },
-    ]);
-
-    expect(tracks[0].stamps).toEqual([[0, [0, 2], 120]]);
-    expect(tracks[1].stamps).toEqual([[240, [1, 4], 120]]);
-    expect(tracks.map((track) => track.totalFrames)).toEqual([1440, 1440]);
   });
 
   it("imports ASCII text-like formats deterministically", async () => {
