@@ -5,6 +5,7 @@ import {
   TAB_IMPORT_ACCEPT,
   getTabImportExtension,
   parseTabImportFile,
+  rebaseSelectedMidiTracks,
   type ParsedTabFileImport,
 } from "../lib/gteTabImport";
 import type { CanvasSnapshot, EditorSnapshot, Note, TabCoord } from "../types/gte";
@@ -309,9 +310,12 @@ export default function GteFileImportButton({
         });
         return;
       }
-      const importTracks = preparedSelection
+      const selectedTracks = preparedSelection
         ? availableTracks.filter((_, index) => preparedSelection.selectedIndexes.has(index))
         : availableTracks;
+      const importTracks = selectableFormat === "MIDI"
+        ? rebaseSelectedMidiTracks(selectedTracks)
+        : selectedTracks;
       if (!importTracks.length) {
         throw new Error("Select at least one track to import.");
       }
