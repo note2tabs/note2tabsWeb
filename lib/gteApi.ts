@@ -657,7 +657,7 @@ export async function optimizeImportedTrackFingerings(
       (lane.notes.length === 0 && lane.chords.length === 0)
     ) return;
     generatePlayingCoordinatesInSnapshot(lane);
-    optimizeTrackFingeringInSnapshot(lane, { chordizeNotes: false });
+    optimizeTrackFingeringInSnapshot(lane);
     finalizeOptimizedTrackFingeringInSnapshot(lane);
     mergeRedundantCutRegionsInSnapshot(lane);
   });

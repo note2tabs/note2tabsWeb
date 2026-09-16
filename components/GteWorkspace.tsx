@@ -1158,7 +1158,6 @@ export const optimizeTrackFingeringInSnapshot = (
   draft: EditorSnapshot,
   options?: {
     optimizeChordFingerings?: boolean;
-    chordizeNotes?: boolean;
   }
 ): FingeringOptimizationResult => {
   const tolerance = Math.max(1, Math.round((draft.framesPerMessure || FIXED_FRAMES_PER_BAR) / 32));
@@ -1166,9 +1165,7 @@ export const optimizeTrackFingeringInSnapshot = (
   // Bass uses the same coordinate-aware note candidate ranking as guitar, but
   // simultaneous pitches must remain independent notes rather than becoming
   // guitar chord objects.
-  const chordGroups = isBass || options?.chordizeNotes === false
-    ? []
-    : clusterTrackNotesIntoChordGroups(draft.notes, tolerance);
+  const chordGroups = isBass ? [] : clusterTrackNotesIntoChordGroups(draft.notes, tolerance);
   const createdChordIds: number[] = [];
   const chordizedNoteIds = new Set<number>();
   let nextChordId = draft.chords.reduce((max, chord) => Math.max(max, chord.id), 0) + 1;
