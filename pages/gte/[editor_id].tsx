@@ -6694,10 +6694,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   )};if(window.__note2tabsEditorBootstrap?.editorId===editorId)return;window.__note2tabsEditorBootstrap={editorId,promise:fetch(${serializeForInlineScript(
     bootstrapEditorPath
   )},{credentials:"same-origin"}).then(async response=>({ok:response.ok,status:response.status,text:await response.text()})).catch(error=>({ok:false,status:0,text:error instanceof Error?error.message:"Request failed"}))};})();`;
-  const importedBassDroppedCount = canvas?.editors.reduce(
-    (count, lane) => count + Math.max(0, Number(lane.importDroppedNoteCount) || 0),
-    0
-  ) ?? 0;
+  const importedBassDroppedCount = Math.max(
+    0,
+    Number(canvas?.editors.find((lane) => lane.id === activeLaneId)?.importDroppedNoteCount) || 0
+  );
 
   return (
     <>
