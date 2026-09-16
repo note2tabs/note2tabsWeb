@@ -43,4 +43,44 @@ describe("gteGuestDraft", () => {
       }),
     ]);
   });
+
+  it("preserves chord fingering and strumming when normalizing guest snapshots", () => {
+    const snapshot = baseSnapshot();
+    snapshot.editorType = "chords";
+    snapshot.type = "chords";
+    snapshot.trackType = "chords";
+    snapshot.chords = [
+      {
+        id: 7,
+        startTime: 120,
+        length: 240,
+        originalMidi: [48, 52, 55],
+        currentTabs: [[5, 8], [4, 7], [3, 5]],
+        ogTabs: [[5, 8], [4, 7], [3, 5]],
+        root: "C",
+        quality: "major",
+        label: "C",
+        fingeringIndex: 2,
+        strums: [
+          { id: 1, time: 0, direction: "down" },
+          { id: 2, time: 60, direction: "up" },
+          { id: 3, time: 120, direction: "mute" },
+        ],
+      },
+    ];
+
+    const normalized = normalizeGuestSnapshot(snapshot);
+
+    expect(normalized.chords).toEqual([
+      expect.objectContaining({
+        id: 7,
+        fingeringIndex: 2,
+        strums: [
+          { id: 1, time: 0, direction: "down" },
+          { id: 2, time: 60, direction: "up" },
+          { id: 3, time: 120, direction: "mute" },
+        ],
+      }),
+    ]);
+  });
 });

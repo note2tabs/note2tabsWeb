@@ -151,4 +151,17 @@ describe("gte local editor operations", () => {
 
     expect(next.cutPositionsWithCoords).toEqual([[[0, 1440], [2, 0]]]);
   });
+
+  it("uses four bass strings and never creates bass chords", () => {
+    const bass = snapshot();
+    bass.trackType = "bass";
+    bass.editorType = "bass";
+    bass.tuning = { presetId: "bass-standard", openStringMidi: [43, 38, 33, 28], capo: 0 };
+    bass.chords = [];
+    const retabbed = assignNoteTabLocal(bass, 1, [5, 7]);
+    expect(retabbed.notes[0].tab).toEqual([3, 7]);
+    const unchanged = makeChordLocal(retabbed, [1, 2]);
+    expect(unchanged.chords).toEqual([]);
+    expect(unchanged.notes).toHaveLength(2);
+  });
 });

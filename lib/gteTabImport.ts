@@ -63,6 +63,9 @@ type ParsedTabImport = {
   fps: number;
   totalFrames: number;
   warning?: string;
+  trackType?: "tab" | "bass";
+  program?: number;
+  droppedNoteCount?: number;
   tracks?: ParsedTabTrackImport[];
 };
 
@@ -73,6 +76,9 @@ export type ParsedTabFileImport = ParsedTabImport & {
 
 export type ParsedTabTrackImport = Omit<ParsedTabImport, "tracks"> & {
   name?: string;
+  trackType?: "tab" | "bass";
+  program?: number;
+  droppedNoteCount?: number;
 };
 
 type TabPosition = {
@@ -263,6 +269,9 @@ export function parseMidiTabImport(buffer: ArrayBuffer): ParsedTabImport {
     buildParsedImportFromPositions(track.positions, undefined, {
       warning: "MIDI does not store guitar string choices, so string and fret positions were estimated.",
       name: track.name || `MIDI track ${index + 1}`,
+      trackType: track.trackType,
+      program: track.program,
+      droppedNoteCount: track.droppedNoteCount,
     })
   );
   const combined = buildParsedImportFromPositions(
@@ -549,13 +558,19 @@ function getMidiChannelTrackName(trackName: string, channel: number, program?: n
 
 function midiNoteEventsToPositions(
   noteEvents: { startTick: number; endTick: number; midi: number }[],
-  ticksPerBar: number
+  ticksPerBar: number,
+  bass = false
 ) {
   return limitTabPositions(
     noteEvents
       .sort((left, right) => left.startTick - right.startTick || left.midi - right.midi)
       .flatMap((note) => {
-        const tab = midiToTab(note.midi);
+        const tab = bass
+          ? [43, 38, 33, 28]
+              .map((base, stringIndex) => ({ stringIndex, fret: note.midi - base }))
+              .filter((candidate) => candidate.fret >= 0 && candidate.fret <= 22)
+              .sort((left, right) => left.fret - right.fret || left.stringIndex - right.stringIndex)[0] ?? null
+          : midiToTab(note.midi);
         return tab
           ? [
               {
@@ -570,7 +585,7 @@ function midiNoteEventsToPositions(
   );
 }
 
-function extractMidiTracks(buffer: ArrayBuffer): Array<{ name?: string; positions: TabPosition[] }> {
+function extractMidiTracks(buffer: ArrayBuffer): Array<{ name?: string; positions: TabPosition[]; trackType: "tab" | "bass"; program?: number; droppedNoteCount?: number }> {
   const view = new DataView(buffer);
   if (view.byteLength < 14 || readAscii(view, 0, 4) !== "MThd") {
     throw new Error("This does not look like a valid MIDI file.");
@@ -579,7 +594,7 @@ function extractMidiTracks(buffer: ArrayBuffer): Array<{ name?: string; position
   const ticksPerQuarter = Math.max(1, view.getUint16(12) & 0x7fff);
   const ticksPerBar = Math.max(1, ticksPerQuarter * 4);
   let offset = 8 + headerLength;
-  const tracks: Array<{ name?: string; positions: TabPosition[] }> = [];
+  const tracks: Array<{ name?: string; positions: TabPosition[]; trackType: "tab" | "bass"; program?: number; droppedNoteCount?: number }> = [];
 
   while (offset + 8 <= view.byteLength) {
     const chunkType = readAscii(view, offset, 4);
@@ -672,11 +687,17 @@ function extractMidiTracks(buffer: ArrayBuffer): Array<{ name?: string; position
     });
     const channelEntries = Array.from(eventsByChannel.entries()).sort((a, b) => a[0] - b[0]);
     for (const [channel, channelEvents] of channelEntries) {
-      const positions = midiNoteEventsToPositions(channelEvents, ticksPerBar);
-      if (positions.length) {
+      const program = programsByChannel.get(channel);
+      const bass = (Number.isInteger(program) && Number(program) >= 32 && Number(program) <= 39) || (/\bbass\b/i.test(trackName) && !/\bbassoon\b/i.test(trackName));
+      const positions = midiNoteEventsToPositions(channelEvents, ticksPerBar, bass);
+      const droppedNoteCount = bass ? Math.max(0, channelEvents.length - positions.length) : 0;
+      if (positions.length || (bass && droppedNoteCount)) {
         tracks.push({
-          name: getMidiChannelTrackName(trackName, channel, programsByChannel.get(channel)),
+          name: getMidiChannelTrackName(trackName, channel, program),
           positions,
+          trackType: bass ? "bass" : "tab",
+          ...(Number.isInteger(program) ? { program } : {}),
+          ...(droppedNoteCount ? { droppedNoteCount } : {}),
         });
       }
     }
@@ -746,7 +767,7 @@ function extractAsciiTabNotes(text: string): TabPosition[] {
 function buildParsedImportFromPositions(
   positions: TabPosition[],
   sourceText?: string,
-  options?: { warning?: string; name?: string }
+  options?: { warning?: string; name?: string; trackType?: "tab" | "bass"; program?: number; droppedNoteCount?: number }
 ): ParsedTabImport {
   const safePositions = limitTabPositions(positions);
   const stamps = limitStamps(
@@ -774,6 +795,9 @@ function buildParsedImportFromPositions(
     totalFrames,
     warning: options?.warning,
     name: options?.name,
+    trackType: options?.trackType,
+    program: options?.program,
+    droppedNoteCount: options?.droppedNoteCount,
   };
 }
 

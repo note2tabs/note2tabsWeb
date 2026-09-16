@@ -3,6 +3,7 @@ import {
   collectTranscriberRhythmOnsets,
   chunkTranscriberSegmentGroups,
   gteApi,
+  optimizeImportedTrackFingerings,
   TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES,
   TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS,
   type TranscriberSegmentGroup,
@@ -86,6 +87,46 @@ describe("transcriber import chunking", () => {
         [0.5]
       )
     ).toEqual([0, 0.5, 1.25]);
+  });
+
+  it("runs the editor fingering optimizer on every playable imported track", async () => {
+    const guitar = buildCanvas("canvas-1", [120]).editors[0];
+    const bass = {
+      ...buildCanvas("canvas-1", [120]).editors[0],
+      id: "bass-1",
+      trackType: "bass" as const,
+      editorType: "bass" as const,
+      tuning: { presetId: "bass-standard", openStringMidi: [43, 38, 33, 28], capo: 0 },
+      notes: [
+        { id: 1, startTime: 60, length: 180, midiNum: 43, tab: [0, 0] as [number, number], optimals: [] },
+        { id: 2, startTime: 60, length: 180, midiNum: 45, tab: [0, 2] as [number, number], optimals: [] },
+      ],
+      chords: [],
+    };
+    const drums = {
+      ...buildCanvas("canvas-1", [120]).editors[0],
+      id: "drums-1",
+      trackType: "drums" as const,
+      editorType: "drums" as const,
+    };
+    const source: CanvasSnapshot = {
+      ...buildCanvas("canvas-1", [120]),
+      editors: [guitar, bass, drums],
+    };
+    let savedCanvas: CanvasSnapshot | null = null;
+    vi.stubGlobal("fetch", vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      savedCanvas = JSON.parse(String(init?.body || "{}")).snapshot as CanvasSnapshot;
+      return new Response(JSON.stringify({ ok: true, snapshot: savedCanvas }), { status: 200 });
+    }));
+
+    const result = await optimizeImportedTrackFingerings("canvas-1", source);
+
+    expect(savedCanvas).not.toBeNull();
+    expect(result.editors[0].notes[0].optimals.length).toBeGreaterThan(0);
+    expect(result.editors[1].notes).toHaveLength(2);
+    expect(result.editors[1].chords).toHaveLength(0);
+    expect(result.editors[1].notes.every((note) => note.optimals.length > 0)).toBe(true);
+    expect(result.editors[2]).toEqual(drums);
   });
 
   it("creates the first chunk directly and appends later chunks as one aligned import", async () => {

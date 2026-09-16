@@ -43,6 +43,7 @@ const normalizeEditorType = (value: unknown) => {
   const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
   if (raw === "drum" || raw === "drums" || raw === "percussion") return "drums";
   if (raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor") return "chords";
+  if (raw === "bass" || raw === "basseditor" || raw === "bass-editor") return "bass";
   return "tab";
 };
 const getLaneOpenStringMidi = (lane: Pick<EditorSnapshot, "tuning">) => {
@@ -673,6 +674,12 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
             editorType,
             type: editorType,
             trackType: editorType,
+            ...(editorType === "bass" ? {
+              instrumentId: "bass_overdrive",
+              maxFret: 22,
+              tuning: { presetId: "bass-standard", label: "Standard", openStringMidi: [43, 38, 33, 28], capo: 0 },
+              chords: [],
+            } : {}),
             ...(chordEditor ? { chordEditor } : {}),
             secondsPerBar: canvas.secondsPerBar,
           },

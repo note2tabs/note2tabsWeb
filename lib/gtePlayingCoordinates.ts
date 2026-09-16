@@ -7,7 +7,7 @@ type SignedSegment = [number, number];
 const BACKEND_BLUR_SIZE = 80;
 const BACKEND_CUT_MARGIN = 5;
 const BACKEND_BARS_PER_CHUNK = 4;
-const BACKEND_ANCHOR_STRING = 2;
+const backendAnchorString = (stringCount: number) => Math.max(0, Math.min(2, stringCount - 1));
 
 const bankersRound = (value: number) => {
   const floor = Math.floor(value);
@@ -68,6 +68,22 @@ const findSignedSegments = (values: number[], positive: boolean): SignedSegment[
   return result;
 };
 
+const mergeTransitionSegments = (segments: SignedSegment[]): SignedSegment[] => {
+  const ordered = segments
+    .map(([start, end]): SignedSegment => [Math.min(start, end), Math.max(start, end)])
+    .sort((left, right) => left[0] - right[0] || left[1] - right[1]);
+  const merged: SignedSegment[] = [];
+  ordered.forEach(([start, end]) => {
+    const previous = merged[merged.length - 1];
+    if (previous && start <= previous[1]) {
+      previous[1] = Math.max(previous[1], end);
+      return;
+    }
+    merged.push([start, end]);
+  });
+  return merged;
+};
+
 const squareOptimizer = (midis: number[], openStrings: number[], fretCount: number) => {
   const uniques = new Set(midis);
   const foundRanges: Array<[number, number, number]> = [];
@@ -117,7 +133,6 @@ const rankTabsLikeBackend = (
         : (coord[0] - tab[0]) ** 2 * 0.1 + ((coord[1] - tab[1]) * 3) ** 2,
     }))
     .sort((left, right) => left.distance - right.distance || left.index - right.index)
-    .slice(0, 6)
     .map(({ tab }) => tab);
 
 const assignBackendStyleOptimals = (snapshot: EditorSnapshot) => {
@@ -166,35 +181,54 @@ const buildWindowRegions = (
   const kernel = Array.from({ length: 2 * BACKEND_BLUR_SIZE + 1 }, () => 1 / (2 * BACKEND_BLUR_SIZE + 1));
   const smoothed = convolveReflect(averages, kernel);
   const derivative = convolveReflect(smoothed, [-1, 0, 1]);
-  const cutPositions = [
+  const cutPositions = mergeTransitionSegments([
     ...findSignedSegments(derivative, true),
     ...findSignedSegments(derivative, false),
-  ].filter(([start, end]) => Math.abs(smoothed[end] - smoothed[start]) > BACKEND_CUT_MARGIN);
-
-  const ranges: SignedSegment[] = cutPositions.length
-    ? [
-        [0, cutPositions[0][0]],
-        ...cutPositions.slice(1).map((cut, index): SignedSegment => [cutPositions[index][1], cut[0]]),
-        [cutPositions[cutPositions.length - 1][1], duration],
-      ]
+  ].filter(([start, end]) => Math.abs(smoothed[end] - smoothed[start]) > BACKEND_CUT_MARGIN));
+  const boundaries = cutPositions
+    .map(([start, end]) => Math.max(1, Math.min(duration - 1, bankersRound((start + end) / 2))))
+    .filter((boundary, index, values) => index === 0 || boundary !== values[index - 1]);
+  const ranges: SignedSegment[] = boundaries.length
+    ? [0, ...boundaries, duration].slice(1).map((end, index, values): SignedSegment => [
+        index === 0 ? 0 : values[index - 1],
+        end,
+      ])
     : [[0, duration]];
   const fretCount = getMaxFretFromSnapshot(snapshot) + 1;
   const openStrings = getOpenStringMidiFromSnapshot(snapshot);
-  const allMidis = [...new Set(localStamps.map(([, tab]) => getTabMidi(snapshot, tab)))].sort((a, b) => a - b);
-  return ranges.flatMap(([rawStart, rawEnd]): CutWithCoord[] => {
+  const regionData = ranges.flatMap(([rawStart, rawEnd]) => {
     const start = Math.max(0, Math.trunc(rawStart));
     const end = Math.min(duration, Math.trunc(rawEnd));
     if (end <= start) return [];
     const regionMidis = [...new Set(
       localStamps
-        .filter(([time]) => start <= time && time <= end)
+        .filter(([time, , length]) => time < end && start < time + length)
         .map(([, tab]) => getTabMidi(snapshot, tab))
     )].sort((a, b) => a - b);
-    const centerFret = squareOptimizer(regionMidis.length ? regionMidis : allMidis, openStrings, fretCount);
-    return [[
+    return [{
+      start,
+      end,
+      centerFret: regionMidis.length
+        ? squareOptimizer(regionMidis, openStrings, fretCount)
+        : null,
+    }];
+  });
+
+  return regionData.map(({ start, end, centerFret }, index): CutWithCoord => {
+    let resolvedCenter = centerFret;
+    if (resolvedCenter === null) {
+      let previousIndex = index - 1;
+      while (previousIndex >= 0 && regionData[previousIndex].centerFret === null) previousIndex -= 1;
+      let nextIndex = index + 1;
+      while (nextIndex < regionData.length && regionData[nextIndex].centerFret === null) nextIndex += 1;
+      const previous = previousIndex >= 0 ? regionData[previousIndex] : null;
+      const next = nextIndex < regionData.length ? regionData[nextIndex] : null;
+      resolvedCenter = previous?.centerFret ?? next?.centerFret ?? 0;
+    }
+    return [
       [start + windowStart, end + windowStart],
-      [BACKEND_ANCHOR_STRING, centerFret],
-    ]];
+      [backendAnchorString(openStrings.length), resolvedCenter ?? 0],
+    ];
   });
 };
 
@@ -253,7 +287,7 @@ const normalizeGeneratedRegions = (regions: CutWithCoord[], endTime: number) => 
   return collapsed;
 };
 
-/** Functional TypeScript port of TabEditor.generateCutPositions and its Tabber.py helpers. */
+/** Frontend port of TabEditor.generateCutPositions with non-overlapping transition partitioning. */
 export const generatePlayingCoordinatesInSnapshot = (snapshot: EditorSnapshot) => {
   const framesPerBar = Math.max(1, Math.trunc(snapshot.framesPerMessure || 480));
   const noteEnd = snapshot.notes.reduce(
@@ -268,16 +302,17 @@ export const generatePlayingCoordinatesInSnapshot = (snapshot: EditorSnapshot) =
   const endTime = Math.ceil(rawEndTime / framesPerBar) * framesPerBar;
   snapshot.totalFrames = Math.max(Math.trunc(snapshot.totalFrames || 0), endTime);
   const maxFret = getMaxFretFromSnapshot(snapshot);
+  const stringCount = getOpenStringMidiFromSnapshot(snapshot).length;
   const stamps: Stamp[] = snapshot.notes.flatMap((note): Stamp[] => {
     const stringIndex = Math.trunc(note.tab?.[0]);
     const fret = Math.max(0, Math.min(maxFret, Math.trunc(note.tab?.[1])));
     const length = Math.trunc(note.length);
-    return stringIndex >= 0 && stringIndex < 6 && length > 0
+    return stringIndex >= 0 && stringIndex < stringCount && length > 0
       ? [[Math.trunc(note.startTime), [stringIndex, fret], length]]
       : [];
   });
   if (!stamps.length) {
-    snapshot.cutPositionsWithCoords = [[[0, Math.max(0, endTime)], [2, 0]]];
+    snapshot.cutPositionsWithCoords = [[[0, Math.max(0, endTime)], [backendAnchorString(stringCount), 0]]];
     snapshot.notes.forEach((note) => { note.optimals = []; });
     return snapshot.cutPositionsWithCoords;
   }

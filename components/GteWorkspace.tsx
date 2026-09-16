@@ -39,6 +39,7 @@ import {
   getOpenStringMidiFromSnapshot,
   getStringLabelsForSnapshot,
   getTabMidi as getSnapshotTabMidi,
+  isBassSnapshot,
 } from "../lib/gteTuning";
 import {
   alignEffectNotesToFirstString,
@@ -590,6 +591,7 @@ const getBeatSubdivisionGridLength = (
 
 const normalizeEditorKind = (value: unknown) => {
   const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (raw === "bass" || raw === "basseditor" || raw === "bass-editor") return "bass";
   return raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor"
     ? "chords"
     : "tab";
@@ -659,22 +661,24 @@ const cloneTabCoord = (tab: TabCoord): TabCoord => [tab[0], tab[1]];
 const getMaxFret = (snapshot: Pick<EditorSnapshot, "maxFret">) =>
   getMaxFretFromSnapshot(snapshot);
 
-const isTabCoordValidForSnapshot = (snapshot: Pick<EditorSnapshot, "maxFret">, tab: TabCoord) => {
+const isTabCoordValidForSnapshot = (snapshot: Pick<EditorSnapshot, "maxFret" | "tuning">, tab: TabCoord) => {
   const maxFret = getMaxFret(snapshot);
+  const maxString = Math.max(0, getOpenStringMidiFromSnapshot(snapshot).length - 1);
   return (
     Number.isInteger(tab[0]) &&
     Number.isInteger(tab[1]) &&
     tab[0] >= 0 &&
-    tab[0] <= 5 &&
+    tab[0] <= maxString &&
     tab[1] >= 0 &&
     tab[1] <= maxFret
   );
 };
 
-const clampTabCoordInSnapshot = (snapshot: Pick<EditorSnapshot, "maxFret">, tab?: TabCoord | null): TabCoord => {
+const clampTabCoordInSnapshot = (snapshot: Pick<EditorSnapshot, "maxFret" | "tuning">, tab?: TabCoord | null): TabCoord => {
   const maxFret = getMaxFret(snapshot);
+  const maxString = Math.max(0, getOpenStringMidiFromSnapshot(snapshot).length - 1);
   const source = tab ?? DEFAULT_CUT_COORD;
-  const stringIndex = Number.isFinite(source[0]) ? Math.max(0, Math.min(5, Math.round(source[0]))) : 0;
+  const stringIndex = Number.isFinite(source[0]) ? Math.max(0, Math.min(maxString, Math.round(source[0]))) : 0;
   const fret = Number.isFinite(source[1])
     ? Math.max(0, Math.min(maxFret, Math.round(source[1])))
     : Math.min(maxFret, DEFAULT_CUT_COORD[1]);
@@ -1157,7 +1161,11 @@ export const optimizeTrackFingeringInSnapshot = (
   }
 ): FingeringOptimizationResult => {
   const tolerance = Math.max(1, Math.round((draft.framesPerMessure || FIXED_FRAMES_PER_BAR) / 32));
-  const chordGroups = clusterTrackNotesIntoChordGroups(draft.notes, tolerance);
+  const isBass = isBassSnapshot(draft);
+  // Bass uses the same coordinate-aware note candidate ranking as guitar, but
+  // simultaneous pitches must remain independent notes rather than becoming
+  // guitar chord objects.
+  const chordGroups = isBass ? [] : clusterTrackNotesIntoChordGroups(draft.notes, tolerance);
   const createdChordIds: number[] = [];
   const chordizedNoteIds = new Set<number>();
   let nextChordId = draft.chords.reduce((max, chord) => Math.max(max, chord.id), 0) + 1;
@@ -1182,7 +1190,7 @@ export const optimizeTrackFingeringInSnapshot = (
     );
   }
 
-  if (options?.optimizeChordFingerings !== false) {
+  if (!isBass && options?.optimizeChordFingerings !== false) {
     [...draft.chords]
       .sort((left, right) => left.startTime - right.startTime || left.id - right.id)
       .forEach((chord) => {
@@ -1245,15 +1253,20 @@ export const finalizeOptimizedTrackFingeringInSnapshot = (draft: EditorSnapshot)
     return left.event.id - right.event.id;
   });
 
-  for (let index = 0; index < events.length - 1; index += 1) {
-    const current = events[index].event;
-    const next = events[index + 1].event;
-    const currentStart = Math.round(current.startTime);
-    const nextStart = Math.round(next.startTime);
-    if (nextStart <= currentStart) continue;
-    const currentEnd = currentStart + clampEventLength(current.length);
-    if (currentEnd > nextStart) {
-      current.length = clampEventLength(nextStart - currentStart);
+  // Guitar optimization makes a monophonic sequence around generated chords.
+  // Bass v1 deliberately supports independent overlapping notes, so optimizing
+  // their fingerings must not shorten their musical durations.
+  if (!isBassSnapshot(draft)) {
+    for (let index = 0; index < events.length - 1; index += 1) {
+      const current = events[index].event;
+      const next = events[index + 1].event;
+      const currentStart = Math.round(current.startTime);
+      const nextStart = Math.round(next.startTime);
+      if (nextStart <= currentStart) continue;
+      const currentEnd = currentStart + clampEventLength(current.length);
+      if (currentEnd > nextStart) {
+        current.length = clampEventLength(nextStart - currentStart);
+      }
     }
   }
 
@@ -1261,7 +1274,7 @@ export const finalizeOptimizedTrackFingeringInSnapshot = (draft: EditorSnapshot)
   draft.noteEffects = normalizeSnapshotNoteEffects(draft);
 };
 
-const mergeRedundantCutRegionsInSnapshot = (draft: EditorSnapshot) => {
+export const mergeRedundantCutRegionsInSnapshot = (draft: EditorSnapshot) => {
   draft.cutPositionsWithCoords = mergeRedundantCutRegions(draft, draft.cutPositionsWithCoords);
 };
 
@@ -2113,6 +2126,14 @@ function ChordLaneWorkspace({
   // the toggle applies to whichever chord track is being practised.
   const chordFingeringsVisible = practiceMode ? practiceFingeringsVisible : fingeringsVisible;
   const snapToKeyEnabled = Boolean(globalSnapToKeyEnabled);
+  const isChordPayloadInKey = useCallback(
+    (payload: ChordPalettePayload) =>
+      !snapToKeyEnabled ||
+      getChordEditorMidiNotes(payload).every((midi) =>
+        isMidiInKey(midi, canvasKeyBase, canvasKeyType)
+      ),
+    [canvasKeyBase, canvasKeyType, snapToKeyEnabled]
+  );
   const normalizedTimelineZoomFactor =
     timelineZoomFactor !== undefined && Number.isFinite(timelineZoomFactor)
       ? Math.max(MIN_TIMELINE_ZOOM, Math.min(MAX_TIMELINE_ZOOM, timelineZoomFactor))
@@ -2643,6 +2664,7 @@ function ChordLaneWorkspace({
 
   const addChordAtFrame = useCallback(
     (payload: ChordPalettePayload, rawFrame: number) => {
+      if (!isChordPayloadInKey(payload)) return;
       const startTime = snapFrame(rawFrame);
       const length = snapLength(FIXED_FRAMES_PER_BAR / 4);
       const nextChord: Chord = {
@@ -2668,7 +2690,7 @@ function ChordLaneWorkspace({
       );
       setSelectedChordIds([nextChord.id]);
     },
-    [commitSnapshot, snapFrame, snapLength, snapshot, totalFrames]
+    [commitSnapshot, isChordPayloadInKey, snapFrame, snapLength, snapshot, totalFrames]
   );
 
   useEffect(() => {
@@ -3329,14 +3351,34 @@ function ChordLaneWorkspace({
                     {CHORD_EDITOR_ROOTS.map((root) => {
                       const label = getChordEditorLabel(root, quality.name, chordPaletteExtension);
                       const payload = { root, quality: quality.name, extension: chordPaletteExtension, label };
+                      const chordInKey = isChordPayloadInKey(payload);
                       return (
                         <button
                           key={`${quality.name}-${root}`}
                           type="button"
-                          draggable
-                          onDragStart={(event) => handlePaletteDragStart(event, payload)}
-                          onClick={() => void playChordPalettePreview(payload)}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 hover:border-emerald-400 hover:bg-emerald-50"
+                          draggable={chordInKey}
+                          disabled={!chordInKey}
+                          onDragStart={(event) => {
+                            if (!chordInKey) {
+                              event.preventDefault();
+                              return;
+                            }
+                            handlePaletteDragStart(event, payload);
+                          }}
+                          onClick={() => {
+                            if (!chordInKey) return;
+                            void playChordPalettePreview(payload);
+                          }}
+                          className={`rounded-lg border px-2 py-1.5 text-xs font-semibold ${
+                            chordInKey
+                              ? "border-slate-200 bg-white text-slate-700 hover:border-emerald-400 hover:bg-emerald-50"
+                              : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-60"
+                          }`}
+                          title={
+                            chordInKey
+                              ? `Drag ${label} to the chord editor`
+                              : `${label} is outside the current key`
+                          }
                         >
                           {label}
                         </button>
@@ -3501,12 +3543,21 @@ function ChordLaneWorkspace({
                     const visibleStart = Math.max(start, rowStartFrame);
                     const visibleEnd = Math.min(end, rowEndFrame);
                     const isSelected = selectedChordIds.includes(chord.id);
+                    const strums = normalizeChordEditorStrums(chord.strums);
                     const label = getPracticeChordLabel(chord);
                     const fingeringLookup = getChordFingeringLookup(chord);
-                    const fingering = getPracticeChordFingering(
-                      chord,
-                      fingeringOptionsByChordKey[fingeringLookup.key]
-                    );
+                    const fingeringOptions = fingeringOptionsByChordKey[fingeringLookup.key] || [];
+                    const savedFingeringIndex =
+                      Number.isFinite(Number(chord.fingeringIndex)) && fingeringOptions.length
+                        ? Math.max(
+                            0,
+                            Math.min(
+                              fingeringOptions.length - 1,
+                              Math.round(Number(chord.fingeringIndex))
+                            )
+                          )
+                        : 0;
+                    const fingering = getPracticeChordFingering(chord, fingeringOptions);
                     const isStrumEditing = strumEditor?.chordId === chord.id;
                     const strumGridStep = getStrumGridStep(chordLength);
                     const beatGridStep = Math.max(
@@ -3519,23 +3570,69 @@ function ChordLaneWorkspace({
                       CHORD_EDITOR_MIN_BLOCK_WIDTH,
                       (visibleEnd - visibleStart) * pxPerFrame
                     );
+                    const segmentContainsStart = start >= rowStartFrame;
+                    const segmentContainsEnd = end <= rowEndFrame;
                     return (
                       <Fragment key={`chord-tab-${rowIndex}-${chord.id}`}>
-                        <button
-                          type="button"
+                        <div
                           data-track-reorder-block="true"
-                          aria-pressed={isSelected}
                           onMouseDown={(event) => {
+                            event.preventDefault();
                             event.stopPropagation();
+                            if (dragHoldTimeoutRef.current) {
+                              clearTimeout(dragHoldTimeoutRef.current);
+                              dragHoldTimeoutRef.current = null;
+                            }
+                            chordMouseDownSelectionRef.current = {
+                              chordId: chord.id,
+                              wasSelected: isSelected,
+                              shiftKey: event.shiftKey,
+                            };
                             setSelectedBarIndices([]);
+                            if (event.shiftKey) {
+                              setSelectedChordIds((previousSelected) =>
+                                previousSelected.includes(chord.id)
+                                  ? previousSelected.filter((value) => value !== chord.id)
+                                  : [...previousSelected, chord.id]
+                              );
+                              return;
+                            }
+                            if (!isSelected) setSelectedChordIds([chord.id]);
+                            const selectedIdsForDrag =
+                              isSelected && selectedChordIds.length > 1
+                                ? new Set(selectedChordIds)
+                                : null;
+                            const dragGroup = selectedIdsForDrag
+                              ? snapshot.chords
+                                  .filter((item) => selectedIdsForDrag.has(item.id))
+                                  .map((item) => ({ chordId: item.id, originalStart: item.startTime }))
+                              : undefined;
+                            dragHoldTimeoutRef.current = setTimeout(() => {
+                              dragHoldTimeoutRef.current = null;
+                              dragStateRef.current = {
+                                kind: "move",
+                                chordId: chord.id,
+                                anchorX: event.clientX,
+                                originalStart: chord.startTime,
+                                group: dragGroup,
+                              };
+                            }, TOUCH_DRAG_HOLD_MS);
                           }}
                           onClick={(event) => {
+                            event.preventDefault();
                             event.stopPropagation();
-                            setSelectedChordIds((selectedIds) =>
-                              event.shiftKey
-                                ? selectedIds.includes(chord.id)
-                                  ? selectedIds.filter((id) => id !== chord.id)
-                                  : [...selectedIds, chord.id]
+                            if (event.detail > 1) return;
+                            if (suppressChordClickRef.current) {
+                              suppressChordClickRef.current = false;
+                              chordMouseDownSelectionRef.current = null;
+                              return;
+                            }
+                            const mouseDownSelection = chordMouseDownSelectionRef.current;
+                            chordMouseDownSelectionRef.current = null;
+                            if (mouseDownSelection?.shiftKey) return;
+                            setSelectedChordIds(
+                              mouseDownSelection?.chordId === chord.id && mouseDownSelection.wasSelected
+                                ? []
                                 : [chord.id]
                             );
                           }}
@@ -3557,7 +3654,7 @@ function ChordLaneWorkspace({
                               setSelectedChordIds([chord.id]);
                             }
                           }}
-                          className={`absolute z-10 flex h-8 items-center justify-center rounded border px-2 text-sm font-semibold shadow-sm ${
+                          className={`absolute z-10 flex h-8 cursor-pointer select-none items-center justify-center rounded border px-2 text-sm font-semibold shadow-sm ${
                             isSelected
                               ? "border-sky-500 bg-sky-100 text-sky-950"
                               : "border-slate-300 bg-emerald-50 text-slate-900"
@@ -3569,9 +3666,124 @@ function ChordLaneWorkspace({
                           }}
                           aria-label={`${label} chord`}
                         >
+                          {segmentContainsStart ? (
+                            <button
+                              type="button"
+                              data-track-reorder-block="true"
+                              className="absolute left-0 top-0 z-20 h-full w-2 cursor-ew-resize rounded-l bg-transparent"
+                              aria-label="Resize chord start"
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (dragHoldTimeoutRef.current) clearTimeout(dragHoldTimeoutRef.current);
+                                dragHoldTimeoutRef.current = null;
+                                setSelectedBarIndices([]);
+                                setSelectedChordIds([chord.id]);
+                                dragStateRef.current = {
+                                  kind: "resize-left",
+                                  chordId: chord.id,
+                                  anchorX: event.clientX,
+                                  originalStart: chord.startTime,
+                                  originalLength: chord.length,
+                                };
+                              }}
+                            />
+                          ) : null}
                           <span className="max-w-full truncate">{label}</span>
+                          {strums.map((strum) => {
+                            const strumFrame = start + strum.time;
+                            if (strumFrame < visibleStart || strumFrame >= visibleEnd) return null;
+                            return (
+                              <span
+                                key={`${chord.id}-${strum.id ?? strum.time}-${strum.direction}`}
+                                className="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 text-base leading-none text-slate-700"
+                                style={{ left: (strumFrame - visibleStart) * pxPerFrame }}
+                              >
+                                {strum.direction === "mute" ? "x" : strum.direction === "up" ? "↑" : "↓"}
+                              </span>
+                            );
+                          })}
+                          {segmentContainsEnd ? (
+                            <button
+                              type="button"
+                              data-track-reorder-block="true"
+                              className="absolute right-0 top-0 z-20 h-full w-2 cursor-ew-resize rounded-r bg-transparent"
+                              aria-label="Resize chord end"
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (dragHoldTimeoutRef.current) clearTimeout(dragHoldTimeoutRef.current);
+                                dragHoldTimeoutRef.current = null;
+                                setSelectedBarIndices([]);
+                                setSelectedChordIds([chord.id]);
+                                dragStateRef.current = {
+                                  kind: "resize-right",
+                                  chordId: chord.id,
+                                  anchorX: event.clientX,
+                                  originalStart: chord.startTime,
+                                  originalLength: chord.length,
+                                };
+                              }}
+                            />
+                          ) : null}
                           {chordFingeringsVisible && start >= rowStartFrame ? (
-                            <span className="absolute left-1/2 top-10 flex w-[92px] -translate-x-1/2 justify-center rounded-md border border-slate-200 bg-white p-1 shadow-sm">
+                            <div
+                              data-track-reorder-block="true"
+                              className="absolute left-1/2 top-10 z-30 flex w-[122px] -translate-x-1/2 flex-col items-center rounded-md border border-slate-200 bg-white p-1 shadow-sm"
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                              }}
+                              onClick={(event) => event.stopPropagation()}
+                              onDoubleClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                              }}
+                            >
+                              <div className="flex w-full items-center justify-between gap-1 pb-1">
+                                <button
+                                  type="button"
+                                  className="grid h-6 w-6 place-items-center rounded border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                  disabled={fingeringOptions.length <= 1}
+                                  aria-label={`Previous ${label} fingering`}
+                                  onClick={() => {
+                                    if (!fingeringOptions.length) return;
+                                    const nextIndex =
+                                      (savedFingeringIndex - 1 + fingeringOptions.length) %
+                                      fingeringOptions.length;
+                                    applyChordFingering(
+                                      chord.id,
+                                      fingeringOptions[nextIndex],
+                                      nextIndex
+                                    );
+                                  }}
+                                >
+                                  {"<"}
+                                </button>
+                                <span className="max-w-[58px] truncate text-center text-[10px] font-semibold text-slate-700">
+                                  {fingeringOptions.length
+                                    ? `${savedFingeringIndex + 1}/${fingeringOptions.length}`
+                                    : "0/0"}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="grid h-6 w-6 place-items-center rounded border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                  disabled={fingeringOptions.length <= 1}
+                                  aria-label={`Next ${label} fingering`}
+                                  onClick={() => {
+                                    if (!fingeringOptions.length) return;
+                                    const nextIndex =
+                                      (savedFingeringIndex + 1) % fingeringOptions.length;
+                                    applyChordFingering(
+                                      chord.id,
+                                      fingeringOptions[nextIndex],
+                                      nextIndex
+                                    );
+                                  }}
+                                >
+                                  {">"}
+                                </button>
+                              </div>
                               {fingering ? (
                                 <ChordFingeringDiagram
                                   fingering={fingering}
@@ -3582,9 +3794,9 @@ function ChordLaneWorkspace({
                                   No shape
                                 </span>
                               )}
-                            </span>
+                            </div>
                           ) : null}
-                        </button>
+                        </div>
                         {isStrumEditing && strumEditor && start >= rowStartFrame ? (
                           <div
                             data-track-reorder-block="true"
@@ -4963,6 +5175,7 @@ export default function GteWorkspace({
       />
     );
   }
+  const bassLane = normalizeEditorKind(snapshot.editorType ?? snapshot.trackType ?? snapshot.type) === "bass";
 
   const [autoBaseScale, setAutoBaseScale] = useState(4);
   const [practiceChordFingeringsByKey, setPracticeChordFingeringsByKey] = useState<
@@ -5255,8 +5468,9 @@ export default function GteWorkspace({
   const maxFret = getMaxFret(snapshot);
   const stringLabels = useMemo(() => {
     const labels = getStringLabelsForSnapshot(snapshot);
-    return labels.length === 6 ? labels : DEFAULT_STRING_LABELS;
+    return labels.length >= 4 ? labels : DEFAULT_STRING_LABELS;
   }, [snapshot]);
+  const stringMax = Math.max(0, stringLabels.length - 1);
   const realBarCount = Math.max(1, Math.ceil(Math.max(1, effectiveTotalFrames) / framesPerMeasure));
   // Moving the editing cursor just beyond the last stored bar reveals a temporary
   // bar. It is presentation-only until an event is committed in it.
@@ -5311,7 +5525,7 @@ export default function GteWorkspace({
   const viewportTimelineWidth = Math.max(1, viewportTotalFrames) * scale;
   const timelineWidth = viewportTimelineWidth;
   const timelineChromeWidth = viewportTimelineWidth + 40;
-  const rowHeight = ROW_HEIGHT * 6;
+  const rowHeight = ROW_HEIGHT * stringLabels.length;
   const coordinateBandHeight = showPlayingCoordinates
     ? PLAYING_COORDINATE_OFFSET + CUT_SEGMENT_HEIGHT
     : 0;
@@ -6029,7 +6243,7 @@ export default function GteWorkspace({
         const stringStep = delta < 0 ? 1 : -1;
         for (
           let stringIndex = normalizedTab[0] + stringStep;
-          stringIndex >= 0 && stringIndex < DEFAULT_STRING_LABELS.length;
+          stringIndex >= 0 && stringIndex < stringLabels.length;
           stringIndex += stringStep
         ) {
           const openMidi = getOpenStringMidiFromSnapshot(snapshotValue)[stringIndex];
@@ -8579,7 +8793,7 @@ export default function GteWorkspace({
         const localY = y - rowIndex * rowStride;
         const stringIndex = multiTrackSelectionActive
           ? dragging.stringIndex
-          : clamp(Math.floor(localY / ROW_HEIGHT), 0, 5);
+          : clamp(Math.floor(localY / ROW_HEIGHT), 0, stringMax);
         const next = { startTime, stringIndex };
         dragPreviewRef.current = next;
         setDragPreview(next);
@@ -9077,7 +9291,7 @@ export default function GteWorkspace({
       const y = clamp(event.clientY - rect.top, 0, timelineHeight);
       const rowIndex = clamp(Math.floor(y / rowStride), 0, rows - 1);
       const localY = y - rowIndex * rowStride;
-      const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, 5);
+      const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, stringMax);
       if (Math.abs(event.clientY - chordNoteDragStartYRef.current) > 3) {
         chordNoteDragMovedRef.current = true;
       }
@@ -9166,7 +9380,7 @@ export default function GteWorkspace({
         const rowStart = rowIndex * rowFrames;
         const rowBarCount = getRowBarCount(rowIndex);
         const availableFrames = Math.max(1, rowBarCount * framesPerMeasure);
-        const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, 5);
+        const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, stringMax);
         const rawStartTime = Math.round(current.startX / scale) + rowStart;
         const startTime = clamp(snapStartTimeToGrid(rawStartTime), rowStart, rowStart + availableFrames - 1);
         setKeyboardGridCursor({ time: startTime, stringIndex });
@@ -9373,7 +9587,7 @@ export default function GteWorkspace({
         timelineHeight
       );
       const rowTop = target.rowIndex * rowStride;
-      const stringIndex = clamp(Math.floor((y - rowTop) / ROW_HEIGHT), 0, 5);
+      const stringIndex = clamp(Math.floor((y - rowTop) / ROW_HEIGHT), 0, stringMax);
       hideKeyboardCursor({ time: target.time, stringIndex });
     } else {
       hideKeyboardCursor();
@@ -9565,7 +9779,7 @@ export default function GteWorkspace({
     event.stopPropagation();
     hideKeyboardCursor({
       time: snapKeyboardCursorTimeToGrid(startTime),
-      stringIndex: clamp(Math.round(stringIndex), 0, 5),
+      stringIndex: clamp(Math.round(stringIndex), 0, stringMax),
     });
     // Pressing a note/chord anchors the next explicit "Play" to its start,
     // same as placing the cursor on an empty cell.
@@ -9649,7 +9863,7 @@ export default function GteWorkspace({
     event.stopPropagation();
     hideKeyboardCursor({
       time: snapKeyboardCursorTimeToGrid(startTime),
-      stringIndex: clamp(Math.round(stringIndex), 0, 5),
+      stringIndex: clamp(Math.round(stringIndex), 0, stringMax),
     });
     // Pressing a note/chord anchors the next explicit "Play" to its start,
     // same as placing the cursor on an empty cell.
@@ -10347,6 +10561,7 @@ export default function GteWorkspace({
   };
 
   const handleMakeChord = () => {
+    if (bassLane) return;
     const chordIds = [...activeChordIds];
     const baseNoteIds = [...selectedNoteIds];
     const chordRefs: ChordRef[] = chordIds
@@ -11167,7 +11382,7 @@ export default function GteWorkspace({
       setSegmentCoordDraft((prev) => {
         if (!prev) return prev;
         const min = 0;
-        const max = field === "stringIndex" ? 5 : maxFret;
+        const max = field === "stringIndex" ? stringMax : maxFret;
         const fallback = field === "stringIndex" ? 0 : 0;
         const currentValue = Number(prev[field]);
         const baseValue = Number.isFinite(currentValue) ? currentValue : fallback;
@@ -12286,7 +12501,7 @@ export default function GteWorkspace({
     if (current) {
       return {
         time: snapKeyboardCursorTimeToGrid(current.time),
-        stringIndex: clamp(Math.round(current.stringIndex), 0, 5),
+        stringIndex: clamp(Math.round(current.stringIndex), 0, stringMax),
       };
     }
     const selectedId = selectedNoteIdsRef.current[0];
@@ -12296,7 +12511,7 @@ export default function GteWorkspace({
       if (selected) {
         return {
           time: snapKeyboardCursorTimeToGrid(selected.startTime),
-          stringIndex: clamp(Math.round(selected.tab[0]), 0, 5),
+          stringIndex: clamp(Math.round(selected.tab[0]), 0, stringMax),
         };
       }
     }
@@ -12307,7 +12522,7 @@ export default function GteWorkspace({
       if (selected && tab) {
         return {
           time: snapKeyboardCursorTimeToGrid(selected.startTime),
-          stringIndex: clamp(Math.round(tab[0]), 0, 5),
+          stringIndex: clamp(Math.round(tab[0]), 0, stringMax),
         };
       }
     }
@@ -12668,7 +12883,7 @@ export default function GteWorkspace({
       }
       return {
         time: clamp(time, 0, maxTime),
-        stringIndex: clamp(Math.round(note.tab[0]), 0, 5),
+        stringIndex: clamp(Math.round(note.tab[0]), 0, stringMax),
       };
     },
     [clamp, getAdjacentKeyboardGridTime, snapKeyboardCursorTimeToGrid, timelineEnd]
@@ -13256,7 +13471,7 @@ export default function GteWorkspace({
               const deltaString = event.key === "ArrowUp" ? -1 : 1;
               const requestedUpdates = selectedNoteGroup
                 .map((note) => {
-                  const nextString = clamp(note.tab[0] + deltaString, 0, 5);
+                  const nextString = clamp(note.tab[0] + deltaString, 0, stringMax);
                   const tab = snapTabToKeyIfEnabled(snapshotRef.current, [nextString, note.tab[1]]);
                   return { id: note.id, tab };
                 })
@@ -13290,7 +13505,7 @@ export default function GteWorkspace({
               const cursor = resolveKeyboardCursor();
               showKeyboardCursor({
                 time: cursor.time,
-                stringIndex: clamp(cursor.stringIndex + deltaString, 0, 5),
+                stringIndex: clamp(cursor.stringIndex + deltaString, 0, stringMax),
               });
               return;
             }
@@ -13345,7 +13560,7 @@ export default function GteWorkspace({
             if (!selected) return;
             if (event.key === "ArrowUp" || event.key === "ArrowDown") {
               const deltaString = event.key === "ArrowUp" ? -1 : 1;
-              const nextString = clamp(selected.tab[0] + deltaString, 0, 5);
+              const nextString = clamp(selected.tab[0] + deltaString, 0, stringMax);
               if (nextString === selected.tab[0]) return;
               const nextTab = snapTabToKeyIfEnabled(snapshotRef.current, [nextString, selected.tab[1]]);
               if (isSameTabCoord(selected.tab, nextTab)) return;
@@ -13420,9 +13635,9 @@ export default function GteWorkspace({
             nextCursor.time = getAdjacentKeyboardGridTime(baseCursor.time, 1);
           }
           if (event.key === "ArrowUp") {
-            nextCursor.stringIndex = clamp(baseCursor.stringIndex - 1, 0, 5);
+            nextCursor.stringIndex = clamp(baseCursor.stringIndex - 1, 0, stringMax);
           } else if (event.key === "ArrowDown") {
-            nextCursor.stringIndex = clamp(baseCursor.stringIndex + 1, 0, 5);
+            nextCursor.stringIndex = clamp(baseCursor.stringIndex + 1, 0, stringMax);
           }
           showKeyboardCursor(nextCursor);
           setSelectedCutBoundaryIndex(null);
@@ -13838,7 +14053,7 @@ export default function GteWorkspace({
     const rowWidth = availableFrames * scale;
     const cellWidth = Math.max(8, step * scale);
     const left = clamp((safeTime - rowStart) * scale, 0, Math.max(0, rowWidth - cellWidth));
-    const stringIndex = clamp(Math.round(keyboardGridCursor.stringIndex), 0, 5);
+    const stringIndex = clamp(Math.round(keyboardGridCursor.stringIndex), 0, stringMax);
     const top = rowIndex * rowStride + stringIndex * ROW_HEIGHT;
     return { left, top, width: cellWidth, height: ROW_HEIGHT };
   }, [
@@ -14188,6 +14403,7 @@ export default function GteWorkspace({
             <div className={sectionTitleClass}>Notes & chords</div>
 
             <div className="grid grid-cols-1 gap-1.5">
+              {!bassLane && <>
               <button
                 type="button"
                 onClick={() => {
@@ -14245,6 +14461,7 @@ export default function GteWorkspace({
                 Disband Chord
               </button>
               {renderToolHelp("Disband Chord")}
+              </>}
 
               <button
                 type="button"
@@ -15164,7 +15381,7 @@ export default function GteWorkspace({
                   <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                     Notes &amp; chords
                   </div>
-                  <button
+                  {!bassLane && <button
                     type="button"
                     onClick={() => {
                       void handleMakeChord();
@@ -15175,8 +15392,8 @@ export default function GteWorkspace({
                   >
                     <span>Merge to Chord</span>
                     <span className="text-[10px] text-slate-400">C</span>
-                  </button>
-                  <button
+                  </button>}
+                  {!bassLane && <button
                     type="button"
                     onClick={() => {
                       void handleOptimizeToCoordinates();
@@ -15187,7 +15404,7 @@ export default function GteWorkspace({
                   >
                     <span>Optimize to Coordinates</span>
                     <span className="text-[10px] text-slate-400">O</span>
-                  </button>
+                  </button>}
                   <button
                     type="button"
                     onClick={() => {
@@ -17431,7 +17648,7 @@ export default function GteWorkspace({
                           <div className="grid grid-cols-2 gap-1.5">
                             {(
                               [
-                                { field: "stringIndex", label: "String", value: segmentCoordDraft?.stringIndex ?? "", max: 5 },
+                                { field: "stringIndex", label: "String", value: segmentCoordDraft?.stringIndex ?? "", max: stringMax },
                                 { field: "fret", label: "Fret", value: segmentCoordDraft?.fret ?? "", max: maxFret },
                               ] as const
                             ).map(({ field, label, value, max }) => {
