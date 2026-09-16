@@ -39,6 +39,7 @@ import {
   getOpenStringMidiFromSnapshot,
   getStringLabelsForSnapshot,
   getTabMidi as getSnapshotTabMidi,
+  isBassSnapshot,
 } from "../lib/gteTuning";
 import {
   alignEffectNotesToFirstString,
@@ -1160,7 +1161,11 @@ export const optimizeTrackFingeringInSnapshot = (
   }
 ): FingeringOptimizationResult => {
   const tolerance = Math.max(1, Math.round((draft.framesPerMessure || FIXED_FRAMES_PER_BAR) / 32));
-  const chordGroups = clusterTrackNotesIntoChordGroups(draft.notes, tolerance);
+  const isBass = isBassSnapshot(draft);
+  // Bass uses the same coordinate-aware note candidate ranking as guitar, but
+  // simultaneous pitches must remain independent notes rather than becoming
+  // guitar chord objects.
+  const chordGroups = isBass ? [] : clusterTrackNotesIntoChordGroups(draft.notes, tolerance);
   const createdChordIds: number[] = [];
   const chordizedNoteIds = new Set<number>();
   let nextChordId = draft.chords.reduce((max, chord) => Math.max(max, chord.id), 0) + 1;
@@ -1185,7 +1190,7 @@ export const optimizeTrackFingeringInSnapshot = (
     );
   }
 
-  if (options?.optimizeChordFingerings !== false) {
+  if (!isBass && options?.optimizeChordFingerings !== false) {
     [...draft.chords]
       .sort((left, right) => left.startTime - right.startTime || left.id - right.id)
       .forEach((chord) => {
@@ -1248,15 +1253,20 @@ export const finalizeOptimizedTrackFingeringInSnapshot = (draft: EditorSnapshot)
     return left.event.id - right.event.id;
   });
 
-  for (let index = 0; index < events.length - 1; index += 1) {
-    const current = events[index].event;
-    const next = events[index + 1].event;
-    const currentStart = Math.round(current.startTime);
-    const nextStart = Math.round(next.startTime);
-    if (nextStart <= currentStart) continue;
-    const currentEnd = currentStart + clampEventLength(current.length);
-    if (currentEnd > nextStart) {
-      current.length = clampEventLength(nextStart - currentStart);
+  // Guitar optimization makes a monophonic sequence around generated chords.
+  // Bass v1 deliberately supports independent overlapping notes, so optimizing
+  // their fingerings must not shorten their musical durations.
+  if (!isBassSnapshot(draft)) {
+    for (let index = 0; index < events.length - 1; index += 1) {
+      const current = events[index].event;
+      const next = events[index + 1].event;
+      const currentStart = Math.round(current.startTime);
+      const nextStart = Math.round(next.startTime);
+      if (nextStart <= currentStart) continue;
+      const currentEnd = currentStart + clampEventLength(current.length);
+      if (currentEnd > nextStart) {
+        current.length = clampEventLength(nextStart - currentStart);
+      }
     }
   }
 
