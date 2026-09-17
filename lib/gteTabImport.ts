@@ -81,6 +81,66 @@ export type ParsedTabTrackImport = Omit<ParsedTabImport, "tracks"> & {
   droppedNoteCount?: number;
 };
 
+export const DEFAULT_IMPORT_QUANTIZATION_SUBDIVISIONS_PER_BEAT = 4;
+
+/**
+ * Snap imported timing to the editor's default sixteenth-note grid.
+ *
+ * File formats often contain humanized or conversion-generated tick offsets.
+ * Quantizing here keeps every supported external format consistent while the
+ * native Note2Tabs JSON importer can continue to preserve exact editor data.
+ */
+export function quantizeImportedStamps(
+  stamps: Array<[number, [number, number], number]>,
+  framesPerMeasure: number,
+  beatsPerMeasure = 4,
+  subdivisionsPerBeat = DEFAULT_IMPORT_QUANTIZATION_SUBDIVISIONS_PER_BEAT
+) {
+  const safeFramesPerMeasure = Math.max(1, Math.round(Number(framesPerMeasure) || FIXED_FRAMES_PER_BAR));
+  const safeBeats = Math.max(1, Math.round(Number(beatsPerMeasure) || 4));
+  const safeSubdivisions = Math.max(1, Math.round(Number(subdivisionsPerBeat) || 4));
+  const grid = safeFramesPerMeasure / (safeBeats * safeSubdivisions);
+  const snap = (value: number) => Math.max(0, Math.round(Math.round(value / grid) * grid));
+  const snapDuration = (value: number) => Math.max(1, Math.round(grid), snap(value));
+
+  return stamps.map(([start, tab, length]): [number, [number, number], number] => [
+    snap(Math.max(0, Number(start) || 0)),
+    [tab[0], tab[1]],
+    snapDuration(Math.max(1, Number(length) || 1)),
+  ]);
+}
+
+function quantizeParsedImport(parsed: ParsedTabImport): ParsedTabImport {
+  const quantizeTrack = (track: ParsedTabTrackImport): ParsedTabTrackImport => {
+    const framesPerMeasure = Math.max(1, Math.round(Number(track.framesPerMessure) || FIXED_FRAMES_PER_BAR));
+    const stamps = quantizeImportedStamps(track.stamps, framesPerMeasure);
+    const noteEnd = stamps.reduce((latest, [start, , length]) => Math.max(latest, start + length), 0);
+    return {
+      ...track,
+      stamps,
+      totalFrames: Math.max(
+        framesPerMeasure,
+        noteEnd,
+        Math.max(0, Math.round(Number(track.totalFrames) || 0))
+      ),
+    };
+  };
+  const quantized = quantizeTrack(parsed);
+  const tracks = parsed.tracks?.map(quantizeTrack);
+  const combinedStamps = tracks?.length ? tracks.flatMap((track) => track.stamps) : quantized.stamps;
+  return {
+    ...quantized,
+    ...(tracks ? { tracks } : {}),
+    stamps: combinedStamps.sort((left, right) => left[0] - right[0] || left[1][0] - right[1][0]),
+    totalFrames: Math.max(
+      quantized.framesPerMessure,
+      quantized.totalFrames,
+      ...(tracks?.map((track) => track.totalFrames) ?? []),
+      ...combinedStamps.map(([start, , length]) => start + length)
+    ),
+  };
+}
+
 type TabPosition = {
   column: number;
   stringIndex: number;
@@ -169,7 +229,7 @@ export async function parseTabImportFile(file: File): Promise<ParsedTabFileImpor
   }
 
   return {
-    ...validateParsedImport(parsed),
+    ...validateParsedImport(quantizeParsedImport(parsed)),
     name: getImportNameFromFile(file.name),
     fileName: file.name,
   };

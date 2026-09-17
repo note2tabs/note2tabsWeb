@@ -10,6 +10,7 @@ import {
   parseTabImportFile,
   parseMusicXmlTabImport,
   parseTextTabImport,
+  quantizeImportedStamps,
 } from "../../lib/gteTabImport";
 import { buildMusicXmlFromSnapshot } from "../../lib/gteTabExport";
 
@@ -138,6 +139,12 @@ const mergedChannelMidiBytes = [
   0x81, 0x2d, 0x00, 0x00, 0xff, 0x2f, 0x00,
 ];
 
+const offGridMidiBytes = [
+  0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x01, 0x01, 0xe0,
+  0x4d, 0x54, 0x72, 0x6b, 0x00, 0x00, 0x00, 0x0d, 0x11, 0x90, 0x40, 0x40, 0x81, 0x7a,
+  0x80, 0x40, 0x00, 0x00, 0xff, 0x2f, 0x00,
+];
+
 function bytesToArrayBuffer(bytes: number[]) {
   const array = Uint8Array.from(bytes);
   return array.buffer.slice(array.byteOffset, array.byteOffset + array.byteLength);
@@ -216,6 +223,31 @@ describe("gte tab import helpers", () => {
     expect(parsed.stamps[0]).toEqual([0, [0, 0], 120]);
   });
 
+  it("quantizes imported starts and durations to the default sixteenth-note grid", () => {
+    expect(
+      quantizeImportedStamps(
+        [
+          [14, [0, 1], 14],
+          [16, [1, 2], 44],
+          [479, [2, 3], 121],
+        ],
+        480
+      )
+    ).toEqual([
+      [0, [0, 1], 30],
+      [30, [1, 2], 30],
+      [480, [2, 3], 120],
+    ]);
+  });
+
+  it("automatically quantizes off-grid MIDI files during file import", async () => {
+    const parsed = await parseTabImportFile(
+      new File([bytesToArrayBuffer(offGridMidiBytes)], "humanized.mid")
+    );
+    expect(parsed.stamps).toEqual([[0, [0, 0], 60]]);
+    expect(parsed.tracks?.[0]?.stamps).toEqual([[0, [0, 0], 60]]);
+  });
+
   it("falls back to pitch-derived tabs when MusicXML has no tablature data", () => {
     const parsed = parseMusicXmlTabImport(pitchedMusicXml);
     expect(parsed.stamps).toEqual([
@@ -276,11 +308,11 @@ describe("gte tab import helpers", () => {
     for (const extension of ["txt", "tab", "asc"]) {
       const result = await expectDeterministicFileImport(new File([asciiTab], `deterministic.${extension}`));
       expect(result.stamps).toEqual([
-        [192, [0, 0], 96],
-        [192, [1, 1], 96],
-        [192, [2, 0], 96],
-        [192, [3, 2], 96],
-        [192, [4, 3], 96],
+        [180, [0, 0], 90],
+        [180, [1, 1], 90],
+        [180, [2, 0], 90],
+        [180, [3, 2], 90],
+        [180, [4, 3], 90],
       ]);
     }
   });
@@ -296,6 +328,7 @@ describe("gte tab import helpers", () => {
       ]);
       expect(result.text).toContain("e|0");
       expect(result.text).toContain("G|");
+      expect(result.stamps.every(([start, , length]) => start % 30 === 0 && length % 30 === 0)).toBe(true);
     }
   });
 
@@ -357,6 +390,7 @@ describe("gte tab import helpers", () => {
       );
       expect(result.stamps).toEqual([[0, [0, 0], 120]]);
       expect(result.text).toContain("e|0");
+      expect(result.stamps.every(([start, , length]) => start % 30 === 0 && length % 30 === 0)).toBe(true);
     }
   });
 
