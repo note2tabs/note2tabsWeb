@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PremiumOfferVariant } from "./premiumOfferExperiment";
+import { premiumTrialPresentationEnabled } from "./subscriptionPlans";
 
 export type PremiumOfferEligibility = "unknown" | "eligible" | "ineligible";
 
@@ -7,7 +8,7 @@ export function usePremiumOfferEligibility(enabled: boolean): PremiumOfferEligib
   const [eligibility, setEligibility] = useState<PremiumOfferEligibility>("unknown");
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !premiumTrialPresentationEnabled()) {
       setEligibility("unknown");
       return;
     }
@@ -42,6 +43,7 @@ export function premiumOfferCtaLabel(
   fallback = "Get Premium",
   variant: PremiumOfferVariant = "control"
 ) {
+  if (!premiumTrialPresentationEnabled()) return fallback;
   if (eligibility !== "eligible") return fallback;
   return variant === "value_framing"
     ? "Try Premium free for 7 days"
@@ -52,6 +54,7 @@ export function premiumOfferReassurance(
   eligibility: PremiumOfferEligibility,
   variant: PremiumOfferVariant = "control"
 ) {
+  if (!premiumTrialPresentationEnabled()) return "$5.99 billed today · Cancel anytime";
   if (eligibility === "eligible") {
     return variant === "value_framing"
       ? "7 days free, then $5.99/month · Cancel anytime"

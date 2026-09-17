@@ -64,3 +64,10 @@ export const proPlanCheckoutEnabled = () =>
 export const proPlanPresentationEnabled = () =>
   process.env.NEXT_PUBLIC_PRO_PLAN_ENABLED === "true" ||
   process.env.NEXT_PUBLIC_PRO_PLAN_PREVIEW === "true";
+
+/** Rollback switch for the 30-day immediate-charge Premium test. */
+export const premiumTrialCheckoutEnabled = () =>
+  process.env.PREMIUM_TRIAL_ENABLED === "true";
+
+export const premiumTrialPresentationEnabled = () =>
+  process.env.NEXT_PUBLIC_PREMIUM_TRIAL_ENABLED === "true";
