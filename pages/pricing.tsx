@@ -24,13 +24,13 @@ import type { BillingInterval } from "../lib/stripePremium";
 
 const pricingFaqs = [
   {
-    question: "Can I try Premium before paying?",
+    question: "When is Premium billed?",
     answer:
       "Premium is $5.99 billed immediately, renews monthly, and can be cancelled anytime.",
   },
   {
-    question: "Does Pro include a free trial?",
-    answer: "No. Pro is for frequent transcription and is billed at $14.99 as soon as you subscribe.",
+    question: "When is Pro billed?",
+    answer: "Pro is for frequent transcription and is billed at $14.99 as soon as you subscribe.",
   },
   {
     question: "Do all plans include Light and Heavy?",
@@ -348,7 +348,7 @@ export default function PricingPage() {
                     {checkoutBusy ? "Opening…" : currentPlan === "PREMIUM" ? "Upgrade to Pro" : "Choose Pro"}
                   </button>
                 )}
-                <p className="pricing-plan__reassurance">{billingInterval === "yearly" ? <><span>No free trial · $149.99 billed today · </span><span className="pricing-plan__saving">Save $30 per year</span></> : "No free trial · $14.99 billed today · Cancel anytime"}</p>
+                <p className="pricing-plan__reassurance">{billingInterval === "yearly" ? <><span>$149.99 billed today · </span><span className="pricing-plan__saving">Save $30 per year</span></> : "$14.99 billed today · Cancel anytime"}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li>Everything in Premium</li>

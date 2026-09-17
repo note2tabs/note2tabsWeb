@@ -2122,7 +2122,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <button type="button" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => void handlePricingClick("home_pricing", "homepage_pro_card", "PRO")} disabled={pricingBusy}>
                   {pricingBusy ? "Opening…" : currentPlan === "PRO" ? "Manage current plan" : currentPlan === "PREMIUM" ? "Upgrade to Pro" : "Choose Pro"}
                 </button>
-                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? <><span>No free trial · $149.99 billed today · </span><span className="pricing-plan__saving">Save $30 per year</span></> : "No free trial · $14.99 billed today · Cancel anytime"}</p>
+                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? <><span>$149.99 billed today · </span><span className="pricing-plan__saving">Save $30 per year</span></> : "$14.99 billed today · Cancel anytime"}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li>Everything in Premium</li>
