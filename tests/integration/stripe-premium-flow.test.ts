@@ -171,6 +171,7 @@ describe("stripe premium flow", () => {
     delete process.env.STRIPE_PRODUCT_PRO;
     delete process.env.PRO_PLAN_ENABLED;
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+    process.env.PREMIUM_TRIAL_ENABLED = "true";
     delete process.env.PREMIUM_TRIAL_REMINDER_MODE;
     process.env.NEXTAUTH_URL = "https://note2tabs.test";
     sessionMock.mockResolvedValue({
@@ -257,6 +258,30 @@ describe("stripe premium flow", () => {
   });
 
   describe("create-checkout-session", () => {
+    it("charges Premium immediately while the 30-day no-trial test is active", async () => {
+      delete process.env.PREMIUM_TRIAL_ENABLED;
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({ method: "POST", body: { plan: "premium" } });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(res._getJSONData()).toMatchObject({
+        plan: "premium",
+        trialIncluded: false,
+        offerMode: "immediate_charge",
+      });
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subscription_data: expect.not.objectContaining({ trial_period_days: expect.anything() }),
+          metadata: expect.objectContaining({
+            premiumTrialIncluded: "false",
+            premiumOfferMode: "immediate_charge",
+          }),
+        }),
+        expect.anything()
+      );
+    });
     it("keeps Pro checkout disabled until the launch flag is enabled", async () => {
       process.env.STRIPE_PRICE_PRO_MONTHLY = "price_test_pro";
       process.env.STRIPE_PRODUCT_PRO = "prod_test_pro";
@@ -356,6 +381,7 @@ describe("stripe premium flow", () => {
         plan: "premium",
         billingInterval: "monthly",
         trialIncluded: true,
+        offerMode: "seven_day_trial",
         offerVariant: "value_framing",
       });
       expect(posthogMock.capture).toHaveBeenCalledWith({

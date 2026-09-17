@@ -10,7 +10,7 @@ import {
   type BillingInterval,
 } from "../../../lib/stripePremium";
 import { getFreshUserAccess } from "../../../lib/serverAuth";
-import { PLAN_CATALOG, proPlanCheckoutEnabled, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
+import { PLAN_CATALOG, premiumTrialCheckoutEnabled, proPlanCheckoutEnabled, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
 import { createPostHogServerClient } from "../../../lib/posthogServer";
 import { inspectPremiumCustomerState } from "../../../lib/stripePremiumOffer";
 import {
@@ -175,6 +175,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       config: selectedConfig,
       configs: paidConfigs,
     });
+    const trialIncluded = requestedPlan === "PREMIUM" && premiumTrialCheckoutEnabled() && customerState.trialEligible;
     if (customerState.manageableCustomer) {
       const portal = await stripeClient.billingPortal.sessions.create({
         customer: customerState.manageableCustomer.id,
@@ -213,7 +214,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .update(
       `${session.user.id}|${requestedPlan}|${billingInterval}|${returnPaths.success}|${funnelId}|${
           customerState.subscriptionState.sort().join("|") || "new"
-        }`
+        }|${trialIncluded ? "seven_day_trial" : "immediate_charge"}`
       )
       .digest("hex")
       .slice(0, 24);
@@ -227,7 +228,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       premiumFunnelReason: reason,
       premiumOfferVariant: offerVariant,
       premiumFunnelModel: model,
-      premiumTrialIncluded: requestedPlan === "PREMIUM" && customerState.trialEligible ? "true" : "false",
+      premiumTrialIncluded: trialIncluded ? "true" : "false",
+      premiumOfferMode: trialIncluded ? "seven_day_trial" : "immediate_charge",
       ...(activeAttribution
         ? {
             note2tabsAffiliateId: activeAttribution.affiliateId,
@@ -245,7 +247,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         line_items: [{ price: selectedConfig.priceId, quantity: 1 }],
         client_reference_id: funnelId,
         subscription_data: {
-          ...(requestedPlan === "PREMIUM" && customerState.trialEligible
+          ...(trialIncluded
             ? { trial_period_days: selectedPlan.trialDays }
             : {}),
           metadata: checkoutMetadata,
@@ -271,7 +273,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       source,
       reason,
       funnel_id: funnelId,
-      trial_included: requestedPlan === "PREMIUM" && customerState.trialEligible,
+      trial_included: trialIncluded,
+      offer_mode: trialIncluded ? "seven_day_trial" : "immediate_charge",
       offer_variant: offerVariant,
       model,
       device_type: deviceType,
@@ -290,7 +293,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           checkout_session_id: checkout.id,
           plan: selectedPlan.analyticsId,
           billing_interval: billingInterval,
-          trial_included: requestedPlan === "PREMIUM" && customerState.trialEligible,
+          trial_included: trialIncluded,
+          offer_mode: trialIncluded ? "seven_day_trial" : "immediate_charge",
         },
       });
     }
@@ -310,7 +314,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       funnelId,
       plan: requestedPlan.toLowerCase(),
       billingInterval,
-      trialIncluded: requestedPlan === "PREMIUM" && customerState.trialEligible,
+      trialIncluded,
+      offerMode: trialIncluded ? "seven_day_trial" : "immediate_charge",
       offerVariant,
     });
   } catch (error) {

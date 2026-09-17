@@ -2076,7 +2076,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 data-reveal
               >
                 <div className="pricing-plan__badge">
-                  {offerEligibility === "ineligible" ? "Most popular" : "Most popular · 7-day free trial"}
+                  Most popular
                 </div>
                 <div className="pricing-plan__top">
                   <h3>Premium</h3>
@@ -2101,12 +2101,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 </button>
                 <p className="pricing-plan__reassurance">
                   {pricingBillingInterval === "yearly"
-                    ? offerEligibility === "ineligible"
-                      ? <><span>$59.99/year · </span><span className="pricing-plan__saving">Save $12 per year</span><span> · Cancel anytime</span></>
-                      : <><span>7-day free trial · Then $59.99/year · </span><span className="pricing-plan__saving">Save $12 per year</span></>
-                    : offerEligibility === "eligible"
-                      ? "7-day free trial · Then $5.99/month · Cancel anytime"
-                      : premiumOfferReassurance(offerEligibility)}
+                    ? <><span>$59.99 billed today · </span><span className="pricing-plan__saving">Save $12 per year</span><span> · Cancel anytime</span></>
+                    : premiumOfferReassurance(offerEligibility)}
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
