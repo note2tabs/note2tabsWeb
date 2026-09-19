@@ -257,6 +257,14 @@ const EXPECTED_EXCEPTION_PATTERNS = [
 // context, so retain it in Error Tracking without waking the operational alert.
 const NON_ACTIONABLE_BROWSER_EXCEPTION_PATTERNS = [/^error script error\.?$/i];
 
+// Browser extensions inject messaging and object-bridge code into arbitrary pages.
+// These signatures have no Note2Tabs frames and can follow a user across unrelated
+// routes, so keep them in Error Tracking without paging application operators.
+const BROWSER_EXTENSION_EXCEPTION_PATTERNS = [
+  /no listener:\s*tabs:outgoing\.message\.ready/i,
+  /object not found matching id:\s*\d+,\s*methodname:update,\s*paramcount:\d+/i,
+];
+
 // A browser can retain an old Next.js route manifest briefly after a deploy and
 // request a chunk Vercel has already retired. The app reloads once to obtain the
 // current manifest; only a failed recovery is operationally actionable.
@@ -290,6 +298,9 @@ export function classifyPostHogException(exceptionList: unknown) {
   }
   if (NON_ACTIONABLE_BROWSER_EXCEPTION_PATTERNS.some((pattern) => pattern.test(text.trim()))) {
     return { alertEligible: false, classification: "non_actionable_browser_error" } as const;
+  }
+  if (BROWSER_EXTENSION_EXCEPTION_PATTERNS.some((pattern) => pattern.test(text))) {
+    return { alertEligible: false, classification: "browser_extension_error" } as const;
   }
   return { alertEligible: true, classification: "unexpected_application_error" } as const;
 }

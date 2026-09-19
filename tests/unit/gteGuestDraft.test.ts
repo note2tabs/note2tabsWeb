@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { normalizeGuestSnapshot } from "../../lib/gteGuestDraft";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  clearGuestDraft,
+  normalizeGuestSnapshot,
+  readGuestDraft,
+  writeGuestDraft,
+} from "../../lib/gteGuestDraft";
 import type { EditorSnapshot } from "../../types/gte";
 
 const baseSnapshot = (): EditorSnapshot => ({
@@ -30,6 +35,32 @@ const baseSnapshot = (): EditorSnapshot => ({
 });
 
 describe("gteGuestDraft", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("treats unavailable browser storage as an empty optional cache", () => {
+    vi.stubGlobal("window", { localStorage: null });
+
+    expect(readGuestDraft()).toBeNull();
+    expect(() => writeGuestDraft(baseSnapshot())).not.toThrow();
+    expect(() => clearGuestDraft()).not.toThrow();
+  });
+
+  it("treats browser storage access failures as an empty optional cache", () => {
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: () => { throw new DOMException("Blocked", "SecurityError"); },
+        setItem: () => { throw new DOMException("Blocked", "SecurityError"); },
+        removeItem: () => { throw new DOMException("Blocked", "SecurityError"); },
+      },
+    });
+
+    expect(readGuestDraft()).toBeNull();
+    expect(() => writeGuestDraft(baseSnapshot())).not.toThrow();
+    expect(() => clearGuestDraft()).not.toThrow();
+  });
+
   it("preserves slide note effects when normalizing guest snapshots", () => {
     const normalized = normalizeGuestSnapshot(baseSnapshot());
 

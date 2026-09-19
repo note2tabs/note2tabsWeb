@@ -115,6 +115,18 @@ describe("analytics privacy sanitization", () => {
     });
   });
 
+  it("keeps confirmed browser-extension failures out of operational alerts", () => {
+    for (const message of [
+      "No Listener: tabs:outgoing.message.ready",
+      "Object Not Found Matching Id:3, MethodName:update, ParamCount:4",
+    ]) {
+      expect(classifyPostHogException([{ type: "Error", value: message }])).toEqual({
+        alertEligible: false,
+        classification: "browser_extension_error",
+      });
+    }
+  });
+
   it("classifies stale deployment chunks as automatically recoverable", () => {
     expect(
       classifyPostHogException([

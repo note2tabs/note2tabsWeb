@@ -375,9 +375,9 @@ export const normalizeGuestSnapshot = (
 
 export const readGuestDraft = (): EditorSnapshot | null => {
   if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(GTE_GUEST_DRAFT_STORAGE_KEY);
-  if (!raw) return null;
   try {
+    const raw = window.localStorage?.getItem(GTE_GUEST_DRAFT_STORAGE_KEY);
+    if (!raw) return null;
     const parsed = JSON.parse(raw) as GuestDraftRecord | EditorSnapshot;
     const snapshot =
       parsed && typeof parsed === "object" && "snapshot" in parsed
@@ -401,10 +401,18 @@ export const writeGuestDraft = (snapshot: EditorSnapshot) => {
       updatedAt: new Date().toISOString(),
     },
   };
-  window.localStorage.setItem(GTE_GUEST_DRAFT_STORAGE_KEY, JSON.stringify(payload));
+  try {
+    window.localStorage?.setItem(GTE_GUEST_DRAFT_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // Browser storage is optional. The API-backed guest draft remains available.
+  }
 };
 
 export const clearGuestDraft = () => {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(GTE_GUEST_DRAFT_STORAGE_KEY);
+  try {
+    window.localStorage?.removeItem(GTE_GUEST_DRAFT_STORAGE_KEY);
+  } catch {
+    // Clearing an unavailable legacy cache must not interrupt editor navigation.
+  }
 };

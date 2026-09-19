@@ -675,9 +675,9 @@ type GuestCanvasDraftRecord = {
 
 const readGuestCanvasDraft = (): CanvasSnapshot | null => {
   if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(GTE_GUEST_CANVAS_STORAGE_KEY);
-  if (!raw) return null;
   try {
+    const raw = window.localStorage?.getItem(GTE_GUEST_CANVAS_STORAGE_KEY);
+    if (!raw) return null;
     const parsed = JSON.parse(raw) as GuestCanvasDraftRecord | CanvasSnapshot;
     const canvas =
       parsed && typeof parsed === "object" && "canvas" in parsed
@@ -697,7 +697,11 @@ const writeGuestCanvasDraft = (canvas: CanvasSnapshot) => {
     savedAt: new Date().toISOString(),
     canvas,
   };
-  window.localStorage.setItem(GTE_GUEST_CANVAS_STORAGE_KEY, JSON.stringify(payload));
+  try {
+    window.localStorage?.setItem(GTE_GUEST_CANVAS_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // The server-backed guest canvas remains the source of truth when storage is unavailable.
+  }
 };
 
 const normalizeBarIndices = (lane: EditorSnapshot, barIndices: number[]) => {
