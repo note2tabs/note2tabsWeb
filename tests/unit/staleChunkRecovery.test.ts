@@ -12,6 +12,7 @@ function routerEvents() {
 
 describe("stale chunk recovery", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -27,7 +28,10 @@ describe("stale chunk recovery", () => {
       sessionStorage: {
         getItem: (key: string) => storage.get(key) ?? null,
         setItem: (key: string, value: string) => storage.set(key, value),
+        removeItem: (key: string) => storage.delete(key),
       },
+      setTimeout,
+      clearTimeout,
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     });
@@ -44,5 +48,32 @@ describe("stale chunk recovery", () => {
     nextEvents.handlers.get("routeChangeError")?.(new Error("ChunkLoadError: Loading chunk a failed"));
     expect(reload).toHaveBeenCalledOnce();
     expect(reportFailure).toHaveBeenCalledOnce();
+
+    nextEvents.handlers.get("routeChangeError")?.(new Error("ChunkLoadError: Loading chunk b failed"));
+    expect(reportFailure).toHaveBeenCalledOnce();
+  });
+
+  it("allows a new recovery after the reloaded app remains stable", () => {
+    vi.useFakeTimers();
+    const storage = new Map<string, string>([["note2tabs:stale-chunk-recovery", "10000"]]);
+    vi.stubGlobal("window", {
+      sessionStorage: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+        removeItem: (key: string) => storage.delete(key),
+      },
+      setTimeout,
+      clearTimeout,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+    const events = routerEvents();
+    const reload = vi.fn();
+
+    installStaleChunkRecovery(events, { now: () => 30_000, reload });
+    vi.advanceTimersByTime(10_000);
+
+    events.handlers.get("routeChangeError")?.(new Error("ChunkLoadError: Loading chunk c failed"));
+    expect(reload).toHaveBeenCalledOnce();
   });
 });
