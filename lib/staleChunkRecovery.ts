@@ -1,5 +1,6 @@
 const RECOVERY_KEY = "note2tabs:stale-chunk-recovery";
 const RECOVERY_WINDOW_MS = 5 * 60 * 1000;
+const RECOVERY_STABLE_MS = 10 * 1000;
 
 const STALE_CHUNK_PATTERNS = [
   /chunkloaderror/i,
@@ -44,6 +45,17 @@ export function installStaleChunkRecovery(
   const reload = dependencies.reload ?? (() => window.location.reload());
   let reloadStarted = false;
 
+  // A successful boot means the previous hard reload recovered the app. Keep
+  // the marker briefly so simultaneous chunk failures cannot create a reload
+  // loop, then clear it so a later, independent network failure can recover.
+  const stableTimer = window.setTimeout(() => {
+    try {
+      window.sessionStorage.removeItem(RECOVERY_KEY);
+    } catch {
+      // Storage can be unavailable in privacy-restricted browsers.
+    }
+  }, RECOVERY_STABLE_MS);
+
   const recover = (error: unknown) => {
     if (!isStaleChunkError(error) || reloadStarted) return;
 
@@ -56,6 +68,9 @@ export function installStaleChunkRecovery(
     }
 
     if (lastAttempt > 0 && now() - lastAttempt < RECOVERY_WINDOW_MS) {
+      // A failed page can reject several chunk promises at once. Report that
+      // recovery failure once instead of turning one incident into many alerts.
+      reloadStarted = true;
       dependencies.reportFailure?.();
       return;
     }
@@ -77,6 +92,7 @@ export function installStaleChunkRecovery(
   window.addEventListener("unhandledrejection", onUnhandledRejection);
 
   return () => {
+    window.clearTimeout(stableTimer);
     routerEvents.off("routeChangeError", recover);
     window.removeEventListener("error", onWindowError);
     window.removeEventListener("unhandledrejection", onUnhandledRejection);
