@@ -49,6 +49,11 @@ const VISIBLE_LABEL_WIDTH = GTE_TIMELINE_LABEL_COLUMN_WIDTH;
 const ROW_HEIGHT = 28;
 const RULER_HEIGHT = 20;
 const TIME_RULER_HEIGHT = 18;
+const BAR_SUBDIVISION_OPTIONS: Array<{ label: string; value: number }> = [
+  { label: "8th", value: 2 },
+  { label: "16th", value: 4 },
+  { label: "32nd", value: 8 },
+];
 const DRAG_THRESHOLD_PX = 4;
 const TIMELINE_RENDER_OVERSCAN_PX = 900;
 
@@ -378,6 +383,39 @@ export default function GteDrumWorkspace({
   }, [barWidth, pxPerFrame, timelineViewport.clientWidth, timelineViewport.scrollLeft, timelineWidth, totalFrames]);
   const gridStep = Math.max(1, FRAMES_PER_BAR / subdivisionsPerBar);
   const drumHitSize = getScaledDrumHitSize(gridStep * pxPerFrame, ROW_HEIGHT);
+
+  const getBarSubdivisionsPerBeat = useCallback(
+    (barIndex: number) => {
+      const override = snapshot.drumBarSubdivisions?.[String(barIndex)];
+      return Number.isFinite(override) && override! > 0
+        ? Math.max(1, Math.min(64, Math.round(override!)))
+        : subdivisionsPerBeat;
+    },
+    [snapshot.drumBarSubdivisions, subdivisionsPerBeat]
+  );
+  const getBarGridStep = useCallback(
+    (barIndex: number) =>
+      Math.max(1, FRAMES_PER_BAR / (beatsPerBar * getBarSubdivisionsPerBeat(barIndex))),
+    [beatsPerBar, getBarSubdivisionsPerBeat]
+  );
+  const setBarSubdivision = useCallback(
+    (barIndex: number, value: number) => {
+      const nextOverrides = { ...(snapshot.drumBarSubdivisions || {}) };
+      nextOverrides[String(barIndex)] = value;
+      onSnapshotChange(
+        {
+          ...snapshot,
+          editorType: "drums",
+          type: "drums",
+          trackType: "drums",
+          drumBarSubdivisions: nextOverrides,
+          updatedAt: new Date().toISOString(),
+        },
+        { recordHistory: true, markDirty: true }
+      );
+    },
+    [onSnapshotChange, snapshot]
+  );
 
   useEffect(() => {
     if (!quantizeDialogOpen) setQuantizeSubdivision(subdivisionsPerBeat);
@@ -1007,21 +1045,24 @@ export default function GteDrumWorkspace({
     (time: number) => {
       const clamped = Math.max(trackOffsetFrames, Math.min(totalFrames - 1, time));
       if (!globalSnapToGridEnabled) return Math.round(clamped);
+      const barIndex = Math.max(0, Math.floor(clamped / FRAMES_PER_BAR));
       const snapped = snapDrumFrameToGrid(
         clamped,
         beatsPerBar,
-        subdivisionsPerBeat,
+        getBarSubdivisionsPerBeat(barIndex),
         FRAMES_PER_BAR
       );
       if (snapped < totalFrames) return snapped;
+      const fallbackFrame = Math.max(trackOffsetFrames, totalFrames - gridStep);
+      const fallbackBarIndex = Math.max(0, Math.floor(fallbackFrame / FRAMES_PER_BAR));
       return snapDrumFrameToGrid(
-        Math.max(trackOffsetFrames, totalFrames - gridStep),
+        fallbackFrame,
         beatsPerBar,
-        subdivisionsPerBeat,
+        getBarSubdivisionsPerBeat(fallbackBarIndex),
         FRAMES_PER_BAR
       );
     },
-    [beatsPerBar, globalSnapToGridEnabled, gridStep, subdivisionsPerBeat, totalFrames, trackOffsetFrames]
+    [beatsPerBar, getBarSubdivisionsPerBeat, globalSnapToGridEnabled, gridStep, totalFrames, trackOffsetFrames]
   );
 
   const updateSnapshotNotes = useCallback(
@@ -1073,15 +1114,30 @@ export default function GteDrumWorkspace({
           Math.round(note.startTime) === startTime
       );
       if (duplicate) {
-        replaceSelection(new Set([duplicate.id]));
+        const previousNotes = snapshot.notes;
+        updateSnapshotNotes(previousNotes.filter((note) => note.id !== duplicate.id));
+        replaceSelection(
+          new Set([...selectedNoteIdsRef.current].filter((id) => id !== duplicate.id))
+        );
+        setSaveError(null);
+        if (tableBacked) {
+          try {
+            await gteApi.deleteDrumNote(canvasId, laneId, duplicate.id);
+          } catch (error: any) {
+            updateSnapshotNotes(previousNotes, { recordHistory: false, markDirty: false });
+            replaceSelection(new Set([duplicate.id]));
+            setSaveError(error?.message || "We could not remove this drum hit. It is still in the pattern; please try again.");
+          }
+        }
         return;
       }
 
+      const barIndex = Math.max(0, Math.floor(startTime / FRAMES_PER_BAR));
       const note = buildDrumNote({
         id: snapshot.notes.reduce((max, item) => Math.max(max, item.id), 0) + 1,
         startTime,
         voiceIndex,
-        length: Math.max(1, Math.min(gridStep, 60)),
+        length: Math.max(1, Math.min(getBarGridStep(barIndex), 60)),
       });
       const previousNotes = snapshot.notes;
       updateSnapshotNotes([...previousNotes, note]);
@@ -1099,7 +1155,7 @@ export default function GteDrumWorkspace({
     },
     [
       canvasId,
-      gridStep,
+      getBarGridStep,
       laneId,
       replaceSelection,
       snapTime,
@@ -1933,16 +1989,32 @@ export default function GteDrumWorkspace({
                 {Array.from({ length: rowBarCount }, (_, offset) => {
                   const barIndex = firstBar + offset;
                   const selected = selectedBarIndices.includes(barIndex);
+                  const barSubdivisionsPerBeat = getBarSubdivisionsPerBeat(barIndex);
                   return (
-                    <button
-                      key={`drum-score-bar-${barIndex}`}
-                      type="button"
-                      onClick={(event) => handleBarSelection(barIndex, event)}
-                      onContextMenu={(event) => handleBarContextMenu(barIndex, event)}
-                      className={selected ? "is-selected" : ""}
-                    >
-                      {showBarNumbers ? `Bar ${barIndex + 1}` : ""}
-                    </button>
+                    <div key={`drum-score-bar-${barIndex}`} className="gte-drum-bar-heading-cell">
+                      <button
+                        type="button"
+                        onClick={(event) => handleBarSelection(barIndex, event)}
+                        onContextMenu={(event) => handleBarContextMenu(barIndex, event)}
+                        className={selected ? "is-selected" : ""}
+                      >
+                        {showBarNumbers ? `Bar ${barIndex + 1}` : ""}
+                      </button>
+                      <div className="gte-drum-bar-subdivisions" data-gte-editor-control="true">
+                        {BAR_SUBDIVISION_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setBarSubdivision(barIndex, option.value)}
+                            title={`Show ${option.label} note divisions for bar ${barIndex + 1}`}
+                            aria-pressed={barSubdivisionsPerBeat === option.value}
+                            className={barSubdivisionsPerBeat === option.value ? "is-active" : ""}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -1959,69 +2031,83 @@ export default function GteDrumWorkspace({
                       <strong>{voice.shortLabel}</strong>
                       <span>{voice.label}</span>
                     </button>
-                    <div
-                      className="gte-drum-grid"
-                      style={{
-                        gridTemplateColumns: `repeat(${barsPerRow * subdivisionsPerBar}, minmax(0, 1fr))`,
-                      }}
-                    >
-                      {Array.from(
-                        { length: rowBarCount * subdivisionsPerBar },
-                        (_, subdivisionIndex) => {
-                          const frame =
-                            rowStart +
-                            (subdivisionIndex * FRAMES_PER_BAR) / subdivisionsPerBar;
-                          const inBeat = subdivisionIndex % subdivisionsPerBeat;
-                          const isBar = subdivisionIndex % subdivisionsPerBar === 0;
-                          const isBeat = inBeat === 0;
-                          return (
-                            <button
-                              key={`${voice.id}-${subdivisionIndex}`}
-                              type="button"
-                              className={`${isBar ? "is-bar" : isBeat ? "is-beat" : "is-subdivision"} ${
-                                cursor.voiceIndex === voiceIndex && cursor.time === Math.round(frame)
-                                  ? "is-cursor"
-                                  : ""
-                              }`}
-                              onClick={() => void addHit(voiceIndex, frame)}
-                              aria-label={`Add ${voice.label} in bar ${Math.floor(frame / FRAMES_PER_BAR) + 1}`}
-                            />
-                          );
-                        }
-                      )}
-                      {displayedNotes
-                        .filter((note) => note.startTime >= rowStart && note.startTime < rowEnd)
-                        .filter((note) => getDrumVoiceForNote(note).id === voice.id)
-                        .map((note) => {
-                          const selected = selectedNoteIds.has(note.id);
-                          return (
-                            <button
-                              key={`drum-score-hit-${note.id}`}
-                              type="button"
-                              data-drum-hit="true"
-                              aria-pressed={selected}
-                              className={`gte-drum-hit ${selected ? "is-selected" : ""}`}
-                              style={{ left: `${((note.startTime - rowStart) / rowFrames) * 100}%` }}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                replaceSelection(
-                                  event.shiftKey
-                                    ? new Set([...selectedNoteIds, note.id])
-                                    : new Set([note.id])
+                    <div className="gte-drum-grid-row">
+                      {Array.from({ length: rowBarCount }, (_, offset) => {
+                        const barIndex = firstBar + offset;
+                        const barStart = barIndex * FRAMES_PER_BAR;
+                        const barEnd = barStart + FRAMES_PER_BAR;
+                        const barSubdivisionsPerBeat = getBarSubdivisionsPerBeat(barIndex);
+                        const barSubdivisionsPerBar = beatsPerBar * barSubdivisionsPerBeat;
+                        return (
+                          <div
+                            key={`drum-score-bar-grid-${barIndex}`}
+                            className="gte-drum-grid"
+                            style={{
+                              gridTemplateColumns: `repeat(${barSubdivisionsPerBar}, minmax(0, 1fr))`,
+                            }}
+                          >
+                            {Array.from({ length: barSubdivisionsPerBar }, (_, subdivisionIndex) => {
+                              const frame =
+                                barStart +
+                                (subdivisionIndex * FRAMES_PER_BAR) / barSubdivisionsPerBar;
+                              const inBeat = subdivisionIndex % barSubdivisionsPerBeat;
+                              const isBar = subdivisionIndex === 0;
+                              const isBeat = inBeat === 0;
+                              return (
+                                <button
+                                  key={`${voice.id}-${barIndex}-${subdivisionIndex}`}
+                                  type="button"
+                                  className={`${isBar ? "is-bar" : isBeat ? "is-beat" : "is-subdivision"} ${
+                                    cursor.voiceIndex === voiceIndex && cursor.time === Math.round(frame)
+                                      ? "is-cursor"
+                                      : ""
+                                  }`}
+                                  onClick={() => void addHit(voiceIndex, frame)}
+                                  aria-label={`Toggle ${voice.label} in bar ${barIndex + 1}`}
+                                />
+                              );
+                            })}
+                            {displayedNotes
+                              .filter((note) => note.startTime >= barStart && note.startTime < barEnd)
+                              .filter((note) => getDrumVoiceForNote(note).id === voice.id)
+                              .map((note) => {
+                                const selected = selectedNoteIds.has(note.id);
+                                return (
+                                  <button
+                                    key={`drum-score-hit-${note.id}`}
+                                    type="button"
+                                    data-drum-hit="true"
+                                    aria-pressed={selected}
+                                    className={`gte-drum-hit ${selected ? "is-selected" : ""}`}
+                                    style={{
+                                      left: `${((note.startTime - barStart) / FRAMES_PER_BAR) * 100}%`,
+                                      width: `${100 / barSubdivisionsPerBar}%`,
+                                    }}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      if (event.shiftKey) {
+                                        const nextSelection = new Set(selectedNoteIds);
+                                        if (nextSelection.has(note.id)) {
+                                          nextSelection.delete(note.id);
+                                        } else {
+                                          nextSelection.add(note.id);
+                                        }
+                                        replaceSelection(nextSelection);
+                                        setCursor({ time: note.startTime, voiceIndex });
+                                        return;
+                                      }
+                                      void deleteHits([note.id]);
+                                      void previewDrumVoice(voice.id).catch(() => {});
+                                    }}
+                                    title={`${voice.label} · click to remove, shift+click to select`}
+                                  >
+                                    {symbolForVoice(voice.id)}
+                                  </button>
                                 );
-                                setCursor({ time: note.startTime, voiceIndex });
-                                void previewDrumVoice(voice.id).catch(() => {});
-                              }}
-                              onDoubleClick={(event) => {
-                                event.stopPropagation();
-                                void deleteHits([note.id]);
-                              }}
-                              title={`${voice.label} · double-click to remove`}
-                            >
-                              {symbolForVoice(voice.id)}
-                            </button>
-                          );
-                        })}
+                              })}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}

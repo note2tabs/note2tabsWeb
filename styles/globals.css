@@ -12938,12 +12938,18 @@ input[type="number"] {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
-    height: 1.3rem;
+    height: 2.1rem;
   }
 
-  .gte-drum-bar-headings button {
-    border: 0;
+  .gte-drum-bar-heading-cell {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
     border-right: 1px solid #aebbb4;
+  }
+
+  .gte-drum-bar-heading-cell > button {
+    border: 0;
     border-bottom: 1px solid #c9d2cd;
     padding-inline: .5rem;
     background: #f7f7f3;
@@ -12951,11 +12957,40 @@ input[type="number"] {
     font-size: .61rem;
     font-weight: 700;
     text-align: left;
+    height: 1.3rem;
   }
 
-  .gte-drum-bar-headings button.is-selected {
+  .gte-drum-bar-heading-cell > button.is-selected {
     background: var(--gte-accent-soft);
     color: #175f43;
+  }
+
+  .gte-drum-bar-subdivisions {
+    display: flex;
+    gap: 1px;
+    height: .8rem;
+    padding: 1px 2px;
+    border-bottom: 1px solid #c9d2cd;
+    background: #fbfbf9;
+  }
+
+  .gte-drum-bar-subdivisions button {
+    flex: 1 1 0%;
+    min-width: 0;
+    border: 0;
+    border-radius: 2px;
+    padding: 0;
+    background: #edefec;
+    color: #7a877f;
+    font-size: .5rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .gte-drum-bar-subdivisions button:hover { background: #dfe4de; }
+  .gte-drum-bar-subdivisions button.is-active {
+    background: #4c5a53;
+    color: #fff;
   }
 
   .gte-drum-staff {
@@ -12991,12 +13026,21 @@ input[type="number"] {
     white-space: nowrap;
   }
 
+  .gte-drum-grid-row {
+    display: flex;
+    min-width: 0;
+  }
+
   .gte-drum-grid {
     position: relative;
     display: grid;
+    flex: 1 1 0%;
     min-width: 0;
     background: #fffefa;
+    border-right: 1px solid #aebbb4;
   }
+
+  .gte-drum-grid:last-child { border-right: 0; }
 
   .gte-drum-grid > button:not(.gte-drum-hit) {
     min-width: 0;
@@ -13014,26 +13058,24 @@ input[type="number"] {
 
   .gte-drum-hit {
     position: absolute;
-    top: 50%;
+    top: 1px;
+    bottom: 1px;
     z-index: 4;
     display: grid;
-    width: 1.3rem;
-    height: 1.3rem;
-    transform: translate(-50%, -50%);
     place-items: center;
     border: 0;
-    border-radius: 50%;
-    background: transparent;
-    color: #1f2b27;
-    font-size: .88rem;
+    border-radius: 3px;
+    background: #4c5a53;
+    color: #f4f7f5;
+    font-size: .78rem;
     font-weight: 850;
     line-height: 1;
   }
 
-  .gte-drum-hit:hover { background: #e4eee8; }
+  .gte-drum-hit:hover { background: #3c4842; }
   .gte-drum-hit.is-selected {
-    background: #dceee4;
-    color: #11603f;
+    background: #11603f;
+    color: #fff;
     box-shadow: 0 0 0 2px #68a98a;
   }
 
