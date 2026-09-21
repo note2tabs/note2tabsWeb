@@ -105,7 +105,7 @@ export const getServerSideProps: GetServerSideProps<TagPageProps> = async (ctx) 
   if (!tag) {
     return { notFound: true };
   }
-  ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
+  ctx.res.setHeader("Cache-Control", "public, s-maxage=86400, stale-while-revalidate=604800");
 
   const postsRaw = await withPrismaReadRetry(() => prisma.post.findMany({
     where: {

@@ -10,8 +10,8 @@ describe("job polling", () => {
     const now = Date.parse("2026-08-12T12:00:00.000Z");
     expect(parseRetryAfterMs("5", DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(5000);
     expect(parseRetryAfterMs("Wed, 12 Aug 2026 12:00:08 GMT", DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(8000);
-    expect(parseRetryAfterMs("0", DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(1000);
-    expect(parseRetryAfterMs("120", DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(15_000);
+    expect(parseRetryAfterMs("0", DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(5000);
+    expect(parseRetryAfterMs("120", DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(30_000);
     expect(parseRetryAfterMs(null, DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(DEFAULT_JOB_POLL_DELAY_MS);
   });
 

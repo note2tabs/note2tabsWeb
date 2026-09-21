@@ -1927,7 +1927,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         activeDurationSec: currentActiveDurationSec(),
         heartbeatSequence,
       }).catch(() => {});
-    }, 60_000);
+    // Session start/end already retain exact active duration. A five-minute
+    // heartbeat is sufficient to recover long sessions after a hard browser
+    // close without waking a Vercel Function once per minute per open editor.
+    }, 5 * 60_000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {

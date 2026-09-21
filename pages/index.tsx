@@ -2196,10 +2196,11 @@ export const getStaticProps: GetStaticProps<HomePageProps> = async () => {
     ]);
     return {
       props: { trustMetrics: { transcriptionsCompleted, editorsCreated } },
-      revalidate: 3600,
+      // These public trust totals do not need an hourly database refresh.
+      revalidate: 24 * 60 * 60,
     };
   } catch (error) {
     console.warn("[home] Could not load public trust metrics.", error);
-    return { props: { trustMetrics: null }, revalidate: 300 };
+    return { props: { trustMetrics: null }, revalidate: 60 * 60 };
   }
 };

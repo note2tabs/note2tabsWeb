@@ -1,5 +1,5 @@
-import { track as trackAnalyticsV2 } from "./analyticsV2";
 import { publishTranscriptionCompletedForPremiumPrompt } from "./premiumPromptSignals";
+import { track as trackAnalyticsV2 } from "./analyticsV2";
 import type { TranscriptionModelChoice } from "./transcriptionModels";
 import {
   sanitizeAnalyticsPathname,
