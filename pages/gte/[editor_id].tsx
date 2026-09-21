@@ -1565,12 +1565,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [barSelection, setBarSelection] = useState<BarSelectionState | null>(null);
   const [barClipboard, setBarClipboard] = useState<EditorSnapshot | null>(null);
   const [barDragState, setBarDragState] = useState<BarDragState | null>(null);
-  const [pendingTrackReorder, setPendingTrackReorder] = useState<{
-    laneId: string;
-    startY: number;
-  } | null>(null);
-  const [trackDragLaneId, setTrackDragLaneId] = useState<string | null>(null);
-  const [trackDropIndex, setTrackDropIndex] = useState<number | null>(null);
   const [trackInstrumentOptions, setTrackInstrumentOptions] = useState<TrackInstrumentOption[]>(
     getTrackInstrumentOptions()
   );
@@ -4075,9 +4069,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     if (!canvas) {
       setBarSelection(null);
       setBarDragState(null);
-      setPendingTrackReorder(null);
-      setTrackDragLaneId(null);
-      setTrackDropIndex(null);
       return;
     }
     setBarSelection((prev) => {
@@ -4109,80 +4100,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       return { sourceLaneId: prev.sourceLaneId, barIndices: nextBarIndices };
     });
   }, [canvas]);
-
-  const computeTrackDropIndex = useCallback(
-    (pointerY: number) => {
-      if (!canvas || !canvas.editors.length) return null;
-      for (let index = 0; index < canvas.editors.length; index += 1) {
-        const laneId = canvas.editors[index].id || `ed-${index + 1}`;
-        const node = trackSectionRefs.current[laneId];
-        if (!node) continue;
-        const rect = node.getBoundingClientRect();
-        const mid = rect.top + rect.height / 2;
-        if (pointerY < mid) {
-          return index;
-        }
-      }
-      return canvas.editors.length;
-    },
-    [canvas]
-  );
-
-  useEffect(() => {
-    if (!pendingTrackReorder && !trackDragLaneId) return;
-
-    const previousBodyUserSelect = document.body.style.userSelect;
-    const previousBodyWebkitUserSelect = (document.body.style as CSSStyleDeclaration & {
-      webkitUserSelect?: string;
-    }).webkitUserSelect;
-    document.body.style.userSelect = "none";
-    (document.body.style as CSSStyleDeclaration & { webkitUserSelect?: string }).webkitUserSelect =
-      "none";
-
-    const handleMouseMove = (event: MouseEvent) => {
-      const activeLane = trackDragLaneId || pendingTrackReorder?.laneId || null;
-      if (!activeLane) return;
-
-      if (!trackDragLaneId && pendingTrackReorder) {
-        if (Math.abs(event.clientY - pendingTrackReorder.startY) < 8) return;
-        setTrackDragLaneId(pendingTrackReorder.laneId);
-      }
-
-      event.preventDefault();
-      const nextDropIndex = computeTrackDropIndex(event.clientY);
-      setTrackDropIndex(nextDropIndex);
-    };
-
-    const handleMouseUp = () => {
-      const draggingLaneId = trackDragLaneId;
-      const dropIndex = trackDropIndex;
-      setPendingTrackReorder(null);
-      setTrackDragLaneId(null);
-      setTrackDropIndex(null);
-      if (!draggingLaneId || dropIndex === null) return;
-      void handleReorderTrack(draggingLaneId, dropIndex);
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      document.body.style.userSelect = previousBodyUserSelect;
-      (
-        document.body.style as CSSStyleDeclaration & {
-          webkitUserSelect?: string;
-        }
-      ).webkitUserSelect = previousBodyWebkitUserSelect;
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [
-    computeTrackDropIndex,
-    handleReorderTrack,
-    pendingTrackReorder,
-    trackDragLaneId,
-    trackDropIndex,
-  ]);
 
   const handleLaneSelectionStateChange = useCallback(
     (
@@ -9066,10 +8983,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     onMouseDownCapture={(event) => {
                       const target = event.target as HTMLElement | null;
-                      if (practiceModeEnabled) {
-                        setPendingTrackReorder(null);
-                        return;
-                      }
+                      if (practiceModeEnabled) return;
                       const clickedBarSelector = Boolean(target?.closest("[data-bar-select='true']"));
                       const clickedEditorControl = Boolean(
                         target?.closest("[data-gte-editor-control='true']")
@@ -9088,38 +9002,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         setSelectionClearExemptEditorId(laneEditorRef);
                         setSelectionClearEpoch((prev) => prev + 1);
                       }
-                      if (clickedToolbarUi) {
-                        setPendingTrackReorder(null);
-                        return;
-                      }
+                      if (clickedToolbarUi) return;
                       setActiveLaneId(laneId);
-                      if (isMobileViewport) {
-                        setPendingTrackReorder(null);
-                        return;
-                      }
-                      if (event.button !== 0) {
-                        setPendingTrackReorder(null);
-                        return;
-                      }
-                      if (
-                        target?.closest(
-                          "button, a, input, textarea, select, label, [role='button'], [data-track-reorder-block='true']"
-                        )
-                      ) {
-                        setPendingTrackReorder(null);
-                        return;
-                      }
-                      setPendingTrackReorder({
-                        laneId,
-                        startY: event.clientY,
-                      });
                     }}
                     onTouchStartCapture={(event) => {
                       const target = event.target as HTMLElement | null;
-                      if (practiceModeEnabled) {
-                        setPendingTrackReorder(null);
-                        return;
-                      }
+                      if (practiceModeEnabled) return;
                       const clickedBarSelector = Boolean(target?.closest("[data-bar-select='true']"));
                       const clickedEditorControl = Boolean(
                         target?.closest("[data-gte-editor-control='true']")
@@ -9134,20 +9022,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         setSelectionClearExemptEditorId(laneEditorRef);
                         setSelectionClearEpoch((prev) => prev + 1);
                       }
-                      if (clickedToolbarUi) {
-                        setPendingTrackReorder(null);
-                        return;
-                      }
+                      if (clickedToolbarUi) return;
                       setActiveLaneId(laneId);
-                      setPendingTrackReorder(null);
                     }}
                   >
-                    {trackDragLaneId !== null && trackDropIndex === index && (
-                      <div className="pointer-events-none absolute -top-1 left-4 right-4 z-30 h-1 rounded-full bg-sky-400 shadow-sm" />
-                    )}
-                    {trackDragLaneId !== null && trackDropIndex === index + 1 && (
-                      <div className="pointer-events-none absolute -bottom-1 left-4 right-4 z-30 h-1 rounded-full bg-sky-400 shadow-sm" />
-                    )}
                     {isMobileViewport && !practiceModeEnabled ? (
                       mobileEditing ? (
                         <div className="flex min-h-0 flex-1 flex-col justify-center">
@@ -10304,9 +10182,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       </div>
                     </div>
                     )}
-                  {trackDragLaneId === laneId && (
-                    <div className="pointer-events-none absolute inset-0 z-10 rounded-xl border border-sky-300 bg-sky-100/20" />
-                  )}
                 </section>
               );
             })}
