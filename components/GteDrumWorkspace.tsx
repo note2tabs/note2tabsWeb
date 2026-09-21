@@ -16,6 +16,7 @@ import {
   DRUM_VOICES,
   getDrumVoiceForNote,
   snapDrumFrameToGrid,
+  snapDrumNotesInBar,
 } from "../lib/gteDrums";
 import { previewDrumVoice } from "../lib/gteDrumPlayback";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
@@ -402,6 +403,13 @@ export default function GteDrumWorkspace({
     (barIndex: number, value: number) => {
       const nextOverrides = { ...(snapshot.drumBarSubdivisions || {}) };
       nextOverrides[String(barIndex)] = value;
+      const snapped = snapDrumNotesInBar(
+        snapshot.notes,
+        barIndex,
+        beatsPerBar,
+        value,
+        FRAMES_PER_BAR
+      );
       onSnapshotChange(
         {
           ...snapshot,
@@ -409,12 +417,29 @@ export default function GteDrumWorkspace({
           type: "drums",
           trackType: "drums",
           drumBarSubdivisions: nextOverrides,
+          notes: snapped.notes,
           updatedAt: new Date().toISOString(),
         },
         { recordHistory: true, markDirty: true }
       );
+      if (
+        cursor.time >= barIndex * FRAMES_PER_BAR &&
+        cursor.time < (barIndex + 1) * FRAMES_PER_BAR
+      ) {
+        const snappedCursor = snapDrumFrameToGrid(
+          cursor.time,
+          beatsPerBar,
+          value,
+          FRAMES_PER_BAR
+        );
+        setCursor({
+          ...cursor,
+          time: Math.min((barIndex + 1) * FRAMES_PER_BAR - 1, snappedCursor),
+        });
+      }
+      setSaveError(null);
     },
-    [onSnapshotChange, snapshot]
+    [beatsPerBar, cursor, onSnapshotChange, snapshot]
   );
 
   useEffect(() => {
