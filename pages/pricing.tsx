@@ -21,6 +21,7 @@ import { premiumOfferExperimentProperties } from "../lib/premiumOfferExperiment"
 import { usePremiumOfferExperiment } from "../lib/usePremiumOfferExperiment";
 import { proPlanPresentationEnabled, type PaidSubscriptionPlan } from "../lib/subscriptionPlans";
 import type { BillingInterval } from "../lib/stripePremium";
+import { buildPricingProductStructuredData } from "../lib/pricingStructuredData";
 
 const pricingFaqs = [
   {
@@ -110,24 +111,7 @@ export default function PricingPage() {
         },
       })),
     },
-    {
-      "@context": "https://schema.org",
-      "@type": "Product",
-      name: "Note2Tabs",
-      offers: {
-        "@type": "OfferCatalog",
-        name: "Note2Tabs subscription plans",
-        itemListElement: [
-          { "@type": "Offer", name: "Free", price: "0", priceCurrency: "USD" },
-          { "@type": "Offer", name: "Premium", price: "5.99", priceCurrency: "USD" },
-          { "@type": "Offer", name: "Premium yearly", price: "59.99", priceCurrency: "USD" },
-          ...(showPro ? [
-            { "@type": "Offer", name: "Pro", price: "14.99", priceCurrency: "USD" },
-            { "@type": "Offer", name: "Pro yearly", price: "149.99", priceCurrency: "USD" },
-          ] : []),
-        ],
-      },
-    },
+    buildPricingProductStructuredData(showPro),
   ];
 
   const entrySource = normalizePremiumFunnelSource(router.query.source);
