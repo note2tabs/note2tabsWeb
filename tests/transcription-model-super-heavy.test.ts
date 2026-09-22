@@ -11,7 +11,7 @@ describe("MSModel transcription model", () => {
     expect(normalizeTranscriptionModel("msmodel")).toBe("super_heavy");
     // Legacy links and persisted values remain accepted.
     expect(normalizeTranscriptionModel("muscriptor")).toBe("super_heavy");
-    expect(transcriptionModelToBackendMethod("super_heavy")).toBe("muscriptor");
+    expect(transcriptionModelToBackendMethod("super_heavy")).toBe("msmodel");
     expect(transcriptionModelToBackendMethod("heavy")).toBe("yourmt3");
   });
 
