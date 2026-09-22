@@ -14,6 +14,10 @@ const { sessionMock, stripeMock, prismaMock, posthogMock, sendEmailMock } = vi.h
           listLineItems: vi.fn(),
         },
       },
+      promotionCodes: {
+        list: vi.fn(),
+        retrieve: vi.fn(),
+      },
       webhooks: {
         constructEvent: vi.fn(),
       },
@@ -167,6 +171,7 @@ describe("stripe premium flow", () => {
     delete process.env.STRIPE_PRODUCT_PRO;
     delete process.env.PRO_PLAN_ENABLED;
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+    process.env.PREMIUM_TRIAL_ENABLED = "true";
     delete process.env.PREMIUM_TRIAL_REMINDER_MODE;
     process.env.NEXTAUTH_URL = "https://note2tabs.test";
     sessionMock.mockResolvedValue({
@@ -176,6 +181,7 @@ describe("stripe premium flow", () => {
       id: "cs_test_123",
       url: "https://checkout.stripe.test/session_123",
     });
+    stripeMock.promotionCodes.list.mockResolvedValue({ data: [] });
     stripeMock.checkout.sessions.retrieve.mockResolvedValue(null);
     stripeMock.checkout.sessions.listLineItems.mockResolvedValue({ data: [] });
     stripeMock.customers.list.mockResolvedValue({ data: [] });
@@ -220,7 +226,62 @@ describe("stripe premium flow", () => {
     );
   });
 
+  describe("school access checkout", () => {
+    it("opens a separate Stripe code-entry checkout without changing normal trial checkout", async () => {
+      const handler = (await import("../../pages/api/stripe/school-access-checkout")).default;
+      const { req, res } = createMocks({ method: "GET", headers: { host: "note2tabs.test", "x-forwarded-proto": "https" } });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(303);
+      expect(res.getHeader("Location")).toBe("https://checkout.stripe.test/session_123");
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(expect.objectContaining({
+        mode: "subscription",
+        payment_method_collection: "if_required",
+        allow_promotion_codes: true,
+        line_items: [{ price: "price_test_premium", quantity: 1 }],
+        subscription_data: { metadata: expect.objectContaining({ note2tabsSchoolCheckout: "true", premiumTrialIncluded: "false" }) },
+      }));
+    });
+
+    it("sends signed-out teachers through login and back to the private checkout link", async () => {
+      sessionMock.mockResolvedValue(null);
+      const handler = (await import("../../pages/api/stripe/school-access-checkout")).default;
+      const { req, res } = createMocks({ method: "GET" });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(302);
+      expect(res.getHeader("Location")).toBe("/auth/login?next=%2Fapi%2Fstripe%2Fschool-access-checkout");
+      expect(stripeMock.checkout.sessions.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe("create-checkout-session", () => {
+    it("charges Premium immediately while the 30-day no-trial test is active", async () => {
+      delete process.env.PREMIUM_TRIAL_ENABLED;
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({ method: "POST", body: { plan: "premium" } });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(res._getJSONData()).toMatchObject({
+        plan: "premium",
+        trialIncluded: false,
+        offerMode: "immediate_charge",
+      });
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subscription_data: expect.not.objectContaining({ trial_period_days: expect.anything() }),
+          metadata: expect.objectContaining({
+            premiumTrialIncluded: "false",
+            premiumOfferMode: "immediate_charge",
+          }),
+        }),
+        expect.anything()
+      );
+    });
     it("keeps Pro checkout disabled until the launch flag is enabled", async () => {
       process.env.STRIPE_PRICE_PRO_MONTHLY = "price_test_pro";
       process.env.STRIPE_PRODUCT_PRO = "prod_test_pro";
@@ -320,6 +381,7 @@ describe("stripe premium flow", () => {
         plan: "premium",
         billingInterval: "monthly",
         trialIncluded: true,
+        offerMode: "seven_day_trial",
         offerVariant: "value_framing",
       });
       expect(posthogMock.capture).toHaveBeenCalledWith({
@@ -1087,6 +1149,57 @@ describe("stripe premium flow", () => {
   });
 
   describe("stripe webhook", () => {
+    it("schedules card-free school access to end without renewal", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        id: "evt_school",
+        type: "checkout.session.completed",
+        data: { object: {
+          id: "cs_school",
+          mode: "subscription",
+          metadata: {
+            userId: "user_1",
+            note2tabsPlan: "premium",
+            note2tabsPriceId: "price_test_premium",
+            note2tabsSchoolCheckout: "true",
+            premiumTrialIncluded: "false",
+          },
+          subscription: "sub_school",
+          customer_details: { email: "user@example.com" },
+        } },
+      });
+      stripeMock.subscriptions.retrieve.mockResolvedValue(premiumSubscription({ id: "sub_school", metadata: {} }));
+      stripeMock.checkout.sessions.retrieve.mockResolvedValue({
+        id: "cs_school",
+        total_details: { breakdown: { discounts: [{ discount: { promotion_code: "promo_school" } }] } },
+      });
+      stripeMock.promotionCodes.retrieve.mockResolvedValue({
+        id: "promo_school",
+        active: true,
+        metadata: {},
+        coupon: {
+          valid: true,
+          percent_off: 100,
+          duration: "repeating",
+          duration_in_months: 2,
+          metadata: { note2tabsCardFreeSchoolAccess: "true" },
+        },
+      });
+      prismaMock.user.findFirst.mockResolvedValue({ id: "user_1", role: "FREE", tokensRemaining: STARTING_CREDITS });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      await handler(buildWebhookReq() as any, createResponse() as any);
+
+      const expectedEnd = new Date(1_700_000_000 * 1000);
+      expectedEnd.setUTCMonth(expectedEnd.getUTCMonth() + 2);
+      expect(stripeMock.subscriptions.update).toHaveBeenCalledWith("sub_school", {
+        cancel_at: Math.floor(expectedEnd.getTime() / 1000),
+        metadata: expect.objectContaining({
+          note2tabsCardFreeSchoolAccess: "true",
+          note2tabsSchoolAccessMonths: "2",
+        }),
+      });
+    });
+
     it("upgrades FREE users to PREMIUM on checkout.session.completed", async () => {
       stripeMock.webhooks.constructEvent.mockReturnValue({
         type: "checkout.session.completed",

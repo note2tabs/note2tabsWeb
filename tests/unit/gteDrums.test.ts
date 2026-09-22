@@ -6,6 +6,7 @@ import {
   isDrumTrackType,
   isSupportedDrumNote,
   snapDrumFrameToGrid,
+  snapDrumNotesInBar,
 } from "../../lib/gteDrums";
 import { DRUM1_SAMPLE_URLS } from "../../lib/gteDrumPlayback";
 
@@ -66,5 +67,38 @@ describe("drum tracks", () => {
     expect(snapDrumFrameToGrid(479, 7, 3)).toBe(480);
     expect(snapDrumFrameToGrid(503, 7, 3)).toBe(503);
     expect(snapDrumFrameToGrid(960, 7, 3)).toBe(960);
+  });
+
+  it("snaps only the selected bar to its new subdivision grid", () => {
+    const before = [
+      buildDrumNote({ id: 1, startTime: 45, voiceIndex: 6 }),
+      buildDrumNote({ id: 2, startTime: 525, voiceIndex: 6 }),
+      buildDrumNote({ id: 3, startTime: 599, voiceIndex: 8 }),
+    ];
+
+    const result = snapDrumNotesInBar(before, 1, 4, 2);
+
+    expect(result.notes.map((note) => [note.id, note.startTime])).toEqual([
+      [1, 45],
+      [2, 540],
+      [3, 600],
+    ]);
+    expect([...result.movedIds]).toEqual([2, 3]);
+  });
+
+  it("keeps the lowest id when same-voice hits snap into one cell", () => {
+    const before = [
+      buildDrumNote({ id: 9, startTime: 44, voiceIndex: 6 }),
+      buildDrumNote({ id: 4, startTime: 47, voiceIndex: 6 }),
+      buildDrumNote({ id: 10, startTime: 47, voiceIndex: 8 }),
+    ];
+
+    const result = snapDrumNotesInBar(before, 0, 4, 2);
+
+    expect(result.notes.map((note) => [note.id, note.startTime])).toEqual([
+      [4, 60],
+      [10, 60],
+    ]);
+    expect([...result.removedIds]).toEqual([9]);
   });
 });

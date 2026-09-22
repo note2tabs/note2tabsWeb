@@ -119,3 +119,54 @@ export const snapDrumFrameToGrid = (
   );
   return barStart + Math.round((unitIndex * safeFramesPerBar) / unitsPerBar);
 };
+
+export const snapDrumNotesInBar = (
+  notes: Note[],
+  barIndex: number,
+  beatsPerBar: number,
+  subdivisionsPerBeat: number,
+  framesPerBar = 480
+) => {
+  const safeFramesPerBar = Math.max(1, Math.round(Number(framesPerBar) || 480));
+  const safeBarIndex = Math.max(0, Math.round(Number(barIndex) || 0));
+  const safeBeats = Math.max(1, Math.round(Number(beatsPerBar) || 1));
+  const safeSubdivisions = Math.max(1, Math.round(Number(subdivisionsPerBeat) || 1));
+  const cellsPerBar = safeBeats * safeSubdivisions;
+  const gridStep = safeFramesPerBar / cellsPerBar;
+  const barStart = safeBarIndex * safeFramesPerBar;
+  const barEnd = barStart + safeFramesPerBar;
+  const snappedById = new Map<number, number>();
+  const winnerByCell = new Map<string, number>();
+  const removedIds = new Set<number>();
+
+  notes.forEach((note) => {
+    if (note.startTime < barStart || note.startTime >= barEnd) return;
+    const localFrame = note.startTime - barStart;
+    const cellIndex = Math.max(
+      0,
+      Math.min(cellsPerBar - 1, Math.round(localFrame / gridStep))
+    );
+    const snappedTime = barStart + Math.round(cellIndex * gridStep);
+    snappedById.set(note.id, snappedTime);
+    const collisionKey = `${getDrumVoiceForNote(note).id}:${snappedTime}`;
+    const currentWinnerId = winnerByCell.get(collisionKey);
+    if (currentWinnerId === undefined || note.id < currentWinnerId) {
+      if (currentWinnerId !== undefined) removedIds.add(currentWinnerId);
+      winnerByCell.set(collisionKey, note.id);
+      removedIds.delete(note.id);
+    } else {
+      removedIds.add(note.id);
+    }
+  });
+
+  const movedIds = new Set<number>();
+  const nextNotes = notes.flatMap((note) => {
+    if (removedIds.has(note.id)) return [];
+    const snappedTime = snappedById.get(note.id);
+    if (snappedTime === undefined || snappedTime === note.startTime) return [note];
+    movedIds.add(note.id);
+    return [{ ...note, startTime: snappedTime }];
+  });
+
+  return { notes: nextNotes, movedIds, removedIds };
+};

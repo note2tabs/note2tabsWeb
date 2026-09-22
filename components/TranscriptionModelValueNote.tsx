@@ -20,7 +20,7 @@ export default function TranscriptionModelValueNote({
     return (
       <p className="model-value-note">
         <span>
-          Working with a complex recording? Heavy offers our highest accuracy.
+          Working with a complex recording? Try Heavy for multi-instrument transcription.
         </span>
         <button type="button" onClick={onSelectHeavy} className="model-value-note__action">
           Try Heavy
@@ -29,10 +29,14 @@ export default function TranscriptionModelValueNote({
     );
   }
 
+  if (model === "super_heavy") {
+    return <p className="model-value-note">Super Heavy uses MuScriptor for detailed multi-instrument transcription.</p>;
+  }
+
   if (isPremium) {
     return (
       <p className="model-value-note">
-        <span>Heavy selected for our highest-accuracy transcription.</span>
+        <span>Heavy selected for multi-instrument transcription.</span>
       </p>
     );
   }

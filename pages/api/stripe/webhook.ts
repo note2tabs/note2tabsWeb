@@ -441,6 +441,30 @@ function checkoutPromotionCodeId(session: Stripe.Checkout.Session) {
   return null;
 }
 
+async function cardFreeSchoolAccessMonths(session: Stripe.Checkout.Session) {
+  if (!stripeClient || session.metadata?.note2tabsSchoolCheckout !== "true") return null;
+  const expanded = await stripeClient.checkout.sessions.retrieve(session.id, {
+    expand: ["total_details.breakdown.discounts.discount.promotion_code"],
+  });
+  const promotionId = checkoutPromotionCodeId(expanded);
+  if (!promotionId) return null;
+  const promotion = await stripeClient.promotionCodes.retrieve(promotionId, { expand: ["coupon"] });
+  const coupon = typeof promotion.coupon === "string" ? null : promotion.coupon;
+  const approved =
+    promotion.active &&
+    (promotion.metadata?.note2tabsCardFreeSchoolAccess === "true" ||
+      coupon?.metadata?.note2tabsCardFreeSchoolAccess === "true") &&
+    coupon?.valid &&
+    coupon.percent_off === 100 &&
+    coupon.duration === "repeating";
+  const months = Number(
+    promotion.metadata?.note2tabsSchoolAccessMonths ||
+    coupon?.metadata?.note2tabsSchoolAccessMonths ||
+    coupon?.duration_in_months
+  );
+  return approved && Number.isInteger(months) && months >= 1 && months <= 24 ? months : null;
+}
+
 async function persistAffiliateAttribution(
   checkoutSession: Stripe.Checkout.Session,
   userId: string
@@ -834,6 +858,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const plan = await paidPlanForCheckoutSession(checkoutSession);
       if (!plan) {
         return res.status(200).json({ received: true, ignored: "unrelated_checkout" });
+      }
+      if (checkoutSession.metadata?.note2tabsSchoolCheckout === "true") {
+        const months = await cardFreeSchoolAccessMonths(checkoutSession);
+        if (months && typeof checkoutSession.subscription === "string") {
+          const subscription = await stripeClient.subscriptions.retrieve(checkoutSession.subscription);
+          const end = new Date(subscription.current_period_start * 1000);
+          end.setUTCMonth(end.getUTCMonth() + months);
+          await stripeClient.subscriptions.update(subscription.id, {
+            cancel_at: Math.floor(end.getTime() / 1000),
+            metadata: {
+              ...subscription.metadata,
+              note2tabsCardFreeSchoolAccess: "true",
+              note2tabsSchoolAccessMonths: String(months),
+            },
+          });
+        }
       }
       const identifier = await resolveUserIdentifierFromCheckoutSession(checkoutSession);
       if (identifier) {

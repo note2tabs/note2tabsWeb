@@ -1565,12 +1565,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [barSelection, setBarSelection] = useState<BarSelectionState | null>(null);
   const [barClipboard, setBarClipboard] = useState<EditorSnapshot | null>(null);
   const [barDragState, setBarDragState] = useState<BarDragState | null>(null);
-  const [pendingTrackReorder, setPendingTrackReorder] = useState<{
-    laneId: string;
-    startY: number;
-  } | null>(null);
-  const [trackDragLaneId, setTrackDragLaneId] = useState<string | null>(null);
-  const [trackDropIndex, setTrackDropIndex] = useState<number | null>(null);
   const [trackInstrumentOptions, setTrackInstrumentOptions] = useState<TrackInstrumentOption[]>(
     getTrackInstrumentOptions()
   );
@@ -1622,6 +1616,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const canvasRedoRef = useRef<CanvasSnapshot[]>([]);
   const canvasRef = useRef<CanvasSnapshot | null>(null);
   const canvasRevisionRef = useRef(0);
+  const pendingDrumSavesRef = useRef(new Map<string, EditorSnapshot>());
+  const drumSaveTimerRef = useRef<number | null>(null);
+  const drumSaveInFlightRef = useRef(false);
+  const drumSaveStartedCleanRef = useRef(false);
+  const drumSaveRetryDelayRef = useRef(1500);
   const trackSectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const [sharedTimelineBaseScale, setSharedTimelineBaseScale] = useState<number | undefined>(undefined);
 
@@ -1927,7 +1926,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         activeDurationSec: currentActiveDurationSec(),
         heartbeatSequence,
       }).catch(() => {});
-    }, 60_000);
+    // Session start/end already retain exact active duration. A five-minute
+    // heartbeat is sufficient to recover long sessions after a hard browser
+    // close without waking a Vercel Function once per minute per open editor.
+    }, 5 * 60_000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -2109,10 +2111,93 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     setMobileEditLaneId((prev) => (isMobileViewport ? laneId : prev));
   }, [isMobileViewport]);
 
+  const flushDrumSaves = useCallback(async () => {
+    if (isGuestMode || drumSaveInFlightRef.current || !pendingDrumSavesRef.current.size) return;
+    if (drumSaveTimerRef.current !== null) {
+      window.clearTimeout(drumSaveTimerRef.current);
+      drumSaveTimerRef.current = null;
+    }
+    const currentLaneIds = new Set(canvasRef.current?.editors.map((lane) => lane.id) ?? []);
+    const pending = [...pendingDrumSavesRef.current.entries()].filter(([laneId]) =>
+      currentLaneIds.has(laneId)
+    );
+    pendingDrumSavesRef.current.clear();
+    if (!pending.length) return;
+    const revisionAtStart = canvasRevisionRef.current;
+    drumSaveInFlightRef.current = true;
+    let saveFailed = false;
+    try {
+      for (const [laneId, laneSnapshot] of pending) {
+        await gteApi.applySnapshot(buildLaneEditorRef(editorId, laneId), laneSnapshot);
+      }
+      await gteApi.commitEditor(editorId);
+      drumSaveRetryDelayRef.current = 1500;
+      if (pendingDrumSavesRef.current.size === 0 && canvasRevisionRef.current === revisionAtStart) {
+        if (drumSaveStartedCleanRef.current) setHasPendingCommit(false);
+        setLastCommittedAt(new Date().toISOString());
+        setSaveError(null);
+      }
+    } catch (err: any) {
+      saveFailed = true;
+      console.error("[gte:drum-save] Failed to persist drum lanes", {
+        laneIds: pending.map(([laneId]) => laneId),
+        error: err,
+      });
+      for (const [laneId, laneSnapshot] of pending) {
+        if (!pendingDrumSavesRef.current.has(laneId)) {
+          pendingDrumSavesRef.current.set(laneId, laneSnapshot);
+        }
+      }
+      setSaveError(err?.message || "We could not save the drum track. Your edits remain here and will retry.");
+      drumSaveRetryDelayRef.current = Math.min(30000, drumSaveRetryDelayRef.current * 2);
+    } finally {
+      drumSaveInFlightRef.current = false;
+      if (pendingDrumSavesRef.current.size && drumSaveTimerRef.current === null) {
+        drumSaveTimerRef.current = window.setTimeout(() => {
+          drumSaveTimerRef.current = null;
+          void flushDrumSaves();
+        }, saveFailed ? drumSaveRetryDelayRef.current : 450);
+      }
+    }
+  }, [editorId, isGuestMode]);
+
+  const queueDrumSave = useCallback((laneId: string, laneSnapshot: EditorSnapshot) => {
+    if (isGuestMode) return;
+    if (!pendingDrumSavesRef.current.size && !drumSaveInFlightRef.current) {
+      drumSaveStartedCleanRef.current = !hasPendingCommit;
+    }
+    pendingDrumSavesRef.current.set(laneId, laneSnapshot);
+    if (drumSaveInFlightRef.current) return;
+    if (drumSaveTimerRef.current !== null) window.clearTimeout(drumSaveTimerRef.current);
+    drumSaveTimerRef.current = window.setTimeout(() => {
+      drumSaveTimerRef.current = null;
+      void flushDrumSaves();
+    }, 450);
+  }, [flushDrumSaves, hasPendingCommit, isGuestMode]);
+
+  useEffect(() => {
+    const flushWhenHidden = () => {
+      if (document.visibilityState === "hidden") void flushDrumSaves();
+    };
+    document.addEventListener("visibilitychange", flushWhenHidden);
+    return () => {
+      document.removeEventListener("visibilitychange", flushWhenHidden);
+      if (drumSaveTimerRef.current !== null) {
+        window.clearTimeout(drumSaveTimerRef.current);
+        drumSaveTimerRef.current = null;
+      }
+      if (pendingDrumSavesRef.current.size) void flushDrumSaves();
+    };
+  }, [flushDrumSaves]);
+
   const commitCanvasToBackend = useCallback(
     async (options?: { force?: boolean; keepalive?: boolean }) => {
       const currentCanvas = canvasRef.current;
       if (!currentCanvas) return;
+      if (!isGuestMode && (pendingDrumSavesRef.current.size || drumSaveInFlightRef.current)) {
+        void flushDrumSaves();
+        return;
+      }
       if (isGuestMode) {
         if (!options?.force && !hasPendingCommit) return;
         setSavingCanvas(true);
@@ -2154,7 +2239,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         setSavingCanvas(false);
       }
     },
-    [cloneCanvas, editorId, hasPendingCommit, isGuestMode]
+    [cloneCanvas, editorId, flushDrumSaves, hasPendingCommit, isGuestMode]
   );
 
   const syncLatestCanvasBeforeStructuralMutation = useCallback(async () => {
@@ -3064,6 +3149,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       }
       return nextCanvas;
     });
+    if (isDrumLane(nextLaneSnapshot) && (options?.markDirty ?? true)) {
+      queueDrumSave(laneId, nextLaneSnapshot);
+    }
     if (options?.markDirty ?? options?.recordHistory !== false) {
       setHasPendingCommit(true);
     }
@@ -4072,9 +4160,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     if (!canvas) {
       setBarSelection(null);
       setBarDragState(null);
-      setPendingTrackReorder(null);
-      setTrackDragLaneId(null);
-      setTrackDropIndex(null);
       return;
     }
     setBarSelection((prev) => {
@@ -4106,80 +4191,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       return { sourceLaneId: prev.sourceLaneId, barIndices: nextBarIndices };
     });
   }, [canvas]);
-
-  const computeTrackDropIndex = useCallback(
-    (pointerY: number) => {
-      if (!canvas || !canvas.editors.length) return null;
-      for (let index = 0; index < canvas.editors.length; index += 1) {
-        const laneId = canvas.editors[index].id || `ed-${index + 1}`;
-        const node = trackSectionRefs.current[laneId];
-        if (!node) continue;
-        const rect = node.getBoundingClientRect();
-        const mid = rect.top + rect.height / 2;
-        if (pointerY < mid) {
-          return index;
-        }
-      }
-      return canvas.editors.length;
-    },
-    [canvas]
-  );
-
-  useEffect(() => {
-    if (!pendingTrackReorder && !trackDragLaneId) return;
-
-    const previousBodyUserSelect = document.body.style.userSelect;
-    const previousBodyWebkitUserSelect = (document.body.style as CSSStyleDeclaration & {
-      webkitUserSelect?: string;
-    }).webkitUserSelect;
-    document.body.style.userSelect = "none";
-    (document.body.style as CSSStyleDeclaration & { webkitUserSelect?: string }).webkitUserSelect =
-      "none";
-
-    const handleMouseMove = (event: MouseEvent) => {
-      const activeLane = trackDragLaneId || pendingTrackReorder?.laneId || null;
-      if (!activeLane) return;
-
-      if (!trackDragLaneId && pendingTrackReorder) {
-        if (Math.abs(event.clientY - pendingTrackReorder.startY) < 8) return;
-        setTrackDragLaneId(pendingTrackReorder.laneId);
-      }
-
-      event.preventDefault();
-      const nextDropIndex = computeTrackDropIndex(event.clientY);
-      setTrackDropIndex(nextDropIndex);
-    };
-
-    const handleMouseUp = () => {
-      const draggingLaneId = trackDragLaneId;
-      const dropIndex = trackDropIndex;
-      setPendingTrackReorder(null);
-      setTrackDragLaneId(null);
-      setTrackDropIndex(null);
-      if (!draggingLaneId || dropIndex === null) return;
-      void handleReorderTrack(draggingLaneId, dropIndex);
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      document.body.style.userSelect = previousBodyUserSelect;
-      (
-        document.body.style as CSSStyleDeclaration & {
-          webkitUserSelect?: string;
-        }
-      ).webkitUserSelect = previousBodyWebkitUserSelect;
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [
-    computeTrackDropIndex,
-    handleReorderTrack,
-    pendingTrackReorder,
-    trackDragLaneId,
-    trackDropIndex,
-  ]);
 
   const handleLaneSelectionStateChange = useCallback(
     (
@@ -9063,10 +9074,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     onMouseDownCapture={(event) => {
                       const target = event.target as HTMLElement | null;
-                      if (practiceModeEnabled) {
-                        setPendingTrackReorder(null);
-                        return;
-                      }
+                      if (practiceModeEnabled) return;
                       const clickedBarSelector = Boolean(target?.closest("[data-bar-select='true']"));
                       const clickedEditorControl = Boolean(
                         target?.closest("[data-gte-editor-control='true']")
@@ -9085,38 +9093,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         setSelectionClearExemptEditorId(laneEditorRef);
                         setSelectionClearEpoch((prev) => prev + 1);
                       }
-                      if (clickedToolbarUi) {
-                        setPendingTrackReorder(null);
-                        return;
-                      }
+                      if (clickedToolbarUi) return;
                       setActiveLaneId(laneId);
-                      if (isMobileViewport) {
-                        setPendingTrackReorder(null);
-                        return;
-                      }
-                      if (event.button !== 0) {
-                        setPendingTrackReorder(null);
-                        return;
-                      }
-                      if (
-                        target?.closest(
-                          "button, a, input, textarea, select, label, [role='button'], [data-track-reorder-block='true']"
-                        )
-                      ) {
-                        setPendingTrackReorder(null);
-                        return;
-                      }
-                      setPendingTrackReorder({
-                        laneId,
-                        startY: event.clientY,
-                      });
                     }}
                     onTouchStartCapture={(event) => {
                       const target = event.target as HTMLElement | null;
-                      if (practiceModeEnabled) {
-                        setPendingTrackReorder(null);
-                        return;
-                      }
+                      if (practiceModeEnabled) return;
                       const clickedBarSelector = Boolean(target?.closest("[data-bar-select='true']"));
                       const clickedEditorControl = Boolean(
                         target?.closest("[data-gte-editor-control='true']")
@@ -9131,20 +9113,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         setSelectionClearExemptEditorId(laneEditorRef);
                         setSelectionClearEpoch((prev) => prev + 1);
                       }
-                      if (clickedToolbarUi) {
-                        setPendingTrackReorder(null);
-                        return;
-                      }
+                      if (clickedToolbarUi) return;
                       setActiveLaneId(laneId);
-                      setPendingTrackReorder(null);
                     }}
                   >
-                    {trackDragLaneId !== null && trackDropIndex === index && (
-                      <div className="pointer-events-none absolute -top-1 left-4 right-4 z-30 h-1 rounded-full bg-sky-400 shadow-sm" />
-                    )}
-                    {trackDragLaneId !== null && trackDropIndex === index + 1 && (
-                      <div className="pointer-events-none absolute -bottom-1 left-4 right-4 z-30 h-1 rounded-full bg-sky-400 shadow-sm" />
-                    )}
                     {isMobileViewport && !practiceModeEnabled ? (
                       mobileEditing ? (
                         <div className="flex min-h-0 flex-1 flex-col justify-center">
@@ -10301,9 +10273,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       </div>
                     </div>
                     )}
-                  {trackDragLaneId === laneId && (
-                    <div className="pointer-events-none absolute inset-0 z-10 rounded-xl border border-sky-300 bg-sky-100/20" />
-                  )}
                 </section>
               );
             })}

@@ -12078,6 +12078,11 @@ input[type="number"] {
   align-items: stretch;
 }
 
+.adminAffiliateCheckbox { display: flex; gap: 10px; align-items: flex-start; }
+.adminAffiliateCheckbox input { margin-top: 3px; }
+.adminAffiliateCheckbox span { display: grid; gap: 3px; }
+.adminAffiliateCheckbox small { color: #69716d; line-height: 1.4; }
+
 .pricing-page__plans--three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   max-width: 1240px;
@@ -12933,12 +12938,19 @@ input[type="number"] {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
-    height: 1.3rem;
+    height: 1.6rem;
   }
 
-  .gte-drum-bar-headings button {
-    border: 0;
+  .gte-drum-bar-heading-cell {
+    position: relative;
+    min-width: 0;
     border-right: 1px solid #aebbb4;
+  }
+
+  .gte-drum-bar-select {
+    width: 100%;
+    height: 100%;
+    border: 0;
     border-bottom: 1px solid #c9d2cd;
     padding-inline: .5rem;
     background: #f7f7f3;
@@ -12948,10 +12960,27 @@ input[type="number"] {
     text-align: left;
   }
 
-  .gte-drum-bar-headings button.is-selected {
+  .gte-drum-bar-select.is-selected {
     background: var(--gte-accent-soft);
     color: #175f43;
   }
+
+  .gte-drum-bar-subdivision-toggle {
+    position: absolute;
+    top: .18rem;
+    right: .28rem;
+    min-width: 2.6rem;
+    border: 0;
+    border-radius: 3px;
+    padding: .2rem .35rem;
+    background: #4c5a53;
+    color: #fff;
+    font-size: .58rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .gte-drum-bar-subdivision-toggle:hover { background: #34443c; }
 
   .gte-drum-staff {
     position: relative;
@@ -12986,11 +13015,17 @@ input[type="number"] {
     white-space: nowrap;
   }
 
+  .gte-drum-grid-row {
+    display: grid;
+    min-width: 0;
+  }
+
   .gte-drum-grid {
     position: relative;
     display: grid;
     min-width: 0;
     background: #fffefa;
+    border-right: 1px solid #aebbb4;
   }
 
   .gte-drum-grid > button:not(.gte-drum-hit) {
@@ -13009,27 +13044,89 @@ input[type="number"] {
 
   .gte-drum-hit {
     position: absolute;
-    top: 50%;
+    top: 1px;
+    bottom: 1px;
     z-index: 4;
     display: grid;
-    width: 1.3rem;
-    height: 1.3rem;
-    transform: translate(-50%, -50%);
     place-items: center;
     border: 0;
-    border-radius: 50%;
-    background: transparent;
-    color: #1f2b27;
-    font-size: .88rem;
+    border-radius: 3px;
+    background: #4c5a53;
+    color: #f4f7f5;
+    font-size: .78rem;
     font-weight: 850;
     line-height: 1;
   }
 
-  .gte-drum-hit:hover { background: #e4eee8; }
+  .gte-drum-hit:hover { background: #3c4842; }
+  .gte-drum-hit.is-virtual {
+    background: #9acdb9;
+    color: #174c37;
+    pointer-events: none;
+  }
   .gte-drum-hit.is-selected {
-    background: #dceee4;
-    color: #11603f;
+    background: #11603f;
+    color: #fff;
     box-shadow: 0 0 0 2px #68a98a;
+  }
+
+  .gte-drum-score-loop {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 2;
+    cursor: grab;
+    border: 1px solid #66a48d;
+    background: rgba(116, 188, 160, .12);
+    touch-action: none;
+    pointer-events: none;
+  }
+
+  .gte-drum-score-loop.is-selected { border-color: #11603f; }
+  .gte-drum-score-loop-source {
+    height: 100%;
+    border-right: 1px dashed #508e77;
+    background: rgba(116, 188, 160, .1);
+    pointer-events: none;
+  }
+
+  .gte-drum-score-loop-handle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    width: 10px;
+    border: 0;
+    background: #39876a;
+    cursor: ew-resize;
+    touch-action: none;
+    pointer-events: auto;
+  }
+
+  .gte-drum-score-loop-grab {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 5;
+    height: 15px;
+    min-width: 32px;
+    border: 0;
+    border-radius: 0 0 3px 0;
+    background: #39876a;
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    cursor: grab;
+    pointer-events: auto;
+  }
+
+  .gte-drum-score-selection {
+    position: absolute;
+    z-index: 10;
+    border: 1px solid #17815b;
+    background: rgba(87, 174, 139, .2);
+    pointer-events: none;
   }
 
   .gte-drum-playhead {

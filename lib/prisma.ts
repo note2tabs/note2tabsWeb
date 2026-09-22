@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaNeon } from "@prisma/adapter-neon";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -8,6 +9,9 @@ declare global {
 export const prisma =
   global.prisma ||
   new PrismaClient({
+    adapter: new PrismaNeon({
+      connectionString: process.env.DATABASE_URL!,
+    }),
     log: ["error", "warn"],
   });
 

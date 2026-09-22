@@ -1790,6 +1790,7 @@ type ChordEditorDragState =
       anchorX: number;
       originalStart: number;
       group?: Array<{ chordId: number; originalStart: number }>;
+      moved?: boolean;
     }
   | {
       kind: "resize-left" | "resize-right";
@@ -1797,6 +1798,7 @@ type ChordEditorDragState =
       anchorX: number;
       originalStart: number;
       originalLength: number;
+      moved?: boolean;
     };
 
 type ChordStrumEditorState = {
@@ -2112,6 +2114,7 @@ function ChordLaneWorkspace({
   const [selectedBarIndices, setSelectedBarIndices] = useState<number[]>([]);
   const [snapDenominator, setSnapDenominator] = useState<(typeof CHORD_EDITOR_SNAP_DENOMINATORS)[number]>(4);
   const [chordMenuOpen, setChordMenuOpen] = useState(false);
+  const [pendingChordFrame, setPendingChordFrame] = useState<number | null>(null);
   const [chordPaletteExtension, setChordPaletteExtension] =
     useState<(typeof CHORD_PALETTE_EXTENSIONS)[number]["value"]>("");
   const [strumEditor, setStrumEditor] = useState<ChordStrumEditorState | null>(null);
@@ -2260,20 +2263,20 @@ function ChordLaneWorkspace({
 
   const snapFrame = useCallback(
     (frame: number, mode: "floor" | "round" | "ceil" = "round") => {
-      const unit = FIXED_FRAMES_PER_BAR / snapDenominator;
+      const unit = FIXED_FRAMES_PER_BAR / beatsPerBar;
       const raw = Math.max(trackOffsetFrames, Number(frame) || 0) / unit;
       const snapped = mode === "floor" ? Math.floor(raw) : mode === "ceil" ? Math.ceil(raw) : Math.round(raw);
       return Math.max(trackOffsetFrames, Math.round(snapped * unit));
     },
-    [snapDenominator, trackOffsetFrames]
+    [beatsPerBar, trackOffsetFrames]
   );
 
   const snapLength = useCallback(
     (length: number) => {
-      const unit = FIXED_FRAMES_PER_BAR / snapDenominator;
+      const unit = FIXED_FRAMES_PER_BAR / beatsPerBar;
       return clampEventLength(Math.max(unit, Math.round((Math.max(1, length) / unit)) * unit));
     },
-    [snapDenominator]
+    [beatsPerBar]
   );
 
   if (!chordAutosaveQueueRef.current) {
@@ -2985,6 +2988,9 @@ function ChordLaneWorkspace({
       if (!chord) return;
       const deltaFrames = Math.round((event.clientX - dragState.anchorX) / pxPerFrame);
       if (dragState.kind === "move") {
+        if (!dragState.moved && Math.abs(event.clientX - dragState.anchorX) > 3) {
+          dragState.moved = true;
+        }
         const startTime = Math.max(0, snapFrame(dragState.originalStart + deltaFrames));
         if (dragState.group?.length) {
           const startsById = new Map(
@@ -3045,8 +3051,10 @@ function ChordLaneWorkspace({
         setStrumEditor((prev) => (prev ? { ...prev, drag: null } : prev));
         return;
       }
-      if (!dragStateRef.current) return;
+      const finishedDrag = dragStateRef.current;
+      if (!finishedDrag) return;
       dragStateRef.current = null;
+      if (finishedDrag.kind === "move" && !finishedDrag.moved) return;
       suppressChordClickRef.current = true;
       commitSnapshot({ ...snapshot, chords: snapshot.chords }, { recordHistory: true });
     };
@@ -3341,7 +3349,17 @@ function ChordLaneWorkspace({
                 <div className="text-[10px] font-bold uppercase tracking-[.14em] text-emerald-700">Chord palette</div>
                 <div className="text-xs text-slate-500">Drag a chord onto the score</div>
               </div>
-              <button type="button" onClick={() => setChordMenuOpen(false)} className="h-7 w-7 rounded-full hover:bg-slate-100" aria-label="Close chord palette">×</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setChordMenuOpen(false);
+                  setPendingChordFrame(null);
+                }}
+                className="h-7 w-7 rounded-full hover:bg-slate-100"
+                aria-label="Close chord palette"
+              >
+                ×
+              </button>
             </div>
             <div className="space-y-3">
               {CHORD_EDITOR_QUALITIES.map((quality) => (
@@ -3367,6 +3385,12 @@ function ChordLaneWorkspace({
                           }}
                           onClick={() => {
                             if (!chordInKey) return;
+                            if (pendingChordFrame !== null) {
+                              addChordAtFrame(payload, pendingChordFrame);
+                              setChordMenuOpen(false);
+                              setPendingChordFrame(null);
+                              return;
+                            }
                             void playChordPalettePreview(payload);
                           }}
                           className={`rounded-lg border px-2 py-1.5 text-xs font-semibold ${
@@ -3390,17 +3414,6 @@ function ChordLaneWorkspace({
             </div>
           </aside>
         ) : null}
-        <button
-          type="button"
-          data-gte-floating-ui="true"
-          onClick={(event) => {
-            event.stopPropagation();
-            setChordMenuOpen((open) => !open);
-          }}
-          className="fixed bottom-28 right-5 z-[9997] rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-900 shadow-lg"
-        >
-          + Chord
-        </button>
         <div className="flex items-center justify-end border-b border-slate-100 px-3 py-2">
           <button
             type="button"
@@ -3460,6 +3473,21 @@ function ChordLaneWorkspace({
                 style={{
                   top: rowTop,
                   height: TIMELINE_BAR_HEADER_HEIGHT + timelineRowHeight,
+                }}
+                onClick={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  if (suppressChordClickRef.current) {
+                    suppressChordClickRef.current = false;
+                    return;
+                  }
+                  if (chordMouseDownSelectionRef.current) {
+                    chordMouseDownSelectionRef.current = null;
+                    return;
+                  }
+                  setSelectedChordIds([]);
+                  setSelectedBarIndices([]);
+                  setPendingChordFrame(getStackedFrameFromPointer(event.clientX, event.clientY));
+                  setChordMenuOpen(true);
                 }}
               >
                 {Array.from({ length: rowBarCount }, (_, offset) => firstBar + offset).map(
@@ -3607,16 +3635,14 @@ function ChordLaneWorkspace({
                                   .filter((item) => selectedIdsForDrag.has(item.id))
                                   .map((item) => ({ chordId: item.id, originalStart: item.startTime }))
                               : undefined;
-                            dragHoldTimeoutRef.current = setTimeout(() => {
-                              dragHoldTimeoutRef.current = null;
-                              dragStateRef.current = {
-                                kind: "move",
-                                chordId: chord.id,
-                                anchorX: event.clientX,
-                                originalStart: chord.startTime,
-                                group: dragGroup,
-                              };
-                            }, TOUCH_DRAG_HOLD_MS);
+                            dragStateRef.current = {
+                              kind: "move",
+                              chordId: chord.id,
+                              anchorX: event.clientX,
+                              originalStart: chord.startTime,
+                              group: dragGroup,
+                              moved: false,
+                            };
                           }}
                           onClick={(event) => {
                             event.preventDefault();
@@ -4396,11 +4422,11 @@ function ChordLaneWorkspace({
                 style={{ left: timelineContentOffset + index * FIXED_FRAMES_PER_BAR * pxPerFrame }}
               />
             ))}
-            {Array.from({ length: barCount * snapDenominator }, (_, index) => (
+            {Array.from({ length: barCount * beatsPerBar }, (_, index) => (
               <div
                 key={`grid-line-${index}`}
                 className="pointer-events-none absolute top-0 h-full border-l border-slate-100"
-                style={{ left: timelineContentOffset + (index * FIXED_FRAMES_PER_BAR * pxPerFrame) / snapDenominator }}
+                style={{ left: timelineContentOffset + (index * FIXED_FRAMES_PER_BAR * pxPerFrame) / beatsPerBar }}
               />
             ))}
             <div
@@ -4487,16 +4513,14 @@ function ChordLaneWorkspace({
                           .filter((item) => selectedIdsForDrag.has(item.id))
                           .map((item) => ({ chordId: item.id, originalStart: item.startTime }))
                       : undefined;
-                    dragHoldTimeoutRef.current = setTimeout(() => {
-                      dragHoldTimeoutRef.current = null;
-                      dragStateRef.current = {
-                        kind: "move",
-                        chordId: chord.id,
-                        anchorX,
-                        originalStart,
-                        group: dragGroup,
-                      };
-                    }, TOUCH_DRAG_HOLD_MS);
+                    dragStateRef.current = {
+                      kind: "move",
+                      chordId: chord.id,
+                      anchorX,
+                      originalStart,
+                      group: dragGroup,
+                      moved: false,
+                    };
                   }}
                   onClick={(event) => {
                     event.preventDefault();

@@ -32,6 +32,11 @@ export default function handler(req: Request) {
     {
       width: 1200,
       height: 630,
+      headers: {
+        // Titles and subtitles are immutable inputs. Cache each generated
+        // image at the edge instead of regenerating it for every crawler.
+        "Cache-Control": "public, max-age=86400, s-maxage=31536000, immutable",
+      },
     }
   );
 }

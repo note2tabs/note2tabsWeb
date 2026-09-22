@@ -92,7 +92,7 @@ const buildDefaultCuts = (lane: EditorSnapshot, totalFrames: number, framesPerBa
   return cuts;
 };
 
-const applyImportTrackToLane = (lane: EditorSnapshot, track: ImportTrack): EditorSnapshot => {
+export const applyImportTrackToLane = (lane: EditorSnapshot, track: ImportTrack): EditorSnapshot => {
   const framesPerBar = Math.max(1, Math.round(Number(track.framesPerMessure ?? lane.framesPerMessure ?? 480)));
   const notes: Note[] = track.stamps.map((entry, index) => {
     const tab = clampTab(lane, entry[1]);
@@ -239,6 +239,7 @@ export default function GteFileImportButton({
     setLoadingLabel(`Importing ${preparedSelection?.format || getImportFormatLabel(file?.name || "")}`);
     onError("");
     let createdEditorId: string | null = null;
+    let importPersisted = false;
     const addedLaneIds: string[] = [];
     try {
       if (file && /\.json$/i.test(file.name)) {
@@ -280,6 +281,7 @@ export default function GteFileImportButton({
           throw new Error("Could not create an editor for this Note2Tabs JSON file.");
         }
         await gteApi.importEditorJson(targetEditorId, laneId, payload);
+        importPersisted = true;
         await onImported(targetEditorId);
         return;
       }
@@ -357,12 +359,26 @@ export default function GteFileImportButton({
         }),
       };
       await gteApi.applySnapshot(targetEditorId, nextCanvas);
-      await optimizeImportedTrackFingerings(targetEditorId, nextCanvas);
+      importPersisted = true;
+      try {
+        // applySnapshot advances the canvas version. Reload it before the
+        // optimization save so a successful import is never mistaken for a
+        // failed import because of a stale-version conflict.
+        await optimizeImportedTrackFingerings(targetEditorId);
+      } catch (optimizationError) {
+        await onImported(targetEditorId);
+        onError(
+          optimizationError instanceof Error
+            ? `The tracks were imported, but automatic fingering optimization could not finish: ${optimizationError.message}`
+            : "The tracks were imported, but automatic fingering optimization could not finish."
+        );
+        return;
+      }
       await onImported(targetEditorId);
     } catch (err: unknown) {
-      if (editorId && addedLaneIds.length) {
+      if (!importPersisted && editorId && addedLaneIds.length) {
         await Promise.all(addedLaneIds.map((laneId) => gteApi.deleteCanvasEditor(editorId, laneId).catch(() => {})));
-      } else if (createdEditorId) {
+      } else if (!importPersisted && createdEditorId) {
         await gteApi.deleteEditor(createdEditorId).catch(() => {});
       }
       const message = err instanceof Error ? err.message : "Could not import this tab file.";

@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth/next";
 import { DEFAULT_AFFILIATE_TERMS, normalizeAffiliateCode, parseAffiliateTerms } from "../../../../lib/affiliate";
 import { prisma } from "../../../../lib/prisma";
 import { stripeClient } from "../../../../lib/stripe";
-import { getStripePaidPlanConfigs, getStripePremiumConfig } from "../../../../lib/stripePremium";
+import { getPaidPlanProductIds } from "../../../../lib/stripeCouponProducts";
+import { getStripePremiumConfig } from "../../../../lib/stripePremium";
 import { hasFreshUserRole } from "../../../../lib/serverAuth";
 import { authOptions } from "../../auth/[...nextauth]";
 
@@ -45,22 +46,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         commissionMonths: String(affiliate.commissionMonths),
       },
     });
-    const productIds = (await Promise.all(
-      Object.values(getStripePaidPlanConfigs()).filter((config) => Boolean(config)).map(async (config) => {
-        if (!config) return null;
-        if (config.productId) return config.productId;
-        const price = await stripe.prices.retrieve(config.priceId);
-        return typeof price.product === "string" ? price.product : price.product?.id || null;
-      })
-    )).filter((productId): productId is string => Boolean(productId));
-    const uniqueProductIds = [...new Set(productIds)];
-    if (!uniqueProductIds.length) throw new Error("Paid Stripe products could not be resolved");
+    const productIds = await getPaidPlanProductIds(stripe);
+    if (!productIds.length) throw new Error("Paid Stripe products could not be resolved");
     const coupon = await stripe.coupons.create({
       percent_off: affiliate.discountPercent,
       duration: "repeating",
       duration_in_months: affiliate.discountMonths,
-      applies_to: { products: uniqueProductIds },
-      name: `Note2Tabs affiliate ${code}`,
+      applies_to: { products: productIds },
+      // Stripe limits coupon names to 40 characters while our codes may be 32.
+      name: `N2T ${code}`,
       metadata: {
         note2tabsAffiliateId: affiliate.id,
         discountPercent: String(affiliate.discountPercent),

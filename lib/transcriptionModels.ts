@@ -1,11 +1,12 @@
 import { durationToCredits } from "./credits";
 
-export type TranscriptionModelChoice = "light" | "heavy";
+export type TranscriptionModelChoice = "light" | "heavy" | "super_heavy";
 
 export const DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "light";
 export const PREMIUM_DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "heavy";
 export const LIGHT_TRANSCRIPTION_BACKEND_METHOD = "basic_pitch";
 export const HEAVY_TRANSCRIPTION_BACKEND_METHOD = "yourmt3";
+export const SUPER_HEAVY_TRANSCRIPTION_BACKEND_METHOD = "muscriptor";
 export const TRANSCRIPTION_MODEL_OPTIONS: Array<{
   value: TranscriptionModelChoice;
   label: string;
@@ -27,6 +28,13 @@ export const TRANSCRIPTION_MODEL_OPTIONS: Array<{
     description: "Best for complex and multi-instrument recordings.",
     creditsPerInterval: 3,
   },
+  {
+    value: "super_heavy",
+    label: "Super Heavy model",
+    badge: "MuScriptor",
+    description: "For detailed multi-instrument transcriptions.",
+    creditsPerInterval: 3,
+  },
 ];
 
 export function normalizeTranscriptionModel(value: unknown): TranscriptionModelChoice {
@@ -39,6 +47,9 @@ export function normalizeTranscriptionModel(value: unknown): TranscriptionModelC
   if (["heavy", "yourmt3", "yourmt3plus", "yourmt3_plus", "mt3", "mt3_plus"].includes(normalized)) {
     return "heavy";
   }
+  if (["super_heavy", "superheavy", "muscriptor"].includes(normalized)) {
+    return "super_heavy";
+  }
   return "light";
 }
 
@@ -47,6 +58,7 @@ export function getDefaultTranscriptionModel(isPremium: boolean): TranscriptionM
 }
 
 export function transcriptionModelToBackendMethod(model: TranscriptionModelChoice) {
+  if (model === "super_heavy") return SUPER_HEAVY_TRANSCRIPTION_BACKEND_METHOD;
   return model === "heavy" ? HEAVY_TRANSCRIPTION_BACKEND_METHOD : LIGHT_TRANSCRIPTION_BACKEND_METHOD;
 }
 

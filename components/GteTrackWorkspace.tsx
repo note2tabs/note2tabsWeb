@@ -54,6 +54,7 @@ export default function GteTrackWorkspace(props: Props) {
       onBarDragEnd={props.onBarDragEnd}
       onRequestBarDrop={props.onRequestBarDrop}
       sharedViewportBarCount={props.sharedViewportBarCount}
+      sharedRowCapacityBarCount={props.sharedRowCapacityBarCount}
       sharedTimelineScrollRatio={props.sharedTimelineScrollRatio}
       onSharedTimelineScrollRatioChange={props.onSharedTimelineScrollRatioChange}
       sharedTimelineBaseScale={props.sharedTimelineBaseScale}
@@ -64,6 +65,7 @@ export default function GteTrackWorkspace(props: Props) {
       showPlaybackCounter={props.showPlaybackCounter}
       globalSnapToGridEnabled={props.globalSnapToGridEnabled}
       globalPlaybackFrame={props.globalPlaybackFrame}
+      globalPlaybackTimelineEnd={props.globalPlaybackTimelineEnd}
       getGlobalPlaybackFrame={props.getGlobalPlaybackFrame}
       globalPlaybackIsPlaying={props.globalPlaybackIsPlaying}
       globalPlaybackIsPreparing={props.globalPlaybackIsPreparing}

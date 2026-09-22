@@ -1,6 +1,6 @@
-export const DEFAULT_JOB_POLL_DELAY_MS = 3000;
-const MIN_JOB_POLL_DELAY_MS = 1000;
-const MAX_JOB_POLL_DELAY_MS = 15_000;
+export const DEFAULT_JOB_POLL_DELAY_MS = 5000;
+const MIN_JOB_POLL_DELAY_MS = 5000;
+const MAX_JOB_POLL_DELAY_MS = 30_000;
 
 export type JobStatusPollResult<T> = {
   job: T | null;

@@ -371,7 +371,7 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
     return { notFound: true };
   }
   if (!allowDraft) {
-    ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
+    ctx.res.setHeader("Cache-Control", "public, s-maxage=86400, stale-while-revalidate=604800");
   }
 
   let contentHtml = post.contentHtml || "";

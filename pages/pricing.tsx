@@ -21,16 +21,17 @@ import { premiumOfferExperimentProperties } from "../lib/premiumOfferExperiment"
 import { usePremiumOfferExperiment } from "../lib/usePremiumOfferExperiment";
 import { proPlanPresentationEnabled, type PaidSubscriptionPlan } from "../lib/subscriptionPlans";
 import type { BillingInterval } from "../lib/stripePremium";
+import { buildPricingProductStructuredData } from "../lib/pricingStructuredData";
 
 const pricingFaqs = [
   {
-    question: "Can I try Premium before paying?",
+    question: "When is Premium billed?",
     answer:
-      "Eligible new subscribers get a 7-day trial. Premium is $5.99 per month and you can cancel anytime.",
+      "Premium is $5.99 billed immediately, renews monthly, and can be cancelled anytime.",
   },
   {
-    question: "Does Pro include a free trial?",
-    answer: "No. Pro is for frequent transcription and is billed at $14.99 as soon as you subscribe.",
+    question: "When is Pro billed?",
+    answer: "Pro is for frequent transcription and is billed at $14.99 as soon as you subscribe.",
   },
   {
     question: "Do all plans include Light and Heavy?",
@@ -110,24 +111,7 @@ export default function PricingPage() {
         },
       })),
     },
-    {
-      "@context": "https://schema.org",
-      "@type": "Product",
-      name: "Note2Tabs",
-      offers: {
-        "@type": "OfferCatalog",
-        name: "Note2Tabs subscription plans",
-        itemListElement: [
-          { "@type": "Offer", name: "Free", price: "0", priceCurrency: "USD" },
-          { "@type": "Offer", name: "Premium", price: "5.99", priceCurrency: "USD" },
-          { "@type": "Offer", name: "Premium yearly", price: "59.99", priceCurrency: "USD" },
-          ...(showPro ? [
-            { "@type": "Offer", name: "Pro", price: "14.99", priceCurrency: "USD" },
-            { "@type": "Offer", name: "Pro yearly", price: "149.99", priceCurrency: "USD" },
-          ] : []),
-        ],
-      },
-    },
+    buildPricingProductStructuredData(showPro),
   ];
 
   const entrySource = normalizePremiumFunnelSource(router.query.source);
@@ -290,11 +274,7 @@ export default function PricingPage() {
 
               <article className="pricing-plan pricing-plan--premium">
                 <div className="pricing-plan__badge">
-                  {offerEligibility === "eligible"
-                    ? offerVariant === "value_framing"
-                      ? "Most popular · 7 days free"
-                      : "Most popular · 7-day free trial"
-                    : offerEligibility === "ineligible" ? "Most popular" : "Most popular · 7-day free trial"}
+                  Most popular
                 </div>
                 <div className="pricing-plan__top">
                   <h2>Premium</h2>
@@ -324,12 +304,8 @@ export default function PricingPage() {
                 )}
                 <p className="pricing-plan__reassurance">
                   {billingInterval === "yearly"
-                    ? offerEligibility === "ineligible"
-                      ? <><span>$59.99/year · </span><span className="pricing-plan__saving">Save $12 per year</span><span> · Cancel anytime</span></>
-                      : <><span>7-day free trial · Then $59.99/year · </span><span className="pricing-plan__saving">Save $12 per year</span></>
-                    : offerEligibility === "eligible"
-                      ? "7-day free trial · Then $5.99/month · Cancel anytime"
-                      : premiumOfferReassurance(offerEligibility, offerVariant)}
+                    ? <><span>$59.99 billed today · </span><span className="pricing-plan__saving">Save $12 per year</span><span> · Cancel anytime</span></>
+                    : premiumOfferReassurance(offerEligibility, offerVariant)}
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
@@ -356,7 +332,7 @@ export default function PricingPage() {
                     {checkoutBusy ? "Opening…" : currentPlan === "PREMIUM" ? "Upgrade to Pro" : "Choose Pro"}
                   </button>
                 )}
-                <p className="pricing-plan__reassurance">{billingInterval === "yearly" ? <><span>No free trial · $149.99 billed today · </span><span className="pricing-plan__saving">Save $30 per year</span></> : "No free trial · $14.99 billed today · Cancel anytime"}</p>
+                <p className="pricing-plan__reassurance">{billingInterval === "yearly" ? <><span>$149.99 billed today · </span><span className="pricing-plan__saving">Save $30 per year</span></> : "$14.99 billed today · Cancel anytime"}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li>Everything in Premium</li>

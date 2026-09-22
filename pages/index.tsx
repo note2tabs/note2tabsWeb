@@ -2076,7 +2076,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 data-reveal
               >
                 <div className="pricing-plan__badge">
-                  {offerEligibility === "ineligible" ? "Most popular" : "Most popular · 7-day free trial"}
+                  Most popular
                 </div>
                 <div className="pricing-plan__top">
                   <h3>Premium</h3>
@@ -2101,12 +2101,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 </button>
                 <p className="pricing-plan__reassurance">
                   {pricingBillingInterval === "yearly"
-                    ? offerEligibility === "ineligible"
-                      ? <><span>$59.99/year · </span><span className="pricing-plan__saving">Save $12 per year</span><span> · Cancel anytime</span></>
-                      : <><span>7-day free trial · Then $59.99/year · </span><span className="pricing-plan__saving">Save $12 per year</span></>
-                    : offerEligibility === "eligible"
-                      ? "7-day free trial · Then $5.99/month · Cancel anytime"
-                      : premiumOfferReassurance(offerEligibility)}
+                    ? <><span>$59.99 billed today · </span><span className="pricing-plan__saving">Save $12 per year</span><span> · Cancel anytime</span></>
+                    : premiumOfferReassurance(offerEligibility)}
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
@@ -2126,7 +2122,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <button type="button" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => void handlePricingClick("home_pricing", "homepage_pro_card", "PRO")} disabled={pricingBusy}>
                   {pricingBusy ? "Opening…" : currentPlan === "PRO" ? "Manage current plan" : currentPlan === "PREMIUM" ? "Upgrade to Pro" : "Choose Pro"}
                 </button>
-                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? <><span>No free trial · $149.99 billed today · </span><span className="pricing-plan__saving">Save $30 per year</span></> : "No free trial · $14.99 billed today · Cancel anytime"}</p>
+                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? <><span>$149.99 billed today · </span><span className="pricing-plan__saving">Save $30 per year</span></> : "$14.99 billed today · Cancel anytime"}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li>Everything in Premium</li>
@@ -2200,10 +2196,11 @@ export const getStaticProps: GetStaticProps<HomePageProps> = async () => {
     ]);
     return {
       props: { trustMetrics: { transcriptionsCompleted, editorsCreated } },
-      revalidate: 3600,
+      // These public trust totals do not need an hourly database refresh.
+      revalidate: 24 * 60 * 60,
     };
   } catch (error) {
     console.warn("[home] Could not load public trust metrics.", error);
-    return { props: { trustMetrics: null }, revalidate: 300 };
+    return { props: { trustMetrics: null }, revalidate: 60 * 60 };
   }
 };
