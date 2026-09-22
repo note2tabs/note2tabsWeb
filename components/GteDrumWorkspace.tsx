@@ -1979,10 +1979,7 @@ export default function GteDrumWorkspace({
       sharedRowCapacityBarCount !== undefined && Number.isFinite(sharedRowCapacityBarCount)
         ? Math.round(sharedRowCapacityBarCount)
         : Math.round(Number(sharedViewportBarCount) || 4);
-    const barsPerRow = Math.max(
-      1,
-      Math.min(scoreBarCount, 6, requestedBarsPerRow)
-    );
+    const barsPerRow = Math.max(1, Math.min(6, requestedBarsPerRow));
     const scoreRowCount = Math.max(1, Math.ceil(scoreBarCount / barsPerRow));
     const displayedNotes = loopPreview?.notes ?? toolPreviewNotes ?? dragPreviewNotes ?? snapshot.notes;
     const playheadBar = Math.max(0, Math.min(scoreBarCount - 1, Math.floor(globalPlaybackFrame / FRAMES_PER_BAR)));
