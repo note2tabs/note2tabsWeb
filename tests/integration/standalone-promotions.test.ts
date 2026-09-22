@@ -32,11 +32,21 @@ describe("standalone promotion input", () => {
     expect(parseStandalonePromotionInput({ code: "SCHOOL50", percentOff: 50, durationMonths: 2, cardFreeSchoolAccess: true })).toBeNull();
   });
 
+  it("accepts an optional whole-number redemption limit", () => {
+    expect(parseStandalonePromotionInput({ code: "LIMITED", percentOff: 15, durationMonths: 2, maxRedemptions: 25 }))
+      .toMatchObject({ maxRedemptions: 25 });
+    expect(parseStandalonePromotionInput({ code: "UNLIMITED", percentOff: 15, durationMonths: 2, maxRedemptions: "" }))
+      .toMatchObject({ maxRedemptions: null });
+  });
+
   it.each([
     { code: "NO", percentOff: 10, durationMonths: 3 },
     { code: "INVALID_CODE", percentOff: 10, durationMonths: 3 },
     { code: "VALID", percentOff: 0, durationMonths: 3 },
     { code: "VALID", percentOff: 10, durationMonths: 25 },
+    { code: "VALID", percentOff: 10, durationMonths: 3, maxRedemptions: 0 },
+    { code: "VALID", percentOff: 10, durationMonths: 3, maxRedemptions: 2.5 },
+    { code: "VALID", percentOff: 10, durationMonths: 3, maxRedemptions: 1_000_001 },
     { code: "VALID", percentOff: 10, durationMonths: 3, expiresOn: "2020-01-01" },
   ])("rejects invalid values", (body) => expect(parseStandalonePromotionInput(body)).toBeNull());
 });
@@ -60,6 +70,22 @@ describe("standalone promotion API", () => {
     expect(res._getStatusCode()).toBe(201);
     expect(stripeMock.coupons.create).toHaveBeenCalledWith(expect.objectContaining({ name: "N2T SUMMER20", percent_off: 20, duration_in_months: 4, applies_to: { products: ["prod_premium", "prod_pro"] }, metadata: expect.objectContaining({ note2tabsStandalonePromotion: "true" }) }));
     expect(stripeMock.promotionCodes.create).toHaveBeenCalledWith(expect.objectContaining({ code: "SUMMER20", active: true, expires_at: expect.any(Number) }));
+  });
+
+  it("passes an optional redemption limit to Stripe", async () => {
+    const handler = (await import("../../pages/api/admin/affiliates/promotions/create")).default;
+    const { req, res } = createMocks({ method: "POST", body: { code: "LIMITED25", percentOff: 20, durationMonths: 4, maxRedemptions: 25 } });
+    await handler(req as any, res as any);
+    expect(res._getStatusCode()).toBe(201);
+    expect(stripeMock.promotionCodes.create).toHaveBeenCalledWith(expect.objectContaining({ code: "LIMITED25", max_redemptions: 25 }));
+  });
+
+  it("leaves Stripe usage unlimited when no limit is provided", async () => {
+    const handler = (await import("../../pages/api/admin/affiliates/promotions/create")).default;
+    const { req, res } = createMocks({ method: "POST", body: { code: "UNLIMITED", percentOff: 20, durationMonths: 4 } });
+    await handler(req as any, res as any);
+    expect(res._getStatusCode()).toBe(201);
+    expect(stripeMock.promotionCodes.create.mock.calls[0][0]).not.toHaveProperty("max_redemptions");
   });
 
   it("keeps Stripe's coupon name within its limit for the longest valid code", async () => {

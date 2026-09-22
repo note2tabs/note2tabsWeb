@@ -20,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!stripeClient) return res.status(503).json({ error: "Stripe not configured" });
 
   const input = parseStandalonePromotionInput(req.body);
-  if (!input) return res.status(400).json({ error: "Enter a valid code, discount, duration, and future end date." });
+  if (!input) return res.status(400).json({ error: "Enter a valid code, discount, duration, end date, and usage limit." });
 
   try {
     const existing = await stripeClient.promotionCodes.list({ code: input.code, active: true, limit: 1 });
@@ -54,6 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         active: true,
         metadata,
         ...(input.expiresAt ? { expires_at: input.expiresAt } : {}),
+        ...(input.maxRedemptions ? { max_redemptions: input.maxRedemptions } : {}),
       });
       return res.status(201).json({
         promotion: {
@@ -63,6 +64,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           percentOff: input.percentOff,
           durationMonths: input.durationMonths,
           expiresAt: promotion.expires_at || input.expiresAt,
+          timesRedeemed: promotion.times_redeemed || 0,
+          maxRedemptions: promotion.max_redemptions || input.maxRedemptions,
           cardFreeSchoolAccess: input.cardFreeSchoolAccess,
         },
       });
