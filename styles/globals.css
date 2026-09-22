@@ -12938,17 +12938,18 @@ input[type="number"] {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
-    height: 2.1rem;
+    height: 1.6rem;
   }
 
   .gte-drum-bar-heading-cell {
-    display: flex;
-    flex-direction: column;
+    position: relative;
     min-width: 0;
     border-right: 1px solid #aebbb4;
   }
 
-  .gte-drum-bar-heading-cell > button {
+  .gte-drum-bar-select {
+    width: 100%;
+    height: 100%;
     border: 0;
     border-bottom: 1px solid #c9d2cd;
     padding-inline: .5rem;
@@ -12957,41 +12958,29 @@ input[type="number"] {
     font-size: .61rem;
     font-weight: 700;
     text-align: left;
-    height: 1.3rem;
   }
 
-  .gte-drum-bar-heading-cell > button.is-selected {
+  .gte-drum-bar-select.is-selected {
     background: var(--gte-accent-soft);
     color: #175f43;
   }
 
-  .gte-drum-bar-subdivisions {
-    display: flex;
-    gap: 1px;
-    height: .8rem;
-    padding: 1px 2px;
-    border-bottom: 1px solid #c9d2cd;
-    background: #fbfbf9;
-  }
-
-  .gte-drum-bar-subdivisions button {
-    flex: 1 1 0%;
-    min-width: 0;
+  .gte-drum-bar-subdivision-toggle {
+    position: absolute;
+    top: .18rem;
+    right: .28rem;
+    min-width: 2.6rem;
     border: 0;
-    border-radius: 2px;
-    padding: 0;
-    background: #edefec;
-    color: #7a877f;
-    font-size: .5rem;
+    border-radius: 3px;
+    padding: .2rem .35rem;
+    background: #4c5a53;
+    color: #fff;
+    font-size: .58rem;
     font-weight: 700;
     line-height: 1;
   }
 
-  .gte-drum-bar-subdivisions button:hover { background: #dfe4de; }
-  .gte-drum-bar-subdivisions button.is-active {
-    background: #4c5a53;
-    color: #fff;
-  }
+  .gte-drum-bar-subdivision-toggle:hover { background: #34443c; }
 
   .gte-drum-staff {
     position: relative;

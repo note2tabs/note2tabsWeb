@@ -10,7 +10,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { DrumLoopRegion, EditorSnapshot, Note, TimingMapV2 } from "../types/gte";
-import { gteApi } from "../lib/gteApi";
 import {
   buildDrumNote,
   DRUM_VOICES,
@@ -19,7 +18,6 @@ import {
   snapDrumNotesInBar,
 } from "../lib/gteDrums";
 import { previewDrumVoice } from "../lib/gteDrumPlayback";
-import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import {
   getDrumLoopTimelineFrames,
   materializeDrumLoopNotes,
@@ -312,8 +310,18 @@ export default function GteDrumWorkspace({
       timelineViewportRafRef.current = null;
     }
   }, []);
-  const tableBacked = canvasId !== GTE_GUEST_EDITOR_ID;
   const editorId = `${canvasId}__ed__${laneId}`;
+  const latestSnapshotRef = useRef(snapshot);
+  useEffect(() => {
+    latestSnapshotRef.current = snapshot;
+  }, [snapshot]);
+  const emitSnapshotChange = useCallback(
+    (nextSnapshot: EditorSnapshot, options?: { recordHistory?: boolean; markDirty?: boolean }) => {
+      latestSnapshotRef.current = nextSnapshot;
+      onSnapshotChange(nextSnapshot, options);
+    },
+    [onSnapshotChange]
+  );
 
   const beatsPerBar = Math.max(1, Math.round(Number(snapshot.timeSignature) || 8));
   const fallbackSecondsPerBar =
@@ -409,18 +417,19 @@ export default function GteDrumWorkspace({
   );
   const setBarSubdivision = useCallback(
     (barIndex: number, value: number) => {
-      const nextOverrides = { ...(snapshot.drumBarSubdivisions || {}) };
+      const currentSnapshot = latestSnapshotRef.current;
+      const nextOverrides = { ...(currentSnapshot.drumBarSubdivisions || {}) };
       nextOverrides[String(barIndex)] = value;
       const snapped = snapDrumNotesInBar(
-        snapshot.notes,
+        currentSnapshot.notes,
         barIndex,
         beatsPerBar,
         value,
         FRAMES_PER_BAR
       );
-      onSnapshotChange(
+      emitSnapshotChange(
         {
-          ...snapshot,
+          ...currentSnapshot,
           editorType: "drums",
           type: "drums",
           trackType: "drums",
@@ -447,7 +456,7 @@ export default function GteDrumWorkspace({
       }
       setSaveError(null);
     },
-    [beatsPerBar, cursor, onSnapshotChange, snapshot]
+    [beatsPerBar, cursor, emitSnapshotChange]
   );
 
   useEffect(() => {
@@ -783,35 +792,29 @@ export default function GteDrumWorkspace({
   }, [onRequestSelectedBarsDelete, selectedBarIndices]);
 
   const commitLoopSnapshot = useCallback(
-    async (nextLoops: DrumLoopRegion[], nextNotes: Note[], errorMessage: string) => {
+    (nextLoops: DrumLoopRegion[], nextNotes: Note[], _errorMessage: string) => {
+      const currentSnapshot = latestSnapshotRef.current;
       const nextTotalFrames = getDrumLoopTimelineFrames(
         nextLoops,
-        Math.max(snapshot.totalFrames, totalFrames),
+        Math.max(currentSnapshot.totalFrames, totalFrames),
         FRAMES_PER_BAR
       );
       const normalizedLoops = normalizeDrumLoops(nextLoops, nextTotalFrames);
       const cleanedNotes = removeNotesCoveredByLoopRepeats(nextNotes, normalizedLoops);
       const nextSnapshot: EditorSnapshot = {
-        ...snapshot,
+        ...currentSnapshot,
         drumLoops: normalizedLoops,
         notes: cleanedNotes,
         totalFrames: nextTotalFrames,
         updatedAt: new Date().toISOString(),
       };
-      onSnapshotChange(nextSnapshot, {
+      emitSnapshotChange(nextSnapshot, {
         recordHistory: true,
-        markDirty: !tableBacked,
+        markDirty: true,
       });
       setSaveError(null);
-      if (!tableBacked) return;
-      try {
-        await gteApi.applySnapshot(editorId, nextSnapshot);
-      } catch (error: any) {
-        onSnapshotChange(snapshot, { recordHistory: false, markDirty: false });
-        setSaveError(error?.message || errorMessage);
-      }
     },
-    [editorId, onSnapshotChange, snapshot, tableBacked, totalFrames]
+    [emitSnapshotChange, totalFrames]
   );
 
   const readNoteClipboard = useCallback(async () => {
@@ -1105,16 +1108,17 @@ export default function GteDrumWorkspace({
       notes: Note[],
       options?: { recordHistory?: boolean; markDirty?: boolean }
     ) => {
+      const currentSnapshot = latestSnapshotRef.current;
       const cleanedNotes = removeNotesCoveredByLoopRepeats(notes, drumLoops);
-      onSnapshotChange(
+      emitSnapshotChange(
         {
-          ...snapshot,
+          ...currentSnapshot,
           editorType: "drums",
           type: "drums",
           trackType: "drums",
           notes: cleanedNotes,
           totalFrames: Math.max(
-            snapshot.totalFrames,
+            currentSnapshot.totalFrames,
             Math.ceil(
               Math.max(
                 FRAMES_PER_BAR,
@@ -1136,99 +1140,62 @@ export default function GteDrumWorkspace({
         }
       );
     },
-    [drumLoops, onSnapshotChange, snapshot]
+    [drumLoops, emitSnapshotChange]
   );
 
   const addHit = useCallback(
-    async (voiceIndex: number, rawTime: number) => {
+    (voiceIndex: number, rawTime: number) => {
       const startTime = snapTime(rawTime);
       const voice = DRUM_VOICES[voiceIndex] ?? DRUM_VOICES[0];
-      const duplicate = snapshot.notes.find(
+      const currentNotes = latestSnapshotRef.current.notes;
+      const duplicate = currentNotes.find(
         (note) =>
           getDrumVoiceForNote(note).id === voice.id &&
           Math.round(note.startTime) === startTime
       );
       if (duplicate) {
-        const previousNotes = snapshot.notes;
-        updateSnapshotNotes(previousNotes.filter((note) => note.id !== duplicate.id));
+        updateSnapshotNotes(currentNotes.filter((note) => note.id !== duplicate.id));
         replaceSelection(
           new Set([...selectedNoteIdsRef.current].filter((id) => id !== duplicate.id))
         );
         setSaveError(null);
-        if (tableBacked) {
-          try {
-            await gteApi.deleteDrumNote(canvasId, laneId, duplicate.id);
-          } catch (error: any) {
-            updateSnapshotNotes(previousNotes, { recordHistory: false, markDirty: false });
-            replaceSelection(new Set([duplicate.id]));
-            setSaveError(error?.message || "We could not remove this drum hit. It is still in the pattern; please try again.");
-          }
-        }
         return;
       }
 
       const barIndex = Math.max(0, Math.floor(startTime / FRAMES_PER_BAR));
       const note = buildDrumNote({
-        id: snapshot.notes.reduce((max, item) => Math.max(max, item.id), 0) + 1,
+        id: currentNotes.reduce((max, item) => Math.max(max, item.id), 0) + 1,
         startTime,
         voiceIndex,
         length: Math.max(1, Math.min(getBarGridStep(barIndex), 60)),
       });
-      const previousNotes = snapshot.notes;
-      updateSnapshotNotes([...previousNotes, note]);
+      updateSnapshotNotes([...currentNotes, note]);
       replaceSelection(new Set([note.id]));
       setCursor({ time: startTime, voiceIndex });
       setSaveError(null);
       void previewDrumVoice(voice.id).catch(() => {});
-      if (!tableBacked) return;
-      try {
-        await gteApi.saveDrumNote(canvasId, laneId, note);
-      } catch (error: any) {
-        updateSnapshotNotes(previousNotes, { recordHistory: false, markDirty: false });
-        setSaveError(error?.message || "We could not save this drum hit. The rest of the pattern is unchanged; please try again.");
-      }
     },
     [
-      canvasId,
       getBarGridStep,
-      laneId,
       replaceSelection,
       snapTime,
-      snapshot.notes,
-      tableBacked,
       updateSnapshotNotes,
     ]
   );
 
   const deleteHits = useCallback(
-    async (noteIds: Iterable<number>) => {
+    (noteIds: Iterable<number>) => {
       const ids = new Set(noteIds);
-      const previousNotes = snapshot.notes;
-      if (!previousNotes.some((note) => ids.has(note.id))) return;
-      updateSnapshotNotes(previousNotes.filter((note) => !ids.has(note.id)));
+      const currentNotes = latestSnapshotRef.current.notes;
+      if (!currentNotes.some((note) => ids.has(note.id))) return;
+      updateSnapshotNotes(currentNotes.filter((note) => !ids.has(note.id)));
       replaceSelection(
         new Set([...selectedNoteIdsRef.current].filter((id) => !ids.has(id)))
       );
       setSaveError(null);
-      if (!tableBacked) return;
-      try {
-        await Promise.all(
-          [...ids].map((noteId) =>
-            gteApi.deleteDrumNote(canvasId, laneId, noteId)
-          )
-        );
-      } catch (error: any) {
-        updateSnapshotNotes(previousNotes, { recordHistory: false, markDirty: false });
-        replaceSelection(ids);
-        setSaveError(error?.message || "We could not remove this drum hit. It is still in the pattern; please try again.");
-      }
     },
     [
-      canvasId,
-      laneId,
       replaceSelection,
-      snapshot.notes,
-      tableBacked,
       updateSnapshotNotes,
     ]
   );
@@ -1275,22 +1242,11 @@ export default function GteDrumWorkspace({
   );
 
   const persistMovedNotes = useCallback(
-    async (nextNotes: Note[], movedIds: Set<number>, previousNotes: Note[]) => {
+    async (nextNotes: Note[], _movedIds: Set<number>, _previousNotes: Note[]) => {
       updateSnapshotNotes(nextNotes);
       setSaveError(null);
-      if (!tableBacked) return;
-      try {
-        await gteApi.saveDrumNotes(
-          canvasId,
-          laneId,
-          nextNotes.filter((note) => movedIds.has(note.id))
-        );
-      } catch (error: any) {
-        updateSnapshotNotes(previousNotes, { recordHistory: false, markDirty: false });
-        setSaveError(error?.message || "We could not move the selected drum hits. Their previous positions are unchanged; please try again.");
-      }
     },
-    [canvasId, laneId, tableBacked, updateSnapshotNotes]
+    [updateSnapshotNotes]
   );
 
   const getSelectedToolNotes = useCallback(
@@ -1949,13 +1905,14 @@ export default function GteDrumWorkspace({
   );
 
   const appendDrumBar = useCallback(() => {
+    const currentSnapshot = latestSnapshotRef.current;
     const currentFrames = Math.max(
       FRAMES_PER_BAR,
-      Math.ceil(snapshot.totalFrames / FRAMES_PER_BAR) * FRAMES_PER_BAR
+      Math.ceil(currentSnapshot.totalFrames / FRAMES_PER_BAR) * FRAMES_PER_BAR
     );
-    onSnapshotChange(
+    emitSnapshotChange(
       {
-        ...snapshot,
+        ...currentSnapshot,
         editorType: "drums",
         type: "drums",
         trackType: "drums",
@@ -1964,7 +1921,7 @@ export default function GteDrumWorkspace({
       },
       { recordHistory: true, markDirty: true }
     );
-  }, [onSnapshotChange, snapshot]);
+  }, [emitSnapshotChange]);
 
   if (!mobileViewport) {
     const lastNoteFrame = snapshot.notes.reduce(
@@ -2007,30 +1964,43 @@ export default function GteDrumWorkspace({
                   const barIndex = firstBar + offset;
                   const selected = selectedBarIndices.includes(barIndex);
                   const barSubdivisionsPerBeat = getBarSubdivisionsPerBeat(barIndex);
+                  const currentSubdivisionIndex = BAR_SUBDIVISION_OPTIONS.findIndex(
+                    (option) => option.value === barSubdivisionsPerBeat
+                  );
+                  const subdivisionLabel =
+                    BAR_SUBDIVISION_OPTIONS[currentSubdivisionIndex]?.label ??
+                    `${barSubdivisionsPerBeat} per beat`;
                   return (
                     <div key={`drum-score-bar-${barIndex}`} className="gte-drum-bar-heading-cell">
                       <button
                         type="button"
                         onClick={(event) => handleBarSelection(barIndex, event)}
                         onContextMenu={(event) => handleBarContextMenu(barIndex, event)}
-                        className={selected ? "is-selected" : ""}
+                        className={`gte-drum-bar-select${selected ? " is-selected" : ""}`}
                       >
                         {showBarNumbers ? `Bar ${barIndex + 1}` : ""}
                       </button>
-                      <div className="gte-drum-bar-subdivisions" data-gte-editor-control="true">
-                        {BAR_SUBDIVISION_OPTIONS.map((option) => (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => setBarSubdivision(barIndex, option.value)}
-                            title={`Show ${option.label} note divisions for bar ${barIndex + 1}`}
-                            aria-pressed={barSubdivisionsPerBeat === option.value}
-                            className={barSubdivisionsPerBeat === option.value ? "is-active" : ""}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
+                      <button
+                        type="button"
+                        data-gte-editor-control="true"
+                        className="gte-drum-bar-subdivision-toggle"
+                        onClick={() => {
+                          const latestValue =
+                            latestSnapshotRef.current.drumBarSubdivisions?.[String(barIndex)] ??
+                            subdivisionsPerBeat;
+                          const latestIndex = BAR_SUBDIVISION_OPTIONS.findIndex(
+                            (option) => option.value === latestValue
+                          );
+                          const nextOption = BAR_SUBDIVISION_OPTIONS[
+                            (latestIndex + 1) % BAR_SUBDIVISION_OPTIONS.length
+                          ];
+                          setBarSubdivision(barIndex, nextOption.value);
+                        }}
+                        title={`Bar ${barIndex + 1} grid: ${subdivisionLabel}. Click to change.`}
+                        aria-label={`Bar ${barIndex + 1} subdivision: ${subdivisionLabel}. Click to cycle.`}
+                      >
+                        {subdivisionLabel}
+                      </button>
                     </div>
                   );
                 })}

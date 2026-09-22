@@ -1616,6 +1616,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const canvasRedoRef = useRef<CanvasSnapshot[]>([]);
   const canvasRef = useRef<CanvasSnapshot | null>(null);
   const canvasRevisionRef = useRef(0);
+  const pendingDrumSavesRef = useRef(new Map<string, EditorSnapshot>());
+  const drumSaveTimerRef = useRef<number | null>(null);
+  const drumSaveInFlightRef = useRef(false);
+  const drumSaveStartedCleanRef = useRef(false);
+  const drumSaveRetryDelayRef = useRef(1500);
   const trackSectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const [sharedTimelineBaseScale, setSharedTimelineBaseScale] = useState<number | undefined>(undefined);
 
@@ -2106,10 +2111,93 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     setMobileEditLaneId((prev) => (isMobileViewport ? laneId : prev));
   }, [isMobileViewport]);
 
+  const flushDrumSaves = useCallback(async () => {
+    if (isGuestMode || drumSaveInFlightRef.current || !pendingDrumSavesRef.current.size) return;
+    if (drumSaveTimerRef.current !== null) {
+      window.clearTimeout(drumSaveTimerRef.current);
+      drumSaveTimerRef.current = null;
+    }
+    const currentLaneIds = new Set(canvasRef.current?.editors.map((lane) => lane.id) ?? []);
+    const pending = [...pendingDrumSavesRef.current.entries()].filter(([laneId]) =>
+      currentLaneIds.has(laneId)
+    );
+    pendingDrumSavesRef.current.clear();
+    if (!pending.length) return;
+    const revisionAtStart = canvasRevisionRef.current;
+    drumSaveInFlightRef.current = true;
+    let saveFailed = false;
+    try {
+      for (const [laneId, laneSnapshot] of pending) {
+        await gteApi.applySnapshot(buildLaneEditorRef(editorId, laneId), laneSnapshot);
+      }
+      await gteApi.commitEditor(editorId);
+      drumSaveRetryDelayRef.current = 1500;
+      if (pendingDrumSavesRef.current.size === 0 && canvasRevisionRef.current === revisionAtStart) {
+        if (drumSaveStartedCleanRef.current) setHasPendingCommit(false);
+        setLastCommittedAt(new Date().toISOString());
+        setSaveError(null);
+      }
+    } catch (err: any) {
+      saveFailed = true;
+      console.error("[gte:drum-save] Failed to persist drum lanes", {
+        laneIds: pending.map(([laneId]) => laneId),
+        error: err,
+      });
+      for (const [laneId, laneSnapshot] of pending) {
+        if (!pendingDrumSavesRef.current.has(laneId)) {
+          pendingDrumSavesRef.current.set(laneId, laneSnapshot);
+        }
+      }
+      setSaveError(err?.message || "We could not save the drum track. Your edits remain here and will retry.");
+      drumSaveRetryDelayRef.current = Math.min(30000, drumSaveRetryDelayRef.current * 2);
+    } finally {
+      drumSaveInFlightRef.current = false;
+      if (pendingDrumSavesRef.current.size && drumSaveTimerRef.current === null) {
+        drumSaveTimerRef.current = window.setTimeout(() => {
+          drumSaveTimerRef.current = null;
+          void flushDrumSaves();
+        }, saveFailed ? drumSaveRetryDelayRef.current : 450);
+      }
+    }
+  }, [editorId, isGuestMode]);
+
+  const queueDrumSave = useCallback((laneId: string, laneSnapshot: EditorSnapshot) => {
+    if (isGuestMode) return;
+    if (!pendingDrumSavesRef.current.size && !drumSaveInFlightRef.current) {
+      drumSaveStartedCleanRef.current = !hasPendingCommit;
+    }
+    pendingDrumSavesRef.current.set(laneId, laneSnapshot);
+    if (drumSaveInFlightRef.current) return;
+    if (drumSaveTimerRef.current !== null) window.clearTimeout(drumSaveTimerRef.current);
+    drumSaveTimerRef.current = window.setTimeout(() => {
+      drumSaveTimerRef.current = null;
+      void flushDrumSaves();
+    }, 450);
+  }, [flushDrumSaves, hasPendingCommit, isGuestMode]);
+
+  useEffect(() => {
+    const flushWhenHidden = () => {
+      if (document.visibilityState === "hidden") void flushDrumSaves();
+    };
+    document.addEventListener("visibilitychange", flushWhenHidden);
+    return () => {
+      document.removeEventListener("visibilitychange", flushWhenHidden);
+      if (drumSaveTimerRef.current !== null) {
+        window.clearTimeout(drumSaveTimerRef.current);
+        drumSaveTimerRef.current = null;
+      }
+      if (pendingDrumSavesRef.current.size) void flushDrumSaves();
+    };
+  }, [flushDrumSaves]);
+
   const commitCanvasToBackend = useCallback(
     async (options?: { force?: boolean; keepalive?: boolean }) => {
       const currentCanvas = canvasRef.current;
       if (!currentCanvas) return;
+      if (!isGuestMode && (pendingDrumSavesRef.current.size || drumSaveInFlightRef.current)) {
+        void flushDrumSaves();
+        return;
+      }
       if (isGuestMode) {
         if (!options?.force && !hasPendingCommit) return;
         setSavingCanvas(true);
@@ -2151,7 +2239,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         setSavingCanvas(false);
       }
     },
-    [cloneCanvas, editorId, hasPendingCommit, isGuestMode]
+    [cloneCanvas, editorId, flushDrumSaves, hasPendingCommit, isGuestMode]
   );
 
   const syncLatestCanvasBeforeStructuralMutation = useCallback(async () => {
@@ -3061,6 +3149,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       }
       return nextCanvas;
     });
+    if (isDrumLane(nextLaneSnapshot) && (options?.markDirty ?? true)) {
+      queueDrumSave(laneId, nextLaneSnapshot);
+    }
     if (options?.markDirty ?? options?.recordHistory !== false) {
       setHasPendingCommit(true);
     }
