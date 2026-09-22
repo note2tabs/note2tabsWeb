@@ -130,6 +130,7 @@ export type EditorSnapshot = {
   chords: Chord[];
   noteEffects?: NoteEffect[];
   drumLoops?: DrumLoopRegion[];
+  drumBarSubdivisions?: Record<string, number>;
   cutPositionsWithCoords: CutWithCoord[];
   optimalsByTime: Record<string, Record<string, TabCoord[]>>;
 };
