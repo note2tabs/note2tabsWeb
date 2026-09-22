@@ -14,6 +14,24 @@ import { getAnalyticsTrackingIds } from "../lib/analyticsV2";
 import { premiumFunnelProperties, readPremiumFunnelContext } from "../lib/premiumFunnel";
 import { isTabShareEmailDestination, TAB_SHARE_EMAIL_SOURCE } from "../lib/tabShareAnalytics";
 
+const IDENTITY_LINK_STORAGE_PREFIX = "note2tabs:analytics-identity-linked:";
+
+function hasPersistedIdentityLink(identityLinkKey: string) {
+  try {
+    return window.localStorage.getItem(`${IDENTITY_LINK_STORAGE_PREFIX}${identityLinkKey}`) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function persistIdentityLink(identityLinkKey: string) {
+  try {
+    window.localStorage.setItem(`${IDENTITY_LINK_STORAGE_PREFIX}${identityLinkKey}`, "1");
+  } catch {
+    // Storage is only a request-deduplication optimization.
+  }
+}
+
 export default function AnalyticsIdentityLinker() {
   const { data: session, status } = useSession();
   const [consentRevision, setConsentRevision] = useState(0);
@@ -60,10 +78,13 @@ export default function AnalyticsIdentityLinker() {
       const trackingIds = getAnalyticsTrackingIds();
       const funnel = readPremiumFunnelContext();
       const identityLinkKey = `${session.user.id}:${trackingIds?.anonId || "no-anon"}`;
-      if (linkedIdentityRef.current !== identityLinkKey) {
+      if (
+        linkedIdentityRef.current !== identityLinkKey &&
+        !hasPersistedIdentityLink(identityLinkKey)
+      ) {
         linkedIdentityRef.current = identityLinkKey;
         try {
-          await fetch("/api/analytics/link-identity", {
+          const response = await fetch("/api/analytics/link-identity", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -76,6 +97,7 @@ export default function AnalyticsIdentityLinker() {
             }),
             keepalive: true,
           });
+          if (response.ok) persistIdentityLink(identityLinkKey);
         } catch {
           // Identity measurement must never interrupt authentication.
         }

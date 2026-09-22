@@ -42,6 +42,17 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // These version-stable brand assets were being revalidated on most
+        // visits. Browser caching avoids repeat edge requests; Vercel's CDN
+        // continues to serve the first request normally.
+        source: "/:asset(logo-mark-96|android-chrome-192x192|android-chrome-512x512|apple-touch-icon|favicon-16x16|favicon-32x32).png",
+        headers: [{ key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=86400" }],
+      },
+      {
+        source: "/site.webmanifest",
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
+      },
+      {
         source: "/gte/:path*",
         headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
       },
