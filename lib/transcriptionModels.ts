@@ -6,7 +6,9 @@ export const DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "light";
 export const PREMIUM_DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "heavy";
 export const LIGHT_TRANSCRIPTION_BACKEND_METHOD = "basic_pitch";
 export const HEAVY_TRANSCRIPTION_BACKEND_METHOD = "yourmt3";
-export const SUPER_HEAVY_TRANSCRIPTION_BACKEND_METHOD = "muscriptor";
+// Keep the legacy backend wire value until every deployed backend accepts
+// "msmodel"; the frontend name is intentionally vendor-neutral.
+export const MSMODEL_TRANSCRIPTION_BACKEND_METHOD = "muscriptor";
 export const TRANSCRIPTION_MODEL_OPTIONS: Array<{
   value: TranscriptionModelChoice;
   label: string;
@@ -23,19 +25,23 @@ export const TRANSCRIPTION_MODEL_OPTIONS: Array<{
   },
   {
     value: "heavy",
-    label: "Heavy model",
+    label: "Medium model",
     badge: "More accurate",
     description: "Best for complex and multi-instrument recordings.",
     creditsPerInterval: 3,
   },
   {
     value: "super_heavy",
-    label: "Super Heavy model",
-    badge: "MuScriptor",
-    description: "For detailed multi-instrument transcriptions.",
-    creditsPerInterval: 3,
+    label: "Heavy model",
+    badge: "Premium",
+    description: "Our most detailed model for complex multi-instrument recordings.",
+    creditsPerInterval: 5,
   },
 ];
+
+export function transcriptionModelRequiresPremium(model: TranscriptionModelChoice) {
+  return model === "super_heavy";
+}
 
 export function normalizeTranscriptionModel(value: unknown): TranscriptionModelChoice {
   if (typeof value !== "string") return DEFAULT_TRANSCRIPTION_MODEL;
@@ -47,7 +53,7 @@ export function normalizeTranscriptionModel(value: unknown): TranscriptionModelC
   if (["heavy", "yourmt3", "yourmt3plus", "yourmt3_plus", "mt3", "mt3_plus"].includes(normalized)) {
     return "heavy";
   }
-  if (["super_heavy", "superheavy", "muscriptor"].includes(normalized)) {
+  if (["super_heavy", "superheavy", "msmodel", "muscriptor"].includes(normalized)) {
     return "super_heavy";
   }
   return "light";
@@ -58,7 +64,7 @@ export function getDefaultTranscriptionModel(isPremium: boolean): TranscriptionM
 }
 
 export function transcriptionModelToBackendMethod(model: TranscriptionModelChoice) {
-  if (model === "super_heavy") return SUPER_HEAVY_TRANSCRIPTION_BACKEND_METHOD;
+  if (model === "super_heavy") return MSMODEL_TRANSCRIPTION_BACKEND_METHOD;
   return model === "heavy" ? HEAVY_TRANSCRIPTION_BACKEND_METHOD : LIGHT_TRANSCRIPTION_BACKEND_METHOD;
 }
 

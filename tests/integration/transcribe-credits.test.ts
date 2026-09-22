@@ -76,7 +76,7 @@ function makeRes() {
 async function callTranscribe(
   role: string,
   multipleGuitars = false,
-  transcriptionModel: "light" | "heavy" | null = "heavy",
+  transcriptionModel: "light" | "heavy" | "super_heavy" | null = "heavy",
   duration = 30,
   startTime = 0
 ) {
@@ -176,6 +176,26 @@ describe("transcribe credits", () => {
     const body = requestInit.body as FormData;
     expect(body.get("transcription_method")).toBe("basic_pitch");
   });
+
+  it("rejects the user-facing Heavy model for free users", async () => {
+    const res = await callTranscribe("FREE", false, "super_heavy");
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatchObject({ premiumRequired: true });
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
+  it.each(["PREMIUM", "ADMIN", "MODERATOR"])(
+    "allows the user-facing Heavy model for %s users",
+    async (role) => {
+      const res = await callTranscribe(role, false, "super_heavy");
+
+      expect(res.statusCode).toBe(202);
+      const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
+      const body = requestInit.body as FormData;
+      expect(body.get("transcription_method")).toBe("muscriptor");
+    }
+  );
 
   it("forwards the multiple-guitar choice to the backend transcription job", async () => {
     const res = await callTranscribe("FREE", true);

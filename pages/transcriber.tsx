@@ -1356,6 +1356,7 @@ export default function TranscriberPage() {
                         value={transcriptionModel}
                         onChange={selectTranscriptionModel}
                         disabled={loading || authHandoffBusy}
+                        canUseHeavy={isPremiumUser}
                       />
                     </div>
                   )}

@@ -1,7 +1,4 @@
-import Link from "next/link";
-import { trackCtaClick } from "../lib/analytics";
 import type { TranscriptionModelChoice } from "../lib/transcriptionModels";
-import { premiumPricingHref } from "../lib/premiumFunnel";
 
 type TranscriptionModelValueNoteProps = {
   model: TranscriptionModelChoice;
@@ -12,47 +9,28 @@ type TranscriptionModelValueNoteProps = {
 
 export default function TranscriptionModelValueNote({
   model,
-  isPremium,
   onSelectHeavy,
-  surface,
 }: TranscriptionModelValueNoteProps) {
   if (model === "light") {
     return (
       <p className="model-value-note">
         <span>
-          Working with a complex recording? Try Heavy for multi-instrument transcription.
+          Working with a complex recording? Try Medium for multi-instrument transcription.
         </span>
         <button type="button" onClick={onSelectHeavy} className="model-value-note__action">
-          Try Heavy
+          Try Medium
         </button>
       </p>
     );
   }
 
   if (model === "super_heavy") {
-    return <p className="model-value-note">Super Heavy uses MuScriptor for detailed multi-instrument transcription.</p>;
-  }
-
-  if (isPremium) {
-    return (
-      <p className="model-value-note">
-        <span>Heavy selected for multi-instrument transcription.</span>
-      </p>
-    );
+    return <p className="model-value-note">Heavy uses our most detailed model for complex multi-instrument transcription.</p>;
   }
 
   return (
-    <p className="model-value-note model-value-note--premium">
-      <span>
-        Prefer Heavy? Premium includes 10× more monthly credits for
-        higher-accuracy transcriptions.
-      </span>
-      <Link
-        href={premiumPricingHref({ source: "heavy_model", reason: "heavy_selected" })}
-        onClick={() => trackCtaClick("heavy_model_see_premium", { surface })}
-      >
-        See Premium
-      </Link>
+    <p className="model-value-note">
+      <span>Medium selected for multi-instrument transcription.</span>
     </p>
   );
 }

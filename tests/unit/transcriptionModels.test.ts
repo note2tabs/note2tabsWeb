@@ -4,6 +4,7 @@ import {
   getDefaultTranscriptionModel,
   normalizeTranscriptionModel,
   transcriptionModelToBackendMethod,
+  transcriptionModelRequiresPremium,
 } from "../../lib/transcriptionModels";
 
 describe("transcription models", () => {
@@ -31,10 +32,18 @@ describe("transcription models", () => {
     expect(transcriptionModelToBackendMethod("heavy")).toBe("yourmt3");
   });
 
-  it("charges light jobs at 2 credits and heavy jobs at 3 credits per interval", () => {
+  it("charges Light at 2, Medium at 3, and Heavy at 5 credits per interval", () => {
     expect(calculateTranscriptionCredits(30, "light")).toBe(2);
     expect(calculateTranscriptionCredits(30, "heavy")).toBe(3);
     expect(calculateTranscriptionCredits(31, "light")).toBe(4);
     expect(calculateTranscriptionCredits(31, "heavy")).toBe(6);
+    expect(calculateTranscriptionCredits(30, "super_heavy")).toBe(5);
+    expect(calculateTranscriptionCredits(31, "super_heavy")).toBe(10);
+  });
+
+  it("reserves only the user-facing Heavy model for Premium and Pro", () => {
+    expect(transcriptionModelRequiresPremium("light")).toBe(false);
+    expect(transcriptionModelRequiresPremium("heavy")).toBe(false);
+    expect(transcriptionModelRequiresPremium("super_heavy")).toBe(true);
   });
 });

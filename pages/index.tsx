@@ -1536,6 +1536,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                         value={transcriptionModel}
                         onChange={selectTranscriptionModel}
                         disabled={loading || authHandoffBusy}
+                        canUseHeavy={isPremiumUser}
                       />
                     </div>
                   )}
@@ -2065,7 +2066,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li><strong>10</strong> credits each month</li>
-                  <li>Light and Heavy transcription models</li>
+                  <li>Light and Medium transcription models</li>
                   <li>Audio clips up to 60 seconds</li>
                   <li>Uploads up to 50 MB</li>
                   <li>Full editor and practice tools</li>

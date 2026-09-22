@@ -8685,6 +8685,21 @@ input[type="number"] {
   outline: none;
 }
 
+.model-dropdown-menu button.model-dropdown-option--locked,
+.model-dropdown-menu button.model-dropdown-option--locked:hover,
+.model-dropdown-menu button.model-dropdown-option--locked:focus-visible {
+  background: rgba(148, 163, 184, 0.1);
+  cursor: not-allowed;
+  filter: grayscale(1);
+  opacity: 0.48;
+}
+
+.model-dropdown-menu button.model-dropdown-option--locked .model-dropdown-option-title,
+.model-dropdown-menu button.model-dropdown-option--locked .model-dropdown-option-badge,
+.model-dropdown-menu button.model-dropdown-option--locked .model-dropdown-option-description {
+  color: #64748b;
+}
+
 .model-dropdown-option-copy {
   display: grid;
   gap: 4px;
