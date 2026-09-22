@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADMIN_NAV_ITEMS,
   isPrimaryNavSectionActive,
   shouldShowPremiumNav,
 } from "../../components/NavBar";
@@ -13,6 +14,16 @@ describe("primary navigation active states", () => {
     expect(isPrimaryNavSectionActive("/transcriber", "transcriber")).toBe(true);
     expect(isPrimaryNavSectionActive("/job/job-1", "transcriber")).toBe(true);
     expect(isPrimaryNavSectionActive("/pricing", "premium")).toBe(true);
+  });
+
+  it("lists every admin workspace in the account menu", () => {
+    expect(ADMIN_NAV_ITEMS).toEqual([
+      { href: "/admin/analytics", label: "Analytics" },
+      { href: "/admin/affiliates", label: "Affiliates & coupons" },
+      { href: "/admin/blog", label: "Blog" },
+      { href: "/mod/users", label: "Users" },
+      { href: "/mod/dashboard", label: "Moderation" },
+    ]);
   });
 
   it("does not mark unrelated sections active", () => {
