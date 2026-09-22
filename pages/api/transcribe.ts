@@ -21,6 +21,7 @@ import {
   calculateTranscriptionCredits,
   normalizeTranscriptionModel,
   transcriptionModelToBackendMethod,
+  transcriptionModelRequiresPremium,
   type TranscriptionModelChoice,
 } from "../../lib/transcriptionModels";
 import {
@@ -657,6 +658,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       typeof requestedTranscriptionModel === "string" && requestedTranscriptionModel.trim()
         ? normalizeTranscriptionModel(requestedTranscriptionModel)
         : getDefaultTranscriptionModel(isPremium);
+    if (transcriptionModelRequiresPremium(transcriptionModel) && !isPremium) {
+      return res.status(403).json({
+        error: "The Heavy model requires a Premium or Pro subscription.",
+        premiumRequired: true,
+      });
+    }
     const backendTranscriptionMethod = transcriptionModelToBackendMethod(transcriptionModel);
 
     if (mode !== "FILE" && mode !== "YOUTUBE") {

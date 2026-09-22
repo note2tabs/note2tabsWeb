@@ -34,9 +34,9 @@ const pricingFaqs = [
     answer: "Pro is for frequent transcription and is billed at $14.99 as soon as you subscribe.",
   },
   {
-    question: "Do all plans include Light and Heavy?",
+    question: "Which transcription models does each plan include?",
     answer:
-      "Yes. Light is faster for clear, focused guitar recordings. Heavy is our more accurate model for complex and multi-instrument recordings. Premium gives you more room to choose Heavy regularly.",
+      "All plans include Light and Medium. Heavy is our most detailed model for complex multi-instrument recordings and requires Premium or Pro.",
   },
   {
     question: "What happens to unused credits?",
@@ -264,7 +264,7 @@ export default function PricingPage() {
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li><strong>10</strong> transcription credits each month</li>
-                  <li>Light and Heavy transcription models</li>
+                  <li>Light and Medium transcription models</li>
                   <li>Audio clips up to 60 seconds</li>
                   <li>Uploads up to 50 MB</li>
                   <li>YouTube clips up to 30 seconds</li>

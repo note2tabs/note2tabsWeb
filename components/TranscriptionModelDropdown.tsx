@@ -9,6 +9,7 @@ type TranscriptionModelDropdownProps = {
   onChange: (value: TranscriptionModelChoice) => void;
   disabled?: boolean;
   id?: string;
+  canUseHeavy?: boolean;
 };
 
 export default function TranscriptionModelDropdown({
@@ -16,6 +17,7 @@ export default function TranscriptionModelDropdown({
   onChange,
   disabled = false,
   id = "transcription-model",
+  canUseHeavy = false,
 }: TranscriptionModelDropdownProps) {
   const detailsRef = useRef<HTMLDetailsElement | null>(null);
   const selected =
@@ -62,34 +64,44 @@ export default function TranscriptionModelDropdown({
         </svg>
       </summary>
       <div className="model-dropdown-menu" role="listbox" aria-labelledby={id}>
-        {TRANSCRIPTION_MODEL_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            role="option"
-            aria-selected={option.value === value}
-            className={option.value === value ? "selected" : ""}
-            onClick={() => choose(option.value)}
-            onKeyDown={(event) => onOptionKeyDown(event, option.value)}
-          >
-            <span className="model-dropdown-option-copy">
-              <span className="model-dropdown-option-heading">
-                <span className="model-dropdown-option-title">{option.label}</span>
-                <span className="model-dropdown-option-badge">{option.badge}</span>
+        {TRANSCRIPTION_MODEL_OPTIONS.map((option) => {
+          const isLocked = option.value === "super_heavy" && !canUseHeavy;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              className={`${option.value === value ? "selected" : ""}${isLocked ? " model-dropdown-option--locked" : ""}`}
+              onClick={() => {
+                if (!isLocked) choose(option.value);
+              }}
+              onKeyDown={(event) => onOptionKeyDown(event, option.value)}
+              disabled={isLocked}
+              aria-disabled={isLocked}
+              title={isLocked ? "Heavy requires Premium or Pro" : undefined}
+            >
+              <span className="model-dropdown-option-copy">
+                <span className="model-dropdown-option-heading">
+                  <span className="model-dropdown-option-title">{option.label}</span>
+                  <span className="model-dropdown-option-badge">
+                    {isLocked ? "Premium or Pro" : option.badge}
+                  </span>
+                </span>
+                <span className="model-dropdown-option-description">
+                  {option.description}
+                </span>
               </span>
-              <span className="model-dropdown-option-description">
-                {option.description}
+              <span className="model-dropdown-check" aria-hidden="true">
+                {option.value === value && (
+                  <svg viewBox="0 0 24 18" focusable="false">
+                    <path d="M4.4 10.8 9.6 13.8 19.8 3.4" />
+                  </svg>
+                )}
               </span>
-            </span>
-            <span className="model-dropdown-check" aria-hidden="true">
-              {option.value === value && (
-                <svg viewBox="0 0 24 18" focusable="false">
-                  <path d="M4.4 10.8 9.6 13.8 19.8 3.4" />
-                </svg>
-              )}
-            </span>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
     </details>
   );
