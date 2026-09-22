@@ -1,5 +1,8 @@
-export const DEFAULT_JOB_POLL_DELAY_MS = 5000;
-const MIN_JOB_POLL_DELAY_MS = 5000;
+// Status polling is intentionally a little slower than the UI's progress-copy
+// animation. It keeps the loading screen feeling active while avoiding a new
+// authenticated Vercel invocation every five seconds for every running job.
+export const DEFAULT_JOB_POLL_DELAY_MS = 7500;
+const MIN_JOB_POLL_DELAY_MS = 7500;
 const MAX_JOB_POLL_DELAY_MS = 30_000;
 
 export type JobStatusPollResult<T> = {
