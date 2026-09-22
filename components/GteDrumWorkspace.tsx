@@ -135,6 +135,7 @@ type GteDrumWorkspaceProps = {
   onBarDragEnd?: () => void;
   onRequestBarDrop?: (insertIndex: number) => void | Promise<void>;
   sharedViewportBarCount?: number;
+  sharedRowCapacityBarCount?: number;
   sharedTimelineScrollRatio?: number;
   onSharedTimelineScrollRatioChange?: (ratio: number, scrollLeft?: number) => void;
   sharedTimelineBaseScale?: number;
@@ -145,6 +146,7 @@ type GteDrumWorkspaceProps = {
   showPlaybackCounter?: boolean;
   globalSnapToGridEnabled?: boolean;
   globalPlaybackFrame?: number;
+  globalPlaybackTimelineEnd?: number;
   getGlobalPlaybackFrame?: () => number;
   globalPlaybackIsPlaying?: boolean;
   globalPlaybackIsPreparing?: boolean;
@@ -208,6 +210,7 @@ export default function GteDrumWorkspace({
   onBarDragEnd,
   onRequestBarDrop,
   sharedViewportBarCount,
+  sharedRowCapacityBarCount,
   sharedTimelineScrollRatio,
   onSharedTimelineScrollRatioChange,
   sharedTimelineBaseScale,
@@ -218,6 +221,7 @@ export default function GteDrumWorkspace({
   showPlaybackCounter = true,
   globalSnapToGridEnabled = true,
   globalPlaybackFrame = 0,
+  globalPlaybackTimelineEnd,
   getGlobalPlaybackFrame,
   globalPlaybackIsPlaying = false,
   globalPlaybackIsPreparing = false,
@@ -337,6 +341,10 @@ export default function GteDrumWorkspace({
   const baseBarCount = Math.max(
     1,
     sharedViewportBarCount ?? 1,
+    Math.ceil(
+      Math.max(FRAMES_PER_BAR, Number(globalPlaybackTimelineEnd) || 0) /
+        FRAMES_PER_BAR
+    ),
     Math.ceil(Math.max(FRAMES_PER_BAR, snapshot.totalFrames) / FRAMES_PER_BAR)
   );
   const previewBarCount = loopPreview
@@ -538,6 +546,7 @@ export default function GteDrumWorkspace({
     (index: number, event: ReactMouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
       event.stopPropagation();
+      onFocusWorkspace?.();
       const rect = event.currentTarget.getBoundingClientRect();
       const pointerX = Number.isFinite(event.clientX)
         ? event.clientX - rect.left
@@ -589,6 +598,7 @@ export default function GteDrumWorkspace({
       barSelectionAnchor,
       isActive,
       mobileViewport,
+      onFocusWorkspace,
       replaceSelection,
       selectedBarIndexSet,
       selectedBarIndices,
@@ -1957,13 +1967,25 @@ export default function GteDrumWorkspace({
   }, [onSnapshotChange, snapshot]);
 
   if (!mobileViewport) {
+    const lastNoteFrame = snapshot.notes.reduce(
+      (end, note) => Math.max(end, note.startTime + Math.max(1, note.length)),
+      0
+    );
+    const scoreBarCount = Math.max(
+      1,
+      Math.ceil(Math.max(FRAMES_PER_BAR, snapshot.totalFrames, lastNoteFrame) / FRAMES_PER_BAR)
+    );
+    const requestedBarsPerRow =
+      sharedRowCapacityBarCount !== undefined && Number.isFinite(sharedRowCapacityBarCount)
+        ? Math.round(sharedRowCapacityBarCount)
+        : Math.round(Number(sharedViewportBarCount) || 4);
     const barsPerRow = Math.max(
       1,
-      Math.min(6, Math.round(Number(sharedViewportBarCount) || 4))
+      Math.min(scoreBarCount, 6, requestedBarsPerRow)
     );
-    const scoreRowCount = Math.max(1, Math.ceil(barCount / barsPerRow));
+    const scoreRowCount = Math.max(1, Math.ceil(scoreBarCount / barsPerRow));
     const displayedNotes = loopPreview?.notes ?? toolPreviewNotes ?? dragPreviewNotes ?? snapshot.notes;
-    const playheadBar = Math.max(0, Math.min(barCount - 1, Math.floor(globalPlaybackFrame / FRAMES_PER_BAR)));
+    const playheadBar = Math.max(0, Math.min(scoreBarCount - 1, Math.floor(globalPlaybackFrame / FRAMES_PER_BAR)));
 
     return (
       <div
@@ -1972,37 +1994,10 @@ export default function GteDrumWorkspace({
         className="gte-drum-score min-w-0 w-full overflow-x-hidden space-y-5 px-8 py-2"
         onMouseDown={onFocusWorkspace}
       >
-        <div className="flex min-h-10 items-center justify-between gap-3 border-b border-slate-200 px-1 pb-2">
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700">Drum notation</div>
-            <div className="text-xs text-slate-500">Click a subdivision to place a hit. × marks metal; ● marks drums.</div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={openQuantizeTool}
-              disabled={!selectedNoteIds.size}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:border-emerald-300 disabled:opacity-40"
-            >
-              Quantize
-            </button>
-            <button
-              type="button"
-              onClick={() => void deleteHits(selectedNoteIds)}
-              disabled={!selectedNoteIds.size}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm hover:border-rose-300 disabled:opacity-40"
-            >
-              Delete {selectedNoteIds.size || "hit"}
-            </button>
-          </div>
-        </div>
-
         {Array.from({ length: scoreRowCount }, (_, scoreRowIndex) => {
           const firstBar = scoreRowIndex * barsPerRow;
-          const rowBarCount = Math.min(barsPerRow, barCount - firstBar);
+          const rowBarCount = Math.min(barsPerRow, scoreBarCount - firstBar);
           const rowStart = firstBar * FRAMES_PER_BAR;
-          const rowFrames = rowBarCount * FRAMES_PER_BAR;
-          const rowEnd = rowStart + rowFrames;
           const rowPlayheadFrame = globalPlaybackFrame - rowStart;
           return (
             <section key={`drum-score-row-${scoreRowIndex}`} className="gte-drum-score-row">
@@ -2056,7 +2051,10 @@ export default function GteDrumWorkspace({
                       <strong>{voice.shortLabel}</strong>
                       <span>{voice.label}</span>
                     </button>
-                    <div className="gte-drum-grid-row">
+                    <div
+                      className="gte-drum-grid-row"
+                      style={{ gridTemplateColumns: `repeat(${barsPerRow}, minmax(0, 1fr))` }}
+                    >
                       {Array.from({ length: rowBarCount }, (_, offset) => {
                         const barIndex = firstBar + offset;
                         const barStart = barIndex * FRAMES_PER_BAR;
@@ -2139,7 +2137,7 @@ export default function GteDrumWorkspace({
                 {playheadBar >= firstBar && playheadBar < firstBar + rowBarCount ? (
                   <div
                     className="gte-drum-playhead"
-                    style={{ left: `calc(4.5rem + ${(rowPlayheadFrame / rowFrames) * 100}% - ${(rowPlayheadFrame / rowFrames) * 4.5}rem)` }}
+                    style={{ left: `calc(4.5rem + ${(rowPlayheadFrame / (barsPerRow * FRAMES_PER_BAR)) * 100}% - ${(rowPlayheadFrame / (barsPerRow * FRAMES_PER_BAR)) * 4.5}rem)` }}
                     aria-hidden="true"
                   />
                 ) : null}

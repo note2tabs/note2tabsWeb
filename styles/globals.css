@@ -13027,20 +13027,17 @@ input[type="number"] {
   }
 
   .gte-drum-grid-row {
-    display: flex;
+    display: grid;
     min-width: 0;
   }
 
   .gte-drum-grid {
     position: relative;
     display: grid;
-    flex: 1 1 0%;
     min-width: 0;
     background: #fffefa;
     border-right: 1px solid #aebbb4;
   }
-
-  .gte-drum-grid:last-child { border-right: 0; }
 
   .gte-drum-grid > button:not(.gte-drum-hit) {
     min-width: 0;
