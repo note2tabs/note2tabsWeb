@@ -93,6 +93,11 @@ type LoopInteraction = {
 
 type PointerInteraction = MarqueeInteraction | NoteDragInteraction | LoopInteraction;
 
+type ScoreInteraction =
+  | { kind: "marquee"; startX: number; startY: number; baseSelection: Set<number>; moved: boolean }
+  | { kind: "notes"; startX: number; startY: number; startPointerFrame: number; anchorVoiceIndex: number; barsPerRow: number; barWidth: number; gutterWidth: number; rowHeight: number; rows: Array<{ left: number; top: number; bottom: number; index: number }>; selectedIds: Set<number>; originalNotes: Note[]; moved: boolean }
+  | { kind: "loop"; startX: number; startY: number; startPointerFrame: number; barsPerRow: number; barWidth: number; gutterWidth: number; rows: Array<{ left: number; top: number; bottom: number; index: number }>; mode: "move" | "resize"; loop: DrumLoopRegion; originalNotes: Note[]; moved: boolean };
+
 type DrumNoteClipboard = {
   anchor: number;
   notes: Array<Pick<Note, "startTime" | "length" | "midiNum" | "tab">>;
@@ -235,6 +240,9 @@ export default function GteDrumWorkspace({
   const timelineViewportRafRef = useRef<number | null>(null);
   const pendingTimelineViewportRef = useRef<{ scrollLeft: number; clientWidth: number } | null>(null);
   const interactionRef = useRef<PointerInteraction | null>(null);
+  const scoreRef = useRef<HTMLDivElement | null>(null);
+  const scoreInteractionRef = useRef<ScoreInteraction | null>(null);
+  const scoreSuppressClickRef = useRef(false);
   const selectedNoteIdsRef = useRef<Set<number>>(new Set());
   const snapshotNotesRef = useRef(snapshot.notes);
   const dragPreviewNotesRef = useRef<Note[] | null>(null);
@@ -1724,6 +1732,20 @@ export default function GteDrumWorkspace({
       }
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
         event.preventDefault();
+        const selectedIds = selectedNoteIdsRef.current;
+        if (selectedIds.size) {
+          const currentNotes = latestSnapshotRef.current.notes;
+          const selected = currentNotes.filter((note) => selectedIds.has(note.id));
+          if (!selected.length) return;
+          const step = getBarGridStep(Math.floor(Math.min(...selected.map((note) => note.startTime)) / FRAMES_PER_BAR));
+          const requested = event.key === "ArrowLeft" ? -step : step;
+          const delta = Math.max(
+            trackOffsetFrames - Math.min(...selected.map((note) => note.startTime)),
+            Math.min(Math.max(0, totalFrames - step - Math.max(...selected.map((note) => note.startTime))), requested)
+          );
+          if (delta) updateSnapshotNotes(currentNotes.map((note) => selectedIds.has(note.id) ? { ...note, startTime: note.startTime + delta } : note));
+          return;
+        }
         const delta = event.key === "ArrowLeft" ? -gridStep : gridStep;
         setCursor((current) => ({ ...current, time: snapTime(current.time + delta) }));
         return;
@@ -1731,6 +1753,20 @@ export default function GteDrumWorkspace({
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
         event.preventDefault();
         const delta = event.key === "ArrowUp" ? -1 : 1;
+        const selectedIds = selectedNoteIdsRef.current;
+        if (selectedIds.size) {
+          const currentNotes = latestSnapshotRef.current.notes;
+          const selected = currentNotes.filter((note) => selectedIds.has(note.id));
+          if (!selected.length) return;
+          const voiceIndexes = selected.map((note) => DRUM_VOICES.findIndex((voice) => voice.id === getDrumVoiceForNote(note).id));
+          const boundedDelta = Math.max(-Math.min(...voiceIndexes), Math.min(DRUM_VOICES.length - 1 - Math.max(...voiceIndexes), delta));
+          if (boundedDelta) updateSnapshotNotes(currentNotes.map((note) => {
+            if (!selectedIds.has(note.id)) return note;
+            const voiceIndex = DRUM_VOICES.findIndex((voice) => voice.id === getDrumVoiceForNote(note).id);
+            return buildDrumNote({ id: note.id, startTime: note.startTime, voiceIndex: voiceIndex + boundedDelta, length: note.length });
+          }));
+          return;
+        }
         setCursor((current) => ({
           ...current,
           voiceIndex: Math.max(
@@ -1794,6 +1830,7 @@ export default function GteDrumWorkspace({
     deleteHits,
     deleteSelectedBars,
     gridStep,
+    getBarGridStep,
     isActive,
     lastClipboardKind,
     mobileViewport,
@@ -1810,6 +1847,9 @@ export default function GteDrumWorkspace({
     scaleDialogOpen,
     selectedBarIndices.length,
     snapTime,
+    totalFrames,
+    trackOffsetFrames,
+    updateSnapshotNotes,
     snapshot.notes,
   ]);
 
@@ -1866,7 +1906,7 @@ export default function GteDrumWorkspace({
       materializeDrumLoopNotes(
         loopPreview?.notes ?? toolPreviewNotes ?? dragPreviewNotes ?? snapshot.notes,
         visualLoops,
-        totalFrames
+        getDrumLoopTimelineFrames(visualLoops, totalFrames, FRAMES_PER_BAR)
       ),
     [dragPreviewNotes, loopPreview, snapshot.notes, toolPreviewNotes, totalFrames, visualLoops]
   );
@@ -1923,6 +1963,164 @@ export default function GteDrumWorkspace({
     );
   }, [emitSnapshotChange]);
 
+  const beginScoreLoopInteraction = useCallback((
+    loop: DrumLoopRegion,
+    mode: "move" | "resize",
+    barsPerRow: number,
+    event: ReactPointerEvent<HTMLElement>
+  ) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const score = scoreRef.current;
+    const staff = event.currentTarget.closest("[data-drum-score-staff]") as HTMLElement | null;
+    const staffRect = staff?.getBoundingClientRect();
+    const barWidth = score?.querySelector(".gte-drum-bar-heading-cell")?.getBoundingClientRect().width || 1;
+    const gutterWidth = score?.querySelector(".gte-drum-score-gutter")?.getBoundingClientRect().width || 72;
+    const rows = Array.from(score?.querySelectorAll<HTMLElement>("[data-drum-score-staff]") || [])
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return { left: rect.left, top: rect.top, bottom: rect.bottom, index: Number(element.dataset.drumScoreStaff) };
+      });
+    if (!staffRect || !rows.length) return;
+    const rowIndex = Number(staff?.dataset.drumScoreStaff) || 0;
+    scoreInteractionRef.current = {
+      kind: "loop", startX: event.clientX, startY: event.clientY,
+      startPointerFrame: rowIndex * barsPerRow * FRAMES_PER_BAR +
+        ((event.clientX - staffRect.left - gutterWidth) / barWidth) * FRAMES_PER_BAR,
+      barsPerRow, barWidth, gutterWidth, rows, mode, loop,
+      originalNotes: snapshot.notes, moved: false,
+    };
+    setSelectedLoopId(loop.id);
+  }, [snapshot.notes]);
+
+  useEffect(() => {
+    if (mobileViewport) return;
+    const onMove = (event: PointerEvent) => {
+      const interaction = scoreInteractionRef.current;
+      const score = scoreRef.current;
+      if (!interaction || !score) return;
+      if (interaction.kind === "marquee") {
+        const left = Math.min(interaction.startX, event.clientX);
+        const right = Math.max(interaction.startX, event.clientX);
+        const top = Math.min(interaction.startY, event.clientY);
+        const bottom = Math.max(interaction.startY, event.clientY);
+        if (Math.hypot(right - left, bottom - top) < DRAG_THRESHOLD_PX && !interaction.moved) return;
+        interaction.moved = true;
+        const bounds = score.getBoundingClientRect();
+        setSelectionBox({ left: left - bounds.left, top: top - bounds.top, width: right - left, height: bottom - top });
+        const inside = Array.from(score.querySelectorAll<HTMLElement>("[data-drum-hit-id]"))
+          .filter((element) => {
+            const rect = element.getBoundingClientRect();
+            return rect.left < right && rect.right > left && rect.top < bottom && rect.bottom > top;
+          })
+          .map((element) => Number(element.dataset.drumHitId));
+        replaceSelection(new Set([...interaction.baseSelection, ...inside]));
+        return;
+      }
+      if (interaction.kind === "notes") {
+        const dx = event.clientX - interaction.startX;
+        const dy = event.clientY - interaction.startY;
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX && !interaction.moved) return;
+        interaction.moved = true;
+        const selected = interaction.originalNotes.filter((note) => interaction.selectedIds.has(note.id));
+        if (!selected.length) return;
+        const anchorBar = Math.floor(selected[0].startTime / FRAMES_PER_BAR);
+        const step = getBarGridStep(anchorBar);
+        const targetRow = interaction.rows.reduce((closest, row) => {
+          const distance = Math.max(row.top - event.clientY, event.clientY - row.bottom, 0);
+          const closestDistance = Math.max(closest.top - event.clientY, event.clientY - closest.bottom, 0);
+          return distance < closestDistance ? row : closest;
+        }, interaction.rows[0]);
+        const targetPointerFrame =
+          targetRow.index * interaction.barsPerRow * FRAMES_PER_BAR +
+          ((event.clientX - targetRow.left - interaction.gutterWidth) / interaction.barWidth) * FRAMES_PER_BAR;
+        const rawDelta = targetPointerFrame - interaction.startPointerFrame;
+        const requestedDelta = Math.round(rawDelta / step) * step;
+        const minTime = Math.min(...selected.map((note) => note.startTime));
+        const maxTime = Math.max(...selected.map((note) => note.startTime));
+        const timeDelta = Math.max(trackOffsetFrames - minTime, Math.min(Math.max(0, totalFrames - step - maxTime), requestedDelta));
+        const targetVoiceIndex = Math.max(0, Math.min(DRUM_VOICES.length - 1,
+          Math.floor((event.clientY - targetRow.top) / interaction.rowHeight)));
+        const voiceDelta = targetVoiceIndex - interaction.anchorVoiceIndex;
+        const indexes = selected.map((note) => DRUM_VOICES.findIndex((voice) => voice.id === getDrumVoiceForNote(note).id));
+        const boundedVoiceDelta = Math.max(-Math.min(...indexes), Math.min(DRUM_VOICES.length - 1 - Math.max(...indexes), voiceDelta));
+        const preview = interaction.originalNotes.map((note) => {
+          if (!interaction.selectedIds.has(note.id)) return note;
+          const voiceIndex = DRUM_VOICES.findIndex((voice) => voice.id === getDrumVoiceForNote(note).id);
+          return buildDrumNote({ id: note.id, startTime: note.startTime + timeDelta, voiceIndex: voiceIndex + boundedVoiceDelta, length: note.length });
+        });
+        dragPreviewNotesRef.current = preview;
+        setDragPreviewNotes(preview);
+        return;
+      }
+      const dx = event.clientX - interaction.startX;
+      if (Math.hypot(dx, event.clientY - interaction.startY) < DRAG_THRESHOLD_PX && !interaction.moved) return;
+      interaction.moved = true;
+      const sourceLength = interaction.loop.sourceEnd - interaction.loop.sourceStart;
+      const targetRow = interaction.rows.reduce((closest, row) => {
+        const distance = Math.max(row.top - event.clientY, event.clientY - row.bottom, 0);
+        const closestDistance = Math.max(closest.top - event.clientY, event.clientY - closest.bottom, 0);
+        return distance < closestDistance ? row : closest;
+      }, interaction.rows[0]);
+      const targetPointerFrame =
+        targetRow.index * interaction.barsPerRow * FRAMES_PER_BAR +
+        ((event.clientX - targetRow.left - interaction.gutterWidth) / interaction.barWidth) * FRAMES_PER_BAR;
+      const deltaFrames = targetPointerFrame - interaction.startPointerFrame;
+      const nextLoop = { ...interaction.loop };
+      let nextNotes = interaction.originalNotes;
+      if (interaction.mode === "resize") {
+        const repeats = Math.max(1, Math.round((interaction.loop.loopEnd + deltaFrames - interaction.loop.sourceStart) / sourceLength));
+        nextLoop.loopEnd = nextLoop.sourceStart + repeats * sourceLength;
+      } else {
+        const delta = Math.max(trackOffsetFrames - nextLoop.sourceStart, Math.round(deltaFrames / sourceLength) * sourceLength);
+        nextLoop.sourceStart += delta;
+        nextLoop.sourceEnd += delta;
+        nextLoop.loopEnd += delta;
+        nextNotes = nextNotes.map((note) => note.startTime >= interaction.loop.sourceStart && note.startTime < interaction.loop.sourceEnd
+          ? { ...note, startTime: note.startTime + delta } : note);
+      }
+      const preview = { loop: nextLoop, notes: removeNotesCoveredByLoopRepeats(nextNotes, [nextLoop]) };
+      loopPreviewRef.current = preview;
+      setLoopPreview(preview);
+    };
+    const onUp = () => {
+      const interaction = scoreInteractionRef.current;
+      if (!interaction) return;
+      scoreInteractionRef.current = null;
+      setSelectionBox(null);
+      if (interaction.kind === "marquee") {
+        if (interaction.moved) {
+          scoreSuppressClickRef.current = true;
+          window.setTimeout(() => { scoreSuppressClickRef.current = false; }, 0);
+        }
+        return;
+      }
+      if (interaction.kind === "notes") {
+        const preview = dragPreviewNotesRef.current;
+        dragPreviewNotesRef.current = null;
+        setDragPreviewNotes(null);
+        if (interaction.moved && preview) void persistMovedNotes(preview, interaction.selectedIds, interaction.originalNotes);
+        return;
+      }
+      const preview = loopPreviewRef.current;
+      loopPreviewRef.current = null;
+      setLoopPreview(null);
+      if (interaction.moved && preview) {
+        const nextLoops = [...drumLoops.filter((loop) => loop.id !== preview.loop.id && !loopRangesOverlap(loop, preview.loop)), preview.loop];
+        commitLoopSnapshot(nextLoops, preview.notes, "Could not update drum loop.");
+      }
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [commitLoopSnapshot, drumLoops, getBarGridStep, mobileViewport, persistMovedNotes, replaceSelection, totalFrames, trackOffsetFrames]);
+
   if (!mobileViewport) {
     const lastNoteFrame = snapshot.notes.reduce(
       (end, note) => Math.max(end, note.startTime + Math.max(1, note.length)),
@@ -1930,7 +2128,7 @@ export default function GteDrumWorkspace({
     );
     const scoreBarCount = Math.max(
       1,
-      Math.ceil(Math.max(FRAMES_PER_BAR, snapshot.totalFrames, lastNoteFrame) / FRAMES_PER_BAR)
+      Math.ceil(Math.max(FRAMES_PER_BAR, snapshot.totalFrames, lastNoteFrame, loopPreview?.loop.loopEnd ?? 0) / FRAMES_PER_BAR)
     );
     const requestedBarsPerRow =
       sharedRowCapacityBarCount !== undefined && Number.isFinite(sharedRowCapacityBarCount)
@@ -1938,14 +2136,15 @@ export default function GteDrumWorkspace({
         : Math.round(Number(sharedViewportBarCount) || 4);
     const barsPerRow = Math.max(1, Math.min(6, requestedBarsPerRow));
     const scoreRowCount = Math.max(1, Math.ceil(scoreBarCount / barsPerRow));
-    const displayedNotes = loopPreview?.notes ?? toolPreviewNotes ?? dragPreviewNotes ?? snapshot.notes;
+    const displayedNotes = materializedNotes;
     const playheadBar = Math.max(0, Math.min(scoreBarCount - 1, Math.floor(globalPlaybackFrame / FRAMES_PER_BAR)));
 
     return (
       <div
+        ref={scoreRef}
         data-gte-track="true"
         data-gte-drum-score="true"
-        className="gte-drum-score min-w-0 w-full overflow-x-hidden space-y-5 px-8 py-2"
+        className="gte-drum-score relative min-w-0 w-full overflow-x-hidden space-y-5 px-8 py-2"
         onMouseDown={onFocusWorkspace}
       >
         {Array.from({ length: scoreRowCount }, (_, scoreRowIndex) => {
@@ -2006,7 +2205,45 @@ export default function GteDrumWorkspace({
                 })}
               </div>
 
-              <div className="gte-drum-staff">
+              <div className="gte-drum-staff" data-drum-score-staff={scoreRowIndex}>
+                {(loopPreview ? [...drumLoops.filter((loop) => loop.id !== loopPreview.loop.id), loopPreview.loop] : drumLoops)
+                  .filter((loop) => loop.loopEnd > rowStart && loop.sourceStart < rowStart + rowBarCount * FRAMES_PER_BAR)
+                  .map((loop) => {
+                    const visibleStart = Math.max(rowStart, loop.sourceStart);
+                    const visibleEnd = Math.min(rowStart + rowBarCount * FRAMES_PER_BAR, loop.loopEnd);
+                    const sourceEnd = Math.max(visibleStart, Math.min(visibleEnd, loop.sourceEnd));
+                    const endsHere = loop.loopEnd <= rowStart + rowBarCount * FRAMES_PER_BAR;
+                    return (
+                      <div
+                        key={`drum-score-loop-${loop.id}`}
+                        data-drum-loop="true"
+                        className={`gte-drum-score-loop${selectedLoopId === loop.id ? " is-selected" : ""}`}
+                        style={{
+                          left: `calc(4.5rem + (100% - 4.5rem) * ${(visibleStart - rowStart) / (barsPerRow * FRAMES_PER_BAR)})`,
+                          width: `calc((100% - 4.5rem) * ${(visibleEnd - visibleStart) / (barsPerRow * FRAMES_PER_BAR)})`,
+                        }}
+                        onPointerDown={(event) => beginScoreLoopInteraction(loop, "move", barsPerRow, event)}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setSelectedLoopId(loop.id);
+                          setLoopContextMenu({ x: event.clientX, y: event.clientY, loopId: loop.id });
+                        }}
+                        title="Drag loop to move · drag right edge to repeat · right-click for options"
+                      >
+                        <div className="gte-drum-score-loop-source" style={{ width: `${((sourceEnd - visibleStart) / Math.max(1, visibleEnd - visibleStart)) * 100}%` }} />
+                        <button type="button" className="gte-drum-score-loop-grab" aria-label="Move drum loop" title="Drag to move loop">Loop</button>
+                        {endsHere && (
+                          <button
+                            type="button"
+                            className="gte-drum-score-loop-handle"
+                            aria-label="Extend drum loop"
+                            onPointerDown={(event) => beginScoreLoopInteraction(loop, "resize", barsPerRow, event)}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                 {DRUM_VOICES.map((voice, voiceIndex) => (
                   <div key={voice.id} className="gte-drum-staff-line">
                     <button
@@ -2052,42 +2289,87 @@ export default function GteDrumWorkspace({
                                       ? "is-cursor"
                                       : ""
                                   }`}
-                                  onClick={() => void addHit(voiceIndex, frame)}
+                                  onPointerDown={(event) => {
+                                    if (event.button !== 0) return;
+                                    const baseSelection = event.shiftKey ? new Set(selectedNoteIdsRef.current) : new Set<number>();
+                                    if (!event.shiftKey) replaceSelection(baseSelection);
+                                    scoreInteractionRef.current = { kind: "marquee", startX: event.clientX, startY: event.clientY, baseSelection, moved: false };
+                                  }}
+                                  onClick={() => {
+                                    if (scoreSuppressClickRef.current) {
+                                      scoreSuppressClickRef.current = false;
+                                      return;
+                                    }
+                                    void addHit(voiceIndex, frame);
+                                  }}
+                                  onContextMenu={(event) => handleBarContextMenu(barIndex, event)}
                                   aria-label={`Toggle ${voice.label} in bar ${barIndex + 1}`}
                                 />
                               );
                             })}
                             {displayedNotes
-                              .filter((note) => note.startTime >= barStart && note.startTime < barEnd)
-                              .filter((note) => getDrumVoiceForNote(note).id === voice.id)
-                              .map((note) => {
-                                const selected = selectedNoteIds.has(note.id);
+                              .filter((item) => item.note.startTime >= barStart && item.note.startTime < barEnd)
+                              .filter((item) => getDrumVoiceForNote(item.note).id === voice.id)
+                              .map((item) => {
+                                const note = item.note;
+                                const selected = !item.virtual && selectedNoteIds.has(note.id);
                                 return (
                                   <button
-                                    key={`drum-score-hit-${note.id}`}
+                                    key={`drum-score-hit-${item.key}`}
                                     type="button"
-                                    data-drum-hit="true"
+                                    data-drum-hit={item.virtual ? undefined : "true"}
+                                    data-drum-hit-id={item.virtual ? undefined : note.id}
                                     aria-pressed={selected}
-                                    className={`gte-drum-hit ${selected ? "is-selected" : ""}`}
+                                    className={`gte-drum-hit ${selected ? "is-selected" : ""} ${item.virtual ? "is-virtual" : ""}`}
                                     style={{
                                       left: `${((note.startTime - barStart) / FRAMES_PER_BAR) * 100}%`,
                                       width: `${100 / barSubdivisionsPerBar}%`,
                                     }}
-                                    onClick={(event) => {
+                                    onPointerDown={(event) => {
+                                      if (item.virtual) return;
+                                      if (event.button !== 0) return;
+                                      event.preventDefault();
                                       event.stopPropagation();
-                                      if (event.shiftKey) {
-                                        const nextSelection = new Set(selectedNoteIds);
-                                        if (nextSelection.has(note.id)) {
-                                          nextSelection.delete(note.id);
-                                        } else {
-                                          nextSelection.add(note.id);
-                                        }
+                                      const nextSelection = event.shiftKey
+                                        ? new Set(selectedNoteIdsRef.current)
+                                        : selectedNoteIdsRef.current.has(note.id)
+                                          ? new Set(selectedNoteIdsRef.current)
+                                          : new Set<number>();
+                                      if (event.shiftKey && nextSelection.has(note.id)) {
+                                        nextSelection.delete(note.id);
                                         replaceSelection(nextSelection);
-                                        setCursor({ time: note.startTime, voiceIndex });
                                         return;
                                       }
-                                      void deleteHits([note.id]);
-                                      void previewDrumVoice(voice.id).catch(() => {});
+                                      nextSelection.add(note.id);
+                                      replaceSelection(nextSelection);
+                                      const grid = event.currentTarget.closest(".gte-drum-grid") as HTMLElement | null;
+                                      const staff = event.currentTarget.closest("[data-drum-score-staff]") as HTMLElement | null;
+                                      const staffRect = staff?.getBoundingClientRect();
+                                      const barWidth = grid?.getBoundingClientRect().width || 1;
+                                      const gutterWidth = scoreRef.current?.querySelector(".gte-drum-score-gutter")?.getBoundingClientRect().width || 72;
+                                      const rows = Array.from(scoreRef.current?.querySelectorAll<HTMLElement>("[data-drum-score-staff]") || [])
+                                        .map((element) => {
+                                          const rect = element.getBoundingClientRect();
+                                          return { left: rect.left, top: rect.top, bottom: rect.bottom, index: Number(element.dataset.drumScoreStaff) };
+                                        });
+                                      if (!staffRect || !rows.length) return;
+                                      scoreInteractionRef.current = {
+                                        kind: "notes", startX: event.clientX, startY: event.clientY,
+                                        startPointerFrame: scoreRowIndex * barsPerRow * FRAMES_PER_BAR +
+                                          ((event.clientX - staffRect.left - gutterWidth) / barWidth) * FRAMES_PER_BAR,
+                                        anchorVoiceIndex: voiceIndex,
+                                        barsPerRow,
+                                        barWidth,
+                                        gutterWidth,
+                                        rowHeight: grid?.getBoundingClientRect().height || ROW_HEIGHT,
+                                        rows,
+                                        selectedIds: nextSelection, originalNotes: snapshot.notes, moved: false,
+                                      };
+                                      setCursor({ time: note.startTime, voiceIndex });
+                                      onFocusWorkspace?.();
+                                    }}
+                                    onContextMenu={(event) => {
+                                      if (!item.virtual) handleNoteContextMenu(note, event);
                                     }}
                                     title={`${voice.label} · click to remove, shift+click to select`}
                                   >
@@ -2112,6 +2394,19 @@ export default function GteDrumWorkspace({
             </section>
           );
         })}
+        {selectionBox && <div className="gte-drum-score-selection" style={selectionBox} />}
+        {barContextMenu && (
+          <div data-drum-bar-context="true" className="fixed z-[9999] w-44 rounded-md border border-slate-200 bg-white py-1 text-xs shadow-lg" style={{ left: barContextMenu.x, top: barContextMenu.y }}>
+            <button type="button" className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={createLoopFromSelectedBars} disabled={!selectedBarIndices.length}>Loop selection</button>
+            <button type="button" className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={() => { void copySelectedNotes(); setBarContextMenu(null); }} disabled={selectedNoteIds.size === 0}>Copy notes</button>
+            <button type="button" className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={() => { copySelectedBars(); setBarContextMenu(null); }} disabled={selectedBarIndices.length === 0}>Copy bars</button>
+          </div>
+        )}
+        {loopContextMenu && (
+          <div data-drum-loop-context="true" className="fixed z-[9999] w-40 rounded-md border border-slate-200 bg-white py-1 text-xs shadow-lg" style={{ left: loopContextMenu.x, top: loopContextMenu.y }}>
+            <button type="button" className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={() => deleteLoop(loopContextMenu.loopId)}>Delete loop</button>
+          </div>
+        )}
         <button
           type="button"
           data-gte-editor-control="true"

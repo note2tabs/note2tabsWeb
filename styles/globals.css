@@ -13059,10 +13059,74 @@ input[type="number"] {
   }
 
   .gte-drum-hit:hover { background: #3c4842; }
+  .gte-drum-hit.is-virtual {
+    background: #9acdb9;
+    color: #174c37;
+    pointer-events: none;
+  }
   .gte-drum-hit.is-selected {
     background: #11603f;
     color: #fff;
     box-shadow: 0 0 0 2px #68a98a;
+  }
+
+  .gte-drum-score-loop {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 2;
+    cursor: grab;
+    border: 1px solid #66a48d;
+    background: rgba(116, 188, 160, .12);
+    touch-action: none;
+    pointer-events: none;
+  }
+
+  .gte-drum-score-loop.is-selected { border-color: #11603f; }
+  .gte-drum-score-loop-source {
+    height: 100%;
+    border-right: 1px dashed #508e77;
+    background: rgba(116, 188, 160, .1);
+    pointer-events: none;
+  }
+
+  .gte-drum-score-loop-handle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    width: 10px;
+    border: 0;
+    background: #39876a;
+    cursor: ew-resize;
+    touch-action: none;
+    pointer-events: auto;
+  }
+
+  .gte-drum-score-loop-grab {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 5;
+    height: 15px;
+    min-width: 32px;
+    border: 0;
+    border-radius: 0 0 3px 0;
+    background: #39876a;
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    cursor: grab;
+    pointer-events: auto;
+  }
+
+  .gte-drum-score-selection {
+    position: absolute;
+    z-index: 10;
+    border: 1px solid #17815b;
+    background: rgba(87, 174, 139, .2);
+    pointer-events: none;
   }
 
   .gte-drum-playhead {
