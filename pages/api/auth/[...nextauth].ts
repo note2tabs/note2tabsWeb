@@ -60,6 +60,7 @@ const providers: NextAuthOptions["providers"] = [
             emailVerified: true,
             emailVerifiedBool: true,
             unverifiedTranscriptionUsed: true,
+            heavyPreviewUsedAt: true,
             createdAt: true,
           },
         });
@@ -99,6 +100,7 @@ const providers: NextAuthOptions["providers"] = [
           tokensRemaining: user.tokensRemaining,
           isEmailVerified,
           unverifiedTranscriptionUsed: user.unverifiedTranscriptionUsed,
+          heavyPreviewUsedAt: user.heavyPreviewUsedAt,
           createdAt: user.createdAt,
         };
       } catch (error) {
@@ -207,6 +209,7 @@ export const authOptions: NextAuthOptions = {
               emailVerified: true,
               emailVerifiedBool: true,
               unverifiedTranscriptionUsed: true,
+              heavyPreviewUsedAt: true,
               createdAt: true,
             },
           });

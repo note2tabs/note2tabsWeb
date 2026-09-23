@@ -5,11 +5,13 @@ type TranscriptionModelValueNoteProps = {
   isPremium: boolean;
   onSelectHeavy: () => void;
   surface: string;
+  heavyPreviewAvailable?: boolean;
 };
 
 export default function TranscriptionModelValueNote({
   model,
   onSelectHeavy,
+  heavyPreviewAvailable = false,
 }: TranscriptionModelValueNoteProps) {
   if (model === "light") {
     return (
@@ -25,7 +27,13 @@ export default function TranscriptionModelValueNote({
   }
 
   if (model === "super_heavy") {
-    return <p className="model-value-note">Heavy uses our most detailed model for complex multi-instrument transcription.</p>;
+    return (
+      <p className="model-value-note">
+        {heavyPreviewAvailable
+          ? "Your verified account includes one 30-second Heavy preview. It is available once; subscribe for continued Heavy access."
+          : "Heavy uses our most detailed model for complex multi-instrument transcription."}
+      </p>
+    );
   }
 
   return (

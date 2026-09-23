@@ -25,8 +25,10 @@ import { fetchYouTubeVideoTitle } from "../lib/youtubeTitle";
 import {
   DEFAULT_TRANSCRIPTION_MODEL,
   getDefaultTranscriptionModel,
+  HEAVY_PREVIEW_MAX_DURATION_SEC,
   type TranscriptionModelChoice,
 } from "../lib/transcriptionModels";
+import { useHeavyPreviewCountryEligibility } from "../lib/useHeavyPreviewCountryEligibility";
 import {
   DEFAULT_FILE_SNIPPET_SEC,
   DEFAULT_YOUTUBE_SNIPPET_SEC,
@@ -45,6 +47,7 @@ import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../components
 import Note2TabsSelect from "../components/Note2TabsSelect";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 import TranscriptionModelValueNote from "../components/TranscriptionModelValueNote";
+import HeavyPreviewIntroDialog from "../components/HeavyPreviewIntroDialog";
 import PremiumConversionCard from "../components/PremiumConversionCard";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
@@ -83,7 +86,7 @@ type TabsResponse = {
   status?: string;
   gteEditorId?: string;
   verificationRequired?: boolean;
-  unverifiedTranscriptionUsed?: boolean;
+  heavyPreviewUsed?: boolean;
 };
 type CreditsResponse = {
   credits?: CreditsSummary;
@@ -197,6 +200,7 @@ export default function TranscriberPage() {
   const [transcriptionModel, setTranscriptionModel] =
     useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
   const transcriptionModelTouchedRef = useRef(false);
+  const heavyPreviewShownRef = useRef(false);
   const inactiveReminderLandingTrackedRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -212,7 +216,9 @@ export default function TranscriberPage() {
   >([]);
   const [editorChoice, setEditorChoice] = useState<string>("new");
   const [editorLoading, setEditorLoading] = useState(false);
-  const [localUnverifiedTranscriptionUsed, setLocalUnverifiedTranscriptionUsed] = useState(false);
+  const [localHeavyPreviewUsed, setLocalHeavyPreviewUsed] = useState(false);
+  const [showHeavyPreviewIntro, setShowHeavyPreviewIntro] = useState(false);
+  const heavyPreviewAcknowledgedRef = useRef(false);
   const [authHandoffBusy, setAuthHandoffBusy] = useState(false);
   const [upgradeBusy, setUpgradeBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -239,16 +245,26 @@ export default function TranscriberPage() {
   );
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
-  const unverifiedTranscriptionUsed =
-    localUnverifiedTranscriptionUsed || Boolean(transcriberSession?.user?.unverifiedTranscriptionUsed);
-  const canUseUnverifiedTranscription = !requireVerifiedEmail || isEmailVerified || !unverifiedTranscriptionUsed;
+  const heavyPreviewUsed =
+    localHeavyPreviewUsed || Boolean(transcriberSession?.user?.heavyPreviewUsed);
+  const { countryEligible: heavyPreviewCountryEligible } =
+    useHeavyPreviewCountryEligibility(Boolean(transcriberSession && !isPremiumUser && !heavyPreviewUsed));
+  const heavyPreviewAvailable = Boolean(
+    transcriberSession &&
+      heavyPreviewCountryEligible &&
+      isEmailVerified &&
+      !isPremiumUser &&
+      !heavyPreviewUsed
+  );
+  const canUseHeavy = isPremiumUser || heavyPreviewAvailable;
+  const canTranscribe = !requireVerifiedEmail || isEmailVerified;
   const displayedCredits = useMemo(
     () => credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
     [credits, disableDbInDev]
   );
-  const verifyHref = `/auth/verify-email${
+  const verifyHref = `/auth/verify-email?next=${encodeURIComponent("/transcribe")}${
     transcriberSession?.user?.email
-      ? `?email=${encodeURIComponent(transcriberSession.user.email)}`
+      ? `&email=${encodeURIComponent(transcriberSession.user.email)}`
       : ""
   }`;
   const appendEditorId = useMemo(() => {
@@ -279,8 +295,9 @@ export default function TranscriberPage() {
   }, [fileStartTime, fileEndTime]);
   const fileTimeRangeValid = useMemo(() => {
     if (!selectedFile) return false;
-    return isFileClipRangeValid(fileStartTime, fileEndTime, fileDuration, isPremiumUser);
-  }, [fileDuration, fileEndTime, fileStartTime, isPremiumUser, selectedFile]);
+    return isFileClipRangeValid(fileStartTime, fileEndTime, fileDuration, isPremiumUser) &&
+      (!heavyPreviewAvailable || transcriptionModel !== "super_heavy" || resolvedFileDuration <= HEAVY_PREVIEW_MAX_DURATION_SEC);
+  }, [fileDuration, fileEndTime, fileStartTime, heavyPreviewAvailable, isPremiumUser, resolvedFileDuration, selectedFile, transcriptionModel]);
   const shouldDeferEditorSync = Boolean(appendEditorId);
 
   useEffect(() => {
@@ -294,11 +311,17 @@ export default function TranscriberPage() {
 
   useEffect(() => {
     if (sessionStatus === "loading" || transcriptionModelTouchedRef.current) return;
-    setTranscriptionModel(getDefaultTranscriptionModel(isPremiumUser));
-  }, [isPremiumUser, sessionStatus]);
+    setTranscriptionModel(getDefaultTranscriptionModel(isPremiumUser, heavyPreviewAvailable));
+  }, [heavyPreviewAvailable, isPremiumUser, sessionStatus]);
 
   useEffect(() => {
-    setLocalUnverifiedTranscriptionUsed(Boolean(session?.user?.unverifiedTranscriptionUsed));
+    if (!heavyPreviewAvailable || heavyPreviewShownRef.current) return;
+    heavyPreviewShownRef.current = true;
+    sendEvent(ANALYTICS_EVENTS.heavyPreviewShown, { surface: "transcriber" });
+  }, [heavyPreviewAvailable]);
+
+  useEffect(() => {
+    setLocalHeavyPreviewUsed(Boolean(session?.user?.heavyPreviewUsed));
     if (session?.user?.monthlyCreditsUsed !== undefined) {
       setCredits({
         used: session.user.monthlyCreditsUsed ?? 0,
@@ -496,8 +519,8 @@ export default function TranscriberPage() {
         setStatus("Choose a smaller audio file to continue.");
       } else if (requiresPremium && !premiumEntitlementReady) {
         setStatus("Your upload is restored. Upgrade to Premium to transcribe this file.");
-      } else if (!canUseUnverifiedTranscription) {
-        setError("Please verify your email to continue using the transcriber.");
+      } else if (!canTranscribe) {
+        setError("Verify your email to start transcribing and unlock your free Heavy preview.");
         setStatus("Your upload is restored and will remain available after verification.");
       } else {
         setStatus("Welcome back — your transcription is ready to continue.");
@@ -519,7 +542,10 @@ export default function TranscriberPage() {
   useEffect(() => {
     if (!selectedFile || fileDuration === null || fileStartTime !== 0 || fileEndTime === null) return;
     const fileLength = Math.max(1, Math.ceil(fileDuration));
-    const freeDefaultEnd = Math.min(fileLength, MAX_FREE_FILE_SNIPPET_SEC);
+    const freeLimit = heavyPreviewAvailable && transcriptionModel === "super_heavy"
+      ? HEAVY_PREVIEW_MAX_DURATION_SEC
+      : MAX_FREE_FILE_SNIPPET_SEC;
+    const freeDefaultEnd = Math.min(fileLength, freeLimit);
     if (isPremiumUser && fileEndTime === freeDefaultEnd && fileLength > freeDefaultEnd) {
       setFileEndTime(fileLength);
       setFileEndInput(formatTimestamp(fileLength));
@@ -529,7 +555,7 @@ export default function TranscriberPage() {
       setFileEndTime(freeDefaultEnd);
       setFileEndInput(formatTimestamp(freeDefaultEnd));
     }
-  }, [fileDuration, fileEndTime, fileStartTime, isPremiumUser, selectedFile]);
+  }, [fileDuration, fileEndTime, fileStartTime, heavyPreviewAvailable, isPremiumUser, selectedFile, transcriptionModel]);
 
   const handleYtStartInputChange = (value: string) => {
     const nextValue = preserveTimestampColon(value, ytStartInput);
@@ -632,7 +658,7 @@ export default function TranscriberPage() {
   const youtubeValid = useMemo(() => Boolean(youtubeId), [youtubeId]);
 
   const canSubmit = useMemo(() => {
-    if (sessionStatus === "loading" || (isSignedIn && !canUseUnverifiedTranscription)) return false;
+    if (sessionStatus === "loading" || (isSignedIn && !canTranscribe)) return false;
     if (mode === "FILE") return Boolean(selectedFile) && fileTimeRangeValid && !loading && !authHandoffBusy;
     return youtubeValid && youtubeTimeRangeValid && !loading && !authHandoffBusy;
   }, [
@@ -644,7 +670,7 @@ export default function TranscriberPage() {
     loading,
     authHandoffBusy,
     isSignedIn,
-    canUseUnverifiedTranscription,
+    canTranscribe,
     sessionStatus,
   ]);
   const submitLabel = authHandoffBusy
@@ -779,8 +805,9 @@ export default function TranscriberPage() {
       }
       return;
     }
-    if (transcriberSession && !canUseUnverifiedTranscription) {
-      setError("Please verify your email to continue using the transcriber.");
+    if (transcriberSession && !canTranscribe) {
+      setError("Verify your email to start transcribing and unlock your free Heavy preview.");
+      sendEvent(ANALYTICS_EVENTS.verificationGateShown, { surface: "transcriber", mode });
       return;
     }
 
@@ -823,7 +850,9 @@ export default function TranscriberPage() {
     }
 
     if (mode === "FILE" && selectedFile && !fileTimeRangeValid) {
-      setError("Selected file clip must be greater than 0 and within the file length.");
+      setError(heavyPreviewAvailable && transcriptionModel === "super_heavy"
+        ? "Your one-time Heavy preview can include up to 30 seconds."
+        : "Selected file clip must be greater than 0 and within the file length.");
       return;
     }
     if (mode === "YOUTUBE") {
@@ -966,9 +995,10 @@ export default function TranscriberPage() {
         if (data.credits) {
           setCredits(data.credits);
         }
-        if (data.unverifiedTranscriptionUsed) {
-          setLocalUnverifiedTranscriptionUsed(true);
+        if (data.heavyPreviewUsed) {
+          setLocalHeavyPreviewUsed(true);
           await updateSession().catch(() => null);
+          sendEvent(ANALYTICS_EVENTS.heavyPreviewStarted, { surface: "transcriber", mode });
         }
         setStatus("Opening progress screen...");
         sendEvent("transcribe_queued", {
@@ -981,6 +1011,7 @@ export default function TranscriberPage() {
         jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
         jobParams.set("multipleGuitars", multipleGuitars ? "1" : "0");
         jobParams.set("model", transcriptionModel);
+        if (data.heavyPreviewUsed) jobParams.set("heavyPreview", "1");
         const selectedDuration = mode === "YOUTUBE" ? resolvedYtDuration : resolvedFileDuration;
         if (Number.isFinite(selectedDuration) && selectedDuration > 0) {
           jobParams.set("duration", String(Math.round(selectedDuration)));
@@ -1002,9 +1033,8 @@ export default function TranscriberPage() {
           setCredits(data.credits);
         }
         if (data.verificationRequired) {
-          setLocalUnverifiedTranscriptionUsed(true);
           await updateSession().catch(() => null);
-          setError("Please verify your email to continue using the transcriber.");
+          setError("Verify your email to start transcribing and unlock your free Heavy preview.");
           return;
         }
         if (response.status === 403 && data.credits) {
@@ -1033,9 +1063,10 @@ export default function TranscriberPage() {
       if (data.credits) {
         setCredits(data.credits);
       }
-      if (data.unverifiedTranscriptionUsed) {
-        setLocalUnverifiedTranscriptionUsed(true);
+      if (data.heavyPreviewUsed) {
+        setLocalHeavyPreviewUsed(true);
         await updateSession().catch(() => null);
+        sendEvent(ANALYTICS_EVENTS.heavyPreviewStarted, { surface: "transcriber", mode });
       }
       sendEvent("transcribe_success", {
         ...researchProperties,
@@ -1089,6 +1120,10 @@ export default function TranscriberPage() {
 
   const handleInstrumentPromptStart = () => {
     if (!instrumentPromptComplete) return;
+    if (heavyPreviewAvailable && transcriptionModel === "super_heavy" && !heavyPreviewAcknowledgedRef.current) {
+      setShowHeavyPreviewIntro(true);
+      return;
+    }
     void handleConvert(true);
   };
 
@@ -1313,6 +1348,15 @@ export default function TranscriberPage() {
 
   return (
     <>
+      <HeavyPreviewIntroDialog
+        open={showHeavyPreviewIntro}
+        onCancel={() => setShowHeavyPreviewIntro(false)}
+        onConfirm={() => {
+          heavyPreviewAcknowledgedRef.current = true;
+          setShowHeavyPreviewIntro(false);
+          void handleConvert(true);
+        }}
+      />
       <SeoHead
         title="Audio to Guitar Tab Transcriber | Note2Tabs"
         description={transcriberDescription}
@@ -1356,7 +1400,9 @@ export default function TranscriberPage() {
                         value={transcriptionModel}
                         onChange={selectTranscriptionModel}
                         disabled={loading || authHandoffBusy}
-                        canUseHeavy={isPremiumUser}
+                        canUseHeavy={canUseHeavy}
+                        heavyPreviewAvailable={heavyPreviewAvailable}
+                        verificationRequired={isSignedIn && heavyPreviewCountryEligible && !isEmailVerified}
                       />
                     </div>
                   )}
@@ -1373,6 +1419,7 @@ export default function TranscriberPage() {
                 <TranscriptionModelValueNote
                   model={transcriptionModel}
                   isPremium={isPremiumUser}
+                  heavyPreviewAvailable={heavyPreviewAvailable}
                   onSelectHeavy={() => {
                     selectTranscriptionModel("heavy");
                     trackCtaClick("try_heavy_model", { surface: "transcriber_funnel" });
@@ -1521,9 +1568,9 @@ export default function TranscriberPage() {
                   busy={upgradeBusy}
                 />
               )}
-              {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
+              {isSignedIn && !isEmailVerified && (
                 <div className="notice">
-                  Verify your email to continue using the transcriber.{" "}
+                  Verify your email to start transcribing and unlock one free Heavy preview.{" "}
                   <Link href={verifyHref} className="button-link">
                     Verify now
                   </Link>

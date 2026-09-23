@@ -30,7 +30,7 @@ const PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "runnin
 const TAB_JOB_ID_KEYS = ["tab_job_id", "tabJobId", "tab_id", "tabId"];
 
 type JobModeHint = "FILE" | "YOUTUBE";
-type JobModelHint = "light" | "heavy";
+type JobModelHint = "light" | "heavy" | "super_heavy";
 type PendingStageKey = "queue" | "download" | "prepare" | "separate" | "predict" | "note_events" | "format";
 type ImportResult = {
   editorId: string;
@@ -626,6 +626,7 @@ export default function JobPage() {
   const [shareUrls, setShareUrls] = useState<{ twitter: string; reddit: string } | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [heavyPreviewCompletionAcknowledged, setHeavyPreviewCompletionAcknowledged] = useState(false);
   const [progressClock, setProgressClock] = useState(() => Date.now());
   const automaticImportJobRef = useRef<string | null>(null);
   const displayJob = useMemo(() => normalizeJobForDisplay(job), [job]);
@@ -647,8 +648,14 @@ export default function JobPage() {
   const modelHint = useMemo<JobModelHint | null>(() => {
     if (!router.isReady) return null;
     const rawModel = getQueryStringValue(router.query.model)?.toLowerCase();
-    return rawModel === "heavy" || rawModel === "light" ? rawModel : null;
+    return rawModel === "heavy" || rawModel === "light" || rawModel === "super_heavy"
+      ? rawModel
+      : null;
   }, [router.isReady, router.query.model]);
+  const isHeavyPreview = useMemo(() => {
+    if (!router.isReady) return false;
+    return parseBooleanFlag(getQueryStringValue(router.query.heavyPreview)) ?? false;
+  }, [router.isReady, router.query.heavyPreview]);
   const durationHintSeconds = useMemo(() => {
     const queryDuration =
       parsePositiveNumber(getQueryStringValue(router.query.duration)) ??
@@ -720,7 +727,13 @@ export default function JobPage() {
       ...properties,
       $insert_id: `transcription-succeeded:${job_id}`,
     });
-  }, [durationHintSeconds, job_id, loadedMultipleGuitars, modeHint, modelHint, separateGuitarHint, showReviewUi]);
+    if (isHeavyPreview) {
+      sendEvent(ANALYTICS_EVENTS.heavyPreviewCompleted, {
+        ...properties,
+        $insert_id: `heavy-preview-completed:${job_id}`,
+      });
+    }
+  }, [durationHintSeconds, isHeavyPreview, job_id, loadedMultipleGuitars, modeHint, modelHint, separateGuitarHint, showReviewUi]);
 
 
   const fetchJob = async (
@@ -1191,11 +1204,12 @@ export default function JobPage() {
   useEffect(() => {
     if (!router.isReady || !showReviewUi || typeof job_id !== "string") return;
     if (sessionStatus === "loading" || automaticImportJobRef.current === job_id) return;
+    if (isHeavyPreview && !heavyPreviewCompletionAcknowledged) return;
     automaticImportJobRef.current = job_id;
     void automaticallyOpenEditor();
     // The completed job id is the one-shot trigger. Import state changes must not start a duplicate editor import.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job_id, router.isReady, sessionStatus, showReviewUi]);
+  }, [heavyPreviewCompletionAcknowledged, isHeavyPreview, job_id, router.isReady, sessionStatus, showReviewUi]);
 
   const handleRestart = () => {
     void router.push("/");
@@ -1241,7 +1255,31 @@ export default function JobPage() {
           <div className="job-route-content">
           {showReviewUi ? (
             <div className="stack">
-              <EditorLoadingState label="Quantizing transcription and opening your editor" />
+              {isHeavyPreview && !heavyPreviewCompletionAcknowledged ? (
+                <section className="mx-auto w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Heavy preview complete</p>
+                  <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Your preview is ready</h2>
+                  <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-600">
+                    This was your account’s one-time 30-second Heavy preview. Subscribe to Premium or Pro to use Heavy again.
+                  </p>
+                  <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
+                    <button
+                      type="button"
+                      className="button-primary"
+                      onClick={() => {
+                        setHeavyPreviewCompletionAcknowledged(true);
+                        automaticImportJobRef.current = typeof job_id === "string" ? job_id : null;
+                        void automaticallyOpenEditor();
+                      }}
+                    >
+                      Open in editor
+                    </button>
+                    <button type="button" className="button-secondary" onClick={() => void router.push("/pricing?source=heavy_preview_complete")}>View plans</button>
+                  </div>
+                </section>
+              ) : (
+                <EditorLoadingState label="Quantizing transcription and opening your editor" />
+              )}
               {reviewError ? (
                 <div className="stack-tight">
                   <div className="error" role="alert">{reviewError}</div>

@@ -10,6 +10,8 @@ type TranscriptionModelDropdownProps = {
   disabled?: boolean;
   id?: string;
   canUseHeavy?: boolean;
+  heavyPreviewAvailable?: boolean;
+  verificationRequired?: boolean;
 };
 
 export default function TranscriptionModelDropdown({
@@ -18,11 +20,21 @@ export default function TranscriptionModelDropdown({
   disabled = false,
   id = "transcription-model",
   canUseHeavy = false,
+  heavyPreviewAvailable = false,
+  verificationRequired = false,
 }: TranscriptionModelDropdownProps) {
   const detailsRef = useRef<HTMLDetailsElement | null>(null);
   const selected =
     TRANSCRIPTION_MODEL_OPTIONS.find((option) => option.value === value) ??
     TRANSCRIPTION_MODEL_OPTIONS[0];
+  const selectedBadge =
+    selected.value === "super_heavy"
+      ? verificationRequired
+        ? "Verify to unlock"
+        : heavyPreviewAvailable
+          ? "One 30 s preview"
+          : selected.badge
+      : selected.badge;
 
   const choose = (nextValue: TranscriptionModelChoice) => {
     onChange(nextValue);
@@ -49,7 +61,7 @@ export default function TranscriptionModelDropdown({
     >
       <summary
         id={id}
-        aria-label={`Transcription model: ${selected.label}, ${selected.badge}`}
+        aria-label={`Transcription model: ${selected.label}, ${selectedBadge}`}
         aria-disabled={disabled}
         onClick={(event) => {
           if (disabled) event.preventDefault();
@@ -57,7 +69,7 @@ export default function TranscriptionModelDropdown({
       >
         <span className="model-dropdown-summary-copy">
           <span>{selected.label}</span>
-          <span>{selected.badge}</span>
+          <span>{selectedBadge}</span>
         </span>
         <svg aria-hidden="true" viewBox="0 0 20 20" focusable="false">
           <path d="M5.5 7.5 10 12l4.5-4.5" />
@@ -65,7 +77,13 @@ export default function TranscriptionModelDropdown({
       </summary>
       <div className="model-dropdown-menu" role="listbox" aria-labelledby={id}>
         {TRANSCRIPTION_MODEL_OPTIONS.map((option) => {
-          const isLocked = option.value === "super_heavy" && !canUseHeavy;
+          const isHeavy = option.value === "super_heavy";
+          const isLocked = isHeavy && !canUseHeavy;
+          const heavyBadge = verificationRequired
+            ? "Verify to unlock"
+            : heavyPreviewAvailable
+              ? "One 30 s preview"
+              : "Premium or Pro";
           return (
             <button
               key={option.value}
@@ -79,13 +97,19 @@ export default function TranscriptionModelDropdown({
               onKeyDown={(event) => onOptionKeyDown(event, option.value)}
               disabled={isLocked}
               aria-disabled={isLocked}
-              title={isLocked ? "Heavy requires Premium or Pro" : undefined}
+              title={
+                isLocked
+                  ? verificationRequired
+                    ? "Verify your email to unlock one free Heavy preview"
+                    : "Heavy requires Premium or Pro"
+                  : undefined
+              }
             >
               <span className="model-dropdown-option-copy">
                 <span className="model-dropdown-option-heading">
                   <span className="model-dropdown-option-title">{option.label}</span>
                   <span className="model-dropdown-option-badge">
-                    {isLocked ? "Premium or Pro" : option.badge}
+                    {isHeavy ? heavyBadge : option.badge}
                   </span>
                 </span>
                 <span className="model-dropdown-option-description">

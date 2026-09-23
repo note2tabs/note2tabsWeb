@@ -42,6 +42,7 @@ export const ANALYTICS_EVENTS = {
   signupStarted: "signup_started",
   signupCompleted: "signup_completed",
   signupFailed: "signup_failed",
+  emailVerified: "email_verified",
   tabShareEmailClicked: "tab_share_email_clicked",
   tabShareEmailSignupCompleted: "tab_share_email_signup_completed",
   tabShareDialogOpened: "tab_share_dialog_opened",
@@ -64,6 +65,10 @@ export const ANALYTICS_EVENTS = {
   tabGenerationStarted: "transcription_started",
   transcriptionStartedLightModel: "transcription_started_light_model",
   transcriptionStartedHeavyModel: "transcription_started_heavy_model",
+  heavyPreviewShown: "heavy_preview_shown",
+  heavyPreviewStarted: "heavy_preview_started",
+  heavyPreviewCompleted: "heavy_preview_completed",
+  verificationGateShown: "verification_gate_shown",
   tabGenerationQueued: "transcription_queued",
   tabGenerationSucceeded: "transcription_succeeded",
   jobCompleted: "job_completed",
@@ -134,7 +139,7 @@ export function sendEvent(event: string, payload?: EventPayload) {
 export function getTranscriptionStartedModelEvent(
   transcriptionModel: TranscriptionModelChoice
 ) {
-  return transcriptionModel === "heavy"
+  return transcriptionModel === "heavy" || transcriptionModel === "super_heavy"
     ? ANALYTICS_EVENTS.transcriptionStartedHeavyModel
     : ANALYTICS_EVENTS.transcriptionStartedLightModel;
 }

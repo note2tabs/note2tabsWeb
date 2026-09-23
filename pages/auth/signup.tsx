@@ -141,7 +141,9 @@ export default function SignupPage() {
         <div className="card auth-card auth-card--expanded stack">
           <div className="auth-card-header">
             <h1 className="page-title">Create your account</h1>
-            <p className="page-subtitle">Get started with Note2Tabs.</p>
+            <p className="page-subtitle">
+              Create your account and verify your email before your first transcription. Eligible accounts also receive a one-time 30-second Heavy preview.
+            </p>
           </div>
           <form className="stack" onSubmit={handleSubmit}>
             <div className="form-group">

@@ -38,15 +38,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         subscriptionPlan: true,
         emailVerified: true,
         emailVerifiedBool: true,
-        unverifiedTranscriptionUsed: true,
       },
     });
     currentRole = user?.role || "FREE";
     currentPlan = effectiveSubscriptionPlan(currentRole, user?.subscriptionPlan);
     const isEmailVerified = Boolean(user?.emailVerifiedBool || user?.emailVerified);
-    if (!user || (!isEmailVerified && user.unverifiedTranscriptionUsed)) {
+    if (!user || !isEmailVerified) {
       return res.status(403).json({
-        error: "Please verify your email to continue using the transcriber.",
+        error: "Verify your email before starting your first transcription.",
         verificationRequired: true,
       });
     }

@@ -18,6 +18,7 @@ const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
   process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 const FINAL_JOB_STATUSES = new Set(["done", "completed", "succeeded", "success"]);
+const FAILED_JOB_STATUSES = new Set(["failed", "error", "cancelled", "canceled"]);
 const MAX_JOB_RESPONSE_BYTES = 3_500_000;
 const MAX_UPSTREAM_TEXT_BYTES = 2000;
 const LARGE_JOB_FIELDS = [
@@ -663,6 +664,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         typeof getFirstJobValue(payload, ["status"]) === "string"
           ? String(getFirstJobValue(payload, ["status"])).toLowerCase()
           : null;
+      if (
+        session?.user?.id &&
+        normalizedStatus &&
+        FAILED_JOB_STATUSES.has(normalizedStatus)
+      ) {
+        try {
+          await prisma.user.updateMany({
+            where: {
+              id: session.user.id,
+              heavyPreviewJobId: jobId,
+            },
+            data: {
+              heavyPreviewUsedAt: null,
+              heavyPreviewJobId: null,
+            },
+          });
+        } catch (error) {
+          // A failed cleanup must not hide the backend's real job status.
+          console.warn("Heavy preview restoration failed", { jobId, error });
+        }
+      }
       if (upstream.ok && session?.user?.id && normalizedStatus && FINAL_JOB_STATUSES.has(normalizedStatus)) {
         let tabJobId = await persistCompletedJob(jobId, session.user.id, payload);
         if (!tabJobId && !hasPersistableJobResult(payload) && !fetchedFullOutput) {

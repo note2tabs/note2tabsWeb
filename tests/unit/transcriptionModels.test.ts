@@ -17,6 +17,10 @@ describe("transcription models", () => {
     expect(getDefaultTranscriptionModel(false)).toBe("light");
   });
 
+  it("makes the one-time Heavy preview the default when it is available", () => {
+    expect(getDefaultTranscriptionModel(false, true)).toBe("super_heavy");
+  });
+
   it("keeps legacy backend values on the light model", () => {
     expect(normalizeTranscriptionModel("basic_pitch")).toBe("light");
   });

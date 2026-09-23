@@ -9,6 +9,7 @@ export const HEAVY_TRANSCRIPTION_BACKEND_METHOD = "yourmt3";
 // Keep the legacy backend wire value until every deployed backend accepts
 // "msmodel"; the frontend name is intentionally vendor-neutral.
 export const MSMODEL_TRANSCRIPTION_BACKEND_METHOD = "msmodel";
+export const HEAVY_PREVIEW_MAX_DURATION_SEC = 30;
 export const TRANSCRIPTION_MODEL_OPTIONS: Array<{
   value: TranscriptionModelChoice;
   label: string;
@@ -59,7 +60,11 @@ export function normalizeTranscriptionModel(value: unknown): TranscriptionModelC
   return "light";
 }
 
-export function getDefaultTranscriptionModel(isPremium: boolean): TranscriptionModelChoice {
+export function getDefaultTranscriptionModel(
+  isPremium: boolean,
+  heavyPreviewAvailable = false
+): TranscriptionModelChoice {
+  if (heavyPreviewAvailable) return "super_heavy";
   return isPremium ? PREMIUM_DEFAULT_TRANSCRIPTION_MODEL : DEFAULT_TRANSCRIPTION_MODEL;
 }
 

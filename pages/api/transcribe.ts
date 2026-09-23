@@ -18,12 +18,14 @@ import {
 import {
   DEFAULT_TRANSCRIPTION_MODEL,
   getDefaultTranscriptionModel,
+  HEAVY_PREVIEW_MAX_DURATION_SEC,
   calculateTranscriptionCredits,
   normalizeTranscriptionModel,
   transcriptionModelToBackendMethod,
   transcriptionModelRequiresPremium,
   type TranscriptionModelChoice,
 } from "../../lib/transcriptionModels";
+import { isHeavyPreviewCountry } from "../../lib/heavyPreview";
 import {
   isEmailVerificationRequiredServer,
   isLocalNoDbServerMode,
@@ -430,23 +432,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (upper === "FILE" || upper === "YOUTUBE") return upper as Mode;
     return null;
   };
-  let reservedUnverifiedTranscriptionUserId: string | null = null;
-  const releaseUnverifiedTranscriptionReservation = async () => {
-    if (!reservedUnverifiedTranscriptionUserId) return;
-    const userId = reservedUnverifiedTranscriptionUserId;
-    reservedUnverifiedTranscriptionUserId = null;
+  let reservedHeavyPreview: { userId: string; reservedAt: Date } | null = null;
+  const releaseHeavyPreviewReservation = async () => {
+    if (!reservedHeavyPreview) return;
+    const { userId, reservedAt } = reservedHeavyPreview;
+    reservedHeavyPreview = null;
     try {
       await prisma.user.updateMany({
         where: {
           id: userId,
-          emailVerified: null,
-          emailVerifiedBool: false,
-          unverifiedTranscriptionUsed: true,
+          heavyPreviewUsedAt: reservedAt,
         },
-        data: { unverifiedTranscriptionUsed: false },
+        data: { heavyPreviewUsedAt: null, heavyPreviewJobId: null },
       });
     } catch (error) {
-      console.warn("transcribe unverified allowance reservation release failed", error);
+      console.warn("transcribe Heavy preview reservation release failed", error);
     }
   };
 
@@ -469,6 +469,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       emailVerified: Date | null;
       emailVerifiedBool: boolean;
       unverifiedTranscriptionUsed: boolean;
+      heavyPreviewUsedAt: Date | null;
+      heavyPreviewJobId: string | null;
       createdAt: Date;
     } | null = null;
     let isPremium = false;
@@ -487,6 +489,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             emailVerified: true,
             emailVerifiedBool: true,
             unverifiedTranscriptionUsed: true,
+            heavyPreviewUsedAt: true,
+            heavyPreviewJobId: true,
             createdAt: true,
           },
         });
@@ -497,9 +501,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           console.warn("transcribe user lookup returned no user, using dev guest fallback");
         } else {
           const isEmailVerified = Boolean((user as any).emailVerifiedBool || user.emailVerified);
-          if (isEmailVerificationRequiredServer && !isEmailVerified && user.unverifiedTranscriptionUsed) {
+          if (isEmailVerificationRequiredServer && !isEmailVerified) {
             return res.status(403).json({
-              error: "Please verify your email to continue using the transcriber.",
+              error: "Verify your email to start transcribing and unlock your free Heavy preview.",
               verificationRequired: true,
             });
           }
@@ -654,13 +658,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       mode === "YOUTUBE"
         ? youtubePayload?.transcriptionModel ?? youtubePayload?.transcriptionMethod ?? youtubePayload?.transcription_method
         : filePayload?.transcriptionModel ?? filePayload?.transcriptionMethod ?? filePayload?.transcription_method;
+    const heavyPreviewCountryEligible = isHeavyPreviewCountry(req);
     transcriptionModel =
       typeof requestedTranscriptionModel === "string" && requestedTranscriptionModel.trim()
         ? normalizeTranscriptionModel(requestedTranscriptionModel)
-        : getDefaultTranscriptionModel(isPremium);
-    if (transcriptionModelRequiresPremium(transcriptionModel) && !isPremium) {
+        : getDefaultTranscriptionModel(
+            isPremium,
+            Boolean(
+              !isPremium &&
+              heavyPreviewCountryEligible &&
+              user &&
+                (user.emailVerifiedBool || user.emailVerified) &&
+                !user.heavyPreviewUsedAt
+            )
+          );
+    const isHeavyPreview = Boolean(
+      transcriptionModel === "super_heavy" &&
+        !isPremium &&
+        heavyPreviewCountryEligible &&
+        user &&
+        (user.emailVerifiedBool || user.emailVerified) &&
+        !user.heavyPreviewUsedAt
+    );
+    if (transcriptionModelRequiresPremium(transcriptionModel) && !isPremium && !isHeavyPreview) {
       return res.status(403).json({
-        error: "The Heavy model requires a Premium or Pro subscription.",
+        error: user?.heavyPreviewUsedAt
+          ? "Your free Heavy preview has been used. Subscribe to Premium or Pro for continued Heavy access."
+          : heavyPreviewCountryEligible
+            ? "Verify your email to unlock one free Heavy preview."
+            : "Heavy is available with Premium or Pro.",
         premiumRequired: true,
       });
     }
@@ -681,6 +707,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ? Math.max(1, Math.ceil(youtubePayload?.duration || 0))
         : Math.max(1, Math.ceil(filePayload?.duration || DEFAULT_DURATION_SEC));
     const fileStartSec = Math.max(0, Math.floor(filePayload?.startTime || 0));
+    if (isHeavyPreview && durationSec > HEAVY_PREVIEW_MAX_DURATION_SEC) {
+      return res.status(403).json({
+        error: `The one-time Heavy preview is limited to ${HEAVY_PREVIEW_MAX_DURATION_SEC} seconds.`,
+        maxDurationSec: HEAVY_PREVIEW_MAX_DURATION_SEC,
+      });
+    }
     if (mode === "YOUTUBE" && youtubePayload) {
       const startTime = Number(youtubePayload.startTime);
       const duration = Number(youtubePayload.duration);
@@ -707,7 +739,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         maxDurationSec: MAX_FREE_FILE_DURATION_SEC,
       });
     }
-    const requiredCredits = calculateTranscriptionCredits(durationSec, transcriptionModel);
+    const requiredCredits = isHeavyPreview
+      ? 0
+      : calculateTranscriptionCredits(durationSec, transcriptionModel);
 
     if (user?.id) {
       if (isPremium) {
@@ -742,30 +776,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
     }
 
-    let reservedUnverifiedTranscription = false;
-    const shouldReserveUnverifiedTranscription =
-      Boolean(user?.id) &&
-      isEmailVerificationRequiredServer &&
-      !Boolean((user as any)?.emailVerifiedBool || user?.emailVerified);
-    if (shouldReserveUnverifiedTranscription && user?.id) {
+    if (isHeavyPreview && user?.id) {
+      const reservedAt = new Date();
       const reservation = await prisma.user.updateMany({
         where: {
           id: user.id,
-          emailVerified: null,
-          emailVerifiedBool: false,
-          unverifiedTranscriptionUsed: false,
+          heavyPreviewUsedAt: null,
+          OR: [{ emailVerifiedBool: true }, { emailVerified: { not: null } }],
         },
-        data: { unverifiedTranscriptionUsed: true },
+        data: { heavyPreviewUsedAt: reservedAt },
       });
       if (reservation.count !== 1) {
         return res.status(403).json({
-          error: "Please verify your email to continue using the transcriber.",
-          verificationRequired: true,
+          error: "Your free Heavy preview has already been used. Subscribe to continue using Heavy.",
+          premiumRequired: true,
         });
       }
-      user.unverifiedTranscriptionUsed = true;
-      reservedUnverifiedTranscription = true;
-      reservedUnverifiedTranscriptionUserId = user.id;
+      user.heavyPreviewUsedAt = reservedAt;
+      reservedHeavyPreview = { userId: user.id, reservedAt };
     }
 
     let backendJobId: string | undefined;
@@ -793,7 +821,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       if (!ytRes.ok) {
         await ytRes.text();
-        await releaseUnverifiedTranscriptionReservation();
+        await releaseHeavyPreviewReservation();
         return res.status(ytRes.status).json({ error: publicTranscriptionError(ytRes.status) });
       }
 
@@ -822,13 +850,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         if (!processRes.ok) {
           await processRes.text();
-          await releaseUnverifiedTranscriptionReservation();
+          await releaseHeavyPreviewReservation();
           return res.status(processRes.status).json({ error: publicTranscriptionError(processRes.status) });
         }
         const data = await fetchJson<unknown>(processRes);
         backendJobId = extractBackendJobId(data) || undefined;
       } else {
         if (!uploadedFile?.filepath) {
+          await releaseHeavyPreviewReservation();
           return res.status(400).json({ error: "File is required." });
         }
         const buffer = await fs.readFile(uploadedFile.filepath);
@@ -854,7 +883,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         if (!processRes.ok) {
           await processRes.text();
-          await releaseUnverifiedTranscriptionReservation();
+          await releaseHeavyPreviewReservation();
           return res.status(processRes.status).json({ error: publicTranscriptionError(processRes.status) });
         }
         const data = await fetchJson<unknown>(processRes);
@@ -864,12 +893,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (!backendJobId) {
-      await releaseUnverifiedTranscriptionReservation();
+      await releaseHeavyPreviewReservation();
       return res.status(502).json({
         error: "We could not start this transcription. Please wait a moment and try again.",
       });
     }
-    reservedUnverifiedTranscriptionUserId = null;
+    const completedHeavyPreviewReservation = reservedHeavyPreview;
+    const heavyPreviewUsed = Boolean(completedHeavyPreviewReservation);
+    reservedHeavyPreview = null;
+    if (completedHeavyPreviewReservation && user?.id) {
+      try {
+        await prisma.user.updateMany({
+          where: {
+            id: user.id,
+            heavyPreviewUsedAt: completedHeavyPreviewReservation.reservedAt,
+          },
+          data: { heavyPreviewJobId: backendJobId },
+        });
+      } catch (error) {
+        // The preview itself was accepted and remains consumed. The job id is
+        // only used to restore it automatically if the backend later fails.
+        console.warn("transcribe Heavy preview job link failed", error);
+      }
+    }
 
     let updatedTokens = user?.tokensRemaining ?? refreshedCredits.remaining;
     const updatedUsed = refreshedCredits.used + requiredCredits;
@@ -904,10 +950,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       status: "processing",
       durationSec,
       transcriptionModel,
-      unverifiedTranscriptionUsed: reservedUnverifiedTranscription || undefined,
+      heavyPreviewUsed: heavyPreviewUsed || undefined,
     });
   } catch (error) {
-    await releaseUnverifiedTranscriptionReservation();
+    await releaseHeavyPreviewReservation();
     console.error("transcribe error", error);
     return res.status(500).json({
       error: "The transcription service is temporarily unavailable. Your selection is still here, so you can try again shortly.",
