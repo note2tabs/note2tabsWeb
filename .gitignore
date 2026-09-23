@@ -12,3 +12,11 @@ prisma/dev.db-journal
 .vscode/settings.json
 backups/
 public/prod_compare/
+
+
+# Local Graphify architecture maps and Codex integration
+graphify-out/
+.graphifyignore
+.codex/
+.gitattributes
+AGENTS.md
