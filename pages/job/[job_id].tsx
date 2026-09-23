@@ -1274,7 +1274,19 @@ export default function JobPage() {
                     >
                       Open in editor
                     </button>
-                    <button type="button" className="button-secondary" onClick={() => void router.push("/pricing?source=heavy_preview_complete")}>View plans</button>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => {
+                        sendEvent(ANALYTICS_EVENTS.heavyPreviewUpgradeClicked, {
+                          surface: "heavy_preview_complete",
+                          jobId: job_id,
+                        });
+                        void router.push("/pricing?source=heavy_preview_complete");
+                      }}
+                    >
+                      Keep using Heavy
+                    </button>
                   </div>
                 </section>
               ) : (

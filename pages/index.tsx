@@ -52,6 +52,7 @@ import SeoHead, {
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 import TranscriptionModelValueNote from "../components/TranscriptionModelValueNote";
 import HeavyPreviewIntroDialog from "../components/HeavyPreviewIntroDialog";
+import HeavyPreviewOffer from "../components/HeavyPreviewOffer";
 import PremiumConversionCard from "../components/PremiumConversionCard";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
@@ -692,8 +693,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       : "Generating..."
     : mode === "FILE" && !selectedFile
     ? "Choose audio file"
-    : mode === "YOUTUBE"
-    ? "Generate tabs"
+    : heavyPreviewAvailable && transcriptionModel === "super_heavy"
+    ? "Use free Heavy preview"
     : "Generate tabs";
   const buildTranscribingStatusLabel = (separateGuitar: boolean) =>
     separateGuitar ? "Separating guitar and transcribing audio..." : "Transcribing audio...";
@@ -1603,16 +1604,25 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 )}
               </div>
               {!showInstrumentPrompt && (
-                <TranscriptionModelValueNote
-                  model={transcriptionModel}
-                  isPremium={isPremiumUser}
-                  heavyPreviewAvailable={heavyPreviewAvailable}
-                  onSelectHeavy={() => {
-                    selectTranscriptionModel("heavy");
-                    trackCtaClick("try_heavy_model", { surface: "hero_funnel" });
-                  }}
-                  surface="hero_funnel"
-                />
+                heavyPreviewAvailable ? (
+                  <HeavyPreviewOffer
+                    selected={transcriptionModel === "super_heavy"}
+                    onSelect={() => {
+                      selectTranscriptionModel("super_heavy");
+                      trackCtaClick("use_free_heavy_preview", { surface: "hero_funnel" });
+                    }}
+                  />
+                ) : (
+                  <TranscriptionModelValueNote
+                    model={transcriptionModel}
+                    isPremium={isPremiumUser}
+                    onSelectHeavy={() => {
+                      selectTranscriptionModel("heavy");
+                      trackCtaClick("try_heavy_model", { surface: "hero_funnel" });
+                    }}
+                    surface="hero_funnel"
+                  />
+                )
               )}
 
               {showInstrumentPrompt ? (
@@ -1631,7 +1641,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                       <button type="button" className={`button-secondary instrument-choice-button ${multipleGuitars === false ? "active" : ""}`} onClick={() => setMultipleGuitars(false)} aria-pressed={multipleGuitars === false} disabled={loading || authHandoffBusy}>No</button>
                     </div>
                   </div>
-                  <button type="button" className="button-primary instrument-start-button" onClick={handleInstrumentPromptStart} disabled={loading || !instrumentPromptComplete}>Start transcription</button>
+                  <button type="button" className="button-primary instrument-start-button" onClick={handleInstrumentPromptStart} disabled={loading || !instrumentPromptComplete}>{heavyPreviewAvailable && transcriptionModel === "super_heavy" ? "Use free Heavy preview" : "Start transcription"}</button>
                 </div>
               ) : (
                 <>
