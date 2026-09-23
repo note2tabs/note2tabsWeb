@@ -8,7 +8,7 @@ export const LIGHT_TRANSCRIPTION_BACKEND_METHOD = "basic_pitch";
 export const HEAVY_TRANSCRIPTION_BACKEND_METHOD = "yourmt3";
 // Keep the legacy backend wire value until every deployed backend accepts
 // "msmodel"; the frontend name is intentionally vendor-neutral.
-export const MSMODEL_TRANSCRIPTION_BACKEND_METHOD = "muscriptor";
+export const MSMODEL_TRANSCRIPTION_BACKEND_METHOD = "msmodel";
 export const TRANSCRIPTION_MODEL_OPTIONS: Array<{
   value: TranscriptionModelChoice;
   label: string;

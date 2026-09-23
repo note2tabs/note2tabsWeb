@@ -193,7 +193,7 @@ describe("transcribe credits", () => {
       expect(res.statusCode).toBe(202);
       const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
       const body = requestInit.body as FormData;
-      expect(body.get("transcription_method")).toBe("muscriptor");
+      expect(body.get("transcription_method")).toBe("msmodel");
     }
   );
 

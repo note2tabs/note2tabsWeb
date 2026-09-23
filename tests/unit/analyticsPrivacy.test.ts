@@ -171,4 +171,19 @@ describe("analytics privacy sanitization", () => {
       "backend_failed"
     );
   });
+
+  it("does not alert on Chromium extension message-bridge rejections", () => {
+    const classification = classifyPostHogException([
+      {
+        type: "UnhandledRejection",
+        value:
+          "Non-Error promise rejection captured with value: Object Not Found Matching Id:1, MethodName:update, ParamCount:4",
+      },
+    ]);
+
+    expect(classification).toEqual({
+      alertEligible: false,
+      classification: "non_actionable_browser_error",
+    });
+  });
 });

@@ -7,6 +7,7 @@ export type StandalonePromotionInput = {
   percentOff: number;
   durationMonths: number;
   expiresAt: number | null;
+  maxRedemptions: number | null;
   cardFreeSchoolAccess: boolean;
 };
 
@@ -15,11 +16,14 @@ export function parseStandalonePromotionInput(body: unknown): StandalonePromotio
   const code = typeof input.code === "string" ? input.code.trim().toUpperCase() : "";
   const percentOff = Number(input.percentOff);
   const durationMonths = Number(input.durationMonths);
+  const hasMaxRedemptions = input.maxRedemptions !== undefined && input.maxRedemptions !== null && input.maxRedemptions !== "";
+  const maxRedemptions = hasMaxRedemptions ? Number(input.maxRedemptions) : null;
   const cardFreeSchoolAccess = input.cardFreeSchoolAccess === true;
 
   if (!/^[A-Z0-9-]{3,32}$/.test(code)) return null;
   if (!Number.isInteger(percentOff) || percentOff < 1 || percentOff > 100) return null;
   if (!Number.isInteger(durationMonths) || durationMonths < 1 || durationMonths > 24) return null;
+  if (maxRedemptions !== null && (!Number.isInteger(maxRedemptions) || maxRedemptions < 1 || maxRedemptions > 1_000_000)) return null;
   if (cardFreeSchoolAccess && percentOff !== 100) return null;
 
   let expiresAt: number | null = null;
@@ -33,5 +37,5 @@ export function parseStandalonePromotionInput(body: unknown): StandalonePromotio
     if (expiresAt <= Math.floor(Date.now() / 1000)) return null;
   }
 
-  return { code, percentOff, durationMonths, expiresAt, cardFreeSchoolAccess };
+  return { code, percentOff, durationMonths, expiresAt, maxRedemptions, cardFreeSchoolAccess };
 }
