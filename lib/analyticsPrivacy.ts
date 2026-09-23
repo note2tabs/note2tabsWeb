@@ -255,7 +255,13 @@ const EXPECTED_EXCEPTION_PATTERNS = [
 // Browsers intentionally hide the details of some cross-origin script errors.
 // The resulting generic message has no source, stack, or actionable application
 // context, so retain it in Error Tracking without waking the operational alert.
-const NON_ACTIONABLE_BROWSER_EXCEPTION_PATTERNS = [/^error script error\.?$/i];
+const NON_ACTIONABLE_BROWSER_EXCEPTION_PATTERNS = [
+  /^error script error\.?$/i,
+  // Chromium extension/message-bridge failures are emitted as non-Error promise
+  // rejections without an application stack. They can fire several times in the
+  // same millisecond but do not originate in Note2Tabs code.
+  /object not found matching id:\d+.*methodname:update.*paramcount:\d+/i,
+];
 
 // A browser can retain an old Next.js route manifest briefly after a deploy and
 // request a chunk Vercel has already retired. The app reloads once to obtain the

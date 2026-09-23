@@ -1,4 +1,4 @@
-import type { GetServerSideProps } from "next";
+import type { GetStaticPaths, GetStaticProps } from "next";
 import Link from "next/link";
 import { prisma } from "../../../lib/prisma";
 import { withPrismaReadRetry } from "../../../lib/prismaRetry";
@@ -122,7 +122,9 @@ export default function BlogCategoryPage({ category, posts, pillarPost }: Catego
   );
 }
 
-export const getServerSideProps: GetServerSideProps<CategoryPageProps> = async (ctx) => {
+export const getStaticPaths: GetStaticPaths = async () => ({ paths: [], fallback: "blocking" });
+
+export const getStaticProps: GetStaticProps<CategoryPageProps> = async (ctx) => {
   const slug = ctx.params?.slug as string;
   const category = await withPrismaReadRetry(() => prisma.category.findUnique({
     where: { slug },
@@ -131,7 +133,6 @@ export const getServerSideProps: GetServerSideProps<CategoryPageProps> = async (
   if (!category) {
     return { notFound: true };
   }
-  ctx.res.setHeader("Cache-Control", "public, s-maxage=86400, stale-while-revalidate=604800");
 
   const postsRaw = await withPrismaReadRetry(() => prisma.post.findMany({
     where: {
@@ -182,5 +183,6 @@ export const getServerSideProps: GetServerSideProps<CategoryPageProps> = async (
         publishedAt: post.publishedAt ? post.publishedAt.toISOString() : null,
       })),
     },
+    revalidate: 3600,
   };
 };
