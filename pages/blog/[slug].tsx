@@ -1,8 +1,5 @@
-import type { GetServerSideProps } from "next";
+import type { GetStaticPaths, GetStaticProps } from "next";
 import Link from "next/link";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../api/auth/[...nextauth]";
-import { hasFreshUserRole } from "../../lib/serverAuth";
 import { prisma } from "../../lib/prisma";
 import { withPrismaReadRetry } from "../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../lib/blog";
@@ -13,8 +10,6 @@ import BlogProductLink from "../../components/blog/BlogProductLink";
 import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 import { formatBlogDate } from "../../lib/dateFormat";
 import { getBlogProductPaths } from "../../lib/blogProductPaths";
-
-const ADMIN_ROLES = new Set(["ADMIN"]);
 
 type PostPageProps = {
   post: {
@@ -302,7 +297,14 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
   );
 }
 
-export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx) => {
+export const getStaticPaths: GetStaticPaths = async () => ({
+  // Generate articles on their first request instead of querying Neon for the
+  // complete catalogue during every deployment.
+  paths: [],
+  fallback: "blocking",
+});
+
+export const getStaticProps: GetStaticProps<PostPageProps> = async (ctx) => {
   const slug = ctx.params?.slug as string;
   if (!slug) {
     return { notFound: true };
@@ -351,27 +353,17 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
   }));
   let allowDraft = false;
 
-  if (!post) {
-    const hasSessionCookie = Boolean(
-      ctx.req.cookies["next-auth.session-token"] ||
-      ctx.req.cookies["__Secure-next-auth.session-token"]
+  if (!post && ctx.preview) {
+    // Draft mode can only be enabled by the authenticated admin preview API.
+    // It bypasses the public ISR cache and remains suitable for editorial QA.
+    allowDraft = true;
+    post = await withPrismaReadRetry(() =>
+      prisma.post.findFirst({ where: { slug }, select: postSelect })
     );
-    if (ctx.preview || hasSessionCookie) {
-      const session = await getServerSession(ctx.req, ctx.res, authOptions);
-      allowDraft = Boolean(ctx.preview || (await hasFreshUserRole(session, ADMIN_ROLES)));
-      if (allowDraft) {
-        post = await withPrismaReadRetry(() =>
-          prisma.post.findFirst({ where: { slug }, select: postSelect })
-        );
-      }
-    }
   }
 
   if (!post) {
     return { notFound: true };
-  }
-  if (!allowDraft) {
-    ctx.res.setHeader("Cache-Control", "public, s-maxage=86400, stale-while-revalidate=604800");
   }
 
   let contentHtml = post.contentHtml || "";
@@ -433,5 +425,8 @@ export const getServerSideProps: GetServerSideProps<PostPageProps> = async (ctx)
       toc: contentToc,
       relatedPosts,
     },
+    // Query strings no longer create separate server-rendered variants. One
+    // cached article is shared by readers and crawlers, then refreshed hourly.
+    revalidate: allowDraft ? 1 : 3600,
   };
 };

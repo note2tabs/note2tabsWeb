@@ -1,4 +1,4 @@
-import type { GetServerSideProps } from "next";
+import type { GetStaticPaths, GetStaticProps } from "next";
 import Link from "next/link";
 import { prisma } from "../../../lib/prisma";
 import { withPrismaReadRetry } from "../../../lib/prismaRetry";
@@ -124,7 +124,9 @@ export default function BlogClusterPage({ cluster, pillarPost, supportingPosts }
   );
 }
 
-export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (ctx) => {
+export const getStaticPaths: GetStaticPaths = async () => ({ paths: [], fallback: "blocking" });
+
+export const getStaticProps: GetStaticProps<ClusterPageProps> = async (ctx) => {
   const slug = ctx.params?.slug as string;
   const cluster = await withPrismaReadRetry(() => prisma.topicCluster.findUnique({
     where: { slug },
@@ -133,7 +135,6 @@ export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (c
   if (!cluster) {
     return { notFound: true };
   }
-  ctx.res.setHeader("Cache-Control", "public, s-maxage=86400, stale-while-revalidate=604800");
 
   const postsRaw = await withPrismaReadRetry(() => prisma.post.findMany({
     where: {
@@ -188,5 +189,6 @@ export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (c
           publishedAt: post.publishedAt ? post.publishedAt.toISOString() : null,
         })),
     },
+    revalidate: 3600,
   };
 };
