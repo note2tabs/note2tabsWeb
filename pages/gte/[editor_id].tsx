@@ -2448,17 +2448,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     }
   };
 
-  const scheduleBpmCommit = (rawValue: string | number) => {
-    queuedBpmValueRef.current = rawValue;
-    if (bpmCommitTimerRef.current !== null) {
-      window.clearTimeout(bpmCommitTimerRef.current);
-    }
-    bpmCommitTimerRef.current = window.setTimeout(() => {
-      bpmCommitTimerRef.current = null;
-      void commitBpm(rawValue);
-    }, CONTROL_COMMIT_DEBOUNCE_MS);
-  };
-
   const commitTimeSignature = async (rawValue: string | number = timeSignatureDraft) => {
     if (!canvas) return;
     queuedTimeSignatureValueRef.current = null;
@@ -6992,46 +6981,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           }}
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
                         />
-                        <span className="inline-flex flex-col gap-1">
-                          <button
-                            type="button"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => {
-                              const current =
-                                normalizeBpm(bpmDraft) ??
-                                secondsPerBarToBpm(
-                                  canvas?.secondsPerBar,
-                                  normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
-                                );
-                              const next = current + 1;
-                              setBpmDraft(formatBpm(next));
-                              scheduleBpmCommit(next);
-                            }}
-                            className="flex h-6 w-8 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
-                            aria-label="Increase BPM"
-                          >
-                            &#9650;
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => {
-                              const current =
-                                normalizeBpm(bpmDraft) ??
-                                secondsPerBarToBpm(
-                                  canvas?.secondsPerBar,
-                                  normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
-                                );
-                              const next = Math.max(1, current - 1);
-                              setBpmDraft(formatBpm(next));
-                              scheduleBpmCommit(next);
-                            }}
-                            className="flex h-6 w-8 items-center justify-center rounded border border-slate-200 bg-white text-[10px] text-slate-600"
-                            aria-label="Decrease BPM"
-                          >
-                            &#9660;
-                          </button>
-                        </span>
                       </span>
                     </label>
                     <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -8153,49 +8102,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           }}
                           className="h-8 w-20 rounded-md border border-slate-200 bg-white px-2 text-sm"
                         />
-                        <span className="inline-flex h-8 flex-col gap-0.5">
-                          <button
-                            type="button"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => {
-                              const current =
-                                normalizeBpm(bpmDraft) ??
-                                secondsPerBarToBpm(
-                                  canvas?.secondsPerBar,
-                                  normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
-                                );
-                              const next = current + 1;
-                              setBpmDraft(formatBpm(next));
-                              scheduleBpmCommit(next);
-                            }}
-                            className="flex min-h-0 w-6 flex-1 items-center justify-center rounded border border-slate-200 bg-white text-[9px] leading-none text-slate-600 hover:bg-slate-50"
-                            title="Increase BPM"
-                            aria-label="Increase BPM"
-                          >
-                            &#9650;
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => {
-                              const current =
-                                normalizeBpm(bpmDraft) ??
-                                secondsPerBarToBpm(
-                                  canvas?.secondsPerBar,
-                                  normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
-                                );
-                              const next = Math.max(1, current - 1);
-                              setBpmDraft(formatBpm(next));
-                              scheduleBpmCommit(next);
-                            }}
-                            className="flex min-h-0 w-6 flex-1 items-center justify-center rounded border border-slate-200 bg-white text-[9px] leading-none text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                            title="Decrease BPM"
-                            aria-label="Decrease BPM"
-                            disabled={(normalizeBpm(bpmDraft) ?? 1) <= 1}
-                          >
-                            &#9660;
-                          </button>
-                        </span>
                       </span>
                     </label>
                     <label className="text-xs font-medium text-slate-600">
@@ -8435,49 +8341,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
                   />
-                  <span style={{ display: "inline-flex", flexDirection: "column", gap: "2px" }}>
-                    <button
-                      type="button"
-                      onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => {
-                          const current =
-                            normalizeBpm(bpmDraft) ??
-                            secondsPerBarToBpm(
-                              canvas?.secondsPerBar,
-                              normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
-                            );
-                          const next = current + 1;
-                          setBpmDraft(formatBpm(next));
-                          scheduleBpmCommit(next);
-                        }}
-                      className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
-                      title="Increase BPM"
-                      aria-label="Increase BPM"
-                    >
-                      &#9650;
-                    </button>
-                    <button
-                      type="button"
-                      onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => {
-                          const current =
-                            normalizeBpm(bpmDraft) ??
-                            secondsPerBarToBpm(
-                              canvas?.secondsPerBar,
-                              normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
-                            );
-                          const next = Math.max(1, current - 1);
-                          setBpmDraft(formatBpm(next));
-                          scheduleBpmCommit(next);
-                        }}
-                      className="flex h-3.5 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] leading-none text-slate-600 hover:bg-slate-50"
-                      title="Decrease BPM"
-                      aria-label="Decrease BPM"
-                      disabled={(normalizeBpm(bpmDraft) ?? 1) <= 1}
-                    >
-                      &#9660;
-                    </button>
-                  </span>
                 </span>
               </label>
               <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
@@ -8726,49 +8589,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             }}
                             className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
                           />
-                          <span className="inline-flex flex-col gap-1">
-                            <button
-                              type="button"
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => {
-                                const current =
-                                  normalizeBpm(bpmDraft) ??
-                                  secondsPerBarToBpm(
-                                    canvas?.secondsPerBar,
-                                    normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
-                                  );
-                                const next = current + 1;
-                                setBpmDraft(formatBpm(next));
-                                scheduleBpmCommit(next);
-                              }}
-                              className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] leading-none text-slate-600"
-                              title="Increase BPM"
-                              aria-label="Increase BPM"
-                            >
-                              &#9650;
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => {
-                                const current =
-                                  normalizeBpm(bpmDraft) ??
-                                  secondsPerBarToBpm(
-                                    canvas?.secondsPerBar,
-                                    normalizeTimeSignature(canvas?.editors[0]?.timeSignature) ?? 8
-                                  );
-                                const next = Math.max(1, current - 1);
-                                setBpmDraft(formatBpm(next));
-                                scheduleBpmCommit(next);
-                              }}
-                              className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] leading-none text-slate-600"
-                              title="Decrease BPM"
-                              aria-label="Decrease BPM"
-                              disabled={(normalizeBpm(bpmDraft) ?? 1) <= 1}
-                            >
-                              &#9660;
-                            </button>
-                          </span>
                         </span>
                       </label>
                       <label className="min-w-[172px] rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-medium text-slate-600">
