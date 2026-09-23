@@ -7,7 +7,7 @@ import { compilePostContent, parseStoredToc } from "../../lib/blogContent";
 import { normalizeCanonicalUrl } from "../../lib/canonical";
 import BlogPostCard from "../../components/blog/BlogPostCard";
 import BlogProductLink from "../../components/blog/BlogProductLink";
-import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
+import SeoHead, { DEFAULT_OG_IMAGE, ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 import { formatBlogDate } from "../../lib/dateFormat";
 import { getBlogProductPaths } from "../../lib/blogProductPaths";
 
@@ -41,7 +41,7 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
   const title = post.seoTitle || post.title;
   const description = post.seoDescription || post.excerpt;
   const canonical = normalizeCanonicalUrl(post.canonicalUrl) || absoluteUrl(`/blog/${post.slug}`);
-  const ogImage = post.coverImageUrl || absoluteUrl(`/api/og?title=${encodeURIComponent(title)}`);
+  const ogImage = post.coverImageUrl || DEFAULT_OG_IMAGE;
   const published = post.publishedAt || post.publishAt || undefined;
   const displayDate = formatBlogDate(post.publishedAt ?? post.publishAt);
   const hasTaxonomy = post.categories.length > 0 || post.tags.length > 0 || post.clusters.length > 0;

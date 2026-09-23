@@ -53,6 +53,10 @@ const nextConfig = {
         headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
       },
       {
+        source: "/note2tabs-social-preview.png",
+        headers: [{ key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=2592000" }],
+      },
+      {
         source: "/gte/:path*",
         headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
       },

@@ -7,7 +7,7 @@ export const ORGANIZATION_ID = `${SITE_URL}/#organization`;
 export const WEBSITE_ID = `${SITE_URL}/#website`;
 export const EDITOR_APPLICATION_ID = `${SITE_URL}/editor#software-application`;
 export const SITE_LOGO_URL = `${SITE_URL}/android-chrome-512x512.png`;
-export const DEFAULT_OG_IMAGE = `${SITE_URL}/api/og?title=Note2Tabs`;
+export const DEFAULT_OG_IMAGE = `${SITE_URL}/note2tabs-social-preview.png`;
 export const DEFAULT_DESCRIPTION =
   "Upload audio or a YouTube link and instantly get playable guitar tabs. Edit, simplify and practice songs directly in the browser.";
 export const INDEX_ROBOTS_DIRECTIVE =
@@ -94,11 +94,7 @@ export default function SeoHead({
   articleModifiedTime,
 }: SeoHeadProps) {
   const canonical = canonicalizeUrl(canonicalUrl || canonicalPath || "/");
-  const image =
-    imageUrl ||
-    `${SITE_URL}/api/og?title=${encodeURIComponent(title.replace(/\s*\|\s*Note2Tabs\s*$/i, ""))}&subtitle=${encodeURIComponent(
-      description.slice(0, 120)
-    )}`;
+  const image = imageUrl || DEFAULT_OG_IMAGE;
   const structuredData = Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [];
 
   return (

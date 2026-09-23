@@ -2,7 +2,6 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /api/
-Allow: /api/og
 Disallow: /settings
 Disallow: /tabs
 Disallow: /mod/
