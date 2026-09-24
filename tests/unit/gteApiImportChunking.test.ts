@@ -4,6 +4,7 @@ import {
   chunkTranscriberSegmentGroups,
   gteApi,
   optimizeImportedTrackFingerings,
+  TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
   TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES,
   TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS,
   type TranscriberSegmentGroup,
@@ -87,6 +88,10 @@ describe("transcriber import chunking", () => {
         [0.5]
       )
     ).toEqual([0, 0.5, 1.25]);
+  });
+
+  it("runs two complete fingering passes for transcription imports", () => {
+    expect(TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES).toBe(2);
   });
 
   it("runs the editor fingering optimizer on every playable imported track", async () => {

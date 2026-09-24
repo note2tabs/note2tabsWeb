@@ -531,7 +531,11 @@ async function importTranscriberToSaved(
   }
 
   const optimizedCanvas = lastResponse.canvas
-    ? await optimizeImportedTrackFingerings(currentEditorId, lastResponse.canvas)
+    ? await optimizeImportedTrackFingerings(
+        currentEditorId,
+        lastResponse.canvas,
+        TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES
+      )
     : undefined;
   return {
     ok: true,
@@ -616,7 +620,11 @@ async function importTranscriberToGuest(
   };
   response = {
     ...response,
-    canvas: await optimizeImportedTrackFingerings(response.editorId, response.canvas),
+    canvas: await optimizeImportedTrackFingerings(
+      response.editorId,
+      response.canvas,
+      TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES
+    ),
   };
   return response;
 }
@@ -626,10 +634,13 @@ const isDrumLane = (lane: EditorSnapshot) => {
   return trackType === "drums" || trackType === "drum";
 };
 
+export const TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES = 2;
+
 /** Runs the same frontend transformation as Tools -> Optimize fingering on every imported track. */
 export async function optimizeImportedTrackFingerings(
   editorId: string,
-  sourceCanvas?: CanvasSnapshot
+  sourceCanvas?: CanvasSnapshot,
+  passes: number = 1
 ): Promise<CanvasSnapshot> {
   const canvasId = editorId.includes(LANE_DELIMITER)
     ? editorId.slice(0, editorId.indexOf(LANE_DELIMITER))
@@ -656,10 +667,13 @@ export async function optimizeImportedTrackFingerings(
       !Array.isArray(lane.chords) ||
       (lane.notes.length === 0 && lane.chords.length === 0)
     ) return;
-    generatePlayingCoordinatesInSnapshot(lane);
-    optimizeTrackFingeringInSnapshot(lane);
-    finalizeOptimizedTrackFingeringInSnapshot(lane);
-    mergeRedundantCutRegionsInSnapshot(lane);
+    const passCount = Math.max(1, Math.floor(passes));
+    for (let pass = 0; pass < passCount; pass += 1) {
+      generatePlayingCoordinatesInSnapshot(lane);
+      optimizeTrackFingeringInSnapshot(lane);
+      finalizeOptimizedTrackFingeringInSnapshot(lane);
+      mergeRedundantCutRegionsInSnapshot(lane);
+    }
   });
 
   await requestForEditor<{ ok: true; snapshot: EditorOrCanvasSnapshot; canvas?: CanvasSnapshot }>(
