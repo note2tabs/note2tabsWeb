@@ -3,7 +3,7 @@ import { durationToCredits } from "./credits";
 export type TranscriptionModelChoice = "light" | "heavy";
 
 export const DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "light";
-export const PREMIUM_DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "heavy";
+export const PREMIUM_DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "super_heavy";
 export const LIGHT_TRANSCRIPTION_BACKEND_METHOD = "basic_pitch";
 export const HEAVY_TRANSCRIPTION_BACKEND_METHOD = "yourmt3";
 export const TRANSCRIPTION_MODEL_OPTIONS: Array<{

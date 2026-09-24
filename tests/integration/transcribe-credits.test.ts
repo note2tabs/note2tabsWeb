@@ -157,14 +157,14 @@ describe("transcribe credits", () => {
     expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(7);
   });
 
-  it("defaults premium requests without a model choice to the heavy model", async () => {
+  it("defaults paid requests without a model choice to the Heavy model", async () => {
     const res = await callTranscribe("PREMIUM", false, null);
 
     expect(res.statusCode).toBe(202);
-    expect(res.body).toMatchObject({ transcriptionModel: "heavy" });
+    expect(res.body).toMatchObject({ transcriptionModel: "super_heavy" });
     const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
     const body = requestInit.body as FormData;
-    expect(body.get("transcription_method")).toBe("yourmt3");
+    expect(body.get("transcription_method")).toBe("msmodel");
   });
 
   it("keeps light as the fallback for free requests without a model choice", async () => {
