@@ -17,6 +17,7 @@ const staticPaths = [
   "/blog",
   "/about",
   "/contact",
+  "/affiliate-program",
   "/privacy",
   "/terms",
   "/audio-to-guitar-tab-converter",
