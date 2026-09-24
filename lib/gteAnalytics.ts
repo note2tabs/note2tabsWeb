@@ -7,6 +7,7 @@ export type GteAnalyticsEvent =
   | "gte_editor_saved"
   | "gte_editor_exported"
   | "gte_editor_action"
+  | "gte_editor_meaningful_edit"
   | "gte_editor_session_heartbeat"
   | "gte_practice_started"
   | "gte_editor_visit"

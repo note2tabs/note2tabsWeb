@@ -1119,7 +1119,7 @@ export async function getProductValueMetrics(from: Date, to: Date) {
       stats.editorExported += 1;
       markValue(id, event.createdAt);
     }
-    if (event.event === "gte_editor_action") stats.editorActions += 1;
+    if (event.event === "gte_editor_meaningful_edit") stats.editorActions += 1;
     if (event.event === "gte_editor_visit") stats.viewedEditor = true;
     if (event.event === "pricing_viewed") stats.pricingViewed += 1;
     if (event.event === "pricing_cta_clicked") stats.pricingClicked += 1;

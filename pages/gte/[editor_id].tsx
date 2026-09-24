@@ -1586,6 +1586,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [canvasUndoCount, setCanvasUndoCount] = useState(0);
   const [canvasRedoCount, setCanvasRedoCount] = useState(0);
   const telemetrySessionRef = useRef<string | null>(null);
+  const meaningfulEditTrackedRef = useRef(false);
   const telemetryStartedAtRef = useRef<number | null>(null);
   const telemetryClosedRef = useRef(false);
   const globalTimelineScrollbarRef = useRef<HTMLDivElement | null>(null);
@@ -1803,6 +1804,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
   useEffect(() => {
     if (!editorId) return;
+
+    meaningfulEditTrackedRef.current = false;
     sharedTimelineScrollRatioRef.current = 0;
     if (isGuestMode) {
       const loadGuestEditor = async () => {
@@ -2320,9 +2323,20 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       canvasRevisionRef.current += 1;
       if (options?.markDirty !== false) {
         setHasPendingCommit(true);
+        if (!meaningfulEditTrackedRef.current) {
+          meaningfulEditTrackedRef.current = true;
+          void queueGteTelemetry({
+            event: "gte_editor_meaningful_edit",
+            editorId,
+            ...(telemetrySessionRef.current
+              ? { sessionId: telemetrySessionRef.current }
+              : {}),
+            path: window.location.pathname,
+          });
+        }
       }
     },
-    [recordCanvasHistory]
+    [editorId, recordCanvasHistory]
   );
 
   const commitCanvasKey = useCallback(
