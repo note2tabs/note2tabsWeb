@@ -810,6 +810,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       fdYt.append("duration", String(youtubePayload.duration || 0));
       fdYt.append("separate_guitar", youtubePayload.separateGuitar ? "true" : "false");
       fdYt.append("transcription_method", backendTranscriptionMethod);
+      if (isHeavyPreview) {
+        fdYt.append("heavy_preview", "true");
+      }
       if (youtubePayload.multipleGuitars !== undefined) {
         fdYt.append("multiple_guitars", youtubePayload.multipleGuitars ? "true" : "false");
       }
@@ -846,6 +849,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             separate_guitar: Boolean(filePayload.separateGuitar),
             multiple_guitars: filePayload.multipleGuitars,
             transcriptionMethod: backendTranscriptionMethod,
+            heavyPreview: isHeavyPreview,
           }),
         });
         if (!processRes.ok) {
@@ -873,6 +877,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         fd.append("duration", String(durationSec));
         fd.append("separate_guitar", filePayload?.separateGuitar ? "true" : "false");
         fd.append("transcription_method", backendTranscriptionMethod);
+        if (isHeavyPreview) {
+          fd.append("heavy_preview", "true");
+        }
         if (filePayload?.multipleGuitars !== undefined) {
           fd.append("multiple_guitars", filePayload.multipleGuitars ? "true" : "false");
         }

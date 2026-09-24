@@ -199,7 +199,9 @@ describe("transcribe credits", () => {
       })
     );
     const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
-    expect((requestInit.body as FormData).get("transcription_method")).toBe("msmodel");
+    const body = requestInit.body as FormData;
+    expect(body.get("transcription_method")).toBe("msmodel");
+    expect(body.get("heavy_preview")).toBe("true");
   });
 
   it("limits the one-time Heavy preview to 30 seconds", async () => {
