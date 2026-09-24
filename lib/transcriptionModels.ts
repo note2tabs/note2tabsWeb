@@ -1,6 +1,7 @@
 import { durationToCredits } from "./credits";
 
 export type TranscriptionModelChoice = "light" | "heavy" | "super_heavy";
+export type TranscriptionModelAnalyticsName = "light" | "medium" | "heavy";
 
 export const DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "light";
 export const PREMIUM_DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "heavy";
@@ -78,6 +79,23 @@ export function getTranscriptionModelOption(model: TranscriptionModelChoice) {
     TRANSCRIPTION_MODEL_OPTIONS.find((option) => option.value === DEFAULT_TRANSCRIPTION_MODEL) ??
     TRANSCRIPTION_MODEL_OPTIONS[0]
   );
+}
+
+export function getTranscriptionModelAnalyticsName(
+  model: TranscriptionModelChoice
+): TranscriptionModelAnalyticsName {
+  if (model === "super_heavy") return "heavy";
+  if (model === "heavy") return "medium";
+  return "light";
+}
+
+export function getTranscriptionModelAnalyticsProperties(model: TranscriptionModelChoice) {
+  return {
+    // `transcriptionModel` is retained for compatibility with existing insights.
+    transcriptionModel: model,
+    transcription_model_id: model,
+    transcription_model_name: getTranscriptionModelAnalyticsName(model),
+  } as const;
 }
 
 export function getTranscriptionModelCreditsPerInterval(model: TranscriptionModelChoice) {

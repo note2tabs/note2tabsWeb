@@ -1616,9 +1616,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <TranscriptionModelValueNote
                     model={transcriptionModel}
                     isPremium={isPremiumUser}
-                    onSelectHeavy={() => {
+                    onSelectMedium={() => {
                       selectTranscriptionModel("heavy");
-                      trackCtaClick("try_heavy_model", { surface: "hero_funnel" });
+                      trackCtaClick("try_medium_model", { surface: "hero_funnel" });
                     }}
                     surface="hero_funnel"
                   />

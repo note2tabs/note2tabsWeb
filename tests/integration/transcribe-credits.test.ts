@@ -159,7 +159,7 @@ describe("transcribe credits", () => {
     expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(7);
   });
 
-  it("defaults premium requests without a model choice to the heavy model", async () => {
+  it("defaults premium requests without a model choice to the Medium model", async () => {
     const res = await callTranscribe("PREMIUM", false, null);
 
     expect(res.statusCode).toBe(202);

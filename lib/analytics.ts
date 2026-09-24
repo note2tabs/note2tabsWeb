@@ -1,6 +1,9 @@
 import { publishTranscriptionCompletedForPremiumPrompt } from "./premiumPromptSignals";
 import { track as trackAnalyticsV2 } from "./analyticsV2";
-import type { TranscriptionModelChoice } from "./transcriptionModels";
+import {
+  getTranscriptionModelAnalyticsProperties,
+  type TranscriptionModelChoice,
+} from "./transcriptionModels";
 import {
   sanitizeAnalyticsPathname,
   sanitizeAnalyticsProperties,
@@ -64,6 +67,7 @@ export const ANALYTICS_EVENTS = {
   uploadStorageFailed: "upload_storage_failed",
   tabGenerationStarted: "transcription_started",
   transcriptionStartedLightModel: "transcription_started_light_model",
+  transcriptionStartedMediumModel: "transcription_started_medium_model",
   transcriptionStartedHeavyModel: "transcription_started_heavy_model",
   heavyPreviewShown: "heavy_preview_shown",
   heavyPreviewStarted: "heavy_preview_started",
@@ -141,16 +145,23 @@ export function sendEvent(event: string, payload?: EventPayload) {
 export function getTranscriptionStartedModelEvent(
   transcriptionModel: TranscriptionModelChoice
 ) {
-  return transcriptionModel === "heavy" || transcriptionModel === "super_heavy"
-    ? ANALYTICS_EVENTS.transcriptionStartedHeavyModel
-    : ANALYTICS_EVENTS.transcriptionStartedLightModel;
+  if (transcriptionModel === "super_heavy") {
+    return ANALYTICS_EVENTS.transcriptionStartedHeavyModel;
+  }
+  if (transcriptionModel === "heavy") {
+    return ANALYTICS_EVENTS.transcriptionStartedMediumModel;
+  }
+  return ANALYTICS_EVENTS.transcriptionStartedLightModel;
 }
 
 export function sendTranscriptionStartedEvents(
   transcriptionModel: TranscriptionModelChoice,
   payload?: EventPayload
 ) {
-  const properties = { ...(payload || {}), transcriptionModel };
+  const properties = {
+    ...(payload || {}),
+    ...getTranscriptionModelAnalyticsProperties(transcriptionModel),
+  };
   sendEvent(ANALYTICS_EVENTS.tabGenerationStarted, properties);
   sendEvent(getTranscriptionStartedModelEvent(transcriptionModel), properties);
 }

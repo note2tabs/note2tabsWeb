@@ -1431,9 +1431,9 @@ export default function TranscriberPage() {
                   <TranscriptionModelValueNote
                     model={transcriptionModel}
                     isPremium={isPremiumUser}
-                    onSelectHeavy={() => {
+                    onSelectMedium={() => {
                       selectTranscriptionModel("heavy");
-                      trackCtaClick("try_heavy_model", { surface: "transcriber_funnel" });
+                      trackCtaClick("try_medium_model", { surface: "transcriber_funnel" });
                     }}
                     surface="transcriber_funnel"
                   />

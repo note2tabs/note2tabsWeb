@@ -11,8 +11,14 @@ describe("transcription model analytics", () => {
     );
   });
 
-  it("selects the heavy-model started event", () => {
+  it("reports the former Heavy model as Medium", () => {
     expect(getTranscriptionStartedModelEvent("heavy")).toBe(
+      ANALYTICS_EVENTS.transcriptionStartedMediumModel
+    );
+  });
+
+  it("reports the new Heavy model separately", () => {
+    expect(getTranscriptionStartedModelEvent("super_heavy")).toBe(
       ANALYTICS_EVENTS.transcriptionStartedHeavyModel
     );
   });

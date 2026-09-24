@@ -17,6 +17,7 @@ import NoIndexHead from "../../components/NoIndexHead";
 import { publicJobError } from "../../lib/backendError";
 import { EditorLoadingState } from "../../components/EditorLoadingState";
 import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
+import { getTranscriptionModelAnalyticsProperties } from "../../lib/transcriptionModels";
 import {
   DEFAULT_JOB_POLL_DELAY_MS,
   requestJobStatus,
@@ -116,14 +117,14 @@ function estimatePendingJobDurationSeconds(
   modelHint: JobModelHint | null
 ) {
   const clipSeconds = clamp(clipDurationSeconds ?? 30, 1, 600);
-  const isHeavyModel = modelHint === "heavy";
-  const baseSeconds = isHeavyModel ? 32 : 18;
+  const isDetailedModel = modelHint === "heavy" || modelHint === "super_heavy";
+  const baseSeconds = isDetailedModel ? 32 : 18;
   const modeSeconds = modeHint === "YOUTUBE" ? 16 : 8;
   const separationSeconds = separateGuitar ? 28 : 0;
-  const clipSecondsCost = clipSeconds * (isHeavyModel ? 0.72 : 0.46);
+  const clipSecondsCost = clipSeconds * (isDetailedModel ? 0.72 : 0.46);
   const rawEstimate = baseSeconds + modeSeconds + separationSeconds + clipSecondsCost;
 
-  return clamp(Math.round(rawEstimate), 25, isHeavyModel || separateGuitar ? 210 : 150);
+  return clamp(Math.round(rawEstimate), 25, isDetailedModel || separateGuitar ? 210 : 150);
 }
 
 function estimateMovingProgress(elapsedSeconds: number, estimatedDurationSeconds: number, isQueued: boolean) {
@@ -718,7 +719,7 @@ export default function JobPage() {
       mode: modeHint || undefined,
       duration_sec: durationHintSeconds || undefined,
       durationSec: durationHintSeconds || undefined,
-      transcriptionModel: modelHint || undefined,
+      ...(modelHint ? getTranscriptionModelAnalyticsProperties(modelHint) : {}),
       model: modelHint || undefined,
       separate_guitar: separateGuitarHint,
       multiple_guitars: loadedMultipleGuitars,

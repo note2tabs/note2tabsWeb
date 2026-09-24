@@ -19,6 +19,8 @@ describe("retention research transcription properties", () => {
       mode: "FILE",
       input_source: "local_file",
       transcriptionModel: "heavy",
+      transcription_model_id: "heavy",
+      transcription_model_name: "medium",
       separate_guitar: true,
       multiple_guitars: false,
       duration_sec: 91.4,
@@ -39,6 +41,8 @@ describe("retention research transcription properties", () => {
     });
 
     expect(properties.input_source).toBe("youtube");
+    expect(properties.transcription_model_id).toBe("light");
+    expect(properties.transcription_model_name).toBe("light");
     expect(properties.duration_sec).toBeUndefined();
     expect(properties.durationSec).toBeUndefined();
     expect(properties.file_size_bytes).toBeUndefined();

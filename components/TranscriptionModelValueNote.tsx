@@ -3,14 +3,14 @@ import type { TranscriptionModelChoice } from "../lib/transcriptionModels";
 type TranscriptionModelValueNoteProps = {
   model: TranscriptionModelChoice;
   isPremium: boolean;
-  onSelectHeavy: () => void;
+  onSelectMedium: () => void;
   surface: string;
   heavyPreviewAvailable?: boolean;
 };
 
 export default function TranscriptionModelValueNote({
   model,
-  onSelectHeavy,
+  onSelectMedium,
   heavyPreviewAvailable = false,
 }: TranscriptionModelValueNoteProps) {
   if (model === "light") {
@@ -19,7 +19,7 @@ export default function TranscriptionModelValueNote({
         <span>
           Working with a complex recording? Try Medium for multi-instrument transcription.
         </span>
-        <button type="button" onClick={onSelectHeavy} className="model-value-note__action">
+        <button type="button" onClick={onSelectMedium} className="model-value-note__action">
           Try Medium
         </button>
       </p>
