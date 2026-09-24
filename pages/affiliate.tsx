@@ -67,6 +67,7 @@ export default function AffiliatePage() {
         <span className="affiliateEyebrow">Note2Tabs affiliates</span><h1>Your referrals, commissions, and payouts in one place.</h1>
         <p>Sign in with the Note2Tabs account connected to your affiliate invitation.</p>
         <button className="affiliatePrimaryButton" onClick={() => signIn(undefined, { callbackUrl: "/affiliate" })}>Sign in to continue</button>
+        <a className="affiliateSignedOutInfo" href="/affiliate-program">Learn how the affiliate program works</a>
       </section>}
       {status === "authenticated" && error && !affiliate && <section className="affiliateError" role="alert">
         <h1>We couldn’t open your affiliate dashboard.</h1><p>{error}</p>
