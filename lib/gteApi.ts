@@ -658,7 +658,7 @@ export async function optimizeImportedTrackFingerings(
     finalizeOptimizedTrackFingeringInSnapshot,
     mergeRedundantCutRegionsInSnapshot,
     optimizeTrackFingeringInSnapshot,
-  } = await import("../components/GteWorkspace");
+  } = await import("./gteFingeringOptimization");
 
   optimized.editors.forEach((lane) => {
     if (

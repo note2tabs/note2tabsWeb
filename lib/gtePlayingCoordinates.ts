@@ -26,12 +26,32 @@ const reflectIndex = (index: number, length: number) => {
   return result;
 };
 
+const reflectedIndexCache = new Map<string, number[][]>();
+
+const getReflectedIndices = (valueCount: number, kernelLength: number) => {
+  const key = `${valueCount}:${kernelLength}`;
+  const cached = reflectedIndexCache.get(key);
+  if (cached) return cached;
+  const center = Math.floor(kernelLength / 2);
+  const indices = Array.from({ length: valueCount }, (_, outputIndex) =>
+    Array.from({ length: kernelLength }, (_, kernelIndex) =>
+      reflectIndex(outputIndex + center - kernelIndex, valueCount)
+    )
+  );
+  if (reflectedIndexCache.size >= 16) {
+    const oldestKey = reflectedIndexCache.keys().next().value;
+    if (oldestKey !== undefined) reflectedIndexCache.delete(oldestKey);
+  }
+  reflectedIndexCache.set(key, indices);
+  return indices;
+};
+
 const convolveReflect = (values: number[], kernel: number[]) => {
-  const center = Math.floor(kernel.length / 2);
+  const indices = getReflectedIndices(values.length, kernel.length);
   return values.map((_, outputIndex) =>
     kernel.reduce(
       (sum, weight, kernelIndex) =>
-        sum + weight * values[reflectIndex(outputIndex + center - kernelIndex, values.length)],
+        sum + weight * values[indices[outputIndex][kernelIndex]],
       0
     )
   );
@@ -42,10 +62,11 @@ const interpolateMissing = (values: Array<number | null>) => {
     .map((value, index) => (value === null ? null : { index, value }))
     .filter((item): item is { index: number; value: number } => item !== null);
   if (!valid.length) return values.map(() => 0);
+  let rightIndex = 0;
   return values.map((value, index) => {
     if (value !== null) return value;
-    const rightIndex = valid.findIndex((item) => item.index > index);
-    if (rightIndex < 0) return valid[valid.length - 1].value;
+    while (rightIndex < valid.length && valid[rightIndex].index <= index) rightIndex += 1;
+    if (rightIndex >= valid.length) return valid[valid.length - 1].value;
     if (rightIndex === 0) return valid[0].value;
     const left = valid[rightIndex - 1];
     const right = valid[rightIndex];
@@ -140,10 +161,18 @@ const assignBackendStyleOptimals = (snapshot: EditorSnapshot) => {
   const fretCount = getMaxFretFromSnapshot(snapshot) + 1;
   const regions = snapshot.cutPositionsWithCoords;
   snapshot.notes.forEach((note) => {
+    let low = 0;
+    let high = regions.length - 1;
     let active = regions[0];
-    regions.forEach((region) => {
-      if (note.startTime >= region[0][0]) active = region;
-    });
+    while (low <= high) {
+      const middle = (low + high) >> 1;
+      if (note.startTime >= regions[middle][0][0]) {
+        active = regions[middle];
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
+    }
     const midi = Math.trunc(Number(note.midiNum));
     note.optimals = Number.isFinite(midi) && active
       ? rankTabsLikeBackend(midi, active[1], openStrings, fretCount)
@@ -166,16 +195,18 @@ const buildWindowRegions = (
   });
   if (!localStamps.length) return [];
 
-  const midiAtFrame: Array<Set<number>> = Array.from({ length: duration }, () => new Set<number>());
+  const midiAtFrame: Array<Set<number> | null> = Array(duration).fill(null);
   localStamps.forEach(([start, tab, length]) => {
     const midi = getTabMidi(snapshot, tab);
     for (let frame = Math.max(0, start); frame < Math.min(start + length, duration); frame += 1) {
-      midiAtFrame[frame].add(midi);
+      const midis = midiAtFrame[frame] ?? new Set<number>();
+      midis.add(midi);
+      midiAtFrame[frame] = midis;
     }
   });
   const averages = interpolateMissing(
     midiAtFrame.map((midis) =>
-      midis.size ? [...midis].reduce((sum, midi) => sum + midi, 0) / midis.size : null
+      midis?.size ? [...midis].reduce((sum, midi) => sum + midi, 0) / midis.size : null
     )
   );
   const kernel = Array.from({ length: 2 * BACKEND_BLUR_SIZE + 1 }, () => 1 / (2 * BACKEND_BLUR_SIZE + 1));
@@ -318,8 +349,28 @@ export const generatePlayingCoordinatesInSnapshot = (snapshot: EditorSnapshot) =
   }
   const chunkFrames = framesPerBar * BACKEND_BARS_PER_CHUNK;
   const regions: CutWithCoord[] = [];
-  for (let start = 0; start < endTime; start += chunkFrames) {
-    regions.push(...buildWindowRegions(snapshot, stamps, start, Math.min(endTime, start + chunkFrames)));
+  const chunkCount = Math.ceil(endTime / chunkFrames);
+  const stampsByChunk: Stamp[][] = Array.from({ length: chunkCount }, () => []);
+  stamps.forEach((stamp) => {
+    const startChunk = Math.max(0, Math.floor(stamp[0] / chunkFrames));
+    const endChunk = Math.min(
+      chunkCount - 1,
+      Math.floor(Math.max(stamp[0], stamp[0] + stamp[2] - 1) / chunkFrames)
+    );
+    for (let chunkIndex = startChunk; chunkIndex <= endChunk; chunkIndex += 1) {
+      stampsByChunk[chunkIndex].push(stamp);
+    }
+  });
+  for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+    const start = chunkIndex * chunkFrames;
+    regions.push(
+      ...buildWindowRegions(
+        snapshot,
+        stampsByChunk[chunkIndex],
+        start,
+        Math.min(endTime, start + chunkFrames)
+      )
+    );
   }
   snapshot.cutPositionsWithCoords = normalizeGeneratedRegions(regions, endTime);
   assignBackendStyleOptimals(snapshot);
