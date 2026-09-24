@@ -4,6 +4,7 @@ import {
   chunkTranscriberSegmentGroups,
   gteApi,
   optimizeImportedTrackFingerings,
+  TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
   TRANSCRIBER_IMPORT_CHUNK_MAX_BYTES,
   TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS,
   type TranscriberSegmentGroup,
@@ -89,6 +90,10 @@ describe("transcriber import chunking", () => {
     ).toEqual([0, 0.5, 1.25]);
   });
 
+  it("runs two complete fingering passes for transcription imports", () => {
+    expect(TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES).toBe(2);
+  });
+
   it("runs the editor fingering optimizer on every playable imported track", async () => {
     const guitar = buildCanvas("canvas-1", [120]).editors[0];
     const bass = {
@@ -127,6 +132,40 @@ describe("transcriber import chunking", () => {
     expect(result.editors[1].chords).toHaveLength(0);
     expect(result.editors[1].notes.every((note) => note.optimals.length > 0)).toBe(true);
     expect(result.editors[2]).toEqual(drums);
+  });
+
+  it("cleans tiny overlaps only in lanes identified as newly transcriber-imported", async () => {
+    const bassLane = (id: string) => ({
+      ...buildCanvas("canvas-1", [120]).editors[0],
+      id,
+      trackType: "bass" as const,
+      editorType: "bass" as const,
+      tuning: { presetId: "bass-standard", openStringMidi: [43, 38, 33, 28], capo: 0 },
+      notes: [
+        { id: 1, startTime: 0, length: 125, midiNum: 43, tab: [0, 0] as [number, number], optimals: [] },
+        { id: 2, startTime: 120, length: 120, midiNum: 45, tab: [0, 2] as [number, number], optimals: [] },
+      ],
+      chords: [],
+    });
+    const source: CanvasSnapshot = {
+      ...buildCanvas("canvas-1", [120]),
+      editors: [bassLane("existing-bass"), bassLane("imported-bass")],
+    };
+    vi.stubGlobal("fetch", vi.fn(async (_url: string | URL | Request, init?: RequestInit) =>
+      new Response(JSON.stringify({ ok: true, snapshot: JSON.parse(String(init?.body || "{}")).snapshot }), {
+        status: 200,
+      })
+    ));
+
+    const result = await optimizeImportedTrackFingerings(
+      "canvas-1",
+      source,
+      1,
+      ["imported-bass"]
+    );
+
+    expect(result.editors.find((lane) => lane.id === "existing-bass")?.notes[0].length).toBe(125);
+    expect(result.editors.find((lane) => lane.id === "imported-bass")?.notes[0].length).toBe(120);
   });
 
   it("creates the first chunk directly and appends later chunks as one aligned import", async () => {

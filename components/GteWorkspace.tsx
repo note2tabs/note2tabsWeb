@@ -51,6 +51,11 @@ import {
 import { cloneEditorSnapshot, nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
 import { generatePlayingCoordinatesInSnapshot } from "../lib/gtePlayingCoordinates";
 import {
+  finalizeOptimizedTrackFingeringInSnapshot as finalizeOptimizedTrackFingeringCore,
+  mergeRedundantCutRegionsInSnapshot as mergeRedundantCutRegionsCore,
+  optimizeTrackFingeringInSnapshot as optimizeTrackFingeringCore,
+} from "../lib/gteFingeringOptimization";
+import {
   getChordFingeringDatasetType,
   getChordFingeringMidiNotes,
   getChordFingeringTabs,
@@ -764,16 +769,17 @@ export const clusterTrackNotesIntoChordGroups = (
     const noteEnd = noteStart + clampEventLength(note.length);
     const current = clusters[clusters.length - 1];
     const currentStarts = current?.notes.map((item) => Math.round(item.startTime)) ?? [];
-    const currentEnds =
-      current?.notes.map((item) => Math.round(item.startTime) + clampEventLength(item.length)) ?? [];
-    const nextStarts = [...currentStarts, noteStart];
-    const nextEnds = [...currentEnds, noteEnd];
-    const latestStart = nextStarts.length ? Math.max(...nextStarts) : noteStart;
-    const earliestEnd = nextEnds.length ? Math.min(...nextEnds) : noteEnd;
+    const currentEnds = current?.notes.map(
+      (item) => Math.round(item.startTime) + clampEventLength(item.length)
+    ) ?? [];
+    const earliestStart = currentStarts.length ? Math.min(...currentStarts) : noteStart;
+    const latestStart = currentStarts.length ? Math.max(...currentStarts, noteStart) : noteStart;
+    const earliestEnd = currentEnds.length ? Math.min(...currentEnds, noteEnd) : noteEnd;
+    const latestEnd = currentEnds.length ? Math.max(...currentEnds, noteEnd) : noteEnd;
     const joinsCurrent =
       Boolean(current) &&
-      Math.max(...nextStarts) - Math.min(...nextStarts) <= tolerance &&
-      Math.max(...nextEnds) - Math.min(...nextEnds) <= tolerance &&
+      latestStart - Math.min(earliestStart, noteStart) <= tolerance &&
+      latestEnd - earliestEnd <= tolerance &&
       latestStart < earliestEnd;
 
     if (!current || !joinsCurrent) {
@@ -782,43 +788,110 @@ export const clusterTrackNotesIntoChordGroups = (
     }
 
     current.notes.push(note);
-    current.startTime = Math.min(...nextStarts);
-    current.endTime = Math.max(...nextEnds);
+    current.startTime = Math.min(earliestStart, noteStart);
+    current.endTime = latestEnd;
   });
 
   return clusters;
 };
 
+type FingeringOptimizationContext = {
+  cuts: CutWithCoord[];
+  notesByStart: Note[];
+  chordsByStart: Chord[];
+  effectNoteIds: Set<number>;
+  tabsByMidi: Map<number, TabCoord[]>;
+};
+
+const buildFingeringOptimizationContext = (snapshot: EditorSnapshot): FingeringOptimizationContext => ({
+  cuts: getCutRegions(snapshot),
+  notesByStart: [...snapshot.notes].sort(
+    (left, right) => Math.round(left.startTime) - Math.round(right.startTime) || left.id - right.id
+  ),
+  chordsByStart: [...snapshot.chords].sort(
+    (left, right) => Math.round(left.startTime) - Math.round(right.startTime) || left.id - right.id
+  ),
+  effectNoteIds: new Set(
+    (snapshot.noteEffects || []).flatMap((effect) => [effect.startNoteId, effect.endNoteId])
+  ),
+  tabsByMidi: new Map<number, TabCoord[]>(),
+});
+
+const firstPotentialFingeringOverlap = <T extends { startTime: number }>(events: T[], start: number) => {
+  const minimumStart = start - MAX_EVENT_LENGTH_FRAMES + 1;
+  let low = 0;
+  let high = events.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (Math.round(events[middle].startTime) < minimumStart) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+};
+
+const getCutCoordFromNormalizedRegions = (cuts: CutWithCoord[], time: number): TabCoord => {
+  const roundedTime = Math.max(0, Math.round(time));
+  let low = 0;
+  let high = cuts.length - 1;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    const region = cuts[middle];
+    if (roundedTime < region[0][0]) high = middle - 1;
+    else if (roundedTime >= region[0][1]) low = middle + 1;
+    else return cloneTabCoord(region[1]);
+  }
+  return cloneTabCoord(cuts[0]?.[1] ?? DEFAULT_CUT_COORD);
+};
+
 const computeNoteAlternatesForSnapshot = (
   snapshot: EditorSnapshot,
-  note: EditorSnapshot["notes"][number]
+  note: EditorSnapshot["notes"][number],
+  context?: FingeringOptimizationContext
 ) => {
   const noteStart = Math.round(note.startTime);
   const noteEnd = noteStart + clampEventLength(note.length);
   // Keep parity with backend: midiNum can be 0 as a temporary/local placeholder,
   // so fall back to tab-derived MIDI unless midiNum is truthy.
   const midi = note.midiNum || getTabMidi(snapshot, note.tab);
-  const candidates = getAllTabsForMidi(snapshot, midi);
+  let candidates = context?.tabsByMidi.get(midi);
+  if (!candidates) {
+    candidates = getAllTabsForMidi(snapshot, midi);
+    context?.tabsByMidi.set(midi, candidates);
+  }
   const blockedStrings = new Set<number>();
-  snapshot.notes.forEach((item) => {
-    if (item.id === note.id) return;
+  const notes = context?.notesByStart ?? [...snapshot.notes].sort(
+    (left, right) => Math.round(left.startTime) - Math.round(right.startTime) || left.id - right.id
+  );
+  for (let index = firstPotentialFingeringOverlap(notes, noteStart); index < notes.length; index += 1) {
+    const item = notes[index];
+    if (Math.round(item.startTime) >= noteEnd) break;
+    if (item.id === note.id) continue;
     const start = Math.round(item.startTime);
     const end = start + clampEventLength(item.length);
     if (start < noteEnd && noteStart < end) {
       blockedStrings.add(item.tab[0]);
     }
-  });
-  snapshot.chords.forEach((chord) => {
+  }
+  const chords = context?.chordsByStart ?? [...snapshot.chords].sort(
+    (left, right) => Math.round(left.startTime) - Math.round(right.startTime) || left.id - right.id
+  );
+  for (let index = firstPotentialFingeringOverlap(chords, noteStart); index < chords.length; index += 1) {
+    const chord = chords[index];
+    if (Math.round(chord.startTime) >= noteEnd) break;
     const start = Math.round(chord.startTime);
     const end = start + clampEventLength(chord.length);
     if (start < noteEnd && noteStart < end) {
       chord.currentTabs.forEach((tab) => blockedStrings.add(tab[0]));
     }
-  });
-  const cutCoord = getCutCoordAtTime(snapshot, noteStart);
-  const isConnectedToEffect = (snapshot.noteEffects || []).some(
-    (effect) => effect.startNoteId === note.id || effect.endNoteId === note.id
-  );
+  }
+  const cutCoord = context
+    ? getCutCoordFromNormalizedRegions(context.cuts, noteStart)
+    : getCutCoordAtTime(snapshot, noteStart);
+  const isConnectedToEffect = context
+    ? context.effectNoteIds.has(note.id)
+    : (snapshot.noteEffects || []).some(
+        (effect) => effect.startNoteId === note.id || effect.endNoteId === note.id
+      );
   const ranked = candidates
     .map((tab) => ({
       tab,
@@ -833,14 +906,15 @@ const computeNoteAlternatesForSnapshot = (
 };
 
 const recomputeSnapshotOptimals = (snapshot: EditorSnapshot): EditorSnapshot => {
-  const next = JSON.parse(JSON.stringify(snapshot)) as EditorSnapshot;
-  next.notes = next.notes.map((note) => {
-    const alternates = computeNoteAlternatesForSnapshot(next, note);
+  const context = buildFingeringOptimizationContext(snapshot);
+  const notes = snapshot.notes.map((note) => {
+    const alternates = computeNoteAlternatesForSnapshot(snapshot, note, context);
     return {
       ...note,
       optimals: alternates.possibleTabs.map((tab) => [tab[0], tab[1]] as TabCoord),
     };
   });
+  const next = { ...snapshot, notes };
   next.noteEffects = normalizeSnapshotNoteEffects(next);
   return next;
 };
@@ -1159,123 +1233,13 @@ export const optimizeTrackFingeringInSnapshot = (
   options?: {
     optimizeChordFingerings?: boolean;
   }
-): FingeringOptimizationResult => {
-  const tolerance = Math.max(1, Math.round((draft.framesPerMessure || FIXED_FRAMES_PER_BAR) / 32));
-  const isBass = isBassSnapshot(draft);
-  // Bass uses the same coordinate-aware note candidate ranking as guitar, but
-  // simultaneous pitches must remain independent notes rather than becoming
-  // guitar chord objects.
-  const chordGroups = isBass ? [] : clusterTrackNotesIntoChordGroups(draft.notes, tolerance);
-  const createdChordIds: number[] = [];
-  const chordizedNoteIds = new Set<number>();
-  let nextChordId = draft.chords.reduce((max, chord) => Math.max(max, chord.id), 0) + 1;
+): FingeringOptimizationResult => optimizeTrackFingeringCore(draft, options);
 
-  chordGroups.forEach((group) => {
-    // A guitar has six strings. Keep oversized onset clusters as notes rather
-    // than silently dropping pitches or generating an impossible chord.
-    if (group.notes.length < 2 || group.notes.length > 6) return;
-    const chordNotes = group.notes;
-    const chord = buildChordFromCluster(draft, chordNotes, nextChordId);
-    draft.chords.push(chord);
-    createdChordIds.push(nextChordId);
-    nextChordId += 1;
-    chordNotes.forEach((note) => chordizedNoteIds.add(note.id));
-  });
-
-  if (chordizedNoteIds.size > 0) {
-    draft.notes = draft.notes.filter((note) => !chordizedNoteIds.has(note.id));
-    draft.noteEffects = (draft.noteEffects || []).filter(
-      (effect) =>
-        !chordizedNoteIds.has(effect.startNoteId) && !chordizedNoteIds.has(effect.endNoteId)
-    );
-  }
-
-  if (!isBass && options?.optimizeChordFingerings !== false) {
-    [...draft.chords]
-      .sort((left, right) => left.startTime - right.startTime || left.id - right.id)
-      .forEach((chord) => {
-        const bestTabs = chooseBestChordTabs(draft, chord);
-        if (!bestTabs) return;
-        chord.currentTabs = bestTabs;
-        chord.ogTabs = bestTabs.map((tab) => cloneTabCoord(tab));
-        chord.fingering = undefined;
-        chord.fingeringIndex = 0;
-      });
-  }
-
-  [...draft.notes]
-    .sort((left, right) => left.startTime - right.startTime || left.id - right.id)
-    .forEach((note) => {
-      const alternates = computeNoteAlternatesForSnapshot(draft, note);
-      note.optimals = alternates.possibleTabs.map((tab) => cloneTabCoord(tab));
-      const bestTab = alternates.possibleTabs[0];
-      if (!bestTab) return;
-      applyNoteFingeringUpdates(
-        draft,
-        getEffectAwareFingeringUpdates(draft, [{ noteId: note.id, tab: bestTab }])
-      );
-    });
-
-  return { chordGroups, createdChordIds };
-};
-
-export const finalizeOptimizedTrackFingeringInSnapshot = (draft: EditorSnapshot) => {
-  const nextNoteId = () => draft.notes.reduce((max, note) => Math.max(max, note.id), 0) + 1;
-
-  draft.chords = draft.chords.filter((chord) => {
-    const tabs = chord.currentTabs.length ? chord.currentTabs : chord.ogTabs;
-    const midi = chord.originalMidi.length ? chord.originalMidi : tabs.map((tab) => getTabMidi(draft, tab));
-    if (Math.max(tabs.length, midi.length) !== 1) return true;
-
-    const tab = tabs[0];
-    if (!tab) return false;
-    draft.notes.push({
-      id: nextNoteId(),
-      startTime: Math.round(chord.startTime),
-      length: clampEventLength(chord.length),
-      midiNum: midi[0] ?? getTabMidi(draft, tab),
-      tab: cloneTabCoord(tab),
-      optimals: [],
-      velocity: chord.velocities?.[0],
-      pitchBend: chord.pitchBends?.[0] ? [...chord.pitchBends[0]] : undefined,
-    });
-    return false;
-  });
-
-  const events = [
-    ...draft.notes.map((note) => ({ kind: "note" as const, event: note })),
-    ...draft.chords.map((chord) => ({ kind: "chord" as const, event: chord })),
-  ].sort((left, right) => {
-    const startDelta = Math.round(left.event.startTime) - Math.round(right.event.startTime);
-    if (startDelta !== 0) return startDelta;
-    const kindDelta = left.kind.localeCompare(right.kind);
-    if (kindDelta !== 0) return kindDelta;
-    return left.event.id - right.event.id;
-  });
-
-  // Guitar optimization makes a monophonic sequence around generated chords.
-  // Bass v1 deliberately supports independent overlapping notes, so optimizing
-  // their fingerings must not shorten their musical durations.
-  if (!isBassSnapshot(draft)) {
-    for (let index = 0; index < events.length - 1; index += 1) {
-      const current = events[index].event;
-      const next = events[index + 1].event;
-      const currentStart = Math.round(current.startTime);
-      const nextStart = Math.round(next.startTime);
-      if (nextStart <= currentStart) continue;
-      const currentEnd = currentStart + clampEventLength(current.length);
-      if (currentEnd > nextStart) {
-        current.length = clampEventLength(nextStart - currentStart);
-      }
-    }
-  }
-
-  draft.notes = recomputeSnapshotOptimals(draft).notes;
-  draft.noteEffects = normalizeSnapshotNoteEffects(draft);
-};
+export const finalizeOptimizedTrackFingeringInSnapshot = (draft: EditorSnapshot) =>
+  finalizeOptimizedTrackFingeringCore(draft);
 
 export const mergeRedundantCutRegionsInSnapshot = (draft: EditorSnapshot) => {
-  draft.cutPositionsWithCoords = mergeRedundantCutRegions(draft, draft.cutPositionsWithCoords);
+  mergeRedundantCutRegionsCore(draft);
 };
 
 const applyBarOperationCleanupInSnapshot = (draft: EditorSnapshot) => {

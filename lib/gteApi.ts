@@ -18,6 +18,7 @@ import {
   stabilizeNewTranscriberTimingMap,
 } from "./gteTranscriberTiming";
 import { generatePlayingCoordinatesInSnapshot } from "./gtePlayingCoordinates";
+import { shortenTinyImportedNoteOverlapsInSnapshot } from "./gteTranscriberOverlapCleanup";
 
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
@@ -531,7 +532,12 @@ async function importTranscriberToSaved(
   }
 
   const optimizedCanvas = lastResponse.canvas
-    ? await optimizeImportedTrackFingerings(currentEditorId, lastResponse.canvas)
+    ? await optimizeImportedTrackFingerings(
+        currentEditorId,
+        lastResponse.canvas,
+        TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
+        finalImportedEditorIds
+      )
     : undefined;
   return {
     ok: true,
@@ -616,7 +622,12 @@ async function importTranscriberToGuest(
   };
   response = {
     ...response,
-    canvas: await optimizeImportedTrackFingerings(response.editorId, response.canvas),
+    canvas: await optimizeImportedTrackFingerings(
+      response.editorId,
+      response.canvas,
+      TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
+      importedEditorIds
+    ),
   };
   return response;
 }
@@ -626,10 +637,14 @@ const isDrumLane = (lane: EditorSnapshot) => {
   return trackType === "drums" || trackType === "drum";
 };
 
+export const TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES = 2;
+
 /** Runs the same frontend transformation as Tools -> Optimize fingering on every imported track. */
 export async function optimizeImportedTrackFingerings(
   editorId: string,
-  sourceCanvas?: CanvasSnapshot
+  sourceCanvas?: CanvasSnapshot,
+  passes: number = 1,
+  importedEditorIds?: readonly string[]
 ): Promise<CanvasSnapshot> {
   const canvasId = editorId.includes(LANE_DELIMITER)
     ? editorId.slice(0, editorId.indexOf(LANE_DELIMITER))
@@ -647,7 +662,8 @@ export async function optimizeImportedTrackFingerings(
     finalizeOptimizedTrackFingeringInSnapshot,
     mergeRedundantCutRegionsInSnapshot,
     optimizeTrackFingeringInSnapshot,
-  } = await import("../components/GteWorkspace");
+  } = await import("./gteFingeringOptimization");
+  const importedLaneIds = importedEditorIds ? new Set(importedEditorIds) : null;
 
   optimized.editors.forEach((lane) => {
     if (
@@ -656,10 +672,16 @@ export async function optimizeImportedTrackFingerings(
       !Array.isArray(lane.chords) ||
       (lane.notes.length === 0 && lane.chords.length === 0)
     ) return;
-    generatePlayingCoordinatesInSnapshot(lane);
-    optimizeTrackFingeringInSnapshot(lane);
-    finalizeOptimizedTrackFingeringInSnapshot(lane);
-    mergeRedundantCutRegionsInSnapshot(lane);
+    if (importedLaneIds?.has(lane.id)) {
+      shortenTinyImportedNoteOverlapsInSnapshot(lane);
+    }
+    const passCount = Math.max(1, Math.floor(passes));
+    for (let pass = 0; pass < passCount; pass += 1) {
+      generatePlayingCoordinatesInSnapshot(lane);
+      optimizeTrackFingeringInSnapshot(lane);
+      finalizeOptimizedTrackFingeringInSnapshot(lane);
+      mergeRedundantCutRegionsInSnapshot(lane);
+    }
   });
 
   await requestForEditor<{ ok: true; snapshot: EditorOrCanvasSnapshot; canvas?: CanvasSnapshot }>(
