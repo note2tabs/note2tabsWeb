@@ -1672,15 +1672,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     if (router.query.heavyPreviewComplete !== "1") return;
 
     heavyPreviewUpgradeHandledRef.current = true;
-    const { heavyPreviewComplete: _marker, ...nextQuery } = router.query;
-    void router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
-
     const timeout = window.setTimeout(() => {
       setHeavyPreviewUpgradeOpen(true);
       sendEvent(ANALYTICS_EVENTS.heavyPreviewUpgradeShown, {
         surface: "editor",
         editor_id: editorId,
       });
+      const { heavyPreviewComplete: _marker, ...nextQuery } = router.query;
+      void router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
     }, 1200);
     return () => window.clearTimeout(timeout);
   }, [canvas, editorId, loading, router]);
