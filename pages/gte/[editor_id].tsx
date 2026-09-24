@@ -86,6 +86,7 @@ import GteFileImportButton from "../../components/GteFileImportButton";
 import ShareDialog from "../../components/ShareDialog";
 import { EditorLoadingState } from "../../components/EditorLoadingState";
 import EditorTutorial, { EditorTutorialTrigger } from "../../components/EditorTutorial";
+import HeavyPreviewEditorPrompt from "../../components/HeavyPreviewEditorPrompt";
 import { prisma } from "../../lib/prisma";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
@@ -1645,6 +1646,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   }, []);
   const router = useRouter();
   const tabReturnLandingTrackedRef = useRef(false);
+  const heavyPreviewUpgradeHandledRef = useRef(false);
+  const [heavyPreviewUpgradeOpen, setHeavyPreviewUpgradeOpen] = useState(false);
   const saveToAccountPath = "/gte?importGuest=1";
   const loginSaveHref = `/auth/login?next=${encodeURIComponent(saveToAccountPath)}`;
   const signupSaveHref = `/auth/signup?next=${encodeURIComponent(saveToAccountPath)}`;
@@ -1663,6 +1666,24 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       surface: "editor",
     });
   }, [router.isReady, router.query.source]);
+
+  useEffect(() => {
+    if (!router.isReady || loading || !canvas || heavyPreviewUpgradeHandledRef.current) return;
+    if (router.query.heavyPreviewComplete !== "1") return;
+
+    heavyPreviewUpgradeHandledRef.current = true;
+    const { heavyPreviewComplete: _marker, ...nextQuery } = router.query;
+    void router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
+
+    const timeout = window.setTimeout(() => {
+      setHeavyPreviewUpgradeOpen(true);
+      sendEvent(ANALYTICS_EVENTS.heavyPreviewUpgradeShown, {
+        surface: "editor",
+        editor_id: editorId,
+      });
+    }, 1200);
+    return () => window.clearTimeout(timeout);
+  }, [canvas, editorId, loading, router]);
   const chordDiagramHandednessStorageKey = useMemo(() => {
     if (session?.user?.id) {
       return `${CHORD_DIAGRAM_HANDEDNESS_STORAGE_PREFIX}user:${session.user.id}`;
@@ -11151,6 +11172,23 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       {shareDialogOpen && (
         <ShareDialog editorId={editorId} onClose={() => setShareDialogOpen(false)} />
       )}
+      <HeavyPreviewEditorPrompt
+        open={heavyPreviewUpgradeOpen}
+        onClose={() => {
+          setHeavyPreviewUpgradeOpen(false);
+          sendEvent(ANALYTICS_EVENTS.heavyPreviewUpgradeDismissed, {
+            surface: "editor",
+            editor_id: editorId,
+          });
+        }}
+        onUpgrade={() => {
+          sendEvent(ANALYTICS_EVENTS.heavyPreviewUpgradeClicked, {
+            surface: "editor",
+            editor_id: editorId,
+          });
+          void router.push("/pricing?source=heavy_preview_editor");
+        }}
+      />
       <EditorTutorial hasAccount={hasAccount} passedTutorial={passedTutorial} />
       </main>
     </>

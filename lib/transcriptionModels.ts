@@ -1,6 +1,7 @@
 import { durationToCredits } from "./credits";
 
 export type TranscriptionModelChoice = "light" | "heavy" | "super_heavy";
+export type TranscriptionModelAnalyticsName = "light" | "medium" | "heavy";
 
 export const DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "light";
 export const PREMIUM_DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "heavy";
@@ -9,6 +10,7 @@ export const HEAVY_TRANSCRIPTION_BACKEND_METHOD = "yourmt3";
 // Keep the legacy backend wire value until every deployed backend accepts
 // "msmodel"; the frontend name is intentionally vendor-neutral.
 export const MSMODEL_TRANSCRIPTION_BACKEND_METHOD = "msmodel";
+export const HEAVY_PREVIEW_MAX_DURATION_SEC = 30;
 export const TRANSCRIPTION_MODEL_OPTIONS: Array<{
   value: TranscriptionModelChoice;
   label: string;
@@ -59,7 +61,10 @@ export function normalizeTranscriptionModel(value: unknown): TranscriptionModelC
   return "light";
 }
 
-export function getDefaultTranscriptionModel(isPremium: boolean): TranscriptionModelChoice {
+export function getDefaultTranscriptionModel(
+  isPremium: boolean,
+  _heavyPreviewAvailable = false
+): TranscriptionModelChoice {
   return isPremium ? PREMIUM_DEFAULT_TRANSCRIPTION_MODEL : DEFAULT_TRANSCRIPTION_MODEL;
 }
 
@@ -74,6 +79,23 @@ export function getTranscriptionModelOption(model: TranscriptionModelChoice) {
     TRANSCRIPTION_MODEL_OPTIONS.find((option) => option.value === DEFAULT_TRANSCRIPTION_MODEL) ??
     TRANSCRIPTION_MODEL_OPTIONS[0]
   );
+}
+
+export function getTranscriptionModelAnalyticsName(
+  model: TranscriptionModelChoice
+): TranscriptionModelAnalyticsName {
+  if (model === "super_heavy") return "heavy";
+  if (model === "heavy") return "medium";
+  return "light";
+}
+
+export function getTranscriptionModelAnalyticsProperties(model: TranscriptionModelChoice) {
+  return {
+    // `transcriptionModel` is retained for compatibility with existing insights.
+    transcriptionModel: model,
+    transcription_model_id: model,
+    transcription_model_name: getTranscriptionModelAnalyticsName(model),
+  } as const;
 }
 
 export function getTranscriptionModelCreditsPerInterval(model: TranscriptionModelChoice) {

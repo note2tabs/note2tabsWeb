@@ -1,6 +1,9 @@
-import type { TranscriptionModelChoice } from "./transcriptionModels";
+import {
+  getTranscriptionModelAnalyticsProperties,
+  type TranscriptionModelChoice,
+} from "./transcriptionModels";
 
-export const RETENTION_RESEARCH_VERSION = "retention_v1";
+export const RETENTION_RESEARCH_VERSION = "retention_v2";
 
 export type TranscriptionResearchInput = {
   mode: "FILE" | "YOUTUBE";
@@ -17,7 +20,7 @@ export function buildTranscriptionResearchProperties(input: TranscriptionResearc
     research_version: RETENTION_RESEARCH_VERSION,
     mode: input.mode,
     input_source: input.mode === "YOUTUBE" ? "youtube" : "local_file",
-    transcriptionModel: input.transcriptionModel,
+    ...getTranscriptionModelAnalyticsProperties(input.transcriptionModel),
     separate_guitar: Boolean(input.separateGuitar),
     multiple_guitars: Boolean(input.multipleGuitars),
     duration_sec:

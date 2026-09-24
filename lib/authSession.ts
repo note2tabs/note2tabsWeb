@@ -11,6 +11,8 @@ export type AuthUserState = {
   emailVerifiedBool?: boolean | null;
   isEmailVerified?: boolean | null;
   unverifiedTranscriptionUsed?: boolean | null;
+  heavyPreviewUsedAt?: Date | string | null;
+  heavyPreviewUsed?: boolean | null;
   createdAt?: Date | string | null;
 };
 
@@ -31,6 +33,7 @@ export function applyUserStateToToken(token: JWT, user: AuthUserState) {
     user.isEmailVerified || user.emailVerifiedBool || user.emailVerified
   );
   token.unverifiedTranscriptionUsed = Boolean(user.unverifiedTranscriptionUsed);
+  token.heavyPreviewUsed = Boolean(user.heavyPreviewUsed || user.heavyPreviewUsedAt);
   const createdAt = toIsoString(user.createdAt);
   if (createdAt) token.createdAt = createdAt;
   token.accountSyncedAt = Date.now();
@@ -50,6 +53,7 @@ export function applyTokenToSession(
     typeof token.tokensRemaining === "number" ? token.tokensRemaining : 0;
   session.user.isEmailVerified = Boolean(token.isEmailVerified);
   session.user.unverifiedTranscriptionUsed = Boolean(token.unverifiedTranscriptionUsed);
+  session.user.heavyPreviewUsed = Boolean(token.heavyPreviewUsed);
   if (token.createdAt) session.user.createdAt = token.createdAt;
   if (typeof token.accountSyncedAt === "number") {
     session.user.accountSyncedAt = token.accountSyncedAt;

@@ -32,7 +32,7 @@ vi.mock("../../lib/prisma", () => ({
 }));
 
 vi.mock("../../lib/serverDevMode", () => ({
-  isEmailVerificationRequiredServer: false,
+  isEmailVerificationRequiredServer: true,
   isLocalNoDbServerMode: false,
 }));
 
@@ -48,7 +48,7 @@ vi.mock("../../lib/backendCredits", async () => {
 function makeJsonReq(body: Record<string, unknown>) {
   const req = Readable.from([JSON.stringify(body)]) as NextApiRequest;
   req.method = "POST";
-  req.headers = { "content-type": "application/json" };
+  req.headers = { "content-type": "application/json", "x-vercel-ip-country": "US" };
   return req;
 }
 
@@ -89,9 +89,11 @@ async function callTranscribe(
     emailVerified: new Date("2026-01-01T00:00:00.000Z"),
     emailVerifiedBool: true,
     unverifiedTranscriptionUsed: false,
+    heavyPreviewUsedAt: null,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
   });
   mocks.prisma.tabJob.groupBy.mockResolvedValue([]);
+  mocks.prisma.user.updateMany.mockResolvedValue({ count: 1 });
   mocks.setBackendCredits.mockResolvedValue(10);
   mocks.raiseBackendCreditsToFloor.mockResolvedValue(10);
   mocks.fetch.mockResolvedValue(
@@ -157,7 +159,7 @@ describe("transcribe credits", () => {
     expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(7);
   });
 
-  it("defaults premium requests without a model choice to the heavy model", async () => {
+  it("defaults premium requests without a model choice to the Medium model", async () => {
     const res = await callTranscribe("PREMIUM", false, null);
 
     expect(res.statusCode).toBe(202);
@@ -167,21 +169,135 @@ describe("transcribe credits", () => {
     expect(body.get("transcription_method")).toBe("yourmt3");
   });
 
-  it("keeps light as the fallback for free requests without a model choice", async () => {
+  it("does not spend a verified free account's Heavy preview without an explicit choice", async () => {
     const res = await callTranscribe("FREE", false, null);
 
     expect(res.statusCode).toBe(202);
-    expect(res.body).toMatchObject({ transcriptionModel: "light" });
+    expect(res.body).toMatchObject({
+      transcriptionModel: "light",
+      tokensRemaining: 8,
+    });
+    expect(res.body.heavyPreviewUsed).toBeUndefined();
+    expect(mocks.prisma.user.updateMany).not.toHaveBeenCalled();
     const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
     const body = requestInit.body as FormData;
     expect(body.get("transcription_method")).toBe("basic_pitch");
   });
 
-  it("rejects the user-facing Heavy model for free users", async () => {
+  it("allows one credit-free Heavy preview for a verified free user", async () => {
     const res = await callTranscribe("FREE", false, "super_heavy");
+
+    expect(res.statusCode).toBe(202);
+    expect(res.body).toMatchObject({
+      heavyPreviewUsed: true,
+      transcriptionModel: "super_heavy",
+      tokensRemaining: 10,
+    });
+    expect(mocks.prisma.user.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: "user_1", heavyPreviewUsedAt: null }),
+      })
+    );
+    const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
+    const body = requestInit.body as FormData;
+    expect(body.get("transcription_method")).toBe("msmodel");
+    expect(body.get("heavy_preview")).toBe("true");
+  });
+
+  it("limits the one-time Heavy preview to 30 seconds", async () => {
+    const res = await callTranscribe("FREE", false, "super_heavy", 31);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatchObject({ maxDurationSec: 30 });
+    expect(mocks.prisma.user.updateMany).not.toHaveBeenCalled();
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not expose the Heavy preview outside configured countries", async () => {
+    const handler = (await import("../../pages/api/transcribe")).default;
+    mocks.session.mockResolvedValue({ user: { id: "user_1" } });
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      id: "user_1",
+      role: "FREE",
+      subscriptionPlan: "FREE",
+      tokensRemaining: 10,
+      emailVerified: new Date("2026-01-01T00:00:00.000Z"),
+      emailVerifiedBool: true,
+      heavyPreviewUsedAt: null,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    mocks.prisma.tabJob.groupBy.mockResolvedValue([]);
+    const req = makeJsonReq({
+      mode: "YOUTUBE",
+      youtubeUrl: "https://www.youtube.com/watch?v=test",
+      startTime: 0,
+      duration: 30,
+      transcriptionModel: "super_heavy",
+    });
+    req.headers["x-vercel-ip-country"] = "BR";
+    const res = makeRes();
+
+    await handler(req, res);
 
     expect(res.statusCode).toBe(403);
     expect(res.body).toMatchObject({ premiumRequired: true });
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects Heavy after the free preview has been used", async () => {
+    const handler = (await import("../../pages/api/transcribe")).default;
+    mocks.session.mockResolvedValue({ user: { id: "user_1" } });
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      id: "user_1",
+      role: "FREE",
+      subscriptionPlan: "FREE",
+      tokensRemaining: 10,
+      emailVerified: new Date("2026-01-01T00:00:00.000Z"),
+      emailVerifiedBool: true,
+      unverifiedTranscriptionUsed: false,
+      heavyPreviewUsedAt: new Date("2026-09-23T00:00:00.000Z"),
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    mocks.prisma.tabJob.groupBy.mockResolvedValue([]);
+    const res = makeRes();
+    await handler(makeJsonReq({
+      mode: "YOUTUBE",
+      youtubeUrl: "https://www.youtube.com/watch?v=test",
+      startTime: 0,
+      duration: 30,
+      transcriptionModel: "super_heavy",
+    }), res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatchObject({ premiumRequired: true });
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
+  it("blocks every transcription until an email/password account is verified", async () => {
+    const handler = (await import("../../pages/api/transcribe")).default;
+    mocks.session.mockResolvedValue({ user: { id: "user_1" } });
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      id: "user_1",
+      role: "FREE",
+      subscriptionPlan: "FREE",
+      tokensRemaining: 10,
+      emailVerified: null,
+      emailVerifiedBool: false,
+      unverifiedTranscriptionUsed: false,
+      heavyPreviewUsedAt: null,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    const res = makeRes();
+    await handler(makeJsonReq({
+      mode: "YOUTUBE",
+      youtubeUrl: "https://www.youtube.com/watch?v=test",
+      startTime: 0,
+      duration: 30,
+      transcriptionModel: "light",
+    }), res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatchObject({ verificationRequired: true });
     expect(mocks.fetch).not.toHaveBeenCalled();
   });
 

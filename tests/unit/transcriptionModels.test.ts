@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   calculateTranscriptionCredits,
   getDefaultTranscriptionModel,
+  getTranscriptionModelAnalyticsName,
+  getTranscriptionModelAnalyticsProperties,
   normalizeTranscriptionModel,
   transcriptionModelToBackendMethod,
   transcriptionModelRequiresPremium,
@@ -17,14 +19,37 @@ describe("transcription models", () => {
     expect(getDefaultTranscriptionModel(false)).toBe("light");
   });
 
+  it("keeps Light selected until the user actively chooses the Heavy preview", () => {
+    expect(getDefaultTranscriptionModel(false, true)).toBe("light");
+  });
+
   it("keeps legacy backend values on the light model", () => {
     expect(normalizeTranscriptionModel("basic_pitch")).toBe("light");
   });
 
-  it("normalizes YourMT3 aliases to the heavy model", () => {
+  it("normalizes YourMT3 aliases to the user-facing Medium model", () => {
     expect(normalizeTranscriptionModel("heavy")).toBe("heavy");
     expect(normalizeTranscriptionModel("yourmt3+")).toBe("heavy");
     expect(normalizeTranscriptionModel("mt3-plus")).toBe("heavy");
+  });
+
+  it("maps backend-compatible identifiers to current analytics names", () => {
+    expect(getTranscriptionModelAnalyticsName("light")).toBe("light");
+    expect(getTranscriptionModelAnalyticsName("heavy")).toBe("medium");
+    expect(getTranscriptionModelAnalyticsName("super_heavy")).toBe("heavy");
+  });
+
+  it("preserves the legacy id while exposing the current product name", () => {
+    expect(getTranscriptionModelAnalyticsProperties("heavy")).toEqual({
+      transcriptionModel: "heavy",
+      transcription_model_id: "heavy",
+      transcription_model_name: "medium",
+    });
+    expect(getTranscriptionModelAnalyticsProperties("super_heavy")).toEqual({
+      transcriptionModel: "super_heavy",
+      transcription_model_id: "super_heavy",
+      transcription_model_name: "heavy",
+    });
   });
 
   it("maps user-facing model choices to backend transcription methods", () => {

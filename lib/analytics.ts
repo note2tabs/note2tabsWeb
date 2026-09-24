@@ -1,6 +1,9 @@
 import { publishTranscriptionCompletedForPremiumPrompt } from "./premiumPromptSignals";
 import { track as trackAnalyticsV2 } from "./analyticsV2";
-import type { TranscriptionModelChoice } from "./transcriptionModels";
+import {
+  getTranscriptionModelAnalyticsProperties,
+  type TranscriptionModelChoice,
+} from "./transcriptionModels";
 import {
   sanitizeAnalyticsPathname,
   sanitizeAnalyticsProperties,
@@ -42,6 +45,7 @@ export const ANALYTICS_EVENTS = {
   signupStarted: "signup_started",
   signupCompleted: "signup_completed",
   signupFailed: "signup_failed",
+  emailVerified: "email_verified",
   tabShareEmailClicked: "tab_share_email_clicked",
   tabShareEmailSignupCompleted: "tab_share_email_signup_completed",
   tabShareDialogOpened: "tab_share_dialog_opened",
@@ -63,7 +67,18 @@ export const ANALYTICS_EVENTS = {
   uploadStorageFailed: "upload_storage_failed",
   tabGenerationStarted: "transcription_started",
   transcriptionStartedLightModel: "transcription_started_light_model",
+  transcriptionStartedMediumModel: "transcription_started_medium_model",
   transcriptionStartedHeavyModel: "transcription_started_heavy_model",
+  heavyPreviewShown: "heavy_preview_shown",
+  heavyPreviewConfirmationShown: "heavy_preview_confirmation_shown",
+  heavyPreviewSelected: "heavy_preview_selected",
+  heavyPreviewConfirmationDismissed: "heavy_preview_confirmation_dismissed",
+  heavyPreviewStarted: "heavy_preview_started",
+  heavyPreviewCompleted: "heavy_preview_completed",
+  heavyPreviewUpgradeShown: "heavy_preview_upgrade_shown",
+  heavyPreviewUpgradeClicked: "heavy_preview_upgrade_clicked",
+  heavyPreviewUpgradeDismissed: "heavy_preview_upgrade_dismissed",
+  verificationGateShown: "verification_gate_shown",
   tabGenerationQueued: "transcription_queued",
   tabGenerationSucceeded: "transcription_succeeded",
   jobCompleted: "job_completed",
@@ -134,16 +149,23 @@ export function sendEvent(event: string, payload?: EventPayload) {
 export function getTranscriptionStartedModelEvent(
   transcriptionModel: TranscriptionModelChoice
 ) {
-  return transcriptionModel === "heavy"
-    ? ANALYTICS_EVENTS.transcriptionStartedHeavyModel
-    : ANALYTICS_EVENTS.transcriptionStartedLightModel;
+  if (transcriptionModel === "super_heavy") {
+    return ANALYTICS_EVENTS.transcriptionStartedHeavyModel;
+  }
+  if (transcriptionModel === "heavy") {
+    return ANALYTICS_EVENTS.transcriptionStartedMediumModel;
+  }
+  return ANALYTICS_EVENTS.transcriptionStartedLightModel;
 }
 
 export function sendTranscriptionStartedEvents(
   transcriptionModel: TranscriptionModelChoice,
   payload?: EventPayload
 ) {
-  const properties = { ...(payload || {}), transcriptionModel };
+  const properties = {
+    ...(payload || {}),
+    ...getTranscriptionModelAnalyticsProperties(transcriptionModel),
+  };
   sendEvent(ANALYTICS_EVENTS.tabGenerationStarted, properties);
   sendEvent(getTranscriptionStartedModelEvent(transcriptionModel), properties);
 }

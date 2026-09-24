@@ -59,6 +59,8 @@ model User {
   lastActiveAt                DateTime             @default(now())
   emailVerifiedBool           Boolean              @default(false)
   unverifiedTranscriptionUsed Boolean              @default(false)
+  heavyPreviewUsedAt          DateTime?
+  heavyPreviewJobId           String?
   passedTutorial              Boolean              @default(false)
   accounts                    Account[]
   feedbackSubmissions         FeedbackSubmission[]

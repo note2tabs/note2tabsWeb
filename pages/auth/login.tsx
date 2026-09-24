@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { generateFingerprint } from "../../lib/fingerprint";
@@ -78,7 +78,14 @@ export default function LoginPage() {
           destination: categorizeAnalyticsDestination(nextHref),
           ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
         });
-        await router.push(res?.url || nextHref);
+        const signedInSession = await getSession().catch(() => null);
+        if (signedInSession?.user && !signedInSession.user.isEmailVerified) {
+          await router.push(
+            `/auth/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}&next=${encodeURIComponent(nextHref)}`
+          );
+        } else {
+          await router.push(res?.url || nextHref);
+        }
       }
     } catch {
       setError("We could not reach the sign-in service. Check your connection and try again.");
