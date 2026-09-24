@@ -2,55 +2,34 @@ import Link from "next/link";
 import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../components/SeoHead";
 import { DEFAULT_AFFILIATE_TERMS } from "../lib/affiliate";
 
-const steps = [
-  {
-    number: "01",
-    title: "Accept your invitation",
-    text: "Affiliate access is invitation-only. Sign in with the Note2Tabs account named in your invitation, then connect Stripe for payouts.",
-  },
-  {
-    number: "02",
-    title: "Share your link or code",
-    text: "Use your personal referral link in content, descriptions, messages, or resources. Your promotion code can also be entered at checkout.",
-  },
-  {
-    number: "03",
-    title: "Follow results",
-    text: "Your dashboard shows attributed customers, pending commissions, paid commissions, and the date each commission becomes available.",
-  },
-] as const;
+const inviteEmail =
+  "mailto:business@note2tabs.com?subject=Note2Tabs%20affiliate%20partnership&body=Tell%20us%20a%20little%20about%20your%20audience%20and%20where%20you%20would%20share%20Note2Tabs.";
 
 const faq = [
   {
-    question: "Which subscriptions qualify?",
-    answer: "Affiliate attribution applies to eligible Note2Tabs Premium and Pro subscriptions. Commission is calculated from the amount the customer actually pays after discounts.",
+    question: "Who can become an affiliate?",
+    answer:
+      "The program is invite-only and best suited to guitar educators, creators, music communities, and others with an audience that would benefit from Note2Tabs. Email business@note2tabs.com to introduce yourself and your audience.",
   },
   {
-    question: "How is a customer attributed?",
-    answer: `A visit through your referral link stores your code for up to ${DEFAULT_AFFILIATE_TERMS.cookieDays} days. A customer can also enter your promotion code at checkout. Note2Tabs records the attributed account and its qualifying payments in your dashboard.`,
+    question: "What counts as a referral?",
+    answer: `Your personal link stores your code for up to ${DEFAULT_AFFILIATE_TERMS.cookieDays} days. Your audience can also enter your code at checkout. Eligible Premium and Pro subscription payments are then attributed to you.`,
   },
   {
-    question: "When are commissions paid?",
-    answer: `A commission remains pending for ${DEFAULT_AFFILIATE_TERMS.payoutHoldDays} days to allow for refunds and disputes. After that hold, eligible commissions are sent through Stripe once your payout account is complete. Your bank's processing time may vary.`,
+    question: "How and when do I get paid?",
+    answer: `Payouts are handled through Stripe. Commissions remain pending for ${DEFAULT_AFFILIATE_TERMS.payoutHoldDays} days to account for refunds and disputes, then become eligible for payout once your Stripe account is complete.`,
   },
   {
-    question: "What happens after a refund or dispute?",
-    answer: "The commission connected to that payment is reversed. If it has already been transferred, Stripe may reverse the corresponding transfer.",
-  },
-  {
-    question: "Do I need to handle customer billing or support?",
-    answer: "No. Note2Tabs handles checkout, subscriptions, billing, and product support. Send customers with account or product questions to support@note2tabs.com.",
-  },
-  {
-    question: "Can an affiliate account be deactivated?",
-    answer: "Yes. Deactivation stops the referral link and promotion code from creating new attributed sales. Valid commissions earned before deactivation remain payable under their existing terms.",
+    question: "Can my offer be different?",
+    answer:
+      "Yes. The figures on this page are our standard program terms. Some partners receive custom commission or customer-discount terms, which will always be shown in their dashboard.",
   },
 ] as const;
 
 export default function AffiliateProgramPage() {
   const title = "Note2Tabs Affiliate Program";
   const description =
-    "Learn how the invite-only Note2Tabs affiliate program works, including standard commission terms, tracking, payouts, and promotion guidelines.";
+    "Earn commission by introducing guitarists to Note2Tabs. See the standard affiliate offer, how referrals work, and how to request an invitation.";
   const jsonLd = [
     {
       "@context": "https://schema.org",
@@ -77,85 +56,79 @@ export default function AffiliateProgramPage() {
       <SeoHead title={title} description={description} canonicalPath="/affiliate-program" jsonLd={jsonLd} />
       <main className="affiliateInfoPage">
         <div className="affiliateInfoShell">
-          <header className="affiliateInfoHero">
-            <p className="affiliateInfoKicker">Affiliate program</p>
-            <h1>Recommend a useful tool.<br />Earn when musicians subscribe.</h1>
+          <header className="affiliateInfoHero affiliateInfoHero--sales">
+            <p className="affiliateInfoKicker">Note2Tabs affiliate program</p>
+            <h1>Help guitarists find better tabs. Earn when they subscribe.</h1>
             <p className="affiliateInfoIntro">
-              Note2Tabs affiliates share a personal link or promotion code and earn commission from qualifying
-              subscriptions. The program is currently invite-only so we can support each partner properly.
+              Recommend Note2Tabs to your audience with a personal link and discount code. You earn commission;
+              they save on a tool that turns music into editable guitar tabs.
             </p>
             <div className="affiliateInfoActions">
-              <Link className="affiliateInfoPrimary" href="/affiliate">Open affiliate dashboard</Link>
-              <a className="affiliateInfoSecondary" href="mailto:support@note2tabs.com?subject=Note2Tabs%20affiliate%20partnership">
-                Ask about partnering
-              </a>
+              <a className="affiliateInfoPrimary" href={inviteEmail}>Request an invitation</a>
+              <Link className="affiliateInfoSecondary" href="/affiliate">Affiliate sign in</Link>
             </div>
+            <p className="affiliateInfoInviteNote">Invite-only · Tell us about your audience at <a href="mailto:business@note2tabs.com">business@note2tabs.com</a></p>
           </header>
 
-          <section className="affiliateInfoTerms" aria-labelledby="standard-terms-heading">
-            <div className="affiliateInfoTermsIntro">
-              <p className="affiliateInfoLabel">Standard program terms</p>
-              <h2 id="standard-terms-heading">Simple terms, visible in your dashboard.</h2>
-              <p>Your invitation may contain custom terms. If it does, the terms displayed in your affiliate dashboard apply.</p>
+          <section className="affiliateInfoOffer" aria-labelledby="affiliate-offer-heading">
+            <div className="affiliateInfoOfferLead">
+              <p className="affiliateInfoLabel">The standard offer</p>
+              <h2 id="affiliate-offer-heading">A useful offer for both sides.</h2>
+              <p>Custom terms may be offered to selected partners. Your dashboard always shows the terms that apply to you.</p>
             </div>
-            <dl>
-              <div><dt>You earn</dt><dd>{DEFAULT_AFFILIATE_TERMS.commissionPercent}%</dd><span>of qualifying payments</span></div>
-              <div><dt>Commission period</dt><dd>{DEFAULT_AFFILIATE_TERMS.commissionMonths}</dd><span>qualifying payments</span></div>
-              <div><dt>Customer saves</dt><dd>{DEFAULT_AFFILIATE_TERMS.discountPercent}%</dd><span>at checkout</span></div>
-              <div><dt>Discount period</dt><dd>{DEFAULT_AFFILIATE_TERMS.discountMonths}</dd><span>billing periods</span></div>
-            </dl>
+            <article>
+              <strong>{DEFAULT_AFFILIATE_TERMS.commissionPercent}%</strong>
+              <h3>You earn</h3>
+              <p>Commission on a referred customer’s first {DEFAULT_AFFILIATE_TERMS.commissionMonths} qualifying payments.</p>
+            </article>
+            <article>
+              <strong>{DEFAULT_AFFILIATE_TERMS.discountPercent}%</strong>
+              <h3>Your audience saves</h3>
+              <p>On their first {DEFAULT_AFFILIATE_TERMS.discountMonths} billing periods with your code.</p>
+            </article>
           </section>
 
-          <section className="affiliateInfoSection" aria-labelledby="how-it-works-heading">
+          <section className="affiliateInfoSection affiliateInfoHow" aria-labelledby="how-it-works-heading">
             <div className="affiliateInfoSectionHeading">
               <p className="affiliateInfoLabel">How it works</p>
-              <h2 id="how-it-works-heading">From invitation to payout</h2>
+              <h2 id="how-it-works-heading">Three simple steps</h2>
             </div>
-            <div className="affiliateInfoSteps">
-              {steps.map((step) => (
-                <article key={step.number}>
-                  <span>{step.number}</span>
-                  <h3>{step.title}</h3>
-                  <p>{step.text}</p>
-                </article>
-              ))}
-            </div>
+            <ol className="affiliateInfoSimpleSteps">
+              <li><span>1</span><div><h3>Get invited</h3><p>We create your affiliate account and confirm your offer.</p></div></li>
+              <li><span>2</span><div><h3>Share Note2Tabs</h3><p>Use your personal link or discount code in content your audience trusts.</p></div></li>
+              <li><span>3</span><div><h3>Track and earn</h3><p>See referrals and commissions in your dashboard. Stripe handles payouts.</p></div></li>
+            </ol>
           </section>
 
-          <section className="affiliateInfoSplit">
-            <article>
-              <p className="affiliateInfoLabel">What to share</p>
-              <h2>Explain the product honestly.</h2>
-              <p>
-                Note2Tabs turns uploaded audio and supported YouTube links into editable guitar tablature. Users can
-                review the result in the browser, correct notes, practise sections, and export their work.
-              </p>
-              <ul>
-                <li>Use your unique link wherever links are supported.</li>
-                <li>Include your promotion code when a link is impractical.</li>
-                <li>Make the affiliate relationship clear to your audience.</li>
-                <li>Describe transcription as a starting point that users can edit, not a guaranteed perfect result.</li>
-              </ul>
-            </article>
-            <article>
-              <p className="affiliateInfoLabel">Program guidelines</p>
-              <h2>Protect your audience and the program.</h2>
-              <ul>
-                <li>No spam, misleading claims, impersonation, or undisclosed paid promotion.</li>
-                <li>No self-referrals, fake accounts, coupon-site dumping, or attempts to manipulate attribution.</li>
-                <li>Do not promise prices, discounts, features, or results that Note2Tabs does not offer.</li>
-                <li>Follow the advertising, privacy, and disclosure rules that apply in your location and channel.</li>
-              </ul>
-              <p className="affiliateInfoFinePrint">
-                Abuse can lead to deactivation and review of affected commissions. See the <Link href="/terms">Terms of Service</Link> and <Link href="/privacy">Privacy Policy</Link>.
-              </p>
-            </article>
+          <section className="affiliateInfoFit">
+            <div>
+              <p className="affiliateInfoLabel">A natural fit for</p>
+              <h2>People who already help musicians.</h2>
+            </div>
+            <ul>
+              <li>Guitar teachers and music schools</li>
+              <li>YouTube, TikTok, and Instagram creators</li>
+              <li>Music blogs, newsletters, and communities</li>
+              <li>Artists who share tutorials or learning resources</li>
+            </ul>
+          </section>
+
+          <section className="affiliateInfoProduct">
+            <div>
+              <p className="affiliateInfoLabel">What you are recommending</p>
+              <h2>Audio and YouTube to editable guitar tabs.</h2>
+            </div>
+            <p>
+              Note2Tabs helps guitarists turn songs into tablature they can edit, practise, and export. It is useful
+              for learning a difficult part, preparing lesson material, or getting a first draft without tabbing a
+              song from scratch.
+            </p>
           </section>
 
           <section className="affiliateInfoSection affiliateInfoFaq" aria-labelledby="affiliate-faq-heading">
             <div className="affiliateInfoSectionHeading">
-              <p className="affiliateInfoLabel">Details</p>
-              <h2 id="affiliate-faq-heading">Common questions</h2>
+              <p className="affiliateInfoLabel">Good to know</p>
+              <h2 id="affiliate-faq-heading">Program details</h2>
             </div>
             <div className="affiliateInfoFaqList">
               {faq.map((item) => (
@@ -167,13 +140,20 @@ export default function AffiliateProgramPage() {
             </div>
           </section>
 
-          <section className="affiliateInfoClosing">
+          <section className="affiliateInfoClosing affiliateInfoClosing--invite">
             <div>
-              <p className="affiliateInfoLabel">Already invited?</p>
-              <h2>Your link, terms, and earnings are waiting.</h2>
+              <p className="affiliateInfoLabel">Interested in partnering?</p>
+              <h2>Tell us about you and your audience.</h2>
+              <p>We review partnerships individually and will reply with the next steps if there is a good fit.</p>
             </div>
-            <Link className="affiliateInfoPrimary" href="/affiliate">Go to your dashboard</Link>
+            <a className="affiliateInfoPrimary" href={inviteEmail}>Email business@note2tabs.com</a>
           </section>
+
+          <p className="affiliateInfoProgramNote">
+            Please promote Note2Tabs honestly, disclose your affiliate relationship, and do not use spam,
+            self-referrals, misleading claims, or coupon-site dumping. Refunds and disputes reverse the related
+            commission. See our <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>.
+          </p>
         </div>
       </main>
     </>
