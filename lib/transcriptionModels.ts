@@ -62,9 +62,8 @@ export function normalizeTranscriptionModel(value: unknown): TranscriptionModelC
 
 export function getDefaultTranscriptionModel(
   isPremium: boolean,
-  heavyPreviewAvailable = false
+  _heavyPreviewAvailable = false
 ): TranscriptionModelChoice {
-  if (heavyPreviewAvailable) return "super_heavy";
   return isPremium ? PREMIUM_DEFAULT_TRANSCRIPTION_MODEL : DEFAULT_TRANSCRIPTION_MODEL;
 }
 

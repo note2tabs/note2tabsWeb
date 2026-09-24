@@ -38,9 +38,9 @@ export default function HeavyPreviewOffer({ selected, onSelect }: HeavyPreviewOf
         </svg>
       </div>
       <div className="heavy-preview-offer__copy">
-        <span className="heavy-preview-offer__eyebrow">Included with your verified account</span>
-        <strong>Try our most accurate model free</strong>
-        <p>Use Heavy once on any 30-second section. No credits needed.</p>
+        <span className="heavy-preview-offer__eyebrow">One-time free preview</span>
+        <strong>Heavy</strong>
+        <p>Our most accurate model · 30 seconds · No credits</p>
       </div>
       <button
         type="button"
@@ -56,7 +56,7 @@ export default function HeavyPreviewOffer({ selected, onSelect }: HeavyPreviewOf
             Heavy selected
           </>
         ) : (
-          "Use free preview"
+          "Choose Heavy preview"
         )}
       </button>
     </aside>

@@ -8,10 +8,11 @@ describe("HeavyPreviewOffer", () => {
       <HeavyPreviewOffer selected={false} onSelect={vi.fn()} />
     );
 
-    expect(html).toContain("Try our most accurate model free");
-    expect(html).toContain("once on any 30-second section");
-    expect(html).toContain("No credits needed");
-    expect(html).toContain("Use free preview");
+    expect(html).toContain("One-time free preview");
+    expect(html).toContain("Our most accurate model");
+    expect(html).toContain("30 seconds");
+    expect(html).toContain("No credits");
+    expect(html).toContain("Choose Heavy preview");
   });
 
   it("makes the selected Heavy state clear", () => {

@@ -17,8 +17,8 @@ describe("transcription models", () => {
     expect(getDefaultTranscriptionModel(false)).toBe("light");
   });
 
-  it("makes the one-time Heavy preview the default when it is available", () => {
-    expect(getDefaultTranscriptionModel(false, true)).toBe("super_heavy");
+  it("keeps Light selected until the user actively chooses the Heavy preview", () => {
+    expect(getDefaultTranscriptionModel(false, true)).toBe("light");
   });
 
   it("keeps legacy backend values on the light model", () => {

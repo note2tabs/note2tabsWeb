@@ -626,7 +626,6 @@ export default function JobPage() {
   const [shareUrls, setShareUrls] = useState<{ twitter: string; reddit: string } | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
-  const [heavyPreviewCompletionAcknowledged, setHeavyPreviewCompletionAcknowledged] = useState(false);
   const [progressClock, setProgressClock] = useState(() => Date.now());
   const automaticImportJobRef = useRef<string | null>(null);
   const displayJob = useMemo(() => normalizeJobForDisplay(job), [job]);
@@ -681,6 +680,11 @@ export default function JobPage() {
   }, [router.isReady, router.query.ytTitle]);
   const isSignedIn = Boolean(session);
   const canOpenGuestEditor = !isSignedIn && isLocalNoDbClientMode;
+  const getEditorHref = (editorId: string, source = "job") => {
+    const params = new URLSearchParams({ source });
+    if (isHeavyPreview) params.set("heavyPreviewComplete", "1");
+    return `/gte/${encodeURIComponent(editorId)}?${params.toString()}`;
+  };
   const hasWorkflowState = Boolean(workflowState && workflowState.trim());
   const isWorkflowProcessing = workflowState === "processing";
   const isDoneJob = displayJob?.status === "done";
@@ -1005,7 +1009,7 @@ export default function JobPage() {
           editorId: imported.editorId,
           importFormat: "segment_groups",
           target: "guest",
-          href: `/gte/${imported.editorId}?source=job`,
+          href: getEditorHref(imported.editorId),
         };
       }
 
@@ -1019,7 +1023,7 @@ export default function JobPage() {
         editorId: GTE_GUEST_EDITOR_ID,
         importFormat: "tab_stamps",
         target: "guest",
-        href: `/gte/${GTE_GUEST_EDITOR_ID}?source=job`,
+        href: getEditorHref(GTE_GUEST_EDITOR_ID),
       };
     }
 
@@ -1048,7 +1052,7 @@ export default function JobPage() {
         editorId: imported.editorId,
         importFormat: "segment_groups",
         target: targetEditorId ? "existing" : "new",
-        href: `/gte/${imported.editorId}?source=job`,
+        href: getEditorHref(imported.editorId),
       };
     }
 
@@ -1062,7 +1066,7 @@ export default function JobPage() {
         editorId: targetEditorId,
         importFormat: "tab_stamps",
         target: "existing",
-        href: `/gte/${targetEditorId}?source=job`,
+        href: getEditorHref(targetEditorId),
       };
     }
 
@@ -1072,7 +1076,7 @@ export default function JobPage() {
       editorId: created.editorId,
       importFormat: "tab_stamps",
       target: "new",
-      href: `/gte/${created.editorId}?source=job`,
+      href: getEditorHref(created.editorId),
     };
   };
 
@@ -1125,9 +1129,7 @@ export default function JobPage() {
     try {
       if (displayJob?.gte_editor_id) {
         importedSuccessfully = true;
-        await router.replace(
-          `/gte/${encodeURIComponent(displayJob.gte_editor_id)}?source=transcription_complete_email`
-        );
+        await router.replace(getEditorHref(displayJob.gte_editor_id, "transcription_complete_email"));
         return;
       }
       if (isFinalizedStatus) {
@@ -1204,12 +1206,11 @@ export default function JobPage() {
   useEffect(() => {
     if (!router.isReady || !showReviewUi || typeof job_id !== "string") return;
     if (sessionStatus === "loading" || automaticImportJobRef.current === job_id) return;
-    if (isHeavyPreview && !heavyPreviewCompletionAcknowledged) return;
     automaticImportJobRef.current = job_id;
     void automaticallyOpenEditor();
     // The completed job id is the one-shot trigger. Import state changes must not start a duplicate editor import.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [heavyPreviewCompletionAcknowledged, isHeavyPreview, job_id, router.isReady, sessionStatus, showReviewUi]);
+  }, [job_id, router.isReady, sessionStatus, showReviewUi]);
 
   const handleRestart = () => {
     void router.push("/");
@@ -1255,43 +1256,7 @@ export default function JobPage() {
           <div className="job-route-content">
           {showReviewUi ? (
             <div className="stack">
-              {isHeavyPreview && !heavyPreviewCompletionAcknowledged ? (
-                <section className="mx-auto w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Heavy preview complete</p>
-                  <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Your preview is ready</h2>
-                  <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-600">
-                    This was your account’s one-time 30-second Heavy preview. Subscribe to Premium or Pro to use Heavy again.
-                  </p>
-                  <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
-                    <button
-                      type="button"
-                      className="button-primary"
-                      onClick={() => {
-                        setHeavyPreviewCompletionAcknowledged(true);
-                        automaticImportJobRef.current = typeof job_id === "string" ? job_id : null;
-                        void automaticallyOpenEditor();
-                      }}
-                    >
-                      Open in editor
-                    </button>
-                    <button
-                      type="button"
-                      className="button-secondary"
-                      onClick={() => {
-                        sendEvent(ANALYTICS_EVENTS.heavyPreviewUpgradeClicked, {
-                          surface: "heavy_preview_complete",
-                          jobId: job_id,
-                        });
-                        void router.push("/pricing?source=heavy_preview_complete");
-                      }}
-                    >
-                      Keep using Heavy
-                    </button>
-                  </div>
-                </section>
-              ) : (
-                <EditorLoadingState label="Quantizing transcription and opening your editor" />
-              )}
+              <EditorLoadingState label="Quantizing transcription and opening your editor" />
               {reviewError ? (
                 <div className="stack-tight">
                   <div className="error" role="alert">{reviewError}</div>

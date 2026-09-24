@@ -68,6 +68,7 @@ export const ANALYTICS_EVENTS = {
   heavyPreviewShown: "heavy_preview_shown",
   heavyPreviewStarted: "heavy_preview_started",
   heavyPreviewCompleted: "heavy_preview_completed",
+  heavyPreviewUpgradeShown: "heavy_preview_upgrade_shown",
   heavyPreviewUpgradeClicked: "heavy_preview_upgrade_clicked",
   verificationGateShown: "verification_gate_shown",
   tabGenerationQueued: "transcription_queued",

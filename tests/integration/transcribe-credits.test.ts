@@ -169,18 +169,19 @@ describe("transcribe credits", () => {
     expect(body.get("transcription_method")).toBe("yourmt3");
   });
 
-  it("defaults a verified free account to its Heavy preview", async () => {
+  it("does not spend a verified free account's Heavy preview without an explicit choice", async () => {
     const res = await callTranscribe("FREE", false, null);
 
     expect(res.statusCode).toBe(202);
     expect(res.body).toMatchObject({
-      transcriptionModel: "super_heavy",
-      heavyPreviewUsed: true,
-      tokensRemaining: 10,
+      transcriptionModel: "light",
+      tokensRemaining: 8,
     });
+    expect(res.body.heavyPreviewUsed).toBeUndefined();
+    expect(mocks.prisma.user.updateMany).not.toHaveBeenCalled();
     const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
     const body = requestInit.body as FormData;
-    expect(body.get("transcription_method")).toBe("msmodel");
+    expect(body.get("transcription_method")).toBe("basic_pitch");
   });
 
   it("allows one credit-free Heavy preview for a verified free user", async () => {
