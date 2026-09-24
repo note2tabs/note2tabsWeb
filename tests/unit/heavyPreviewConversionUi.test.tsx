@@ -9,10 +9,11 @@ describe("Heavy preview conversion UI", () => {
       <HeavyPreviewIntroDialog open onCancel={vi.fn()} onConfirm={vi.fn()} />
     );
 
-    expect(html).toContain("Use your preview on this transcription?");
-    expect(html).toContain("single free preview");
-    expect(html).toContain("Save for later");
-    expect(html).toContain("Use Heavy once");
+    expect(html).toContain("Use your Heavy preview?");
+    expect(html).toContain("one free preview");
+    expect(html).toContain("30 seconds · No credits · Available once");
+    expect(html).toContain("Not now");
+    expect(html).toContain("Use Heavy preview");
   });
 
   it("offers Premium after the preview result reaches the editor", () => {
@@ -20,9 +21,9 @@ describe("Heavy preview conversion UI", () => {
       <HeavyPreviewEditorPrompt open onClose={vi.fn()} onUpgrade={vi.fn()} />
     );
 
-    expect(html).toContain("Your Heavy preview is now in the editor");
-    expect(html).toContain("Want to use Heavy again?");
-    expect(html).toContain("See Premium");
+    expect(html).toContain("Your Heavy preview is ready");
+    expect(html).toContain("Continue using Heavy with Premium or Pro");
+    expect(html).toContain("View plans");
     expect(html).toContain("Continue editing");
   });
 

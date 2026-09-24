@@ -22,25 +22,14 @@ export default function HeavyPreviewIntroDialog({
         className="heavy-preview-confirmation"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="heavy-preview-confirmation__mark" aria-hidden="true">
-          <svg viewBox="0 0 28 28" focusable="false">
-            <path d="M5 12v4M10 8v12M15 5v18M20 9v10M25 12v4" />
-          </svg>
-        </div>
-        <p className="heavy-preview-confirmation__eyebrow">One-time Heavy preview</p>
-        <h2 id="heavy-preview-title">Use your preview on this transcription?</h2>
+        <h2 id="heavy-preview-title">Use your Heavy preview?</h2>
         <p className="heavy-preview-confirmation__body">
-          Heavy is our most accurate model. This transcription uses your account’s single free preview.
+          Heavy is our most accurate model. Starting this transcription will use your one free preview.
         </p>
-        <dl className="heavy-preview-confirmation__facts">
-          <div><dt>Length</dt><dd>Up to 30 seconds</dd></div>
-          <div><dt>Cost</dt><dd>No credits</dd></div>
-          <div><dt>After this</dt><dd>Premium or Pro</dd></div>
-        </dl>
-        <p className="heavy-preview-confirmation__note">Your preview is only counted after the transcription starts.</p>
+        <p className="heavy-preview-confirmation__summary">30 seconds · No credits · Available once</p>
         <div className="heavy-preview-confirmation__actions">
-          <button type="button" className="button-secondary" onClick={onCancel}>Save for later</button>
-          <button type="button" className="button-primary" onClick={onConfirm}>Use Heavy once</button>
+          <button type="button" className="button-secondary" onClick={onCancel}>Not now</button>
+          <button type="button" className="button-primary" onClick={onConfirm}>Use Heavy preview</button>
         </div>
       </div>
     </div>
