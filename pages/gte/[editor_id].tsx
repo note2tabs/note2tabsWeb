@@ -1672,13 +1672,29 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     if (router.query.heavyPreviewComplete !== "1") return;
 
     heavyPreviewUpgradeHandledRef.current = true;
+    const heavyPreviewJobId =
+      typeof router.query.heavyPreviewJobId === "string"
+        ? router.query.heavyPreviewJobId
+        : undefined;
+    sendEvent(ANALYTICS_EVENTS.heavyPreviewCompleted, {
+      surface: "editor",
+      editor_id: editorId,
+      jobId: heavyPreviewJobId,
+      $insert_id: heavyPreviewJobId
+        ? `heavy-preview-completed:${heavyPreviewJobId}`
+        : `heavy-preview-completed:editor:${editorId}`,
+    });
     const timeout = window.setTimeout(() => {
       setHeavyPreviewUpgradeOpen(true);
       sendEvent(ANALYTICS_EVENTS.heavyPreviewUpgradeShown, {
         surface: "editor",
         editor_id: editorId,
       });
-      const { heavyPreviewComplete: _marker, ...nextQuery } = router.query;
+      const {
+        heavyPreviewComplete: _marker,
+        heavyPreviewJobId: _jobId,
+        ...nextQuery
+      } = router.query;
       void router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
     }, 1200);
     return () => window.clearTimeout(timeout);

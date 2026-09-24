@@ -683,7 +683,10 @@ export default function JobPage() {
   const canOpenGuestEditor = !isSignedIn && isLocalNoDbClientMode;
   const getEditorHref = (editorId: string, source = "job") => {
     const params = new URLSearchParams({ source });
-    if (isHeavyPreview) params.set("heavyPreviewComplete", "1");
+    if (isHeavyPreview) {
+      params.set("heavyPreviewComplete", "1");
+      if (typeof job_id === "string") params.set("heavyPreviewJobId", job_id);
+    }
     return `/gte/${encodeURIComponent(editorId)}?${params.toString()}`;
   };
   const hasWorkflowState = Boolean(workflowState && workflowState.trim());
