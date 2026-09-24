@@ -14,8 +14,8 @@ describe("transcription models", () => {
     expect(normalizeTranscriptionModel(undefined)).toBe("light");
   });
 
-  it("defaults premium users to heavy without changing the free default", () => {
-    expect(getDefaultTranscriptionModel(true)).toBe("heavy");
+  it("defaults paid users to the Heavy model without changing the free default", () => {
+    expect(getDefaultTranscriptionModel(true)).toBe("super_heavy");
     expect(getDefaultTranscriptionModel(false)).toBe("light");
   });
 

@@ -4,7 +4,7 @@ export type TranscriptionModelChoice = "light" | "heavy" | "super_heavy";
 export type TranscriptionModelAnalyticsName = "light" | "medium" | "heavy";
 
 export const DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "light";
-export const PREMIUM_DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "heavy";
+export const PREMIUM_DEFAULT_TRANSCRIPTION_MODEL: TranscriptionModelChoice = "super_heavy";
 export const LIGHT_TRANSCRIPTION_BACKEND_METHOD = "basic_pitch";
 export const HEAVY_TRANSCRIPTION_BACKEND_METHOD = "yourmt3";
 // Keep the legacy backend wire value until every deployed backend accepts
