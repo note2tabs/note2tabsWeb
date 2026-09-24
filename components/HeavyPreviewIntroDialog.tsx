@@ -22,14 +22,22 @@ export default function HeavyPreviewIntroDialog({
         className="heavy-preview-confirmation"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <h2 id="heavy-preview-title">Use your Heavy preview?</h2>
+        <button
+          type="button"
+          className="heavy-preview-confirmation__close"
+          onClick={onCancel}
+          aria-label="Close"
+        >
+          ×
+        </button>
+        <h2 id="heavy-preview-title">Use your free Heavy model preview?</h2>
         <p className="heavy-preview-confirmation__body">
-          Heavy is our most accurate model. Starting this transcription will use your one free preview.
+          This will use your account’s only free Heavy model transcription on 30 seconds of this recording.
+          The Heavy model is normally available only with Premium or Pro.
         </p>
-        <p className="heavy-preview-confirmation__summary">30 seconds · No credits · Available once</p>
         <div className="heavy-preview-confirmation__actions">
-          <button type="button" className="button-secondary" onClick={onCancel}>Not now</button>
-          <button type="button" className="button-primary" onClick={onConfirm}>Use Heavy preview</button>
+          <button type="button" className="heavy-preview-confirmation__later" onClick={onCancel}>Not yet</button>
+          <button type="button" className="button-primary" onClick={onConfirm}>Use my preview</button>
         </div>
       </div>
     </div>

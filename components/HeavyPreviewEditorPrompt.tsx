@@ -12,18 +12,18 @@ export default function HeavyPreviewEditorPrompt({
   if (!open) return null;
 
   return (
-    <aside className="heavy-preview-editor-prompt" aria-label="Continue with Heavy">
+    <aside className="heavy-preview-editor-prompt" aria-label="Keep using the Heavy model">
       <button
         type="button"
         className="heavy-preview-editor-prompt__close"
         onClick={onClose}
-        aria-label="Dismiss Premium message"
+        aria-label="Dismiss Heavy model offer"
       >
         ×
       </button>
       <div className="heavy-preview-editor-prompt__copy">
-        <strong>Your Heavy preview is ready</strong>
-        <p>Continue using Heavy with Premium or Pro.</p>
+        <strong>Keep using the Heavy model</strong>
+        <p>Your preview used our most accurate model. Continue using it with Premium or Pro.</p>
       </div>
       <div className="heavy-preview-editor-prompt__actions">
         <button type="button" className="button-primary button-small" onClick={onUpgrade}>View plans</button>
@@ -31,6 +31,7 @@ export default function HeavyPreviewEditorPrompt({
           Continue editing
         </button>
       </div>
+      <small className="heavy-preview-editor-prompt__reassurance">Plans from $5.99/month · Cancel anytime</small>
     </aside>
   );
 }
