@@ -18,6 +18,7 @@ import {
   stabilizeNewTranscriberTimingMap,
 } from "./gteTranscriberTiming";
 import { generatePlayingCoordinatesInSnapshot } from "./gtePlayingCoordinates";
+import { shortenTinyImportedNoteOverlapsInSnapshot } from "./gteTranscriberOverlapCleanup";
 
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
@@ -534,7 +535,8 @@ async function importTranscriberToSaved(
     ? await optimizeImportedTrackFingerings(
         currentEditorId,
         lastResponse.canvas,
-        TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES
+        TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
+        finalImportedEditorIds
       )
     : undefined;
   return {
@@ -623,7 +625,8 @@ async function importTranscriberToGuest(
     canvas: await optimizeImportedTrackFingerings(
       response.editorId,
       response.canvas,
-      TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES
+      TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
+      importedEditorIds
     ),
   };
   return response;
@@ -640,7 +643,8 @@ export const TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES = 2;
 export async function optimizeImportedTrackFingerings(
   editorId: string,
   sourceCanvas?: CanvasSnapshot,
-  passes: number = 1
+  passes: number = 1,
+  importedEditorIds?: readonly string[]
 ): Promise<CanvasSnapshot> {
   const canvasId = editorId.includes(LANE_DELIMITER)
     ? editorId.slice(0, editorId.indexOf(LANE_DELIMITER))
@@ -659,6 +663,7 @@ export async function optimizeImportedTrackFingerings(
     mergeRedundantCutRegionsInSnapshot,
     optimizeTrackFingeringInSnapshot,
   } = await import("./gteFingeringOptimization");
+  const importedLaneIds = importedEditorIds ? new Set(importedEditorIds) : null;
 
   optimized.editors.forEach((lane) => {
     if (
@@ -667,6 +672,9 @@ export async function optimizeImportedTrackFingerings(
       !Array.isArray(lane.chords) ||
       (lane.notes.length === 0 && lane.chords.length === 0)
     ) return;
+    if (importedLaneIds?.has(lane.id)) {
+      shortenTinyImportedNoteOverlapsInSnapshot(lane);
+    }
     const passCount = Math.max(1, Math.floor(passes));
     for (let pass = 0; pass < passCount; pass += 1) {
       generatePlayingCoordinatesInSnapshot(lane);
