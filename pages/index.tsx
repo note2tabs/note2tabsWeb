@@ -242,6 +242,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const [multipleGuitars, setMultipleGuitars] = useState<boolean | null>(null);
   const [localHeavyPreviewUsed, setLocalHeavyPreviewUsed] = useState(false);
   const [showHeavyPreviewIntro, setShowHeavyPreviewIntro] = useState(false);
+  const [heavyPreviewConfirmationIntent, setHeavyPreviewConfirmationIntent] = useState<"select" | "start">("start");
   const heavyPreviewAcknowledgedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
@@ -1193,7 +1194,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       return;
     }
     if (heavyPreviewAvailable && transcriptionModel === "super_heavy" && !heavyPreviewAcknowledgedRef.current) {
+      setHeavyPreviewConfirmationIntent("start");
       setShowHeavyPreviewIntro(true);
+      sendEvent(ANALYTICS_EVENTS.heavyPreviewConfirmationShown, {
+        surface: "home_transcriber",
+        trigger: "transcription_start",
+      });
       return;
     }
     void startConvert(includesOtherInstruments);
@@ -1519,10 +1525,28 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     <>
       <HeavyPreviewIntroDialog
         open={showHeavyPreviewIntro}
-        onCancel={() => setShowHeavyPreviewIntro(false)}
+        onCancel={() => {
+          setShowHeavyPreviewIntro(false);
+          sendEvent(ANALYTICS_EVENTS.heavyPreviewConfirmationDismissed, {
+            surface: "home_transcriber",
+            trigger: heavyPreviewConfirmationIntent === "select" ? "offer" : "transcription_start",
+          });
+        }}
         onConfirm={() => {
           heavyPreviewAcknowledgedRef.current = true;
           setShowHeavyPreviewIntro(false);
+          if (heavyPreviewConfirmationIntent === "select") {
+            selectTranscriptionModel("super_heavy");
+            sendEvent(ANALYTICS_EVENTS.heavyPreviewSelected, {
+              surface: "home_transcriber",
+              trigger: "offer",
+            });
+            return;
+          }
+          sendEvent(ANALYTICS_EVENTS.heavyPreviewSelected, {
+            surface: "home_transcriber",
+            trigger: "transcription_start",
+          });
           if (includesOtherInstruments !== null) void startConvert(includesOtherInstruments);
         }}
       />
@@ -1608,7 +1632,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <HeavyPreviewOffer
                     selected={transcriptionModel === "super_heavy"}
                     onSelect={() => {
-                      selectTranscriptionModel("super_heavy");
+                      setHeavyPreviewConfirmationIntent("select");
+                      setShowHeavyPreviewIntro(true);
+                      sendEvent(ANALYTICS_EVENTS.heavyPreviewConfirmationShown, {
+                        surface: "home_transcriber",
+                        trigger: "offer",
+                      });
                       trackCtaClick("use_free_heavy_preview", { surface: "hero_funnel" });
                     }}
                   />

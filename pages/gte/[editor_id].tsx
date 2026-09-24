@@ -11174,7 +11174,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       )}
       <HeavyPreviewEditorPrompt
         open={heavyPreviewUpgradeOpen}
-        onClose={() => setHeavyPreviewUpgradeOpen(false)}
+        onClose={() => {
+          setHeavyPreviewUpgradeOpen(false);
+          sendEvent(ANALYTICS_EVENTS.heavyPreviewUpgradeDismissed, {
+            surface: "editor",
+            editor_id: editorId,
+          });
+        }}
         onUpgrade={() => {
           sendEvent(ANALYTICS_EVENTS.heavyPreviewUpgradeClicked, {
             surface: "editor",

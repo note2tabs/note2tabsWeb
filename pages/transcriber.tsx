@@ -219,6 +219,7 @@ export default function TranscriberPage() {
   const [editorLoading, setEditorLoading] = useState(false);
   const [localHeavyPreviewUsed, setLocalHeavyPreviewUsed] = useState(false);
   const [showHeavyPreviewIntro, setShowHeavyPreviewIntro] = useState(false);
+  const [heavyPreviewConfirmationIntent, setHeavyPreviewConfirmationIntent] = useState<"select" | "start">("start");
   const heavyPreviewAcknowledgedRef = useRef(false);
   const [authHandoffBusy, setAuthHandoffBusy] = useState(false);
   const [upgradeBusy, setUpgradeBusy] = useState(false);
@@ -1124,7 +1125,12 @@ export default function TranscriberPage() {
   const handleInstrumentPromptStart = () => {
     if (!instrumentPromptComplete) return;
     if (heavyPreviewAvailable && transcriptionModel === "super_heavy" && !heavyPreviewAcknowledgedRef.current) {
+      setHeavyPreviewConfirmationIntent("start");
       setShowHeavyPreviewIntro(true);
+      sendEvent(ANALYTICS_EVENTS.heavyPreviewConfirmationShown, {
+        surface: "transcriber",
+        trigger: "transcription_start",
+      });
       return;
     }
     void handleConvert(true);
@@ -1353,10 +1359,28 @@ export default function TranscriberPage() {
     <>
       <HeavyPreviewIntroDialog
         open={showHeavyPreviewIntro}
-        onCancel={() => setShowHeavyPreviewIntro(false)}
+        onCancel={() => {
+          setShowHeavyPreviewIntro(false);
+          sendEvent(ANALYTICS_EVENTS.heavyPreviewConfirmationDismissed, {
+            surface: "transcriber",
+            trigger: heavyPreviewConfirmationIntent === "select" ? "offer" : "transcription_start",
+          });
+        }}
         onConfirm={() => {
           heavyPreviewAcknowledgedRef.current = true;
           setShowHeavyPreviewIntro(false);
+          if (heavyPreviewConfirmationIntent === "select") {
+            selectTranscriptionModel("super_heavy");
+            sendEvent(ANALYTICS_EVENTS.heavyPreviewSelected, {
+              surface: "transcriber",
+              trigger: "offer",
+            });
+            return;
+          }
+          sendEvent(ANALYTICS_EVENTS.heavyPreviewSelected, {
+            surface: "transcriber",
+            trigger: "transcription_start",
+          });
           void handleConvert(true);
         }}
       />
@@ -1423,7 +1447,12 @@ export default function TranscriberPage() {
                   <HeavyPreviewOffer
                     selected={transcriptionModel === "super_heavy"}
                     onSelect={() => {
-                      selectTranscriptionModel("super_heavy");
+                      setHeavyPreviewConfirmationIntent("select");
+                      setShowHeavyPreviewIntro(true);
+                      sendEvent(ANALYTICS_EVENTS.heavyPreviewConfirmationShown, {
+                        surface: "transcriber",
+                        trigger: "offer",
+                      });
                       trackCtaClick("use_free_heavy_preview", { surface: "transcriber_funnel" });
                     }}
                   />
