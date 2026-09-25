@@ -264,7 +264,14 @@ export default function ProductHome({
     sendEvent(ANALYTICS_EVENTS.premiumTrialActivationLanded, {
       surface: "product_home",
     });
-    void router.replace("/home", undefined, { shallow: true });
+    // This marker is only analytics state. Removing it through Next's router can
+    // fall back to a hard navigation while the route is already `/home`, which
+    // Next rejects as an invariant violation. Update the visible URL without a
+    // route transition instead.
+    const cleanUrl = `${window.location.pathname}${window.location.hash}`;
+    if (`${window.location.pathname}${window.location.search}${window.location.hash}` !== cleanUrl) {
+      window.history.replaceState(window.history.state, "", cleanUrl);
+    }
   }, [router.isReady, router.query.upgrade]);
 
   useEffect(() => {
