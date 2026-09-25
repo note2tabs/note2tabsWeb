@@ -30,6 +30,7 @@ const staticPaths = [
 ];
 
 const recentlyUpdatedSeoPaths = new Set([
+  "/",
   "/editor",
   "/audio-to-guitar-tab-converter",
   "/mp3-to-guitar-tabs",
@@ -41,6 +42,8 @@ const recentlyUpdatedSeoPaths = new Set([
 ]);
 
 const refreshedSeoPathDates = new Map([
+  ["/", "2026-09-25"],
+  ["/editor", "2026-09-25"],
   ["/audio-to-guitar-tab-converter", "2026-08-05"],
   ["/mp3-to-guitar-tabs", "2026-08-05"],
   ["/ai-guitar-tab-generator", "2026-08-30"],
