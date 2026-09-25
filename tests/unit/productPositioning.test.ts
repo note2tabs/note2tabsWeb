@@ -34,14 +34,22 @@ describe("product positioning", () => {
     const editorCopy = readSource("pages/editor/index.tsx");
     const featureCopy = readSource("pages/features/index.tsx");
 
-    expect(editorCopy).toContain(
-      "Create, arrange, play, practise, and organize guitar tabs in a complete browser-based editor."
-    );
+    expect(editorCopy).toContain("Write, play, and practise guitar tabs online.");
     expect(editorCopy).toContain(
       "transcription is an optional starting point rather than a requirement"
     );
     expect(featureCopy).toContain(
       "The editor stands on its own, while the transcriber gives you another powerful way to begin."
     );
+  });
+
+  it("gives the canonical editor page a distinct editor-focused search position", () => {
+    const editorCopy = readSource("pages/editor/index.tsx");
+
+    expect(editorCopy).toContain(
+      'title="Online Guitar Tab Editor – Write, Play & Practise Tabs | Note2Tabs"'
+    );
+    expect(editorCopy).toContain("Online guitar tab editor");
+    expect(editorCopy).toContain("Import Guitar Pro, MIDI, MusicXML, or ASCII tab");
   });
 });

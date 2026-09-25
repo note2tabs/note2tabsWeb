@@ -79,6 +79,16 @@ const editorFaqs = [
     answer:
       "You can write riffs, solos, chord progressions, fingerstyle parts, lesson exercises, cover song sections, and full guitar arrangements directly in the browser.",
   },
+  {
+    question: "Which guitar tab files can I open in the editor?",
+    answer:
+      "You can import ASCII tab, MIDI, MusicXML, compressed MusicXML, and common Guitar Pro files including GP3, GP4, GP5, GPX, and GTP.",
+  },
+  {
+    question: "Can I export a guitar tab when I am finished?",
+    answer:
+      "Yes. Export the active track as readable ASCII text, MusicXML, MIDI, or a Note2Tabs project file.",
+  },
 ] as const;
 
 export default function EditorLandingPage() {
@@ -89,13 +99,13 @@ export default function EditorLandingPage() {
 
   const isSignedIn = Boolean(session?.user?.id);
   const editorDescription =
-    "Create, arrange, play, practise, and organize guitar tabs in a complete browser-based editor. Start from a blank tab, import a file, or bring in a Note2Tabs transcription.";
+    "Create guitar tabs in your browser with playback, practice loops, fretboard-aware fingerings, multiple tracks, and file import. Start free with no installation.";
   const editorJsonLd = [
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       "@id": EDITOR_APPLICATION_ID,
-      name: "Note2Tabs Online Guitar Tab Maker and Editor",
+      name: "Note2Tabs Online Guitar Tab Editor",
       applicationCategory: "MusicApplication",
       operatingSystem: "Web",
       url: absoluteUrl("/editor"),
@@ -163,7 +173,7 @@ export default function EditorLandingPage() {
   return (
     <>
       <SeoHead
-        title="Free Online Guitar Tab Maker & Editor | Note2Tabs"
+        title="Online Guitar Tab Editor – Write, Play & Practise Tabs | Note2Tabs"
         description={editorDescription}
         canonicalPath="/editor"
         jsonLd={editorJsonLd}
@@ -173,8 +183,8 @@ export default function EditorLandingPage() {
         <section className="editor-v2-hero">
           <div className="container editor-v2-hero-grid">
             <div className="editor-v2-hero-copy">
-              <span className="editor-v2-kicker">Free browser-based editor</span>
-              <h1>Make guitar tabs that feel good to play.</h1>
+              <span className="editor-v2-kicker">Online guitar tab editor</span>
+              <h1>Write, play, and practise guitar tabs online.</h1>
               <p>{editorDescription}</p>
               <div className="editor-v2-actions">
                 <button type="button" onClick={() => void handleCreate()} className="button-primary" disabled={creating}>
@@ -270,7 +280,11 @@ export default function EditorLandingPage() {
                 <ul>
                   <li>Section-based playback</li>
                   <li><Link href="/features/guitar-tab-practice-trainer">Practice loops and speed training</Link></li>
-                  <li>Import audio or YouTube transcriptions</li>
+                  <li>
+                    <Link href="/features/guitar-tab-import-export">
+                      Import Guitar Pro, MIDI, MusicXML, or ASCII tab
+                    </Link>
+                  </li>
                 </ul>
               </div>
               <div className="editor-v2-showcase-image editor-v2-showcase-image--training">
