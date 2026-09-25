@@ -1551,8 +1551,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         }}
       />
       <SeoHead
-        title="Note2Tabs | Convert Audio and YouTube to Guitar Tabs"
-        description="Convert audio files or YouTube links into playable guitar tabs online, then open them in a complete browser-based guitar tab editor."
+        title="AI Guitar Tab Generator – Audio & YouTube to Tabs | Note2Tabs"
+        description="Upload an MP3 or WAV, or paste a YouTube link to generate playable guitar tabs online. Edit, practise, and export every transcription in your browser."
         canonicalPath="/"
         jsonLd={homeJsonLd}
       />
@@ -2004,13 +2004,17 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         <section className="home-workflow-links" aria-labelledby="home-workflow-links-title">
           <div className="container">
             <div className="home-workflow-links-header">
-              <h2 id="home-workflow-links-title">A focused path for every source</h2>
-              <p>Choose the workflow that matches your recording, then finish the result in the same editor.</p>
+              <h2 id="home-workflow-links-title">Choose your guitar tab converter</h2>
+              <p>Start with the format you have, then play, edit, practise, and export the result in the same editor.</p>
             </div>
             <div className="home-workflow-link-grid">
+              <Link href="/mp3-to-guitar-tabs">
+                <strong>Convert MP3 to guitar tabs</strong>
+                <span>Turn an MP3 recording into playable, editable guitar tablature online.</span>
+              </Link>
               <Link href="/audio-to-guitar-tab-converter">
-                <strong>Convert an audio file</strong>
-                <span>Upload MP3, WAV, or another recording and generate a structured, editable guitar tab.</span>
+                <strong>Convert WAV and other audio</strong>
+                <span>Upload a WAV or another audio recording and generate a structured guitar tab.</span>
               </Link>
               <Link href="/youtube-to-guitar-tabs">
                 <strong>Convert a YouTube clip</strong>
