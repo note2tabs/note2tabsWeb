@@ -115,6 +115,21 @@ describe("analytics privacy sanitization", () => {
     });
   });
 
+  it("does not page for injected Safari autofill extension failures", () => {
+    expect(
+      classifyPostHogException([
+        {
+          type: "TypeError",
+          value:
+            'undefined is not an object (evaluating \'(yield this.sendExtensionMessage("getUrlAutofillTargetingRules")).result\')',
+        },
+      ])
+    ).toEqual({
+      alertEligible: false,
+      classification: "non_actionable_browser_error",
+    });
+  });
+
   it("classifies stale deployment chunks as automatically recoverable", () => {
     expect(
       classifyPostHogException([

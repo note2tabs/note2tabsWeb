@@ -261,6 +261,9 @@ const NON_ACTIONABLE_BROWSER_EXCEPTION_PATTERNS = [
   // rejections without an application stack. They can fire several times in the
   // same millisecond but do not originate in Note2Tabs code.
   /object not found matching id:\d+.*methodname:update.*paramcount:\d+/i,
+  // Safari password/autofill extensions ask their injected content script for
+  // targeting rules. Failures in that bridge have no Note2Tabs stack frame.
+  /sendExtensionMessage[\s\S]*getUrlAutofillTargetingRules/i,
 ];
 
 // A browser can retain an old Next.js route manifest briefly after a deploy and
