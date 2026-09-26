@@ -7832,10 +7832,36 @@ input[type="number"] {
 }
 
 .gte-library-row {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 16px;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.gte-library-row:hover,
+.gte-library-row:focus-within {
+  border-color: rgba(6, 17, 13, 0.24);
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(6, 17, 13, 0.06);
+}
+
+.gte-library-row:active {
+  transform: translateY(1px);
+}
+
+.gte-library-row-link {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.gte-library-row-link:focus-visible {
+  outline: 2px solid rgba(15, 23, 42, 0.82);
+  outline-offset: 3px;
 }
 
 .gte-library-card-head {
@@ -7866,8 +7892,11 @@ input[type="number"] {
 }
 
 .gte-library-row-menu {
+  position: relative;
+  z-index: 2;
   justify-self: end;
   align-self: center;
+  cursor: default;
 }
 
 .analytics-page {
