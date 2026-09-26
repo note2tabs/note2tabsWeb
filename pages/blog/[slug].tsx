@@ -116,7 +116,7 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
           <p className="blog-breadcrumb">
             <Link href="/blog">Blog</Link> <span>/</span> <span>{post.title}</span>
           </p>
-          <span className="blog-kicker">{post.categories[0]?.name || "Note2Tabs guide"}</span>
+          <span className="blog-kicker">{post.categories[0]?.name || "Note2Tabs journal"}</span>
           <h1 className="post-title">{post.title}</h1>
           <p className="post-meta-line">
             <Link href="/about">{post.authorName}</Link>
@@ -145,22 +145,6 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
             />
           </figure>
         )}
-
-        <section className="post-mobile-product-card" aria-label="Try Note2Tabs">
-          <div>
-            <strong>{isTranscriptionGuide ? "Try it with your own recording" : "Put this guide into practice"}</strong>
-            <span>{isTranscriptionGuide ? "Create an editable tab from audio or YouTube." : "Open a blank tab and start in your browser."}</span>
-          </div>
-          <BlogProductLink
-            href={isTranscriptionGuide ? "/transcribe" : "/editor"}
-            articleSlug={post.slug}
-            cta={isTranscriptionGuide ? "blog_transcribe" : "blog_editor"}
-            placement="article_mobile_intro"
-            className="button-primary button-small"
-          >
-            {isTranscriptionGuide ? "Try the transcriber" : "Open the editor"}
-          </BlogProductLink>
-        </section>
 
         <div className="post-reader-layout">
           <article className="post-content">

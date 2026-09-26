@@ -99,24 +99,15 @@ export default function BlogIndexPage({
       <div className="container stack">
         <header className="blog-hero">
           <div className="blog-hero-copy">
-            <span className="blog-kicker">Knowledge Hub</span>
-            <h1 className="page-title">Note2Tabs Blog</h1>
+            <span className="blog-kicker">Note2Tabs journal</span>
+            <h1 className="page-title">Ideas and practical guides for guitarists</h1>
             <p className="page-subtitle">
-              Practical guides for writing better tabs, arranging music for guitar, and turning recordings into
-              playable notation.
+              Thoughtful guides on hearing, writing, transcribing, and practising music on guitar.
             </p>
             <div className="blog-product-links" aria-label="Try Note2Tabs">
               <BlogProductLink href="/editor" cta="blog_editor" placement="blog_index_hero" className="button-primary">Try the tab editor</BlogProductLink>
               <BlogProductLink href="/transcribe" cta="blog_transcribe" placement="blog_index_hero" className="button-secondary">Transcribe audio</BlogProductLink>
             </div>
-          </div>
-          <div className="blog-hero-actions">
-            <div className="blog-hero-metrics">
-              <span>{total} published posts</span>
-              <span>{categories.length} categories</span>
-              <span>{tags.length} tags</span>
-            </div>
-            <p className="blog-tools-note">Use either tool independently, or move between them in one workflow.</p>
           </div>
         </header>
 
