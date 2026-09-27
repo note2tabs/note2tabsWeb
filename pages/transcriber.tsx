@@ -201,6 +201,7 @@ export default function TranscriberPage() {
   const [transcriptionModel, setTranscriptionModel] =
     useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
   const transcriptionModelTouchedRef = useRef(false);
+  const recommendedModelHandledRef = useRef(false);
   const heavyPreviewShownRef = useRef(false);
   const inactiveReminderLandingTrackedRef = useRef(false);
   const [loading, setLoading] = useState(false);
@@ -249,7 +250,10 @@ export default function TranscriberPage() {
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
   const heavyPreviewUsed =
     localHeavyPreviewUsed || Boolean(transcriberSession?.user?.heavyPreviewUsed);
-  const { countryEligible: heavyPreviewCountryEligible } =
+  const {
+    countryEligible: heavyPreviewCountryEligible,
+    resolved: heavyPreviewCountryResolved,
+  } =
     useHeavyPreviewCountryEligibility(Boolean(transcriberSession && !isPremiumUser && !heavyPreviewUsed));
   const heavyPreviewAvailable = Boolean(
     transcriberSession &&
@@ -315,6 +319,38 @@ export default function TranscriberPage() {
     if (sessionStatus === "loading" || transcriptionModelTouchedRef.current) return;
     setTranscriptionModel(getDefaultTranscriptionModel(isPremiumUser, heavyPreviewAvailable));
   }, [heavyPreviewAvailable, isPremiumUser, sessionStatus]);
+
+  useEffect(() => {
+    if (!router.isReady || sessionStatus === "loading" || recommendedModelHandledRef.current) return;
+    const recommendation = Array.isArray(router.query.recommendedModel)
+      ? router.query.recommendedModel[0]
+      : router.query.recommendedModel;
+    if (recommendation !== "heavy" && recommendation !== "super_heavy") return;
+    if (recommendation === "super_heavy" && !heavyPreviewCountryResolved) return;
+
+    recommendedModelHandledRef.current = true;
+    const { recommendedModel: _recommendedModel, ...nextQuery } = router.query;
+    void router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
+
+    if (recommendation === "heavy") {
+      transcriptionModelTouchedRef.current = true;
+      setTranscriptionModel("heavy");
+      return;
+    }
+    if (heavyPreviewAvailable) {
+      setHeavyPreviewConfirmationIntent("select");
+      setShowHeavyPreviewIntro(true);
+      sendEvent(ANALYTICS_EVENTS.heavyPreviewConfirmationShown, {
+        surface: "transcriber",
+        trigger: "post_light_model_prompt",
+      });
+    }
+  }, [
+    heavyPreviewAvailable,
+    heavyPreviewCountryResolved,
+    router,
+    sessionStatus,
+  ]);
 
   useEffect(() => {
     if (!heavyPreviewAvailable || heavyPreviewShownRef.current) return;

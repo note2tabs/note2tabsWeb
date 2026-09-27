@@ -87,6 +87,8 @@ import ShareDialog from "../../components/ShareDialog";
 import { EditorLoadingState } from "../../components/EditorLoadingState";
 import EditorTutorial, { EditorTutorialTrigger } from "../../components/EditorTutorial";
 import HeavyPreviewEditorPrompt from "../../components/HeavyPreviewEditorPrompt";
+import PostLightModelPrompt from "../../components/PostLightModelPrompt";
+import { useHeavyPreviewCountryEligibility } from "../../lib/useHeavyPreviewCountryEligibility";
 import { prisma } from "../../lib/prisma";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
@@ -1647,7 +1649,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const router = useRouter();
   const tabReturnLandingTrackedRef = useRef(false);
   const heavyPreviewUpgradeHandledRef = useRef(false);
+  const postLightPromptHandledRef = useRef(false);
   const [heavyPreviewUpgradeOpen, setHeavyPreviewUpgradeOpen] = useState(false);
+  const [postLightPromptOpen, setPostLightPromptOpen] = useState(false);
   const saveToAccountPath = "/gte?importGuest=1";
   const loginSaveHref = `/auth/login?next=${encodeURIComponent(saveToAccountPath)}`;
   const signupSaveHref = `/auth/signup?next=${encodeURIComponent(saveToAccountPath)}`;
@@ -1656,6 +1660,19 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     : `/?appendEditorId=${encodeURIComponent(editorId)}#hero`;
   const transcriberNewHref = "/transcriber";
   const transcriberAppendHref = `/transcriber?appendEditorId=${encodeURIComponent(editorId)}`;
+  const isPaidUser = Boolean(
+    session?.user?.subscriptionPlan && session.user.subscriptionPlan !== "FREE"
+  ) || ["PREMIUM", "PRO", "ADMIN", "MODERATOR", "MOD"].includes(session?.user?.role || "");
+  const canCheckHeavyPreview = Boolean(
+    session?.user?.id && !isPaidUser && !session.user.heavyPreviewUsed
+  );
+  const { countryEligible: heavyPreviewCountryEligible, resolved: heavyPreviewCountryResolved } =
+    useHeavyPreviewCountryEligibility(canCheckHeavyPreview);
+  const heavyPreviewEligible = Boolean(
+    canCheckHeavyPreview &&
+      session?.user?.isEmailVerified &&
+      heavyPreviewCountryEligible
+  );
 
   useEffect(() => {
     if (!router.isReady || tabReturnLandingTrackedRef.current) return;
@@ -1699,6 +1716,48 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     }, 1200);
     return () => window.clearTimeout(timeout);
   }, [canvas, editorId, loading, router]);
+
+  useEffect(() => {
+    if (!router.isReady || loading || !canvas || postLightPromptHandledRef.current) return;
+    if (router.query.transcriptionModel !== "light") return;
+    if (router.query.heavyPreviewComplete === "1") return;
+    if (canCheckHeavyPreview && !heavyPreviewCountryResolved) return;
+
+    postLightPromptHandledRef.current = true;
+    const recommendation = heavyPreviewEligible ? "heavy_preview" : "medium";
+    const transcriptionJobId =
+      typeof router.query.transcriptionJobId === "string"
+        ? router.query.transcriptionJobId
+        : undefined;
+    const timeout = window.setTimeout(() => {
+      setPostLightPromptOpen(true);
+      sendEvent(ANALYTICS_EVENTS.postLightModelPromptShown, {
+        surface: "editor",
+        editor_id: editorId,
+        recommendation,
+        source_model: "light",
+        jobId: transcriptionJobId,
+        $insert_id: transcriptionJobId
+          ? `post-light-prompt-shown:${transcriptionJobId}`
+          : `post-light-prompt-shown:editor:${editorId}`,
+      });
+      const {
+        transcriptionModel: _model,
+        transcriptionJobId: _jobId,
+        ...nextQuery
+      } = router.query;
+      void router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
+    }, 1200);
+    return () => window.clearTimeout(timeout);
+  }, [
+    canCheckHeavyPreview,
+    canvas,
+    editorId,
+    heavyPreviewCountryResolved,
+    heavyPreviewEligible,
+    loading,
+    router,
+  ]);
   const chordDiagramHandednessStorageKey = useMemo(() => {
     if (session?.user?.id) {
       return `${CHORD_DIAGRAM_HANDEDNESS_STORAGE_PREFIX}user:${session.user.id}`;
@@ -11202,6 +11261,32 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             editor_id: editorId,
           });
           void router.push("/pricing?source=heavy_preview_editor");
+        }}
+      />
+      <PostLightModelPrompt
+        open={postLightPromptOpen}
+        recommendation={heavyPreviewEligible ? "heavy_preview" : "medium"}
+        onClose={() => {
+          setPostLightPromptOpen(false);
+          sendEvent(ANALYTICS_EVENTS.postLightModelPromptDismissed, {
+            surface: "editor",
+            editor_id: editorId,
+            recommendation: heavyPreviewEligible ? "heavy_preview" : "medium",
+          });
+        }}
+        onTryAgain={() => {
+          const recommendation = heavyPreviewEligible ? "heavy_preview" : "medium";
+          sendEvent(ANALYTICS_EVENTS.postLightModelPromptClicked, {
+            surface: "editor",
+            editor_id: editorId,
+            recommendation,
+          });
+          const params = new URLSearchParams({
+            appendEditorId: editorId,
+            source: "post_light_model_prompt",
+            recommendedModel: recommendation === "heavy_preview" ? "super_heavy" : "heavy",
+          });
+          void router.push(`/transcriber?${params.toString()}#hero`);
         }}
       />
       <EditorTutorial hasAccount={hasAccount} passedTutorial={passedTutorial} />
