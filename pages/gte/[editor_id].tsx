@@ -139,6 +139,7 @@ import {
   supportsElementFullscreen,
   toggleElementFullscreen,
 } from "../../lib/fullscreen";
+import { isMobileGteDevice } from "../../lib/gteMobileDevice";
 
 const GteWorkspace = dynamic(() => import("../../components/GteTrackWorkspace"), {
   loading: () => (
@@ -246,7 +247,6 @@ const KEY_TYPE_OPTIONS = [
   "Major Blues",
   "Minor Blues",
 ];
-const MOBILE_EDITOR_BREAKPOINT_PX = 768;
 const GTE_GUEST_CANVAS_STORAGE_KEY = "note2tabs:gte:guest-canvas:v1";
 const AUDIO_CONTEXT_RESUME_ERROR =
   "Your browser blocked audio playback. Tap Play again to allow sound.";
@@ -2024,30 +2024,17 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_EDITOR_BREAKPOINT_PX - 1}px)`);
-    const applyViewport = (matches: boolean) => {
-      setIsMobileViewport(matches);
-      setMobileControlsOpen((prev) => (matches ? prev : false));
-      setMobileNavOpen((prev) => (matches ? prev : false));
-      if (matches) {
-        setEditorMode((current) => (current === "tab" ? "canvas" : current));
-        setMobileEditLaneId(null);
-        setMobileControlsOpen(false);
-      } else {
-        setMobileEditLaneId(null);
-      }
-    };
-    applyViewport(mediaQuery.matches);
-    const handleChange = (event: MediaQueryListEvent) => {
-      applyViewport(event.matches);
-    };
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
+    if (typeof navigator === "undefined") return;
+    const mobileDevice = isMobileGteDevice(navigator as typeof navigator & {
+      userAgentData?: { mobile?: boolean };
+    });
+    setIsMobileViewport(mobileDevice);
+    setMobileControlsOpen(false);
+    setMobileNavOpen(false);
+    setMobileEditLaneId(null);
+    if (mobileDevice) {
+      setEditorMode((current) => (current === "tab" ? "canvas" : current));
     }
-    mediaQuery.addListener(handleChange);
-    return () => mediaQuery.removeListener(handleChange);
   }, []);
 
   useEffect(() => {
