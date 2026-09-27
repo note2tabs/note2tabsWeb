@@ -96,6 +96,9 @@ describe("analytics privacy sanitization", () => {
       "Insufficient credits",
       "AbortError: user cancelled",
       "Failed to fetch while offline",
+      "Load failed",
+      "TypeError: Load failed",
+      "ResizeObserver loop limit exceeded",
     ]) {
       expect(classifyPostHogException([{ type: "Error", value: message }])).toEqual({
         alertEligible: false,
