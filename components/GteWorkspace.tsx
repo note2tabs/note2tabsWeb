@@ -4244,6 +4244,20 @@ function ChordLaneWorkspace({
                     left: timelineContentOffset + start * pxPerFrame,
                     width: chordWidth,
                   }}
+                  onTouchStart={(event) => {
+                    if (!mobileViewport) return;
+                    event.stopPropagation();
+                    setSelectedBarIndices([]);
+                    setSelectedChordIds((previousSelected) =>
+                      previousSelected.includes(chord.id) ? previousSelected : [chord.id]
+                    );
+                  }}
+                  onTouchEnd={(event) => {
+                    if (!mobileViewport) return;
+                    event.stopPropagation();
+                    setSelectedBarIndices([]);
+                    setSelectedChordIds([chord.id]);
+                  }}
                   onMouseDown={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -5225,6 +5239,10 @@ export default function GteWorkspace({
   const enterGridCycleRef = useRef<{ gridKey: string; order: string[]; index: number } | null>(null);
   const keyboardGridCursorRef = useRef<KeyboardGridCursor | null>(null);
   const lastHandledMobileTimelineTouchAtRef = useRef(0);
+  const mobileTimelineScrollRef = useRef<HTMLDivElement | null>(null);
+  const mobileLabelColumnRef = useRef<HTMLDivElement | null>(null);
+  const selectedBarIndicesRef = useRef<number[]>([]);
+  selectedBarIndicesRef.current = selectedBarIndices;
   const keyboardAddModeRef = useRef<KeyboardAddMode | null>(null);
   const noteFretTypingBufferRef = useRef("");
   const noteFretTypingAtRef = useRef(0);
@@ -5299,6 +5317,15 @@ export default function GteWorkspace({
   const rows = Math.max(1, Math.ceil(barCount / barsPerRow));
   const isMobileCanvasMode = mobileViewport && mobileMode === "canvas";
   const isMobileEditMode = mobileViewport && mobileMode === "edit";
+  const [mobileLandscape, setMobileLandscape] = useState(false);
+  useEffect(() => {
+    if (!mobileViewport || typeof window === "undefined") return;
+    const query = window.matchMedia("(orientation: landscape)");
+    const sync = () => setMobileLandscape(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, [mobileViewport]);
   const showPlayingCoordinates = !isMobileCanvasMode;
   const normalizedTimelineZoomFactor =
     timelineZoomFactor !== undefined && Number.isFinite(timelineZoomFactor)
@@ -5505,7 +5532,9 @@ export default function GteWorkspace({
   );
   const practiceVerticalScale = 0.6;
   const practiceTabHeight = Math.round(editorTabView.height * practiceVerticalScale);
-  const practiceRowGap = 42;
+  const practiceRowGap = mobileViewport ? 16 : 42;
+  const practiceLabelWidth = mobileViewport ? 30 : EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
+  const practiceRightGap = mobileViewport ? 12 : 46 - EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
   const practiceRowHeight =
     practiceTabHeight + TIMELINE_BAR_HEADER_HEIGHT + practiceRowGap;
   const practiceDisplayStartBar = Math.max(
@@ -5581,24 +5610,38 @@ export default function GteWorkspace({
     );
     const availableWidth =
       practiceScoreWidth > 0
-        ? Math.max(42, practiceScoreWidth - 46)
+        ? Math.max(42, practiceScoreWidth - practiceLabelWidth - practiceRightGap)
         : maximumBarWidth * 4;
     const rows: Array<{
       firstBar: number;
       lastBar: number;
       segments: typeof practiceBarSegments;
     }> = [];
+    const mobileBarsPerRow = mobileViewport ? (mobileLandscape ? 2 : 1) : null;
     let segmentIndex = 0;
     while (segmentIndex < practiceBarSegments.length) {
       const firstSegmentIndex = segmentIndex;
       let usedWidth = 0;
+      let usedUnits = 0;
       while (segmentIndex < practiceBarSegments.length) {
         const nextWidth = practiceBarSegments[segmentIndex].width || 42;
-        if (segmentIndex > firstSegmentIndex && usedWidth + nextWidth > availableWidth) break;
+        if (segmentIndex > firstSegmentIndex) {
+          if (mobileBarsPerRow !== null) {
+            if (usedUnits >= mobileBarsPerRow) break;
+          } else if (usedWidth + nextWidth > availableWidth) {
+            break;
+          }
+        }
         usedWidth += nextWidth;
+        usedUnits += 1;
         segmentIndex += 1;
       }
-      const segments = practiceBarSegments.slice(firstSegmentIndex, segmentIndex);
+      let segments = practiceBarSegments.slice(firstSegmentIndex, segmentIndex);
+      if (mobileBarsPerRow !== null && usedWidth > 0 && practiceScoreWidth > 0) {
+        // Stretch the row so one/two bars fill the phone's width.
+        const stretch = availableWidth / usedWidth;
+        segments = segments.map((segment) => ({ ...segment, width: segment.width * stretch }));
+      }
       rows.push({
         firstBar: segments[0].startBar,
         lastBar: segments[segments.length - 1].endBar,
@@ -5613,15 +5656,19 @@ export default function GteWorkspace({
           segments: practiceBarSegments,
         }];
   }, [
+    mobileLandscape,
+    mobileViewport,
     practiceBarSegments,
     practiceDisplayEndBar,
     practiceDisplayStartBar,
+    practiceLabelWidth,
+    practiceRightGap,
     practiceScoreWidth,
   ]);
   const practiceRowCount = practiceRows.length;
   const getPracticeRowX = useCallback(
     (segments: typeof practiceBarSegments, sourceX: number) => {
-      let displayX = EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
+      let displayX = practiceLabelWidth;
       for (const segment of segments) {
         const sourceStart = editorTabView.barStartXs[segment.startBar];
         const sourceEnd = editorTabView.barStartXs[segment.endBar];
@@ -5633,7 +5680,7 @@ export default function GteWorkspace({
       }
       return displayX;
     },
-    [editorTabView.barStartXs]
+    [editorTabView.barStartXs, practiceLabelWidth]
   );
   const getPracticePosition = useCallback(
     (sourceX: number) => {
@@ -6502,7 +6549,7 @@ export default function GteWorkspace({
       const availableWidth = isMobileEditMode
         ? Math.max(1, visibleContainerWidth - 2)
         : Math.max(240, visibleContainerWidth - 16);
-      const fittedBars = isMobileEditMode
+      const fittedBars = mobileViewport
         ? Math.max(1, Math.min(2, normalizedSharedViewportBars))
         : TARGET_VISIBLE_BARS;
       const rawScale = availableWidth / Math.max(1, framesPerMeasure * fittedBars);
@@ -6521,7 +6568,7 @@ export default function GteWorkspace({
       observer.disconnect();
       window.visualViewport?.removeEventListener("resize", computeScale);
     };
-  }, [framesPerMeasure, isMobileEditMode, normalizedSharedViewportBars, sharedTimelineBaseScale]);
+  }, [framesPerMeasure, isMobileEditMode, mobileViewport, normalizedSharedViewportBars, sharedTimelineBaseScale]);
 
   useEffect(() => {
     const container = tabViewEnabled ? tabViewScrollRef.current : timelineOuterRef.current;
@@ -9403,6 +9450,10 @@ export default function GteWorkspace({
       event.preventDefault();
       return;
     }
+    const mouseTarget = event.target as HTMLElement | null;
+    if ((mobileViewport && draftNote) || mouseTarget?.closest("[data-gte-floating-ui='true']")) {
+      return;
+    }
     event.preventDefault();
     setContextMenu(null);
     const target = getPointerFrame(event.clientX, event.clientY, {
@@ -10560,6 +10611,145 @@ export default function GteWorkspace({
     ]
   );
 
+  const moveSelectedMobileChord = useCallback(
+    (direction: "left" | "right") => {
+      if (!selectedChord) return;
+      const resolvedId = resolveChordId(selectedChord.id);
+      const step = Math.max(1, cursorSizeDenominatorToFrames(cursorSizeDenominator));
+      const maxStart = Math.max(0, timelineEnd - Math.max(1, Math.round(selectedChord.length)));
+      const nextStart = clamp(
+        selectedChord.startTime + (direction === "left" ? -step : step),
+        0,
+        maxStart
+      );
+      if (nextStart === selectedChord.startTime) return;
+      enqueueOptimisticMutation({
+        label: "mobile-chord-move-time",
+        apply: (draft) => {
+          const chord = draft.chords.find((item) => item.id === resolvedId);
+          if (chord) chord.startTime = nextStart;
+          return draft;
+        },
+        commit: () => gteApi.setChordStartTime(editorId, resolvedId, nextStart, snapToGridEnabled),
+      });
+    },
+    [
+      clamp,
+      cursorSizeDenominator,
+      editorId,
+      enqueueOptimisticMutation,
+      resolveChordId,
+      selectedChord,
+      snapToGridEnabled,
+      timelineEnd,
+    ]
+  );
+
+  const moveSelectedMobileEvents = useCallback(
+    (direction: "left" | "right") => {
+      const current = snapshotRef.current;
+      const noteIdSet = new Set(selectedNoteIds.map((id) => resolveNoteId(id)));
+      const chordIdSet = new Set(activeChordIds.map((id) => resolveChordId(id)));
+      const notes = current.notes.filter((note) => noteIdSet.has(note.id));
+      const chords = current.chords.filter((chord) => chordIdSet.has(chord.id));
+      if (!notes.length && !chords.length) return;
+      const step = Math.max(1, cursorSizeDenominatorToFrames(cursorSizeDenominator));
+      let delta = direction === "left" ? -step : step;
+      const minStart = Math.min(...notes.map((n) => n.startTime), ...chords.map((c) => c.startTime));
+      const maxEnd = Math.max(
+        ...notes.map((n) => n.startTime + Math.max(1, Math.round(n.length))),
+        ...chords.map((c) => c.startTime + Math.max(1, Math.round(c.length)))
+      );
+      if (minStart + delta < 0) delta = -minStart;
+      if (maxEnd + delta > timelineEnd) delta = timelineEnd - maxEnd;
+      if (delta === 0) return;
+      const noteUpdates = notes.map((note) => ({ id: note.id, nextStart: note.startTime + delta }));
+      const chordUpdates = chords.map((chord) => ({ id: chord.id, nextStart: chord.startTime + delta }));
+      enqueueOptimisticMutation({
+        label: "mobile-selection-move-time",
+        apply: (draft) => {
+          noteUpdates.forEach((update) => {
+            const note = draft.notes.find((item) => item.id === update.id);
+            if (note) note.startTime = update.nextStart;
+          });
+          chordUpdates.forEach((update) => {
+            const chord = draft.chords.find((item) => item.id === update.id);
+            if (chord) chord.startTime = update.nextStart;
+          });
+          return draft;
+        },
+        commit: async () => {
+          let last: { snapshot?: EditorSnapshot } | null = null;
+          for (const update of noteUpdates) {
+            last = await gteApi.setNoteStartTime(editorId, update.id, update.nextStart, snapToGridEnabled);
+          }
+          for (const update of chordUpdates) {
+            last = await gteApi.setChordStartTime(editorId, update.id, update.nextStart, snapToGridEnabled);
+          }
+          return last ?? {};
+        },
+      });
+    },
+    [
+      activeChordIds,
+      cursorSizeDenominator,
+      cursorSizeDenominatorToFrames,
+      editorId,
+      enqueueOptimisticMutation,
+      resolveChordId,
+      resolveNoteId,
+      selectedNoteIds,
+      snapToGridEnabled,
+      timelineEnd,
+    ]
+  );
+
+  const deleteSelectedMobileEvents = useCallback(() => {
+    const noteIds = Array.from(new Set(selectedNoteIds.map((id) => resolveNoteId(id))));
+    const chordIds = Array.from(new Set(activeChordIds.map((id) => resolveChordId(id))));
+    if (!noteIds.length && !chordIds.length) return;
+    const removeAll = (draft: EditorSnapshot) => {
+      noteIds.forEach((id) => removeNoteFromSnapshot(draft, id));
+      chordIds.forEach((id) => removeChordFromSnapshot(draft, id));
+      return draft;
+    };
+    const nextSnapshot = removeAll(cloneSnapshot(snapshotRef.current));
+    enqueueOptimisticMutation({
+      label: "mobile-delete-selection",
+      apply: removeAll,
+      commit: async () => gteApi.applySnapshot(editorId, nextSnapshot),
+    });
+    setSelectedNoteIds([]);
+    setSelectedChordIds([]);
+    setNoteMenuAnchor(null);
+    setNoteMenuNoteId(null);
+    setNoteMenuDraft(null);
+    setChordMenuAnchor(null);
+    setChordMenuChordId(null);
+    setChordMenuDraft(null);
+  }, [activeChordIds, editorId, enqueueOptimisticMutation, resolveChordId, resolveNoteId, selectedNoteIds]);
+
+  const [mobileScaleSliderValue, setMobileScaleSliderValue] = useState(1);
+  const beginMobileScale = useCallback(() => {
+    if (scaleSessionRef.current) return;
+    setScaleToolMode("both");
+    if (activateScaleTool({ x: 0, y: 0 })) {
+      setScaleHudPosition(null);
+    }
+  }, [activateScaleTool]);
+  const previewMobileScale = useCallback(
+    (factor: number) => {
+      setMobileScaleSliderValue(factor);
+      if (!scaleSessionRef.current) return;
+      applyScalePreview(factor, { mode: "both", syncInput: true });
+    },
+    [applyScalePreview]
+  );
+  const commitMobileScale = useCallback(() => {
+    if (scaleSessionRef.current) commitScaleTool();
+    setMobileScaleSliderValue(1);
+  }, [commitScaleTool]);
+
   const scaleSelectedMobileNote = useCallback(
     (factor: number) => {
       if (!selectedNote) return;
@@ -10585,9 +10775,14 @@ export default function GteWorkspace({
   const handleMobileTimelineTouchStart = useCallback(
     (event: ReactTouchEvent<HTMLDivElement>) => {
       if (!isMobileEditMode) return;
+      const target = event.target as HTMLElement | null;
+      // Portaled floating UI still bubbles through the React tree to this handler.
+      if (draftNote || target?.closest("[data-gte-floating-ui='true']")) {
+        mobileTimelineTouchRef.current = null;
+        return;
+      }
       const first = event.touches[0];
       if (!first) return;
-      const target = event.target as HTMLElement | null;
       if (event.touches.length >= 2 && selectedNote && selectedNoteIdsRef.current.length === 1) {
         const second = event.touches[1];
         const distance = Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
@@ -10621,7 +10816,7 @@ export default function GteWorkspace({
         pinchFactor: 1,
       };
     },
-    [clearTouchHold, isMobileEditMode, selectedNote]
+    [clearTouchHold, draftNote, isMobileEditMode, selectedNote]
   );
 
   const handleMobileTimelineTouchMove = useCallback(
@@ -13923,6 +14118,15 @@ export default function GteWorkspace({
   useEffect(() => {
     const handlePointerStart = (target: HTMLElement | null, shiftKey: boolean) => {
       if (!target) return;
+      if (
+        mobileViewport &&
+        selectedBarIndicesRef.current.length > 0 &&
+        !target.closest("[data-bar-select='true'], [data-gte-floating-ui='true'], [data-mobile-bar-menu='true']")
+      ) {
+        setSelectedBarIndices([]);
+        setBarSelectionAnchor(null);
+        setLastBarInsertIndex(null);
+      }
       const clickedMobileCursor = Boolean(target.closest("[data-gte-cursor-add='true']"));
       if (timelineRef.current && timelineRef.current.contains(target) && !clickedMobileCursor) {
         setKeyboardCursorVisible(false);
@@ -13984,7 +14188,7 @@ export default function GteWorkspace({
       window.removeEventListener("mousedown", handleMouseDown, true);
       window.removeEventListener("touchstart", handleTouchStart, true);
     };
-  }, [commitSegmentEditIfActive, contextMenu, editingChordId, finalizeKeyboardAddMode]);
+  }, [commitSegmentEditIfActive, contextMenu, editingChordId, finalizeKeyboardAddMode, mobileViewport]);
 
   useEffect(() => {
     if (!tabViewEnabled) return;
@@ -14046,7 +14250,7 @@ export default function GteWorkspace({
   ]);
 
   const openMobileAddNoteAtCursor = useCallback(() => {
-    const cursor = keyboardGridCursorRef.current;
+    const cursor = keyboardGridCursorRef.current ?? keyboardGridCursor;
     if (!cursor || !isMobileEditMode) return;
     const stableCursor = { time: cursor.time, stringIndex: cursor.stringIndex };
     keyboardGridCursorRef.current = stableCursor;
@@ -14068,7 +14272,28 @@ export default function GteWorkspace({
       length: lastAddedNoteLengthRef.current,
     });
     setDraftNoteAnchor(null);
-  }, [isMobileEditMode]);
+  }, [isMobileEditMode, keyboardGridCursor]);
+
+  const selectedMobileTargetId = selectedNote?.id ?? (selectedChord ? `chord-${selectedChord.id}` : null);
+  useEffect(() => {
+    if (!isMobileEditMode || selectedMobileTargetId === null) return;
+    const container = mobileTimelineScrollRef.current;
+    if (!container || rowFrames <= 0) return;
+    const target = selectedNote ?? selectedChord;
+    if (!target) return;
+    const rowIndex = clamp(Math.floor(Math.max(0, target.startTime) / rowFrames), 0, rows - 1);
+    const stringOffset = selectedNote ? selectedNote.tab[0] * ROW_HEIGHT + ROW_HEIGHT / 2 : rowHeight / 2;
+    const targetCenter = TIMELINE_BAR_HEADER_HEIGHT + rowIndex * rowStride + stringOffset;
+    // Park the selection a bit above center so the settings card below leaves it visible.
+    const nextScrollTop = Math.max(0, targetCenter - container.clientHeight * 0.4);
+    const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    container.scrollTo({
+      top: Math.min(maxScroll, nextScrollTop),
+      behavior: reducedMotion ? "auto" : "smooth",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobileEditMode, selectedMobileTargetId]);
 
   useEffect(() => {
     if (!TRACK_HORIZONTAL_SCROLL_ENABLED || mobileViewport || !isActive || !keyboardCursorMarker) return;
@@ -14229,7 +14454,23 @@ export default function GteWorkspace({
   const showMobileInlineNoteSettings =
     isMobileEditMode &&
     isActive &&
-    Boolean(selectedNote && noteMenuNoteId === selectedNote.id && noteMenuDraft && selectedNoteIds.length === 1);
+    Boolean(
+      selectedNote &&
+        noteMenuNoteId === selectedNote.id &&
+        noteMenuDraft &&
+        selectedNoteIds.length === 1 &&
+        activeChordIds.length === 0
+    );
+  const mobileMultiSelectionCount = selectedNoteIds.length + activeChordIds.length;
+  const showMobileMultiSelectPanel = isMobileEditMode && isActive && mobileMultiSelectionCount > 1;
+  const showMobileChordPanel =
+    isMobileEditMode &&
+    Boolean(selectedChord && chordMenuDraft && editingChordId === null) &&
+    activeChordIds.length === 1 &&
+    selectedNoteIds.length === 0;
+  const mobileEditorPanelOpen = Boolean(
+    draftNote || showMobileInlineNoteSettings || showMobileChordPanel || showMobileMultiSelectPanel,
+  );
 
   const noteEffectEdgeMap = useMemo(() => {
     const map = new Map<number, { left: boolean; right: boolean }>();
@@ -15625,12 +15866,13 @@ export default function GteWorkspace({
           className={
             practiceMode
               ? "fixed bottom-5 left-1/2 z-[9997] w-fit -translate-x-1/2 px-2 pointer-events-none"
-              : `fixed bottom-10 left-1/2 z-[9997] -translate-x-1/2 px-2 pointer-events-none ${
+              : `!fixed z-[9997] px-2 pointer-events-none ${
                   mobileViewport
-                    ? "w-[min(calc(100vw-1.25rem),28rem)]"
-                    : "w-[min(calc(100vw-2rem),64rem)]"
+                    ? "bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-3 w-[calc(50vw-0.75rem)] max-w-[14rem]"
+                    : "bottom-10 left-1/2 w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2"
                 }`
           }
+          style={{ position: "fixed" }}
         >
           <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
             {showPlaybackCounter && (
@@ -15646,14 +15888,14 @@ export default function GteWorkspace({
               <div className="pointer-events-auto flex w-full items-center justify-center">
               <div
                 data-gte-floating-ui="true"
-                className="flex w-full max-w-sm items-center justify-around gap-1 rounded-2xl border border-slate-200 bg-white/96 px-2 py-2 text-slate-700 shadow-lg backdrop-blur"
+                className="flex w-full items-center justify-around gap-0.5 rounded-2xl border border-slate-200 bg-white/96 px-1 py-1.5 text-slate-700 shadow-lg backdrop-blur"
                 role="toolbar"
                 aria-label="Playback controls"
               >
                 <button
                   type="button"
                   onClick={skipToStart}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Go to start"
                   aria-label="Go to start"
                 >
@@ -15665,7 +15907,7 @@ export default function GteWorkspace({
                 <button
                   type="button"
                   onClick={skipBackwardBar}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Previous bar"
                   aria-label="Previous bar"
                 >
@@ -15678,7 +15920,7 @@ export default function GteWorkspace({
                   onClick={() => {
                     togglePlayback();
                   }}
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:cursor-wait disabled:bg-slate-700"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:cursor-wait disabled:bg-slate-700"
                   title={effectivePlaybackPreparing ? "Loading guitar sound" : effectiveIsPlaying ? "Pause" : "Play"}
                   aria-label={effectivePlaybackPreparing ? "Loading guitar sound" : effectiveIsPlaying ? "Pause" : "Play"}
                   aria-busy={effectivePlaybackPreparing}
@@ -15700,7 +15942,7 @@ export default function GteWorkspace({
                 <button
                   type="button"
                   onClick={skipForwardBar}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
                   title="Next bar"
                   aria-label="Next bar"
                 >
@@ -16304,7 +16546,7 @@ export default function GteWorkspace({
                       <div
                         className="absolute h-px bg-slate-500"
                         style={{
-                          left: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
+                          left: practiceLabelWidth,
                           width: rowContentWidth,
                           top:
                             TIMELINE_BAR_HEADER_HEIGHT +
@@ -16398,11 +16640,11 @@ export default function GteWorkspace({
                     .map((effect) => {
                       const y = editorTabView.strings[effect.stringIndex]?.y ?? 0;
                       const left = Math.max(
-                        EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
+                        practiceLabelWidth,
                         getPracticeRowX(segments, Math.min(effect.x1, effect.x2))
                       );
                       const right = Math.min(
-                        EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + rowContentWidth,
+                        practiceLabelWidth + rowContentWidth,
                         getPracticeRowX(segments, Math.max(effect.x1, effect.x2))
                       );
                       return (
@@ -17102,14 +17344,14 @@ export default function GteWorkspace({
         >
           <div
             className={`flex flex-col gap-0 ${
-              isMobileEditMode ? "text-[10px]" : compactEmbeddedMobile ? "text-[10px]" : "text-xs"
+              isMobileEditMode ? "max-h-full overflow-hidden text-[10px]" : compactEmbeddedMobile ? "text-[10px]" : "text-xs"
             } text-slate-600`}
             style={{
-              paddingTop: TIMELINE_BAR_HEADER_HEIGHT,
               width: GTE_TIMELINE_LABEL_COLUMN_WIDTH,
               flex: `0 0 ${GTE_TIMELINE_LABEL_COLUMN_WIDTH}px`,
             }}
           >
+            <div ref={mobileLabelColumnRef} style={{ paddingTop: TIMELINE_BAR_HEADER_HEIGHT }}>
             {Array.from({ length: rows }).map((_, rowIdx) => (
               <div
                 key={`labels-${rowIdx}`}
@@ -17127,8 +17369,20 @@ export default function GteWorkspace({
                 ))}
               </div>
             ))}
+            </div>
           </div>
-          <div className={`min-w-0 flex-1 ${isMobileEditMode ? "w-0 min-h-0 overflow-hidden" : "overflow-y-visible"}`}>
+          <div
+            ref={mobileTimelineScrollRef}
+            className={`min-w-0 flex-1 ${
+              isMobileEditMode
+                ? "w-0 min-h-0 max-h-full overflow-y-auto overflow-x-hidden overscroll-contain"
+                : "overflow-y-visible"
+            }`}
+            onScroll={(event) => {
+              if (!isMobileEditMode || !mobileLabelColumnRef.current) return;
+              mobileLabelColumnRef.current.style.transform = `translateY(${-event.currentTarget.scrollTop}px)`;
+            }}
+          >
             <div
               ref={timelineOuterRef}
               data-gte-shared-timeline="true"
@@ -17953,15 +18207,16 @@ export default function GteWorkspace({
                               ? previousSelected.filter((value) => value !== note.id)
                               : [...previousSelected, note.id];
                             setSelectedNoteIds(nextSelected);
-                            if (selectedChordIdsRef.current.length) {
-                              setSelectedChordIds([]);
-                            }
-                            if (nextSelected.length === 1 && nextSelected[0] === note.id) {
+                            const totalSelected = nextSelected.length + selectedChordIdsRef.current.length;
+                            if (totalSelected === 1 && nextSelected[0] === note.id) {
                               openNoteMenu(note.id, note.tab[1], note.length, event);
                             } else {
                               setNoteMenuAnchor(null);
                               setNoteMenuNoteId(null);
                               setNoteMenuDraft(null);
+                              setChordMenuAnchor(null);
+                              setChordMenuChordId(null);
+                              setChordMenuDraft(null);
                             }
                             return;
                           }
@@ -18062,6 +18317,7 @@ export default function GteWorkspace({
                       return (
                         <button
                           key={`chord-${chord.id}-${idx}-seg-${segment.rowIndex}-${segIdx}`}
+                          data-gte-note="true"
                           type="button"
                           onMouseDown={(event) => {
                             if (mobileViewport) {
@@ -18086,15 +18342,18 @@ export default function GteWorkspace({
                             startChordDrag(chord.id, tab[0], chord.startTime, chord.length, event);
                           }}
                           onTouchStart={(event) => {
-                            if (isMobileCanvasMode) return;
+                            if (isMobileCanvasMode) {
+                              event.stopPropagation();
+                              return;
+                            }
                             event.stopPropagation();
                             if (editingChordId !== null) return;
                             scheduleTouchHold(event, (pointer) =>
                               startChordDrag(chord.id, tab[0], chord.startTime, chord.length, pointer)
                             );
                           }}
-                          onTouchMove={cancelTouchHoldOnMove}
                           onTouchEnd={() => clearTouchHold()}
+                          onTouchMove={cancelTouchHoldOnMove}
                           onTouchCancel={() => clearTouchHold()}
                           onDoubleClick={(event) => {
                             if (editingChordId !== null) return;
@@ -18113,9 +18372,6 @@ export default function GteWorkspace({
                               singleDragMovedRef.current = false;
                               return;
                             }
-                            if (isMobileCanvasMode) {
-                              return;
-                            }
                             if (mobileViewport) {
                               const previousSelected = selectedChordIdsRef.current;
                               const alreadySelected = previousSelected.includes(chord.id);
@@ -18123,15 +18379,16 @@ export default function GteWorkspace({
                                 ? previousSelected.filter((value) => value !== chord.id)
                                 : [...previousSelected, chord.id];
                               setSelectedChordIds(nextSelected);
-                              if (selectedNoteIdsRef.current.length) {
-                                setSelectedNoteIds([]);
-                              }
-                              if (nextSelected.length === 1 && nextSelected[0] === chord.id) {
+                              const totalSelected = nextSelected.length + selectedNoteIdsRef.current.length;
+                              if (totalSelected === 1 && nextSelected[0] === chord.id) {
                                 openChordMenu(chord.id, chord.length, event);
                               } else {
                                 setChordMenuAnchor(null);
                                 setChordMenuChordId(null);
                                 setChordMenuDraft(null);
+                                setNoteMenuAnchor(null);
+                                setNoteMenuNoteId(null);
+                                setNoteMenuDraft(null);
                               }
                               return;
                             }
@@ -18153,9 +18410,7 @@ export default function GteWorkspace({
                           } ${
                             isDimmed
                               ? "opacity-30 pointer-events-none"
-                              : isMobileCanvasMode
-                              ? "pointer-events-none"
-                              : ""
+                            : ""
                           }`}
                           style={{
                             top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + (mobileViewport ? 1 : 4),
@@ -18623,9 +18878,32 @@ export default function GteWorkspace({
                   </div>
                 )}
 
-                {draftNote && mobileViewport && (
+                {draftNote && mobileViewport && typeof document !== "undefined" && createPortal(
+                  <div
+                    data-gte-floating-ui="true"
+                    aria-label="Dismiss add note"
+                    className="fixed inset-0 z-[9998]"
+                    onClick={() => {
+                      setDraftNote(null);
+                      setDraftNoteAnchor(null);
+                    }}
+                    onTouchEnd={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      lastHandledMobileTimelineTouchAtRef.current = Date.now();
+                      setDraftNote(null);
+                      setDraftNoteAnchor(null);
+                    }}
+                    onTouchStart={(event) => event.preventDefault()}
+                    onTouchMove={(event) => event.preventDefault()}
+                    onMouseDown={(event) => event.preventDefault()}
+                  />,
+                  document.body
+                )}
+                {draftNote && mobileViewport && typeof document !== "undefined" && createPortal(
                   <div
                     ref={draftPopupRef}
+                    data-gte-floating-ui="true"
                     className="fixed bottom-2 left-2 right-2 z-[9999] mx-auto w-[min(calc(100vw-1rem),28rem)] rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-2xl"
                     onClick={(event) => event.stopPropagation()}
                     onMouseDown={(event) => {
@@ -18644,6 +18922,13 @@ export default function GteWorkspace({
                       <button
                         type="button"
                         onClick={() => {
+                          setDraftNote(null);
+                          setDraftNoteAnchor(null);
+                        }}
+                        onTouchEnd={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          lastHandledMobileTimelineTouchAtRef.current = Date.now();
                           setDraftNote(null);
                           setDraftNoteAnchor(null);
                         }}
@@ -18679,20 +18964,39 @@ export default function GteWorkspace({
                           setDraftNote(null);
                           setDraftNoteAnchor(null);
                         }}
+                        onTouchEnd={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          lastHandledMobileTimelineTouchAtRef.current = Date.now();
+                          setDraftNote(null);
+                          setDraftNoteAnchor(null);
+                        }}
                         className="h-11 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-700"
                       >
                         Cancel
                       </button>
                       <button
                         type="button"
-                        onClick={handleAddNote}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          handleAddNote();
+                        }}
+                        onTouchEnd={(event) => {
+                          if (draftNote.fret === null) return;
+                          event.preventDefault();
+                          event.stopPropagation();
+                          lastHandledMobileTimelineTouchAtRef.current = Date.now();
+                          handleAddNote();
+                        }}
                         disabled={draftNote.fret === null}
                         className="h-11 rounded-xl bg-slate-900 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
                       >
                         Done
                       </button>
                     </div>
-                  </div>
+                  </div>,
+                  document.body
                 )}
                 {draftNote && draftNoteAnchor && !mobileViewport && (
                   <div
@@ -18811,11 +19115,14 @@ export default function GteWorkspace({
         </div>
         {showMobileEditRail &&
           keyboardCursorVisible &&
+          keyboardGridCursor &&
           !draftNote &&
           selectedNoteIds.length === 0 &&
-          selectedChordIds.length === 0 && (
+          selectedChordIds.length === 0 &&
+          typeof document !== "undefined" &&
+          createPortal(
             <div
-              className="fixed bottom-3 left-3 right-3 z-[90] mx-auto w-[min(calc(100vw-1.5rem),28rem)]"
+              className="fixed bottom-[4.5rem] left-3 right-3 z-[10000] mx-auto w-[min(calc(100vw-1.5rem),28rem)]"
               data-gte-floating-ui="true"
             >
               <button
@@ -18825,17 +19132,35 @@ export default function GteWorkspace({
               >
                 + Add note
               </button>
-            </div>
+            </div>,
+            document.body
           )}
-        {showMobileEditRail && showMobileInlineNoteSettings && selectedNote && noteMenuDraft && (
+        {showMobileEditRail && mobileEditorPanelOpen && typeof document !== "undefined" && createPortal(
+          <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-[9980] h-32 bg-white/98 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]" aria-hidden="true" data-gte-floating-ui="true" />,
+          document.body
+        )}
+        {showMobileEditRail && showMobileInlineNoteSettings && selectedNote && noteMenuDraft && typeof document !== "undefined" && createPortal(
           <div className="mt-2 shrink-0" data-gte-floating-ui="true">
-            <div className="fixed bottom-2 left-2 right-2 z-[90] mx-auto flex max-h-[48dvh] w-[min(calc(100vw-1rem),28rem)] items-stretch gap-2 overflow-y-auto rounded-xl pb-0">
+            <div
+              className={`fixed bottom-2 left-2 right-2 z-[9999] mx-auto flex items-stretch gap-2 overflow-y-auto rounded-xl pb-0 ${
+                mobileLandscape
+                  ? "max-h-[70dvh] w-[min(calc(100vw-1rem),46rem)]"
+                  : "max-h-[48dvh] w-[min(calc(100vw-1rem),28rem)]"
+              }`}
+            >
               <div
                 ref={showMobileInlineNoteSettings ? noteMenuRef : null}
                 className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white p-2.5 shadow-lg"
                 onMouseDown={(event) => event.stopPropagation()}
               >
-                <div className="flex min-h-0 flex-col">
+                <div
+                  className={
+                    mobileLandscape
+                      ? "grid min-h-0 grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-3"
+                      : "flex min-h-0 flex-col"
+                  }
+                >
+                  <div className="min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                         Note settings
@@ -18874,7 +19199,9 @@ export default function GteWorkspace({
                         aria-label="Selected note fret"
                       />
                     </label>
-                    <div className="mt-2 grid grid-cols-4 gap-1.5" aria-label="Move selected note">
+                  </div>
+                  <div className="min-w-0">
+                    <div className={`grid grid-cols-4 gap-1.5 ${mobileLandscape ? "" : "mt-2"}`} aria-label="Move selected note">
                       {(["left", "up", "down", "right"] as const).map((direction) => (
                         <button
                           key={direction}
@@ -18903,7 +19230,8 @@ export default function GteWorkspace({
                         Scale 2×
                       </button>
                     </div>
-                    <div className="mt-2">
+                  </div>
+                  <div className={`min-w-0 ${mobileLandscape ? "max-h-[9.5rem] overflow-y-auto" : "mt-2"}`}>
                       <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Fingering</div>
                       {noteAlternates?.possibleTabs?.length || noteAlternates?.blockedTabs?.length ? (
                         <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -18935,14 +19263,95 @@ export default function GteWorkspace({
                 </div>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
+        )}
+        {showMobileEditRail && showMobileMultiSelectPanel && typeof document !== "undefined" && createPortal(
+          <div
+            className={`fixed bottom-2 left-2 right-2 z-[9999] mx-auto rounded-xl border border-slate-200 bg-white p-3 shadow-2xl ${
+              mobileLandscape ? "w-[min(calc(100vw-1rem),40rem)]" : "w-[min(calc(100vw-1rem),28rem)]"
+            }`}
+            data-gte-floating-ui="true"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                {mobileMultiSelectionCount} selected
+                {selectedNoteIds.length ? ` · ${selectedNoteIds.length} note${selectedNoteIds.length === 1 ? "" : "s"}` : ""}
+                {activeChordIds.length ? ` · ${activeChordIds.length} chord${activeChordIds.length === 1 ? "" : "s"}` : ""}
+              </div>
+              <button
+                type="button"
+                onClick={deleteSelectedMobileEvents}
+                className="rounded-lg bg-rose-500/90 px-3 py-2 text-xs font-semibold text-white"
+              >
+                Delete
+              </button>
+            </div>
+            <div className={mobileLandscape ? "mt-2 grid grid-cols-2 gap-3" : ""}>
+              <div>
+                <div className="mt-2 grid grid-cols-2 gap-2" aria-label="Move selection">
+                  <button
+                    type="button"
+                    onClick={() => moveSelectedMobileEvents("left")}
+                    className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
+                    aria-label="Move selection left"
+                  >
+                    ←
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveSelectedMobileEvents("right")}
+                    className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
+                    aria-label="Move selection right"
+                  >
+                    →
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleOptimizeToCoordinates()}
+                  disabled={selectedNoteIds.length === 0}
+                  className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                >
+                  Optimize to coordinates
+                </button>
+              </div>
+              <label className="mt-2 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <span className="flex items-center justify-between text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                  <span>Scale (start + length)</span>
+                  <span className="text-lg font-bold tabular-nums text-slate-900">{mobileScaleSliderValue.toFixed(2)}×</span>
+                </span>
+                <input
+                  type="range"
+                  min={0.25}
+                  max={4}
+                  step={0.05}
+                  value={mobileScaleSliderValue}
+                  onPointerDown={beginMobileScale}
+                  onTouchStart={beginMobileScale}
+                  onChange={(event) => previewMobileScale(Number(event.currentTarget.value))}
+                  onPointerUp={commitMobileScale}
+                  onTouchEnd={commitMobileScale}
+                  onPointerCancel={commitMobileScale}
+                  onKeyUp={commitMobileScale}
+                  className="mt-1 h-7 w-full accent-emerald-600"
+                  aria-label="Scale selection"
+                />
+              </label>
+            </div>
+          </div>,
+          document.body
         )}
         {showMobileEditRail &&
+          showMobileChordPanel &&
           selectedChord &&
           chordMenuDraft &&
-          editingChordId === null && (
+          editingChordId === null &&
+          typeof document !== "undefined" &&
+          createPortal(
             <div
-              className="fixed bottom-2 left-2 right-2 z-[90] mx-auto max-h-[48dvh] w-[min(calc(100vw-1rem),28rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-2xl"
+              className="fixed bottom-2 left-2 right-2 z-[9999] mx-auto max-h-[48dvh] w-[min(calc(100vw-1rem),28rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-2xl"
               data-gte-floating-ui="true"
               onMouseDown={(event) => event.stopPropagation()}
             >
@@ -19007,7 +19416,25 @@ export default function GteWorkspace({
                   </div>
                 </div>
               )}
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="mt-3 grid grid-cols-2 gap-2" aria-label="Move selected chord">
+                <button
+                  type="button"
+                  onClick={() => moveSelectedMobileChord("left")}
+                  className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
+                  aria-label="Move chord left"
+                >
+                  ←
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveSelectedMobileChord("right")}
+                  className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
+                  aria-label="Move chord right"
+                >
+                  →
+                </button>
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => handleChordOctaveShift(-1)}
@@ -19038,7 +19465,8 @@ export default function GteWorkspace({
                   Disband
                 </button>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
       </div>
     </div>

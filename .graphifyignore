@@ -1,0 +1,11 @@
+# Generated chord lookup corpus. Keep data/chord-fingerings-index.json mapped.
+data/chord-fingers-json/
+
+# Binary tutorial and instrument assets do not contribute code relationships.
+public/audio/
+public/videos/
+
+# Local/generated outputs.
+.next/
+node_modules/
+coverage/

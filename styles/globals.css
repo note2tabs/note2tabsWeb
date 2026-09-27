@@ -12511,12 +12511,6 @@ input[type="number"] {
     transition: none;
   }
 }
-@media (max-width: 767px) {
-  .gte-view-mode-switch {
-    display: none;
-  }
-}
-
 /* Affiliate dashboard */
 .affiliatePage {
   min-height: calc(100vh - 72px);

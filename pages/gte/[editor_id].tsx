@@ -16,6 +16,7 @@ import { useSession } from "next-auth/react";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
+import { createPortal } from "react-dom";
 import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
 import { buildLaneEditorRef, gteApi, normalizeEditorName } from "../../lib/gteApi";
 import { buildTrackMergePlan } from "../../lib/gteTrackMerge";
@@ -1319,6 +1320,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const activeLaneSaveTimerRef = useRef<number | null>(null);
   const [mobileEditLaneId, setMobileEditLaneId] = useState<string | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [isMobileLandscape, setIsMobileLandscape] = useState(false);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
   const [mobileEditingSettingsOpen, setMobileEditingSettingsOpen] = useState(false);
   const [mobileTrackMenuOpen, setMobileTrackMenuOpen] = useState(false);
@@ -2033,8 +2035,17 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     setMobileNavOpen(false);
     setMobileEditLaneId(null);
     if (mobileDevice) {
-      setEditorMode((current) => (current === "tab" ? "canvas" : current));
+      setEditorMode("practice");
     }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const query = window.matchMedia("(orientation: landscape)");
+    const sync = () => setIsMobileLandscape(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
   }, []);
 
   useEffect(() => {
@@ -3445,8 +3456,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     }
     // Keep the real shared bar count separate from the requested row capacity.
     // A short song must not create phantom bars merely to fill the row.
+    if (isMobileViewport) {
+      return Math.max(1, Math.min(maxBars, isMobileLandscape ? 2 : 1));
+    }
     return Math.max(1, Math.min(maxBars, desktopBarsPerRow));
-  }, [canvas, desktopBarsPerRow]);
+  }, [canvas, desktopBarsPerRow, isMobileLandscape, isMobileViewport]);
 
   useEffect(() => {
     if (isMobileViewport || !canvas) {
@@ -5691,63 +5705,35 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     </div>
   );
 
+  const selectEditorMode = (mode: "canvas" | "tab" | "practice") => {
+    if (isMobileViewport) setMobileEditLaneId(null);
+    setEditorMode(mode);
+  };
   const renderViewModeSwitch = (compact = false) => {
-    if (compact) {
-      const mobilePracticeActive = editorMode === "practice";
-      return (
-        <div className="gte-view-mode-switch w-56 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
-          <div className="relative grid grid-cols-2" role="group" aria-label="Mobile workspace mode">
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 left-0 w-1/2 rounded-md bg-white shadow-sm ring-1 ring-slate-200/70 transition-transform duration-200 ease-out"
-              style={{ transform: `translateX(${mobilePracticeActive ? 100 : 0}%)` }}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                setMobileEditLaneId(null);
-                setEditorMode("canvas");
-              }}
-              aria-pressed={!mobilePracticeActive}
-              className={`relative z-10 h-8 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
-                !mobilePracticeActive ? "text-slate-900" : "text-slate-600"
-              }`}
-            >
-              Canvas
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMobileEditLaneId(null);
-                setEditorMode("practice");
-              }}
-              aria-pressed={mobilePracticeActive}
-              className={`relative z-10 h-8 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${
-                mobilePracticeActive ? "text-emerald-800" : "text-slate-600"
-              }`}
-            >
-              Practice
-            </button>
-          </div>
-        </div>
-      );
-    }
-    const activeIndex = editorMode === "canvas" ? 0 : editorMode === "tab" ? 1 : 2;
+    const activeIndex = compact
+      ? practiceModeEnabled ? 1 : 0
+      : editorMode === "canvas" ? 0 : editorMode === "tab" ? 1 : 2;
     return (
-    <div className="gte-view-mode-switch w-72 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+    <div
+      className={`gte-view-mode-switch rounded-lg border border-slate-200 bg-slate-100 p-0.5 ${
+        compact ? "w-56" : "w-72"
+      }`}
+    >
       <div
-        className="relative grid grid-cols-3"
+        className={`relative grid ${compact ? "grid-cols-2" : "grid-cols-3"}`}
         role="group"
         aria-label="Workspace mode"
       >
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-0 w-1/3 rounded-md bg-white shadow-sm ring-1 ring-slate-200/70 transition-transform duration-200 ease-out"
+          className={`pointer-events-none absolute inset-y-0 left-0 rounded-md bg-white shadow-sm ring-1 ring-slate-200/70 transition-transform duration-200 ease-out ${
+            compact ? "w-1/2" : "w-1/3"
+          }`}
           style={{ transform: `translateX(${activeIndex * 100}%)` }}
         />
         <button
           type="button"
-          onClick={() => setEditorMode("canvas")}
+          onClick={() => selectEditorMode("canvas")}
           aria-pressed={editorMode === "canvas"}
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
             editorMode === "canvas" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
@@ -5755,19 +5741,21 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         >
           Canvas
         </button>
+        {!compact && (
+          <button
+            type="button"
+            onClick={() => selectEditorMode("tab")}
+            aria-pressed={editorMode === "tab"}
+            className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
+              editorMode === "tab" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
+            }`}
+          >
+            Tab view
+          </button>
+        )}
         <button
           type="button"
-          onClick={() => setEditorMode("tab")}
-          aria-pressed={editorMode === "tab"}
-          className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
-            editorMode === "tab" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
-          }`}
-        >
-          Tab view
-        </button>
-        <button
-          type="button"
-          onClick={() => setEditorMode("practice")}
+          onClick={() => selectEditorMode("practice")}
           aria-pressed={practiceModeEnabled}
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${
             practiceModeEnabled ? "text-emerald-800" : "text-slate-600 hover:text-slate-800"
@@ -6678,7 +6666,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         } ${practiceFullscreen ? "gte-practice-fullscreen overflow-y-auto" : ""}`}
   style={
     !isMobileEditMode
-      ? { paddingTop: isMobileViewport ? 76 : 12 }
+      ? { paddingTop: isMobileViewport && !practiceModeEnabled ? 76 : 12 }
       : undefined
         }
         onMouseDownCapture={handleMainMouseDownCapture}
@@ -6701,8 +6689,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             : `stack ${isMobileCanvasMode ? "pb-24" : "pb-28"}`
         }`}
       >
-        {!practiceFullscreen && (
-          <div className="flex shrink-0 justify-center px-2 md:hidden">
+        {isMobileViewport && !practiceFullscreen && (
+          <div className="flex shrink-0 justify-center px-2">
             {renderViewModeSwitch(true)}
           </div>
         )}
@@ -7154,7 +7142,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               Back
             </button>
             {renderMobileHistoryControls()}
-            <div className="shrink-0">{renderViewModeSwitch(true)}</div>
             <details className="relative shrink-0">
               <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
                 Tools
@@ -7248,7 +7235,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             </details>
             <details className="relative shrink-0">
               <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
-                View · {desktopBarsPerRow} bars/row
+                View
               </summary>
               <div className="absolute right-0 top-[calc(100%+4px)] z-[10000] grid w-64 gap-1 rounded-lg border border-slate-200 bg-white p-2 text-sm text-slate-700 shadow-xl">
                 {([
@@ -7266,22 +7253,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     <span className="text-xs">{displayPreferences[key] ? "On" : "Off"}</span>
                   </button>
                 ))}
-                <label className="mt-1 grid gap-2 border-t border-slate-100 px-2 pt-2">
-                  <span className="flex justify-between">
-                    <span>Bars per row</span>
-                    <span>{desktopBarsPerRow}</span>
-                  </span>
-                  <input
-                    type="range"
-                    name="timeline-zoom-menu"
-                    min={1}
-                    max={6}
-                    step={1}
-                    value={desktopBarsPerRow}
-                    onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
-                    aria-label="Bars per row"
-                  />
-                </label>
               </div>
             </details>
           </div>
@@ -8939,6 +8910,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             className={`gte-editor-stage stack min-w-0 content-start ${
               isMobileEditMode
                 ? "gte-editor-stage--mobile-edit flex-1 min-h-0 space-y-0"
+                : practiceModeEnabled && isMobileViewport
+                ? "w-full min-h-0 space-y-2 bg-white px-1 py-2"
                 : practiceModeEnabled
                 ? "mx-auto min-h-[1050px] w-full max-w-[1100px] space-y-5 rounded-[3px] border border-slate-200 bg-white px-8 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.12)] lg:max-w-[calc(100vw-32rem)] min-[1612px]:max-w-[1100px] max-sm:min-h-0 max-sm:px-3 max-sm:py-5"
                 : "space-y-2"
@@ -9103,72 +9076,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     {isMobileViewport && !practiceModeEnabled ? (
                       mobileEditing ? (
                         <div className="flex min-h-0 flex-1 flex-col justify-center">
-                          {mobileSelectedBars.length > 0 && (
-                            <div className="mb-2 flex justify-end">
-                              <div
-                                className="relative"
-                                data-mobile-bar-menu="true"
-                                data-mobile-bar-menu-editor={laneEditorRef}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    setOpenTrackMenuId(null);
-                                    setOpenMobileBarMenuLaneId((prev) => (prev === laneId ? null : laneId));
-                                  }}
-                                  className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm"
-                                  title="Bar actions"
-                                  aria-label="Bar actions"
-                                >
-                                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                                    <circle cx="12" cy="5" r="1.8" />
-                                    <circle cx="12" cy="12" r="1.8" />
-                                    <circle cx="12" cy="19" r="1.8" />
-                                  </svg>
-                                </button>
-                                {openMobileBarMenuLaneId === laneId && (
-                                  <div className="absolute right-0 top-11 z-40 w-40 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-                                    <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                                      {mobileSelectedBars.length} selected
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        void handleCopySelectedBars(laneId, mobileSelectedBars);
-                                        setOpenMobileBarMenuLaneId(null);
-                                      }}
-                                      className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                    >
-                                      Copy
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        void handlePasteBars(laneId, mobileBarPasteIndex);
-                                        setOpenMobileBarMenuLaneId(null);
-                                      }}
-                                      disabled={!barClipboard}
-                                      className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
-                                    >
-                                      Paste
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        void handleDeleteSelectedBars(laneId, mobileSelectedBars);
-                                        setOpenMobileBarMenuLaneId(null);
-                                      }}
-                                      className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                                    >
-                                      Delete
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
                           <div className="min-h-0 overflow-hidden rounded-2xl">
                             <GteWorkspace
                               editorId={laneEditorRef}
@@ -9212,7 +9119,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                               sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
-                              sharedViewportBarCount={Math.min(sharedViewportBarCount, 2)}
+                              sharedViewportBarCount={sharedViewportBarCount}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
                                 isMobileViewport && !practiceModeEnabled
@@ -9321,70 +9228,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                   }}
                                   className="min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-sm font-semibold text-slate-800 outline-none focus:ring-0"
                                 />
-                                {mobileSelectedBars.length > 0 && (
-                                  <div
-                                    className="relative shrink-0"
-                                    data-mobile-bar-menu="true"
-                                    data-mobile-bar-menu-editor={laneEditorRef}
-                                  >
-                                    <button
-                                      type="button"
-                                      onClick={(event) => {
-                                        event.preventDefault();
-                                        event.stopPropagation();
-                                        setOpenTrackMenuId(null);
-                                        setOpenMobileBarMenuLaneId((prev) => (prev === laneId ? null : laneId));
-                                      }}
-                                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm"
-                                      title="Bar actions"
-                                      aria-label="Bar actions"
-                                    >
-                                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
-                                        <circle cx="12" cy="5" r="1.8" />
-                                        <circle cx="12" cy="12" r="1.8" />
-                                        <circle cx="12" cy="19" r="1.8" />
-                                      </svg>
-                                    </button>
-                                    {openMobileBarMenuLaneId === laneId && (
-                                      <div className="absolute left-0 top-8 z-40 w-40 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-                                        <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                                          {mobileSelectedBars.length} selected
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            void handleCopySelectedBars(laneId, mobileSelectedBars);
-                                            setOpenMobileBarMenuLaneId(null);
-                                          }}
-                                          className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                        >
-                                          Copy
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            void handlePasteBars(laneId, mobileBarPasteIndex);
-                                            setOpenMobileBarMenuLaneId(null);
-                                          }}
-                                          disabled={!barClipboard}
-                                          className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
-                                        >
-                                          Paste
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            void handleDeleteSelectedBars(laneId, mobileSelectedBars);
-                                            setOpenMobileBarMenuLaneId(null);
-                                          }}
-                                          className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                                        >
-                                          Delete
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
                               </div>
                               <div className="mt-0.5 truncate text-[11px] text-slate-500">
                                 {instrumentLabel} - Bars: {laneBarCount}
@@ -10635,8 +10478,63 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 </div>
               );
             })()}
-            {!practiceModeEnabled && isMobileViewport && !mobileEditLaneId && (
-              <div className="fixed bottom-[5.75rem] left-3 right-3 z-[70]" data-gte-floating-ui="true">
+            {!practiceModeEnabled &&
+              isMobileViewport &&
+              barSelection &&
+              barSelection.barIndices.length > 0 &&
+              typeof document !== "undefined" &&
+              (() => {
+                const selectedLaneId = barSelection.laneId;
+                const selectedLane = canvas.editors.find(
+                  (lane, index) => (lane.id || `ed-${index + 1}`) === selectedLaneId
+                );
+                const pasteIndex = Math.max(...barSelection.barIndices) + 1;
+                const selectedCount = barSelection.barIndices.length;
+                if (!selectedLane) return null;
+                return createPortal(
+                  <div
+                    className={`fixed left-3 right-3 z-[10010] mx-auto w-[min(calc(100vw-1.5rem),28rem)] ${
+                      mobileEditLaneId ? "bottom-[8rem]" : "bottom-[4.5rem]"
+                    }`}
+                    data-gte-floating-ui="true"
+                    data-mobile-bar-menu="true"
+                    role="toolbar"
+                    aria-label="Bar actions"
+                    onMouseDown={(event) => event.stopPropagation()}
+                  >
+                    <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/98 p-2 shadow-xl backdrop-blur">
+                      <span className="shrink-0 px-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        {selectedCount} bar{selectedCount === 1 ? "" : "s"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleCopySelectedBars(selectedLaneId, barSelection.barIndices)}
+                        className="h-10 flex-1 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 active:bg-slate-100"
+                      >
+                        Copy
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handlePasteBars(selectedLaneId, pasteIndex)}
+                        disabled={!barClipboard}
+                        className="h-10 flex-1 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 active:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                      >
+                        Paste
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSelectedBars(selectedLaneId, barSelection.barIndices)}
+                        className="h-10 flex-1 rounded-xl bg-rose-500/90 text-sm font-semibold text-white active:bg-rose-600"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>,
+                  document.body
+                );
+              })()}
+            {!practiceModeEnabled && isMobileViewport && !mobileEditLaneId && typeof document !== "undefined" && createPortal(
+              <div className="!fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 z-[9997] w-[calc(50vw-0.75rem)] max-w-[14rem]" style={{ position: "fixed" }} data-gte-floating-ui="true">
                 {mobileTrackMenuOpen && (
                   <div className="mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.2)]" role="listbox" aria-label="Choose track">
                     {canvas.editors.map((lane, index) => {
@@ -10718,7 +10616,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     +
                   </button>
                 </div>
-              </div>
+              </div>,
+              document.body,
             )}
           </div>
         )}
@@ -10988,21 +10887,23 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
           <div className="container gte-wide py-1">
             <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-1 shadow-sm">
-              <label className="hidden w-48 shrink-0 items-center gap-2 text-xs font-medium text-slate-600 sm:flex">
-                <span>Bars/row</span>
-                <input
-                  type="range"
-                  name="bottom-timeline-zoom"
-                  min={1}
-                  max={6}
-                  step={1}
-                  value={desktopBarsPerRow}
-                  onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
-                  className="min-w-0 flex-1"
-                  aria-label="Bars per row"
-                />
-                <span className="w-4 text-right tabular-nums">{desktopBarsPerRow}</span>
-              </label>
+              {!isMobileViewport && (
+                <label className="hidden w-48 shrink-0 items-center gap-2 text-xs font-medium text-slate-600 sm:flex">
+                  <span>Bars/row</span>
+                  <input
+                    type="range"
+                    name="bottom-timeline-zoom"
+                    min={1}
+                    max={6}
+                    step={1}
+                    value={desktopBarsPerRow}
+                    onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
+                    className="min-w-0 flex-1"
+                    aria-label="Bars per row"
+                  />
+                  <span className="w-4 text-right tabular-nums">{desktopBarsPerRow}</span>
+                </label>
+              )}
               <div
                 ref={globalTimelineScrollbarRef}
                 data-gte-timeline-control="true"
