@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import {
   ANALYTICS_EVENTS,
+  getAcceptedTranscriptionAccessType,
   sendEvent,
   sendTranscriptionStartedEvents,
   trackCtaClick,
@@ -939,8 +940,6 @@ export default function TranscriberPage() {
       fileSizeBytes: selectedFile?.size,
       appendingToExistingEditor: Boolean(appendEditorId),
     });
-    sendTranscriptionStartedEvents(transcriptionModel, researchProperties);
-
     try {
       let response: Response;
       const youtubeTitlePromise = mode === "YOUTUBE" ? fetchYouTubeVideoTitle(youtubeId) : null;
@@ -1031,6 +1030,18 @@ export default function TranscriberPage() {
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
       if (response.status === 202 && data.jobId) {
+        const accessType = getAcceptedTranscriptionAccessType(
+          Boolean(data.heavyPreviewUsed),
+          isPremiumUser && !isStaffUser,
+          isStaffUser
+        );
+        sendTranscriptionStartedEvents(transcriptionModel, {
+          ...researchProperties,
+          jobId: data.jobId,
+          acceptance_status: "accepted",
+          access_type: accessType,
+          heavy_preview: Boolean(data.heavyPreviewUsed),
+        });
         await clearPendingTranscription().catch(() => {});
         if (data.credits) {
           setCredits(data.credits);
@@ -1038,7 +1049,13 @@ export default function TranscriberPage() {
         if (data.heavyPreviewUsed) {
           setLocalHeavyPreviewUsed(true);
           await updateSession().catch(() => null);
-          sendEvent(ANALYTICS_EVENTS.heavyPreviewStarted, { surface: "transcriber", mode });
+          sendEvent(ANALYTICS_EVENTS.heavyPreviewStarted, {
+            surface: "transcriber",
+            mode,
+            jobId: data.jobId,
+            acceptance_status: "accepted",
+            access_type: "preview",
+          });
         }
         setStatus("Opening progress screen...");
         sendEvent("transcribe_queued", {
@@ -1098,6 +1115,18 @@ export default function TranscriberPage() {
         return;
       }
       const nextTabs = data.tabs;
+      const accessType = getAcceptedTranscriptionAccessType(
+        Boolean(data.heavyPreviewUsed),
+        isPremiumUser && !isStaffUser,
+        isStaffUser
+      );
+      sendTranscriptionStartedEvents(transcriptionModel, {
+        ...researchProperties,
+        jobId: data.jobId || data.tabJobId,
+        acceptance_status: "accepted",
+        access_type: accessType,
+        heavy_preview: Boolean(data.heavyPreviewUsed),
+      });
       await clearPendingTranscription().catch(() => {});
       setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
       if (data.credits) {
@@ -1106,7 +1135,13 @@ export default function TranscriberPage() {
       if (data.heavyPreviewUsed) {
         setLocalHeavyPreviewUsed(true);
         await updateSession().catch(() => null);
-        sendEvent(ANALYTICS_EVENTS.heavyPreviewStarted, { surface: "transcriber", mode });
+        sendEvent(ANALYTICS_EVENTS.heavyPreviewStarted, {
+          surface: "transcriber",
+          mode,
+          jobId: data.jobId || data.tabJobId,
+          acceptance_status: "accepted",
+          access_type: "preview",
+        });
       }
       sendEvent("transcribe_success", {
         ...researchProperties,

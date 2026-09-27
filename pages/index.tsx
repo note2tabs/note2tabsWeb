@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import {
   ANALYTICS_EVENTS,
+  getAcceptedTranscriptionAccessType,
   sendEvent,
   sendTranscriptionStartedEvents,
   trackCtaClick,
@@ -887,8 +888,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       durationSec: mode === "YOUTUBE" ? resolvedYtDuration : resolvedFileDuration,
       appendingToExistingEditor: Boolean(appendEditorId),
     });
-    sendTranscriptionStartedEvents(transcriptionModel, researchProperties);
-
     try {
       let response: Response | null = null;
       const youtubeTitlePromise = mode === "YOUTUBE" ? fetchYouTubeVideoTitle(youtubeId) : null;
@@ -999,6 +998,18 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
       if (response.status === 202 && data.jobId) {
+        const accessType = getAcceptedTranscriptionAccessType(
+          Boolean(data.heavyPreviewUsed),
+          isPremiumUser && !isStaffUser,
+          isStaffUser
+        );
+        sendTranscriptionStartedEvents(transcriptionModel, {
+          ...researchProperties,
+          jobId: data.jobId,
+          acceptance_status: "accepted",
+          access_type: accessType,
+          heavy_preview: Boolean(data.heavyPreviewUsed),
+        });
         await clearPendingTranscription().catch(() => {});
         if (data.credits) {
           setCredits(data.credits);
@@ -1006,7 +1017,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         if (data.heavyPreviewUsed) {
           setLocalHeavyPreviewUsed(true);
           await updateSession().catch(() => null);
-          sendEvent(ANALYTICS_EVENTS.heavyPreviewStarted, { surface: "home_transcriber", mode });
+          sendEvent(ANALYTICS_EVENTS.heavyPreviewStarted, {
+            surface: "home_transcriber",
+            mode,
+            jobId: data.jobId,
+            acceptance_status: "accepted",
+            access_type: "preview",
+          });
         }
         setStatus("Getting things started. Opening progress screen...");
         sendEvent(ANALYTICS_EVENTS.tabGenerationQueued, {
@@ -1066,6 +1083,18 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         return;
       }
       const nextTabs = data.tabs;
+      const accessType = getAcceptedTranscriptionAccessType(
+        Boolean(data.heavyPreviewUsed),
+        isPremiumUser && !isStaffUser,
+        isStaffUser
+      );
+      sendTranscriptionStartedEvents(transcriptionModel, {
+        ...researchProperties,
+        jobId: data.jobId || data.tabJobId,
+        acceptance_status: "accepted",
+        access_type: accessType,
+        heavy_preview: Boolean(data.heavyPreviewUsed),
+      });
       await clearPendingTranscription().catch(() => {});
       setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
       if (data.credits) {
@@ -1074,7 +1103,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       if (data.heavyPreviewUsed) {
         setLocalHeavyPreviewUsed(true);
         await updateSession().catch(() => null);
-        sendEvent(ANALYTICS_EVENTS.heavyPreviewStarted, { surface: "home_transcriber", mode });
+        sendEvent(ANALYTICS_EVENTS.heavyPreviewStarted, {
+          surface: "home_transcriber",
+          mode,
+          jobId: data.jobId || data.tabJobId,
+          acceptance_status: "accepted",
+          access_type: "preview",
+        });
       }
       sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
         ...researchProperties,

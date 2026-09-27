@@ -173,6 +173,17 @@ export function sendTranscriptionStartedEvents(
   sendEvent(getTranscriptionStartedModelEvent(transcriptionModel), properties);
 }
 
+export function getAcceptedTranscriptionAccessType(
+  heavyPreviewUsed: boolean,
+  hasPaidAccess: boolean,
+  isStaff = false
+) {
+  if (heavyPreviewUsed) return "preview" as const;
+  if (isStaff) return "staff" as const;
+  if (hasPaidAccess) return "paid" as const;
+  return "free" as const;
+}
+
 export function trackCtaClick(name: string, payload?: EventPayload) {
   sendEvent(ANALYTICS_EVENTS.ctaClicked, { cta: name, ...payload });
 }
