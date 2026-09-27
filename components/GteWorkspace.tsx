@@ -18393,7 +18393,8 @@ export default function GteWorkspace({
                   chordMenuAnchor &&
                   chordMenuChordId === selectedChord.id &&
                   chordMenuDraft &&
-                  editingChordId === null && (
+                  editingChordId === null &&
+                  !mobileViewport && (
                     <div
                       ref={chordMenuRef}
                       className="fixed z-[9999] w-60 rounded-md border border-slate-200 bg-white p-2 shadow-md"
@@ -18643,7 +18644,7 @@ export default function GteWorkspace({
                 {draftNote && mobileViewport && (
                   <div
                     ref={draftPopupRef}
-                    className="fixed bottom-28 left-1/2 z-[9999] w-[min(calc(100vw-2rem),15rem)] -translate-x-1/2 rounded-xl border border-slate-200 bg-white px-2.5 py-2.5 shadow-xl"
+                    className="fixed bottom-2 left-2 right-2 z-[9999] mx-auto w-[min(calc(100vw-1rem),28rem)] rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-2xl"
                     onClick={(event) => event.stopPropagation()}
                     onMouseDown={(event) => {
                       event.stopPropagation();
@@ -18826,9 +18827,27 @@ export default function GteWorkspace({
             )}
           </div>
         </div>
+        {showMobileEditRail &&
+          keyboardCursorVisible &&
+          !draftNote &&
+          selectedNoteIds.length === 0 &&
+          selectedChordIds.length === 0 && (
+            <div
+              className="fixed bottom-3 left-3 right-3 z-[90] mx-auto w-[min(calc(100vw-1.5rem),28rem)]"
+              data-gte-floating-ui="true"
+            >
+              <button
+                type="button"
+                onClick={openMobileAddNoteAtCursor}
+                className="flex h-12 w-full items-center justify-center rounded-2xl bg-emerald-600 text-base font-semibold text-white shadow-xl ring-1 ring-emerald-700/30 active:bg-emerald-700"
+              >
+                + Add note
+              </button>
+            </div>
+          )}
         {showMobileEditRail && showMobileInlineNoteSettings && selectedNote && noteMenuDraft && (
           <div className="mt-2 shrink-0" data-gte-floating-ui="true">
-            <div className="flex items-stretch gap-2 pb-[5rem]">
+            <div className="fixed bottom-2 left-2 right-2 z-[90] mx-auto flex max-h-[48dvh] w-[min(calc(100vw-1rem),28rem)] items-stretch gap-2 overflow-y-auto rounded-xl pb-0">
               <div
                 ref={showMobileInlineNoteSettings ? noteMenuRef : null}
                 className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white p-2.5 shadow-lg"
@@ -18936,6 +18955,109 @@ export default function GteWorkspace({
             </div>
           </div>
         )}
+        {showMobileEditRail &&
+          selectedChord &&
+          chordMenuDraft &&
+          editingChordId === null && (
+            <div
+              className="fixed bottom-2 left-2 right-2 z-[90] mx-auto max-h-[48dvh] w-[min(calc(100vw-1rem),28rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-2xl"
+              data-gte-floating-ui="true"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  Chord settings
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleDeleteChord();
+                    setSelectedChordIds([]);
+                    setChordMenuAnchor(null);
+                    setChordMenuChordId(null);
+                    setChordMenuDraft(null);
+                  }}
+                  className="rounded-lg bg-rose-500/90 px-3 py-2 text-xs font-semibold text-white"
+                >
+                  Delete
+                </button>
+              </div>
+              <label className="mt-2 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                Length (seconds)
+                <input
+                  type="number"
+                  min={framesToDurationSeconds(1)}
+                  max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
+                  step={0.01}
+                  inputMode="decimal"
+                  className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal text-slate-800"
+                  value={chordMenuDraft.length}
+                  onChange={(event) =>
+                    setChordMenuDraft((prev) =>
+                      prev ? { ...prev, length: event.target.value } : prev
+                    )
+                  }
+                  onBlur={commitChordMenuLength}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      commitChordMenuLength();
+                    }
+                  }}
+                />
+              </label>
+              {chordAlternatives.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    Fingering
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {chordAlternatives.slice(0, 8).map((tabs, index) => (
+                      <button
+                        key={`mobile-chord-alt-${selectedChord.id}-${index}`}
+                        type="button"
+                        onClick={() => handleApplyChordTabs(tabs)}
+                        className="min-h-10 rounded-lg bg-amber-400/70 px-2.5 py-1.5 text-xs font-semibold text-slate-900 active:bg-amber-400"
+                      >
+                        {tabs.map((tab) => `${stringLabels[tab[0]]}${tab[1]}`).join(" ")}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleChordOctaveShift(-1)}
+                  className="h-10 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
+                >
+                  Octave −
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleChordOctaveShift(1)}
+                  className="h-10 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
+                >
+                  Octave +
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void runMutation(() => gteApi.disbandChord(editorId, selectedChord.id), {
+                      localApply: (draft) => disbandChordInSnapshot(draft, selectedChord.id),
+                    });
+                    setSelectedChordIds([]);
+                    setChordMenuAnchor(null);
+                    setChordMenuChordId(null);
+                    setChordMenuDraft(null);
+                  }}
+                  className="h-10 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
+                >
+                  Disband
+                </button>
+              </div>
+            </div>
+          )}
       </div>
     </div>
   );
