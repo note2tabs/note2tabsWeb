@@ -93,6 +93,10 @@ import {
   formatTimingBpm,
   getTimingBarBpm,
 } from "../lib/gteTiming";
+import {
+  isMobileTimelineTapEligible,
+  isSameMobileGridCursor,
+} from "../lib/gteMobileCursor";
 
 const AUDIO_CONTEXT_RESUME_ERROR =
   "Your browser blocked audio playback. Tap Play again to allow sound.";
@@ -9413,6 +9417,29 @@ export default function GteWorkspace({
       );
       const rowTop = target.rowIndex * rowStride;
       const stringIndex = clamp(Math.floor((y - rowTop) / ROW_HEIGHT), 0, 5);
+      const currentCursor = keyboardGridCursorRef.current;
+      // On mobile the tap may land on the timeline rather than the cursor
+      // overlay. Treat the cursor's whole grid cell as the add-note target.
+      if (
+        isMobileEditMode &&
+        isSameMobileGridCursor(
+          currentCursor,
+          { time: target.time, stringIndex },
+          cursorSizeDenominatorToFrames(cursorSizeDenominator)
+        )
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        setKeyboardCursorVisible(true);
+        setDraftNote({
+          stringIndex: currentCursor?.stringIndex ?? stringIndex,
+          fret: 0,
+          startTime: currentCursor?.time ?? target.time,
+          length: lastAddedNoteLengthRef.current,
+        });
+        setDraftNoteAnchor(null);
+        return;
+      }
       hideKeyboardCursor({ time: target.time, stringIndex });
     } else {
       hideKeyboardCursor();
@@ -10583,7 +10610,11 @@ export default function GteWorkspace({
       mobileTimelineTouchRef.current = {
         tapX: first.clientX,
         tapY: first.clientY,
-        tapEligible: !target?.closest("[data-gte-note='true'], [data-gte-cursor-add='true']"),
+        // Let cursor taps reach touch-end. Mobile Safari does not reliably
+        // deliver the separate pointer-up event previously used by the cursor.
+        tapEligible: isMobileTimelineTapEligible(
+          Boolean(target?.closest("[data-gte-note='true']"))
+        ),
         pinchDistance: null,
         pinchStartLength: null,
         pinchNoteId: null,
@@ -10651,9 +10682,11 @@ export default function GteWorkspace({
       const rowTop = target.rowIndex * rowStride;
       const stringIndex = clamp(Math.floor((y - rowTop) / ROW_HEIGHT), 0, 5);
       const currentCursor = keyboardGridCursorRef.current;
-      const tappedCurrentCursor =
-        currentCursor?.time === target.time &&
-        currentCursor.stringIndex === stringIndex;
+      const tappedCurrentCursor = isSameMobileGridCursor(
+        currentCursor,
+        { time: target.time, stringIndex },
+        cursorSizeDenominatorToFrames(cursorSizeDenominator)
+      );
 
       setSelectedNoteIds([]);
       setSelectedChordIds([]);
@@ -10681,6 +10714,8 @@ export default function GteWorkspace({
     },
     [
       clamp,
+      cursorSizeDenominator,
+      cursorSizeDenominatorToFrames,
       getPointerFrame,
       onGlobalPlaybackFrameChange,
       rowStride,
@@ -13875,12 +13910,14 @@ export default function GteWorkspace({
     resolveNoteId,
     setKeyboardSelection,
     getDirectionalCursorFromSelectedNote,
+    getKeyboardGridCellWidthFrames,
     showKeyboardCursor,
     snapKeyboardCursorTimeToGrid,
     snapTabToKeyIfEnabled,
     snapToGridEnabled,
     tabViewEnabled,
     timelineEnd,
+    isMobileEditMode,
   ]);
 
   useEffect(() => {
