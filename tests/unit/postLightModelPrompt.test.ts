@@ -26,7 +26,7 @@ describe("PostLightModelPrompt", () => {
   it("recommends Medium without promising a Heavy preview", () => {
     const html = renderPrompt("medium");
 
-    expect(html).toContain("Want more accuracy?");
+    expect(html).toContain("Get better accuracy!");
     expect(html).toContain("Try Medium");
     expect(html).not.toContain("free 30-second preview");
   });
