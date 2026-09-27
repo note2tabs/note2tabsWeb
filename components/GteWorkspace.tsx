@@ -17115,7 +17115,7 @@ export default function GteWorkspace({
           }`}
           style={{
             columnGap: GTE_TIMELINE_COLUMN_GAP,
-            transform: isMobileEditMode ? "translateX(-8px)" : undefined,
+            transform: isMobileEditMode ? "translateX(-12px)" : undefined,
           }}
         >
           <div
