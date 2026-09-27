@@ -29,7 +29,7 @@ export default function PostLightModelPrompt({
         ×
       </button>
       <div className="heavy-preview-editor-prompt__copy">
-        <strong>Want more accuracy?</strong>
+        <strong>{isHeavyPreview ? "Want our best accuracy?" : "Want more accuracy?"}</strong>
         <p>
           {isHeavyPreview
             ? "This tab used our Light model. You have one free 30-second preview of our most accurate model."

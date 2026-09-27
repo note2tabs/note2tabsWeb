@@ -17,7 +17,7 @@ describe("PostLightModelPrompt", () => {
   it("explains the free Heavy preview to eligible users", () => {
     const html = renderPrompt("heavy_preview");
 
-    expect(html).toContain("Want more accuracy?");
+    expect(html).toContain("Want our best accuracy?");
     expect(html).toContain("This tab used our Light model");
     expect(html).toContain("one free 30-second preview");
     expect(html).toContain("Try Heavy free");
