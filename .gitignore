@@ -13,7 +13,6 @@ prisma/dev.db-journal
 backups/
 public/prod_compare/
 
-
 # Local Graphify architecture maps and Codex integration
 graphify-out/
 .graphifyignore

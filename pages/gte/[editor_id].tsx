@@ -16,6 +16,7 @@ import { useSession } from "next-auth/react";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
+import { createPortal } from "react-dom";
 import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
 import { buildLaneEditorRef, gteApi, normalizeEditorName } from "../../lib/gteApi";
 import { buildTrackMergePlan } from "../../lib/gteTrackMerge";
@@ -146,6 +147,7 @@ import {
   supportsElementFullscreen,
   toggleElementFullscreen,
 } from "../../lib/fullscreen";
+import { isMobileGteDevice } from "../../lib/gteMobileDevice";
 
 const GteWorkspace = dynamic(() => import("../../components/GteTrackWorkspace"), {
   loading: () => (
@@ -253,7 +255,6 @@ const KEY_TYPE_OPTIONS = [
   "Major Blues",
   "Minor Blues",
 ];
-const MOBILE_EDITOR_BREAKPOINT_PX = 768;
 const GTE_GUEST_CANVAS_STORAGE_KEY = "note2tabs:gte:guest-canvas:v1";
 const AUDIO_CONTEXT_RESUME_ERROR =
   "Your browser blocked audio playback. Tap Play again to allow sound.";
@@ -1336,7 +1337,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const activeLaneSaveTimerRef = useRef<number | null>(null);
   const [mobileEditLaneId, setMobileEditLaneId] = useState<string | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [isMobileLandscape, setIsMobileLandscape] = useState(false);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
+  const [mobileEditingSettingsOpen, setMobileEditingSettingsOpen] = useState(false);
+  const [mobileTrackMenuOpen, setMobileTrackMenuOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [savingCanvas, setSavingCanvas] = useState(false);
   const [exportingTrack, setExportingTrack] = useState(false);
@@ -2133,30 +2137,26 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_EDITOR_BREAKPOINT_PX - 1}px)`);
-    const applyViewport = (matches: boolean) => {
-      setIsMobileViewport(matches);
-      setMobileControlsOpen((prev) => (matches ? prev : false));
-      setMobileNavOpen((prev) => (matches ? prev : false));
-      if (matches) {
-        setEditorMode("practice");
-        setMobileEditLaneId(null);
-        setMobileControlsOpen(false);
-      } else {
-        setMobileEditLaneId(null);
-      }
-    };
-    applyViewport(mediaQuery.matches);
-    const handleChange = (event: MediaQueryListEvent) => {
-      applyViewport(event.matches);
-    };
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
+    if (typeof navigator === "undefined") return;
+    const mobileDevice = isMobileGteDevice(navigator as typeof navigator & {
+      userAgentData?: { mobile?: boolean };
+    });
+    setIsMobileViewport(mobileDevice);
+    setMobileControlsOpen(false);
+    setMobileNavOpen(false);
+    setMobileEditLaneId(null);
+    if (mobileDevice) {
+      setEditorMode("practice");
     }
-    mediaQuery.addListener(handleChange);
-    return () => mediaQuery.removeListener(handleChange);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const query = window.matchMedia("(orientation: landscape)");
+    const sync = () => setIsMobileLandscape(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
   }, []);
 
   useEffect(() => {
@@ -3686,8 +3686,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     }
     // Keep the real shared bar count separate from the requested row capacity.
     // A short song must not create phantom bars merely to fill the row.
+    if (isMobileViewport) {
+      return Math.max(1, Math.min(maxBars, isMobileLandscape ? 2 : 1));
+    }
     return Math.max(1, Math.min(maxBars, desktopBarsPerRow));
-  }, [canvas, desktopBarsPerRow]);
+  }, [canvas, desktopBarsPerRow, isMobileLandscape, isMobileViewport]);
 
   useEffect(() => {
     if (isMobileViewport || !canvas) {
@@ -3868,6 +3871,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   );
 
   const mobileControlsSummary = `${nameDraft || "Untitled"} - ${bpmDraft} BPM - ${timeSignatureDraft}/${timeSignatureBottomDraft}`;
+  const mobileActiveLaneIndex = Math.max(
+    0,
+    canvas?.editors.findIndex((lane, index) => (lane.id || `ed-${index + 1}`) === activeLaneId) ?? 0
+  );
+  const mobileActiveLane = canvas?.editors[mobileActiveLaneIndex];
   const isMobileCanvasMode = isMobileViewport && mobileEditLaneId === null;
   const isMobileEditMode = isMobileViewport && mobileEditLaneId !== null;
   const globalControlsLaneId = useMemo(() => {
@@ -5850,27 +5858,37 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     </div>
   );
 
+  const selectEditorMode = (mode: "canvas" | "tab" | "practice") => {
+    if (isMobileViewport) setMobileEditLaneId(null);
+    if (mode === "canvas") setEditorMode("canvas");
+    else if (mode === "tab") setEditorMode("tab");
+    else setEditorMode("practice");
+  };
   const renderViewModeSwitch = (compact = false) => {
-    const activeIndex = editorMode === "canvas" ? 0 : editorMode === "tab" ? 1 : 2;
+    const activeIndex = compact
+      ? practiceModeEnabled ? 1 : 0
+      : editorMode === "canvas" ? 0 : editorMode === "tab" ? 1 : 2;
     return (
     <div
       className={`gte-view-mode-switch rounded-lg border border-slate-200 bg-slate-100 p-0.5 ${
-        compact ? "w-64" : "w-72"
+        compact ? "w-56" : "w-72"
       }`}
     >
       <div
-        className="relative grid grid-cols-3"
+        className={`relative grid ${compact ? "grid-cols-2" : "grid-cols-3"}`}
         role="group"
         aria-label="Workspace mode"
       >
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-0 w-1/3 rounded-md bg-white shadow-sm ring-1 ring-slate-200/70 transition-transform duration-200 ease-out"
+          className={`pointer-events-none absolute inset-y-0 left-0 rounded-md bg-white shadow-sm ring-1 ring-slate-200/70 transition-transform duration-200 ease-out ${
+            compact ? "w-1/2" : "w-1/3"
+          }`}
           style={{ transform: `translateX(${activeIndex * 100}%)` }}
         />
         <button
           type="button"
-          onClick={() => setEditorMode("canvas")}
+          onClick={() => selectEditorMode("canvas")}
           aria-pressed={editorMode === "canvas"}
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
             editorMode === "canvas" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
@@ -5878,19 +5896,21 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         >
           Canvas
         </button>
+        {!compact && (
+          <button
+            type="button"
+            onClick={() => selectEditorMode("tab")}
+            aria-pressed={editorMode === "tab"}
+            className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
+              editorMode === "tab" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
+            }`}
+          >
+            Tab view
+          </button>
+        )}
         <button
           type="button"
-          onClick={() => setEditorMode("tab")}
-          aria-pressed={editorMode === "tab"}
-          className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
-            editorMode === "tab" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
-          }`}
-        >
-          Tab view
-        </button>
-        <button
-          type="button"
-          onClick={() => setEditorMode("practice")}
+          onClick={() => selectEditorMode("practice")}
           aria-pressed={practiceModeEnabled}
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${
             practiceModeEnabled ? "text-emerald-800" : "text-slate-600 hover:text-slate-800"
@@ -6805,7 +6825,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         } ${practiceFullscreen ? "gte-practice-fullscreen overflow-y-auto" : ""}`}
   style={
     !isMobileEditMode
-      ? { paddingTop: isMobileViewport ? 76 : 12 }
+      ? { paddingTop: isMobileViewport && !practiceModeEnabled ? 76 : 12 }
       : undefined
         }
         onMouseDownCapture={handleMainMouseDownCapture}
@@ -6828,9 +6848,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             : `stack ${isMobileCanvasMode ? "pb-24" : "pb-28"}`
         }`}
       >
+        {isMobileViewport && !practiceFullscreen && (
+          <div className="flex shrink-0 justify-center px-2">
+            {renderViewModeSwitch(true)}
+          </div>
+        )}
         {isMobileCanvasMode && (
           <div className="space-y-3">
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+            <div className="flex items-start">
               <div className="flex items-center gap-2">
                 <div className="relative" data-mobile-nav="true">
                   <button
@@ -6852,6 +6877,28 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         Menu
                       </div>
                       <div className="mt-3 space-y-2">
+                        <details className="rounded-xl border border-slate-200 bg-white">
+                          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold text-slate-700">
+                            <span>Help</span>
+                            <span aria-hidden="true" className="text-slate-400">›</span>
+                          </summary>
+                          <div className="max-h-[55vh] overflow-y-auto border-t border-slate-200 p-2">
+                            <div className="mb-2 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                              <span>Editor tutorial</span>
+                              <EditorTutorialTrigger />
+                            </div>
+                            {SHORTCUT_HELP_SECTIONS.map(([title, shortcuts]) => (
+                              <section key={`mobile-help-${title}`} className="border-t border-slate-100 py-2 first:border-0">
+                                <h3 className="px-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{title}</h3>
+                                {shortcuts.map(([label, shortcut]) => (
+                                  <div key={`mobile-help-${title}-${label}`} className="flex min-h-8 items-center gap-2 rounded-lg px-2 text-xs text-slate-700">
+                                    <span>{label}</span><span className="ml-auto text-[10px] text-slate-400">{shortcut}</span>
+                                  </div>
+                                ))}
+                              </section>
+                            ))}
+                          </div>
+                        </details>
                         {isGuestMode ? (
                           <>
                             <Link href="/" className="block rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
@@ -6952,40 +6999,60 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 </div>
                 {renderMobileHistoryControls()}
               </div>
-              {renderViewModeSwitch(true)}
             </div>
-            <div className={practiceModeEnabled ? "hidden" : "rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"}>
-              <button
-                type="button"
-                onClick={() => setMobileControlsOpen((prev) => !prev)}
-                className="flex w-full items-center justify-between gap-3 text-left"
-                aria-expanded={mobileControlsOpen}
-              >
-                <span className="min-w-0">
-                  <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Project settings
+            <div className={practiceModeEnabled ? "hidden" : "space-y-2"}>
+              <details className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold text-slate-700">
+                  <span>Tools</span>
+                  <span aria-hidden="true" className="text-slate-400">⌄</span>
+                </summary>
+                <div className="max-h-[60vh] overflow-y-auto border-t border-slate-200 p-2">
+                  <div ref={setEditMenuPortalTarget} />
+                  <div className="mt-1 grid gap-1 border-t border-slate-100 pt-1">
+                    <button type="button" onClick={() => setFindKeyDialogOpen(true)} className="min-h-11 rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-100">
+                      Detect song key
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGeneratePlayingCoordinatesRequest((request) => request + 1)}
+                      disabled={!activeLaneId}
+                      className="min-h-11 rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-100 disabled:text-slate-400"
+                    >
+                      Generate playing coordinates
+                    </button>
+                  </div>
+                </div>
+              </details>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileControlsOpen((prev) => !prev);
+                    setMobileEditingSettingsOpen(false);
+                  }}
+                  className={`min-w-0 rounded-xl border p-3 text-left shadow-sm ${mobileControlsOpen ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white"}`}
+                  aria-expanded={mobileControlsOpen}
+                >
+                  <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Project settings</span>
+                  <span className="mt-1 block truncate text-xs text-slate-700">{mobileControlsSummary}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileEditingSettingsOpen((prev) => !prev);
+                    setMobileControlsOpen(false);
+                  }}
+                  className={`min-w-0 rounded-xl border p-3 text-left shadow-sm ${mobileEditingSettingsOpen ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white"}`}
+                  aria-expanded={mobileEditingSettingsOpen}
+                >
+                  <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Editing settings</span>
+                  <span className="mt-1 block truncate text-xs text-slate-700">
+                    Note 1/{chordOnlyDefaultNoteLengthDenominator} · Cursor 1/{chordOnlyCursorSizeDenominator}
                   </span>
-                  <span className="block truncate text-sm text-slate-700">{mobileControlsSummary}</span>
-                </span>
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600">
-                  <svg
-                    viewBox="0 0 24 24"
-                    className={`h-4 w-4 transition-transform ${mobileControlsOpen ? "rotate-180" : ""}`}
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M6 9l6 6 6-6"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={1.9}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-              </button>
+                </button>
+              </div>
               {mobileControlsOpen && (
-                <div className="mt-3 grid gap-3">
+                <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                   <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     Name
                     <input
@@ -7116,111 +7183,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       </span>
                     </label>
                   </div>
-                  <details className="rounded-xl border border-slate-200 bg-slate-50">
-                    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-slate-700">
-                      Editing behavior
-                      <span className="text-xs font-normal text-slate-500">
-                        Notes, cursor & snapping
-                      </span>
-                    </summary>
-                    <div className="grid grid-cols-2 gap-2 border-t border-slate-200 p-2">
-                      <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2">
-                      <label className="grid gap-1 text-xs font-medium text-slate-600">
-                        Add note size
-                        <select
-                          value={chordOnlyDefaultNoteLengthDenominator}
-                          onKeyDown={blockSizeSelectKeyboardChange}
-                          onChange={(event) =>
-                            handleDefaultNoteLengthDenominatorChange(Number(event.target.value))
-                          }
-                          className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
-                        >
-                          {(noteCursorSizesLinked
-                            ? CURSOR_SIZE_FRACTION_DENOMINATORS
-                            : NOTE_LENGTH_FRACTION_DENOMINATORS
-                          ).map((denominator) => (
-                            <option key={`mobile-note-size-${denominator}`} value={denominator}>
-                              {formatNoteLengthOption(denominator)}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="text-[10px] font-normal text-slate-400">
-                          <kbd>,</kbd> smaller / <kbd>.</kbd> larger
-                        </span>
-                      </label>
-                      <SizeLinkToggle
-                        linked={noteCursorSizesLinked}
-                        onToggle={toggleNoteCursorSizeLink}
-                        className="self-center"
-                      />
-                      <label className="grid gap-1 text-xs font-medium text-slate-600">
-                        Cursor size
-                        <select
-                          value={chordOnlyCursorSizeDenominator}
-                          onKeyDown={blockSizeSelectKeyboardChange}
-                          onChange={(event) =>
-                            handleCursorSizeDenominatorChange(Number(event.target.value))
-                          }
-                          className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
-                        >
-                          {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
-                            <option key={`mobile-cursor-size-${denominator}`} value={denominator}>
-                              1/{denominator}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="text-[10px] font-normal text-slate-400">
-                          <kbd>N</kbd> larger / <kbd>M</kbd> smaller
-                        </span>
-                      </label>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
-                        aria-pressed={globalSnapToGridEnabled}
-                        className="flex min-h-11 items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-left text-sm text-slate-700"
-                      >
-                        <span>Snap to grid</span>
-                        <span className="text-xs text-slate-500">{globalSnapToGridEnabled ? "On" : "Off"}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
-                        aria-pressed={globalSnapToKeyEnabled}
-                        className="flex min-h-11 items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-left text-sm text-slate-700"
-                      >
-                        <span>Snap to key</span>
-                        <span className="text-xs text-slate-500">{globalSnapToKeyEnabled ? "On" : "Off"}</span>
-                      </button>
-                    </div>
-                  </details>
-                  <details className="rounded-xl border border-slate-200 bg-slate-50">
-                    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-slate-700">
-                      Display
-                      <span className="text-xs font-normal text-slate-500">
-                        Timeline labels & counter
-                      </span>
-                    </summary>
-                    <div className="grid gap-1 border-t border-slate-200 p-2">
-                      {([
-                        ["showBarNumbers", "Bar numbers"],
-                        ["showPlaybackCounter", "Playback counter"],
-                      ] as const).map(([key, label]) => (
-                        <button
-                          key={`mobile-display-${key}`}
-                          type="button"
-                          onClick={() => updateDisplayPreference(key, !displayPreferences[key])}
-                          aria-pressed={displayPreferences[key]}
-                          className="flex min-h-11 items-center justify-between rounded-lg bg-white px-3 text-left text-sm text-slate-700"
-                        >
-                          <span>{label}</span>
-                          <span className="text-xs text-slate-500">
-                            {displayPreferences[key] ? "On" : "Off"}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </details>
                   <div className="flex min-h-[1.25rem] flex-wrap items-center gap-3 text-xs">
                     <span className="text-slate-600" role="status" aria-live="polite">{saveStatus}</span>
                     {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
@@ -7231,6 +7193,55 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       </span>
                     )}
                   </div>
+                </div>
+              )}
+              {mobileEditingSettingsOpen && (
+                <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2">
+                    <label className="grid gap-1 text-xs font-medium text-slate-600">
+                      Add note size
+                      <select
+                        value={chordOnlyDefaultNoteLengthDenominator}
+                        onKeyDown={blockSizeSelectKeyboardChange}
+                        onChange={(event) => handleDefaultNoteLengthDenominatorChange(Number(event.target.value))}
+                        className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
+                      >
+                        {(noteCursorSizesLinked ? CURSOR_SIZE_FRACTION_DENOMINATORS : NOTE_LENGTH_FRACTION_DENOMINATORS).map((denominator) => (
+                          <option key={`mobile-note-size-${denominator}`} value={denominator}>{formatNoteLengthOption(denominator)}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <SizeLinkToggle linked={noteCursorSizesLinked} onToggle={toggleNoteCursorSizeLink} className="self-center" />
+                    <label className="grid gap-1 text-xs font-medium text-slate-600">
+                      Cursor size
+                      <select
+                        value={chordOnlyCursorSizeDenominator}
+                        onKeyDown={blockSizeSelectKeyboardChange}
+                        onChange={(event) => handleCursorSizeDenominatorChange(Number(event.target.value))}
+                        className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
+                      >
+                        {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
+                          <option key={`mobile-cursor-size-${denominator}`} value={denominator}>1/{denominator}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
+                    aria-pressed={globalSnapToGridEnabled}
+                    className="flex min-h-11 items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 text-left text-sm text-slate-700"
+                  >
+                    <span>Grid</span><span className="text-xs text-slate-500">{globalSnapToGridEnabled ? "On" : "Off"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
+                    aria-pressed={globalSnapToKeyEnabled}
+                    className="flex min-h-11 items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 text-left text-sm text-slate-700"
+                  >
+                    <span>Key</span><span className="text-xs text-slate-500">{globalSnapToKeyEnabled ? "On" : "Off"}</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -7250,7 +7261,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               Back
             </button>
             {renderMobileHistoryControls()}
-            <div className="shrink-0">{renderViewModeSwitch(true)}</div>
             <details className="relative shrink-0">
               <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
                 Tools
@@ -7344,7 +7354,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             </details>
             <details className="relative shrink-0">
               <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
-                View · {desktopBarsPerRow} bars/row
+                View
               </summary>
               <div className="absolute right-0 top-[calc(100%+4px)] z-[10000] grid w-64 gap-1 rounded-lg border border-slate-200 bg-white p-2 text-sm text-slate-700 shadow-xl">
                 {([
@@ -7362,22 +7372,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     <span className="text-xs">{displayPreferences[key] ? "On" : "Off"}</span>
                   </button>
                 ))}
-                <label className="mt-1 grid gap-2 border-t border-slate-100 px-2 pt-2">
-                  <span className="flex justify-between">
-                    <span>Bars per row</span>
-                    <span>{desktopBarsPerRow}</span>
-                  </span>
-                  <input
-                    type="range"
-                    name="timeline-zoom-menu"
-                    min={1}
-                    max={6}
-                    step={1}
-                    value={desktopBarsPerRow}
-                    onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
-                    aria-label="Bars per row"
-                  />
-                </label>
               </div>
             </details>
           </div>
@@ -8834,10 +8828,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         </div>
         )}
         {isGuestMode && !isMobileEditMode && !practiceModeEnabled && (
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm sm:flex-wrap sm:gap-4 sm:rounded-xl sm:px-4 sm:py-3">
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-slate-800">Keep your work safe</div>
-              <div className="mt-0.5 text-xs leading-5 text-slate-500">
+              <div className="truncate text-xs font-medium text-slate-600 sm:hidden">
+                {session?.user?.id ? "Save your draft." : "Sign in to save."}
+              </div>
+              <div className="hidden text-sm font-semibold text-slate-800 sm:block">Keep your work safe</div>
+              <div className="mt-0.5 hidden text-xs leading-5 text-slate-500 sm:block">
                 Create a free account to save this draft and continue on any device.
               </div>
             </div>
@@ -8845,21 +8842,21 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               <button
                 type="button"
                 onClick={() => void router.push(saveToAccountPath)}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-700"
+                className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 sm:px-4 sm:py-2"
               >
                 Save this draft
               </button>
             ) : (
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 items-center gap-1 sm:gap-2">
                 <Link
                   href={loginSaveHref}
-                  className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                  className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 sm:bg-transparent sm:py-2 sm:text-slate-600 sm:hover:bg-slate-100 sm:hover:text-slate-900"
                 >
                   Sign in
                 </Link>
                 <Link
                   href={signupSaveHref}
-                  className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-700"
+                  className="hidden rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 sm:block"
                 >
                   Create free account
                 </Link>
@@ -8907,6 +8904,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             className={`gte-editor-stage stack min-w-0 content-start ${
               isMobileEditMode
                 ? "gte-editor-stage--mobile-edit flex-1 min-h-0 space-y-0"
+                : practiceModeEnabled && isMobileViewport
+                ? "w-full min-h-0 space-y-2 bg-white px-1 py-2"
                 : practiceModeEnabled
                 ? "mx-auto min-h-[1050px] w-full max-w-[1100px] space-y-5 rounded-[3px] border border-slate-200 bg-white px-8 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.12)] lg:max-w-[calc(100vw-32rem)] min-[1612px]:max-w-[1100px] max-sm:min-h-0 max-sm:px-3 max-sm:py-5"
                 : "space-y-2"
@@ -8918,10 +8917,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               if (practiceModeEnabled && laneId !== globalControlsLaneId) {
                 return null;
               }
-              if (isMobileViewport && mobileEditLaneId && laneId !== mobileEditLaneId) {
-                return null;
-              }
-              if (!practiceModeEnabled && !isMobileViewport && laneId !== desktopVisibleLaneId) {
+              if (!practiceModeEnabled && laneId !== desktopVisibleLaneId) {
                 return null;
               }
               const laneEditorRef = buildLaneEditorRef(editorId, laneId);
@@ -8947,7 +8943,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 : trackInstrumentOptions.find((option) => option.id === instrumentValue)?.label ||
                   "Built-in synth";
               const tuning = getSnapshotTuning(lane);
-              const mobileEditing = isMobileViewport && mobileEditLaneId === laneId;
+              const mobileEditing = isMobileViewport && !practiceModeEnabled && laneId === desktopVisibleLaneId;
               const mobileSelectedBars =
                 isMobileViewport && barSelection?.laneId === laneId ? barSelection.barIndices : [];
               const mobileBarPasteIndex = mobileSelectedBars.length
@@ -9035,72 +9031,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     {isMobileViewport && !practiceModeEnabled ? (
                       mobileEditing ? (
                         <div className="flex min-h-0 flex-1 flex-col justify-center">
-                          {mobileSelectedBars.length > 0 && (
-                            <div className="mb-2 flex justify-end">
-                              <div
-                                className="relative"
-                                data-mobile-bar-menu="true"
-                                data-mobile-bar-menu-editor={laneEditorRef}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    setOpenTrackMenuId(null);
-                                    setOpenMobileBarMenuLaneId((prev) => (prev === laneId ? null : laneId));
-                                  }}
-                                  className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm"
-                                  title="Bar actions"
-                                  aria-label="Bar actions"
-                                >
-                                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                                    <circle cx="12" cy="5" r="1.8" />
-                                    <circle cx="12" cy="12" r="1.8" />
-                                    <circle cx="12" cy="19" r="1.8" />
-                                  </svg>
-                                </button>
-                                {openMobileBarMenuLaneId === laneId && (
-                                  <div className="absolute right-0 top-11 z-40 w-40 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-                                    <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                                      {mobileSelectedBars.length} selected
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        void handleCopySelectedBars(laneId, mobileSelectedBars);
-                                        setOpenMobileBarMenuLaneId(null);
-                                      }}
-                                      className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                    >
-                                      Copy
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        void handlePasteBars(laneId, mobileBarPasteIndex);
-                                        setOpenMobileBarMenuLaneId(null);
-                                      }}
-                                      disabled={!barClipboard}
-                                      className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
-                                    >
-                                      Paste
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        void handleDeleteSelectedBars(laneId, mobileSelectedBars);
-                                        setOpenMobileBarMenuLaneId(null);
-                                      }}
-                                      className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                                    >
-                                      Delete
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
                           <div className="min-h-0 overflow-hidden rounded-2xl">
                             <GteWorkspace
                               editorId={laneEditorRef}
@@ -9148,7 +9078,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               sharedRowCapacityBarCount={desktopBarsPerRow}
                               onSharedTimelineScrollRatioChange={handleSharedTimelineScrollRatioChange}
                               timelineZoomFactor={
-                                practiceModeEnabled
+                                isMobileViewport && !practiceModeEnabled
+                                  ? 1
+                                  : practiceModeEnabled
                                   ? Math.min(timelineZoomPercent / 100, 0.75)
                                   : timelineZoomPercent / 100
                               }
@@ -9252,70 +9184,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                   }}
                                   className="min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-sm font-semibold text-slate-800 outline-none focus:ring-0"
                                 />
-                                {mobileSelectedBars.length > 0 && (
-                                  <div
-                                    className="relative shrink-0"
-                                    data-mobile-bar-menu="true"
-                                    data-mobile-bar-menu-editor={laneEditorRef}
-                                  >
-                                    <button
-                                      type="button"
-                                      onClick={(event) => {
-                                        event.preventDefault();
-                                        event.stopPropagation();
-                                        setOpenTrackMenuId(null);
-                                        setOpenMobileBarMenuLaneId((prev) => (prev === laneId ? null : laneId));
-                                      }}
-                                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm"
-                                      title="Bar actions"
-                                      aria-label="Bar actions"
-                                    >
-                                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
-                                        <circle cx="12" cy="5" r="1.8" />
-                                        <circle cx="12" cy="12" r="1.8" />
-                                        <circle cx="12" cy="19" r="1.8" />
-                                      </svg>
-                                    </button>
-                                    {openMobileBarMenuLaneId === laneId && (
-                                      <div className="absolute left-0 top-8 z-40 w-40 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-                                        <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                                          {mobileSelectedBars.length} selected
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            void handleCopySelectedBars(laneId, mobileSelectedBars);
-                                            setOpenMobileBarMenuLaneId(null);
-                                          }}
-                                          className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                        >
-                                          Copy
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            void handlePasteBars(laneId, mobileBarPasteIndex);
-                                            setOpenMobileBarMenuLaneId(null);
-                                          }}
-                                          disabled={!barClipboard}
-                                          className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
-                                        >
-                                          Paste
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            void handleDeleteSelectedBars(laneId, mobileSelectedBars);
-                                            setOpenMobileBarMenuLaneId(null);
-                                          }}
-                                          className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                                        >
-                                          Delete
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
                               </div>
                               <div className="mt-0.5 truncate text-[11px] text-slate-500">
                                 {instrumentLabel} - Bars: {laneBarCount}
@@ -10567,60 +10435,146 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 </div>
               );
             })()}
-            {!practiceModeEnabled && isMobileViewport && !mobileEditLaneId && (
-              <div className="relative flex justify-center pt-1">
-                <button
-                  type="button"
-                  onClick={() => setAddTrackMenuOpen((open) => !open)}
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={addingLane}
-                  title={addingLane ? "Adding track..." : "Add track"}
-                  aria-label={addingLane ? "Adding track" : "Add track"}
-                  aria-expanded={addTrackMenuOpen}
-                  aria-haspopup="menu"
-                >
-                  <span className="text-base leading-none" aria-hidden="true">+</span>
-                  <span>{addingLane ? "Adding…" : "Add track"}</span>
-                </button>
-                {addTrackMenuOpen && (
+            {!practiceModeEnabled &&
+              isMobileViewport &&
+              barSelection &&
+              barSelection.barIndices.length > 0 &&
+              typeof document !== "undefined" &&
+              (() => {
+                const selectedLaneId = barSelection.laneId;
+                const selectedLane = canvas.editors.find(
+                  (lane, index) => (lane.id || `ed-${index + 1}`) === selectedLaneId
+                );
+                const pasteIndex = Math.max(...barSelection.barIndices) + 1;
+                const selectedCount = barSelection.barIndices.length;
+                if (!selectedLane) return null;
+                return createPortal(
                   <div
-                    className="absolute bottom-11 z-30 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-xl"
-                    role="menu"
-                    aria-label="Add track"
+                    className={`fixed left-3 right-3 z-[10010] mx-auto w-[min(calc(100vw-1.5rem),28rem)] ${
+                      mobileEditLaneId ? "bottom-[8rem]" : "bottom-[4.5rem]"
+                    }`}
+                    data-gte-floating-ui="true"
+                    data-mobile-bar-menu="true"
+                    role="toolbar"
+                    aria-label="Bar actions"
+                    onMouseDown={(event) => event.stopPropagation()}
                   >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
-                      onClick={() => void handleAddLane("tab")}
-                      disabled={addingLane}
-                    >
-                      <span>Tab</span>
-                      <span className="text-xs text-slate-400">Track</span>
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
-                      onClick={() => void handleAddLane("chords")}
-                      disabled={addingLane}
-                    >
-                      <span>Chords</span>
-                      <span className="text-xs text-slate-400">Track</span>
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
-                      onClick={() => void handleAddLane("drums")}
-                      disabled={addingLane}
-                    >
-                      <span>Drums</span>
-                      <span className="text-xs text-slate-400">Track</span>
-                    </button>
+                    <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/98 p-2 shadow-xl backdrop-blur">
+                      <span className="shrink-0 px-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        {selectedCount} bar{selectedCount === 1 ? "" : "s"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleCopySelectedBars(selectedLaneId, barSelection.barIndices)}
+                        className="h-10 flex-1 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 active:bg-slate-100"
+                      >
+                        Copy
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handlePasteBars(selectedLaneId, pasteIndex)}
+                        disabled={!barClipboard}
+                        className="h-10 flex-1 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 active:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                      >
+                        Paste
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSelectedBars(selectedLaneId, barSelection.barIndices)}
+                        className="h-10 flex-1 rounded-xl bg-rose-500/90 text-sm font-semibold text-white active:bg-rose-600"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>,
+                  document.body
+                );
+              })()}
+            {!practiceModeEnabled && isMobileViewport && !mobileEditLaneId && typeof document !== "undefined" && createPortal(
+              <div className="!fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 z-[9997] w-[calc(50vw-0.75rem)] max-w-[14rem]" style={{ position: "fixed" }} data-gte-floating-ui="true">
+                {mobileTrackMenuOpen && (
+                  <div className="mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.2)]" role="listbox" aria-label="Choose track">
+                    {canvas.editors.map((lane, index) => {
+                      const laneId = lane.id || `ed-${index + 1}`;
+                      const active = laneId === activeLaneId;
+                      return (
+                        <button
+                          key={`mobile-track-choice-${laneId}`}
+                          type="button"
+                          role="option"
+                          aria-selected={active}
+                          onClick={() => {
+                            setActiveLaneId(laneId);
+                            setOpenMobileBarMenuLaneId(null);
+                            setMobileTrackMenuOpen(false);
+                          }}
+                          className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-sm ${active ? "bg-emerald-50 font-semibold text-emerald-950" : "text-slate-700 active:bg-slate-50"}`}
+                        >
+                          <span className="min-w-0 truncate">{lane.name || `Track ${index + 1}`}</span>
+                          <span className="ml-3 shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                            {isDrumLane(lane) ? "Drums" : isChordLane(lane) ? "Chords" : "Tab"}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
-              </div>
+                {addTrackMenuOpen && (
+                  <div className="mb-2 ml-auto w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl" role="menu" aria-label="Add track">
+                    {(["tab", "chords", "drums"] as const).map((type) => (
+                      <button
+                        key={`mobile-add-${type}`}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setAddTrackMenuOpen(false);
+                          void handleAddLane(type);
+                        }}
+                        disabled={addingLane}
+                        className="flex min-h-10 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-50 disabled:opacity-50"
+                      >
+                        <span>{type === "tab" ? "Tab" : type === "chords" ? "Chords" : "Drums"}</span>
+                        <span className="text-xs text-slate-400">Track</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_14px_40px_rgba(15,23,42,0.18)]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileTrackMenuOpen((open) => !open);
+                      setAddTrackMenuOpen(false);
+                    }}
+                    className="flex min-w-0 flex-1 items-center justify-between rounded-xl px-2.5 py-1.5 text-left"
+                    aria-expanded={mobileTrackMenuOpen}
+                    aria-haspopup="listbox"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-400">Track</span>
+                      <span className="block truncate text-sm font-semibold text-slate-800">
+                        {mobileActiveLane?.name || `Track ${mobileActiveLaneIndex + 1}`}
+                      </span>
+                    </span>
+                    <span className={`ml-3 text-slate-500 transition ${mobileTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true">⌃</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddTrackMenuOpen((open) => !open);
+                      setMobileTrackMenuOpen(false);
+                    }}
+                    disabled={addingLane}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-xl text-white disabled:opacity-50"
+                    title="Add track"
+                    aria-label="Add track"
+                    aria-expanded={addTrackMenuOpen}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>,
+              document.body,
             )}
           </div>
         )}
@@ -10890,21 +10844,23 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
           <div className="container gte-wide py-1">
             <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-1 shadow-sm">
-              <label className="hidden w-48 shrink-0 items-center gap-2 text-xs font-medium text-slate-600 sm:flex">
-                <span>Bars/row</span>
-                <input
-                  type="range"
-                  name="bottom-timeline-zoom"
-                  min={1}
-                  max={6}
-                  step={1}
-                  value={desktopBarsPerRow}
-                  onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
-                  className="min-w-0 flex-1"
-                  aria-label="Bars per row"
-                />
-                <span className="w-4 text-right tabular-nums">{desktopBarsPerRow}</span>
-              </label>
+              {!isMobileViewport && (
+                <label className="hidden w-48 shrink-0 items-center gap-2 text-xs font-medium text-slate-600 sm:flex">
+                  <span>Bars/row</span>
+                  <input
+                    type="range"
+                    name="bottom-timeline-zoom"
+                    min={1}
+                    max={6}
+                    step={1}
+                    value={desktopBarsPerRow}
+                    onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
+                    className="min-w-0 flex-1"
+                    aria-label="Bars per row"
+                  />
+                  <span className="w-4 text-right tabular-nums">{desktopBarsPerRow}</span>
+                </label>
+              )}
               <div
                 ref={globalTimelineScrollbarRef}
                 data-gte-timeline-control="true"
