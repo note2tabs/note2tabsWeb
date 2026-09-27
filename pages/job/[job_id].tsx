@@ -683,6 +683,10 @@ export default function JobPage() {
   const canOpenGuestEditor = !isSignedIn && isLocalNoDbClientMode;
   const getEditorHref = (editorId: string, source = "job") => {
     const params = new URLSearchParams({ source });
+    if (modelHint) {
+      params.set("transcriptionModel", modelHint);
+      if (typeof job_id === "string") params.set("transcriptionJobId", job_id);
+    }
     if (isHeavyPreview) {
       params.set("heavyPreviewComplete", "1");
       if (typeof job_id === "string") params.set("heavyPreviewJobId", job_id);
