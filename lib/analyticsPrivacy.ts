@@ -248,7 +248,7 @@ const EXPECTED_EXCEPTION_PATTERNS = [
   /not authenticated|unauthori[sz]ed|forbidden|sign in|required.*account|\b40[13]\b/i,
   /insufficient credits|quota|limit (?:reached|exceeded)|rate limit|too many requests|\b429\b/i,
   /aborterror|operation was aborted|user cancelled|user canceled/i,
-  /failed to fetch|networkerror|network request failed|internet connection|offline/i,
+  /failed to fetch|\bload failed\b|networkerror|network request failed|internet connection|offline/i,
   /resizeobserver loop/i,
 ];
 
