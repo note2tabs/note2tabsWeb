@@ -9104,6 +9104,45 @@ input[type="number"] {
   cursor: pointer;
 }
 
+.heavy-preview-dev-switcher {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  z-index: 80;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(6, 17, 13, 0.12);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 24px rgba(6, 17, 13, 0.08);
+  transform: translateX(-50%);
+}
+
+.heavy-preview-dev-switcher button {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: transparent;
+  color: rgba(6, 17, 13, 0.7);
+  cursor: pointer;
+  font: 650 0.7rem/1 "Satoshi", var(--font-sans);
+  white-space: nowrap;
+}
+
+.heavy-preview-dev-switcher button:hover {
+  background: rgba(6, 17, 13, 0.06);
+  color: #06110d;
+}
+
+@media (max-width: 640px) {
+  .heavy-preview-dev-switcher {
+    top: 8px;
+    width: calc(100vw - 16px);
+    overflow-x: auto;
+  }
+}
+
 .heavy-preview-editor-demo {
   min-height: 100svh;
   overflow: hidden;
