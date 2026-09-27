@@ -15708,24 +15708,6 @@ export default function GteWorkspace({
                     <polygon points="7,5 17,12 7,19" />
                   </svg>
                 </button>
-                <div className="flex min-w-24 shrink-0 items-center gap-2 pl-1">
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 fill-current text-slate-500" aria-hidden="true">
-                    <path d="M4 10v4h4l5 4V6L8 10H4z" />
-                    <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
-                  </svg>
-                  <input
-                    type="range"
-                    name="workspace-playback-volume"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={effectivePlaybackVolume}
-                    onChange={(event) => setEffectivePlaybackVolume(Number(event.target.value))}
-                    className="w-full min-w-0 accent-slate-700"
-                    title="Volume"
-                    aria-label="Playback volume"
-                  />
-                </div>
                 {practiceControlsVisible && (
                   <>
                 <button
