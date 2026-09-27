@@ -12,3 +12,6 @@ prisma/dev.db-journal
 .vscode/settings.json
 backups/
 public/prod_compare/
+
+# graphify knowledge-graph output (local tooling, derived)
+graphify-out/
