@@ -256,7 +256,6 @@ const EXPECTED_EXCEPTION_PATTERNS = [
 // The resulting generic message has no source, stack, or actionable application
 // context, so retain it in Error Tracking without waking the operational alert.
 const NON_ACTIONABLE_BROWSER_EXCEPTION_PATTERNS = [
-  /^error script error\.?$/i,
   // Chromium extension/message-bridge failures are emitted as non-Error promise
   // rejections without an application stack. They can fire several times in the
   // same millisecond but do not originate in Note2Tabs code.
@@ -265,6 +264,15 @@ const NON_ACTIONABLE_BROWSER_EXCEPTION_PATTERNS = [
   // targeting rules. Failures in that bridge have no Note2Tabs stack frame.
   /sendExtensionMessage[\s\S]*getUrlAutofillTargetingRules/i,
 ];
+
+function isOpaqueCrossOriginScriptError(exceptionList: unknown) {
+  if (!Array.isArray(exceptionList) || exceptionList.length === 0) return false;
+  return exceptionList.every((exception) => {
+    if (!exception || typeof exception !== "object") return false;
+    const item = exception as Record<string, unknown>;
+    return item.type === "Error" && /^script error\.?$/i.test(String(item.value ?? "").trim());
+  });
+}
 
 // A browser can retain an old Next.js route manifest briefly after a deploy and
 // request a chunk Vercel has already retired. The app reloads once to obtain the
@@ -291,6 +299,9 @@ function exceptionText(value: unknown, depth = 0): string {
 
 export function classifyPostHogException(exceptionList: unknown) {
   const text = exceptionText(exceptionList);
+  if (isOpaqueCrossOriginScriptError(exceptionList)) {
+    return { alertEligible: false, classification: "non_actionable_browser_error" } as const;
+  }
   if (RECOVERABLE_STALE_CHUNK_PATTERNS.some((pattern) => pattern.test(text))) {
     return { alertEligible: false, classification: "recoverable_stale_chunk" } as const;
   }

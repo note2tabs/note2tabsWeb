@@ -112,9 +112,32 @@ describe("analytics privacy sanitization", () => {
   });
 
   it("retains opaque cross-origin script errors without paging operators", () => {
-    expect(classifyPostHogException([{ type: "Error", value: "Script error." }])).toEqual({
-      alertEligible: false,
-      classification: "non_actionable_browser_error",
+    for (const exception of [
+      { type: "Error", value: "Script error." },
+      {
+        type: "Error",
+        value: "Script error.",
+        mechanism: {
+          exception_id: 0,
+          handled: false,
+          synthetic: true,
+          type: "generic",
+        },
+      },
+    ]) {
+      expect(classifyPostHogException([exception])).toEqual({
+        alertEligible: false,
+        classification: "non_actionable_browser_error",
+      });
+    }
+  });
+
+  it("keeps real script failures alertable", () => {
+    expect(
+      classifyPostHogException([{ type: "TypeError", value: "Script error while saving tab" }])
+    ).toEqual({
+      alertEligible: true,
+      classification: "unexpected_application_error",
     });
   });
 
