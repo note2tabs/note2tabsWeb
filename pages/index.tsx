@@ -99,6 +99,7 @@ type TabsResponse = {
   gteEditorId?: string;
   verificationRequired?: boolean;
   heavyPreviewUsed?: boolean;
+  unverifiedTranscriptionUsed?: boolean;
 };
 type CreditsResponse = {
   credits?: CreditsSummary;
@@ -271,6 +272,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   );
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
+  const unverifiedTranscriptionUsed = Boolean(transcriberSession?.user?.unverifiedTranscriptionUsed);
   const heavyPreviewUsed =
     localHeavyPreviewUsed || Boolean(transcriberSession?.user?.heavyPreviewUsed);
   const { countryEligible: heavyPreviewCountryEligible } =
@@ -283,7 +285,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       !heavyPreviewUsed
   );
   const canUseHeavy = isPremiumUser || heavyPreviewAvailable;
-  const canTranscribe = !requireVerifiedEmail || isEmailVerified;
+  const canTranscribe = !requireVerifiedEmail || isEmailVerified || !unverifiedTranscriptionUsed;
   const displayedCredits = useMemo(
     () => credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
     [credits, disableDbInDev]
@@ -1013,6 +1015,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         await clearPendingTranscription().catch(() => {});
         if (data.credits) {
           setCredits(data.credits);
+        }
+        if (data.unverifiedTranscriptionUsed) {
+          await updateSession().catch(() => null);
         }
         if (data.heavyPreviewUsed) {
           setLocalHeavyPreviewUsed(true);
@@ -1911,7 +1916,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               )}
               {isSignedIn && !isEmailVerified && (
                 <div className="notice">
-                  Verify your email to start transcribing and unlock one free Heavy preview.{" "}
+                  {unverifiedTranscriptionUsed
+                    ? "Verify your email to continue transcribing and unlock your free Heavy preview. "
+                    : "You can make one transcription now. Verify your email to keep transcribing and unlock your free Heavy preview. "}
                   <Link href={verifyHref} className="button-link">
                     Verify now
                   </Link>

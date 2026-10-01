@@ -273,7 +273,7 @@ describe("transcribe credits", () => {
     expect(mocks.fetch).not.toHaveBeenCalled();
   });
 
-  it("blocks every transcription until an email/password account is verified", async () => {
+  it("allows exactly one standard transcription before email verification", async () => {
     const handler = (await import("../../pages/api/transcribe")).default;
     mocks.session.mockResolvedValue({ user: { id: "user_1" } });
     mocks.prisma.user.findUnique.mockResolvedValue({
@@ -284,6 +284,50 @@ describe("transcribe credits", () => {
       emailVerified: null,
       emailVerifiedBool: false,
       unverifiedTranscriptionUsed: false,
+      heavyPreviewUsedAt: null,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    mocks.prisma.tabJob.groupBy.mockResolvedValue([]);
+    mocks.prisma.user.updateMany.mockResolvedValue({ count: 1 });
+    mocks.fetch.mockResolvedValue(
+      new Response(JSON.stringify({ job_id: "job_unverified" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    const res = makeRes();
+    await handler(makeJsonReq({
+      mode: "YOUTUBE",
+      youtubeUrl: "https://www.youtube.com/watch?v=test",
+      startTime: 0,
+      duration: 30,
+      transcriptionModel: "light",
+    }), res);
+
+    expect(res.statusCode).toBe(202);
+    expect(res.body).toMatchObject({
+      jobId: "job_unverified",
+      unverifiedTranscriptionUsed: true,
+    });
+    expect(mocks.prisma.user.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ unverifiedTranscriptionUsed: false }),
+        data: { unverifiedTranscriptionUsed: true },
+      })
+    );
+  });
+
+  it("blocks another transcription until the account is verified", async () => {
+    const handler = (await import("../../pages/api/transcribe")).default;
+    mocks.session.mockResolvedValue({ user: { id: "user_1" } });
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      id: "user_1",
+      role: "FREE",
+      subscriptionPlan: "FREE",
+      tokensRemaining: 10,
+      emailVerified: null,
+      emailVerifiedBool: false,
+      unverifiedTranscriptionUsed: true,
       heavyPreviewUsedAt: null,
       createdAt: new Date("2026-01-01T00:00:00.000Z"),
     });
@@ -298,6 +342,35 @@ describe("transcribe credits", () => {
 
     expect(res.statusCode).toBe(403);
     expect(res.body).toMatchObject({ verificationRequired: true });
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not allow an unverified account to consume the Heavy preview", async () => {
+    const handler = (await import("../../pages/api/transcribe")).default;
+    mocks.session.mockResolvedValue({ user: { id: "user_1" } });
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      id: "user_1",
+      role: "FREE",
+      subscriptionPlan: "FREE",
+      tokensRemaining: 10,
+      emailVerified: null,
+      emailVerifiedBool: false,
+      unverifiedTranscriptionUsed: false,
+      heavyPreviewUsedAt: null,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    mocks.prisma.tabJob.groupBy.mockResolvedValue([]);
+    const res = makeRes();
+    await handler(makeJsonReq({
+      mode: "YOUTUBE",
+      youtubeUrl: "https://www.youtube.com/watch?v=test",
+      startTime: 0,
+      duration: 30,
+      transcriptionModel: "super_heavy",
+    }), res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatchObject({ premiumRequired: true });
     expect(mocks.fetch).not.toHaveBeenCalled();
   });
 

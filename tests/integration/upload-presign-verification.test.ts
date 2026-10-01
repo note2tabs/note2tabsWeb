@@ -49,7 +49,7 @@ describe("signed upload verification gate", () => {
     vi.stubGlobal("fetch", mocks.fetch);
   });
 
-  it("does not allocate upload storage for an unverified account", async () => {
+  it("allows upload storage for an unverified account before its one transcription", async () => {
     const handler = (await import("../../pages/api/uploads/presign")).default;
     mocks.session.mockResolvedValue({ user: { id: "user_1" } });
     mocks.findUser.mockResolvedValue({
@@ -57,6 +57,35 @@ describe("signed upload verification gate", () => {
       subscriptionPlan: "FREE",
       emailVerified: null,
       emailVerifiedBool: false,
+      unverifiedTranscriptionUsed: false,
+    });
+    mocks.fetch.mockResolvedValue(
+      new Response(JSON.stringify({ url: "https://upload.example.test", key: "audio/test" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    const req = {
+      method: "POST",
+      body: { fileName: "song.mp3", contentType: "audio/mpeg", size: 1024 },
+    } as NextApiRequest;
+    const res = makeRes();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(mocks.fetch).toHaveBeenCalledOnce();
+  });
+
+  it("does not allocate more upload storage after the unverified allowance is used", async () => {
+    const handler = (await import("../../pages/api/uploads/presign")).default;
+    mocks.session.mockResolvedValue({ user: { id: "user_1" } });
+    mocks.findUser.mockResolvedValue({
+      role: "FREE",
+      subscriptionPlan: "FREE",
+      emailVerified: null,
+      emailVerifiedBool: false,
+      unverifiedTranscriptionUsed: true,
     });
     const req = {
       method: "POST",

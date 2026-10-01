@@ -433,6 +433,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return null;
   };
   let reservedHeavyPreview: { userId: string; reservedAt: Date } | null = null;
+  let reservedUnverifiedTranscriptionUserId: string | null = null;
+  const releaseUnverifiedTranscriptionReservation = async () => {
+    if (!reservedUnverifiedTranscriptionUserId) return;
+    const userId = reservedUnverifiedTranscriptionUserId;
+    reservedUnverifiedTranscriptionUserId = null;
+    try {
+      await prisma.user.updateMany({
+        where: {
+          id: userId,
+          emailVerified: null,
+          emailVerifiedBool: false,
+          unverifiedTranscriptionUsed: true,
+        },
+        data: { unverifiedTranscriptionUsed: false },
+      });
+    } catch (error) {
+      console.warn("transcribe unverified allowance reservation release failed", error);
+    }
+  };
   const releaseHeavyPreviewReservation = async () => {
     if (!reservedHeavyPreview) return;
     const { userId, reservedAt } = reservedHeavyPreview;
@@ -501,9 +520,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           console.warn("transcribe user lookup returned no user, using dev guest fallback");
         } else {
           const isEmailVerified = Boolean((user as any).emailVerifiedBool || user.emailVerified);
-          if (isEmailVerificationRequiredServer && !isEmailVerified) {
+          if (isEmailVerificationRequiredServer && !isEmailVerified && user.unverifiedTranscriptionUsed) {
             return res.status(403).json({
-              error: "Verify your email to start transcribing and unlock your free Heavy preview.",
+              error: "Please verify your email to continue using the transcriber.",
               verificationRequired: true,
             });
           }
@@ -776,6 +795,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
     }
 
+    let reservedUnverifiedTranscription = false;
+    const shouldReserveUnverifiedTranscription =
+      Boolean(user?.id) &&
+      isEmailVerificationRequiredServer &&
+      !Boolean((user as any)?.emailVerifiedBool || user?.emailVerified);
+    if (shouldReserveUnverifiedTranscription && user?.id) {
+      const reservation = await prisma.user.updateMany({
+        where: {
+          id: user.id,
+          emailVerified: null,
+          emailVerifiedBool: false,
+          unverifiedTranscriptionUsed: false,
+        },
+        data: { unverifiedTranscriptionUsed: true },
+      });
+      if (reservation.count !== 1) {
+        return res.status(403).json({
+          error: "Please verify your email to continue using the transcriber.",
+          verificationRequired: true,
+        });
+      }
+      user.unverifiedTranscriptionUsed = true;
+      reservedUnverifiedTranscription = true;
+      reservedUnverifiedTranscriptionUserId = user.id;
+    }
+
     if (isHeavyPreview && user?.id) {
       const reservedAt = new Date();
       const reservation = await prisma.user.updateMany({
@@ -824,6 +869,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       if (!ytRes.ok) {
         await ytRes.text();
+        await releaseUnverifiedTranscriptionReservation();
         await releaseHeavyPreviewReservation();
         return res.status(ytRes.status).json({ error: publicTranscriptionError(ytRes.status) });
       }
@@ -854,6 +900,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         if (!processRes.ok) {
           await processRes.text();
+          await releaseUnverifiedTranscriptionReservation();
           await releaseHeavyPreviewReservation();
           return res.status(processRes.status).json({ error: publicTranscriptionError(processRes.status) });
         }
@@ -861,6 +908,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         backendJobId = extractBackendJobId(data) || undefined;
       } else {
         if (!uploadedFile?.filepath) {
+          await releaseUnverifiedTranscriptionReservation();
           await releaseHeavyPreviewReservation();
           return res.status(400).json({ error: "File is required." });
         }
@@ -890,6 +938,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         if (!processRes.ok) {
           await processRes.text();
+          await releaseUnverifiedTranscriptionReservation();
           await releaseHeavyPreviewReservation();
           return res.status(processRes.status).json({ error: publicTranscriptionError(processRes.status) });
         }
@@ -900,11 +949,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (!backendJobId) {
+      await releaseUnverifiedTranscriptionReservation();
       await releaseHeavyPreviewReservation();
       return res.status(502).json({
         error: "We could not start this transcription. Please wait a moment and try again.",
       });
     }
+    reservedUnverifiedTranscriptionUserId = null;
     const completedHeavyPreviewReservation = reservedHeavyPreview;
     const heavyPreviewUsed = Boolean(completedHeavyPreviewReservation);
     reservedHeavyPreview = null;
@@ -958,8 +1009,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       durationSec,
       transcriptionModel,
       heavyPreviewUsed: heavyPreviewUsed || undefined,
+      unverifiedTranscriptionUsed: reservedUnverifiedTranscription || undefined,
     });
   } catch (error) {
+    await releaseUnverifiedTranscriptionReservation();
     await releaseHeavyPreviewReservation();
     console.error("transcribe error", error);
     return res.status(500).json({

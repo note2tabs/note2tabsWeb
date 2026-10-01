@@ -34,9 +34,9 @@ export default function SignupPage() {
   const nextHref = useMemo(() => {
     const raw = router.query.next;
     const value = Array.isArray(raw) ? raw[0] : raw;
-    if (typeof value !== "string") return "/home";
+    if (typeof value !== "string") return "/transcriber";
     const trimmed = value.trim();
-    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "/home";
+    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "/transcriber";
     return trimmed;
   }, [router.query.next]);
   const loginHref =
@@ -107,10 +107,10 @@ export default function SignupPage() {
         ...(fromTabShareEmail ? { signup_source: TAB_SHARE_EMAIL_SOURCE } : {}),
         ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
       });
-      // Keep the newly created account signed in while email verification is
-      // completed. Unverified accounts remain blocked from transcription by
-      // the existing server checks, but the verification link can return the
-      // musician directly to the transcription they already prepared.
+      // Keep the newly created account signed in and take them directly to
+      // their intended destination. New accounts may complete one standard
+      // transcription before verification; Heavy preview access still
+      // requires a verified email.
       await signIn("credentials", {
         redirect: false,
         email,
@@ -118,10 +118,7 @@ export default function SignupPage() {
         fingerprintId,
         callbackUrl: nextHref,
       }).catch(() => null);
-      const nextEmail = encodeURIComponent((data?.email as string) || email);
-      const sentParam = data?.emailSent === false ? "&sent=0" : "";
-      const nextParam = nextHref === "/" ? "" : `&next=${encodeURIComponent(nextHref)}`;
-      await router.push(`/auth/verify-email?email=${nextEmail}${sentParam}${nextParam}`);
+      await router.push(nextHref);
     } catch (requestError) {
       setError("We could not reach the sign-up service. Check your connection and try again.");
       sendEvent(ANALYTICS_EVENTS.signupFailed, {
