@@ -722,6 +722,10 @@ export default function TranscriberPage() {
       : "Generating..."
     : mode === "FILE" && !selectedFile
     ? "Choose audio file"
+    : sessionStatus === "loading"
+    ? "Checking account…"
+    : !isSignedIn
+    ? "Continue to sign in"
     : heavyPreviewAvailable && transcriptionModel === "super_heavy"
     ? "Use free Heavy preview"
     : "Generate tabs";
@@ -1561,7 +1565,10 @@ export default function TranscriberPage() {
                       <button type="button" className={`button-secondary instrument-choice-button ${multipleGuitars === false ? "active" : ""}`} onClick={() => setMultipleGuitars(false)} aria-pressed={multipleGuitars === false} disabled={loading || authHandoffBusy}>No</button>
                     </div>
                   </div>
-                  <button type="button" className="button-primary instrument-start-button" onClick={handleInstrumentPromptStart} disabled={loading || !instrumentPromptComplete}>{heavyPreviewAvailable && transcriptionModel === "super_heavy" ? "Use free Heavy preview" : "Start transcription"}</button>
+                  <div className="transcription-auth-cta">
+                    <button type="button" className="button-primary instrument-start-button" onClick={handleInstrumentPromptStart} disabled={loading || !instrumentPromptComplete}>{!isSignedIn ? "Continue to sign in" : heavyPreviewAvailable && transcriptionModel === "super_heavy" ? "Use free Heavy preview" : "Start transcription"}</button>
+                    {!isSignedIn && <p>A free account is required. Your selection will be saved.</p>}
+                  </div>
                 </div>
               ) : (
                 <>
@@ -1639,13 +1646,21 @@ export default function TranscriberPage() {
                           YouTube link
                         </button>
                       </div>
-                      <button
-                        type="submit"
-                        className="button-primary funnel-submit"
-                        disabled={loading || authHandoffBusy || (mode === "YOUTUBE" && !canSubmit)}
-                      >
-                        {submitLabel}
-                      </button>
+                      <div className="transcription-auth-cta transcription-auth-cta--toolbar">
+                        <button
+                          type="submit"
+                          className="button-primary funnel-submit"
+                          disabled={
+                            loading ||
+                            authHandoffBusy ||
+                            (mode === "YOUTUBE" && !canSubmit) ||
+                            (mode === "FILE" && Boolean(selectedFile) && !canSubmit)
+                          }
+                        >
+                          {submitLabel}
+                        </button>
+                        {!isSignedIn && canSubmit && <p>A free account is required. Your selection will be saved.</p>}
+                      </div>
                     </div>
                   </div>
 
