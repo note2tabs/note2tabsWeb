@@ -8347,6 +8347,22 @@ input[type="number"] {
   gap: 5px;
 }
 
+.transcription-auth-cta--toolbar {
+  position: relative;
+  justify-items: end;
+}
+
+.transcription-auth-cta--toolbar p {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  text-align: right;
+}
+
+.transcription-auth-cta--toolbar:has(p) {
+  margin-bottom: 13px;
+}
+
 .transcription-auth-cta p {
   margin: 0;
   color: #858b87;
@@ -9911,7 +9927,13 @@ input[type="number"] {
     justify-items: stretch;
   }
 
-  .transcription-auth-cta p {
+  .transcription-auth-cta--toolbar:has(p) {
+    margin-bottom: 0;
+  }
+
+  .transcription-auth-cta--toolbar p {
+    position: static;
+    text-align: center;
     white-space: normal;
   }
 
