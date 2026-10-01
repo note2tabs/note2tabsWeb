@@ -8344,20 +8344,16 @@ input[type="number"] {
 .transcription-auth-cta {
   display: grid;
   justify-items: center;
-  gap: 7px;
-}
-
-.transcription-auth-cta--toolbar {
-  justify-items: end;
+  gap: 5px;
 }
 
 .transcription-auth-cta p {
   margin: 0;
-  max-width: 260px;
-  color: #6b7280;
-  font-size: 0.72rem;
-  line-height: 1.35;
+  color: #858b87;
+  font-size: 0.66rem;
+  line-height: 1.2;
   text-align: center;
+  white-space: nowrap;
 }
 
 .funnel-input input {
@@ -9916,7 +9912,7 @@ input[type="number"] {
   }
 
   .transcription-auth-cta p {
-    max-width: none;
+    white-space: normal;
   }
 
   .mode-switch--hero {
