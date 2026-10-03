@@ -10,6 +10,7 @@ export type ActiveCheckoutAttempt = {
   funnelId?: string;
   plan?: string;
   billingInterval?: string;
+  checkoutCurrency?: string;
   source?: string;
   reason?: string;
   startedAt: number;
@@ -59,6 +60,7 @@ export function trackCheckoutCancellation(funnelIdFromUrl?: string) {
     funnel_id: attempt?.funnelId || funnelIdFromUrl,
     plan: attempt?.plan,
     billing_interval: attempt?.billingInterval,
+    checkout_currency: attempt?.checkoutCurrency,
     source: attempt?.source,
     reason: attempt?.reason,
     elapsed_seconds: attempt ? Math.max(0, Math.round((Date.now() - attempt.startedAt) / 1000)) : undefined,

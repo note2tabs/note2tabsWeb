@@ -1251,6 +1251,8 @@ export default function TranscriberPage() {
         plan: "premium_monthly",
         checkout_attempt_id: payload.checkoutAttemptId,
         checkout_session_id: payload.checkoutSessionId,
+        checkout_currency: payload.checkoutCurrency,
+        local_currency_eligible: payload.localCurrencyEligible,
         ...premiumFunnelProperties(funnel),
       });
       rememberCheckoutAttempt({
@@ -1259,6 +1261,7 @@ export default function TranscriberPage() {
         funnelId: funnel.funnelId,
         plan: "premium_monthly",
         billingInterval: "monthly",
+        checkoutCurrency: payload.checkoutCurrency,
         source: funnel.source,
         reason: funnel.reason,
       });

@@ -41,6 +41,7 @@ describe("checkout tracking", () => {
       funnelId: "funnel_123",
       plan: "premium_monthly",
       billingInterval: "monthly",
+      checkoutCurrency: "gbp",
       source: "pricing_page",
       reason: "plan_comparison",
     });
@@ -55,6 +56,7 @@ describe("checkout tracking", () => {
       checkout_attempt_id: "attempt_123",
       funnel_id: "funnel_123",
       plan: "premium_monthly",
+      checkout_currency: "gbp",
       event_source: "stripe_cancel_return",
       $insert_id: "checkout-cancelled:cs_123",
     }));

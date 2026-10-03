@@ -188,6 +188,8 @@ export default function PricingPage() {
         billing_interval: billingInterval,
         checkout_attempt_id: payload.checkoutAttemptId,
         checkout_session_id: payload.checkoutSessionId,
+        checkout_currency: payload.checkoutCurrency,
+        local_currency_eligible: payload.localCurrencyEligible,
         ...premiumFunnelProperties(funnel),
         ...premiumOfferExperimentProperties(offerVariant),
       });
@@ -197,6 +199,7 @@ export default function PricingPage() {
         funnelId: funnel.funnelId,
         plan: `${plan.toLowerCase()}_${billingInterval}`,
         billingInterval,
+        checkoutCurrency: payload.checkoutCurrency,
         source: funnel.source,
         reason: funnel.reason,
       });

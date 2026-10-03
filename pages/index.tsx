@@ -1468,6 +1468,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         billing_interval: pricingBillingInterval,
         checkout_attempt_id: data.checkoutAttemptId,
         checkout_session_id: data.checkoutSessionId,
+        checkout_currency: data.checkoutCurrency,
+        local_currency_eligible: data.localCurrencyEligible,
         ...premiumFunnelProperties(funnel),
       });
       rememberCheckoutAttempt({
@@ -1476,6 +1478,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         funnelId: funnel.funnelId,
         plan: `${plan.toLowerCase()}_${pricingBillingInterval}`,
         billingInterval: pricingBillingInterval,
+        checkoutCurrency: data.checkoutCurrency,
         source: funnel.source,
         reason: funnel.reason,
       });
@@ -1527,6 +1530,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         plan: "premium_monthly",
         checkout_attempt_id: payload.checkoutAttemptId,
         checkout_session_id: payload.checkoutSessionId,
+        checkout_currency: payload.checkoutCurrency,
+        local_currency_eligible: payload.localCurrencyEligible,
         ...premiumFunnelProperties(funnel),
       });
       rememberCheckoutAttempt({
@@ -1535,6 +1540,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         funnelId: funnel.funnelId,
         plan: "premium_monthly",
         billingInterval: "monthly",
+        checkoutCurrency: payload.checkoutCurrency,
         source: funnel.source,
         reason: funnel.reason,
       });

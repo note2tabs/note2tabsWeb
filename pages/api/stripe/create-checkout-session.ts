@@ -290,6 +290,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       request_id: requestId,
       checkout_attempt_id: requestId,
       checkout_session_id: checkout.id,
+      checkout_currency: checkout.currency || undefined,
+      local_currency_eligible: true,
       $insert_id: `checkout-started:${checkout.id}`,
     });
     if (activeAttribution) {
@@ -323,6 +325,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       url: checkout.url,
       checkoutAttemptId: requestId,
       checkoutSessionId: checkout.id,
+      checkoutCurrency: checkout.currency || undefined,
+      localCurrencyEligible: true,
       funnelId,
       plan: requestedPlan.toLowerCase(),
       billingInterval,

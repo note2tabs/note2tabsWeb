@@ -184,6 +184,7 @@ describe("stripe premium flow", () => {
     stripeMock.checkout.sessions.create.mockResolvedValue({
       id: "cs_test_123",
       url: "https://checkout.stripe.test/session_123",
+      currency: "gbp",
     });
     stripeMock.promotionCodes.list.mockResolvedValue({ data: [] });
     stripeMock.checkout.sessions.retrieve.mockResolvedValue(null);
@@ -384,6 +385,8 @@ describe("stripe premium flow", () => {
         url: "https://checkout.stripe.test/session_123",
         checkoutAttemptId: "local",
         checkoutSessionId: "cs_test_123",
+        checkoutCurrency: "gbp",
+        localCurrencyEligible: true,
         funnelId: "funnel_test_123",
         plan: "premium",
         billingInterval: "monthly",

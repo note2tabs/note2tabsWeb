@@ -218,6 +218,8 @@ function trackSubscriptionStarted(userId: string, session: Stripe.Checkout.Sessi
       trial_included: session.metadata?.premiumTrialIncluded === "true",
       offer_variant: normalizePremiumOfferVariant(session.metadata?.premiumOfferVariant),
       model,
+      checkout_session_id: session.id,
+      ...checkoutCurrencyProperties(session),
       event_source: "stripe_webhook",
       $insert_id: `subscription-started:${session.id}`,
     },
@@ -323,6 +325,18 @@ function checkoutAnalyticsPlan(session: Stripe.Checkout.Session) {
   return rawPlan === "pro" || rawPlan === "premium" ? `${rawPlan}_${interval}` : undefined;
 }
 
+function checkoutCurrencyProperties(session: Stripe.Checkout.Session) {
+  const localizedSession = session as Stripe.Checkout.Session & {
+    adaptive_pricing?: { enabled?: boolean } | null;
+    presentment_details?: { presentment_currency?: string } | null;
+  };
+  return {
+    checkout_currency: session.currency || undefined,
+    presentment_currency: localizedSession.presentment_details?.presentment_currency || undefined,
+    adaptive_pricing_enabled: localizedSession.adaptive_pricing?.enabled === true,
+  };
+}
+
 async function trackCheckoutLifecycle(
   session: Stripe.Checkout.Session,
   event: "checkout_abandoned" | "checkout_payment_failed",
@@ -351,6 +365,7 @@ async function trackCheckoutLifecycle(
       funnel_id: normalizePremiumFunnelId(session.metadata?.premiumFunnelId) || undefined,
       checkout_status: session.status || undefined,
       payment_status: session.payment_status || undefined,
+      ...checkoutCurrencyProperties(session),
       event_source: "stripe_webhook",
       ...additionalProperties,
       $insert_id: event === "checkout_payment_failed"

@@ -350,6 +350,8 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         plan: "premium_monthly",
         checkout_attempt_id: data.checkoutAttemptId,
         checkout_session_id: data.checkoutSessionId,
+        checkout_currency: data.checkoutCurrency,
+        local_currency_eligible: data.localCurrencyEligible,
         ...premiumFunnelProperties(funnel),
       });
       rememberCheckoutAttempt({
@@ -358,6 +360,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         funnelId: funnel.funnelId,
         plan: "premium_monthly",
         billingInterval: "monthly",
+        checkoutCurrency: data.checkoutCurrency,
         source: funnel.source,
         reason: funnel.reason,
       });
