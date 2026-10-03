@@ -110,6 +110,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Choose monthly or yearly billing." });
   }
   const billingInterval: BillingInterval = rawBillingInterval;
+  const rawDisplayCurrency = typeof req.body?.displayCurrency === "string"
+    ? req.body.displayCurrency.toLowerCase()
+    : "usd";
+  const siteDisplayCurrency = ["usd", "gbp", "eur", "sek"].includes(rawDisplayCurrency)
+    ? rawDisplayCurrency
+    : "usd";
   if (requestedPlan === "PRO" && !proPlanCheckoutEnabled()) {
     return res.status(503).json({ error: "Pro checkout is not available yet." });
   }
@@ -239,6 +245,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       premiumTrialIncluded: trialIncluded ? "true" : "false",
       premiumOfferMode: trialIncluded ? "seven_day_trial" : "immediate_charge",
       note2tabsCheckoutAttemptId: requestId,
+      note2tabsDisplayCurrency: siteDisplayCurrency,
       ...(activeAttribution
         ? {
             note2tabsAffiliateId: activeAttribution.affiliateId,
@@ -292,6 +299,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       checkout_session_id: checkout.id,
       checkout_currency: checkout.currency || undefined,
       local_currency_eligible: true,
+      site_display_currency: siteDisplayCurrency,
       $insert_id: `checkout-started:${checkout.id}`,
     });
     if (activeAttribution) {

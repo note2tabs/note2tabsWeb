@@ -5,6 +5,12 @@ local prices on the existing Stripe Prices. Stripe Checkout uses the
 customer's checkout location to select an eligible currency; Note2Tabs does
 not persist IP addresses or trust a browser-supplied country.
 
+Vercel supplies `x-vercel-ip-country` at the edge for the homepage and pricing
+page. The proxy converts it immediately to a 30-day `n2t_currency` cookie that
+contains only `USD`, `GBP`, `EUR`, or `SEK`. The country and IP are not written
+to that cookie. Public pricing cards read the preference after page load and
+display the same fixed values configured in Stripe.
+
 Configured live prices as of 2026-10-03:
 
 | Plan | USD | GBP | EUR | SEK |
@@ -25,4 +31,5 @@ payment details.
 
 To roll back, remove or disable the added currency options in Stripe's Product
 catalogue for the four Note2Tabs recurring Prices. No application deployment
-or database migration is required to revert the price configuration.
+or database migration is required to revert the Stripe configuration. Revert
+the localized-pricing application commit separately to restore USD-only cards.

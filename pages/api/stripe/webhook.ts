@@ -360,6 +360,7 @@ async function trackCheckoutLifecycle(
       checkout_attempt_id: session.metadata?.note2tabsCheckoutAttemptId || undefined,
       plan: checkoutAnalyticsPlan(session),
       billing_interval: session.metadata?.note2tabsBillingInterval || undefined,
+      site_display_currency: session.metadata?.note2tabsDisplayCurrency || undefined,
       source: normalizePremiumFunnelSource(session.metadata?.premiumFunnelSource),
       reason: normalizePremiumFunnelReason(session.metadata?.premiumFunnelReason),
       funnel_id: normalizePremiumFunnelId(session.metadata?.premiumFunnelId) || undefined,

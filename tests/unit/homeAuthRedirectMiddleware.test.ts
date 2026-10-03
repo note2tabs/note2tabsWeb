@@ -49,4 +49,14 @@ describe("signed-in root redirect proxy", () => {
 
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
+
+  it("sets a local currency preference on the public pricing page without authenticating", async () => {
+    const response = await proxy(new NextRequest("https://www.note2tabs.com/pricing", {
+      headers: { "x-vercel-ip-country": "GB" },
+    }));
+
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.cookies.get("n2t_currency")?.value).toBe("GBP");
+    expect(mockedGetToken).not.toHaveBeenCalled();
+  });
 });

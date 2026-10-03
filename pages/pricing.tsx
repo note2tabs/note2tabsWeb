@@ -23,6 +23,8 @@ import { proPlanPresentationEnabled, type PaidSubscriptionPlan } from "../lib/su
 import type { BillingInterval } from "../lib/stripePremium";
 import { buildPricingProductStructuredData } from "../lib/pricingStructuredData";
 import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
+import { formatLocalizedAmount, formatLocalizedPrice, localizedAnnualSaving, readDisplayCurrencyCookie } from "../lib/localizedPricing";
+import { useDisplayCurrency } from "../lib/useDisplayCurrency";
 
 const pricingFaqs = [
   {
@@ -57,6 +59,7 @@ export default function PricingPage() {
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("monthly");
+  const displayCurrency = useDisplayCurrency();
   const resumedCheckoutRef = useRef(false);
   const pricingViewTrackedRef = useRef(false);
   const funnelContextRef = useRef<PremiumFunnelContext | null>(null);
@@ -137,6 +140,7 @@ export default function PricingPage() {
     const funnel = getFunnelContext();
     sendEvent(ANALYTICS_EVENTS.pricingViewed, {
       path: "/pricing",
+      display_currency: readDisplayCurrencyCookie(document.cookie).toLowerCase(),
       ...premiumFunnelProperties(funnel),
       ...premiumOfferExperimentProperties(offerVariant),
     });
@@ -149,6 +153,7 @@ export default function PricingPage() {
       cta: plan === "PRO" ? "pro_offer" : "premium_offer",
       plan: plan.toLowerCase(),
       billing_interval: billingInterval,
+      display_currency: displayCurrency.toLowerCase(),
       signedIn: Boolean(session),
       path: "/pricing",
       ...premiumFunnelProperties(funnel),
@@ -177,6 +182,7 @@ export default function PricingPage() {
           offerVariant,
           plan: plan.toLowerCase(),
           billingInterval,
+          displayCurrency: displayCurrency.toLowerCase(),
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -219,7 +225,7 @@ export default function PricingPage() {
       );
       setCheckoutBusy(false);
     }
-  }, [billingInterval, checkoutBusy, currentPlan, getFunnelContext, hasPaidPremium, hasStaffAccess, offerVariant, router, session]);
+  }, [billingInterval, checkoutBusy, currentPlan, displayCurrency, getFunnelContext, hasPaidPremium, hasStaffAccess, offerVariant, router, session]);
 
   useEffect(() => {
     if (!router.isReady || router.query.checkout !== "1") return;
@@ -253,7 +259,7 @@ export default function PricingPage() {
 
             {showPro && <div className="pricing-billing-toggle" role="group" aria-label="Billing interval">
               <button type="button" aria-pressed={billingInterval === "monthly"} className={billingInterval === "monthly" ? "is-active" : ""} onClick={() => setBillingInterval("monthly")}>Monthly</button>
-              <button type="button" aria-pressed={billingInterval === "yearly"} className={billingInterval === "yearly" ? "is-active" : ""} onClick={() => setBillingInterval("yearly")}>Yearly <span>Save $30!</span></button>
+              <button type="button" aria-pressed={billingInterval === "yearly"} className={billingInterval === "yearly" ? "is-active" : ""} onClick={() => setBillingInterval("yearly")}>Yearly <span>Save {localizedAnnualSaving("PRO", displayCurrency)}!</span></button>
             </div>}
 
             <section className={`pricing-page__plans${showPro ? " pricing-page__plans--three" : ""}`} aria-label="Note2Tabs plans">
@@ -261,7 +267,7 @@ export default function PricingPage() {
                 <div className="pricing-plan__top">
                   <h2>Free</h2>
                   <div className="pricing-plan__price">
-                    <strong>$0</strong>
+                    <strong>{formatLocalizedAmount(0, displayCurrency)}</strong>
                     <span>/ month</span>
                   </div>
                 </div>
@@ -293,7 +299,7 @@ export default function PricingPage() {
                 <div className="pricing-plan__top">
                   <h2>Premium</h2>
                   <div className="pricing-plan__price">
-                    <strong>{billingInterval === "yearly" ? "$59.99" : "$5.99"}</strong>
+                    <strong>{formatLocalizedPrice("PREMIUM", billingInterval, displayCurrency)}</strong>
                     <span>/ {billingInterval === "yearly" ? "year" : "month"}</span>
                   </div>
                 </div>
@@ -318,8 +324,8 @@ export default function PricingPage() {
                 )}
                 <p className="pricing-plan__reassurance">
                   {billingInterval === "yearly"
-                    ? <><span>$59.99 billed today · </span><span className="pricing-plan__saving">Save $12 per year</span><span> · Cancel anytime</span></>
-                    : premiumOfferReassurance(offerEligibility, offerVariant)}
+                    ? <><span>{formatLocalizedPrice("PREMIUM", "yearly", displayCurrency)} billed today · </span><span className="pricing-plan__saving">Save {localizedAnnualSaving("PREMIUM", displayCurrency)} per year</span><span> · Cancel anytime</span></>
+                    : premiumOfferReassurance(offerEligibility, offerVariant, formatLocalizedPrice("PREMIUM", "monthly", displayCurrency))}
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
@@ -335,7 +341,7 @@ export default function PricingPage() {
               {showPro && <article className="pricing-plan pricing-plan--pro">
                 <div className="pricing-plan__top">
                   <h2>Pro</h2>
-                  <div className="pricing-plan__price"><strong>{billingInterval === "yearly" ? "$149.99" : "$14.99"}</strong><span>/ {billingInterval === "yearly" ? "year" : "month"}</span></div>
+                  <div className="pricing-plan__price"><strong>{formatLocalizedPrice("PRO", billingInterval, displayCurrency)}</strong><span>/ {billingInterval === "yearly" ? "year" : "month"}</span></div>
                 </div>
                 {currentPlan === "PRO" || hasStaffAccess ? (
                   <Link href={hasStaffAccess ? "/transcribe" : "/settings"} className="pricing-plan__cta pricing-plan__cta--secondary">
@@ -346,7 +352,7 @@ export default function PricingPage() {
                     {checkoutBusy ? "Opening…" : currentPlan === "PREMIUM" ? "Upgrade to Pro" : "Choose Pro"}
                   </button>
                 )}
-                <p className="pricing-plan__reassurance">{billingInterval === "yearly" ? <><span>$149.99 billed today · </span><span className="pricing-plan__saving">Save $30 per year</span></> : "$14.99 billed today · Cancel anytime"}</p>
+                <p className="pricing-plan__reassurance">{billingInterval === "yearly" ? <><span>{formatLocalizedPrice("PRO", "yearly", displayCurrency)} billed today · </span><span className="pricing-plan__saving">Save {localizedAnnualSaving("PRO", displayCurrency)} per year</span></> : `${formatLocalizedPrice("PRO", "monthly", displayCurrency)} billed today · Cancel anytime`}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li>Everything in Premium</li>

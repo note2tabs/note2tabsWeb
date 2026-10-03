@@ -52,14 +52,15 @@ export function premiumOfferCtaLabel(
 
 export function premiumOfferReassurance(
   eligibility: PremiumOfferEligibility,
-  variant: PremiumOfferVariant = "control"
+  variant: PremiumOfferVariant = "control",
+  monthlyPrice = "$5.99"
 ) {
-  if (!premiumTrialPresentationEnabled()) return "$5.99 billed today · Cancel anytime";
+  if (!premiumTrialPresentationEnabled()) return `${monthlyPrice} billed today · Cancel anytime`;
   if (eligibility === "eligible") {
     return variant === "value_framing"
-      ? "7 days free, then $5.99/month · Cancel anytime"
-      : "$5.99/month after trial · Cancel anytime";
+      ? `7 days free, then ${monthlyPrice}/month · Cancel anytime`
+      : `${monthlyPrice}/month after trial · Cancel anytime`;
   }
-  if (eligibility === "ineligible") return "$5.99/month · Cancel anytime";
+  if (eligibility === "ineligible") return `${monthlyPrice}/month · Cancel anytime`;
   return "7-day trial for eligible new subscribers · Cancel anytime";
 }
