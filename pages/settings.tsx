@@ -38,6 +38,7 @@ import {
   getOrCreatePremiumFunnelContext,
   premiumFunnelProperties,
 } from "../lib/premiumFunnel";
+import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
 
 type Props = {
   user: {
@@ -348,7 +349,17 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         plan: "premium_monthly",
         checkout_attempt_id: data.checkoutAttemptId,
+        checkout_session_id: data.checkoutSessionId,
         ...premiumFunnelProperties(funnel),
+      });
+      rememberCheckoutAttempt({
+        checkoutSessionId: data.checkoutSessionId,
+        checkoutAttemptId: data.checkoutAttemptId,
+        funnelId: funnel.funnelId,
+        plan: "premium_monthly",
+        billingInterval: "monthly",
+        source: funnel.source,
+        reason: funnel.reason,
       });
       window.location.href = data.url;
     } catch {

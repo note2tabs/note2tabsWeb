@@ -18,6 +18,7 @@ import {
 import { buildTranscriptionResearchProperties } from "../lib/retentionResearch";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
+import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
@@ -1466,7 +1467,17 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         plan: `${plan.toLowerCase()}_${pricingBillingInterval}`,
         billing_interval: pricingBillingInterval,
         checkout_attempt_id: data.checkoutAttemptId,
+        checkout_session_id: data.checkoutSessionId,
         ...premiumFunnelProperties(funnel),
+      });
+      rememberCheckoutAttempt({
+        checkoutSessionId: data.checkoutSessionId,
+        checkoutAttemptId: data.checkoutAttemptId,
+        funnelId: funnel.funnelId,
+        plan: `${plan.toLowerCase()}_${pricingBillingInterval}`,
+        billingInterval: pricingBillingInterval,
+        source: funnel.source,
+        reason: funnel.reason,
       });
       if (data.url) window.location.href = data.url;
       else await router.push("/settings?planChanged=1");
@@ -1515,7 +1526,17 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         plan: "premium_monthly",
         checkout_attempt_id: payload.checkoutAttemptId,
+        checkout_session_id: payload.checkoutSessionId,
         ...premiumFunnelProperties(funnel),
+      });
+      rememberCheckoutAttempt({
+        checkoutSessionId: payload.checkoutSessionId,
+        checkoutAttemptId: payload.checkoutAttemptId,
+        funnelId: funnel.funnelId,
+        plan: "premium_monthly",
+        billingInterval: "monthly",
+        source: funnel.source,
+        reason: funnel.reason,
       });
       window.location.assign(payload.url);
     } catch (upgradeError) {

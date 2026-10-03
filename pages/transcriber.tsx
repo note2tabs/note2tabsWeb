@@ -54,6 +54,7 @@ import PremiumConversionCard from "../components/PremiumConversionCard";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
+import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
 import {
   clearPendingTranscription,
   peekPendingTranscription,
@@ -1249,7 +1250,17 @@ export default function TranscriberPage() {
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         plan: "premium_monthly",
         checkout_attempt_id: payload.checkoutAttemptId,
+        checkout_session_id: payload.checkoutSessionId,
         ...premiumFunnelProperties(funnel),
+      });
+      rememberCheckoutAttempt({
+        checkoutSessionId: payload.checkoutSessionId,
+        checkoutAttemptId: payload.checkoutAttemptId,
+        funnelId: funnel.funnelId,
+        plan: "premium_monthly",
+        billingInterval: "monthly",
+        source: funnel.source,
+        reason: funnel.reason,
       });
       window.location.assign(payload.url);
     } catch (upgradeError) {

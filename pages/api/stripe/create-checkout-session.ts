@@ -53,6 +53,14 @@ const appendCheckoutSessionId = (path: string) => {
 const premiumWelcomePath = (next: string) =>
   `/premium/welcome?next=${encodeURIComponent(next)}`;
 
+const appendQueryParam = (path: string, key: string, value: string) => {
+  const hashIndex = path.indexOf("#");
+  const pathAndQuery = hashIndex >= 0 ? path.slice(0, hashIndex) : path;
+  const hash = hashIndex >= 0 ? path.slice(hashIndex) : "";
+  const separator = pathAndQuery.includes("?") ? "&" : "?";
+  return `${pathAndQuery}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}${hash}`;
+};
+
 const resolveCheckoutReturnPaths = (requestedPath: unknown) => {
   if (requestedPath === "/transcribe?resumeTranscription=1") {
     return {
@@ -230,6 +238,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       premiumFunnelModel: model,
       premiumTrialIncluded: trialIncluded ? "true" : "false",
       premiumOfferMode: trialIncluded ? "seven_day_trial" : "immediate_charge",
+      note2tabsCheckoutAttemptId: requestId,
       ...(activeAttribution
         ? {
             note2tabsAffiliateId: activeAttribution.affiliateId,
@@ -256,7 +265,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? { discounts: [{ promotion_code: activeAttribution.affiliate.stripePromotionCodeId }] }
           : { allow_promotion_codes: true }),
         success_url: `${baseUrl}${appendCheckoutSessionId(returnPaths.success)}`,
-        cancel_url: `${baseUrl}${returnPaths.cancel}`,
+        cancel_url: `${baseUrl}${appendQueryParam(returnPaths.cancel, "funnel_id", funnelId)}`,
         metadata: checkoutMetadata,
       },
       { idempotencyKey: `${requestedPlan.toLowerCase()}-${billingInterval}-checkout-${session.user.id}-${checkoutStateHash}` }
@@ -279,6 +288,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       model,
       device_type: deviceType,
       request_id: requestId,
+      checkout_attempt_id: requestId,
+      checkout_session_id: checkout.id,
       $insert_id: `checkout-started:${checkout.id}`,
     });
     if (activeAttribution) {
@@ -311,6 +322,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({
       url: checkout.url,
       checkoutAttemptId: requestId,
+      checkoutSessionId: checkout.id,
       funnelId,
       plan: requestedPlan.toLowerCase(),
       billingInterval,

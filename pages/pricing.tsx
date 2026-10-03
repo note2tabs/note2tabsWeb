@@ -22,6 +22,7 @@ import { usePremiumOfferExperiment } from "../lib/usePremiumOfferExperiment";
 import { proPlanPresentationEnabled, type PaidSubscriptionPlan } from "../lib/subscriptionPlans";
 import type { BillingInterval } from "../lib/stripePremium";
 import { buildPricingProductStructuredData } from "../lib/pricingStructuredData";
+import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
 
 const pricingFaqs = [
   {
@@ -186,8 +187,18 @@ export default function PricingPage() {
         plan: `${plan.toLowerCase()}_${billingInterval}`,
         billing_interval: billingInterval,
         checkout_attempt_id: payload.checkoutAttemptId,
+        checkout_session_id: payload.checkoutSessionId,
         ...premiumFunnelProperties(funnel),
         ...premiumOfferExperimentProperties(offerVariant),
+      });
+      rememberCheckoutAttempt({
+        checkoutSessionId: payload.checkoutSessionId,
+        checkoutAttemptId: payload.checkoutAttemptId,
+        funnelId: funnel.funnelId,
+        plan: `${plan.toLowerCase()}_${billingInterval}`,
+        billingInterval,
+        source: funnel.source,
+        reason: funnel.reason,
       });
       if (payload.url) window.location.assign(payload.url);
       else await router.push("/settings?planChanged=1");

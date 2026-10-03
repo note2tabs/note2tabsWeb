@@ -11,6 +11,7 @@ import RouteLoadingIndicator from "../components/RouteLoadingIndicator";
 import PremiumUpgradePrompt from "../components/PremiumUpgradePrompt";
 import UserActivityTracker from "../components/UserActivityTracker";
 import AffiliateAttributionCapture from "../components/AffiliateAttributionCapture";
+import CheckoutCancellationTracker from "../components/CheckoutCancellationTracker";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { sanitizeAnalyticsPathname } from "../lib/analyticsPrivacy";
 import { installStaleChunkRecovery } from "../lib/staleChunkRecovery";
@@ -101,6 +102,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         <AnalyticsIdentityLinker />
         <PremiumUpgradePrompt />
         <AffiliateAttributionCapture />
+        <CheckoutCancellationTracker />
       </div>
     </SessionProvider>
   );

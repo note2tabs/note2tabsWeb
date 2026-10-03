@@ -285,6 +285,83 @@ function trackSubscriptionLifecycle(
   flushPostHogServerClientInBackground(client);
 }
 
+type SafePaymentFailure = {
+  failure_code?: string;
+  decline_code?: string;
+  failure_type?: string;
+};
+
+function safePaymentFailure(error: Stripe.PaymentIntent.LastPaymentError | null | undefined): SafePaymentFailure {
+  if (!error) return {};
+  return {
+    failure_code: typeof error.code === "string" ? error.code : undefined,
+    decline_code: "decline_code" in error && typeof error.decline_code === "string"
+      ? error.decline_code
+      : undefined,
+    failure_type: typeof error.type === "string" ? error.type : undefined,
+  };
+}
+
+async function paymentFailureForReference(
+  paymentIntent: string | Stripe.PaymentIntent | null | undefined
+): Promise<SafePaymentFailure> {
+  if (!paymentIntent) return {};
+  try {
+    const intent = typeof paymentIntent === "string"
+      ? await stripeClient!.paymentIntents.retrieve(paymentIntent)
+      : paymentIntent;
+    return safePaymentFailure(intent.last_payment_error);
+  } catch (error) {
+    console.error("Stripe payment failure lookup failed", error);
+    return {};
+  }
+}
+
+function checkoutAnalyticsPlan(session: Stripe.Checkout.Session) {
+  const rawPlan = session.metadata?.note2tabsPlan?.toLowerCase();
+  const interval = session.metadata?.note2tabsBillingInterval === "yearly" ? "yearly" : "monthly";
+  return rawPlan === "pro" || rawPlan === "premium" ? `${rawPlan}_${interval}` : undefined;
+}
+
+async function trackCheckoutLifecycle(
+  session: Stripe.Checkout.Session,
+  event: "checkout_abandoned" | "checkout_payment_failed",
+  stripeEventId: string,
+  additionalProperties: SafePaymentFailure = {}
+) {
+  const identifier = await resolveUserIdentifierFromCheckoutSession(session);
+  const distinctId = identifier && "id" in identifier
+    ? identifier.id
+    : identifier && "email" in identifier
+      ? await resolveUserIdFromEmail(identifier.email)
+      : null;
+  if (!distinctId) return;
+  const client = createPostHogServerClient();
+  if (!client) return;
+  client.capture({
+    distinctId,
+    event,
+    properties: {
+      checkout_session_id: session.id,
+      checkout_attempt_id: session.metadata?.note2tabsCheckoutAttemptId || undefined,
+      plan: checkoutAnalyticsPlan(session),
+      billing_interval: session.metadata?.note2tabsBillingInterval || undefined,
+      source: normalizePremiumFunnelSource(session.metadata?.premiumFunnelSource),
+      reason: normalizePremiumFunnelReason(session.metadata?.premiumFunnelReason),
+      funnel_id: normalizePremiumFunnelId(session.metadata?.premiumFunnelId) || undefined,
+      checkout_status: session.status || undefined,
+      payment_status: session.payment_status || undefined,
+      event_source: "stripe_webhook",
+      ...additionalProperties,
+      $insert_id: event === "checkout_payment_failed"
+        ? `checkout-payment-failed:${session.id}`
+        : `checkout-abandoned:${session.id}`,
+      stripe_event_id: stripeEventId,
+    },
+  });
+  flushPostHogServerClientInBackground(client);
+}
+
 async function sendPremiumTrialReminder(
   userId: string,
   email: string,
@@ -853,6 +930,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    if (event.type === "checkout.session.expired") {
+      const checkoutSession = event.data.object as Stripe.Checkout.Session;
+      if (checkoutSession.metadata?.userId && checkoutSession.metadata?.note2tabsPlan) {
+        await trackCheckoutLifecycle(checkoutSession, "checkout_abandoned", event.id);
+      }
+    }
+
+    if (event.type === "checkout.session.async_payment_failed") {
+      const checkoutSession = event.data.object as Stripe.Checkout.Session;
+      if (checkoutSession.metadata?.userId && checkoutSession.metadata?.note2tabsPlan) {
+        const failure = await paymentFailureForReference(checkoutSession.payment_intent);
+        await trackCheckoutLifecycle(checkoutSession, "checkout_payment_failed", event.id, failure);
+      }
+    }
+
+    if (event.type === "payment_intent.payment_failed") {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      const sessions = await stripeClient.checkout.sessions.list({
+        payment_intent: paymentIntent.id,
+        limit: 1,
+      });
+      const checkoutSession = sessions.data[0];
+      if (checkoutSession?.metadata?.userId && checkoutSession.metadata?.note2tabsPlan) {
+        await trackCheckoutLifecycle(
+          checkoutSession,
+          "checkout_payment_failed",
+          event.id,
+          safePaymentFailure(paymentIntent.last_payment_error)
+        );
+      }
+    }
+
     if (event.type === "checkout.session.completed") {
       const checkoutSession = event.data.object as Stripe.Checkout.Session;
       const plan = await paidPlanForCheckoutSession(checkoutSession);
@@ -1068,11 +1177,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         normalizeEmail(invoice.customer_email) || (await resolveEmailFromCustomerRef(invoice.customer));
       const userId = await resolveUserIdFromSubscription(premiumSubscription, email);
       if (userId) {
+        const failure = await paymentFailureForReference(invoice.payment_intent);
         trackSubscriptionLifecycle(userId, "subscription_payment_failed", event.id, {
           status: premiumSubscription.status,
           attempt_count: invoice.attempt_count || 0,
           billing_reason: invoice.billing_reason || undefined,
           plan: PLAN_CATALOG[plan].analyticsId,
+          ...failure,
         });
         if (email && invoice.id) {
           await sendPaymentFailedNotice(
