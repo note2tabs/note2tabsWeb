@@ -27,7 +27,7 @@ import type { BillingInterval } from "../lib/stripePremium";
 
 const pricingFaqs = [
   { question: "How do transcription credits work?", answer: `Each started ${CREDIT_INTERVAL_SEC}-second segment costs ${getTranscriptionModelCreditsPerInterval("light")} credits with Light or ${getTranscriptionModelCreditsPerInterval("heavy")} with Heavy. A 60-second recording costs ${calculateTranscriptionCredits(60, "light")} Light credits or ${calculateTranscriptionCredits(60, "heavy")} Heavy credits. Light is faster for clear guitar recordings; Heavy handles more complex recordings.` },
-  { question: "How does billing work?", answer: "Your subscription is charged when you subscribe. Monthly plans renew each month; yearly plans renew annually. A payment method is required." },
+  { question: "How does billing work?", answer: "Your subscription is charged when you subscribe. Monthly plans renew each month; yearly plans renew annually." },
   { question: "Can I cancel anytime?", answer: "Yes. Cancel in account settings to stop your next renewal. Access continues through the current billing period." },
 ];
 
@@ -250,7 +250,7 @@ export default function PricingPage() {
               : <button type="button" className={`pricing-plan__cta pricing-plan__cta--${plan.id === "PREMIUM" ? "primary" : "secondary"}`} onClick={() => void startCheckout(paidId)} disabled={checkoutBusy || sessionStatus === "loading"}>{busyPlan === plan.id ? "Opening checkout…" : hasPaidPremium ? `Switch to ${plan.name}` : plan.id === "PREMIUM" ? "Get Premium" : "Choose Pro"}</button>}
             <div className="pricing-plan__reassurance">
               {!paid ? "No credit card required" : included || current ? "Manage your subscription in your account." : <>
-                {priceUsd(planPrice(paidId, billingInterval))}/{billingInterval === "yearly" ? "year" : "month"} billed today. Cancel anytime.<br />Payment method required.
+                {priceUsd(planPrice(paidId, billingInterval))}/{billingInterval === "yearly" ? "year" : "month"} billed today. Cancel anytime.
               </>}
             </div>
             {checkoutError && selectedPlan === plan.id && <div className="pricing-inline-error" role="alert"><p>{checkoutError}</p><button type="button" onClick={() => void startCheckout(paidId)} disabled={checkoutBusy}>Try again</button></div>}

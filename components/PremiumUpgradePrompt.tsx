@@ -218,7 +218,7 @@ export default function PremiumUpgradePrompt() {
       >
         Explore Premium
       </Link>
-      <small>Payment method required · Cancel anytime</small>
+      <small>Cancel anytime</small>
     </aside>
   );
 }
