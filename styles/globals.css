@@ -12766,3 +12766,49 @@ input[type="number"] {
     box-shadow: 0 0 0 1px rgba(255,255,255,.55);
   }
 }
+
+/* Pricing conversion layout: scoped to avoid changing shared home cards. */
+.pricing-header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px max(20px, calc((100vw - 1120px) / 2)); background:#fbf8f1; border-bottom:1px solid rgba(6,17,13,.08); }
+.pricing-header a { color:#06110d; font-weight:650; }
+.pricing-footer { display:flex; flex-wrap:wrap; justify-content:center; gap:16px 24px; padding:24px 20px; background:#f7f2e8; font-size:.85rem; }
+.pricing-footer a { color:#35463e; }
+.pricing-page--focused { padding:32px 0 36px; }
+.pricing-page--focused .pricing-page__hero { margin-bottom:22px; }
+.pricing-page--focused .pricing-page__hero h1 { font-size:clamp(1.8rem, 3.5vw, 2.8rem); line-height:1.15; letter-spacing:-.035em; }
+.pricing-page--focused .pricing-page__hero p { margin-top:12px; font-size:1rem; }
+.pricing-page--focused .pricing-billing-toggle { margin:0 auto 28px; }
+.pricing-page--focused .pricing-plan { display:flex; flex-direction:column; padding:28px 24px; border-radius:18px; box-shadow:none; }
+.pricing-page--focused .pricing-plan--premium { border:2px solid #12664d; box-shadow:0 8px 24px rgba(18,102,77,.08); }
+.pricing-page--focused .pricing-plan__top { min-height:150px; }
+.pricing-page--focused .pricing-plan__top > p { margin:8px 0 12px; }
+.pricing-page--focused .pricing-plan__price strong { font-size:2.5rem; }
+.pricing-page--focused .pricing-plan__reassurance { min-height:90px; margin:12px 0 0; font-size:.82rem; line-height:1.5; }
+.pricing-page--focused .pricing-plan__features { margin:0; }
+.pricing-page--focused .pricing-plan__badge { background:#12664d; color:white; }
+.pricing-credit-note { max-width:740px; margin:22px auto; text-align:center; color:#44534b; font-size:.9rem; line-height:1.6; }
+.pricing-comparison { max-width:980px; margin:24px auto 0; padding:16px 20px; border:1px solid rgba(6,17,13,.12); border-radius:12px; background:rgba(255,255,255,.6); }
+.pricing-comparison summary { cursor:pointer; font-weight:650; min-height:28px; }
+.pricing-comparison-scroll { overflow-x:auto; }
+.pricing-comparison table { width:100%; border-collapse:collapse; font-size:.9rem; margin:16px 0; }
+.pricing-comparison th, .pricing-comparison td { text-align:left; padding:12px 10px; border-bottom:1px solid rgba(6,17,13,.1); vertical-align:top; }
+.pricing-comparison caption { text-align:left; margin:10px 0; font-weight:650; }
+.pricing-comparison > p { font-size:.9rem; line-height:1.6; color:#44534b; }
+.pricing-page--focused .pricing-page__faq { margin-top:36px; }
+.pricing-page--focused button:focus-visible, .pricing-page--focused a:focus-visible, .pricing-page--focused summary:focus-visible, .pricing-header a:focus-visible, .pricing-footer a:focus-visible { outline:3px solid #16805f; outline-offset:4px; }
+.pricing-inline-error { padding:12px; margin-top:12px; background:#fff1ed; border-radius:8px; color:#872e18; font-size:.9rem; }
+.pricing-inline-error p { margin:0 0 8px; }
+.pricing-inline-error button { min-height:44px; padding:8px 16px; border:1px solid currentColor; border-radius:6px; background:white; cursor:pointer; }
+.pricing-return-message { text-align:center; margin:0 auto 20px; }
+.pricing-status { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+.checkout-plan-summary { padding:16px; background:#edf5ef; border:1px solid #c6decf; border-radius:12px; color:#173d2f; }
+.checkout-plan-summary p { margin:8px 0; }
+.checkout-plan-summary small { line-height:1.5; display:block; }
+@media(max-width:760px) {
+  .pricing-page--focused { padding-top:24px; }
+  .pricing-page--focused .pricing-plan__top { min-height:0; margin-bottom:18px; }
+  .pricing-page--focused .pricing-plan__reassurance { min-height:0; }
+  .pricing-page--focused .pricing-plan__price strong { font-size:2.4rem; }
+  .pricing-page--focused .pricing-page__hero h1 { font-size:1.9rem; }
+  .pricing-comparison { padding:16px 12px; }
+  .pricing-comparison th, .pricing-comparison td { padding:10px 6px; }
+}

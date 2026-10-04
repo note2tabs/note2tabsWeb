@@ -1,3 +1,4 @@
+import { PricingHeader, PricingFooter } from "../components/PricingChrome";
 import type { AppProps } from "next/app";
 import dynamic from "next/dynamic";
 import Head from "next/head";
@@ -24,6 +25,7 @@ const AnalyticsIdentityLinker = dynamic(() => import("../components/AnalyticsIde
 
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   const router = useRouter();
+  const isPricingPage = router.pathname === "/pricing";
   const isGteEditorPage = router.pathname === "/gte/[editor_id]";
   const isProductHomePage = router.pathname === "/home";
 
@@ -76,7 +78,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
       <div className="app-shell">
         <RouteLoadingIndicator />
         <a className="skip-link" href="#main-content">Skip to main content</a>
-        <NavBar editorRevealMode={isGteEditorPage} />
+        {isPricingPage ? <PricingHeader /> : <NavBar editorRevealMode={isGteEditorPage} />}
         <div
           id="main-content"
           className="flex-1"
@@ -85,7 +87,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         >
           <Component {...pageProps} />
         </div>
-        {!isGteEditorPage && !isProductHomePage && <FooterBar />}
+        {isPricingPage ? <PricingFooter /> : !isGteEditorPage && !isProductHomePage && <FooterBar />}
         <SessionAccountRefresher />
         <UserActivityTracker />
         <AnalyticsIdentityLinker />

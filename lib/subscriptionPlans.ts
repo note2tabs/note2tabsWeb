@@ -7,6 +7,7 @@ export type SubscriptionPlanDefinition = {
   name: string;
   analyticsId: "free" | "premium_monthly" | "pro_monthly";
   monthlyPriceUsd: number;
+  yearlyPriceUsd: number;
   monthlyCredits: number;
   rolloverCap: number;
   trialDays: number;
@@ -20,19 +21,19 @@ const MB = 1024 * 1024;
 
 export const PLAN_CATALOG: Record<SubscriptionPlan, SubscriptionPlanDefinition> = {
   FREE: {
-    id: "FREE", name: "Free", analyticsId: "free", monthlyPriceUsd: 0,
+    id: "FREE", name: "Free", analyticsId: "free", monthlyPriceUsd: 0, yearlyPriceUsd: 0,
     monthlyCredits: 10, rolloverCap: 10, trialDays: 0,
     maxUploadBytes: 50 * MB, youtubePositionLimitSeconds: 10 * 60,
     prioritySupport: false, earlyAccessEligible: false,
   },
   PREMIUM: {
-    id: "PREMIUM", name: "Premium", analyticsId: "premium_monthly", monthlyPriceUsd: 5.99,
+    id: "PREMIUM", name: "Premium", analyticsId: "premium_monthly", monthlyPriceUsd: 5.99, yearlyPriceUsd: 59.99,
     monthlyCredits: 100, rolloverCap: 200, trialDays: 7,
     maxUploadBytes: 200 * MB, youtubePositionLimitSeconds: 10 * 60,
     prioritySupport: false, earlyAccessEligible: false,
   },
   PRO: {
-    id: "PRO", name: "Pro", analyticsId: "pro_monthly", monthlyPriceUsd: 14.99,
+    id: "PRO", name: "Pro", analyticsId: "pro_monthly", monthlyPriceUsd: 14.99, yearlyPriceUsd: 149.99,
     monthlyCredits: 250, rolloverCap: 500, trialDays: 0,
     maxUploadBytes: 500 * MB, youtubePositionLimitSeconds: 20 * 60,
     prioritySupport: true, earlyAccessEligible: true,

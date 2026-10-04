@@ -1,3 +1,5 @@
+import CheckoutPlanSummary from "../../components/CheckoutPlanSummary";
+import { authReturnPath } from "../../lib/pricingPresentation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -29,14 +31,8 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const nextHref = useMemo(() => {
-    const raw = router.query.next;
-    const value = Array.isArray(raw) ? raw[0] : raw;
-    if (typeof value !== "string") return "/home";
-    const trimmed = value.trim();
-    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "/home";
-    return trimmed;
-  }, [router.query.next]);
+  const nextHref = useMemo(() => authReturnPath(router.query.next, router.query.callbackUrl,
+    typeof window === "undefined" ? undefined : window.location.origin), [router.query.next, router.query.callbackUrl]);
   const loginHref =
     nextHref === "/" ? "/auth/login" : `/auth/login?next=${encodeURIComponent(nextHref)}`;
   const routeError = useMemo(() => authErrorMessage(router.query.error), [router.query.error]);
@@ -129,6 +125,7 @@ export default function SignupPage() {
             <h1 className="page-title">Create your account</h1>
             <p className="page-subtitle">Get started with Note2Tabs.</p>
           </div>
+          <CheckoutPlanSummary destination={nextHref} signup={true} />
           <form className="stack" onSubmit={handleSubmit}>
             <div className="form-group">
               <label className="label" htmlFor="signup-name">Name (optional)</label>

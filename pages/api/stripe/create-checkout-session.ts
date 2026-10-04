@@ -14,6 +14,7 @@ import { PLAN_CATALOG, proPlanCheckoutEnabled, type PaidSubscriptionPlan } from 
 import { createPostHogServerClient } from "../../../lib/posthogServer";
 import { inspectPremiumCustomerState } from "../../../lib/stripePremiumOffer";
 import {
+  premiumPricingHref,
   normalizePremiumFunnelId,
   normalizePremiumFunnelReason,
   normalizePremiumFunnelSource,
@@ -53,7 +54,10 @@ const appendCheckoutSessionId = (path: string) => {
 const premiumWelcomePath = (next: string) =>
   `/premium/welcome?next=${encodeURIComponent(next)}`;
 
-const resolveCheckoutReturnPaths = (requestedPath: unknown) => {
+const resolveCheckoutReturnPaths = (requestedPath: unknown, pricingCancelPath?: string) => {
+  if (requestedPath === "pricing" && pricingCancelPath) {
+    return { success: premiumWelcomePath("/transcribe"), cancel: pricingCancelPath, manage: "/settings?upgrade=manage" };
+  }
   if (requestedPath === "/transcribe?resumeTranscription=1") {
     return {
       success: premiumWelcomePath("/transcribe?resumeTranscription=1"),
@@ -157,12 +161,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     offer_variant: offerVariant,
     model,
     device_type: deviceType,
+    pricing_layout_version: req.body?.pricingLayoutVersion === "checkout_focus_v1" ? "checkout_focus_v1" : undefined,
+    current_plan: "free",
+    signedIn: true,
     request_id: requestId,
   });
 
   try {
     const baseUrl = getAppBaseUrl(req);
-    const returnPaths = resolveCheckoutReturnPaths(req.body?.returnTo);
+    const pricingCancelPath = `${premiumPricingHref({ source, reason, funnelId })}&upgrade=cancel&plan=${requestedPlan.toLowerCase()}&billing=${billingInterval}`;
+    const returnPaths = resolveCheckoutReturnPaths(req.body?.returnTo, pricingCancelPath);
     const referralCode = affiliateCodeFromRequest(req);
     const referredAffiliate = referralCode
       ? await prisma.affiliate.findFirst({

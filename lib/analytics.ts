@@ -13,6 +13,10 @@ type EventPayload = Record<string, unknown> | undefined;
 export const ANALYTICS_EVENTS = {
   pageView: "$pageview",
   ctaClicked: "cta_clicked",
+  pricingAuthHandoff: "pricing_auth_handoff",
+  pricingCheckoutResumed: "pricing_checkout_resumed",
+  pricingBillingSelected: "pricing_billing_selected",
+  pricingCheckoutCancelled: "pricing_checkout_cancelled",
   pricingViewed: "pricing_viewed",
   pricingCtaClicked: "pricing_cta_clicked",
   checkoutStarted: "checkout_started",
