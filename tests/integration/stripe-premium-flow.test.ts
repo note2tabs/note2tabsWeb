@@ -253,7 +253,7 @@ describe("stripe premium flow", () => {
       );
     });
 
-    it("uses yearly prices while keeping Premium's trial and excluding Pro's", async () => {
+    it("uses yearly Premium prices and charges immediately", async () => {
       process.env.STRIPE_PRICE_PREMIUM_YEARLY = "price_test_premium_yearly";
       const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
       const { req, res } = createMocks({ method: "POST", body: { plan: "premium", billingInterval: "yearly" } });
@@ -261,11 +261,11 @@ describe("stripe premium flow", () => {
       await handler(req as any, res as any);
 
       expect(res._getStatusCode()).toBe(200);
-      expect(res._getJSONData()).toMatchObject({ plan: "premium", billingInterval: "yearly", trialIncluded: true });
+      expect(res._getJSONData()).toMatchObject({ plan: "premium", billingInterval: "yearly", trialIncluded: false });
       expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
           line_items: [{ price: "price_test_premium_yearly", quantity: 1 }],
-          subscription_data: expect.objectContaining({ trial_period_days: 7 }),
+          subscription_data: expect.not.objectContaining({ trial_period_days: expect.anything() }),
           metadata: expect.objectContaining({ note2tabsBillingInterval: "yearly" }),
         }),
         expect.objectContaining({ idempotencyKey: expect.stringContaining("premium-yearly-checkout-") })
@@ -319,7 +319,7 @@ describe("stripe premium flow", () => {
         funnelId: "funnel_test_123",
         plan: "premium",
         billingInterval: "monthly",
-        trialIncluded: true,
+        trialIncluded: false,
         offerVariant: "value_framing",
       });
       expect(posthogMock.capture).toHaveBeenCalledWith({
@@ -344,7 +344,6 @@ describe("stripe premium flow", () => {
           line_items: [{ price: "price_test_premium", quantity: 1 }],
           client_reference_id: "funnel_test_123",
           subscription_data: expect.objectContaining({
-            trial_period_days: 7,
             metadata: expect.objectContaining({
               premiumFunnelId: "funnel_test_123",
               premiumFunnelSource: "pricing_page",
@@ -615,7 +614,7 @@ describe("stripe premium flow", () => {
       expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
           customer: "cus_other",
-          subscription_data: expect.objectContaining({ trial_period_days: 7 }),
+          subscription_data: expect.not.objectContaining({ trial_period_days: expect.anything() }),
         }),
         expect.any(Object)
       );
@@ -779,7 +778,7 @@ describe("stripe premium flow", () => {
   });
 
   describe("premium offer eligibility", () => {
-    it("returns a trial only for accounts without previous Premium trial history", async () => {
+    it("returns no trial for new and returning subscribers", async () => {
       const handler = (await import("../../pages/api/stripe/offer-eligibility")).default;
       const eligible = createMocks({ method: "GET" });
 
@@ -787,7 +786,7 @@ describe("stripe premium flow", () => {
 
       expect(eligible.res._getStatusCode()).toBe(200);
       expect(eligible.res._getJSONData()).toEqual({
-        trialEligible: true,
+        trialEligible: false,
         hasPremiumAccess: false,
       });
 

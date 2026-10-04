@@ -6,6 +6,6 @@ export default function CheckoutPlanSummary({ destination, signup }: { destinati
   return <aside className="checkout-plan-summary" aria-label="Selected plan">
     <strong>{PLAN_CATALOG[selection.plan].name} · {priceUsd(planPrice(selection.plan, selection.billing))}/{selection.billing === "yearly" ? "year" : "month"}</strong>
     <p>{signup ? "Create your account" : "Log in"} to continue to checkout.</p>
-    <small>{selection.plan === "PREMIUM" ? "7-day trial for eligible new subscribers. " : "No free trial. "}Payment method required. Cancel anytime.</small>
+    <small>{priceUsd(planPrice(selection.plan, selection.billing))} billed when you subscribe. Payment method required. Cancel anytime.</small>
   </aside>;
 }

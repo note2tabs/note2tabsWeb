@@ -218,7 +218,7 @@ export default function PremiumUpgradePrompt() {
       >
         Explore Premium
       </Link>
-      <small>Eligible new subscribers get a 7-day trial · Cancel anytime</small>
+      <small>Payment method required · Cancel anytime</small>
     </aside>
   );
 }

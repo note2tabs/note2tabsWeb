@@ -28,7 +28,7 @@ export const PLAN_CATALOG: Record<SubscriptionPlan, SubscriptionPlanDefinition> 
   },
   PREMIUM: {
     id: "PREMIUM", name: "Premium", analyticsId: "premium_monthly", monthlyPriceUsd: 5.99, yearlyPriceUsd: 59.99,
-    monthlyCredits: 100, rolloverCap: 200, trialDays: 7,
+    monthlyCredits: 100, rolloverCap: 200, trialDays: 0,
     maxUploadBytes: 200 * MB, youtubePositionLimitSeconds: 10 * 60,
     prioritySupport: false, earlyAccessEligible: false,
   },

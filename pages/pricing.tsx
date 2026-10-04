@@ -18,7 +18,6 @@ import {
   type PremiumFunnelContext,
 } from "../lib/premiumFunnel";
 import {
-  premiumOfferCtaLabel,
   usePremiumOfferEligibility,
 } from "../lib/usePremiumOfferEligibility";
 import { premiumOfferExperimentProperties } from "../lib/premiumOfferExperiment";
@@ -28,9 +27,8 @@ import type { BillingInterval } from "../lib/stripePremium";
 
 const pricingFaqs = [
   { question: "How do transcription credits work?", answer: `Each started ${CREDIT_INTERVAL_SEC}-second segment costs ${getTranscriptionModelCreditsPerInterval("light")} credits with Light or ${getTranscriptionModelCreditsPerInterval("heavy")} with Heavy. A 60-second recording costs ${calculateTranscriptionCredits(60, "light")} Light credits or ${calculateTranscriptionCredits(60, "heavy")} Heavy credits. Light is faster for clear guitar recordings; Heavy handles more complex recordings.` },
-  { question: "Can I try Premium before paying?", answer: `Eligible new subscribers get a ${PLAN_CATALOG.PREMIUM.trialDays}-day trial. A payment method is required. After the trial, your selected monthly or yearly subscription renews automatically unless cancelled.` },
-  { question: "How does billing work?", answer: "Monthly plans renew each month. Yearly plans are billed as one annual payment. Credits refresh monthly on both billing options." },
-  { question: "Can I cancel anytime?", answer: "Yes. Cancel in account settings before your trial ends to avoid the subscription charge. For paid subscriptions, access continues through the current billing period." },
+  { question: "How does billing work?", answer: "Your subscription is charged when you subscribe. Monthly plans renew each month; yearly plans renew annually. A payment method is required." },
+  { question: "Can I cancel anytime?", answer: "Yes. Cancel in account settings to stop your next renewal. Access continues through the current billing period." },
 ];
 
 export default function PricingPage() {
@@ -224,11 +222,11 @@ export default function PricingPage() {
     sendEvent(ANALYTICS_EVENTS.pricingBillingSelected, { ...presentationProperties(), billing_interval: interval, ...premiumFunnelProperties(getFunnelContext()), ...premiumOfferExperimentProperties(offerVariant) });
   };
   const planOrder = compact ? ["PREMIUM", "FREE", ...(showPro ? ["PRO"] : [])] : ["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])];
-  const faqs = showPro ? [...pricingFaqs, { question: "Does Pro include a trial?", answer: "No. Pro is charged immediately at the selected monthly or annual price." }] : pricingFaqs;
+  const faqs = pricingFaqs;
   return <>
     <SeoHead title="Pricing | Note2Tabs" description={description} canonicalPath="/pricing" jsonLd={pricingJsonLd.map((item) => item["@type"] === "FAQPage" ? { ...item, mainEntity: faqs.map((faq) => ({ "@type": "Question", name: faq.question, acceptedAnswer: { "@type": "Answer", text: faq.answer } })) } : item)} />
     <main className="page page-pricing"><section className="pricing-page pricing-page--focused"><div className="container pricing-page__container">
-      <header className="pricing-page__hero"><h1>More music. More room to transcribe.</h1><p>Choose the room you need to turn your recordings into guitar tabs.</p></header>
+      <header className="pricing-page__hero"><h1>More music. More room to transcribe.</h1></header>
       <div className="pricing-billing-toggle" role="group" aria-label="Billing interval">
         {(["monthly", "yearly"] as const).map((interval) => <button key={interval} type="button" aria-pressed={billingInterval === interval} className={billingInterval === interval ? "is-active" : ""} onClick={() => selectBilling(interval)} disabled={checkoutBusy}>{interval === "monthly" ? "Monthly" : "Yearly"}</button>)}
       </div>
@@ -243,17 +241,16 @@ export default function PricingPage() {
           return <article key={plan.id} className={`pricing-plan pricing-plan--${plan.id.toLowerCase()}`}>
             {plan.id === "PREMIUM" && <div className="pricing-plan__badge">Recommended</div>}
             <div className="pricing-plan__top"><h2>{plan.name}</h2>
-              <p>{plan.id === "FREE" ? "Try short recordings." : plan.id === "PREMIUM" ? "For full songs and regular practice." : "For frequent transcription."}</p>
+              <p>{plan.id === "FREE" ? "Try short recordings." : plan.id === "PREMIUM" ? "For full songs." : "For frequent transcription."}</p>
               <div className="pricing-plan__price"><strong>{paid ? priceUsd(planPrice(paidId, billingInterval)) : "$0"}</strong><span>/ {paid && billingInterval === "yearly" ? "year" : "month"}</span></div>
               {paid && billingInterval === "yearly" && <p className="pricing-plan__saving">Save {priceUsd(annualSavings(paidId))} per year · Billed annually</p>}
             </div>
             {!paid ? <Link href="/transcribe" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => trackCtaClick("pricing_start_free", { surface: "pricing_page", ...presentationProperties() })}>Start free</Link>
               : included || current ? <Link href={included ? "/transcribe" : "/settings"} className="pricing-plan__cta pricing-plan__cta--secondary">{included ? `${plan.name} access included` : "Manage current plan"}</Link>
-              : <button type="button" className={`pricing-plan__cta pricing-plan__cta--${plan.id === "PREMIUM" ? "primary" : "secondary"}`} onClick={() => void startCheckout(paidId)} disabled={checkoutBusy || sessionStatus === "loading"}>{busyPlan === plan.id ? "Opening checkout…" : hasPaidPremium ? `Switch to ${plan.name}` : plan.id === "PREMIUM" ? premiumOfferCtaLabel(offerEligibility, "Get Premium", offerVariant) : "Choose Pro"}</button>}
+              : <button type="button" className={`pricing-plan__cta pricing-plan__cta--${plan.id === "PREMIUM" ? "primary" : "secondary"}`} onClick={() => void startCheckout(paidId)} disabled={checkoutBusy || sessionStatus === "loading"}>{busyPlan === plan.id ? "Opening checkout…" : hasPaidPremium ? `Switch to ${plan.name}` : plan.id === "PREMIUM" ? "Get Premium" : "Choose Pro"}</button>}
             <div className="pricing-plan__reassurance">
               {!paid ? "No credit card required" : included || current ? "Manage your subscription in your account." : <>
-                {plan.id === "PREMIUM" && !hasPaidPremium ? offerEligibility === "eligible" ? `${plan.trialDays} days free, then ` : offerEligibility === "unknown" ? `${plan.trialDays}-day trial for eligible new subscribers. Otherwise ` : "" : "No free trial. "}
-                {priceUsd(planPrice(paidId, billingInterval))}/{billingInterval === "yearly" ? "year" : "month"}{plan.id === "PRO" ? " billed today" : ""}. Cancel anytime.<br />Payment method required.
+                {priceUsd(planPrice(paidId, billingInterval))}/{billingInterval === "yearly" ? "year" : "month"} billed today. Cancel anytime.<br />Payment method required.
               </>}
             </div>
             {checkoutError && selectedPlan === plan.id && <div className="pricing-inline-error" role="alert"><p>{checkoutError}</p><button type="button" onClick={() => void startCheckout(paidId)} disabled={checkoutBusy}>Try again</button></div>}
@@ -261,13 +258,13 @@ export default function PricingPage() {
             <ul className="pricing-plan__features">
               <li><strong>{plan.monthlyCredits}</strong> credits every month</li>
               <li>{paid ? "Full-length audio-file transcription" : `Audio clips up to ${MAX_FREE_FILE_SNIPPET_SEC} seconds`}</li>
-              <li>{paid ? `Credits roll over, up to ${plan.rolloverCap}` : "Credits refresh monthly; no rollover"}</li>
+              <li>{paid ? `Credits roll over, up to ${plan.rolloverCap}` : "No credit rollover"}</li>
               <li>{plan.id === "PRO" ? "Everything in Premium + priority email support" : "Light and Heavy models, tab editor and practice tools"}</li>
             </ul>
           </article>;
         })}
       </section>
-      <p className="pricing-credit-note">A 60-second recording uses {calculateTranscriptionCredits(60, "light")} credits with Light or {calculateTranscriptionCredits(60, "heavy")} with Heavy. Credits refresh monthly, including on yearly plans.</p>
+      <p className="pricing-credit-note">A 60-second recording uses {calculateTranscriptionCredits(60, "light")} credits with Light or {calculateTranscriptionCredits(60, "heavy")} with Heavy. Credits refresh monthly.</p>
       <details className="pricing-comparison"><summary>Compare all limits</summary><div className="pricing-comparison-scroll"><table><caption>Recording and upload limits</caption><thead><tr><th scope="col">Limit</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <th scope="col" key={id}>{PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].name}</th>)}</tr></thead><tbody>
         <tr><th scope="row">Upload size</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <td key={id}>{PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].maxUploadBytes / (1024 * 1024)} MB</td>)}</tr>
         <tr><th scope="row">YouTube clip length</th><td>Up to {MAX_FREE_YOUTUBE_SNIPPET_SEC} seconds</td><td>Within selected window</td>{showPro && <td>Within selected window</td>}</tr>

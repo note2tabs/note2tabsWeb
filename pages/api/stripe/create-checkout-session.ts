@@ -235,7 +235,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       premiumFunnelReason: reason,
       premiumOfferVariant: offerVariant,
       premiumFunnelModel: model,
-      premiumTrialIncluded: requestedPlan === "PREMIUM" && customerState.trialEligible ? "true" : "false",
+      premiumTrialIncluded: "false",
       ...(activeAttribution
         ? {
             note2tabsAffiliateId: activeAttribution.affiliateId,
@@ -253,9 +253,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         line_items: [{ price: selectedConfig.priceId, quantity: 1 }],
         client_reference_id: funnelId,
         subscription_data: {
-          ...(requestedPlan === "PREMIUM" && customerState.trialEligible
-            ? { trial_period_days: selectedPlan.trialDays }
-            : {}),
           metadata: checkoutMetadata,
         },
         ...(activeAttribution?.affiliate.stripePromotionCodeId
@@ -279,7 +276,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       source,
       reason,
       funnel_id: funnelId,
-      trial_included: requestedPlan === "PREMIUM" && customerState.trialEligible,
+      trial_included: false,
       offer_variant: offerVariant,
       model,
       device_type: deviceType,
@@ -298,7 +295,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           checkout_session_id: checkout.id,
           plan: selectedPlan.analyticsId,
           billing_interval: billingInterval,
-          trial_included: requestedPlan === "PREMIUM" && customerState.trialEligible,
+          trial_included: false,
         },
       });
     }
@@ -318,7 +315,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       funnelId,
       plan: requestedPlan.toLowerCase(),
       billingInterval,
-      trialIncluded: requestedPlan === "PREMIUM" && customerState.trialEligible,
+      trialIncluded: false,
       offerVariant,
     });
   } catch (error) {

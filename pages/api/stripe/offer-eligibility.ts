@@ -40,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
     res.setHeader("Cache-Control", "private, max-age=300");
     return res.status(200).json({
-      trialEligible: state.trialEligible,
+      trialEligible: false,
       hasPremiumAccess: false,
     });
   } catch (error) {
