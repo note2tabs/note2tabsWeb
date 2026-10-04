@@ -132,6 +132,24 @@ describe("analytics privacy sanitization", () => {
     }
   });
 
+  it("retains opaque short embedded-browser errors without paging operators", () => {
+    for (const value of ["L", "La", "  La  "]) {
+      expect(classifyPostHogException([{ type: "Error", value }])).toEqual({
+        alertEligible: false,
+        classification: "non_actionable_browser_error",
+      });
+    }
+
+    expect(classifyPostHogException([{ type: "TypeError", value: "La" }])).toEqual({
+      alertEligible: true,
+      classification: "unexpected_application_error",
+    });
+    expect(classifyPostHogException([{ type: "Error", value: "Lag" }])).toEqual({
+      alertEligible: true,
+      classification: "unexpected_application_error",
+    });
+  });
+
   it("keeps real script failures alertable", () => {
     expect(
       classifyPostHogException([{ type: "TypeError", value: "Script error while saving tab" }])

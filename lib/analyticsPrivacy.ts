@@ -274,6 +274,21 @@ function isOpaqueCrossOriginScriptError(exceptionList: unknown) {
   });
 }
 
+// Some iOS embedded browsers occasionally reject an internal promise with a
+// minified one- or two-character `Error` value while the page is unloading.
+// There is no diagnostic message to act on, and these events can otherwise
+// create high-severity issues such as `Error: La`. Keep the event for replay
+// correlation, but do not wake operators for an opaque browser token.
+function isOpaqueShortBrowserError(exceptionList: unknown) {
+  if (!Array.isArray(exceptionList) || exceptionList.length === 0) return false;
+  return exceptionList.every((exception) => {
+    if (!exception || typeof exception !== "object") return false;
+    const item = exception as Record<string, unknown>;
+    const value = String(item.value ?? "").trim();
+    return item.type === "Error" && value.length > 0 && value.length <= 2;
+  });
+}
+
 // A browser can retain an old Next.js route manifest briefly after a deploy and
 // request a chunk Vercel has already retired. The app reloads once to obtain the
 // current manifest; only a failed recovery is operationally actionable.
@@ -299,7 +314,7 @@ function exceptionText(value: unknown, depth = 0): string {
 
 export function classifyPostHogException(exceptionList: unknown) {
   const text = exceptionText(exceptionList);
-  if (isOpaqueCrossOriginScriptError(exceptionList)) {
+  if (isOpaqueCrossOriginScriptError(exceptionList) || isOpaqueShortBrowserError(exceptionList)) {
     return { alertEligible: false, classification: "non_actionable_browser_error" } as const;
   }
   if (RECOVERABLE_STALE_CHUNK_PATTERNS.some((pattern) => pattern.test(text))) {
