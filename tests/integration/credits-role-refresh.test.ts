@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     user: {
       findUnique: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     tabJob: {
       groupBy: vi.fn(),
@@ -71,6 +72,7 @@ async function callCredits(role: string, storedRemaining: number, backendRemaini
   mocks.prisma.user.findUnique.mockResolvedValue({
     id: "user_1",
     role,
+    subscriptionPlan: role === "PREMIUM" ? "PREMIUM" : "FREE",
     tokensRemaining: storedRemaining,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
   });
@@ -89,6 +91,7 @@ describe("credits role refresh", () => {
     mocks.raiseBackendCreditsToFloor.mockReset();
     mocks.prisma.user.findUnique.mockReset();
     mocks.prisma.user.update.mockReset();
+    mocks.prisma.user.updateMany.mockReset();
     mocks.prisma.tabJob.groupBy.mockReset();
   });
 
@@ -98,6 +101,15 @@ describe("credits role refresh", () => {
     expect(res.statusCode).toBe(200);
     expect(mocks.raiseBackendCreditsToFloor).not.toHaveBeenCalled();
     expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(10);
+    expect(mocks.prisma.user.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "user_1",
+        role: "FREE",
+        subscriptionPlan: "FREE",
+        tokensRemaining: 7,
+      },
+      data: { tokensRemaining: 10 },
+    });
   });
 
   it("does not restore admin credits from a higher backend remaining balance", async () => {
@@ -106,7 +118,7 @@ describe("credits role refresh", () => {
     expect(res.statusCode).toBe(200);
     expect(mocks.raiseBackendCreditsToFloor).toHaveBeenCalled();
     expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(7);
-    expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+    expect(mocks.prisma.user.updateMany).not.toHaveBeenCalled();
   });
 
   it("does lower admin credits from a lower backend remaining balance", async () => {
@@ -115,8 +127,13 @@ describe("credits role refresh", () => {
     expect(res.statusCode).toBe(200);
     expect(mocks.raiseBackendCreditsToFloor).toHaveBeenCalled();
     expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(7);
-    expect(mocks.prisma.user.update).toHaveBeenCalledWith({
-      where: { id: "user_1" },
+    expect(mocks.prisma.user.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "user_1",
+        role: "ADMIN",
+        subscriptionPlan: "FREE",
+        tokensRemaining: 10,
+      },
       data: { tokensRemaining: 7 },
     });
   });

@@ -78,22 +78,32 @@ async function callTranscribe(
   multipleGuitars = false,
   transcriptionModel: "light" | "heavy" | "super_heavy" | null = "heavy",
   duration = 30,
-  startTime = 0
+  startTime = 0,
+  concurrentBalance?: number
 ) {
   const handler = (await import("../../pages/api/transcribe")).default;
   mocks.session.mockResolvedValue({ user: { id: "user_1" } });
-  mocks.prisma.user.findUnique.mockResolvedValue({
+  const user = {
     id: "user_1",
     role,
+    subscriptionPlan: role === "PREMIUM" ? "PREMIUM" : "FREE",
     tokensRemaining: 10,
     emailVerified: new Date("2026-01-01T00:00:00.000Z"),
     emailVerifiedBool: true,
     unverifiedTranscriptionUsed: false,
     heavyPreviewUsedAt: null,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
-  });
+  };
+  if (typeof concurrentBalance === "number") {
+    mocks.prisma.user.findUnique
+      .mockResolvedValueOnce(user)
+      .mockResolvedValueOnce({ tokensRemaining: concurrentBalance });
+    mocks.prisma.user.updateMany.mockResolvedValue({ count: 0 });
+  } else {
+    mocks.prisma.user.findUnique.mockResolvedValue(user);
+    mocks.prisma.user.updateMany.mockResolvedValue({ count: 1 });
+  }
   mocks.prisma.tabJob.groupBy.mockResolvedValue([]);
-  mocks.prisma.user.updateMany.mockResolvedValue({ count: 1 });
   mocks.setBackendCredits.mockResolvedValue(10);
   mocks.raiseBackendCreditsToFloor.mockResolvedValue(10);
   mocks.fetch.mockResolvedValue(
@@ -129,6 +139,7 @@ describe("transcribe credits", () => {
     mocks.prisma.user.findUnique.mockReset();
     mocks.prisma.user.update.mockReset();
     mocks.prisma.user.updateMany.mockReset();
+    mocks.prisma.user.updateMany.mockResolvedValue({ count: 1 });
     mocks.prisma.tabJob.groupBy.mockReset();
     vi.stubGlobal("fetch", mocks.fetch);
     vi.stubEnv("BACKEND_API_BASE_URL", "https://backend.test");
@@ -141,8 +152,13 @@ describe("transcribe credits", () => {
 
     expect(res.statusCode).toBe(202);
     expect(res.body).toMatchObject({ credits: { remaining: 7 }, tokensRemaining: 7 });
-    expect(mocks.prisma.user.update).toHaveBeenLastCalledWith({
-      where: { id: "user_1" },
+    expect(mocks.prisma.user.updateMany).toHaveBeenLastCalledWith({
+      where: {
+        id: "user_1",
+        role: "FREE",
+        subscriptionPlan: "FREE",
+        tokensRemaining: 10,
+      },
       data: { tokensRemaining: 7 },
     });
     expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(7);
@@ -152,11 +168,32 @@ describe("transcribe credits", () => {
     const res = await callTranscribe("ADMIN");
 
     expect(res.statusCode).toBe(202);
-    expect(mocks.prisma.user.update).toHaveBeenLastCalledWith({
-      where: { id: "user_1" },
+    expect(mocks.prisma.user.updateMany).toHaveBeenLastCalledWith({
+      where: {
+        id: "user_1",
+        role: "ADMIN",
+        subscriptionPlan: "FREE",
+        tokensRemaining: 10,
+      },
       data: { tokensRemaining: 7 },
     });
     expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(7);
+  });
+
+  it("does not overwrite a Premium balance activated while a free transcription was in flight", async () => {
+    const res = await callTranscribe("FREE", false, "heavy", 30, 0, 100);
+
+    expect(res.statusCode).toBe(202);
+    expect(res.body).toMatchObject({ tokensRemaining: 100 });
+    expect(mocks.prisma.user.updateMany).toHaveBeenLastCalledWith({
+      where: {
+        id: "user_1",
+        role: "FREE",
+        subscriptionPlan: "FREE",
+        tokensRemaining: 10,
+      },
+      data: { tokensRemaining: 7 },
+    });
   });
 
   it("defaults paid requests without a model choice to the Heavy model", async () => {
@@ -178,7 +215,15 @@ describe("transcribe credits", () => {
       tokensRemaining: 8,
     });
     expect(res.body.heavyPreviewUsed).toBeUndefined();
-    expect(mocks.prisma.user.updateMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.user.updateMany).toHaveBeenLastCalledWith({
+      where: {
+        id: "user_1",
+        role: "FREE",
+        subscriptionPlan: "FREE",
+        tokensRemaining: 10,
+      },
+      data: { tokensRemaining: 8 },
+    });
     const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
     const body = requestInit.body as FormData;
     expect(body.get("transcription_method")).toBe("basic_pitch");
@@ -464,6 +509,7 @@ describe("transcribe credits", () => {
     mocks.prisma.user.findUnique.mockResolvedValue({
       id: "user_1",
       role: "ADMIN",
+      subscriptionPlan: "FREE",
       tokensRemaining: 10,
       emailVerified: new Date("2026-01-01T00:00:00.000Z"),
       emailVerifiedBool: true,
@@ -508,6 +554,7 @@ describe("transcribe credits", () => {
     mocks.prisma.user.findUnique.mockResolvedValue({
       id: "user_1",
       role: "FREE",
+      subscriptionPlan: "FREE",
       tokensRemaining: 10,
       emailVerified: new Date("2026-01-01T00:00:00.000Z"),
       emailVerifiedBool: true,

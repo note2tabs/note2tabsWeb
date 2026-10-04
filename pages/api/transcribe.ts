@@ -566,10 +566,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap)
             : computedCredits;
           if (!isPremium && user.tokensRemaining !== refreshedCredits.remaining) {
+            const storedTokens = user.tokensRemaining;
             user.tokensRemaining = refreshedCredits.remaining;
             try {
-              await prisma.user.update({
-                where: { id: user.id },
+              await prisma.user.updateMany({
+                where: {
+                  id: user.id,
+                  role: user.role,
+                  subscriptionPlan: user.subscriptionPlan,
+                  tokensRemaining: storedTokens,
+                },
                 data: { tokensRemaining: refreshedCredits.remaining },
               });
             } catch (error) {
@@ -988,10 +994,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (persistedUser && (persistedUser.role === "FREE" || isPremium)) {
       updatedTokens = updatedRemaining;
       try {
-        await prisma.user.update({
-          where: { id: persistedUser.id },
+        const result = await prisma.user.updateMany({
+          where: {
+            id: persistedUser.id,
+            role: persistedUser.role,
+            subscriptionPlan: persistedUser.subscriptionPlan,
+            tokensRemaining: persistedUser.tokensRemaining,
+          },
           data: { tokensRemaining: updatedTokens },
         });
+        if (result.count === 0) {
+          // An entitlement or balance changed after this request loaded the
+          // user. Never replace the newer state with the stale snapshot.
+          const current = await prisma.user.findUnique({
+            where: { id: persistedUser.id },
+            select: { tokensRemaining: true },
+          });
+          if (current) updatedTokens = current.tokensRemaining;
+        }
       } catch (error) {
         if (!allowDevGuestTranscription) {
           throw error;
