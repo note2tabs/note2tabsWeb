@@ -443,6 +443,45 @@ describe("stripe premium flow", () => {
       );
     });
 
+    it("preserves supported local display currencies in checkout metadata", async () => {
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({
+        method: "POST",
+        body: { plan: "premium", displayCurrency: "jpy" },
+      });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ note2tabsDisplayCurrency: "jpy" }),
+          subscription_data: expect.objectContaining({
+            metadata: expect.objectContaining({ note2tabsDisplayCurrency: "jpy" }),
+          }),
+        }),
+        expect.anything()
+      );
+    });
+
+    it("falls back to USD metadata for unsupported display currencies", async () => {
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({
+        method: "POST",
+        body: { plan: "premium", displayCurrency: "btc" },
+      });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ note2tabsDisplayCurrency: "usd" }),
+        }),
+        expect.anything()
+      );
+    });
+
     it("applies an active referral promotion and persists first-touch attribution", async () => {
       const affiliate = {
         id: "aff_1",

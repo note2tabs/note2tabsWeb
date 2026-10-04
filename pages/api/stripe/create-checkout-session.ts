@@ -11,6 +11,7 @@ import {
 } from "../../../lib/stripePremium";
 import { getFreshUserAccess } from "../../../lib/serverAuth";
 import { PLAN_CATALOG, premiumTrialCheckoutEnabled, proPlanCheckoutEnabled, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
+import { DISPLAY_CURRENCIES, type DisplayCurrency } from "../../../lib/localizedPricing";
 import { createPostHogServerClient } from "../../../lib/posthogServer";
 import { inspectPremiumCustomerState } from "../../../lib/stripePremiumOffer";
 import {
@@ -111,10 +112,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   const billingInterval: BillingInterval = rawBillingInterval;
   const rawDisplayCurrency = typeof req.body?.displayCurrency === "string"
-    ? req.body.displayCurrency.toLowerCase()
-    : "usd";
-  const siteDisplayCurrency = ["usd", "gbp", "eur", "sek"].includes(rawDisplayCurrency)
-    ? rawDisplayCurrency
+    ? req.body.displayCurrency.toUpperCase()
+    : "USD";
+  const siteDisplayCurrency = DISPLAY_CURRENCIES.includes(rawDisplayCurrency as DisplayCurrency)
+    ? rawDisplayCurrency.toLowerCase()
     : "usd";
   if (requestedPlan === "PRO" && !proPlanCheckoutEnabled()) {
     return res.status(503).json({ error: "Pro checkout is not available yet." });

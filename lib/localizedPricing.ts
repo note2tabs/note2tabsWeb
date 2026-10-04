@@ -1,31 +1,56 @@
 import type { BillingInterval } from "./stripePremium";
 import type { PaidSubscriptionPlan } from "./subscriptionPlans";
 
-export type DisplayCurrency = "USD" | "GBP" | "EUR" | "SEK";
+export const DISPLAY_CURRENCIES = [
+  "USD", "GBP", "EUR", "SEK", "CAD", "AUD", "NZD", "CHF", "NOK", "DKK", "JPY", "SGD",
+] as const;
+export type DisplayCurrency = (typeof DISPLAY_CURRENCIES)[number];
 
 export const DISPLAY_CURRENCY_COOKIE = "n2t_currency";
 
 const EURO_COUNTRIES = new Set([
-  "AT", "BE", "HR", "CY", "EE", "FI", "FR", "DE", "GR", "IE", "IT",
-  "LV", "LT", "LU", "MT", "NL", "PT", "SK", "SI", "ES",
+  "AD", "AT", "AX", "BE", "BG", "CY", "DE", "EE", "ES", "FI", "FR", "GR",
+  "HR", "IE", "IT", "LT", "LU", "LV", "MC", "ME", "MT", "NL", "PT", "SI",
+  "SK", "SM", "VA",
 ]);
+
+const COUNTRY_CURRENCIES: Partial<Record<string, DisplayCurrency>> = {
+  AU: "AUD", CA: "CAD", CH: "CHF", DK: "DKK", FO: "DKK", GL: "DKK",
+  GB: "GBP", JP: "JPY", LI: "CHF", NO: "NOK", NZ: "NZD", SE: "SEK",
+  SG: "SGD", SJ: "NOK",
+};
 
 export function displayCurrencyForCountry(country?: string | null): DisplayCurrency {
   const normalized = country?.trim().toUpperCase();
-  if (normalized === "GB") return "GBP";
-  if (normalized === "SE") return "SEK";
+  if (normalized && COUNTRY_CURRENCIES[normalized]) return COUNTRY_CURRENCIES[normalized];
   if (normalized && EURO_COUNTRIES.has(normalized)) return "EUR";
   return "USD";
 }
 
 const PRICES: Record<PaidSubscriptionPlan, Record<BillingInterval, Record<DisplayCurrency, number>>> = {
   PREMIUM: {
-    monthly: { USD: 5.99, GBP: 4.99, EUR: 5.49, SEK: 59 },
-    yearly: { USD: 59.99, GBP: 49.99, EUR: 54.99, SEK: 599 },
+    monthly: {
+      USD: 5.99, GBP: 4.99, EUR: 5.49, SEK: 59,
+      CAD: 8.49, AUD: 8.99, NZD: 10.99, CHF: 4.99,
+      NOK: 59, DKK: 39, JPY: 949, SGD: 7.99,
+    },
+    yearly: {
+      USD: 59.99, GBP: 49.99, EUR: 54.99, SEK: 599,
+      CAD: 84.99, AUD: 89.99, NZD: 109.99, CHF: 49.99,
+      NOK: 599, DKK: 399, JPY: 9499, SGD: 79.99,
+    },
   },
   PRO: {
-    monthly: { USD: 14.99, GBP: 11.99, EUR: 13.99, SEK: 149 },
-    yearly: { USD: 149.99, GBP: 119.99, EUR: 139.99, SEK: 1499 },
+    monthly: {
+      USD: 14.99, GBP: 11.99, EUR: 13.99, SEK: 149,
+      CAD: 20.99, AUD: 21.99, NZD: 26.99, CHF: 12.49,
+      NOK: 149, DKK: 99, JPY: 2399, SGD: 19.99,
+    },
+    yearly: {
+      USD: 149.99, GBP: 119.99, EUR: 139.99, SEK: 1499,
+      CAD: 209.99, AUD: 219.99, NZD: 269.99, CHF: 124.99,
+      NOK: 1499, DKK: 999, JPY: 23999, SGD: 199.99,
+    },
   },
 };
 
@@ -34,11 +59,21 @@ const SYMBOLS: Record<DisplayCurrency, string> = {
   GBP: "£",
   EUR: "€",
   SEK: "",
+  CAD: "CA$",
+  AUD: "A$",
+  NZD: "NZ$",
+  CHF: "",
+  NOK: "",
+  DKK: "",
+  JPY: "¥",
+  SGD: "S$",
 };
 
 export function formatLocalizedAmount(amount: number, currency: DisplayCurrency) {
   const formatted = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
-  return currency === "SEK" ? `${formatted} kr` : `${SYMBOLS[currency]}${formatted}`;
+  if (currency === "SEK" || currency === "NOK" || currency === "DKK") return `${formatted} kr`;
+  if (currency === "CHF") return `CHF ${formatted}`;
+  return `${SYMBOLS[currency]}${formatted}`;
 }
 
 export function formatLocalizedPrice(
@@ -60,5 +95,5 @@ export function localizedAnnualSaving(plan: PaidSubscriptionPlan, currency: Disp
 export function readDisplayCurrencyCookie(cookieHeader: string): DisplayCurrency {
   const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${DISPLAY_CURRENCY_COOKIE}=([^;]+)`));
   const value = match?.[1]?.toUpperCase();
-  return value === "GBP" || value === "EUR" || value === "SEK" ? value : "USD";
+  return DISPLAY_CURRENCIES.includes(value as DisplayCurrency) ? value as DisplayCurrency : "USD";
 }
