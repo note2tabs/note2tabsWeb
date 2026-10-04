@@ -13930,9 +13930,13 @@ input[type="number"] {
 }
 .pricing-page--focused .pricing-plan__features { margin: 0; gap: 16px; }
 .pricing-page--focused .pricing-plan__badge {
+  padding: 8px 16px;
   background: #06110d;
   color: #fff;
-  font-weight: 650;
+  font-size: .8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: .01em;
 }
 .pricing-page--focused .pricing-plan__cta:focus-visible {
   outline: 3px solid #262522;
