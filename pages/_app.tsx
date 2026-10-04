@@ -1,4 +1,4 @@
-import { PricingHeader, PricingFooter } from "../components/PricingChrome";
+import { PricingFooter } from "../components/PricingChrome";
 import type { AppProps } from "next/app";
 import dynamic from "next/dynamic";
 import Head from "next/head";
@@ -78,7 +78,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
       <div className="app-shell">
         <RouteLoadingIndicator />
         <a className="skip-link" href="#main-content">Skip to main content</a>
-        {isPricingPage ? <PricingHeader /> : <NavBar editorRevealMode={isGteEditorPage} />}
+        <NavBar editorRevealMode={isGteEditorPage} />
         <div
           id="main-content"
           className="flex-1"
