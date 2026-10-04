@@ -37,6 +37,51 @@ const nextConfig = {
         destination: "/editor",
         permanent: true,
       },
+      {
+        source: "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-instantly",
+        destination: "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        permanent: true,
+      },
+      {
+        source: "/youtube-to-guitar-tabs-converter",
+        destination: "/youtube-to-guitar-tabs",
+        permanent: true,
+      },
+      {
+        source: "/youtube-to-tabs-converter",
+        destination: "/youtube-to-guitar-tabs",
+        permanent: true,
+      },
+      {
+        source: "/youtube-to-guitar-tab",
+        destination: "/youtube-to-guitar-tabs",
+        permanent: true,
+      },
+      {
+        source: "/youtube-guitar-tabs",
+        destination: "/youtube-to-guitar-tabs",
+        permanent: true,
+      },
+      {
+        source: "/convert/youtube-to-guitar-tab",
+        destination: "/youtube-to-guitar-tabs",
+        permanent: true,
+      },
+      {
+        source: "/mp3-to-guitar-tab-converter",
+        destination: "/mp3-to-guitar-tabs",
+        permanent: true,
+      },
+      {
+        source: "/mp3-to-guitar-tab",
+        destination: "/mp3-to-guitar-tabs",
+        permanent: true,
+      },
+      {
+        source: "/mp3-to-note2tabs",
+        destination: "/mp3-to-guitar-tabs",
+        permanent: true,
+      },
     ];
   },
   async headers() {

@@ -5,6 +5,7 @@ import { withPrismaReadRetry } from "../../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
 import BlogPostCard from "../../../components/blog/BlogPostCard";
 import SeoHead, { absoluteUrl } from "../../../components/SeoHead";
+import { shouldIndexBlogArchive } from "../../../lib/blogIndexPolicy";
 
 type ClusterPageProps = {
   cluster: { name: string; slug: string; description: string | null };
@@ -61,7 +62,7 @@ export default function BlogClusterPage({ cluster, pillarPost, supportingPosts }
         title={`${cluster.name} Topic Hub | Note2Tabs Blog`}
         description={description}
         canonicalPath={canonicalPath}
-        noindex={!pillarPost && supportingPosts.length === 0}
+        noindex={!shouldIndexBlogArchive("cluster", cluster.slug)}
         jsonLd={jsonLd}
       />
       <div className="container stack">

@@ -24,4 +24,26 @@ describe("SEO routing", () => {
       headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
     });
   });
+
+  it("consolidates confirmed obsolete search URLs onto their canonical pages", async () => {
+    const redirects = await nextConfig.redirects();
+
+    expect(redirects).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        source: "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-instantly",
+        destination: "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        permanent: true,
+      }),
+      expect.objectContaining({
+        source: "/youtube-to-guitar-tabs-converter",
+        destination: "/youtube-to-guitar-tabs",
+        permanent: true,
+      }),
+      expect.objectContaining({
+        source: "/mp3-to-guitar-tab-converter",
+        destination: "/mp3-to-guitar-tabs",
+        permanent: true,
+      }),
+    ]));
+  });
 });

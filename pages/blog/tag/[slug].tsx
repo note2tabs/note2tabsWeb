@@ -5,6 +5,7 @@ import { withPrismaReadRetry } from "../../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
 import BlogPostCard from "../../../components/blog/BlogPostCard";
 import SeoHead, { absoluteUrl } from "../../../components/SeoHead";
+import { shouldIndexBlogArchive } from "../../../lib/blogIndexPolicy";
 
 type TagPageProps = {
   tag: { name: string; slug: string };
@@ -53,7 +54,7 @@ export default function BlogTagPage({ tag, posts }: TagPageProps) {
         title={`${tag.name} Articles | Note2Tabs Blog`}
         description={description}
         canonicalPath={canonicalPath}
-        noindex={posts.length === 0}
+        noindex={!shouldIndexBlogArchive("tag", tag.slug)}
         jsonLd={jsonLd}
       />
       <div className="container stack">

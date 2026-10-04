@@ -5,6 +5,7 @@ import { withPrismaReadRetry } from "../../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
 import BlogPostCard from "../../../components/blog/BlogPostCard";
 import SeoHead, { absoluteUrl } from "../../../components/SeoHead";
+import { shouldIndexBlogArchive } from "../../../lib/blogIndexPolicy";
 
 type CategoryPageProps = {
   category: { name: string; slug: string; description: string | null };
@@ -61,7 +62,7 @@ export default function BlogCategoryPage({ category, posts, pillarPost }: Catego
         title={`${category.name} Guides | Note2Tabs Blog`}
         description={description}
         canonicalPath={canonicalPath}
-        noindex={posts.length === 0}
+        noindex={!shouldIndexBlogArchive("category", category.slug)}
         jsonLd={jsonLd}
       />
       <div className="container stack">
