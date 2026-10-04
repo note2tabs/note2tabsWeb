@@ -39,7 +39,7 @@ Validated live subscription Checkout pools as of 2026-10-04:
 | Market/currency | Eligible pool before buyer/device ranking |
 | --- | --- |
 | United States / USD | Card, Link, Amazon Pay |
-| Euro area / EUR | Card, SEPA Direct Debit, Klarna, Link, Revolut Pay, Amazon Pay |
+| Euro area / EUR | Card, SEPA Direct Debit, Klarna, Link, Revolut Pay, Amazon Pay, Satispay for eligible Italian buyers, and iDEAL/Wero for eligible Dutch buyers |
 | United Kingdom / GBP | Card, Klarna, Link, Amazon Pay |
 | Sweden / SEK | Card, Klarna, Link, Amazon Pay |
 | Brazil / BRL | Card, Link, Pix Automático |
@@ -47,12 +47,22 @@ Validated live subscription Checkout pools as of 2026-10-04:
 | Indonesia / IDR | Card, Link |
 
 Apple Pay and Google Pay are enabled wallet presentations of eligible card
-payments and appear only on supported devices and browsers. PayPal, US ACH,
-and Cartes Bancaires remain requested but unavailable on the Stripe account.
-Methods that cannot support Note2Tabs' automatically charged subscription flow,
-or that target a market without an approved local Price, are disabled to keep
-Checkout focused. This includes iDEAL/Wero, Bancontact, EPS, TWINT, Alipay,
-WeChat Pay, and the Korean wallets until their corresponding rollout is ready.
+payments and appear only on supported devices and browsers. iDEAL/Wero is
+enabled for Dutch EUR customers and renews through SEPA Direct Debit. Satispay
+is enabled for eligible Italian EUR customers. TWINT and Bacs Direct Debit are
+requested for Swiss CHF and British GBP customers respectively, but remain
+unavailable until Stripe completes the payment-method onboarding for this
+account. PayPal, US ACH, and Cartes Bancaires are also requested but currently
+unavailable.
+
+Stripe's dynamic payment methods perform the final country, currency, device,
+and subscription-compatibility filtering. Enabling a regional method therefore
+does not add it to every buyer's Checkout page. Methods that cannot fund an
+automatically charged Checkout subscription remain disabled. This includes
+MobilePay, Swish, Bancontact, EPS, Przelewy24, Pay by Bank, Bizum, MB WAY,
+Multibanco, and OXXO. Alipay, WeChat Pay, and the Korean wallets remain disabled
+until the corresponding recurring capability and an approved local Price are
+both available.
 
 Potential next markets require explicit price approval before adding another
 currency option to the immutable Stripe Prices:
