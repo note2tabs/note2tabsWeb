@@ -13,7 +13,7 @@ export default function TermsPage() {
           <header className="legal-header">
             <p className="legal-kicker">Legal</p>
             <h1 className="page-title">Terms of Service</h1>
-            <p className="page-subtitle">Last updated: February 2026</p>
+            <p className="page-subtitle">Last updated: October 2026</p>
           </header>
 
           <section className="legal-prose">
@@ -116,8 +116,20 @@ export default function TermsPage() {
           <h2>12. Governing law</h2>
           <p>These Terms are governed by the laws of Sweden.</p>
 
-          <h2>13. Contact</h2>
-          <p>support@note2tabs.com</p>
+          <h2>13. Company information and contact</h2>
+          <p>
+            Note2Tabs is operated by <strong>Note2Tabs AB</strong>, a Swedish private limited company
+            (aktiebolag).
+          </p>
+          <p>
+            Registered address:<br />
+            Telegrafgatan 5<br />
+            169 72 Solna<br />
+            Sweden
+          </p>
+          <p>
+            Email: <a href="mailto:support@note2tabs.com">support@note2tabs.com</a>
+          </p>
           </section>
         </div>
       </main>
