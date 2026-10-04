@@ -12758,14 +12758,53 @@ input[type="number"] {
 .pricing-page--focused .pricing-page__hero h1 { font-size:clamp(1.8rem, 3.5vw, 2.8rem); line-height:1.15; letter-spacing:-.035em; }
 .pricing-page--focused .pricing-page__hero p { margin-top:12px; font-size:1rem; }
 .pricing-page--focused .pricing-billing-toggle { margin:0 auto 28px; }
-.pricing-page--focused .pricing-plan { display:flex; flex-direction:column; padding:28px 24px; border-radius:18px; box-shadow:none; }
-.pricing-page--focused .pricing-plan--premium { border:2px solid #12664d; box-shadow:0 8px 24px rgba(18,102,77,.08); }
-.pricing-page--focused .pricing-plan__top { min-height:150px; }
-.pricing-page--focused .pricing-plan__top > p { margin:8px 0 12px; }
-.pricing-page--focused .pricing-plan__price strong { font-size:2.5rem; }
-.pricing-page--focused .pricing-plan__reassurance { min-height:90px; margin:12px 0 0; font-size:.82rem; line-height:1.5; }
-.pricing-page--focused .pricing-plan__features { margin:0; }
-.pricing-page--focused .pricing-plan__badge { background:#12664d; color:white; }
+/* Keep the production cards' warm surfaces, rounded edges and dark emphasis. */
+.pricing-page--focused .pricing-plan {
+  display: flex;
+  flex-direction: column;
+  padding: 32px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 16px 42px rgba(6, 17, 13, 0.06);
+}
+.pricing-page--focused .pricing-plan--premium {
+  border: 1px solid #06110d;
+  background: #fff;
+  box-shadow: 0 24px 62px rgba(6, 17, 13, 0.13);
+}
+.pricing-page--focused .pricing-plan--pro { background: rgba(255, 255, 255, 0.72); }
+.pricing-page--focused .pricing-plan__top {
+  min-height: 188px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.pricing-page--focused .pricing-plan__top > p { margin: 8px 0 0; }
+.pricing-page--focused .pricing-plan__price { margin-top: 24px; }
+.pricing-page--focused .pricing-plan__price strong { font-size: clamp(2.65rem, 3.8vw, 3.25rem); }
+.pricing-page--focused .pricing-plan__top > .pricing-plan__saving {
+  margin-top: 12px;
+  color: #16805f;
+  font-size: .76rem;
+  font-weight: 600;
+}
+.pricing-page--focused .pricing-plan__reassurance {
+  min-height: 82px;
+  margin: 12px 0 0;
+  font-size: .76rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+.pricing-page--focused .pricing-plan__features { margin: 0; gap: 16px; }
+.pricing-page--focused .pricing-plan__badge {
+  background: #06110d;
+  color: #fff;
+  font-weight: 650;
+}
+.pricing-page--focused .pricing-plan__cta:focus-visible {
+  outline: 3px solid #16805f;
+  outline-offset: 4px;
+}
 .pricing-credit-note { max-width:740px; margin:22px auto; text-align:center; color:#44534b; font-size:.9rem; line-height:1.6; }
 .pricing-comparison { max-width:980px; margin:24px auto 0; padding:16px 20px; border:1px solid rgba(6,17,13,.12); border-radius:12px; background:rgba(255,255,255,.6); }
 .pricing-comparison summary { cursor:pointer; font-weight:650; min-height:28px; }
@@ -12786,9 +12825,10 @@ input[type="number"] {
 .checkout-plan-summary small { line-height:1.5; display:block; }
 @media(max-width:760px) {
   .pricing-page--focused { padding-top:24px; }
-  .pricing-page--focused .pricing-plan__top { min-height:0; margin-bottom:18px; }
+  .pricing-page--focused .pricing-plan { padding: 28px 24px; }
+  .pricing-page--focused .pricing-plan__top { min-height: 0; margin-bottom: 24px; }
   .pricing-page--focused .pricing-plan__reassurance { min-height:0; }
-  .pricing-page--focused .pricing-plan__price strong { font-size:2.4rem; }
+  .pricing-page--focused .pricing-plan__price strong { font-size: 3rem; }
   .pricing-page--focused .pricing-page__hero h1 { font-size:1.9rem; }
   .pricing-comparison { padding:16px 12px; }
   .pricing-comparison th, .pricing-comparison td { padding:10px 6px; }
