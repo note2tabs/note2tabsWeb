@@ -447,7 +447,7 @@ describe("stripe premium flow", () => {
       const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
       const { req, res } = createMocks({
         method: "POST",
-        body: { plan: "premium", displayCurrency: "jpy" },
+        body: { plan: "premium", displayCurrency: "brl" },
       });
 
       await handler(req as any, res as any);
@@ -455,9 +455,9 @@ describe("stripe premium flow", () => {
       expect(res._getStatusCode()).toBe(200);
       expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          metadata: expect.objectContaining({ note2tabsDisplayCurrency: "jpy" }),
+          metadata: expect.objectContaining({ note2tabsDisplayCurrency: "brl" }),
           subscription_data: expect.objectContaining({
-            metadata: expect.objectContaining({ note2tabsDisplayCurrency: "jpy" }),
+            metadata: expect.objectContaining({ note2tabsDisplayCurrency: "brl" }),
           }),
         }),
         expect.anything()

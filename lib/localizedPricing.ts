@@ -3,6 +3,7 @@ import type { PaidSubscriptionPlan } from "./subscriptionPlans";
 
 export const DISPLAY_CURRENCIES = [
   "USD", "GBP", "EUR", "SEK", "CAD", "AUD", "NZD", "CHF", "NOK", "DKK", "JPY", "SGD",
+  "BRL", "INR", "IDR",
 ] as const;
 export type DisplayCurrency = (typeof DISPLAY_CURRENCIES)[number];
 
@@ -17,7 +18,7 @@ const EURO_COUNTRIES = new Set([
 const COUNTRY_CURRENCIES: Partial<Record<string, DisplayCurrency>> = {
   AU: "AUD", CA: "CAD", CH: "CHF", DK: "DKK", FO: "DKK", GL: "DKK",
   GB: "GBP", JP: "JPY", LI: "CHF", NO: "NOK", NZ: "NZD", SE: "SEK",
-  SG: "SGD", SJ: "NOK",
+  SG: "SGD", SJ: "NOK", BR: "BRL", IN: "INR", ID: "IDR",
 };
 
 export function displayCurrencyForCountry(country?: string | null): DisplayCurrency {
@@ -33,11 +34,13 @@ const PRICES: Record<PaidSubscriptionPlan, Record<BillingInterval, Record<Displa
       USD: 5.99, GBP: 4.99, EUR: 5.49, SEK: 59,
       CAD: 8.99, AUD: 8.99, NZD: 10.99, CHF: 4.99,
       NOK: 59, DKK: 39, JPY: 999, SGD: 8.49,
+      BRL: 14.99, INR: 299, IDR: 48999,
     },
     yearly: {
       USD: 59.99, GBP: 49.99, EUR: 54.99, SEK: 599,
       CAD: 85.99, AUD: 89.99, NZD: 109.99, CHF: 49.99,
       NOK: 599, DKK: 399, JPY: 9999, SGD: 84.99,
+      BRL: 149.99, INR: 2999, IDR: 489999,
     },
   },
   PRO: {
@@ -45,11 +48,13 @@ const PRICES: Record<PaidSubscriptionPlan, Record<BillingInterval, Record<Displa
       USD: 14.99, GBP: 11.99, EUR: 13.99, SEK: 149,
       CAD: 21.99, AUD: 21.99, NZD: 26.99, CHF: 12.49,
       NOK: 149, DKK: 99, JPY: 2499, SGD: 20.99,
+      BRL: 37.99, INR: 749, IDR: 119999,
     },
     yearly: {
       USD: 149.99, GBP: 119.99, EUR: 139.99, SEK: 1499,
       CAD: 214.99, AUD: 219.99, NZD: 269.99, CHF: 124.99,
       NOK: 1499, DKK: 999, JPY: 24999, SGD: 209.99,
+      BRL: 379.99, INR: 7499, IDR: 1199999,
     },
   },
 };
@@ -75,12 +80,16 @@ const SYMBOLS: Record<DisplayCurrency, string> = {
   DKK: "",
   JPY: "¥",
   SGD: "S$",
+  BRL: "R$",
+  INR: "₹",
+  IDR: "Rp",
 };
 
 export function formatLocalizedAmount(amount: number, currency: DisplayCurrency) {
   const formatted = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
   if (currency === "SEK" || currency === "NOK" || currency === "DKK") return `${formatted} kr`;
   if (currency === "CHF") return `CHF ${formatted}`;
+  if (currency === "IDR") return `Rp${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(amount)}`;
   return `${SYMBOLS[currency]}${formatted}`;
 }
 

@@ -21,7 +21,9 @@ describe("localized pricing", () => {
     expect(displayCurrencyForCountry("DK")).toBe("DKK");
     expect(displayCurrencyForCountry("JP")).toBe("JPY");
     expect(displayCurrencyForCountry("SG")).toBe("SGD");
-    expect(displayCurrencyForCountry("BR")).toBe("USD");
+    expect(displayCurrencyForCountry("BR")).toBe("BRL");
+    expect(displayCurrencyForCountry("IN")).toBe("INR");
+    expect(displayCurrencyForCountry("ID")).toBe("IDR");
   });
 
   it("matches the configured Stripe price options", () => {
@@ -36,6 +38,12 @@ describe("localized pricing", () => {
     expect(formatLocalizedPrice("PREMIUM", "monthly", "DKK")).toBe("39 kr");
     expect(formatLocalizedPrice("PREMIUM", "monthly", "JPY")).toBe("¥999");
     expect(formatLocalizedPrice("PRO", "monthly", "SGD")).toBe("S$20.99");
+    expect(formatLocalizedPrice("PREMIUM", "monthly", "BRL")).toBe("R$14.99");
+    expect(formatLocalizedPrice("PREMIUM", "monthly", "INR")).toBe("₹299");
+    expect(formatLocalizedPrice("PREMIUM", "monthly", "IDR")).toBe("Rp48,999");
+    expect(formatLocalizedPrice("PRO", "monthly", "BRL")).toBe("R$37.99");
+    expect(formatLocalizedPrice("PRO", "monthly", "INR")).toBe("₹749");
+    expect(formatLocalizedPrice("PRO", "monthly", "IDR")).toBe("Rp119,999");
     expect(localizedAnnualSaving("PREMIUM", "GBP")).toBe("£10");
   });
 
@@ -55,13 +63,16 @@ describe("localized pricing", () => {
       DKK: 7.4736,
       JPY: 176.99,
       SGD: 1.4366,
+      BRL: 5.86,
+      INR: 104.55,
+      IDR: 18695,
     } as const;
 
     for (const plan of ["PREMIUM", "PRO"] as const) {
       for (const interval of ["monthly", "yearly"] as const) {
         const usdAmount = localizedPriceAmount(plan, interval, "USD");
         for (const currency of DISPLAY_CURRENCIES.filter(
-          (candidate) => candidate !== "SEK" && candidate !== "DKK"
+          (candidate) => !["SEK", "DKK", "BRL", "INR", "IDR"].includes(candidate)
         )) {
           const usdEquivalent = usdAmount * currencyPerEuro[currency] / usdPerEuro;
           expect(
@@ -87,6 +98,9 @@ describe("localized pricing", () => {
     expect(readDisplayCurrencyCookie("analytics_consent=granted; n2t_currency=SEK")).toBe("SEK");
     expect(readDisplayCurrencyCookie("n2t_currency=CAD")).toBe("CAD");
     expect(readDisplayCurrencyCookie("n2t_currency=JPY")).toBe("JPY");
+    expect(readDisplayCurrencyCookie("n2t_currency=BRL")).toBe("BRL");
+    expect(readDisplayCurrencyCookie("n2t_currency=INR")).toBe("INR");
+    expect(readDisplayCurrencyCookie("n2t_currency=IDR")).toBe("IDR");
     expect(readDisplayCurrencyCookie("n2t_currency=invalid")).toBe("USD");
     expect(readDisplayCurrencyCookie("")).toBe("USD");
   });
