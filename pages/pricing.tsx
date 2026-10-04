@@ -1,3 +1,4 @@
+import { pricingMeasurementContext } from "../lib/pricingMeasurement";
 import { MAX_FREE_FILE_SNIPPET_SEC, MAX_FREE_YOUTUBE_SNIPPET_SEC } from "../lib/transcriptionClip";
 import { calculateTranscriptionCredits } from "../lib/transcriptionModels";
 import Link from "next/link";
@@ -62,6 +63,11 @@ export default function PricingPage() {
     { question: "What happens to unused credits?", answer: `Free credits do not roll over. Premium credits roll over up to ${PLAN_CATALOG.PREMIUM.rolloverCap}${showPro ? ` and Pro credits up to ${PLAN_CATALOG.PRO.rolloverCap}` : ""}.` },
     { question: "Can I cancel anytime?", answer: "Yes. Cancel in account settings to stop your next renewal. Access continues through the current billing period." },
   ];
+  const measurementContext = useCallback(() => pricingMeasurementContext({
+    role: currentRole, plan: currentPlan, signedIn: Boolean(session),
+    billingInterval, displayCurrency,
+    userAgent: typeof navigator === "undefined" ? undefined : navigator.userAgent,
+  }), [currentRole, currentPlan, session, billingInterval, displayCurrency]);
   const description =
     "Monthly and yearly pricing for Note2Tabs. Compare Free, Premium, and Pro plans for guitar tab transcription and editing.";
   const pricingJsonLd = [
@@ -123,21 +129,23 @@ export default function PricingPage() {
   }, [entryReason, entrySource, router.query.funnel_id]);
 
   useEffect(() => {
-    if (!router.isReady || !offerVariantResolved || pricingViewTrackedRef.current) return;
+    if (!router.isReady || sessionStatus === "loading" || !offerVariantResolved || pricingViewTrackedRef.current) return;
     pricingViewTrackedRef.current = true;
     const funnel = getFunnelContext();
     sendEvent(ANALYTICS_EVENTS.pricingViewed, {
       path: "/pricing",
+      ...measurementContext(),
       display_currency: readDisplayCurrencyCookie(document.cookie).toLowerCase(),
       ...premiumFunnelProperties(funnel),
       ...premiumOfferExperimentProperties(offerVariant),
     });
-  }, [getFunnelContext, offerVariant, offerVariantResolved, router.isReady]);
+  }, [getFunnelContext, measurementContext, offerVariant, offerVariantResolved, router.isReady, sessionStatus]);
 
-  const startCheckout = useCallback(async (plan: PaidSubscriptionPlan = "PREMIUM") => {
+  const startCheckout = useCallback(async (plan: PaidSubscriptionPlan = "PREMIUM", resumed = false) => {
     if (checkoutBusy) return;
     const funnel = getFunnelContext();
-    sendEvent(ANALYTICS_EVENTS.pricingCtaClicked, {
+    sendEvent(resumed ? ANALYTICS_EVENTS.pricingCheckoutResumed : ANALYTICS_EVENTS.pricingCtaClicked, {
+      ...measurementContext(),
       cta: plan === "PRO" ? "pro_offer" : "premium_offer",
       plan: plan.toLowerCase(),
       billing_interval: billingInterval,
@@ -149,6 +157,10 @@ export default function PricingPage() {
     });
     if (!session) {
       const callbackUrl = `${premiumPricingHref(funnel)}&checkout=1&plan=${plan.toLowerCase()}&billing=${billingInterval}`;
+      sendEvent(ANALYTICS_EVENTS.pricingAuthHandoff, {
+        ...measurementContext(), plan: plan.toLowerCase(),
+        ...premiumFunnelProperties(funnel), ...premiumOfferExperimentProperties(offerVariant),
+      });
       await signIn(undefined, { callbackUrl });
       return;
     }
@@ -159,6 +171,7 @@ export default function PricingPage() {
 
     setCheckoutBusy(true);
     setCheckoutError(null);
+    let failureStatus: number | undefined;
     try {
       const response = await fetch(hasPaidPremium ? "/api/stripe/change-plan" : "/api/stripe/create-checkout-session", {
         method: "POST",
@@ -173,11 +186,13 @@ export default function PricingPage() {
           displayCurrency: displayCurrency.toLowerCase(),
         }),
       });
+      failureStatus = response.status;
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || (!hasPaidPremium && !payload?.url)) {
         throw new Error(payload?.error || "Checkout is temporarily unavailable. Please try again in a moment.");
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
+        ...measurementContext(),
         plan: `${plan.toLowerCase()}_${billingInterval}`,
         billing_interval: billingInterval,
         checkout_attempt_id: payload.checkoutAttemptId,
@@ -201,6 +216,9 @@ export default function PricingPage() {
       else await router.push("/settings?planChanged=1");
     } catch (error) {
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
+        ...measurementContext(),
+        failure_category: failureStatus === undefined ? "network" : failureStatus >= 400 ? "http_error" : "invalid_response_or_navigation",
+        http_status: failureStatus,
         plan: `${plan.toLowerCase()}_${billingInterval}`,
         billing_interval: billingInterval,
         ...premiumFunnelProperties(funnel),
@@ -213,7 +231,7 @@ export default function PricingPage() {
       );
       setCheckoutBusy(false);
     }
-  }, [billingInterval, checkoutBusy, currentPlan, displayCurrency, getFunnelContext, hasPaidPremium, hasStaffAccess, offerVariant, router, session]);
+  }, [billingInterval, checkoutBusy, currentPlan, displayCurrency, getFunnelContext, hasPaidPremium, hasStaffAccess, measurementContext, offerVariant, router, session]);
 
   useEffect(() => {
     if (!router.isReady || router.query.checkout !== "1") return;
@@ -226,7 +244,7 @@ export default function PricingPage() {
     resumedCheckoutRef.current = true;
     const funnel = getFunnelContext();
     void router.replace(premiumPricingHref(funnel), undefined, { shallow: true });
-    void startCheckout(router.query.plan === "pro" ? "PRO" : "PREMIUM");
+    void startCheckout(router.query.plan === "pro" ? "PRO" : "PREMIUM", true);
   }, [billingInterval, getFunnelContext, offerVariantResolved, router.isReady, router.query.billing, router.query.checkout, router.query.plan, sessionStatus, startCheckout]);
 
   const planOrder = compact
@@ -237,7 +255,14 @@ export default function PricingPage() {
     <main className="page page-pricing"><section className="pricing-page pricing-page--focused"><div className="container pricing-page__container">
       <header className="pricing-page__hero"><h1>More music. More room to transcribe.</h1></header>
       <div className="pricing-billing-toggle" role="group" aria-label="Billing interval">
-        {(["monthly", "yearly"] as const).map((interval) => <button key={interval} type="button" aria-pressed={billingInterval === interval} className={billingInterval === interval ? "is-active" : ""} onClick={() => setBillingInterval(interval)} disabled={checkoutBusy}>{interval === "monthly" ? "Monthly" : <>Yearly<span className="pricing-billing-toggle__saving">Save {localizedAnnualSaving(showPro ? "PRO" : "PREMIUM", displayCurrency)}!</span></>}</button>)}
+        {(["monthly", "yearly"] as const).map((interval) => <button key={interval} type="button" aria-pressed={billingInterval === interval} className={billingInterval === interval ? "is-active" : ""} onClick={() => {
+          if (interval === billingInterval) return;
+          sendEvent(ANALYTICS_EVENTS.pricingBillingSelected, {
+            ...measurementContext(), billing_interval: interval,
+            ...premiumFunnelProperties(getFunnelContext()), ...premiumOfferExperimentProperties(offerVariant),
+          });
+          setBillingInterval(interval);
+        }} disabled={checkoutBusy}>{interval === "monthly" ? "Monthly" : <>Yearly<span className="pricing-billing-toggle__saving">Save {localizedAnnualSaving(showPro ? "PRO" : "PREMIUM", displayCurrency)}!</span></>}</button>)}
       </div>
       <section className={`pricing-page__plans${showPro ? " pricing-page__plans--three" : ""}`} aria-label="Note2Tabs plans">
         {planOrder.map((id) => {
