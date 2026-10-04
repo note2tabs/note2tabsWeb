@@ -122,7 +122,7 @@ export default function TermsPage() {
             (aktiebolag).
           </p>
           <p>
-            Managing director and website representative: <strong>Noel Solomon</strong>
+            Co-founders and website representatives: <strong>Noel Solomon</strong> and <strong>Aron Salamon</strong>
           </p>
           <p>
             Registered address:<br />
