@@ -43,17 +43,17 @@ Validated live subscription Checkout pools as of 2026-10-04:
 | United Kingdom / GBP | Card, Klarna, Link, Amazon Pay |
 | Sweden / SEK | Card, Klarna, Link, Amazon Pay |
 | Brazil / BRL | Card, Link, Pix Automático |
-| India / INR | Card, Link, UPI AutoPay |
+| India / INR | Card, Link, UPI (Stripe dashboard and API both report it active and available) |
 | Indonesia / IDR | Card, Link |
 
 Apple Pay and Google Pay are enabled wallet presentations of eligible card
 payments and appear only on supported devices and browsers. iDEAL/Wero is
 enabled for Dutch EUR customers and renews through SEPA Direct Debit. Satispay
-is enabled for eligible Italian EUR customers. TWINT and Bacs Direct Debit are
-requested for Swiss CHF and British GBP customers respectively, but remain
-unavailable until Stripe completes the payment-method onboarding for this
-account. PayPal, US ACH, and Cartes Bancaires are also requested but currently
-unavailable.
+is enabled for eligible Italian EUR customers. TWINT is pending Stripe approval
+for Swiss CHF customers. Cartes Bancaires is pending for French EUR customers.
+Bacs Direct Debit is configured as preferred but remains inactive until its
+separate Dashboard activation flow is completed. PayPal and Alipay currently
+report that this account is ineligible.
 
 Stripe's dynamic payment methods perform the final country, currency, device,
 and subscription-compatibility filtering. Enabling a regional method therefore
@@ -63,6 +63,12 @@ MobilePay, Swish, Bancontact, EPS, Przelewy24, Pay by Bank, Bizum, MB WAY,
 Multibanco, and OXXO. Alipay, WeChat Pay, and the Korean wallets remain disabled
 until the corresponding recurring capability and an approved local Price are
 both available.
+
+Live Dashboard status was reconciled with the Payment Method Configuration API
+on 2026-10-04. The methods that are both active and relevant to the current
+subscription currencies are card, Apple Pay, Google Pay, Link, Amazon Pay,
+Revolut Pay, Klarna, SEPA Direct Debit, iDEAL/Wero, Satispay, Pix, and UPI.
+BLIK is active but needs a PLN Price before it can be useful to Polish buyers.
 
 Potential next markets require explicit price approval before adding another
 currency option to the immutable Stripe Prices:
