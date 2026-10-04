@@ -4182,27 +4182,17 @@ input[type="number"] {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 26px;
-  padding: 14px 0;
-}
-
-.nav-shell--home .nav {
   gap: 20px;
   padding: 10px 0;
 }
 
-.nav-shell--home .logo {
+.nav .logo {
   font-size: 0.98rem;
 }
 
-.nav-shell--home .logo-mark {
+.nav .logo-mark {
   width: 24px;
   height: 24px;
-}
-
-.nav-shell--home .nav-links {
-  font-size: 0.94rem;
-  gap: 18px;
 }
 
 .nav-shell--home .nav-cta {
@@ -4223,7 +4213,8 @@ input[type="number"] {
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 18px;
+  font-size: 0.94rem;
   font-weight: 400;
   color: #0b0f1a;
   margin-left: auto;
@@ -4234,8 +4225,8 @@ input[type="number"] {
   align-items: center;
   justify-content: flex-end;
   gap: 22px;
-  width: 180px;
-  min-width: 180px;
+  width: 166px;
+  min-width: 166px;
   min-height: 41px;
 }
 
@@ -4243,13 +4234,7 @@ input[type="number"] {
   min-height: 41px;
 }
 
-.nav-shell--home .nav-auth-slot {
-  width: 166px;
-  min-width: 166px;
-}
-
-.nav-auth-slot--profile,
-.nav-shell--home .nav-auth-slot--profile {
+.nav-auth-slot--profile {
   width: 41px;
   min-width: 41px;
   gap: 0;
@@ -4346,7 +4331,7 @@ input[type="number"] {
 }
 
 .nav-cta {
-  padding: 10px 18px;
+  padding: 8px 14px;
   border-radius: 999px;
   background: linear-gradient(135deg, #0f172a, #1f2937);
   color: #ffffff;
@@ -9839,10 +9824,6 @@ input[type="number"] {
 }
 
 @media (max-width: 860px) {
-  .nav-shell--home .nav-links {
-    top: 56px;
-  }
-
   .hero-doodle-field {
     display: none;
   }
@@ -11412,7 +11393,7 @@ input[type="number"] {
   .nav-links {
     display: none;
     position: absolute;
-    top: 64px;
+    top: 56px;
     right: 16px;
     flex-direction: column;
     gap: 18px;
