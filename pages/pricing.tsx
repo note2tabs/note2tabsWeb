@@ -236,7 +236,7 @@ export default function PricingPage() {
     <main className="page page-pricing"><section className="pricing-page pricing-page--focused"><div className="container pricing-page__container">
       <header className="pricing-page__hero"><h1>More music. More room to transcribe.</h1></header>
       <div className="pricing-billing-toggle" role="group" aria-label="Billing interval">
-        {(["monthly", "yearly"] as const).map((interval) => <button key={interval} type="button" aria-pressed={billingInterval === interval} className={billingInterval === interval ? "is-active" : ""} onClick={() => setBillingInterval(interval)} disabled={checkoutBusy}>{interval === "monthly" ? "Monthly" : <>Yearly<span className="pricing-billing-toggle__saving">Save {localizedAnnualSaving(showPro ? "PRO" : "PREMIUM", displayCurrency)} on {showPro ? "Pro" : "Premium"}</span></>}</button>)}
+        {(["monthly", "yearly"] as const).map((interval) => <button key={interval} type="button" aria-pressed={billingInterval === interval} className={billingInterval === interval ? "is-active" : ""} onClick={() => setBillingInterval(interval)} disabled={checkoutBusy}>{interval === "monthly" ? "Monthly" : <>Yearly<span className="pricing-billing-toggle__saving">Save {localizedAnnualSaving(showPro ? "PRO" : "PREMIUM", displayCurrency)}!</span></>}</button>)}
       </div>
       <section className={`pricing-page__plans${showPro ? " pricing-page__plans--three" : ""}`} aria-label="Note2Tabs plans">
         {planOrder.map((id) => {
