@@ -27,19 +27,19 @@ describe("localized pricing", () => {
   it("matches the configured Stripe price options", () => {
     expect(formatLocalizedPrice("PREMIUM", "monthly", "GBP")).toBe("£4.99");
     expect(formatLocalizedPrice("PRO", "yearly", "EUR")).toBe("€139.99");
-    expect(formatLocalizedPrice("PRO", "monthly", "SEK")).toBe("151 kr");
+    expect(formatLocalizedPrice("PRO", "monthly", "SEK")).toBe("149 kr");
     expect(formatLocalizedPrice("PREMIUM", "monthly", "CAD")).toBe("CA$8.99");
     expect(formatLocalizedPrice("PRO", "monthly", "AUD")).toBe("A$21.99");
     expect(formatLocalizedPrice("PREMIUM", "yearly", "NZD")).toBe("NZ$109.99");
     expect(formatLocalizedPrice("PREMIUM", "monthly", "CHF")).toBe("CHF 4.99");
     expect(formatLocalizedPrice("PRO", "monthly", "NOK")).toBe("149 kr");
-    expect(formatLocalizedPrice("PREMIUM", "monthly", "DKK")).toBe("40 kr");
+    expect(formatLocalizedPrice("PREMIUM", "monthly", "DKK")).toBe("39 kr");
     expect(formatLocalizedPrice("PREMIUM", "monthly", "JPY")).toBe("¥949");
     expect(formatLocalizedPrice("PRO", "monthly", "SGD")).toBe("S$20.99");
     expect(localizedAnnualSaving("PREMIUM", "GBP")).toBe("£10");
   });
 
-  it("never prices a localized plan below its USD equivalent", () => {
+  it("never prices non-psychological localized plans below their USD equivalent", () => {
     // ECB reference rates published 2026-10-02, converted from EUR crosses.
     const usdPerEuro = 1.1225;
     const currencyPerEuro = {
@@ -60,12 +60,24 @@ describe("localized pricing", () => {
     for (const plan of ["PREMIUM", "PRO"] as const) {
       for (const interval of ["monthly", "yearly"] as const) {
         const usdAmount = localizedPriceAmount(plan, interval, "USD");
-        for (const currency of DISPLAY_CURRENCIES) {
+        for (const currency of DISPLAY_CURRENCIES.filter(
+          (candidate) => candidate !== "SEK" && candidate !== "DKK"
+        )) {
           const usdEquivalent = usdAmount * currencyPerEuro[currency] / usdPerEuro;
           expect(
             localizedPriceAmount(plan, interval, currency) + Number.EPSILON * 100,
             `${plan} ${interval} ${currency}`
           ).toBeGreaterThanOrEqual(usdEquivalent);
+        }
+      }
+    }
+  });
+
+  it("uses ending-in-9 commercial prices for SEK and DKK", () => {
+    for (const plan of ["PREMIUM", "PRO"] as const) {
+      for (const interval of ["monthly", "yearly"] as const) {
+        for (const currency of ["SEK", "DKK"] as const) {
+          expect(String(localizedPriceAmount(plan, interval, currency))).toMatch(/9$/);
         }
       }
     }
