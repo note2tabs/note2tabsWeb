@@ -29,10 +29,60 @@ are fixed prices rather than live conversions; review them periodically against
 payment fees, foreign-exchange costs, taxes, refunds, and model usage costs.
 
 Stripe Checkout uses dynamic payment methods: the application deliberately
-does not pass `payment_method_types`. Google Pay and Revolut Pay are enabled in
-the live Default payment-method configuration. Pix and UPI are enabled by
-preference but still require Stripe to mark the account eligible before they
-can appear. Managed Payments is not enabled.
+does not pass `payment_method_types`. Managed Payments is not enabled. Stripe
+filters the enabled methods by the Checkout currency, buyer location, device,
+browser, and subscription compatibility instead of showing every enabled
+method in every session.
+
+Validated live subscription Checkout pools as of 2026-10-04:
+
+| Market/currency | Eligible pool before buyer/device ranking |
+| --- | --- |
+| United States / USD | Card, Link, Amazon Pay |
+| Euro area / EUR | Card, SEPA Direct Debit, Klarna, Link, Revolut Pay, Amazon Pay |
+| United Kingdom / GBP | Card, Klarna, Link, Amazon Pay |
+| Sweden / SEK | Card, Klarna, Link, Amazon Pay |
+| Brazil / BRL | Card, Link, Pix Automático |
+| India / INR | Card, Link, UPI AutoPay |
+| Indonesia / IDR | Card, Link |
+
+Apple Pay and Google Pay are enabled wallet presentations of eligible card
+payments and appear only on supported devices and browsers. PayPal, US ACH,
+and Cartes Bancaires remain requested but unavailable on the Stripe account.
+Methods that cannot support Note2Tabs' automatically charged subscription flow,
+or that target a market without an approved local Price, are disabled to keep
+Checkout focused. This includes iDEAL/Wero, Bancontact, EPS, TWINT, Alipay,
+WeChat Pay, and the Korean wallets until their corresponding rollout is ready.
+
+Potential next markets require explicit price approval before adding another
+currency option to the immutable Stripe Prices:
+
+| Priority | Market | Currency | Relevant Stripe method | Status |
+| --- | --- | --- | --- | --- |
+| 1 | China | CNY | Alipay; WeChat Pay | Recurring access requires Stripe approval; keep disabled until approved and tested |
+| 1 | Mexico | MXN | Cards and wallets | OXXO cannot fund an automatically renewed subscription |
+| 1 | Philippines | PHP | Cards and wallets | No Philippine-specific recurring method for the Swedish account |
+| 2 | Malaysia | MYR | Cards and wallets | FPX/GrabPay aren't available to the Swedish account for this subscription flow |
+| 2 | Thailand | THB | Cards and wallets | PromptPay doesn't support automatic subscription Checkout here |
+| 2 | South Africa | ZAR | Cards and wallets | No local bank method available through this account |
+| 2 | Poland | PLN | BLIK | BLIK is eligible and can be activated with an approved PLN Price |
+| 2 | South Korea | KRW | Korean cards and wallets | Eligible methods exist; activate only with an approved KRW Price |
+
+Suggested monthly price alternatives for review (not configured):
+
+| Market | Premium conservative | Premium growth | Pro conservative | Pro growth |
+| --- | ---: | ---: | ---: | ---: |
+| China | CN¥39 | CN¥29 | CN¥99 | CN¥79 |
+| Mexico | MX$99 | MX$79 | MX$249 | MX$199 |
+| Philippines | ₱299 | ₱199 | ₱749 | ₱499 |
+| Malaysia | RM25 | RM19 | RM59 | RM49 |
+| Thailand | ฿199 | ฿149 | ฿499 | ฿399 |
+| South Africa | R99 | R79 | R249 | R199 |
+| Poland | 24.99 zł | 19.99 zł | 59.99 zł | 49.99 zł |
+| South Korea | ₩9,900 | ₩7,900 | ₩24,900 | ₩19,900 |
+
+Before approving a growth price, compare net receipts after payment-method
+fees, FX, tax, refunds, affiliate commission, and transcription/model costs.
 
 USD remains the fallback outside configured regions. Existing subscribers
 remain on their current subscription currency. New Checkout sessions can use
