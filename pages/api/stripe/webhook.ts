@@ -16,7 +16,11 @@ import {
   stripeSubscriptionMatchesPremium,
   type StripePremiumConfig,
 } from "../../../lib/stripePremium";
-import { PLAN_CATALOG, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
+import {
+  PLAN_CATALOG,
+  isPaidPlan,
+  type PaidSubscriptionPlan,
+} from "../../../lib/subscriptionPlans";
 import {
   createPostHogServerClient,
   flushPostHogServerClientInBackground,
@@ -174,7 +178,12 @@ async function setPremiumForIdentifier(identifier: UserIdentifier, plan: PaidSub
   if (user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD") {
     return null;
   }
-  const isAlreadyPaid = user.role === "PREMIUM";
+  // A paid role on its own is not a complete activation. In particular, an
+  // interrupted/racing entitlement update can leave the user with PREMIUM as
+  // their role while their persisted plan and balance are still FREE. Treating
+  // that state as an existing subscription would preserve the 10-credit free
+  // balance instead of granting the plan allocation.
+  const isAlreadyPaid = user.role === "PREMIUM" && isPaidPlan(user.subscriptionPlan);
   const definition = PLAN_CATALOG[plan];
   const tokensRemaining =
     !isAlreadyPaid

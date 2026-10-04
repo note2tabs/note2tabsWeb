@@ -1135,6 +1135,47 @@ describe("stripe premium flow", () => {
       });
     });
 
+    it("repairs a partial Premium activation instead of preserving the free balance", async () => {
+      stripeMock.subscriptions.retrieve.mockResolvedValue(
+        premiumSubscription({ status: "active" })
+      );
+      stripeMock.checkout.sessions.retrieve.mockResolvedValue({
+        id: "cs_partial_activation",
+        mode: "subscription",
+        status: "complete",
+        metadata: {
+          userId: "user_1",
+          note2tabsPlan: "premium",
+          note2tabsPriceId: "price_test_premium",
+        },
+        line_items: { data: [{ price: premiumPrice }] },
+        subscription: premiumSubscription({ status: "active" }),
+      });
+      prismaMock.user.findFirst.mockResolvedValue({
+        id: "user_1",
+        role: "PREMIUM",
+        subscriptionPlan: "FREE",
+        tokensRemaining: STARTING_CREDITS,
+      });
+      const handler = (await import("../../pages/api/stripe/confirm-checkout-session")).default;
+      const { req, res } = createMocks({
+        method: "POST",
+        body: { sessionId: "cs_partial_activation" },
+      });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: "user_1" },
+        data: {
+          role: "PREMIUM",
+          subscriptionPlan: "PREMIUM",
+          tokensRemaining: PREMIUM_MONTHLY_CREDITS,
+        },
+      });
+    });
+
     it("rejects a completed checkout for an unrelated product", async () => {
       stripeMock.checkout.sessions.retrieve.mockResolvedValue({
         id: "cs_other",
@@ -1381,6 +1422,47 @@ describe("stripe premium flow", () => {
           event_source: "stripe_webhook",
           $insert_id: "subscription-started:cs_premium",
         }),
+      });
+    });
+
+    it("repairs a webhook activation with a paid role but a free plan and balance", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            id: "cs_partial_webhook",
+            mode: "subscription",
+            metadata: {
+              userId: "user_1",
+              note2tabsPlan: "premium",
+              note2tabsPriceId: "price_test_premium",
+            },
+            subscription: premiumSubscription(),
+            customer_details: { email: "user@example.com" },
+          },
+        },
+      });
+      prismaMock.user.findFirst.mockResolvedValue({
+        id: "user_1",
+        role: "PREMIUM",
+        subscriptionPlan: "FREE",
+        tokensRemaining: STARTING_CREDITS,
+      });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const req = buildWebhookReq();
+      const res = createResponse();
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: "user_1" },
+        data: {
+          role: "PREMIUM",
+          subscriptionPlan: "PREMIUM",
+          tokensRemaining: PREMIUM_MONTHLY_CREDITS,
+        },
       });
     });
 
