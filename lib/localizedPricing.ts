@@ -32,24 +32,24 @@ const PRICES: Record<PaidSubscriptionPlan, Record<BillingInterval, Record<Displa
     monthly: {
       USD: 5.99, GBP: 4.99, EUR: 5.49, SEK: 59,
       CAD: 8.99, AUD: 8.99, NZD: 10.99, CHF: 4.99,
-      NOK: 59, DKK: 39, JPY: 949, SGD: 8.49,
+      NOK: 59, DKK: 39, JPY: 999, SGD: 8.49,
     },
     yearly: {
       USD: 59.99, GBP: 49.99, EUR: 54.99, SEK: 599,
       CAD: 85.99, AUD: 89.99, NZD: 109.99, CHF: 49.99,
-      NOK: 599, DKK: 399, JPY: 9499, SGD: 84.99,
+      NOK: 599, DKK: 399, JPY: 9999, SGD: 84.99,
     },
   },
   PRO: {
     monthly: {
       USD: 14.99, GBP: 11.99, EUR: 13.99, SEK: 149,
       CAD: 21.99, AUD: 21.99, NZD: 26.99, CHF: 12.49,
-      NOK: 149, DKK: 99, JPY: 2399, SGD: 20.99,
+      NOK: 149, DKK: 99, JPY: 2499, SGD: 20.99,
     },
     yearly: {
       USD: 149.99, GBP: 119.99, EUR: 139.99, SEK: 1499,
       CAD: 214.99, AUD: 219.99, NZD: 269.99, CHF: 124.99,
-      NOK: 1499, DKK: 999, JPY: 23999, SGD: 209.99,
+      NOK: 1499, DKK: 999, JPY: 24999, SGD: 209.99,
     },
   },
 };

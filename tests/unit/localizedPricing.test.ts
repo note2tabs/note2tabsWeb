@@ -34,7 +34,7 @@ describe("localized pricing", () => {
     expect(formatLocalizedPrice("PREMIUM", "monthly", "CHF")).toBe("CHF 4.99");
     expect(formatLocalizedPrice("PRO", "monthly", "NOK")).toBe("149 kr");
     expect(formatLocalizedPrice("PREMIUM", "monthly", "DKK")).toBe("39 kr");
-    expect(formatLocalizedPrice("PREMIUM", "monthly", "JPY")).toBe("¥949");
+    expect(formatLocalizedPrice("PREMIUM", "monthly", "JPY")).toBe("¥999");
     expect(formatLocalizedPrice("PRO", "monthly", "SGD")).toBe("S$20.99");
     expect(localizedAnnualSaving("PREMIUM", "GBP")).toBe("£10");
   });
