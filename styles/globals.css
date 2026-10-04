@@ -13964,3 +13964,25 @@ input[type="number"] {
 }
 
 .pricing-page--focused button:focus-visible, .pricing-page--focused a:focus-visible, .pricing-page--focused summary:focus-visible { outline: 3px solid #262522; outline-offset: 4px; }
+
+/* Preserve the full localized saving, even when the currency has large figures. */
+.pricing-page--focused .pricing-billing-toggle { max-width: 100%; }
+.pricing-page--focused .pricing-billing-toggle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pricing-page--focused .pricing-billing-toggle__saving {
+  margin-left: 0;
+  color: #21704c;
+  white-space: nowrap;
+  font-size: .76rem;
+}
+.pricing-page--focused .pricing-billing-toggle button.is-active .pricing-billing-toggle__saving { color: #9ee0c9; }
+@media (max-width: 480px) {
+  .pricing-page--focused .pricing-billing-toggle button { padding: 8px 12px; }
+  .pricing-page--focused .pricing-billing-toggle button:last-child { flex-direction: column; gap: 2px; }
+  .pricing-page--focused .pricing-billing-toggle__saving { font-size: .72rem; }
+}

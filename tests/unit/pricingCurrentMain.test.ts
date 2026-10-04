@@ -30,6 +30,7 @@ describe("pricing design uses current offers and localized pricing", () => {
       expect(html).toContain(escape(formatLocalizedPrice("PREMIUM", interval, currency)));
       expect(html).toContain(escape(formatLocalizedPrice("PRO", interval, currency)));
       expect(html).toContain(escape(formatLocalizedAmount(0, currency)));
+      expect(html).toContain(`Save ${escape(localizedAnnualSaving("PRO", currency))} on Pro`);
       if (interval === "yearly") {
         expect(html).toContain(escape(localizedAnnualSaving("PREMIUM", currency)));
         expect(html).toContain(escape(localizedAnnualSaving("PRO", currency)));
@@ -42,7 +43,8 @@ describe("pricing design uses current offers and localized pricing", () => {
     vi.stubEnv("NEXT_PUBLIC_PRO_PLAN_PREVIEW", "false");
     const html = renderToStaticMarkup(createElement(PricingPage));
     expect(html).not.toContain("pricing-plan--pro");
-    expect(html).toContain(">Yearly</button>");
+    expect(html).toContain("Yearly<span");
+    expect(html).toContain(`Save ${escape(localizedAnnualSaving("PREMIUM", state.currency as DisplayCurrency))} on Premium`);
   });
   it("states current model access and keeps secondary information collapsed", () => {
     state.currency = "USD";
