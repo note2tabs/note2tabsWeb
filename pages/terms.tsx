@@ -122,6 +122,9 @@ export default function TermsPage() {
             (aktiebolag).
           </p>
           <p>
+            Managing director and website representative: <strong>Noel Solomon</strong>
+          </p>
+          <p>
             Registered address:<br />
             Telegrafgatan 5<br />
             169 72 Solna<br />
