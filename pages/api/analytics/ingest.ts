@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]";
+import { getToken } from "next-auth/jwt";
 import { ingestAnalyticsEvents } from "../../../lib/analyticsV2/ingest";
 import { attachFunctionTiming } from "../../../lib/functionTiming";
 
@@ -24,8 +23,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const session = await getServerSession(req, res, authOptions);
-    const accountId = session?.user?.id || null;
+    // Telemetry needs verified identity, without session callbacks or cookie renewal.
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+    const accountId = typeof token?.id === "string" ? token.id : null;
     const result = await ingestAnalyticsEvents({
       req,
       res,
