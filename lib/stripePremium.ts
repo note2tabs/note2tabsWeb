@@ -78,6 +78,9 @@ export function stripeSubscriptionBillingInterval(
   subscription: Pick<Stripe.Subscription, "items"> | null | undefined,
   plan: PaidSubscriptionPlan
 ): BillingInterval {
+  if (subscription?.items?.data?.some((item) => item.price?.recurring?.interval === "year")) {
+    return "yearly";
+  }
   const yearlyPriceId = (plan === "PRO"
     ? process.env.STRIPE_PRICE_PRO_YEARLY
     : process.env.STRIPE_PRICE_PREMIUM_YEARLY)?.trim();
